@@ -9,11 +9,14 @@ import {
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -342,6 +345,78 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps
 }
 
 // ---------------------------------------------------------------------------
+// Caption sheet
+// ---------------------------------------------------------------------------
+
+function CaptionSheet({
+  visible,
+  initialCaption,
+  saving,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  initialCaption: string | null;
+  saving: boolean;
+  onSave: (caption: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(initialCaption ?? "");
+
+  // Reset text whenever the sheet opens for a (possibly different) photo
+  useEffect(() => {
+    if (visible) setText(initialCaption ?? "");
+  }, [visible, initialCaption]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView
+        style={styles.sheetOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <Pressable style={styles.sheetDismiss} onPress={onClose} />
+        <View style={styles.sheetCard}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Edit Caption</Text>
+          <TextInput
+            style={styles.sheetInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="e.g. Post-harvest Oct 2025"
+            placeholderTextColor={colors.textSecondary}
+            maxLength={200}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => onSave(text)}
+          />
+          <View style={styles.sheetRow}>
+            <Pressable style={styles.sheetCancel} onPress={onClose}>
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sheetSave, saving && styles.sheetSaveDisabled]}
+              onPress={() => onSave(text)}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.sheetSaveText}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Thumbnail
 // ---------------------------------------------------------------------------
 
@@ -349,16 +424,19 @@ function PhotoThumbnail({
   photo,
   onDelete,
   onPress,
+  onEditCaption,
 }: {
   photo: BlockPhoto;
   onDelete: (id: number) => void;
   onPress: (uri: string | null, photo: BlockPhoto) => void;
+  onEditCaption: (photo: BlockPhoto) => void;
 }) {
   const uri = photo.downloadUrl ?? null;
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Delete Photo", "Remove this photo from the block gallery?", [
+    Alert.alert("Photo Options", undefined, [
+      { text: "Edit Caption", onPress: () => onEditCaption(photo) },
       { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
       { text: "Cancel", style: "cancel" },
     ]);
@@ -403,6 +481,10 @@ export default function VineBlockPhotosScreen() {
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxVisible, setLightboxVisible] = useState(false);
+
+  // Caption sheet state
+  const [captionPhoto, setCaptionPhoto] = useState<BlockPhoto | null>(null);
+  const [captionSaving, setCaptionSaving] = useState(false);
 
   const openLightbox = useCallback((_uri: string | null, photo: BlockPhoto) => {
     setPhotos((prev) => {
@@ -513,6 +595,39 @@ export default function VineBlockPhotosScreen() {
     }
   };
 
+  const handleEditCaption = useCallback((photo: BlockPhoto) => {
+    setCaptionPhoto(photo);
+  }, []);
+
+  const handleSaveCaption = async (caption: string) => {
+    if (!currentFarm?.id || !selectedBlock || !captionPhoto) return;
+    setCaptionSaving(true);
+    try {
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/${captionPhoto.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption: caption.trim() || null }),
+        },
+      );
+      if (res.ok) {
+        const trimmed = caption.trim() || null;
+        setPhotos((prev) =>
+          prev.map((p) => (p.id === captionPhoto.id ? { ...p, caption: trimmed } : p)),
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCaptionPhoto(null);
+      } else {
+        Alert.alert("Error", "Could not save the caption. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not save the caption.");
+    } finally {
+      setCaptionSaving(false);
+    }
+  };
+
   const handleDelete = async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
     try {
@@ -603,6 +718,7 @@ export default function VineBlockPhotosScreen() {
               photo={item}
               onDelete={handleDelete}
               onPress={openLightbox}
+              onEditCaption={handleEditCaption}
             />
           )}
           ListFooterComponent={
@@ -615,7 +731,7 @@ export default function VineBlockPhotosScreen() {
                 loading={uploading}
                 fullWidth
               />
-              <Text style={styles.hint}>Tap to view · Hold to delete.</Text>
+              <Text style={styles.hint}>Tap to view · Hold for options.</Text>
             </View>
           }
         />
@@ -627,6 +743,15 @@ export default function VineBlockPhotosScreen() {
         initialIndex={lightboxIndex}
         visible={lightboxVisible}
         onClose={closeLightbox}
+      />
+
+      {/* Caption editor */}
+      <CaptionSheet
+        visible={captionPhoto !== null}
+        initialCaption={captionPhoto?.caption ?? null}
+        saving={captionSaving}
+        onSave={handleSaveCaption}
+        onClose={() => setCaptionPhoto(null)}
       />
     </View>
   );
@@ -815,5 +940,80 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: "rgba(255,255,255,0.4)",
+  },
+  // Caption sheet
+  sheetOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sheetDismiss: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  sheetCard: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderLight,
+    alignSelf: "center",
+    marginBottom: spacing.md,
+  },
+  sheetTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  sheetInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    backgroundColor: colors.background,
+    marginBottom: spacing.md,
+  },
+  sheetRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  sheetCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  sheetCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  sheetSave: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  sheetSaveDisabled: {
+    opacity: 0.6,
+  },
+  sheetSaveText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
 });
