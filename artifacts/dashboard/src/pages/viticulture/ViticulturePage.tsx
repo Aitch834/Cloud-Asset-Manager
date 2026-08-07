@@ -123,7 +123,13 @@ export default function ViticulturePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFarmId]);
   const [raiseOpen, setRaiseOpen] = useState(false);
+  const [highlightBlockId, setHighlightBlockId] = useState<number | undefined>(undefined);
   const blocks = useCrud(selectedFarmId ?? 0, "vineyard-blocks", "vineyard-blocks");
+
+  const handleNavigate = (toTab: string, blockId?: number) => {
+    setHighlightBlockId(blockId);
+    setTab(toTab);
+  };
 
   if (!selectedFarmId) return (
     <AppLayout>
@@ -162,13 +168,13 @@ export default function ViticulturePage() {
         )}
         <div className="bg-muted/30 rounded-xl p-4">
           {tab === "overview" && <OverviewTab farmId={selectedFarmId} />}
-          {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} />}
-          {tab === "blocks" && <BlocksTab farmId={selectedFarmId} />}
-          {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} />}
-          {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
+          {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} />}
+          {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
+          {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
           {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} />}
-          {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
           {tab === "licensing" && <LicensingTab farmId={selectedFarmId} />}
           {tab === "excise" && <ExciseDutyTab farmId={selectedFarmId} />}
           {tab === "tours" && <TastingsToursTab farmId={selectedFarmId} />}

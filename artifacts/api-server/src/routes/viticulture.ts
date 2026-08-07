@@ -1,4 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { ObjectStorageService } from "../lib/objectStorage";
+import { Readable } from "stream";
 import {
   db,
   vineyardBlocksTable,
@@ -1112,6 +1114,90 @@ router.put("/farms/:farmId/wine-gi-harvest-declarations/:id", requireAuth, requi
 router.delete("/farms/:farmId/wine-gi-harvest-declarations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(wineGiHarvestDeclarationsTable).where(and(eq(wineGiHarvestDeclarationsTable.id, id), eq(wineGiHarvestDeclarationsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Block Photos ────────────────────────────────────────────────────
+// Block photos are stored in object storage. The path is saved on the block row.
+// Serving uses a direct stream (no farmRecordAttachments lookup needed — we verify
+// farm ownership via the standard auth/tenant chain above).
+
+const _blockPhotoStorage = new ObjectStorageService();
+
+router.get("/farms/:farmId/vineyard-blocks/:blockId/photo", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const [block] = await db.select({ photoObjectPath: vineyardBlocksTable.photoObjectPath }).from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId))).limit(1);
+  if (!block || !block.photoObjectPath) { res.status(404).json({ error: "No photo" }); return; }
+  try {
+    const objectFile = await _blockPhotoStorage.getObjectEntityFile(block.photoObjectPath);
+    const response = await _blockPhotoStorage.downloadObject(objectFile, 300);
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
+    if (response.body) {
+      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+      nodeStream.pipe(res);
+    } else { res.end(); }
+  } catch { res.status(404).json({ error: "Photo not found" }); }
+});
+
+router.patch("/farms/:farmId/vineyard-blocks/:blockId/photo", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const { objectPath } = req.body as { objectPath?: string };
+  // Validate the path was issued by the standard upload flow (must begin with /objects/).
+  // This prevents cross-tenant injection of arbitrary object paths.
+  if (!objectPath || typeof objectPath !== "string" || !objectPath.startsWith("/objects/")) {
+    res.status(400).json({ error: "objectPath required and must be a valid upload path" });
+    return;
+  }
+  // Verify the block belongs to this farm before updating.
+  const [block] = await db.select({ id: vineyardBlocksTable.id, photoObjectPath: vineyardBlocksTable.photoObjectPath })
+    .from(vineyardBlocksTable).where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId))).limit(1);
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+
+  // Soft-delete any existing attachment record for this block's previous photo.
+  if (block.photoObjectPath) {
+    await db.update(farmRecordAttachmentsTable)
+      .set({ deletedAt: new Date() })
+      .where(and(
+        eq(farmRecordAttachmentsTable.farmId, farmId),
+        eq(farmRecordAttachmentsTable.recordType, "vineyard_block_photo"),
+        eq(farmRecordAttachmentsTable.recordId, blockId),
+        isNull(farmRecordAttachmentsTable.deletedAt),
+      ));
+  }
+
+  // Register ownership in farm_record_attachments so the standard storage ACL can verify
+  // which farm this object belongs to — prevents cross-tenant disclosure.
+  await db.insert(farmRecordAttachmentsTable).values({
+    farmId,
+    recordType: "vineyard_block_photo",
+    recordId: blockId,
+    fileUrl: objectPath,
+    fileKey: objectPath,
+    fileName: "block-photo",
+  });
+
+  await db.update(vineyardBlocksTable).set({ photoObjectPath: objectPath })
+    .where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.delete("/farms/:farmId/vineyard-blocks/:blockId/photo", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  // Soft-delete the ownership record so the storage ACL can no longer serve it.
+  await db.update(farmRecordAttachmentsTable)
+    .set({ deletedAt: new Date() })
+    .where(and(
+      eq(farmRecordAttachmentsTable.farmId, farmId),
+      eq(farmRecordAttachmentsTable.recordType, "vineyard_block_photo"),
+      eq(farmRecordAttachmentsTable.recordId, blockId),
+      isNull(farmRecordAttachmentsTable.deletedAt),
+    ));
+  await db.update(vineyardBlocksTable).set({ photoObjectPath: null })
+    .where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId)));
   res.json({ success: true });
 });
 

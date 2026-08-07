@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -9,6 +9,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Camera, Trash, Upload, ImageOff, ClipboardCheck,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -53,6 +54,113 @@ import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Block = Record<string, unknown>;
+
+// ─── Block Photo Section ──────────────────────────────────────────────────────
+
+function BlockPhotoSection({ farmId, block, onPhotoChanged }: { farmId: number; block: Block; onPhotoChanged: () => void }) {
+  const blockId = block.id as number;
+  const hasPhoto = !!block.photoObjectPath;
+  const photoSrc = `${api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`)}?t=${Date.now()}`;
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) { setError("Please select an image file."); return; }
+    if (file.size > 10 * 1024 * 1024) { setError("Image must be under 10 MB."); return; }
+    setError(null);
+    setUploading(true);
+    setPreview(URL.createObjectURL(file));
+    try {
+      const urlRes = await fetch(api("storage/uploads/request-url"), {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Could not get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+      const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!putRes.ok) throw new Error("Upload to storage failed");
+      const saveRes = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`), {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath }),
+      });
+      if (!saveRes.ok) throw new Error("Failed to save photo reference");
+      onPhotoChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+      setPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    setPreview(null);
+    try {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photo`), {
+        method: "DELETE", credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed to remove photo");
+      onPhotoChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Remove failed");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="border-t pt-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+        <Camera className="w-3.5 h-3.5" />Block Photo
+      </p>
+      {(hasPhoto || preview) ? (
+        <div className="relative">
+          <img
+            src={preview ?? photoSrc}
+            alt={`${String(block.blockName ?? "")} photo`}
+            className="w-full max-h-56 object-cover rounded-lg border"
+            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => inputRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}Replace
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs text-red-700 border-red-200 hover:bg-red-50" onClick={handleDelete} disabled={deleting || uploading}>
+              {deleting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash className="w-3.5 h-3.5 mr-1" />}Remove
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <p className="text-sm text-muted-foreground">Uploading…</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <Camera className="w-8 h-8 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">Add block photo</p>
+              <p className="text-xs text-muted-foreground/70">Click to upload · JPEG, PNG, WebP · max 10 MB</p>
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+    </div>
+  );
+}
 
 function plantingStatusBadge(status: unknown) {
   if (status === "active") return <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">Active</Badge>;
@@ -131,7 +239,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
   );
 }
 
-export function BlocksTab({ farmId }: { farmId: number }) {
+export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -393,6 +501,33 @@ export function BlocksTab({ farmId }: { farmId: number }) {
                   </div>
                 );
               })()}
+
+              {/* Block photo */}
+              <BlockPhotoSection
+                farmId={farmId}
+                block={viewing}
+                onPhotoChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+                }}
+              />
+
+              {/* Quick navigation */}
+              {onNavigate && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Quick Navigation</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-violet-700 border-violet-200 hover:bg-violet-50" onClick={() => { onNavigate("vine-register", viewing.id as number); setViewing(null); }}>
+                      <ClipboardList className="w-3.5 h-3.5 mr-1" />Vine Register
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => { onNavigate("phenology", viewing.id as number); setViewing(null); }}>
+                      <Leaf className="w-3.5 h-3.5 mr-1" />Phenology
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-rose-700 border-rose-200 hover:bg-rose-50" onClick={() => { onNavigate("scouting", viewing.id as number); setViewing(null); }}>
+                      <Bug className="w-3.5 h-3.5 mr-1" />Disease Scouting
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="flex-wrap gap-2">

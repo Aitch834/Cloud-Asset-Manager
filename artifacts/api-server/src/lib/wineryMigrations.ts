@@ -200,5 +200,8 @@ export async function runWineryMigrations(): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS edit_history jsonb NOT NULL DEFAULT '[]'::jsonb`));
   }
 
+  // Vineyard block photos — nullable object storage path added to vineyard_blocks
+  await db.execute(sql.raw(`ALTER TABLE vineyard_blocks ADD COLUMN IF NOT EXISTS photo_object_path text`));
+
   console.log("[WINERY-MIGRATE] Done.");
 }

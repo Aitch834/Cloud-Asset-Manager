@@ -11,6 +11,7 @@ export const vineyardBlocksTable = pgTable("vineyard_blocks", {
   aspect: text("aspect"),
   soilType: text("soil_type"),
   notes: text("notes"),
+  photoObjectPath: text("photo_object_path"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
