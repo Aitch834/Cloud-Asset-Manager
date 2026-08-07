@@ -50,13 +50,14 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Operation = Record<string, unknown>;
 
 export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Operation>(farmId, "vineyard-operations", "vineyard-operations");
   const farmName = useFarmName(farmId);
+  const { farmRecord: farmMeta } = useFarmMeta(farmId);
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Operation | null>(null);
@@ -169,7 +170,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredOperations, "vineyard-operations.csv", csvCols)} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
-          <Button size="sm" variant="outline" onClick={() => void printOperations(filteredOperations, farmName, farmId, blocks)} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => void printOperations(filteredOperations, farmName, farmId, blocks, farmMeta)} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>
       </div>

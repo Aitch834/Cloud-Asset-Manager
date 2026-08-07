@@ -587,6 +587,7 @@ export async function printOperations(
   farmName: string,
   farmId?: number,
   blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -661,6 +662,7 @@ export async function printOperations(
   }).join("");
 
   const safeFarmName = escHtml(farmName);
+  const opsAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
   const colSpan = hasPhotos ? 9 : 10;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -684,7 +686,7 @@ export async function printOperations(
     <div>
       <h1>Pruning &amp; Canopy Operations</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong><br>
+        <strong>${safeFarmName}</strong>${opsAddress ? `<br>${opsAddress}` : ""}<br>
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
@@ -726,6 +728,7 @@ export async function printHarvest(
   farmName: string,
   farmId?: number,
   blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -807,6 +810,7 @@ export async function printHarvest(
 
   const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
   const safeFarmName = escHtml(farmName);
+  const harvestAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const colSpan = hasPhotos ? 12 : 13;
 
@@ -832,7 +836,7 @@ export async function printHarvest(
     <div>
       <h1>Harvest &amp; Vintage Records</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${vintages ? ` &nbsp;&middot;&nbsp; Vintages: ${vintages}` : ""}<br>
+        <strong>${safeFarmName}</strong>${harvestAddress ? `<br>${harvestAddress}` : ""}${vintages ? `<br>Vintages: ${vintages}` : ""}<br>
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>

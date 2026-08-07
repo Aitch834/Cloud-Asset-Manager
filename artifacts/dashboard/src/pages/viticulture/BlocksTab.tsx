@@ -262,19 +262,29 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
 
     const reordered = arrayMove(sortable, oldIndex, newIndex);
 
+    // Snapshot previous order for rollback
+    const prevPhotos = orderedPhotos.slice();
+
     // Optimistic update
     setOrderedPhotos(cover ? [cover, ...reordered] : reordered);
 
     // Persist new sortOrder for each photo that changed position
-    await Promise.all(
-      reordered.map((photo, idx) =>
-        fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photo.id}`), {
-          method: "PATCH", credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sortOrder: idx }),
-        })
-      )
-    );
+    try {
+      await Promise.all(
+        reordered.map((photo, idx) =>
+          fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photo.id}`), {
+            method: "PATCH", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: idx }),
+          }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; })
+        )
+      );
+    } catch {
+      // Revert optimistic update and surface the error
+      setOrderedPhotos(prevPhotos);
+      setError("Could not save photo order — please try again.");
+      return;
+    }
 
     // Sync server state (don't block UI on this)
     refetch();
