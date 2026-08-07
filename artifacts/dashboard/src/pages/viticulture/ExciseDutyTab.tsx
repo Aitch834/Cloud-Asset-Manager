@@ -1,5 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -50,7 +51,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
 
 const EXCISE_STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -74,7 +75,16 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   });
 
   // Farm name (shared hook) and first winery licence number for print header
+  const [, setLocation] = useLocation();
   const farmName = useFarmName(farmId);
+  const { farmRecord: farmMeta } = useFarmMeta(farmId);
+  const exciseMissingFields = farmMeta
+    ? [
+        !farmMeta.name && "Company / farm name",
+        !farmMeta.address && "Farm address",
+        !farmMeta.vatNumber && "VAT number",
+      ].filter(Boolean) as string[]
+    : [];
   const { data: licencesData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["winery-licences", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/winery-licences`), { credentials: "include" }).then(r => r.json()),
@@ -189,6 +199,11 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
           <p>Rolling 12-month production: <strong>{rollingHl.toFixed(1)} hl</strong> of 4,500 hl SPR threshold.{rollingHl >= 4500 ? " Standard duty rates apply." : " Small Producer Relief may apply."}</p>
         </div>
       )}
+      <FarmSettingsWarning
+        missingFields={exciseMissingFields}
+        settingsSection="Basic Details"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
@@ -237,7 +252,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
               </div>
             )}
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo)}>
+              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta)}>
                 <Printer className="w-3.5 h-3.5 mr-1.5" />Print Return
               </Button>
               <Button onClick={() => setView(null)}>Close</Button>

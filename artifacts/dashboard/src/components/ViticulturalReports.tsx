@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { useQuery } from "@tanstack/react-query";
 import {
-  TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape,
+  TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line,
@@ -934,8 +935,28 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   const [year, setYear] = useState(currentYear);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection(v => (v === s ? null : s));
+  const [, setLocation] = useLocation();
 
   const { blocks, harvests, ops, sprays, loading } = useVitData(farmId);
+
+  // Farm Settings completeness check — warn before printing if key header fields are missing
+  const { data: farmMeta } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm-meta", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d.record ?? d) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const entMissingFields = farmMeta
+    ? [
+        !farmMeta.name && "Company / farm name",
+        !farmMeta.address && "Farm address",
+      ].filter(Boolean) as string[]
+    : [];
 
   const blockMap = useMemo(() => {
     const m: Record<number, Block> = {};
@@ -1033,6 +1054,31 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             <Printer className="w-3.5 h-3.5" />Print
           </button>
         </div>
+      </div>
+
+      {entMissingFields.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 no-print">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium">Farm Settings incomplete:</span>{" "}
+            {entMissingFields.join(", ")} {entMissingFields.length === 1 ? "is" : "are"} not set — your printed report will have blank header fields.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => setLocation("/settings/farm")}
+            >
+              Add in Farm Settings → Basic Details
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* Print-only report header — shows farm name/address so they appear in the printed output */}
+      <div className="hidden print:block border-b-2 border-gray-800 pb-3 mb-4">
+        <h1 className="text-xl font-bold">Viticulture Enterprise Report — {year}</h1>
+        {!!farmMeta?.name && <p className="text-sm font-semibold mt-0.5">{String(farmMeta.name)}</p>}
+        {!!farmMeta?.address && <p className="text-xs text-gray-500">{String(farmMeta.address)}</p>}
+        <p className="text-xs text-gray-400 mt-1">Printed: {new Date().toLocaleDateString("en-GB")}</p>
       </div>
 
       {!hasData ? (

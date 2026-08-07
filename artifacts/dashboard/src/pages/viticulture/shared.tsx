@@ -1,5 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -51,6 +52,61 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
 
+// ─── Farm Settings helpers ─────────────────────────────────────────────────────
+
+/** Fetches the raw farm record from /api/farms/:id. Uses the shared "farm-meta" cache key. */
+export function useFarmMeta(farmId: number) {
+  const { data, isLoading } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm-meta", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}`), { credentials: "include" });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d.record ?? d) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+  return { farmRecord: data ?? null, isLoading };
+}
+
+/**
+ * Displays a non-blocking amber warning when Farm Settings fields that would
+ * appear in a printed report are not yet filled in.
+ *
+ * @param missingFields - human-readable names of the fields that are blank
+ * @param settingsSection - the Farm Settings section label shown in the link text
+ * @param onNavigate - navigate to the settings page
+ */
+export function FarmSettingsWarning({
+  missingFields,
+  settingsSection,
+  onNavigate,
+}: {
+  missingFields: string[];
+  settingsSection: string;
+  onNavigate: () => void;
+}) {
+  if (missingFields.length === 0) return null;
+  const fieldList = missingFields.join(", ");
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+      <span>
+        <span className="font-medium">Farm Settings incomplete:</span>{" "}
+        {fieldList} {missingFields.length === 1 ? "is" : "are"} not set — your printed report will have blank header fields.{" "}
+        <button
+          type="button"
+          className="underline underline-offset-2 hover:text-amber-900 font-medium"
+          onClick={onNavigate}
+        >
+          Add in Farm Settings → {settingsSection}
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
@@ -71,15 +127,23 @@ export function exportCSV(rows: Record<string, unknown>[], filename: string, col
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
 
-export function printExciseReturn(record: Record<string, unknown>, farmName: string, licenceNo?: string) {
+export function printExciseReturn(
+  record: Record<string, unknown>,
+  farmName: string,
+  licenceNo?: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
   const d = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const esc = (v: unknown) => v == null || v === "" ? "" : String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const spr = !!record.smallProducerRelief;
   const dutiableL = (parseFloat(String(record.totalLitresRemovedUK ?? 0)) || 0)
     + (parseFloat(String(record.totalLitresDomesticConsumption ?? 0)) || 0)
     + (parseFloat(String(record.totalLitresTastings ?? 0)) || 0);
+  const address = farmMeta?.address ? esc(farmMeta.address) : "";
+  const vatNumber = farmMeta?.vatNumber ? esc(farmMeta.vatNumber) : "";
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-  <title>HMRC Alcohol Duty Return — ${farmName}</title>
+  <title>HMRC Alcohol Duty Return — ${esc(farmName)}</title>
   <style>
     body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 40px; }
     h1 { font-size: 18px; margin-bottom: 2px; }
@@ -103,7 +167,9 @@ export function printExciseReturn(record: Record<string, unknown>, farmName: str
     <div>
       <h1>HMRC Alcohol Duty Return</h1>
       <div class="meta">
-        <strong>${farmName}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${licenceNo}` : ""}<br>
+        <strong>${esc(farmName)}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${esc(licenceNo)}` : ""}<br>
+        ${address ? `${address}<br>` : ""}
+        ${vatNumber ? `VAT Reg No: ${vatNumber}<br>` : ""}
         Return Period: <strong>${d(record.periodStart)} &ndash; ${d(record.periodEnd)}</strong>
       </div>
     </div>
@@ -163,8 +229,14 @@ export function printExciseReturn(record: Record<string, unknown>, farmName: str
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
-export function printOrganicWineRecords(records: Record<string, unknown>[], farmName: string) {
+export function printOrganicWineRecords(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const esc = (v: unknown) => v == null || v === "" ? "" : String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+  const address = farmMeta?.address ? esc(farmMeta.address) : "";
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const rows = records.map(r => `
     <tr>
@@ -198,7 +270,7 @@ export function printOrganicWineRecords(records: Record<string, unknown>[], farm
   </style></head><body>
   <h1>Organic Wine Production Register</h1>
   <div class="meta">
-    <strong>${farmName}</strong> &nbsp;&middot;&nbsp; Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
+    <strong>${esc(farmName)}</strong>${address ? ` &nbsp;&middot;&nbsp; ${address}` : ""} &nbsp;&middot;&nbsp; Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
   </div>
   <div class="notice">
     <strong>SO&#8322; limits for organic wine (UK-retained Reg 203/2012):</strong>

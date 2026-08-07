@@ -1,5 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -50,7 +51,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
 
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ADDITIVE_TYPE_OPTIONS = [
@@ -111,7 +112,15 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   });
 
   // Farm name for print header — shared hook, includes `Farm ${farmId}` fallback
+  const [, setLocation] = useLocation();
   const farmName = useFarmName(farmId);
+  const { farmRecord: farmMeta } = useFarmMeta(farmId);
+  const organicMissingFields = farmMeta
+    ? [
+        !farmMeta.name && "Company / farm name",
+        !farmMeta.address && "Farm address",
+      ].filter(Boolean) as string[]
+    : [];
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -212,13 +221,18 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex gap-2 shrink-0">
           {records.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`)}>
+            <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta)}>
               <Printer className="h-3.5 w-3.5 mr-1.5" />Print Register
             </Button>
           )}
           <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
         </div>
       </div>
+      <FarmSettingsWarning
+        missingFields={organicMissingFields}
+        settingsSection="Basic Details"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
         <strong>SO₂ limits for organic wine (UK-retained Reg 203/2012):</strong> Red wine — 100 mg/L total SO₂. White and rosé wine — 150 mg/L. Organic sparkling — 185 mg/L. These limits are lower than for conventional wine. Selecting a wine colour will auto-fill the maximum permitted SO₂. All SO₂ values should be total SO₂ tested at bottling (or latest analysis).
       </div>
