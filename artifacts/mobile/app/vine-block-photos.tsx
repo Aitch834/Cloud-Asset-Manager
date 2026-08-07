@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -519,6 +519,14 @@ export default function VineBlockPhotosScreen() {
     setPhotos([]);
     loadPhotos();
   }, [selectedBlock?.id, loadPhotos]);
+
+  // Re-fetch photos whenever the screen comes back into focus so that
+  // short-lived presigned URLs are always fresh (they expire after ~5 min).
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos();
+    }, [loadPhotos]),
+  );
 
   const handleAddPhoto = () => {
     if (!currentFarm?.id || !selectedBlock) return;
