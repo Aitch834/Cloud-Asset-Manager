@@ -9,7 +9,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink, Link,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink, Link, Unlink,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -71,6 +71,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const [highlightDismissed, setHighlightDismissed] = useState(false);
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
+  const [unlinkEntryId, setUnlinkEntryId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -237,6 +238,25 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   });
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
+
+  // ── Unlink mutation ──────────────────────────────────────────────────────────
+  const unlinkMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/vine-register/${id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId: null }),
+      });
+      if (!r.ok) throw new Error("Failed to unlink entry");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vine-register", farmId] });
+      setUnlinkEntryId(null);
+      toast({ title: "Block link removed", description: "The entry is no longer linked to a block." });
+    },
+  });
 
   const csvCols = [
     { key: "fsaVineRegisterRef", label: "FSA Ref" },
@@ -416,7 +436,19 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
             label: "Block",
             render: r => {
               const linked = blocks.find(b => b.id === r.blockId);
-              if (linked) return <span className="text-sm">{String(linked.blockName)}</span>;
+              if (linked) return (
+                <span className="inline-flex items-center gap-1.5 group">
+                  <span className="text-sm">{String(linked.blockName)}</span>
+                  <button
+                    type="button"
+                    title="Remove block link"
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={e => { e.stopPropagation(); setUnlinkEntryId(r.id as number); }}
+                  >
+                    <Unlink className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
               return (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -488,10 +520,31 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
+            {!!viewing?.blockId && (
+              <Button
+                variant="outline"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => { setUnlinkEntryId(viewing!.id as number); setViewing(null); }}
+              >
+                <Unlink className="w-4 h-4 mr-1" />Unlink Block
+              </Button>
+            )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unlink confirm */}
+      <ConfirmDialog
+        open={unlinkEntryId !== null}
+        title="Remove block link?"
+        message="This entry will no longer be linked to its block. You can re-link it at any time from the edit form or the bulk-link tool."
+        confirmLabel="Unlink"
+        confirmVariant="destructive"
+        onConfirm={() => unlinkMutation.mutate(unlinkEntryId!)}
+        onCancel={() => { setUnlinkEntryId(null); unlinkMutation.reset(); }}
+        mutation={unlinkMutation}
+      />
 
       {raiseTaskFor && (
         <RaiseTaskDialog
