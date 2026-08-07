@@ -19,7 +19,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
-import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle } from "lucide-react";
+import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 
@@ -2131,6 +2131,85 @@ function InvoicingCard({
   );
 }
 
+// ─── Completeness status bar ──────────────────────────────────────────────────
+
+function FarmCompletenessBar({
+  formData,
+  isViticulture,
+}: {
+  formData: FarmFormData;
+  isViticulture: boolean;
+}) {
+  const checks = [
+    { key: "name", label: "Farm name", filled: !!formData.name.trim(), targetId: "settings-name" },
+    { key: "address", label: "Address", filled: !!formData.address.trim(), targetId: "settings-address" },
+    ...(isViticulture
+      ? [
+          { key: "fsaVineRegisterRef", label: "FSA Vine Register Ref", filled: !!formData.fsaVineRegisterRef.trim(), targetId: "settings-fsa-vine-ref" },
+          { key: "fsaWineProductionRef", label: "FSA Wine Production Ref", filled: !!formData.fsaWineProductionRef.trim(), targetId: "settings-fsa-wine-ref" },
+        ]
+      : []),
+  ];
+
+  const allComplete = checks.every(c => c.filled);
+  const missingCount = checks.filter(c => !c.filled).length;
+
+  const scrollToField = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Brief highlight so growers can see exactly which input to fill
+    el.focus({ preventScroll: true });
+    el.classList.add("ring-2", "ring-amber-400", "ring-offset-1");
+    setTimeout(() => el.classList.remove("ring-2", "ring-amber-400", "ring-offset-1"), 2000);
+  };
+
+  if (allComplete) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800">
+        <CheckCircle2 size={16} className="text-green-600 shrink-0" />
+        <span className="font-semibold">Farm Settings complete</span>
+        <span className="text-green-600 ml-0.5">— all key fields are filled in</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <AlertTriangle size={15} className="text-amber-500 shrink-0" />
+        <span className="text-sm font-semibold text-amber-900">
+          {missingCount} key field{missingCount !== 1 ? "s" : ""} still to complete
+        </span>
+        <span className="text-xs text-amber-700 ml-1">— click any amber badge to jump to that field</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {checks.map(c =>
+          c.filled ? (
+            <span
+              key={c.key}
+              className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"
+            >
+              <CheckCircle2 size={11} />
+              {c.label}
+            </span>
+          ) : (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => scrollToField(c.targetId)}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-200 hover:bg-amber-300 active:bg-amber-400 px-2.5 py-0.5 text-xs font-semibold text-amber-900 transition-colors cursor-pointer"
+            >
+              <AlertTriangle size={11} />
+              {c.label}
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FarmSettings() {
   const { farmId } = useAppStore();
   const { toast } = useToast();
@@ -2329,6 +2408,9 @@ export default function FarmSettings() {
   return (
     <AppLayout title="Farm Settings">
       <div className="max-w-3xl space-y-6">
+
+        {/* ── Completeness bar ── */}
+        <FarmCompletenessBar formData={formData} isViticulture={formData.sectors.sectorViticulture} />
 
         {/* ── Farm Identity ── */}
         <Card>
