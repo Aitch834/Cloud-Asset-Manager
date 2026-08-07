@@ -65,6 +65,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
   const [raiseTaskFor, setRaiseTaskFor] = useState<Harvest | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+  const [searchText, setSearchText] = useState("");
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
@@ -97,8 +98,22 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
 
   const harvestYears = Array.from(new Set(data.map(r => Number(r.vintageYear)))).filter(Boolean).sort((a, b) => b - a);
   if (!harvestYears.includes(new Date().getFullYear())) harvestYears.unshift(new Date().getFullYear());
-  const yearFiltered = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
-  const filteredHarvest = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+
+  const filteredHarvest = useMemo(() => {
+    let rows = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
+    if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      rows = rows.filter(r => {
+        const block = blocks.find(b => b.id === r.blockId);
+        const variety = String(block?.variety ?? "").toLowerCase();
+        const operator = String(r.operatorName ?? "").toLowerCase();
+        return variety.includes(q) || operator.includes(q);
+      });
+    }
+    return rows;
+  }, [data, yearFilter, blockFilter, searchText, blocks]);
+
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   const csvCols = [
@@ -153,11 +168,37 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
               {harvestYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredHarvest, "vineyard-harvest.csv", csvCols)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => void printHarvest(filteredHarvest, farmName, farmId, blocks)} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredHarvest, "vineyard-harvest.csv", csvCols)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => void printHarvest(filteredHarvest, farmName, farmId, blocks)} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search variety or operator…"
+            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchText("")}
+              aria-label="Clear search"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        {searchText.trim() && (
+          <span className="text-xs text-muted-foreground">Showing {filteredHarvest.length} of {data.length}</span>
+        )}
+      </div>
+
       <DataTable
         cols={[
           { key: "harvestDate", label: "Date", render: r => fmtDate(r.harvestDate) },

@@ -65,6 +65,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [blockFilter, setBlockFilter] = useState<string>(highlightBlockId ? String(highlightBlockId) : "__all__");
+  const [searchText, setSearchText] = useState("");
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
@@ -99,8 +100,23 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
 
   const operationYears = Array.from(new Set(data.map(r => new Date(r.operationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!operationYears.includes(new Date().getFullYear())) operationYears.unshift(new Date().getFullYear());
-  const yearFiltered = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
-  const filteredOperations = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+
+  const filteredOperations = useMemo(() => {
+    let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
+    if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      rows = rows.filter(r => {
+        const block = blocks.find(b => b.id === r.blockId);
+        const variety = String(block?.variety ?? "").toLowerCase();
+        const operator = String(r.operatorName ?? "").toLowerCase();
+        return variety.includes(q) || operator.includes(q);
+      });
+    }
+    return rows;
+  }, [data, yearFilter, blockFilter, searchText, blocks]);
+
+  const activeFilterCount = [blockFilter !== "__all__" ? blockFilter : "", yearFilter !== String(new Date().getFullYear()) ? yearFilter : "", searchText.trim()].filter(Boolean).length;
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   const csvCols = [
@@ -152,11 +168,37 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
               {operationYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredOperations, "vineyard-operations.csv", csvCols)} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => void printOperations(filteredOperations, farmName, farmId, blocks)} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredOperations, "vineyard-operations.csv", csvCols)} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => void printOperations(filteredOperations, farmName, farmId, blocks)} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>
       </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search variety or operator…"
+            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchText("")}
+              aria-label="Clear search"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        {searchText.trim() && (
+          <span className="text-xs text-muted-foreground">Showing {filteredOperations.length} of {data.length}</span>
+        )}
+      </div>
+
       <DataTable
         cols={[
           { key: "operationDate", label: "Date", render: r => fmtDate(r.operationDate) },
