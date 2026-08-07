@@ -42,6 +42,7 @@ import { FieldBoundaryMapDialog } from "@/components/fields/FieldBoundaryMapDial
 import { FieldSchematicMap } from "@/components/fields/FieldSchematicMap";
 import { useForm } from "react-hook-form";
 import { Redirect, useLocation, Link } from "wouter";
+import { useFarmMeta } from "@/pages/viticulture/shared";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { printProReport } from "@/lib/print-report";
 import { printSeedBagLabels } from "@/lib/print-labels";
@@ -82,6 +83,76 @@ import {
 import { SeedDrillingSection } from "./SeedDrillingSection";
 import { CropRotationPlanner } from "./CropRotationPlanner";
 import { GrasslandSection } from "./GrasslandSection";
+
+// ─── Arable Farm Settings checklist ──────────────────────────────────────────
+
+function ArableFarmSettingsChecklist({ farmId }: { farmId: number }) {
+  const { farmRecord, isLoading } = useFarmMeta(farmId);
+  const [, navigate] = useLocation();
+
+  if (isLoading) return null;
+
+  const fields = [
+    { label: "SBI Number", filled: !!farmRecord?.sbiNumber && String(farmRecord.sbiNumber).trim() !== "" },
+    { label: "Farm Address", filled: !!farmRecord?.address && String(farmRecord.address).trim() !== "" },
+  ];
+
+  const missingCount = fields.filter(f => !f.filled).length;
+  const allComplete = missingCount === 0;
+
+  if (allComplete) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 mb-6">
+        <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+        <span className="font-medium">Farm Settings complete</span>
+        <span className="text-green-700">— SBI number and farm address are both filled in.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-6">
+      <div className="flex items-start gap-2.5 mb-3">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-semibold text-amber-800">Farm Settings incomplete</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            {missingCount} field{missingCount === 1 ? "" : "s"} below {missingCount === 1 ? "is" : "are"} missing — your printed arable reports will have blank header fields.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {fields.map(f => (
+          <div key={f.label} className="flex items-center gap-2 text-sm">
+            {f.filled
+              ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+              : <XCircle className="w-4 h-4 shrink-0 text-amber-500" />
+            }
+            <span className={f.filled ? "text-green-800" : "text-amber-800"}>{f.label}</span>
+            {!f.filled && (
+              <button
+                type="button"
+                className="ml-auto text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium whitespace-nowrap"
+                onClick={() => navigate("/settings/farm")}
+              >
+                Add →
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 pt-2.5 border-t border-amber-200">
+        <button
+          type="button"
+          className="text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 font-medium"
+          onClick={() => navigate("/settings/farm")}
+        >
+          Open Farm Settings →
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function FieldsPage() {
   const { farmId } = useAppStore();
@@ -557,6 +628,8 @@ export default function FieldsPage() {
           [role="dialog"] #fields-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; padding:24px; font-size:11px; color:#000; background:#fff; }
         }
       `}</style>
+
+      <ArableFarmSettingsChecklist farmId={safeFarmId} />
 
       {/* Tabs */}
       <TabBar className="mb-6">
