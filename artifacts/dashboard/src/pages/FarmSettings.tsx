@@ -2140,9 +2140,30 @@ function FarmCompletenessBar({
   formData: FarmFormData;
   isViticulture: boolean;
 }) {
+  const s = formData.sectors;
+  // Any sector that requires a CPH / holding number
+  const hasAnyLivestock =
+    s.sectorBeef || s.sectorSheep || s.sectorDairy || s.sectorPigs ||
+    s.sectorGoats || s.sectorEquine || s.sectorDeer || s.sectorPoultry || s.sectorEggs;
+  const hasSheepGoats = s.sectorSheep || s.sectorGoats;
+  const hasCattle = s.sectorBeef || s.sectorDairy;
+  const hasPigs = s.sectorPigs;
+
   const checks = [
     { key: "name", label: "Farm name", filled: !!formData.name.trim(), targetId: "settings-name" },
     { key: "address", label: "Address", filled: !!formData.address.trim(), targetId: "settings-address" },
+    ...(hasAnyLivestock
+      ? [{ key: "cphNumber", label: "CPH Number", filled: !!formData.cphNumber.trim(), targetId: "settings-cph" }]
+      : []),
+    ...(hasSheepGoats
+      ? [{ key: "flockMark", label: "Flock Mark", filled: !!formData.flockMark.trim(), targetId: "settings-flock-mark" }]
+      : []),
+    ...(hasCattle
+      ? [{ key: "herdMark", label: "Herd Mark", filled: !!formData.herdMark.trim(), targetId: "settings-herd-mark" }]
+      : []),
+    ...(hasPigs
+      ? [{ key: "pigHerdMark", label: "Pig Herd Mark", filled: !!formData.pigHerdMark.trim(), targetId: "settings-pig-herd-mark" }]
+      : []),
     ...(isViticulture
       ? [
           { key: "fsaVineRegisterRef", label: "FSA Vine Register Ref", filled: !!formData.fsaVineRegisterRef.trim(), targetId: "settings-fsa-vine-ref" },
