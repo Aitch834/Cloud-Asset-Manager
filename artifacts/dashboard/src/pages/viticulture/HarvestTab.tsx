@@ -139,6 +139,82 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
     { key: "notes", label: "Notes" },
   ];
 
+  const exportHarvestCSV = (rows: Record<string, unknown>[]) => {
+    if (!rows.length) return;
+    const cell = (v: unknown) => {
+      const s = sanitiseCsvCell(v == null ? "" : String(v));
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    // ── Build summary grouped by vintage (if multiple) or by block ───────────
+    const uniqueVintages = [...new Set(rows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
+    const groupByVintage = uniqueVintages.length > 1;
+
+    const groupObj: Record<string, Record<string, unknown>[]> = {};
+    const groupKeys: string[] = [];
+    for (const r of rows) {
+      const key = groupByVintage ? String(r.vintageYear ?? "Unknown") : String(r.blockId ?? "0");
+      if (!groupObj[key]) { groupObj[key] = []; groupKeys.push(key); }
+      groupObj[key].push(r);
+    }
+
+    const summaryLabel = groupByVintage ? "Vintage Year" : "Block";
+    const summaryHeader = [summaryLabel, "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °"].map(h => cell(h)).join(",");
+    const summaryRows = groupKeys.map(key => {
+      const grp = groupObj[key];
+      const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      const brixVals = grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+      const avgBrix = brixVals.length > 0 ? brixVals.reduce((a, b) => a + b, 0) / brixVals.length : null;
+      const thaVals = grp.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v));
+      const avgTha = thaVals.length > 0 ? thaVals.reduce((a, b) => a + b, 0) / thaVals.length : null;
+      const sortedDates = [...new Set(
+        grp.map(r => r.harvestDate ? new Date(r.harvestDate as string).toLocaleDateString("en-GB") : "").filter(Boolean)
+      )];
+      const dateStr = sortedDates.length === 0 ? ""
+        : sortedDates.length === 1 ? sortedDates[0]
+        : `${sortedDates[0]} – ${sortedDates[sortedDates.length - 1]}`;
+
+      let label: string;
+      if (groupByVintage) {
+        label = key;
+      } else {
+        const bid = Number(key);
+        label = !isNaN(bid) && bid > 0 ? String(blockName(bid)) : "—";
+      }
+
+      return [
+        cell(label),
+        cell(dateStr),
+        cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
+        cell(avgTha != null ? avgTha.toFixed(2) : ""),
+        cell(avgBrix != null ? avgBrix.toFixed(1) : ""),
+      ].join(",");
+    });
+
+    // ── Build detail section ─────────────────────────────────────────────────
+    const detailHeader = csvCols.map(c => cell(c.label)).join(",");
+    const detailBody = rows.map(r =>
+      csvCols.map(c => {
+        const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
+        return cell(raw);
+      }).join(",")
+    ).join("\n");
+
+    const csv = [
+      cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
+      summaryHeader,
+      ...summaryRows,
+      "",
+      cell("Detail Records"),
+      detailHeader,
+      detailBody,
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "vineyard-harvest.csv"; a.click(); URL.revokeObjectURL(url);
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
   return (
@@ -171,7 +247,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
               {harvestYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredHarvest, "vineyard-harvest.csv", csvCols)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => exportHarvestCSV(filteredHarvest)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta)} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
