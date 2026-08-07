@@ -81,8 +81,11 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId }: { farmId: 
   const activeHighlight = highlightBlockId && !highlightDismissed;
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
-  // ── Search & Filter state ─────────────────────────────────────────────────
-  const [searchText, setSearchText] = useState("");
+  // ── Search & Filter state (persisted per farm) ────────────────────────────
+  const [searchText, setSearchText] = usePersistedFilter({
+    page: "vine-register", filter: "search", farmId,
+    defaultValue: "",
+  });
 
   // ── Filter & sort state (persisted per farm) ──────────────────────────────
   const STATUS_VALUES = ["", "active", "removed"] as const;
