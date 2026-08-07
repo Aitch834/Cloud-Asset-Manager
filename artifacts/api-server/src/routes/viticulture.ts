@@ -420,7 +420,21 @@ router.post("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, re
 router.put("/farms/:farmId/vineyard-operations/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await (db.update(vineyardOperationsTable) as any).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardOperationsTable.id, id), eq(vineyardOperationsTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  // Keep plantingId consistent with blockId whenever blockId is being updated
+  if ("blockId" in body) {
+    if (body.blockId) {
+      const [active] = await db.select({ id: vineyardBlockPlantingsTable.id })
+        .from(vineyardBlockPlantingsTable)
+        .where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active")))
+        .limit(1);
+      body.plantingId = active ? active.id : null;
+    } else {
+      // Unlinking block — clear the planting association too
+      body.plantingId = null;
+    }
+  }
+  const [record] = await (db.update(vineyardOperationsTable) as any).set(body).where(and(eq(vineyardOperationsTable.id, id), eq(vineyardOperationsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
@@ -453,7 +467,21 @@ router.post("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requi
 router.put("/farms/:farmId/vineyard-harvest/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await db.update(vineyardHarvestTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardHarvestTable.id, id), eq(vineyardHarvestTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  // Keep plantingId consistent with blockId whenever blockId is being updated
+  if ("blockId" in body) {
+    if (body.blockId) {
+      const [active] = await db.select({ id: vineyardBlockPlantingsTable.id })
+        .from(vineyardBlockPlantingsTable)
+        .where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active")))
+        .limit(1);
+      body.plantingId = active ? active.id : null;
+    } else {
+      // Unlinking block — clear the planting association too
+      body.plantingId = null;
+    }
+  }
+  const [record] = await (db.update(vineyardHarvestTable) as any).set(body).where(and(eq(vineyardHarvestTable.id, id), eq(vineyardHarvestTable.farmId, farmId))).returning();
   res.json({ record });
 });
 

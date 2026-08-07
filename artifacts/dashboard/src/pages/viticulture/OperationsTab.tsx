@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -68,6 +68,11 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
   const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-operations", filter: "search", farmId, defaultValue: "" });
+  const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
+  const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
+  const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
@@ -97,6 +102,59 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
     else await add.mutateAsync(form);
     setOpen(false);
   };
+
+  // ── Bulk-link ─────────────────────────────────────────────────────────────
+  const unlinkedOperations = useMemo(() => data.filter(r => !r.blockId), [data]);
+
+  const openBulkLink = () => {
+    const initial: Record<number, number | null> = {};
+    for (const op of unlinkedOperations) initial[op.id as number] = null;
+    setBulkLinks(initial);
+    setBulkLinkOpen(true);
+  };
+
+  const bulkLinkMutation = useMutation({
+    mutationFn: async (links: Record<number, number | null>) => {
+      const toSave = Object.entries(links).filter(([, blockId]) => blockId !== null);
+      if (!toSave.length) return 0;
+      await Promise.all(
+        toSave.map(([id, blockId]) =>
+          fetch(api(`farms/${farmId}/vineyard-operations/${id}`), {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ blockId }),
+          }).then(r => { if (!r.ok) throw new Error("Failed to link operation"); return r.json(); })
+        )
+      );
+      return toSave.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-operations", farmId] });
+      setBulkLinkOpen(false);
+      toast({ title: `${count} ${count === 1 ? "operation" : "operations"} linked`, description: "Block links saved successfully." });
+    },
+  });
+
+  const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
+
+  const unlinkMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-operations/${id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId: null }),
+      });
+      if (!r.ok) throw new Error("Failed to unlink operation");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-operations", farmId] });
+      setUnlinkRecordId(null);
+      toast({ title: "Block link removed", description: "The operation is no longer linked to a block." });
+    },
+  });
 
   const isPruning = String(form.operationType ?? "").toLowerCase().includes("prun");
 
@@ -156,7 +214,12 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
           <p className="font-semibold">Pruning & Canopy Operations</p>
           <p className="text-xs text-muted-foreground">Record all canopy management activities. Pruning records including bud counts are required for GI / PDO compliance and assurance schemes.</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap justify-end">
+          {unlinkedOperations.length > 0 && (
+            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50" onClick={openBulkLink}>
+              <Link className="w-4 h-4 mr-1" />Link unlinked records ({unlinkedOperations.length})
+            </Button>
+          )}
           <Select value={blockFilter} onValueChange={setBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${blockFilter !== "__all__" ? "border-purple-400 text-purple-700" : ""}`}><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -205,7 +268,32 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
       <DataTable
         cols={[
           { key: "operationDate", label: "Date", render: r => fmtDate(r.operationDate) },
-          { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
+          {
+            key: "blockId",
+            label: "Block",
+            render: r => {
+              const linked = blocks.find(b => b.id === r.blockId);
+              if (linked) return (
+                <span className="inline-flex items-center gap-1.5 group">
+                  <span className="text-sm">{String(linked.blockName)}</span>
+                  <button
+                    type="button"
+                    title="Remove block link"
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={e => { e.stopPropagation(); setUnlinkRecordId(r.id as number); }}
+                  >
+                    <Unlink className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+              return (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Not linked
+                </span>
+              );
+            },
+          },
           { key: "operationType", label: "Operation" },
           { key: "pruningSystem", label: "System" },
           { key: "budsPerVineActual", label: "Buds/Vine" },
@@ -244,6 +332,15 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
+            {!!viewing?.blockId && (
+              <Button
+                variant="outline"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => { setUnlinkRecordId(viewing!.id as number); setViewing(null); }}
+              >
+                <Unlink className="w-4 h-4 mr-1" />Unlink Block
+              </Button>
+            )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
         </DialogContent>
@@ -259,6 +356,82 @@ export function OperationsTab({ farmId, blocks, highlightBlockId }: { farmId: nu
           module="Viticulture"
         />
       )}
+
+      {/* Unlink confirm */}
+      <ConfirmDialog
+        open={unlinkRecordId !== null}
+        title="Remove block link?"
+        message="This operation will no longer be linked to its block. You can re-link it at any time from the edit form or the bulk-link tool."
+        confirmLabel="Unlink"
+        confirmVariant="destructive"
+        onConfirm={() => unlinkMutation.mutate(unlinkRecordId!)}
+        onCancel={() => { setUnlinkRecordId(null); unlinkMutation.reset(); }}
+        mutation={unlinkMutation}
+      />
+
+      {/* Bulk-link Dialog */}
+      <Dialog open={bulkLinkOpen} onOpenChange={o => { if (!o) { setBulkLinkOpen(false); bulkLinkMutation.reset(); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Link unlinked operations to blocks</DialogTitle>
+            <DialogDescription>
+              Assign each unlinked operation to a vineyard block. Operations already linked to a block are not shown.
+            </DialogDescription>
+          </DialogHeader>
+          {unlinkedOperations.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">All operations are already linked to blocks.</p>
+          ) : (
+            <div className="space-y-1 mt-1">
+              <div className="grid grid-cols-[1fr_1fr_1.5fr] gap-x-3 px-1 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b">
+                <span>Operation Type</span>
+                <span>Date</span>
+                <span>Link to block</span>
+              </div>
+              {unlinkedOperations.map(op => {
+                const opId = op.id as number;
+                const selectedBlockId = bulkLinks[opId] ?? null;
+                return (
+                  <div key={opId} className="grid grid-cols-[1fr_1fr_1.5fr] gap-x-3 items-center px-1 py-1.5 rounded hover:bg-muted/30">
+                    <span className="text-sm truncate" title={String(op.operationType ?? "")}>
+                      {String(op.operationType ?? <span className="text-muted-foreground italic">Unknown</span>)}
+                    </span>
+                    <span className="text-sm text-muted-foreground truncate">
+                      {fmtDate(op.operationDate)}
+                    </span>
+                    <Select
+                      value={selectedBlockId !== null ? String(selectedBlockId) : "__none__"}
+                      onValueChange={v => setBulkLinks(prev => ({ ...prev, [opId]: v === "__none__" ? null : Number(v) }))}
+                    >
+                      <SelectTrigger className={`h-8 text-xs flex-1 min-w-0 ${selectedBlockId !== null ? "border-green-400 text-green-800 bg-green-50" : ""}`}>
+                        <SelectValue placeholder="— No link —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No link —</SelectItem>
+                        {blocks.map(b => (
+                          <SelectItem key={String(b.id)} value={String(b.id)}>
+                            {String(b.blockName)}{b.variety ? ` (${String(b.variety)})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <DialogMutationError mutation={bulkLinkMutation} message="Some links could not be saved. Please try again." />
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setBulkLinkOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => bulkLinkMutation.mutate(bulkLinks)}
+              disabled={bulkLinkCount === 0 || bulkLinkMutation.isPending}
+            >
+              {bulkLinkMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Save {bulkLinkCount > 0 ? `${bulkLinkCount} link${bulkLinkCount === 1 ? "" : "s"}` : "links"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
