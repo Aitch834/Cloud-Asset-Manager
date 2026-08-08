@@ -1667,6 +1667,17 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             {(() => {
               const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
               if (barrelFills.length === 0) return null;
+              const barrelMaintenance = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+
+              const WORK_TYPE_LABELS: Record<string, string> = {
+                inspection: "Inspection",
+                stave_repair: "Stave repair",
+                head_replacement: "Head replacement",
+                re_toast: "Re-toast",
+                re_char: "Re-char",
+                re_cooper: "Re-cooper",
+                condemned: "Condemned",
+              };
 
               const fillOakLabel = (fillNumber: number): { label: string; className: string } => {
                 if (fillNumber === 1) return { label: "New oak (1st fill)", className: "bg-amber-100 text-amber-800" };
@@ -1775,6 +1786,54 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                               </div>
                             </div>
                           </div>
+                          {/* Cooperage maintenance records for this vessel */}
+                          {(() => {
+                            const vesselMaintRows = barrelMaintenance.filter(m => Number(m.vessel_id) === vid);
+                            if (vesselMaintRows.length === 0) return null;
+                            return (
+                              <div className="mt-2 border-t border-orange-200 pt-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-1.5 flex items-center gap-1">
+                                  <Wrench className="h-3 w-3" />
+                                  Cooperage Work ({vesselMaintRows.length})
+                                </p>
+                                <div className="rounded border overflow-x-auto bg-white/70">
+                                  <div className="min-w-[420px]">
+                                    <div className="grid text-xs font-semibold uppercase tracking-wide text-muted-foreground bg-orange-100/60 border-b border-orange-200 px-3 py-1.5" style={{ gridTemplateColumns: "80px 1.4fr 1.2fr 68px 1fr" }}>
+                                      <span>Date</span>
+                                      <span>Work Type</span>
+                                      <span>Cooperage</span>
+                                      <span className="text-right">Cost</span>
+                                      <span>Notes</span>
+                                    </div>
+                                    <div className="divide-y">
+                                      {vesselMaintRows.map((m, mi) => {
+                                        const workType = String(m.work_type ?? "");
+                                        const workLabel = WORK_TYPE_LABELS[workType] ?? (workType || "—");
+                                        const isReToast = workType === "re_toast" || workType === "re_char";
+                                        const costPence = m.cost_pence != null ? parseFloat(String(m.cost_pence)) : null;
+                                        const costStr = costPence != null ? `£${(costPence / 100).toFixed(2)}` : "—";
+                                        return (
+                                          <div
+                                            key={mi}
+                                            className={`grid text-xs px-3 py-2 items-start gap-x-1${isReToast ? " bg-amber-50" : ""}`}
+                                            style={{ gridTemplateColumns: "80px 1.4fr 1.2fr 68px 1fr" }}
+                                          >
+                                            <span className="text-muted-foreground">{m.maintenance_date ? fmtDate(m.maintenance_date) : "—"}</span>
+                                            <span className={isReToast ? "font-semibold text-amber-700 flex items-center gap-1" : "font-medium"}>
+                                              {isReToast && <span aria-hidden="true">🔥</span>}{workLabel}
+                                            </span>
+                                            <span className="text-muted-foreground">{m.cooperage_name ? String(m.cooperage_name) : "—"}</span>
+                                            <span className="text-right font-mono">{costStr}</span>
+                                            <span className="text-muted-foreground italic">{m.notes ? String(m.notes) : ""}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
