@@ -264,8 +264,25 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     enabled: !!farmId && expandedId !== null,
   });
 
+  // Fetch all milestones across all projects for deadline summary banner
+  const { data: allMsData } = useQuery({
+    queryKey: ["agri-env-all-milestones", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/agri-env-milestones`);
+      if (!r.ok) throw new Error("Failed to load milestones");
+      return r.json() as Promise<{ milestones: AgriEnvMilestone[] }>;
+    },
+    enabled: !!farmId,
+  });
+
   const projects = projData?.projects ?? [];
   const milestones = msData?.milestones ?? [];
+  const allMilestones = allMsData?.milestones ?? [];
+
+  // Deadline counts across all milestones (excluding paid ones)
+  const pendingMilestones = allMilestones.filter(m => m.status !== "paid");
+  const overdueMs  = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
+  const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
 
   const activeCount    = projects.filter(p => ["applied", "active"].includes(p.status)).length;
   const completedCount = projects.filter(p => p.status === "completed").length;
@@ -306,6 +323,8 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agri-env-projects", farmId] });
+      // Deleting a project removes all its milestones — refresh the aggregate count too
+      qc.invalidateQueries({ queryKey: ["agri-env-all-milestones", farmId] });
       toast({ title: "Scheme removed" });
       setDeletingProject(null);
       if (expandedId === deletingProject?.id) setExpandedId(null);
@@ -331,6 +350,8 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agri-env-milestones", farmId, expandedId] });
+      // Also refresh the aggregate deadline banner
+      qc.invalidateQueries({ queryKey: ["agri-env-all-milestones", farmId] });
       toast({ title: editingMilestone ? "Milestone updated" : "Milestone added" });
       setShowMilestoneForm(false); setEditingMilestone(null);
     },
@@ -343,6 +364,8 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agri-env-milestones", farmId, expandedId] });
+      // Also refresh the aggregate deadline banner
+      qc.invalidateQueries({ queryKey: ["agri-env-all-milestones", farmId] });
       toast({ title: "Milestone removed" });
       setDeletingMilestone(null);
     },
@@ -410,6 +433,30 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           </div>
         </div>
       </div>
+
+      {/* Milestone deadline alert banner */}
+      {(overdueMs > 0 || upcomingMs > 0) && (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px",
+          background: overdueMs > 0 ? "#fef2f2" : "#fffbeb",
+          border: `1px solid ${overdueMs > 0 ? "#fecaca" : "#fde68a"}`,
+          borderRadius: 10, marginBottom: 20,
+        }}>
+          <AlertTriangle size={18} color={overdueMs > 0 ? "#dc2626" : "#d97706"} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: overdueMs > 0 ? "#991b1b" : "#92400e", marginBottom: 3 }}>
+              {overdueMs > 0 && upcomingMs > 0
+                ? `${overdueMs} overdue and ${upcomingMs} upcoming milestone${upcomingMs !== 1 ? "s" : ""} need attention`
+                : overdueMs > 0
+                ? `${overdueMs} milestone${overdueMs !== 1 ? "s" : ""} ${overdueMs !== 1 ? "are" : "is"} overdue — claim payment may be at risk`
+                : `${upcomingMs} milestone${upcomingMs !== 1 ? "s" : ""} due within 30 days — prepare your claim evidence`}
+            </div>
+            <div style={{ fontSize: "0.8rem", color: overdueMs > 0 ? "#b91c1c" : "#b45309" }}>
+              Expand the scheme below to view and update individual milestone statuses.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Projects list */}
       {isLoading ? (
@@ -512,8 +559,15 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                                   </span>
                                 )}
                               </div>
-                              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, marginTop: 3 }}>
-                                {m.dueDate && <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>Due: {new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, marginTop: 3, alignItems: "center" }}>
+                                {m.dueDate && (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#6b7280" }}>
+                                    Due:{" "}
+                                    {m.status === "paid"
+                                      ? <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>{new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                                      : <DeadlineBadge dateStr={m.dueDate} />}
+                                  </span>
+                                )}
                                 {m.completionDate && <span style={{ fontSize: "0.78rem", color: "#059669" }}>Done: {new Date(m.completionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
                                 {m.evidenceNotes && <span style={{ fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic" }}>{m.evidenceNotes}</span>}
                               </div>

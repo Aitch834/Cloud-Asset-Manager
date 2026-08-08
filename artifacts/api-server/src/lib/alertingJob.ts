@@ -1,4 +1,4 @@
-import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable } from "@workspace/db";
+import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable, agriEnvMilestonesTable, agriEnvProjectsTable } from "@workspace/db";
 import { usersTable, userTenantsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
@@ -1747,6 +1747,86 @@ async function checkLivestockMedicineWithdrawal() {
   }
 }
 
+async function checkAgriEnvMilestoneDeadlines() {
+  const WARN_DAYS = 30;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const warnCutoff = new Date(now);
+  warnCutoff.setDate(warnCutoff.getDate() + WARN_DAYS);
+
+  // Find pending/submitted milestones with a due date (overdue or within 30 days)
+  // Exclude already-paid milestones — they don't need deadline warnings
+  const milestones = await db
+    .select({
+      id: agriEnvMilestonesTable.id,
+      farmId: agriEnvMilestonesTable.farmId,
+      projectId: agriEnvMilestonesTable.projectId,
+      milestoneName: agriEnvMilestonesTable.milestoneName,
+      dueDate: agriEnvMilestonesTable.dueDate,
+      status: agriEnvMilestonesTable.status,
+    })
+    .from(agriEnvMilestonesTable)
+    .where(
+      and(
+        isNotNull(agriEnvMilestonesTable.dueDate),
+        ne(agriEnvMilestonesTable.status, "paid"),
+        lte(agriEnvMilestonesTable.dueDate, warnCutoff.toISOString().slice(0, 10)),
+      )
+    );
+
+  for (const ms of milestones) {
+    if (!ms.dueDate) continue;
+
+    const [project] = await db
+      .select({ schemeName: agriEnvProjectsTable.schemeName })
+      .from(agriEnvProjectsTable)
+      .where(eq(agriEnvProjectsTable.id, ms.projectId))
+      .limit(1);
+
+    const [farm] = await db
+      .select({ tenantId: farmsTable.tenantId })
+      .from(farmsTable)
+      .where(eq(farmsTable.id, ms.farmId))
+      .limit(1);
+
+    if (!farm) continue;
+
+    const due = new Date(ms.dueDate);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((due.getTime() - now.getTime()) / 86400000);
+    const overdue = diffDays < 0;
+    const dueDateStr = due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const schemeName = project?.schemeName ?? "Agri-environment scheme";
+    const severity = overdue ? "critical" : "warning";
+    const weekKey = overdue
+      ? `week${Math.floor(Math.abs(diffDays) / 7)}`
+      : `days${Math.floor(diffDays / 7)}`;
+
+    const statusLabel = ms.status === "submitted" ? "submitted but not yet paid" : "still pending";
+
+    const title = overdue
+      ? `Agri-environment Claim Overdue — ${ms.milestoneName}`
+      : `Agri-environment Claim Due in ${diffDays} Day${diffDays !== 1 ? "s" : ""} — ${ms.milestoneName}`;
+
+    const message = overdue
+      ? `Milestone "${ms.milestoneName}" for ${schemeName} was due on ${dueDateStr} and is ${statusLabel}. Check your claim status and contact your scheme administrator if payment has not been received. Open the Agri-environment tab on the Grants page to update the record.`
+      : `Milestone "${ms.milestoneName}" for ${schemeName} is due on ${dueDateStr} — ${diffDays} day${diffDays !== 1 ? "s" : ""} remaining. Ensure your claim evidence is ready and submit on time to avoid losing the payment. Open the Agri-environment tab on the Grants page.`;
+
+    await upsertNotification({
+      tenantId: farm.tenantId,
+      farmId: ms.farmId,
+      type: "agrienv_milestone_deadline",
+      severity,
+      title,
+      message,
+      relatedModule: "grants",
+      relatedId: ms.id,
+      dedupeKey: `agrienv-milestone-${ms.id}-${weekKey}`,
+    });
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -1768,6 +1848,7 @@ export async function runAlertingJob() {
     await checkPigRedTractorExpiry();
     await checkPigTailBitingOutbreaks();
     await checkLivestockMedicineWithdrawal();
+    await checkAgriEnvMilestoneDeadlines();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

@@ -41533,6 +41533,15 @@ router.delete("/farms/:farmId/agri-env-projects/:id", requireAuth, requireTenant
 // Agri-environment Milestones
 // ─────────────────────────────────────────────────────────────────────────────
 
+// All milestones across all projects for a farm (used for deadline summary banner)
+router.get("/farms/:farmId/agri-env-milestones", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const milestones = await db.select().from(agriEnvMilestonesTable)
+    .where(eq(agriEnvMilestonesTable.farmId, farmId))
+    .orderBy(agriEnvMilestonesTable.dueDate);
+  res.json({ milestones });
+});
+
 router.get("/farms/:farmId/agri-env-projects/:projectId/milestones", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
