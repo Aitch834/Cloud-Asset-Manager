@@ -134,6 +134,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherMsg, setWeatherMsg] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
+  const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "search", farmId, defaultValue: "" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
@@ -352,7 +353,19 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
 
   const sprayYears = Array.from(new Set(crud.data.map(r => new Date(r.applicationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!sprayYears.includes(new Date().getFullYear())) sprayYears.unshift(new Date().getFullYear());
-  const filteredSpray = yearFilter === "all" ? crud.data : crud.data.filter(r => new Date(r.applicationDate as string).getFullYear() === Number(yearFilter));
+  const filteredSpray = useMemo(() => {
+    let rows = yearFilter === "all" ? crud.data : crud.data.filter(r => new Date(r.applicationDate as string).getFullYear() === Number(yearFilter));
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      rows = rows.filter(r => {
+        const block = blocks.find(b => b.id === r.blockId);
+        const blockNameStr = String(block?.blockName ?? "").toLowerCase();
+        const variety = String(block?.variety ?? "").toLowerCase();
+        return blockNameStr.includes(q) || variety.includes(q);
+      });
+    }
+    return rows;
+  }, [crud.data, yearFilter, searchText, blocks]);
 
   const maxApps = selectedProduct?.maxApplicationsPerSeason;
   const seasonLimitReached = maxApps != null && seasonApplicationCount >= maxApps;
@@ -384,6 +397,27 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSpray, "spray-diary.csv", csvCols)} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
           <Button size="sm" variant="outline" onClick={() => void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta)} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
+        </div>
+      </div>
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search block or variety…"
+            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchText("")}
+              aria-label="Clear search"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (

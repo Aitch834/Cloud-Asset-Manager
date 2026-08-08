@@ -67,6 +67,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink 
   const [raiseTaskFor, setRaiseTaskFor] = useState<Scouting | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
+  const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-scouting", filter: "search", farmId, defaultValue: "" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
@@ -226,8 +227,20 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink 
 
   const scoutingYears = Array.from(new Set(data.map(r => new Date(r.scoutDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!scoutingYears.includes(new Date().getFullYear())) scoutingYears.unshift(new Date().getFullYear());
-  const yearFiltered = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
-  const filteredScouting = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+  const filteredScouting = useMemo(() => {
+    let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
+    if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      rows = rows.filter(r => {
+        const block = blocks.find(b => b.id === r.blockId);
+        const blockNameStr = String(block?.blockName ?? "").toLowerCase();
+        const variety = String(block?.variety ?? "").toLowerCase();
+        return blockNameStr.includes(q) || variety.includes(q);
+      });
+    }
+    return rows;
+  }, [data, yearFilter, blockFilter, searchText, blocks]);
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
@@ -281,6 +294,27 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink 
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols)} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" variant="outline" onClick={() => void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta)} disabled={!filteredScouting.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
+        </div>
+      </div>
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search block or variety…"
+            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+          />
+          {searchText && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchText("")}
+              aria-label="Clear search"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
       <DataTable
