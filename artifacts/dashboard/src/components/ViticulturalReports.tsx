@@ -508,7 +508,7 @@ function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = SEASON_PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{display:none!important}#${SEASON_PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:24px}.no-print{display:none!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
+  s.textContent = `@media print{body>*{display:none!important}#${SEASON_PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:24px}.no-print{display:none!important}#${SEASON_PRINT_ID} .hidden{display:block!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
   document.head.appendChild(s);
 }
 
