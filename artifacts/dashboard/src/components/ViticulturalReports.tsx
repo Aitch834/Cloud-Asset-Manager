@@ -514,7 +514,8 @@ function ensureSeasonPrintStyle() {
 
 export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  // null = "All Vintages" mode
+  const [year, setYear] = useState<number | null>(currentYear);
   const { blocks, harvests, scouts, ops, sprays, loading } = useVitData(farmId);
 
   const { data: farmMeta } = useQuery<Record<string, unknown> | null>({
@@ -543,31 +544,69 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
   const blockName = (id: unknown) => blockMap[id as number]?.blockName ?? fmt(id);
 
-  // Harvest for selected vintage
+  // Harvest for selected vintage (null = all)
   const vintageHarvest = useMemo(
-    () => harvests.filter(h => Number(h.vintageYear) === year),
+    () => year == null ? harvests : harvests.filter(h => Number(h.vintageYear) === year),
     [harvests, year],
   );
 
-  // Season scouting (calendar year matching vintage)
+  // Season scouting (calendar year matching vintage; empty in all-vintages mode)
   const seasonScouts = useMemo(
-    () => scouts.filter(s => new Date(s.scoutDate).getFullYear() === year)
+    () => year == null ? [] : scouts.filter(s => new Date(s.scoutDate).getFullYear() === year)
       .sort((a, b) => a.scoutDate.localeCompare(b.scoutDate)),
     [scouts, year],
   );
 
-  // Operations for vintage year
+  // Operations for vintage year (empty in all-vintages mode)
   const seasonOps = useMemo(
-    () => ops.filter(o => new Date(o.operationDate).getFullYear() === year)
+    () => year == null ? [] : ops.filter(o => new Date(o.operationDate).getFullYear() === year)
       .sort((a, b) => a.operationDate.localeCompare(b.operationDate)),
     [ops, year],
   );
 
-  // Spray diary for vintage year
+  // Spray diary for vintage year (empty in all-vintages mode)
   const seasonSprays = useMemo(
-    () => sprays.filter(s => new Date(s.applicationDate).getFullYear() === year),
+    () => year == null ? [] : sprays.filter(s => new Date(s.applicationDate).getFullYear() === year),
     [sprays, year],
   );
+
+  // All-vintages summary: one row per vintage year
+  const allVintagesSummary = useMemo(() => {
+    if (year != null) return [];
+    const map: Record<string, {
+      vintage: string; totalKg: number; totalAreaHa: number;
+      brixSum: number; brixCount: number; phSum: number; phCount: number; records: number;
+    }> = {};
+    harvests.forEach(h => {
+      const yr = String(h.vintageYear);
+      if (!yr || yr === "null" || yr === "undefined") return;
+      if (!map[yr]) map[yr] = { vintage: yr, totalKg: 0, totalAreaHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, records: 0 };
+      const m = map[yr];
+      m.totalKg += n(h.yieldKg);
+      // Reconstruct area from t/ha if block area not directly available
+      const tha = n(h.yieldTonnesPerHa);
+      if (tha > 0 && n(h.yieldKg) > 0) m.totalAreaHa += n(h.yieldKg) / 1000 / tha;
+      if (h.brix != null && h.brix !== "") { m.brixSum += n(h.brix); m.brixCount++; }
+      if (h.ph != null && h.ph !== "") { m.phSum += n(h.ph); m.phCount++; }
+      m.records++;
+    });
+    // Build block-set per vintage for accurate area (avoids double-counting blocks)
+    const blockSetsPerVintage: Record<string, Set<number>> = {};
+    harvests.forEach(h => {
+      const yr = String(h.vintageYear);
+      if (!yr || yr === "null" || yr === "undefined" || !map[yr]) return;
+      if (h.blockId != null) {
+        if (!blockSetsPerVintage[yr]) blockSetsPerVintage[yr] = new Set();
+        blockSetsPerVintage[yr].add(h.blockId);
+      }
+    });
+    Object.entries(blockSetsPerVintage).forEach(([yr, ids]) => {
+      const area = [...ids].reduce((s, id) => s + n(blockMap[id]?.areaHa), 0);
+      if (area > 0 && map[yr]) map[yr].totalAreaHa = area;
+    });
+
+    return Object.values(map).sort((a, b) => b.vintage.localeCompare(a.vintage));
+  }, [year, harvests, blockMap]);
 
   // Totals
   const totalYieldKg = useMemo(() => vintageHarvest.reduce((s, h) => s + n(h.yieldKg), 0), [vintageHarvest]);
@@ -628,9 +667,10 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         <div className="flex items-center gap-2">
           <select
             className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
-            value={year}
-            onChange={e => setYear(Number(e.target.value))}
+            value={year == null ? "all" : year}
+            onChange={e => setYear(e.target.value === "all" ? null : Number(e.target.value))}
           >
+            <option value="all">All Vintages</option>
             {vintageYears.map(y => <option key={y} value={y}>{y} Vintage</option>)}
           </select>
           {printButton}
@@ -641,32 +681,111 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       <div className="hidden print:block border-b-2 border-gray-800 pb-3 mb-4">
         <div className="flex items-center gap-2 mb-1">
           <Grape className="w-5 h-5 text-purple-600" />
-          <h1 className="text-xl font-bold">Vintage Season Report — {year}</h1>
+          <h1 className="text-xl font-bold">
+            {year == null ? "All Vintages — Yield Summary" : `Vintage Season Report — ${year}`}
+          </h1>
         </div>
         {!!farmMeta?.name && <p className="text-sm font-semibold mt-0.5">{String(farmMeta.name)}</p>}
         {!!farmMeta?.address && <p className="text-xs text-gray-500">{String(farmMeta.address)}</p>}
         <p className="text-xs text-gray-400 mt-1">Produced {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
       </div>
 
-      {/* Season summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {[
-          { label: "Vintage Year", value: String(year) },
-          { label: "Harvest Records", value: String(vintageHarvest.length) },
-          { label: "Total Yield", value: totalYieldKg > 0 ? `${(totalYieldKg / 1000).toFixed(2)} t` : "—" },
-          { label: "Area Harvested", value: totalAreaHa > 0 ? `${totalAreaHa.toFixed(2)} ha` : "—" },
-          { label: "Avg Yield (t/ha)", value: avgTha > 0 ? avgTha.toFixed(2) : "—" },
-          { label: "Avg Brix °", value: avgBrix != null ? avgBrix.toFixed(1) : "—" },
-        ].map(({ label, value }) => (
-          <div key={label} className="rounded-xl border border-border bg-card p-3">
-            <p className="text-xs text-foreground/50">{label}</p>
-            <p className="text-lg font-bold text-purple-700">{value}</p>
-          </div>
-        ))}
-      </div>
+      {/* Season summary KPIs (single-vintage mode only) */}
+      {year != null && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Vintage Year", value: String(year) },
+            { label: "Harvest Records", value: String(vintageHarvest.length) },
+            { label: "Total Yield", value: totalYieldKg > 0 ? `${(totalYieldKg / 1000).toFixed(2)} t` : "—" },
+            { label: "Area Harvested", value: totalAreaHa > 0 ? `${totalAreaHa.toFixed(2)} ha` : "—" },
+            { label: "Avg Yield (t/ha)", value: avgTha > 0 ? avgTha.toFixed(2) : "—" },
+            { label: "Avg Brix °", value: avgBrix != null ? avgBrix.toFixed(1) : "—" },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl border border-border bg-card p-3">
+              <p className="text-xs text-foreground/50">{label}</p>
+              <p className="text-lg font-bold text-purple-700">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Harvest by block */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* All-vintages yield summary table */}
+      {year == null && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">Yield Summary — All Vintages</h3>
+            <p className="text-xs text-foreground/40">Total yield, area, t/ha, average Brix and pH per vintage year</p>
+          </div>
+          {allVintagesSummary.length === 0 ? (
+            <p className="text-sm text-foreground/40 text-center py-6">
+              No harvest records found. Add records in the Harvest tab.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left">Vintage</th>
+                    <th className="px-4 py-2 text-right">Records</th>
+                    <th className="px-4 py-2 text-right">Total Yield (kg)</th>
+                    <th className="px-4 py-2 text-right">Total Yield (t)</th>
+                    <th className="px-4 py-2 text-right">Area (ha)</th>
+                    <th className="px-4 py-2 text-right">Yield (t/ha)</th>
+                    <th className="px-4 py-2 text-right">Avg Brix °</th>
+                    <th className="px-4 py-2 text-right">Avg pH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allVintagesSummary.map(row => {
+                    const tha = row.totalAreaHa > 0 ? row.totalKg / 1000 / row.totalAreaHa : null;
+                    return (
+                      <tr key={row.vintage} className="border-t border-border/40 hover:bg-muted/20">
+                        <td className="px-4 py-2 font-semibold text-purple-700">{row.vintage}</td>
+                        <td className="px-4 py-2 text-right text-foreground/60">{row.records}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.totalKg > 0 ? row.totalKg.toFixed(0) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.totalKg > 0 ? (row.totalKg / 1000).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.totalAreaHa > 0 ? row.totalAreaHa.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-semibold">{tha != null ? tha.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {allVintagesSummary.length > 0 && (() => {
+                  const grandKg = allVintagesSummary.reduce((s, r) => s + r.totalKg, 0);
+                  const grandArea = allVintagesSummary.reduce((s, r) => s + r.totalAreaHa, 0);
+                  const grandTha = grandArea > 0 ? grandKg / 1000 / grandArea : null;
+                  // Record-weighted: sum all raw measurement sums and counts across vintages
+                  const grandBrixSum = allVintagesSummary.reduce((s, r) => s + r.brixSum, 0);
+                  const grandBrixCount = allVintagesSummary.reduce((s, r) => s + r.brixCount, 0);
+                  const grandPhSum = allVintagesSummary.reduce((s, r) => s + r.phSum, 0);
+                  const grandPhCount = allVintagesSummary.reduce((s, r) => s + r.phCount, 0);
+                  const grandBrix = grandBrixCount > 0 ? grandBrixSum / grandBrixCount : null;
+                  const grandPh = grandPhCount > 0 ? grandPhSum / grandPhCount : null;
+                  return (
+                    <tfoot>
+                      <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
+                        <td className="px-4 py-2">All Vintages</td>
+                        <td className="px-4 py-2 text-right font-mono">{allVintagesSummary.reduce((s, r) => s + r.records, 0)}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandKg > 0 ? grandKg.toFixed(0) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandKg > 0 ? (grandKg / 1000).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandArea > 0 ? grandArea.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandTha != null ? grandTha.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandBrix != null ? grandBrix.toFixed(1) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandPh != null ? grandPh.toFixed(2) : "—"}</td>
+                      </tr>
+                    </tfoot>
+                  );
+                })()}
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Harvest by block (single-vintage mode only) */}
+      {year != null && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="text-sm font-semibold">Harvest Records — {year} Vintage</h3>
           <p className="text-xs text-foreground/40">Per-block yield and must chemistry</p>
@@ -745,10 +864,10 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             </div>
           </>
         )}
-      </div>
+      </div>}
 
-      {/* Per-block yield summary */}
-      {vintageHarvest.length > 0 && (() => {
+      {/* Per-block yield summary (single-vintage mode only) */}
+      {year != null && vintageHarvest.length > 0 && (() => {
         // Aggregate harvest records per block
         const blockSummaryMap: Record<number | string, {
           blockId: number | null; blockName: string; variety: string; areaHa: number;
@@ -845,8 +964,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         );
       })()}
 
-      {/* Disease pressure season peak summary */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Disease pressure season peak summary (single-vintage mode only) */}
+      {year != null && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {year} Season Summary</h3>
           <p className="text-xs text-foreground/40">{seasonScouts.length} scouting round{seasonScouts.length !== 1 ? "s" : ""} recorded</p>
@@ -925,10 +1044,10 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* Canopy operations log */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Canopy operations log (single-vintage mode only) */}
+      {year != null && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="text-sm font-semibold">Canopy &amp; Pruning Operations — {year}</h3>
           <p className="text-xs text-foreground/40">
@@ -981,10 +1100,10 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* Spray diary season summary */}
-      {seasonSprays.length > 0 && (
+      {/* Spray diary season summary (single-vintage mode only) */}
+      {year != null && seasonSprays.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">Spray Diary Summary — {year}</h3>
