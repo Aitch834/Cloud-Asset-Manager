@@ -643,6 +643,53 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             )}
           </div>
 
+          {/* Barrel health CSV export — respects active zone/flag filter */}
+          {(() => {
+            const exportBarrels = barrels.filter(r => {
+              if (String(r.status ?? "active") !== "active") return false;
+              if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
+              if (flagFilter && !matchesFlagFilter(r)) return false;
+              return true;
+            });
+            const scopeParts: string[] = [];
+            if (zoneFilter) scopeParts.push(`Zone: ${zoneFilter}`);
+            if (flagFilter === "approaching-neutral") scopeParts.push("Flag: approaching neutral (fill 4+)");
+            else if (flagFilter === "idle") scopeParts.push("Flag: idle >90 days");
+            else if (flagFilter) scopeParts.push(`Fill tier: ${flagFilter}`);
+            const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
+              { key: "vessel_ref", label: "Vessel Ref", fmt: r => String(r.vessel_ref ?? "") },
+              { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
+              { key: "cellar_zone", label: "Cellar Zone", fmt: r => String(r.cellar_zone ?? "") },
+              { key: "fill_number", label: "Fill Number", fmt: r => r.fill_number != null ? String(r.fill_number) : "" },
+              { key: "_fill_tier", label: "Fill Tier", fmt: r => fillOakLabel(Number(r.fill_number ?? 0)).label },
+              { key: "is_full", label: "Is Full", fmt: r => r.is_full ? "Yes" : "No" },
+              { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
+              { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
+              { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= 4 ? "Yes" : "No" },
+            ];
+            return (
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-xs"
+                  disabled={exportBarrels.length === 0}
+                  onClick={() => exportCSV(
+                    exportBarrels,
+                    "barrel-health-summary.csv",
+                    barrelHealthCols,
+                    [
+                      csvComment(`Barrel Health Summary — ${farmNameVessels}`),
+                      csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
+                    ],
+                  )}
+                >
+                  <FileDown className="w-3 h-3 mr-1" />Export CSV
+                </Button>
+              </div>
+            );
+          })()}
+
           {/* Fill-tier breakdown */}
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">Oak age — active barrels by fill number (click to filter)</p>
