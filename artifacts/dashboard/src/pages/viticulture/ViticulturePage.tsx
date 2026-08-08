@@ -179,7 +179,7 @@ export default function ViticulturePage() {
           {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} />}
           {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
-          {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
+          {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} />}
           {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "operations"} />}
           {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "harvest"} />}
           {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "scouting"} />}

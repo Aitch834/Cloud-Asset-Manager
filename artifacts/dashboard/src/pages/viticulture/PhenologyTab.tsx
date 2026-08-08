@@ -55,7 +55,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Phenology = Record<string, unknown>;
 
-export function PhenologyTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
+export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
@@ -176,6 +176,24 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId }: { farmId: num
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
+            {onNavigate && (
+              <>
+                <Button
+                  variant="outline"
+                  className="text-orange-700 border-orange-200 hover:bg-orange-50"
+                  onClick={() => { onNavigate("operations", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Wrench className="w-4 h-4 mr-1" />Operations
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                  onClick={() => { onNavigate("harvest", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Grape className="w-4 h-4 mr-1" />Harvest
+                </Button>
+              </>
+            )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
         </DialogContent>
