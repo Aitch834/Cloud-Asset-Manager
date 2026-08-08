@@ -48,6 +48,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -80,7 +81,7 @@ export function WineryStockTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = usePersistedFilter({ page: "viticulture-winery-stock", filter: "category", farmId, defaultValue: "all", validValues: ["all", ...WINERY_CATEGORIES] });
   const [itemDialog, setItemDialog] = useState<"add" | "edit" | null>(null);
   const [editingItem, setEditingItem] = useState<WineryItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<WineryItem | null>(null);
