@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -55,9 +55,11 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Phenology = Record<string, unknown>;
 
-export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void }) {
+export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const { displayName } = useUserRole();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Phenology | null>(null);
   const [form, setForm] = useState<Phenology>({});
@@ -65,11 +67,59 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate }: {
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
+  const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
+  const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
     if (highlightBlockId) setBlockFilter(String(highlightBlockId));
   }, [highlightBlockId]);
+
+  // ── Bulk-link ─────────────────────────────────────────────────────────────
+  const unlinkedPhenology = useMemo(() => data.filter(r => !r.blockId), [data]);
+
+  const openBulkLink = () => {
+    const initial: Record<number, number | null> = {};
+    for (const rec of unlinkedPhenology) initial[rec.id as number] = null;
+    setBulkLinks(initial);
+    setBulkLinkOpen(true);
+  };
+
+  // Auto-open bulk-link dialog when navigated from Overview warning bar
+  const bulkLinkPending = useRef(false);
+  useEffect(() => { if (requestBulkLink) bulkLinkPending.current = true; }, [requestBulkLink]);
+  useEffect(() => {
+    if (bulkLinkPending.current && !isLoading) {
+      bulkLinkPending.current = false;
+      openBulkLink();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+
+  const bulkLinkMutation = useMutation({
+    mutationFn: async (links: Record<number, number | null>) => {
+      const toSave = Object.entries(links).filter(([, blockId]) => blockId !== null);
+      if (!toSave.length) return 0;
+      await Promise.all(
+        toSave.map(([id, blockId]) =>
+          fetch(api(`farms/${farmId}/vineyard-phenology/${id}`), {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ blockId }),
+          }).then(r => { if (!r.ok) throw new Error("Failed to link record"); return r.json(); })
+        )
+      );
+      return toSave.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-phenology", farmId] });
+      setBulkLinkOpen(false);
+      toast({ title: `${count} ${count === 1 ? "observation" : "observations"} linked`, description: "Block links saved successfully." });
+    },
+  });
+
+  const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
@@ -137,6 +187,11 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate }: {
               {phenologyYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
+          {unlinkedPhenology.length > 0 && (
+            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50" onClick={openBulkLink}>
+              <Link className="w-4 h-4 mr-1" />Link unlinked records ({unlinkedPhenology.length})
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredPhenology, "phenology.csv", csvCols)} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
@@ -209,6 +264,56 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate }: {
           module="Viticulture"
         />
       )}
+
+      {/* Bulk-link Dialog */}
+      <Dialog open={bulkLinkOpen} onOpenChange={o => { if (!o) { setBulkLinkOpen(false); bulkLinkMutation.reset(); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Link unlinked phenology observations to blocks</DialogTitle>
+            <DialogDescription>
+              Assign each unlinked observation to a vineyard block. Observations already linked to a block are not shown.
+            </DialogDescription>
+          </DialogHeader>
+          {unlinkedPhenology.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">All observations are already linked to blocks.</p>
+          ) : (
+            <div className="space-y-3">
+              {unlinkedPhenology.map(rec => {
+                const recId = rec.id as number;
+                return (
+                  <div key={recId} className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{fmtDate(rec.observationDate)} — {fmt(rec.bbchStage)} {rec.bbchDescription ? `· ${fmt(rec.bbchDescription)}` : ""}</p>
+                      {!!rec.observer && <p className="text-xs text-muted-foreground">{fmt(rec.observer)}</p>}
+                    </div>
+                    <Select
+                      value={bulkLinks[recId] !== null && bulkLinks[recId] !== undefined ? String(bulkLinks[recId]) : "__none__"}
+                      onValueChange={v => setBulkLinks(prev => ({ ...prev, [recId]: v === "__none__" ? null : Number(v) }))}
+                    >
+                      <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Select block…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— No block —</SelectItem>
+                        {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <DialogMutationError mutation={bulkLinkMutation} message="Some links could not be saved. Please try again." />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkLinkOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => bulkLinkMutation.mutate(bulkLinks)}
+              disabled={bulkLinkCount === 0 || bulkLinkMutation.isPending}
+            >
+              {bulkLinkMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Save {bulkLinkCount > 0 ? `${bulkLinkCount} link${bulkLinkCount === 1 ? "" : "s"}` : "links"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>

@@ -118,6 +118,7 @@ export function OverviewTab({
   const scouting = useCrud(farmId, "vineyard-scouting", "vineyard-scouting");
   const operations = useCrud(farmId, "vineyard-operations", "vineyard-operations");
   const sprayDiary = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
+  const phenology = useCrud(farmId, "vineyard-phenology", "vineyard-phenology");
 
   const activeBlocks = blocks.data.filter(b => b.isActive !== false);
   const totalHa = activeBlocks.reduce((s, b) => s + parseFloat(String(b.areaHa || 0)), 0);
@@ -135,6 +136,7 @@ export function OverviewTab({
     { label: "Harvest", count: harvest.data.filter(r => !r.blockId).length, tabId: "harvest" },
     { label: "Disease Scouting", count: scouting.data.filter(r => !r.blockId).length, tabId: "scouting" },
     { label: "Spray Diary", count: sprayDiary.data.filter(r => !r.blockId).length, tabId: "spray-diary" },
+    { label: "Phenology", count: phenology.data.filter(r => !r.blockId).length, tabId: "phenology" },
   ];
 
   return (
