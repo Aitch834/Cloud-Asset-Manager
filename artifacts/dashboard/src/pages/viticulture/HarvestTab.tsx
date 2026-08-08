@@ -28,6 +28,7 @@ import {
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -197,7 +198,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
     { key: "notes", label: "Notes" },
   ];
 
-  const exportHarvestCSV = (rows: Record<string, unknown>[]) => {
+  const exportHarvestCSV = (rows: Record<string, unknown>[], mode: "full" | "summary" = "full") => {
     if (!rows.length) return;
     const cell = (v: unknown) => {
       const s = sanitiseCsvCell(v == null ? "" : String(v));
@@ -249,28 +250,42 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
       ].join(",");
     });
 
-    // ── Build detail section ─────────────────────────────────────────────────
-    const detailHeader = csvCols.map(c => cell(c.label)).join(",");
-    const detailBody = rows.map(r =>
-      csvCols.map(c => {
-        const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
-        return cell(raw);
-      }).join(",")
-    ).join("\n");
+    let csv: string;
+    let filename: string;
 
-    const csv = [
-      cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
-      summaryHeader,
-      ...summaryRows,
-      "",
-      cell("Detail Records"),
-      detailHeader,
-      detailBody,
-    ].join("\n");
+    if (mode === "summary") {
+      // ── Summary-only export ──────────────────────────────────────────────
+      csv = [
+        cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
+        summaryHeader,
+        ...summaryRows,
+      ].join("\n");
+      filename = "vineyard-harvest-summary.csv";
+    } else {
+      // ── Full export (summary + detail rows) ──────────────────────────────
+      const detailHeader = csvCols.map(c => cell(c.label)).join(",");
+      const detailBody = rows.map(r =>
+        csvCols.map(c => {
+          const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
+          return cell(raw);
+        }).join(",")
+      ).join("\n");
+
+      csv = [
+        cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
+        summaryHeader,
+        ...summaryRows,
+        "",
+        cell("Detail Records"),
+        detailHeader,
+        detailBody,
+      ].join("\n");
+      filename = "vineyard-harvest.csv";
+    }
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "vineyard-harvest.csv"; a.click(); URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
@@ -310,7 +325,26 @@ export function HarvestTab({ farmId, blocks, highlightBlockId }: { farmId: numbe
               {harvestYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportHarvestCSV(filteredHarvest)} disabled={!filteredHarvest.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={!filteredHarvest.length}>
+                <FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredHarvest.length})` : ""}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportHarvestCSV(filteredHarvest, "summary")}>
+                <FileDown className="w-4 h-4 mr-2 text-muted-foreground" />
+                Export Summary
+                <span className="ml-2 text-xs text-muted-foreground">(totals only)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => exportHarvestCSV(filteredHarvest, "full")}>
+                <FileDown className="w-4 h-4 mr-2 text-muted-foreground" />
+                Export Full
+                <span className="ml-2 text-xs text-muted-foreground">(summary + all records)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" variant="outline" onClick={() => void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta)} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
