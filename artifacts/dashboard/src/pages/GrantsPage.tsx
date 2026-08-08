@@ -9,7 +9,8 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive, ChevronDown, Leaf } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive, ChevronDown, Leaf, Download, Printer } from "lucide-react";
+import { downloadCsvFile } from "@/lib/csv";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useLocation } from "wouter";
 
@@ -398,16 +399,87 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const inputSt = { padding: "8px 10px", borderRadius: 6, border: "1px solid #e5e7eb", fontSize: "0.875rem", width: "100%" };
   const labelSt: React.CSSProperties = { fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" };
 
+  function exportCsv() {
+    const milestonesByProject = new Map<number, AgriEnvMilestone[]>();
+    for (const m of allMilestones) {
+      const arr = milestonesByProject.get(m.projectId) ?? [];
+      arr.push(m);
+      milestonesByProject.set(m.projectId, arr);
+    }
+
+    const header = [
+      "Scheme Name", "Administering Body", "Agreement / Ref", "Designated Landscape",
+      "Theme", "Start Date", "End Date", "Grant Value (£)", "Status", "Notes",
+      "Milestone Name", "Milestone Due Date", "Milestone Completion Date",
+      "Milestone Claim (£)", "Milestone Status", "Evidence Notes",
+    ];
+
+    const rows: (string | number | null)[][] = [header];
+    for (const p of projects) {
+      const ms = milestonesByProject.get(p.id) ?? [];
+      const schemeBase = [
+        p.schemeName,
+        p.administeringBody ?? "",
+        p.agreementReference ?? "",
+        p.designatedLandscape ?? "",
+        p.theme ?? "",
+        p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "",
+        p.endDate   ? new Date(p.endDate).toLocaleDateString("en-GB")   : "",
+        p.totalGrantValuePence != null ? (p.totalGrantValuePence / 100).toFixed(2) : "",
+        AE_PROJECT_STATUS_CFG[p.status]?.label ?? p.status,
+        p.notes ?? "",
+      ];
+      if (ms.length === 0) {
+        rows.push([...schemeBase, "", "", "", "", "", ""]);
+      } else {
+        for (const m of ms) {
+          rows.push([
+            ...schemeBase,
+            m.milestoneName,
+            m.dueDate        ? new Date(m.dueDate).toLocaleDateString("en-GB")        : "",
+            m.completionDate ? new Date(m.completionDate).toLocaleDateString("en-GB") : "",
+            m.claimAmountPence != null ? (m.claimAmountPence / 100).toFixed(2) : "",
+            AE_MILESTONE_STATUS_CFG[m.status]?.label ?? m.status,
+            m.evidenceNotes ?? "",
+          ]);
+        }
+      }
+    }
+    downloadCsvFile("agri-environment-schemes.csv", rows);
+  }
+
   return (
     <div>
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          aside, nav, header, [data-sidebar], .sidebar, [class*="sidebar"] { display: none !important; }
+          body { background: white !important; }
+          .ae-screen-only { display: none !important; }
+          .ae-print-only { display: block !important; }
+          .ae-print-card { break-inside: avoid; }
+        }
+      `}</style>
+
+      <div className="ae-screen-only">
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
         <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
           Record agri-environment scheme agreements — FiPL, SFI, Countryside Stewardship, ELMs, AONB stewardship and any other scheme.
         </p>
-        <Button onClick={openAddProject} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 16 }}>
-          <Plus size={16} /> Add Scheme
-        </Button>
+        <div className="ae-print-hide" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 16 }}>
+          <Button variant="outline" size="sm" onClick={() => window.print()} disabled={projects.length === 0}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Printer size={14} /> Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={projects.length === 0}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Download size={14} /> Export CSV
+          </Button>
+          <Button onClick={openAddProject} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Plus size={16} /> Add Scheme
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -587,6 +659,89 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           })}
         </div>
       )}
+
+      </div>{/* end ae-screen-only */}
+
+      {/* ── Print-only full report ────────────────────────────────────────── */}
+      {projects.length > 0 && (() => {
+        const milestonesByProject = new Map<number, AgriEnvMilestone[]>();
+        for (const m of allMilestones) {
+          const arr = milestonesByProject.get(m.projectId) ?? [];
+          arr.push(m);
+          milestonesByProject.set(m.projectId, arr);
+        }
+        return (
+          <div style={{ display: "none" }} className="ae-print-only">
+            <div style={{ fontFamily: "Georgia, serif", color: "#111827", padding: "0 0 24px" }}>
+              <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>Agri-environment Scheme Record</h1>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 24 }}>
+                Exported {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                {totalValue > 0 && ` · Total scheme value: £${(totalValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`}
+              </p>
+              {projects.map((p, idx) => {
+                const ms = milestonesByProject.get(p.id) ?? [];
+                const statusCfg = AE_PROJECT_STATUS_CFG[p.status];
+                return (
+                  <div key={p.id} className="ae-print-card" style={{ marginBottom: 28, pageBreakInside: "avoid" }}>
+                    <div style={{ borderLeft: "4px solid #059669", paddingLeft: 12, marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 3 }}>
+                        <span style={{ fontSize: "1rem", fontWeight: 700 }}>{idx + 1}. {p.schemeName}</span>
+                        <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>[{statusCfg?.label ?? p.status}]</span>
+                      </div>
+                      <table style={{ fontSize: "0.8rem", borderCollapse: "collapse", width: "100%" }}>
+                        <tbody>
+                          {p.administeringBody && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Administering body</td><td>{p.administeringBody}</td></tr>}
+                          {p.agreementReference && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Agreement reference</td><td>{p.agreementReference}</td></tr>}
+                          {p.designatedLandscape && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Designated landscape</td><td>{p.designatedLandscape}</td></tr>}
+                          {p.theme && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Theme</td><td>{p.theme}</td></tr>}
+                          {(p.startDate || p.endDate) && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Period</td><td>{p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "?"} → {p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "ongoing"}</td></tr>}
+                          {p.totalGrantValuePence != null && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", paddingBottom: 2 }}>Grant value</td><td>£{(p.totalGrantValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}</td></tr>}
+                          {p.notes && <tr><td style={{ color: "#6b7280", paddingRight: 16, whiteSpace: "nowrap", verticalAlign: "top", paddingBottom: 2 }}>Notes</td><td>{p.notes}</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                    {ms.length > 0 && (
+                      <div style={{ marginLeft: 16 }}>
+                        <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#6b7280", marginBottom: 6 }}>Milestones &amp; Claims</div>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                              <th style={{ textAlign: "left", padding: "4px 8px 4px 0", color: "#374151", fontWeight: 600 }}>Milestone</th>
+                              <th style={{ textAlign: "left", padding: "4px 8px 4px 0", color: "#374151", fontWeight: 600 }}>Due</th>
+                              <th style={{ textAlign: "left", padding: "4px 8px 4px 0", color: "#374151", fontWeight: 600 }}>Completed</th>
+                              <th style={{ textAlign: "right", padding: "4px 0 4px 8px", color: "#374151", fontWeight: 600 }}>Claim (£)</th>
+                              <th style={{ textAlign: "left", padding: "4px 0 4px 8px", color: "#374151", fontWeight: 600 }}>Status</th>
+                              <th style={{ textAlign: "left", padding: "4px 0", color: "#374151", fontWeight: 600 }}>Evidence</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ms.map(m => {
+                              const mCfg = AE_MILESTONE_STATUS_CFG[m.status];
+                              return (
+                                <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                                  <td style={{ padding: "4px 8px 4px 0" }}>{m.milestoneName}</td>
+                                  <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>{m.dueDate ? new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                                  <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap" }}>{m.completionDate ? new Date(m.completionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                                  <td style={{ padding: "4px 0 4px 8px", textAlign: "right", whiteSpace: "nowrap" }}>{m.claimAmountPence != null ? `£${(m.claimAmountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}` : "—"}</td>
+                                  <td style={{ padding: "4px 0 4px 8px" }}>{mCfg?.label ?? m.status}</td>
+                                  <td style={{ padding: "4px 0", color: "#6b7280" }}>{m.evidenceNotes ?? ""}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {ms.length === 0 && (
+                      <div style={{ marginLeft: 16, fontSize: "0.8rem", color: "#9ca3af" }}>No milestones recorded.</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Project Form Dialog ───────────────────────────────────────────── */}
       <Dialog open={showProjectForm} onOpenChange={v => { if (!v) { setShowProjectForm(false); setEditingProject(null); saveProjectMut.reset(); } }}>
