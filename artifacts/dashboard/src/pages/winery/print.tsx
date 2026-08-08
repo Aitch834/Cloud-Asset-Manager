@@ -685,7 +685,12 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
         const duration = barrelDurationLabel(f.fill_date, f.rack_out_date);
         const stillIn = !f.rack_out_date;
         const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
-        return `<tr>
+        const isCurrentBatch = !!f.fill_batch_ref && !!batchRef &&
+          String(f.fill_batch_ref).trim() === batchRef.trim();
+        const rowStyle = isCurrentBatch
+          ? `background:#fefce8;border-left:4px solid #f59e0b;`
+          : "";
+        return `<tr style="${rowStyle}">
           <td><span style="display:inline-block;background:${oak.bg};color:${oak.color};font-weight:600;font-size:10px;padding:1px 6px;border-radius:3px">${escHtml(oak.label)}</span></td>
           <td>${f.wine_name ? escHtml(String(f.wine_name)) : "—"}${f.fill_vintage_year ? ` <span style="color:#6b7280">(${escHtml(String(f.fill_vintage_year))})</span>` : ""}</td>
           <td>${f.variety ? escHtml(String(f.variety)) : "—"}</td>
@@ -693,7 +698,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
           <td>${outDate}</td>
           <td style="font-family:monospace;font-weight:600${stillIn ? ";color:#166534" : ""}">${escHtml(duration)}</td>
           <td style="text-align:right">${volL != null ? volL.toFixed(0) + " L" : "—"}</td>
-          <td>${f.fill_batch_ref ? `<span style="font-family:monospace;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(String(f.fill_batch_ref))}</span>` : "—"}</td>
+          <td>${f.fill_batch_ref ? `<span style="font-family:monospace;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px">${escHtml(String(f.fill_batch_ref))}</span>` : "—"}${isCurrentBatch ? ` <span style="display:inline-block;font-size:8px;font-weight:700;background:#fef08a;color:#92400e;border:1px solid #f59e0b;padding:1px 4px;border-radius:3px;white-space:nowrap">★ This batch</span>` : ""}</td>
         </tr>`;
       }).join("");
 

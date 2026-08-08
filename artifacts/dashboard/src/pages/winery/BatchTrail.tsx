@@ -1653,8 +1653,14 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                                   const oak = fillOakLabel(fn);
                                   const stillIn = !f.rack_out_date;
                                   const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
+                                  const isCurrentBatch = !!f.fill_batch_ref && !!pressing.batch_ref &&
+                                    String(f.fill_batch_ref).trim() === String(pressing.batch_ref).trim();
                                   return (
-                                    <div key={i} className="grid text-xs px-3 py-2 items-start gap-x-1" style={{ gridTemplateColumns: "1.6fr 1.4fr 0.9fr 72px 72px 90px 58px 90px" }}>
+                                    <div
+                                      key={i}
+                                      className={`grid text-xs px-3 py-2 items-start gap-x-1${isCurrentBatch ? " bg-amber-50 border-l-4 border-l-amber-400" : ""}`}
+                                      style={{ gridTemplateColumns: "1.6fr 1.4fr 0.9fr 72px 72px 90px 58px 90px" }}
+                                    >
                                       <span><span className={`inline-block px-1.5 py-0.5 rounded font-semibold ${oak.className}`}>{oak.label}</span></span>
                                       <span>{f.wine_name ? String(f.wine_name) : "—"}{f.fill_vintage_year ? <span className="text-muted-foreground"> ({String(f.fill_vintage_year)})</span> : null}</span>
                                       <span className="text-muted-foreground">{f.variety ? String(f.variety) : "—"}</span>
@@ -1662,7 +1668,14 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                                       <span className="text-muted-foreground">{f.rack_out_date ? fmtDate(f.rack_out_date) : "—"}</span>
                                       <span className={`font-mono font-semibold${stillIn ? " text-green-700" : ""}`}>{barrelDuration(f.fill_date, f.rack_out_date)}</span>
                                       <span className="text-muted-foreground">{volL != null ? `${volL.toFixed(0)} L` : "—"}</span>
-                                      <span>{f.fill_batch_ref ? <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{String(f.fill_batch_ref)}</span> : "—"}</span>
+                                      <span className="flex items-center gap-1 flex-wrap">
+                                        {f.fill_batch_ref ? <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{String(f.fill_batch_ref)}</span> : "—"}
+                                        {isCurrentBatch && (
+                                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full font-semibold text-amber-800 bg-amber-200 border border-amber-400 whitespace-nowrap" style={{ fontSize: "9px" }}>
+                                            ★ This batch
+                                          </span>
+                                        )}
+                                      </span>
                                     </div>
                                   );
                                 })}
