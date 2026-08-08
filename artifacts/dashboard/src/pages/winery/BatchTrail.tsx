@@ -1575,6 +1575,106 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               </TrailSection>
             )}
 
+            {/* Barrel Provenance */}
+            {(() => {
+              const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
+              if (barrelFills.length === 0) return null;
+
+              const fillOakLabel = (fillNumber: number): { label: string; className: string } => {
+                if (fillNumber === 1) return { label: "New oak (1st fill)", className: "bg-amber-100 text-amber-800" };
+                if (fillNumber === 2) return { label: "2nd fill", className: "bg-yellow-50 text-yellow-900" };
+                if (fillNumber === 3) return { label: "3rd fill", className: "bg-green-50 text-green-800" };
+                if (fillNumber === 4) return { label: "4th fill", className: "bg-blue-50 text-blue-800" };
+                return { label: `${fillNumber}th fill – neutral oak`, className: "bg-muted text-muted-foreground" };
+              };
+
+              const barrelDuration = (fillDate: unknown, rackOutDate: unknown): string => {
+                const start = fillDate ? new Date(String(fillDate)) : null;
+                if (!start || isNaN(start.getTime())) return "—";
+                const end = rackOutDate ? new Date(String(rackOutDate)) : null;
+                const days = end ? Math.round((end.getTime() - start.getTime()) / 86400000) : null;
+                if (days == null) return "Still maturing";
+                if (days < 0) return "—";
+                if (days < 31) return `${days}d`;
+                const months = Math.floor(days / 30.44);
+                return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
+              };
+
+              // Group fills by vessel_id, preserving insertion order (one meta per vessel)
+              const vesselMap = new Map<number, Record<string, unknown>[]>();
+              const vesselMeta = new Map<number, Record<string, unknown>>();
+              for (const f of barrelFills) {
+                const vid = Number(f.vessel_id);
+                if (!vesselMap.has(vid)) {
+                  vesselMap.set(vid, []);
+                  vesselMeta.set(vid, f);
+                }
+                vesselMap.get(vid)!.push(f);
+              }
+
+              return (
+                <TrailSection icon={Package} title="Barrel Provenance" count={vesselMap.size}>
+                  <p className="text-xs text-muted-foreground -mt-1 mb-2">
+                    Fill history for each oak barrel used as a source vessel in a bottling run for this batch. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.
+                  </p>
+                  <div className="space-y-3">
+                    {Array.from(vesselMap.entries()).map(([vid, fills]) => {
+                      const meta = vesselMeta.get(vid)!;
+                      const cooperage = meta.cooperage ? String(meta.cooperage) : null;
+                      const oakOrigin = meta.oak_origin ? String(meta.oak_origin) : null;
+                      const toasting = meta.toasting_level ? String(meta.toasting_level) : null;
+                      const capacityL = meta.capacity_litres != null ? parseFloat(String(meta.capacity_litres)) : null;
+                      return (
+                        <div key={vid} className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className="font-semibold text-sm">🪵 {String(meta.vessel_ref ?? "")}</span>
+                            {cooperage && <span className="text-xs text-muted-foreground">Cooperage: <strong className="text-foreground">{cooperage}</strong></span>}
+                            {oakOrigin && <span className="text-xs text-muted-foreground">Oak origin: <strong className="text-foreground">{oakOrigin}</strong></span>}
+                            {toasting && <span className="text-xs text-muted-foreground">Toasting: <strong className="text-foreground">{toasting}</strong></span>}
+                            {capacityL != null && <span className="text-xs text-muted-foreground">{capacityL.toFixed(0)} L</span>}
+                          </div>
+                          <div className="rounded border bg-white/70 overflow-x-auto">
+                            <div className="min-w-[560px]">
+                              <div className="grid text-xs font-semibold uppercase tracking-wide text-muted-foreground bg-orange-100/60 border-b border-orange-200 px-3 py-1.5" style={{ gridTemplateColumns: "1.6fr 1.4fr 0.9fr 72px 72px 90px 58px 90px" }}>
+                                <span>Fill</span>
+                                <span>Wine</span>
+                                <span>Variety</span>
+                                <span>In</span>
+                                <span>Out</span>
+                                <span>Duration</span>
+                                <span>Volume</span>
+                                <span>Batch Ref</span>
+                              </div>
+                              <div className="divide-y">
+                                {fills.map((f, i) => {
+                                  const fn = Number(f.fill_number);
+                                  const oak = fillOakLabel(fn);
+                                  const stillIn = !f.rack_out_date;
+                                  const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
+                                  return (
+                                    <div key={i} className="grid text-xs px-3 py-2 items-start gap-x-1" style={{ gridTemplateColumns: "1.6fr 1.4fr 0.9fr 72px 72px 90px 58px 90px" }}>
+                                      <span><span className={`inline-block px-1.5 py-0.5 rounded font-semibold ${oak.className}`}>{oak.label}</span></span>
+                                      <span>{f.wine_name ? String(f.wine_name) : "—"}{f.fill_vintage_year ? <span className="text-muted-foreground"> ({String(f.fill_vintage_year)})</span> : null}</span>
+                                      <span className="text-muted-foreground">{f.variety ? String(f.variety) : "—"}</span>
+                                      <span className="text-muted-foreground">{f.fill_date ? fmtDate(f.fill_date) : "—"}</span>
+                                      <span className="text-muted-foreground">{f.rack_out_date ? fmtDate(f.rack_out_date) : "—"}</span>
+                                      <span className={`font-mono font-semibold${stillIn ? " text-green-700" : ""}`}>{barrelDuration(f.fill_date, f.rack_out_date)}</span>
+                                      <span className="text-muted-foreground">{volL != null ? `${volL.toFixed(0)} L` : "—"}</span>
+                                      <span>{f.fill_batch_ref ? <span className="font-mono text-blue-800 bg-blue-100 rounded px-1.5 py-0.5" style={{ fontSize: "10px" }}>{String(f.fill_batch_ref)}</span> : "—"}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TrailSection>
+              );
+            })()}
+
           {/* Audit Signature */}
           {currentSig && (
             <div className="rounded-lg border px-4 py-3 space-y-2">
