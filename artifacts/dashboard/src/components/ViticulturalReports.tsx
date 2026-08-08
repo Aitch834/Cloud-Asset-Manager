@@ -736,6 +736,64 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* All-vintages yield chart */}
+      {year == null && (() => {
+        const chartData = [...allVintagesSummary]
+          .sort((a, b) => a.vintage.localeCompare(b.vintage))
+          .map(row => ({
+            vintage: row.vintage,
+            "Yield (t)": row.totalKg > 0 ? parseFloat((row.totalKg / 1000).toFixed(2)) : 0,
+            "Yield (t/ha)": row.totalAreaHa > 0 ? parseFloat((row.totalKg / 1000 / row.totalAreaHa).toFixed(2)) : null,
+          }));
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden no-print">
+            <div className="px-4 py-3 border-b border-border bg-muted/30">
+              <h3 className="text-sm font-semibold">Yield Trend — All Vintages</h3>
+              <p className="text-xs text-foreground/40">Total tonnes picked (bars) and yield per hectare (line) across recorded vintages</p>
+            </div>
+            <div className="p-4">
+              {chartData.length === 0 ? (
+                <p className="text-sm text-foreground/40 text-center py-6">
+                  No harvest records found. Add records in the Harvest tab to see the yield trend.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      yAxisId="t"
+                      tick={{ fontSize: 11 }}
+                      width={50}
+                      label={{ value: "t", position: "insideTop", offset: -4, fontSize: 10 }}
+                    />
+                    <YAxis
+                      yAxisId="tha"
+                      orientation="right"
+                      tick={{ fontSize: 11 }}
+                      width={54}
+                      label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                    <Bar yAxisId="t" dataKey="Yield (t)" fill="#7c3aed" radius={[3, 3, 0, 0]} maxBarSize={60} />
+                    <Line
+                      yAxisId="tha"
+                      type="monotone"
+                      dataKey="Yield (t/ha)"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      connectNulls
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* All-vintages yield summary table */}
       {year == null && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
