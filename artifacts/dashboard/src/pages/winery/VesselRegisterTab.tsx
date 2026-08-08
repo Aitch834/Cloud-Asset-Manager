@@ -43,7 +43,7 @@ function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
   return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
 }
 
-export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmId: number; vesselId: number; maxExistingFill: number }) {
+export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const qKey = ["winery-barrel-fills", farmId, vesselId];
@@ -112,12 +112,14 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmI
             </span>
           )}
         </div>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAdd}>
-          <Plus className="w-3 h-3 mr-1" />Log Fill
-        </Button>
+        {!readOnly && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAdd}>
+            <Plus className="w-3 h-3 mr-1" />Log Fill
+          </Button>
+        )}
       </div>
 
-      {showAdd && (
+      {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <p className="text-xs font-medium text-muted-foreground">{editingFill ? "Edit fill record" : "New fill record"}</p>
           <div className="grid grid-cols-2 gap-2">
@@ -158,10 +160,12 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill }: { farmI
                     {!!f.vintage_year && <span className="text-muted-foreground">({String(f.vintage_year)})</span>}
                     {!!f.variety && <span className="text-muted-foreground">— {String(f.variety)}</span>}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-muted-foreground">
                   {!!f.fill_date && <span>In: {fmtDate(f.fill_date)}</span>}
@@ -190,7 +194,7 @@ const MAINTENANCE_WORK_TYPE_OPTIONS = [
   "Condemned",
 ];
 
-export function BarrelMaintenanceLog({ farmId, vesselId }: { farmId: number; vesselId: number }) {
+export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const qKey = ["winery-barrel-maintenance", farmId, vesselId];
@@ -251,11 +255,13 @@ export function BarrelMaintenanceLog({ farmId, vesselId }: { farmId: number; ves
             </p>
           )}
         </div>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
-          <Plus className="w-3 h-3 mr-1" />Log Work
-        </Button>
+        {!readOnly && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+            <Plus className="w-3 h-3 mr-1" />Log Work
+          </Button>
+        )}
       </div>
-      {showAdd && (
+      {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.maintenanceDate ?? ""} onChange={e => sf("maintenanceDate", e.target.value)} className="h-8 text-xs" /></div>
@@ -294,7 +300,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId }: { farmId: number; ves
                 {m.cost_pence != null && <div className="text-muted-foreground">Cost: £{(Number(m.cost_pence) / 100).toFixed(2)}</div>}
                 {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
               </div>
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>}
             </div>
           ))}
         </div>
@@ -314,8 +320,8 @@ const MOVEMENT_REASON_OPTIONS = [
   "Other",
 ];
 
-export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPosition }: {
-  farmId: number; vesselId: number; currentZone?: string; currentPosition?: string;
+export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPosition, readOnly }: {
+  farmId: number; vesselId: number; currentZone?: string; currentPosition?: string; readOnly?: boolean;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -365,11 +371,13 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Location History</p>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
-          <Plus className="w-3 h-3 mr-1" />Log Move
-        </Button>
+        {!readOnly && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+            <Plus className="w-3 h-3 mr-1" />Log Move
+          </Button>
+        )}
       </div>
-      {showAdd && (
+      {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.movedDate ?? ""} onChange={e => sf("movedDate", e.target.value)} className="h-8 text-xs" /></div>
@@ -413,7 +421,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
                 {!!m.operator_name && <div className="text-muted-foreground">By: {String(m.operator_name)}</div>}
                 {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
               </div>
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>}
             </div>
           ))}
         </div>
@@ -422,7 +430,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
   );
 }
 
-export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId: number }) {
+export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
@@ -449,9 +457,9 @@ export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId:
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleaning History</p>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>
+        {!readOnly && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>}
       </div>
-      {showAdd && (
+      {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Clean Date *</Label><Input type="date" max={today} value={String(form.cleanDate ?? "")} onChange={e => sf("cleanDate", e.target.value)} className="h-8 text-xs" /></div>
@@ -486,7 +494,7 @@ export function VesselCleanRow({ farmId, vesselId }: { farmId: number; vesselId:
               <span className="text-muted-foreground">{fmt(c.clean_type)}</span>
               <span className="text-muted-foreground">{fmt(c.cleaning_product)}</span>
               <span>{c.rinse_completed ? <span className="text-green-700">Rinse ✓</span> : <span className="text-red-600">No rinse</span>}</span>
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>}
             </div>
           ))}
         </div>

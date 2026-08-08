@@ -1,5 +1,6 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified } from "./shared";
+import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField } from "./shared";
+import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow } from "./VesselRegisterTab";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -775,6 +776,89 @@ export function So2SummaryBlock({ summary }: { summary: So2Summary }) {
   );
 }
 
+// ─── Vessel Detail (opened from Batch Trail) ──────────────────────────────────
+/**
+ * Opens a read-only vessel record dialog directly from the Batch Trail, fetching
+ * the full vessel data from the shared winery-vessels list query (cache-first).
+ */
+function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; vesselId: number; onClose: () => void }) {
+  const { data: vessels, isLoading } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-vessels", farmId],
+    queryFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels`), { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load vessels");
+      return (await r.json()).records ?? [];
+    },
+    staleTime: 60_000,
+  });
+
+  const vessel = vessels?.find(v => Number(v.id) === vesselId) ?? null;
+  const isBarrel = vessel
+    ? String(vessel.vessel_type ?? "").toLowerCase().includes("barrel") ||
+      String(vessel.vessel_type ?? "").toLowerCase().includes("barrique")
+    : false;
+
+  const statusBadge = (s: unknown) => {
+    const v = String(s ?? "active");
+    if (v === "active") return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Active</span>;
+    if (v === "retired") return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Retired</span>;
+    return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{v}</span>;
+  };
+
+  return (
+    <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Vessel — {vessel ? fmt(vessel.vessel_ref) : `#${vesselId}`}</DialogTitle>
+        </DialogHeader>
+        {isLoading && <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
+        {!isLoading && !vessel && <p className="text-sm text-muted-foreground py-4">Vessel record could not be loaded.</p>}
+        {vessel && (
+          <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <ViewField label="Vessel Ref" value={<span className="font-mono">{fmt(vessel.vessel_ref)}</span>} />
+              <ViewField label="Type" value={fmt(vessel.vessel_type)} />
+              <ViewField label="Capacity" value={vessel.capacity_litres ? `${fmtNum(vessel.capacity_litres, 0)} L` : "—"} />
+              <ViewField label="Material" value={fmt(vessel.material)} />
+              <ViewField label="Year Purchased" value={fmt(vessel.year_purchased)} />
+              <ViewField label="Manufacturer" value={fmt(vessel.manufacturer)} />
+              <ViewField label="Location" value={fmt(vessel.location)} />
+              <ViewField label="Status" value={statusBadge(vessel.status)} />
+              {isBarrel && (
+                <>
+                  <ViewField label="Oak Origin" value={fmt(vessel.oak_origin)} />
+                  <ViewField label="Cooperage" value={fmt(vessel.cooperage)} />
+                  <ViewField label="Fill Number" value={fmt(vessel.fill_number)} />
+                  <ViewField label="Toasting" value={fmt(vessel.toasting_level)} />
+                  {!!vessel.cellar_zone && <ViewField label="Cellar Zone" value={fmt(vessel.cellar_zone)} />}
+                  {!!vessel.cellar_position && <ViewField label="Position" value={fmt(vessel.cellar_position)} />}
+                  <ViewField label="Barrel Status" value={
+                    vessel.is_full
+                      ? <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-medium">● Full</span>
+                      : <span className="text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 font-medium">○ Empty</span>
+                  } />
+                </>
+              )}
+              <ViewField label="Current Contents" value={fmt(vessel.current_contents)} />
+              <ViewField label="Current Volume" value={vessel.current_volume_litres ? `${fmtNum(vessel.current_volume_litres, 0)} L` : "—"} />
+              {!!vessel.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(vessel.notes)} /></div>}
+            </div>
+            {isBarrel && (
+              <>
+                <BarrelMovementLog farmId={farmId} vesselId={vesselId} currentZone={String(vessel.cellar_zone ?? "")} currentPosition={String(vessel.cellar_position ?? "")} readOnly />
+                <BarrelFillHistory farmId={farmId} vesselId={vesselId} maxExistingFill={Number(vessel.fill_number ?? 0)} readOnly />
+                <BarrelMaintenanceLog farmId={farmId} vesselId={vesselId} readOnly />
+              </>
+            )}
+            <VesselCleanRow farmId={farmId} vesselId={vesselId} readOnly />
+          </>
+        )}
+        <DialogFooter><Button onClick={onClose}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: number; pressing: Record<string, unknown>; farmName: string; onClose: () => void }) {
   const batchRef = pressing.batch_ref != null && String(pressing.batch_ref).trim() !== "" ? String(pressing.batch_ref).trim() : null;
   const vintageYear = pressing.vintage_year != null ? String(pressing.vintage_year) : null;
@@ -801,6 +885,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   // dialog. Batches that have NO pressing record at all are offered too, saving
   // the colour directly onto the fermentation/cellar record instead.
   const [assignColourRecords, setAssignColourRecords] = useState<AssignColourTarget[] | null>(null);
+  const [openVesselId, setOpenVesselId] = useState<number | null>(null);
   const openAssignColours = () => {
     if (!data) return;
     const hasColour = (ref: string) =>
@@ -994,6 +1079,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   };
 
   return (
+    <>
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1629,7 +1715,14 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       return (
                         <div key={vid} className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
                           <div className="flex items-center gap-2 flex-wrap mb-2">
-                            <span className="font-semibold text-sm">🪵 {String(meta.vessel_ref ?? "")}</span>
+                            <button
+                              className="font-semibold text-sm inline-flex items-center gap-1 hover:text-amber-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded transition-colors"
+                              title="Open full barrel record"
+                              onClick={() => setOpenVesselId(vid)}
+                            >
+                              🪵 {String(meta.vessel_ref ?? "")}
+                              <Eye className="h-3 w-3 text-muted-foreground" />
+                            </button>
                             {cooperage && <span className="text-xs text-muted-foreground">Cooperage: <strong className="text-foreground">{cooperage}</strong></span>}
                             {oakOrigin && <span className="text-xs text-muted-foreground">Oak origin: <strong className="text-foreground">{oakOrigin}</strong></span>}
                             {toasting && <span className="text-xs text-muted-foreground">Toasting: <strong className="text-foreground">{toasting}</strong></span>}
@@ -1775,6 +1868,16 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
         </Dialog>
       )}
     </Dialog>
+
+    {/* Vessel detail — opened by clicking a vessel ref in the Barrel Provenance section */}
+    {openVesselId != null && (
+      <VesselDetailFromTrail
+        farmId={farmId}
+        vesselId={openVesselId}
+        onClose={() => setOpenVesselId(null)}
+      />
+    )}
+    </>
   );
 }
 
