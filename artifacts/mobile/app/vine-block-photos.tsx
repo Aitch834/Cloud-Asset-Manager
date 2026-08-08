@@ -307,6 +307,9 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
           <View style={stripStyles.coverBadge}>
             <Text style={stripStyles.coverBadgeText}>★</Text>
           </View>
+          {coverPhoto.caption ? (
+            <View style={stripStyles.captionDot} />
+          ) : null}
         </Pressable>
       ) : null}
 
@@ -340,6 +343,9 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
                       <Image source={{ uri }} style={stripStyles.itemImage} resizeMode="cover" />
                     ) : !isGap ? (
                       <View style={stripStyles.itemPlaceholder} />
+                    ) : null}
+                    {!isGap && ph?.caption ? (
+                      <View style={stripStyles.captionDot} />
                     ) : null}
                   </Pressable>
                 );
@@ -1605,6 +1611,17 @@ const stripStyles = StyleSheet.create({
     fontSize: 8,
     color: "rgba(255,215,0,0.9)",
     lineHeight: 11,
+  },
+  captionDot: {
+    position: "absolute",
+    bottom: 3,
+    left: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#4ade80", // green dot — caption present
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.4)",
   },
   floatingItem: {
     borderRadius: 6,
