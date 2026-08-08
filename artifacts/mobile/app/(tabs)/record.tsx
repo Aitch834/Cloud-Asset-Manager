@@ -1198,6 +1198,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "winery-vessel-register",
+    title: "Vessel Register",
+    description: "View all cellar vessels and barrels — fill tier (New oak / 2nd / 3rd / Neutral), idle alerts for barrels empty over 90 days, and approaching-neutral warnings for fill 4+",
+    icon: "database",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/winery-vessel-register",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "visitor",
     title: "Visitor Log",
     description: "Quick-log farm visitors with biosecurity compliance checks",
