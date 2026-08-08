@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -137,6 +137,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
+  const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
+  const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -312,6 +314,29 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
     },
   });
 
+  // ── Change-block mutation ─────────────────────────────────────────────────────
+  const changeLinkMutation = useMutation({
+    mutationFn: async ({ id, blockId }: { id: number; blockId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId }),
+      });
+      if (!r.ok) throw new Error("Failed to change block link");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+      setChangingBlockRecordId(null);
+      setPendingBlockId(null);
+      toast({ title: "Block updated", description: "The spray record is now linked to the selected block." });
+    },
+    onError: () => {
+      toast({ title: "Failed to update block", variant: "destructive" });
+    },
+  });
+
   const csvCols = [
     { key: "applicationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate) },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId) ?? "") },
@@ -368,10 +393,64 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
             {
               key: "blockId", label: "Block",
               render: r => {
+                const recordId = r.id as number;
                 const linked = blocks.find(b => b.id === r.blockId);
+
+                // ── Inline "change block" select mode ──────────────────────────
+                if (changingBlockRecordId === recordId) {
+                  return (
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-[180px]" onClick={e => e.stopPropagation()}>
+                      <Select
+                        value={pendingBlockId !== null ? String(pendingBlockId) : "__none__"}
+                        onValueChange={v => setPendingBlockId(v === "__none__" ? null : Number(v))}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-40">
+                          <SelectValue placeholder="Pick a block…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__" disabled>Pick a block…</SelectItem>
+                          {blocks
+                            .filter(b => b.id !== r.blockId)
+                            .map(b => (
+                              <SelectItem key={String(b.id)} value={String(b.id)}>
+                                {String(b.blockName)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <button
+                        type="button"
+                        disabled={pendingBlockId === null || changeLinkMutation.isPending}
+                        className="rounded px-2 py-0.5 text-xs bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                        onClick={() => {
+                          if (pendingBlockId !== null)
+                            changeLinkMutation.mutate({ id: recordId, blockId: pendingBlockId });
+                        }}
+                      >
+                        {changeLinkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded px-2 py-0.5 text-xs border border-border text-muted-foreground hover:bg-muted transition-colors"
+                        onClick={() => { setChangingBlockRecordId(null); setPendingBlockId(null); }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  );
+                }
+
                 if (linked) return (
                   <span className="inline-flex items-center gap-1.5 group">
                     <span className="text-sm">{String(linked.blockName)}</span>
+                    <button
+                      type="button"
+                      title="Change block link"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={e => { e.stopPropagation(); setChangingBlockRecordId(recordId); setPendingBlockId(null); }}
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       type="button"
                       title="Remove block link"
