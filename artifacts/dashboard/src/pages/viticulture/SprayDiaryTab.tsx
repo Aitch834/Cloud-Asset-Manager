@@ -51,7 +51,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 const SPRAY_PRODUCT_TYPES = [
   "Fungicide", "Herbicide", "Insecticide", "Acaricide",
@@ -95,6 +95,8 @@ function vitDegreesToCompass(deg: number): string {
 
 export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
   const crud = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
+  const farmName = useFarmName(farmId);
+  const { farmRecord: farmMeta } = useFarmMeta(farmId);
 
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
@@ -281,6 +283,7 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSpray, "spray-diary.csv", csvCols)} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta)} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
         </div>
       </div>

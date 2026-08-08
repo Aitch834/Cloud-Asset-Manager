@@ -1047,6 +1047,330 @@ export async function printHarvest(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export async function printDiseaseScouting(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmId?: number,
+  blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const win = window.open("", "_blank", "width=1200,height=850");
+  if (!win) return;
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Disease Scouting — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const pressureText = (v: unknown) => {
+    const n = Number(v) || 0;
+    return ["None", "Low", "Medium", "High"][n] ?? "—";
+  };
+
+  // ── 1. Fetch photo data-URLs for blocks in these records ──────────────────
+  const photoDataUrl: Record<number, string> = {};
+  const photoCaption: Record<number, string> = {};
+  if (farmId && blocks && blocks.length > 0) {
+    const blockLookup: Record<number, Record<string, unknown>> = {};
+    blocks.forEach(b => { blockLookup[b.id as number] = b; });
+    const neededBlockIds = [...new Set(
+      records.map(r => Number(r.blockId)).filter(id => !isNaN(id) && id > 0)
+    )];
+    await Promise.all(
+      neededBlockIds.map(async blockId => {
+        const block = blockLookup[blockId];
+        if (!block) return;
+        const photos = block.photos as Array<{ id: number; caption: string | null }> | undefined;
+        if (!photos || photos.length === 0) return;
+        const coverPhoto = photos[0];
+        const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${coverPhoto.id}`;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) photoDataUrl[blockId] = dataUrl;
+        if (coverPhoto.caption) photoCaption[blockId] = coverPhoto.caption;
+      })
+    );
+  }
+
+  // ── 2. Build block name lookup ────────────────────────────────────────────
+  const blockLookup2: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup2[b.id as number] = b; });
+  const blockName = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
+  };
+  const hasPhotos = Object.keys(photoDataUrl).length > 0;
+
+  // ── 3. Build table rows ───────────────────────────────────────────────────
+  const rows = records.map(r => {
+    const bid = Number(r.blockId);
+    const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
+    const caption = !isNaN(bid) && bid > 0 ? (photoCaption[bid] ?? "") : "";
+    const bName = blockName(r.blockId);
+    let photoCell = "";
+    if (hasPhotos) {
+      photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+        ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
+        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
+        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(caption)}</span>` : ""}
+      </td>`;
+    }
+    const pCell = (v: unknown) => {
+      const n = Number(v) || 0;
+      const colors = ["#6b7280", "#16a34a", "#d97706", "#dc2626"];
+      return `<span style="color:${colors[n] ?? "#6b7280"}">${pressureText(v)}</span>`;
+    };
+    const alertCell = (v: unknown, text: string) => v
+      ? `<span style="color:#dc2626;font-weight:600">${text}</span>`
+      : `<span style="color:#9ca3af">No</span>`;
+    return `<tr>
+      ${photoCell}
+      <td>${d(r.scoutDate)}</td>
+      ${hasPhotos ? "" : `<td>${escHtml(bName)}</td>`}
+      <td>${escHtml(r.scoutedBy)}</td>
+      <td style="text-align:center">${pCell(r.downyMildewPressure)}</td>
+      <td style="text-align:center">${pCell(r.powderyMildewPressure)}</td>
+      <td style="text-align:center">${pCell(r.botrytisPressure)}</td>
+      <td style="text-align:center">${pCell(r.phomopsisPressure)}</td>
+      <td style="text-align:center">${pCell(r.leafhopperPressure)}</td>
+      <td style="text-align:center">${pCell(r.spiderMitePressure)}</td>
+      <td style="text-align:center">${alertCell(r.vineWeevilSighted, "Yes")}</td>
+      <td style="text-align:center">${alertCell(r.eutypaDiebackSighted, "Yes")}</td>
+      <td style="text-align:center">${r.xylellaFastidiosa ? `<span style="color:#dc2626;font-weight:700">⚠ ALERT</span>` : `<span style="color:#9ca3af">No</span>`}</td>
+      <td>${d(r.nextScoutDate)}</td>
+      <td style="max-width:120px;white-space:normal">${escHtml(r.actionTaken)}</td>
+      <td style="max-width:120px;white-space:normal">${escHtml(r.notes)}</td>
+    </tr>`;
+  }).join("");
+
+  const safeFarmName = escHtml(farmName);
+  const scoutAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const colCount = hasPhotos ? 15 : 16;
+  const xylellaCount = records.filter(r => r.xylellaFastidiosa).length;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Disease &amp; Pest Scouting &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 12mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; color: #111; margin: 0; }
+    h1 { font-size: 16px; margin: 0 0 2px; color: #166534; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #166534; padding-bottom: 10px; margin-bottom: 14px; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #166534; color: white; padding: 5px 4px; text-align: left; white-space: nowrap; }
+    th.center { text-align: center; }
+    td { padding: 4px 4px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+    .alert-box { background: #fef2f2; border: 1px solid #fca5a5; padding: 7px 10px; border-radius: 4px; font-size: 11px; margin-bottom: 12px; }
+    .footer { margin-top: 14px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Disease &amp; Pest Scouting Register</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong>${scoutAddress ? `<br>${scoutAddress}` : ""}<br>
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#166534">Viticulture</div>
+      <div>Scouting &amp; Plant Health</div>
+    </div>
+  </div>
+  ${xylellaCount > 0 ? `<div class="alert-box"><strong style="color:#dc2626">⚠ Xylella fastidiosa — Notifiable Organism</strong><br>${xylellaCount} record(s) have flagged possible Xylella. Report immediately to APHA via the online plant health portal or call 0300 1000 313.</div>` : ""}
+  <table>
+    <thead>
+      <tr>
+        ${hasPhotos ? `<th style="width:76px">Block / Photo</th>` : ""}
+        <th>Date</th>
+        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Scout</th>
+        <th class="center">Downy</th>
+        <th class="center">Powdery</th>
+        <th class="center">Botrytis</th>
+        <th class="center">Phomopsis</th>
+        <th class="center">Leafhopper</th>
+        <th class="center">Spider Mite</th>
+        <th class="center">Vine Weevil</th>
+        <th class="center">Eutypa</th>
+        <th class="center">Xylella</th>
+        <th>Next Scout</th>
+        <th>Action Taken</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan='${colCount}' style='text-align:center;color:#888;padding:14px'>No records</td></tr>`}
+    </tbody>
+  </table>
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Disease &amp; Pest Scouting Register &nbsp;&middot;&nbsp; Regular scouting supports cross-compliance and spray diary decisions</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
+export async function printSprayRecords(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmId?: number,
+  blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const win = window.open("", "_blank", "width=1200,height=850");
+  if (!win) return;
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Spray Diary — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const n = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+
+  // ── 1. Fetch photo data-URLs for blocks in these records ──────────────────
+  const photoDataUrl: Record<number, string> = {};
+  const photoCaption: Record<number, string> = {};
+  if (farmId && blocks && blocks.length > 0) {
+    const blockLookup: Record<number, Record<string, unknown>> = {};
+    blocks.forEach(b => { blockLookup[b.id as number] = b; });
+    const neededBlockIds = [...new Set(
+      records.map(r => Number(r.blockId)).filter(id => !isNaN(id) && id > 0)
+    )];
+    await Promise.all(
+      neededBlockIds.map(async blockId => {
+        const block = blockLookup[blockId];
+        if (!block) return;
+        const photos = block.photos as Array<{ id: number; caption: string | null }> | undefined;
+        if (!photos || photos.length === 0) return;
+        const coverPhoto = photos[0];
+        const url = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${coverPhoto.id}`;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (dataUrl) photoDataUrl[blockId] = dataUrl;
+        if (coverPhoto.caption) photoCaption[blockId] = coverPhoto.caption;
+      })
+    );
+  }
+
+  // ── 2. Build block name lookup ────────────────────────────────────────────
+  const blockLookup2: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup2[b.id as number] = b; });
+  const blockName = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
+  };
+  const hasPhotos = Object.keys(photoDataUrl).length > 0;
+
+  // ── 3. Build table rows ───────────────────────────────────────────────────
+  const rows = records.map(r => {
+    const bid = Number(r.blockId);
+    const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
+    const caption = !isNaN(bid) && bid > 0 ? (photoCaption[bid] ?? "") : "";
+    const bName = blockName(r.blockId);
+    let photoCell = "";
+    if (hasPhotos) {
+      photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
+        ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
+        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
+        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(caption)}</span>` : ""}
+      </td>`;
+    }
+    const rateStr = r.ratePerHectare ? `${n(r.ratePerHectare)} ${String(r.rateUnit ?? "")}`.trim() : "—";
+    return `<tr>
+      ${photoCell}
+      <td>${d(r.applicationDate)}</td>
+      ${hasPhotos ? "" : `<td>${escHtml(bName)}</td>`}
+      <td style="font-weight:600">${escHtml(r.productName)}</td>
+      <td>${escHtml(r.mappNumber)}</td>
+      <td>${escHtml(r.activeIngredient)}</td>
+      <td>${escHtml(r.productType)}</td>
+      <td style="text-align:right">${rateStr}</td>
+      <td style="text-align:right">${r.areaTreatedHa ? `${n(r.areaTreatedHa, 4)} ha` : "—"}</td>
+      <td style="text-align:right">${r.harvestIntervalDays ? `${r.harvestIntervalDays} days` : "—"}</td>
+      <td style="text-align:right">${r.windSpeedMph ? `${n(r.windSpeedMph)} mph` : "—"}</td>
+      <td style="text-align:right">${r.temperatureCelsius ? `${n(r.temperatureCelsius)} °C` : "—"}</td>
+      <td>${escHtml(r.operatorName)}</td>
+      <td>${escHtml(r.operatorCertificateNo)}</td>
+      <td style="max-width:100px;white-space:normal">${escHtml(r.notes)}</td>
+    </tr>`;
+  }).join("");
+
+  const safeFarmName = escHtml(farmName);
+  const sprayAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const colCount = hasPhotos ? 14 : 15;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Spray Diary &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 12mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5px; color: #111; margin: 0; }
+    h1 { font-size: 16px; margin: 0 0 2px; color: #0e4f8a; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e4f8a; padding-bottom: 10px; margin-bottom: 14px; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .notice { background: #eff6ff; border: 1px solid #93c5fd; padding: 7px 10px; border-radius: 4px; font-size: 10.5px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #0e4f8a; color: white; padding: 5px 4px; text-align: left; white-space: nowrap; }
+    td { padding: 4px 4px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #eff6ff; }
+    .footer { margin-top: 14px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Spray Diary</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong>${sprayAddress ? `<br>${sprayAddress}` : ""}<br>
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} application${records.length === 1 ? "" : "s"}
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#0e4f8a">Viticulture</div>
+      <div>Plant Protection Records</div>
+    </div>
+  </div>
+  <div class="notice">
+    <strong>Statutory record:</strong> Spray records must be completed within 48 hours of application and retained for at least 3 years (Plant Protection Products Regulations 2011). Required for WineGB, Red Tractor, and cross-compliance audits.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        ${hasPhotos ? `<th style="width:76px">Block / Photo</th>` : ""}
+        <th>Date</th>
+        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Product Name</th>
+        <th>MAPP No.</th>
+        <th>Active Ingredient</th>
+        <th>Type</th>
+        <th style="text-align:right">Rate/ha</th>
+        <th style="text-align:right">Area</th>
+        <th style="text-align:right">HI (days)</th>
+        <th style="text-align:right">Wind</th>
+        <th style="text-align:right">Temp</th>
+        <th>Operator</th>
+        <th>Cert. No.</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan='${colCount}' style='text-align:center;color:#888;padding:14px'>No records</td></tr>`}
+    </tbody>
+  </table>
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Spray Diary &nbsp;&middot;&nbsp; Plant Protection Products Regulations 2011 &nbsp;&middot;&nbsp; Retain for 3 years</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: "None", color: "text-gray-400" },
   1: { label: "Low", color: "text-green-600" },
