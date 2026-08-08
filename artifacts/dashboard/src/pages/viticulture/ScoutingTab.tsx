@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -55,7 +55,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Scouting = Record<string, unknown>;
 
-export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number }) {
+export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Scouting>(farmId, "vineyard-scouting", "vineyard-scouting");
   const { displayName } = useUserRole();
   const farmName = useFarmName(farmId);
@@ -125,6 +125,17 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId }: { farmId: numb
     setBulkLinks(initial);
     setBulkLinkOpen(true);
   };
+
+  // Auto-open bulk-link dialog when navigated from Overview warning bar
+  const bulkLinkPending = useRef(false);
+  useEffect(() => { if (requestBulkLink) bulkLinkPending.current = true; }, [requestBulkLink]);
+  useEffect(() => {
+    if (bulkLinkPending.current && !isLoading) {
+      bulkLinkPending.current = false;
+      openBulkLink();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   const bulkLinkMutation = useMutation({
     mutationFn: async (links: Record<number, number | null>) => {

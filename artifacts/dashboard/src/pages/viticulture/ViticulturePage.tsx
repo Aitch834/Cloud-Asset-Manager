@@ -124,11 +124,19 @@ export default function ViticulturePage() {
   }, [selectedFarmId]);
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [highlightBlockId, setHighlightBlockId] = useState<number | undefined>(undefined);
+  const [bulkLinkFor, setBulkLinkFor] = useState<string | null>(null);
   const blocks = useCrud(selectedFarmId ?? 0, "vineyard-blocks", "vineyard-blocks");
 
   const handleNavigate = (toTab: string, blockId?: number) => {
     setHighlightBlockId(blockId);
     setTab(toTab);
+  };
+
+  const handleNavigateWithBulkLink = (toTab: string) => {
+    setBulkLinkFor(toTab);
+    setTab(toTab);
+    // Clear after mount has had time to consume the flag
+    setTimeout(() => setBulkLinkFor(null), 500);
   };
 
   if (!selectedFarmId) return (
@@ -167,14 +175,14 @@ export default function ViticulturePage() {
           </div>
         )}
         <div className="bg-muted/30 rounded-xl p-4">
-          {tab === "overview" && <OverviewTab farmId={selectedFarmId} />}
+          {tab === "overview" && <OverviewTab farmId={selectedFarmId} onNavigate={handleNavigate} onNavigateWithBulkLink={handleNavigateWithBulkLink} />}
           {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} />}
           {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
           {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
-          {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
-          {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
-          {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} />}
+          {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "operations"} />}
+          {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "harvest"} />}
+          {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "scouting"} />}
           {tab === "licensing" && <LicensingTab farmId={selectedFarmId} />}
           {tab === "excise" && <ExciseDutyTab farmId={selectedFarmId} />}
           {tab === "tours" && <TastingsToursTab farmId={selectedFarmId} />}
@@ -190,7 +198,7 @@ export default function ViticulturePage() {
           {tab === "winery-so2" && <So2TestingTab farmId={selectedFarmId} />}
           {tab === "winery-equipment" && <EquipmentRegisterTab farmId={selectedFarmId} />}
           {tab === "gi-compliance" && <GiComplianceTab farmId={selectedFarmId} blocks={blocks.data} />}
-          {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} />}
+          {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} requestBulkLink={bulkLinkFor === "spray-diary"} />}
           {tab === "soil-analysis" && <SoilAnalysisTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "analytics" && <ViticulturalAnalyticsTab farmId={selectedFarmId} />}
           {tab === "vintage-report" && <VintageSeasonReportTab farmId={selectedFarmId} />}

@@ -9,7 +9,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Unlink,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -125,11 +125,71 @@ function FsaCompletenessBar({ farmId }: { farmId: number }) {
   );
 }
 
-export function OverviewTab({ farmId }: { farmId: number }) {
+// ─── Unlinked Records Warning Bar ─────────────────────────────────────────────
+
+type UnlinkedItem = {
+  label: string;
+  count: number;
+  tabId: string;
+};
+
+function UnlinkedRecordsBar({
+  items,
+  onNavigate,
+}: {
+  items: UnlinkedItem[];
+  onNavigate: (tab: string) => void;
+}) {
+  const visible = items.filter(i => i.count > 0);
+  if (!visible.length) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+      <div className="flex items-start gap-2.5 mb-2.5">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-semibold text-amber-800">Records missing block links</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            These records won't be grouped by block in printed reports. Click a section to link them now.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {visible.map(item => (
+          <button
+            key={item.tabId}
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+            onClick={() => onNavigate(item.tabId)}
+          >
+            <Unlink className="w-3 h-3 shrink-0 text-amber-500" />
+            {item.label}
+            <span className="ml-0.5 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-amber-700 font-semibold">
+              {item.count}
+            </span>
+            <ChevronRight className="w-3 h-3 text-amber-400" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function OverviewTab({
+  farmId,
+  onNavigate,
+  onNavigateWithBulkLink,
+}: {
+  farmId: number;
+  onNavigate?: (tab: string, blockId?: number) => void;
+  onNavigateWithBulkLink?: (tab: string) => void;
+}) {
   const blocks = useCrud(farmId, "vineyard-blocks", "vineyard-blocks");
   const register = useCrud(farmId, "vine-register", "vine-register");
   const harvest = useCrud(farmId, "vineyard-harvest", "vineyard-harvest");
   const scouting = useCrud(farmId, "vineyard-scouting", "vineyard-scouting");
+  const operations = useCrud(farmId, "vineyard-operations", "vineyard-operations");
+  const sprayDiary = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
 
   const activeBlocks = blocks.data.filter(b => b.isActive !== false);
   const totalHa = activeBlocks.reduce((s, b) => s + parseFloat(String(b.areaHa || 0)), 0);
@@ -142,9 +202,20 @@ export function OverviewTab({ farmId }: { farmId: number }) {
     Number(s.downyMildewPressure) >= 3 || Number(s.powderyMildewPressure) >= 3 || Number(s.botrytisPressure) >= 3
   );
 
+  const unlinkedItems: UnlinkedItem[] = [
+    { label: "Pruning & Canopy", count: operations.data.filter(r => !r.blockId).length, tabId: "operations" },
+    { label: "Harvest", count: harvest.data.filter(r => !r.blockId).length, tabId: "harvest" },
+    { label: "Disease Scouting", count: scouting.data.filter(r => !r.blockId).length, tabId: "scouting" },
+    { label: "Spray Diary", count: sprayDiary.data.filter(r => !r.blockId).length, tabId: "spray-diary" },
+  ];
+
   return (
     <div className="space-y-6">
       <FsaCompletenessBar farmId={farmId} />
+      <UnlinkedRecordsBar
+        items={unlinkedItems}
+        onNavigate={(tabId) => onNavigateWithBulkLink ? onNavigateWithBulkLink(tabId) : onNavigate?.(tabId)}
+      />
       {xylellaAlert && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
           <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />

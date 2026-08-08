@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -93,7 +93,7 @@ function vitDegreesToCompass(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
+export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; requestBulkLink?: boolean }) {
   const crud = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
   const farmName = useFarmName(farmId);
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
@@ -257,6 +257,17 @@ export function SprayDiaryTab({ farmId, blocks }: { farmId: number; blocks: Reco
     setBulkLinks(initial);
     setBulkLinkOpen(true);
   };
+
+  // Auto-open bulk-link dialog when navigated from Overview warning bar
+  const bulkLinkPending = useRef(false);
+  useEffect(() => { if (requestBulkLink) bulkLinkPending.current = true; }, [requestBulkLink]);
+  useEffect(() => {
+    if (bulkLinkPending.current && !crud.isLoading) {
+      bulkLinkPending.current = false;
+      openBulkLink();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crud.isLoading]);
 
   const bulkLinkMutation = useMutation({
     mutationFn: async (links: Record<number, number | null>) => {
