@@ -53,7 +53,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, useFarmMeta, FarmSettingsWarning, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -341,23 +341,8 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         </div>
       </div>
 
-      {/* FSA ref missing warning */}
-      {!farmFsaVineRef && (
-        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
-          <span>
-            <span className="font-medium">FSA Vine Register Reference not set.</span>{" "}
-            Your printed register will be missing this reference.{" "}
-            <button
-              type="button"
-              className="underline underline-offset-2 hover:text-amber-900 font-medium"
-              onClick={() => setLocation("/settings/farm")}
-            >
-              Add it in Farm Settings → Viticulture Registrations
-            </button>
-          </span>
-        </div>
-      )}
+      {/* FSA / APPA completeness bar */}
+      <FsaCompletenessBar farmId={farmId} />
 
       {/* Farm address missing warning */}
       <FarmSettingsWarning

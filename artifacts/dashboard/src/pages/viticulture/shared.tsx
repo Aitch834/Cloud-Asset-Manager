@@ -107,6 +107,78 @@ export function FarmSettingsWarning({
   );
 }
 
+// ─── FSA / APPA registration completeness bar ─────────────────────────────────
+
+type FsaField = {
+  label: string;
+  value: unknown;
+};
+
+export function FsaCompletenessBar({ farmId }: { farmId: number }) {
+  const { farmRecord, isLoading } = useFarmMeta(farmId);
+  const [, navigate] = useLocation();
+
+  if (isLoading) return null;
+
+  const fields: FsaField[] = [
+    { label: "FSA Vine Register Ref", value: farmRecord?.fsaVineRegisterRef },
+    { label: "FSA Wine Production Ref", value: farmRecord?.fsaWineProductionRef },
+    { label: "APPA Ref", value: farmRecord?.appaRef },
+  ];
+
+  const allComplete = fields.every(f => !!f.value && String(f.value).trim() !== "");
+
+  // Hide the bar once everything is filled in
+  if (allComplete) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+      <div className="flex items-start gap-2.5 mb-2.5">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-semibold text-amber-800">FSA / APPA registration incomplete</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Missing references will appear blank in printed reports. Add them in{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => navigate("/settings/farm")}
+            >
+              Farm Settings → Viticulture &amp; Wine
+            </button>
+            .
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {fields.map(f => {
+          const filled = !!f.value && String(f.value).trim() !== "";
+          return (
+            <button
+              key={f.label}
+              type="button"
+              className={
+                filled
+                  ? "inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-800 cursor-default"
+                  : "inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+              }
+              onClick={() => { if (!filled) navigate("/settings/farm"); }}
+              disabled={filled}
+            >
+              {filled
+                ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-green-600" />
+                : <XCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+              }
+              {f.label}
+              {!filled && <span className="text-amber-500 ml-0.5">→</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
