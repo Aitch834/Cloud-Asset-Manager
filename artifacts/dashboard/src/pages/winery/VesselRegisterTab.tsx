@@ -675,8 +675,94 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
               { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= 4 ? "Yes" : "No" },
             ];
+            const handlePrint = () => {
+              const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
+              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Approaching Neutral"];
+              const rows = exportBarrels.map(r => {
+                const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
+                return [
+                  String(r.vessel_ref ?? ""),
+                  String(r.vessel_type ?? ""),
+                  String(r.cellar_zone ?? ""),
+                  r.fill_number != null ? String(r.fill_number) : "\u2014",
+                  fillOakLabel(Number(r.fill_number ?? 0)).label,
+                  r.is_full ? "Yes" : "No",
+                  r.empty_since ? fmtDate(r.empty_since) : "\u2014",
+                  idleDays,
+                  Number(r.fill_number ?? 0) >= 4 ? "Yes" : "No",
+                ];
+              });
+
+              const win = window.open("", "_blank");
+              if (!win) return;
+              const doc = win.document;
+
+              // Build document with DOM APIs so no user data is interpolated into HTML
+              doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Barrel Health Summary</title><style>" +
+                "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
+                "h1{font-size:14px;font-weight:700;margin:0 0 2px}" +
+                ".meta{font-size:10px;color:#555;margin-bottom:12px}" +
+                "table{width:100%;border-collapse:collapse;font-size:11px}" +
+                "th{background:#f0f0f0;font-weight:700;text-align:left;padding:5px 8px;border:1px solid #ccc}" +
+                "td{padding:4px 8px;border:1px solid #ddd;vertical-align:top}" +
+                "tr:nth-child(even) td{background:#fafafa}" +
+                ".footer{margin-top:14px;font-size:9px;color:#888}" +
+                "@media print{body{margin:10mm}}" +
+                "</style></head><body></body></html>");
+              doc.close();
+
+              const h1 = doc.createElement("h1");
+              h1.textContent = `Barrel Health Summary \u2014 ${farmNameVessels}`;
+              doc.body.appendChild(h1);
+
+              const meta = doc.createElement("div");
+              meta.className = "meta";
+              meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+              doc.body.appendChild(meta);
+
+              const table = doc.createElement("table");
+              const thead = doc.createElement("thead");
+              const hRow = doc.createElement("tr");
+              for (const h of headers) {
+                const th = doc.createElement("th");
+                th.textContent = h;
+                hRow.appendChild(th);
+              }
+              thead.appendChild(hRow);
+              table.appendChild(thead);
+
+              const tbody = doc.createElement("tbody");
+              for (const cells of rows) {
+                const tr = doc.createElement("tr");
+                for (const cell of cells) {
+                  const td = doc.createElement("td");
+                  td.textContent = cell;
+                  tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+              }
+              table.appendChild(tbody);
+              doc.body.appendChild(table);
+
+              const footer = doc.createElement("div");
+              footer.className = "footer";
+              footer.textContent = `${exportBarrels.length} barrel${exportBarrels.length !== 1 ? "s" : ""} shown`;
+              doc.body.appendChild(footer);
+
+              win.focus();
+              win.print();
+            };
             return (
               <div className="flex items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-xs"
+                  disabled={exportBarrels.length === 0}
+                  onClick={handlePrint}
+                >
+                  <Printer className="w-3 h-3 mr-1" />Print
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
