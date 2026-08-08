@@ -8,10 +8,11 @@ import {
   RotateCcw, X, ChevronDown, Download, CheckSquare, Square, Sparkles,
   ChevronLeft, ChevronRight, CalendarDays, AlertCircle, GripVertical, Trash2,
   Clock, ClipboardList, CheckCircle2, CircleDashed, BadgeCheck, Undo2,
-  Search, BarChart2, FileDown, History, CalendarRange,
+  Search, BarChart2, FileDown, History, CalendarRange, Flag, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
+import { useLocation } from "wouter";
 import { toast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -1878,6 +1879,20 @@ type PlannerEventRecord = {
 
 type PlanningStatus = "committed" | "planned" | "not_started";
 
+type AgriEnvMilestoneEvent = {
+  id: number;
+  projectId: number;
+  milestoneName: string;
+  dueDate: string;
+  status: string;
+  schemeName: string;
+};
+
+type PlannerEventsResponse = {
+  events: PlannerEventRecord[];
+  milestones: AgriEnvMilestoneEvent[];
+};
+
 function parseSafe<T>(s: string | null): T[] {
   if (!s) return [];
   try { return JSON.parse(s) as T[]; } catch { return []; }
@@ -1896,11 +1911,15 @@ function getPlanningStatus(e: PlannerEventRecord): PlanningStatus {
 
 function PlanningStatusTab({ farmId }: { farmId: number }) {
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
-  const { data: events = [], isLoading } = useQuery<PlannerEventRecord[]>({
+  const { data: plannerData, isLoading } = useQuery<PlannerEventsResponse>({
     queryKey: ["planner-events-all", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/planner-events`).then(r => r.json()),
   });
+
+  const events: PlannerEventRecord[] = plannerData?.events ?? [];
+  const milestones: AgriEnvMilestoneEvent[] = plannerData?.milestones ?? [];
 
   const commitMut = useMutation({
     mutationFn: ({ id, committed }: { id: number; committed: boolean }) =>
@@ -1959,6 +1978,24 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
   const planned    = upcoming.filter(e => getPlanningStatus(e) === "planned");
   const committed  = upcoming.filter(e => getPlanningStatus(e) === "committed");
 
+  // Agri-env milestones — filtered to match the same date range and search
+  const upcomingMilestones = useMemo(() =>
+    milestones
+      .filter(m => m.dueDate && new Date(m.dueDate + "T12:00:00") >= today)
+      .filter(m => !cutoff || new Date(m.dueDate + "T12:00:00") <= cutoff)
+      .filter(m => !sq || m.milestoneName.toLowerCase().includes(sq) || m.schemeName.toLowerCase().includes(sq))
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [milestones, today, cutoff, sq]
+  );
+
+  const pastMilestones = useMemo(() =>
+    milestones
+      .filter(m => m.dueDate && new Date(m.dueDate + "T12:00:00") < today)
+      .filter(m => !sq || m.milestoneName.toLowerCase().includes(sq) || m.schemeName.toLowerCase().includes(sq))
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate)),
+    [milestones, today, sq]
+  );
+
   const fmtDate = (s: string) =>
     new Date(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
@@ -1988,7 +2025,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     );
   }
 
-  if (upcoming.length === 0) {
+  if (upcoming.length === 0 && upcomingMilestones.length === 0 && past.length === 0 && pastMilestones.length === 0) {
     return (
       <Card className="p-10 text-center text-sm text-foreground/50">
         No upcoming planner tasks found. Add tasks in the Planner tab first.
@@ -2211,30 +2248,71 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         {dateRange !== "all" && <> Showing tasks in the next {dateRange === "1w" ? "week" : dateRange === "2w" ? "2 weeks" : dateRange === "4w" ? "4 weeks" : "8 weeks"}.</>}
       </p>
 
-      {upcoming.length === 0 && !showPast ? (
+      {upcoming.length === 0 && upcomingMilestones.length === 0 && !showPast ? (
         <Card className="p-8 text-center text-sm text-foreground/50">
           No tasks match this filter. Try a wider date range or clear the search.
         </Card>
       ) : (
         <div className="space-y-4">
-          <Section
-            title="Not started — planning required"
-            icon={<CircleDashed className="w-3.5 h-3.5" />}
-            items={notStarted}
-            accent="bg-red-50 text-red-700"
-          />
-          <Section
-            title="Requirements entered — awaiting sign-off"
-            icon={<ClipboardList className="w-3.5 h-3.5" />}
-            items={planned}
-            accent="bg-amber-50 text-amber-700"
-          />
-          <Section
-            title="Committed — planning complete"
-            icon={<BadgeCheck className="w-3.5 h-3.5" />}
-            items={committed}
-            accent="bg-green-50 text-green-700"
-          />
+          {upcoming.length > 0 && <>
+            <Section
+              title="Not started — planning required"
+              icon={<CircleDashed className="w-3.5 h-3.5" />}
+              items={notStarted}
+              accent="bg-red-50 text-red-700"
+            />
+            <Section
+              title="Requirements entered — awaiting sign-off"
+              icon={<ClipboardList className="w-3.5 h-3.5" />}
+              items={planned}
+              accent="bg-amber-50 text-amber-700"
+            />
+            <Section
+              title="Committed — planning complete"
+              icon={<BadgeCheck className="w-3.5 h-3.5" />}
+              items={committed}
+              accent="bg-green-50 text-green-700"
+            />
+          </>}
+
+          {/* Agri-environment milestone due dates */}
+          {upcomingMilestones.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 text-teal-700">
+                <Flag className="w-3.5 h-3.5" />
+                <span>Agri-environment milestones</span>
+                <span className="ml-auto font-normal opacity-70">{upcomingMilestones.length} due</span>
+              </div>
+              <Card className="overflow-hidden">
+                {upcomingMilestones.map(m => (
+                  <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
+                    <div className="w-1 self-stretch rounded-full flex-shrink-0 mt-0.5 bg-teal-400" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium leading-snug">{m.milestoneName}</span>
+                        {m.status === "completed" && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-green-100 text-green-700">✓ Completed</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-foreground/50">{fmtDate(m.dueDate + "T12:00:00")}</span>
+                        <span className="text-foreground/30 text-xs">·</span>
+                        <span className="text-xs text-teal-600 font-medium">{m.schemeName}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
+                      className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
+                      title="Open in Grants & Funding"
+                    >
+                      <ExternalLink className="w-3 h-3" /> View
+                    </button>
+                  </div>
+                ))}
+              </Card>
+              <p className="text-xs text-foreground/40 px-1">Read-only. Manage milestones in <button onClick={() => navigate("/grants?tab=agrienv")} className="underline underline-offset-2 hover:text-foreground/60">Grants &amp; Funding → Agri-environment Schemes</button>.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -2248,7 +2326,9 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
           )}
         >
           <History className="w-3.5 h-3.5" />
-          {showPast ? "Hide past tasks" : `Show past tasks${past.length > 0 ? ` (${past.length})` : ""}`}
+          {showPast
+            ? "Hide past tasks"
+            : `Show past tasks${(past.length + pastMilestones.length) > 0 ? ` (${past.length + pastMilestones.length})` : ""}`}
         </button>
         {showPast && past.length > 0 && (
           <div className="mt-3 space-y-1">
@@ -2262,7 +2342,37 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
             </Card>
           </div>
         )}
-        {showPast && past.length === 0 && (
+        {showPast && pastMilestones.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 text-teal-600">
+              <Flag className="w-3.5 h-3.5" />
+              <span>Past agri-environment milestones</span>
+              <span className="ml-auto font-normal opacity-70">{pastMilestones.length}</span>
+            </div>
+            <Card className="overflow-hidden">
+              {pastMilestones.map(m => (
+                <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 opacity-60">
+                  <div className="w-1 self-stretch rounded-full flex-shrink-0 mt-0.5 bg-teal-300" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium leading-snug">{m.milestoneName}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-foreground/50">{fmtDate(m.dueDate + "T12:00:00")}</span>
+                      <span className="text-foreground/30 text-xs">·</span>
+                      <span className="text-xs text-teal-600">{m.schemeName}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
+                    className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" /> View
+                  </button>
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
+        {showPast && past.length === 0 && pastMilestones.length === 0 && (
           <p className="mt-3 text-xs text-foreground/40 px-1">No past tasks found.</p>
         )}
       </div>
@@ -2388,10 +2498,12 @@ function AnalyticsTab({ farmId, resources }: { farmId: number; resources: FarmRe
   const start = isoDate(addDays(today, -365));
   const end   = isoDate(addDays(today, 365));
 
-  const { data: events = [] } = useQuery<PlannerEventRecord[]>({
+  const { data: plannerData2 } = useQuery<PlannerEventsResponse>({
     queryKey: ["planner-events-all", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/planner-events`).then(r => r.json()),
   });
+
+  const events: PlannerEventRecord[] = plannerData2?.events ?? [];
 
   const { data: allocData, isLoading: allocLoading } = useQuery<{ allocations: AllocRow[] }>({
     queryKey: ["analytics-allocs", farmId, start, end],

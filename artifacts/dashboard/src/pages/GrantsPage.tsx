@@ -232,11 +232,12 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Project state
+  // Project state — initialise expandedId from ?project=<id> URL param if present
+  const _initProjectId = (() => { const n = Number(new URLSearchParams(window.location.search).get("project")); return n > 0 ? n : null; })();
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<AgriEnvProject | null>(null);
   const [deletingProject, setDeletingProject] = useState<AgriEnvProject | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(_initProjectId);
   const [projectForm, setProjectForm] = useState({ ...AE_BLANK_PROJECT });
 
   // Milestone state
@@ -921,7 +922,8 @@ export default function GrantsPage() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
 
-  const [mainTab, setMainTab] = useState<"capital" | "agrienv">("capital");
+  const _initTab = new URLSearchParams(window.location.search).get("tab");
+  const [mainTab, setMainTab] = useState<"capital" | "agrienv">(_initTab === "agrienv" ? "agrienv" : "capital");
   const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<GrantRecord | null>(null);

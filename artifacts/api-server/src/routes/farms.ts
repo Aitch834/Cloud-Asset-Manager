@@ -9304,8 +9304,22 @@ router.patch("/farms/:farmId/insurance/:recordId/document", requireAuth, require
 router.get("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const records = await db.select().from(farmPlannerEventsTable).where(eq(farmPlannerEventsTable.farmId, farmId)).orderBy(farmPlannerEventsTable.eventDate);
-  res.json(records);
+  const [records, milestones] = await Promise.all([
+    db.select().from(farmPlannerEventsTable).where(eq(farmPlannerEventsTable.farmId, farmId)).orderBy(farmPlannerEventsTable.eventDate),
+    db.select({
+      id: agriEnvMilestonesTable.id,
+      projectId: agriEnvMilestonesTable.projectId,
+      milestoneName: agriEnvMilestonesTable.milestoneName,
+      dueDate: agriEnvMilestonesTable.dueDate,
+      status: agriEnvMilestonesTable.status,
+      schemeName: agriEnvProjectsTable.schemeName,
+    })
+      .from(agriEnvMilestonesTable)
+      .innerJoin(agriEnvProjectsTable, eq(agriEnvMilestonesTable.projectId, agriEnvProjectsTable.id))
+      .where(and(eq(agriEnvMilestonesTable.farmId, farmId), isNotNull(agriEnvMilestonesTable.dueDate)))
+      .orderBy(agriEnvMilestonesTable.dueDate),
+  ]);
+  res.json({ events: records, milestones });
 });
 
 router.post("/farms/:farmId/planner-events", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
