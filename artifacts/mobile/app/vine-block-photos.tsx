@@ -376,11 +376,12 @@ interface LightboxProps {
   initialIndex: number;
   visible: boolean;
   onClose: () => void;
+  onDelete: (photoId: number) => void;
   onReorder: (newPhotoIds: number[]) => void;
   onEditCaption: (photo: BlockPhoto) => void;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder, onEditCaption }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption }: LightboxProps) {
   const insets = useSafeAreaInsets();
 
   // Track the current photo by ID so that when the parent reorders photos[]
@@ -670,6 +671,31 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder, onEd
         >
           <Feather name="x" size={24} color="#fff" />
         </Pressable>
+
+        {/* Delete button */}
+        {photo ? (
+          <Pressable
+            style={[styles.lbDeleteBtn, { top: insets.top + 12 }]}
+            hitSlop={16}
+            onPress={() => {
+              const photoId = photo.id;
+              Alert.alert(
+                "Delete Photo",
+                "Are you sure you want to delete this photo? This cannot be undone.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => onDelete(photoId),
+                  },
+                ],
+              );
+            }}
+          >
+            <Feather name="trash-2" size={22} color="#fff" />
+          </Pressable>
+        ) : null}
 
         {/* Page counter */}
         {hasMultiple ? (
@@ -1193,6 +1219,7 @@ export default function VineBlockPhotosScreen() {
         initialIndex={lightboxIndex}
         visible={lightboxVisible}
         onClose={closeLightbox}
+        onDelete={handleDelete}
         onReorder={handleReorder}
         onEditCaption={handleEditCaption}
       />
@@ -1316,6 +1343,17 @@ const styles = StyleSheet.create({
   lbCloseBtn: {
     position: "absolute",
     right: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbDeleteBtn: {
+    position: "absolute",
+    left: 16,
     zIndex: 10,
     width: 40,
     height: 40,
