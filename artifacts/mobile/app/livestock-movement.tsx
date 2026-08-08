@@ -30,6 +30,7 @@ import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { livestockMovementHtml } from "@/lib/printTemplates";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 
 type MovType = LivestockMovement["movementType"];
 
@@ -47,6 +48,8 @@ export default function LivestockMovementScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
+  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
@@ -141,6 +144,28 @@ export default function LivestockMovementScreen() {
         <Text style={styles.title}>Livestock Movement</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {missingIdentifiers && (
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              "Farm Identifiers Missing",
+              "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting movements.",
+            )
+          }
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — movements cannot be submitted without them."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for movement submissions."
+              : "SBI number is missing from your farm profile — required for movement submissions."}
+            {" "}Add them in Farm Settings on the dashboard.
+          </Text>
+        </Pressable>
+      )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView
@@ -411,5 +436,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
   },
 });

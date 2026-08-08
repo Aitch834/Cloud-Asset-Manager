@@ -20,6 +20,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 
@@ -72,6 +73,8 @@ export default function HistoryMovementsScreen() {
     currentFarm?.id,
     "/api/farms/:farmId/movements",
   );
+  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
@@ -113,6 +116,28 @@ export default function HistoryMovementsScreen() {
         <Text style={styles.title}>Livestock Movements</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {missingIdentifiers && (
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              "Farm Identifiers Missing",
+              "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting movements.",
+            )
+          }
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — movements cannot be submitted without them."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for movement submissions."
+              : "SBI number is missing from your farm profile — required for movement submissions."}
+            {" "}Add them in Farm Settings on the dashboard.
+          </Text>
+        </Pressable>
+      )}
 
       <View style={styles.filterBar}>
         <View style={styles.searchRow}>
@@ -342,4 +367,23 @@ const styles = StyleSheet.create({
   cardNote: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: spacing.xs, fontStyle: "italic" },
   reviewBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.sm, backgroundColor: "#eff6ff", borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignSelf: "flex-start" },
   reviewBtnText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: "#1d4ed8" },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
 });
