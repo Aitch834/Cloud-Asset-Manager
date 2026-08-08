@@ -1207,6 +1207,61 @@ router.post("/farms/:farmId/vineyard-blocks/:blockId/photos", requireAuth, requi
   res.status(201).json({ photo });
 });
 
+// ── Bulk reorder gallery photos ────────────────────────────────────────────────
+// Accepts { photoIds: number[] } — the complete, ordered list of photo IDs for
+// this block. Validates that the payload is exactly the block's current photo
+// set (no extras, no omissions, no duplicates), then persists all sortOrder
+// values atomically inside a single transaction.
+router.put("/farms/:farmId/vineyard-blocks/:blockId/photos/reorder", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const { photoIds } = req.body as { photoIds?: unknown };
+
+  if (!Array.isArray(photoIds) || photoIds.length === 0 || photoIds.some((id) => typeof id !== "number")) {
+    res.status(400).json({ error: "photoIds must be a non-empty array of numbers" });
+    return;
+  }
+  const ids = photoIds as number[];
+
+  // Reject duplicates
+  if (new Set(ids).size !== ids.length) {
+    res.status(400).json({ error: "photoIds must not contain duplicates" });
+    return;
+  }
+
+  // Verify block ownership and fetch the canonical photo set
+  const [block] = await db.select({ id: vineyardBlocksTable.id }).from(vineyardBlocksTable)
+    .where(and(eq(vineyardBlocksTable.id, blockId), eq(vineyardBlocksTable.farmId, farmId))).limit(1);
+  if (!block) { res.status(404).json({ error: "Block not found" }); return; }
+
+  const existingPhotos = await db
+    .select({ id: vineyardBlockPhotosTable.id })
+    .from(vineyardBlockPhotosTable)
+    .where(and(eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)));
+  const existingIds = new Set(existingPhotos.map((p) => p.id));
+
+  // Payload must be exactly the current photo set — no extras, no omissions
+  if (ids.length !== existingIds.size || ids.some((id) => !existingIds.has(id))) {
+    res.status(400).json({ error: "photoIds must exactly match the block's current photo set" });
+    return;
+  }
+
+  // Persist all sortOrder values atomically
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < ids.length; i++) {
+      await (tx.update(vineyardBlockPhotosTable) as any)
+        .set({ sortOrder: i })
+        .where(and(
+          eq(vineyardBlockPhotosTable.id, ids[i]),
+          eq(vineyardBlockPhotosTable.blockId, blockId),
+          eq(vineyardBlockPhotosTable.farmId, farmId),
+        ));
+    }
+  });
+
+  res.json({ success: true });
+});
+
 // ── Serve a gallery photo by row id ──────────────────────────────────────────
 router.get("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);

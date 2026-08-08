@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,6 +47,7 @@ interface BlockPhoto {
   objectPath: string;
   fileName: string | null;
   caption: string | null;
+  isCover: boolean;
   uploadedAt: string;
   /** Short-lived presigned GET URL returned by the API — use directly in <Image>. */
   downloadUrl: string | null;
@@ -72,21 +73,309 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+// ---------------------------------------------------------------------------
+// Draggable photo strip (shown inside lightbox for reordering)
+// ---------------------------------------------------------------------------
+
+// Item size is computed dynamically from photo count — see DraggablePhotoStrip.
+const STRIP_ITEM_GAP = 6;
+const STRIP_MAX_ITEM_SIZE = 52;
+const STRIP_MIN_ITEM_SIZE = 36;
+const STRIP_H_PADDING = 32; // total horizontal padding around the strip
+
+/** Compute the item size that fits all `count` photos without clipping. */
+function computeStripItemSize(count: number): number {
+  if (count <= 1) return STRIP_MAX_ITEM_SIZE;
+  const available = SCREEN.width - STRIP_H_PADDING - (count - 1) * STRIP_ITEM_GAP;
+  return Math.max(STRIP_MIN_ITEM_SIZE, Math.min(STRIP_MAX_ITEM_SIZE, Math.floor(available / count)));
+}
+
+interface DraggablePhotoStripProps {
+  photos: BlockPhoto[];
+  currentIndex: number;
+  onSelect: (idx: number) => void;
+  onReorder: (newPhotoIds: number[]) => void;
+}
+
+/**
+ * Horizontal thumbnail strip shown inside the lightbox.
+ *
+ * Design constraints preserved here:
+ * - The cover photo (isCover=true) is always pinned at position 0 and is NOT
+ *   draggable — the server enforces `ORDER BY is_cover DESC` so any sort_order
+ *   change on the cover is ignored at read-time.
+ * - Only non-cover photos are draggable; their new order is submitted as
+ *   `[cover.id, ...newNonCoverIds]` so the API validation sees the full set.
+ * - Item size is computed from the total photo count so every thumbnail fits
+ *   on-screen without clipping, even for large galleries.
+ */
+function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: DraggablePhotoStripProps) {
+  // Separate cover from the draggable pool
+  const coverPhoto = useMemo(() => photos.find((p) => p.isCover) ?? null, [photos]);
+  const nonCoverPhotos = useMemo(() => photos.filter((p) => !p.isCover), [photos]);
+
+  // Dynamic item size — fits all photos on screen width
+  const itemSize = useMemo(() => computeStripItemSize(photos.length), [photos.length]);
+  const slotWidth = itemSize + STRIP_ITEM_GAP;
+
+  // localOrder stores non-cover photo IDs in display order (ID-based)
+  const [localOrder, setLocalOrder] = useState<number[]>(() => nonCoverPhotos.map((p) => p.id));
+  const [dragSourceSlot, setDragSourceSlot] = useState<number>(-1);
+  const [dropTargetSlot, setDropTargetSlot] = useState<number>(-1);
+
+  const dragPosX = useSharedValue(0);
+  const isDragging = useSharedValue(false);
+  const dragSourceSlotSv = useSharedValue(-1);
+
+  // Reset local order when the non-cover photo set changes (add/delete).
+  // A reorder that preserves the same IDs (same key) does NOT reset.
+  const nonCoverIdsKey = nonCoverPhotos.map((p) => p.id).join(",");
+  useEffect(() => {
+    setLocalOrder(nonCoverPhotos.map((p) => p.id));
+    setDragSourceSlot(-1);
+    setDropTargetSlot(-1);
+    isDragging.value = false;
+    dragSourceSlotSv.value = -1;
+  }, [nonCoverIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // O(1) photo lookup by ID for rendering
+  const photoMap = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos]);
+
+  // ID of the photo currently displayed in the lightbox (for highlight)
+  const currentPhotoId = photos[currentIndex]?.id ?? -1;
+
+  const nonCoverCount = nonCoverPhotos.length;
+
+  const hapticStart = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  const beginDrag = useCallback((slot: number) => {
+    dragSourceSlotSv.value = slot;
+    setDragSourceSlot(slot);
+    setDropTargetSlot(slot);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateDrop = useCallback((slot: number) => {
+    setDropTargetSlot(slot);
+  }, []);
+
+  const commitReorder = useCallback((sourceSlot: number, targetSlot: number) => {
+    setDragSourceSlot(-1);
+    setDropTargetSlot(-1);
+    if (sourceSlot < 0 || sourceSlot === targetSlot) return;
+    setLocalOrder((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(sourceSlot, 1);
+      next.splice(targetSlot, 0, moved);
+      // Always submit cover first (if one exists) so the full-set API
+      // validation passes and the server ordering contract is respected.
+      const fullOrder = coverPhoto ? [coverPhoto.id, ...next] : next;
+      onReorder(fullOrder);
+      return next;
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [coverPhoto, onReorder]);
+
+  const cancelDrag = useCallback(() => {
+    setDragSourceSlot(-1);
+    setDropTargetSlot(-1);
+  }, []);
+
+  // Worklet-safe snapshot of slotWidth and nonCoverCount
+  const slotWidthSv = slotWidth;
+  const itemSizeSv = itemSize;
+
+  const stripPanGesture = Gesture.Pan()
+    .activateAfterLongPress(450)
+    .onBegin((e) => {
+      "worklet";
+      const slot = Math.max(0, Math.min(nonCoverCount - 1, Math.floor(e.x / slotWidthSv)));
+      isDragging.value = true;
+      dragSourceSlotSv.value = slot;
+      dragPosX.value = slot * slotWidthSv + itemSizeSv / 2;
+      runOnJS(hapticStart)();
+      runOnJS(beginDrag)(slot);
+    })
+    .onUpdate((e) => {
+      "worklet";
+      const clamped = Math.max(itemSizeSv / 2, Math.min(nonCoverCount * slotWidthSv - itemSizeSv / 2, e.x));
+      dragPosX.value = clamped;
+      const drop = Math.max(0, Math.min(nonCoverCount - 1, Math.round((clamped - itemSizeSv / 2) / slotWidthSv)));
+      runOnJS(updateDrop)(drop);
+    })
+    .onEnd((e) => {
+      "worklet";
+      const clamped = Math.max(itemSizeSv / 2, Math.min(nonCoverCount * slotWidthSv - itemSizeSv / 2, e.x));
+      const drop = Math.max(0, Math.min(nonCoverCount - 1, Math.round((clamped - itemSizeSv / 2) / slotWidthSv)));
+      const source = dragSourceSlotSv.value;
+      isDragging.value = false;
+      dragSourceSlotSv.value = -1;
+      runOnJS(commitReorder)(source, drop);
+    })
+    .onFinalize(() => {
+      "worklet";
+      isDragging.value = false;
+      dragSourceSlotSv.value = -1;
+      runOnJS(cancelDrag)();
+    });
+
+  // Build display slots for non-cover photos (ID-based).
+  // During drag: source slot becomes a gap (null), gap moves to drop position.
+  const displaySlots: Array<number | null> = useMemo(() => {
+    if (dragSourceSlot < 0) return [...localOrder];
+    const arr: Array<number | null> = [...localOrder];
+    arr.splice(dragSourceSlot, 1, null);
+    const removed = arr.splice(dragSourceSlot, 1);
+    arr.splice(dropTargetSlot, 0, removed[0]);
+    return arr;
+  }, [localOrder, dragSourceSlot, dropTargetSlot]);
+
+  const floatingStyle = useAnimatedStyle(() => ({
+    position: "absolute",
+    top: 0,
+    left: dragPosX.value - itemSizeSv / 2,
+    opacity: isDragging.value ? 1 : 0,
+    zIndex: 20,
+    transform: [{ scale: withSpring(isDragging.value ? 1.2 : 1) }],
+  }));
+
+  const dragging = dragSourceSlot >= 0;
+  const draggedPhotoId = dragging ? localOrder[dragSourceSlot] ?? -1 : -1;
+  const draggedPhoto = draggedPhotoId >= 0 ? photoMap.get(draggedPhotoId) : undefined;
+  const nonCoverStripWidth = nonCoverCount * slotWidth - STRIP_ITEM_GAP;
+
+  const iSize = itemSize; // stable reference for inline styles
+
+  return (
+    <View style={stripStyles.outerRow}>
+      {/* Cover photo — pinned at position 0, not draggable */}
+      {coverPhoto ? (
+        <Pressable
+          style={[
+            stripStyles.item,
+            { width: iSize, height: iSize },
+            coverPhoto.id === currentPhotoId && stripStyles.itemCurrent,
+            stripStyles.itemCoverBorder,
+          ]}
+          onPress={() => {
+            const idx = photos.findIndex((p) => p.id === coverPhoto.id);
+            if (idx >= 0) onSelect(idx);
+          }}
+        >
+          {coverPhoto.downloadUrl ? (
+            <Image source={{ uri: coverPhoto.downloadUrl }} style={stripStyles.itemImage} resizeMode="cover" />
+          ) : (
+            <View style={stripStyles.itemPlaceholder} />
+          )}
+          <View style={stripStyles.coverBadge}>
+            <Text style={stripStyles.coverBadgeText}>★</Text>
+          </View>
+        </Pressable>
+      ) : null}
+
+      {/* Draggable non-cover strip */}
+      {nonCoverCount > 0 ? (
+        <GestureDetector gesture={stripPanGesture}>
+          <View style={{ width: nonCoverStripWidth, height: iSize, position: "relative" }}>
+            <View style={[stripStyles.row, { height: iSize }]}>
+              {displaySlots.map((photoId, slotIdx) => {
+                const isGap = photoId === null;
+                const ph = !isGap ? photoMap.get(photoId!) : undefined;
+                const isCurrentPage = !isGap && photoId === currentPhotoId;
+                const uri = ph?.downloadUrl ?? null;
+                return (
+                  <Pressable
+                    key={slotIdx}
+                    onPress={() => {
+                      if (!dragging && !isGap && photoId != null) {
+                        const idx = photos.findIndex((p) => p.id === photoId);
+                        if (idx >= 0) onSelect(idx);
+                      }
+                    }}
+                    style={[
+                      stripStyles.item,
+                      { width: iSize, height: iSize },
+                      isCurrentPage && stripStyles.itemCurrent,
+                      isGap && stripStyles.itemGap,
+                    ]}
+                  >
+                    {!isGap && uri ? (
+                      <Image source={{ uri }} style={stripStyles.itemImage} resizeMode="cover" />
+                    ) : !isGap ? (
+                      <View style={stripStyles.itemPlaceholder} />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Floating copy of the dragged thumbnail */}
+            {dragging && draggedPhoto ? (
+              <Animated.View style={[stripStyles.floatingItem, { width: iSize, height: iSize }, floatingStyle]}>
+                {draggedPhoto.downloadUrl ? (
+                  <Image
+                    source={{ uri: draggedPhoto.downloadUrl }}
+                    style={stripStyles.itemImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={stripStyles.itemPlaceholder} />
+                )}
+              </Animated.View>
+            ) : null}
+          </View>
+        </GestureDetector>
+      ) : null}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Lightbox
+// ---------------------------------------------------------------------------
+
 interface LightboxProps {
   photos: BlockPhoto[];
   initialIndex: number;
   visible: boolean;
   onClose: () => void;
+  onReorder: (newPhotoIds: number[]) => void;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder }: LightboxProps) {
   const insets = useSafeAreaInsets();
 
-  // JS-side index (drives image source + caption render)
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  // UI-thread copy for use inside worklets
+  // Track the current photo by ID so that when the parent reorders photos[]
+  // the displayed photo stays the same (currentIndex is derived, not stored).
+  const [currentPhotoId, setCurrentPhotoId] = useState<number | null>(
+    photos[Math.min(initialIndex, photos.length - 1)]?.id ?? null,
+  );
+
+  // Derive the numeric index from the ID — automatically corrects after reorder
+  const currentIndex = useMemo(() => {
+    if (currentPhotoId == null) return 0;
+    const idx = photos.findIndex((p) => p.id === currentPhotoId);
+    return idx >= 0 ? idx : 0;
+  }, [photos, currentPhotoId]);
+
+  // UI-thread shared values for worklet gestures
   const indexSv = useSharedValue(initialIndex);
   const totalSv = useSharedValue(photos.length);
+
+  // Keep worklet index in sync with derived JS-thread index (handles reorder)
+  useEffect(() => {
+    indexSv.value = currentIndex;
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep totalSv in sync when photos change
+  useEffect(() => {
+    totalSv.value = photos.length;
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ref to always-current photos so goToIndex worklet callback never goes stale
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
 
   // Zoom / pan state
   const scale = useSharedValue(1);
@@ -105,16 +394,12 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps
   // Background fade
   const bgOpacity = useSharedValue(0);
 
-  // Keep totalSv in sync when photos change
-  useEffect(() => {
-    totalSv.value = photos.length;
-  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Reset everything when the lightbox opens/closes
   useEffect(() => {
     if (visible) {
-      const idx = Math.min(initialIndex, photos.length - 1);
-      setCurrentIndex(idx);
+      const idx = Math.min(initialIndex, photosRef.current.length - 1);
+      const id = photosRef.current[idx]?.id ?? null;
+      setCurrentPhotoId(id);
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -129,9 +414,11 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Navigate to a specific index (called from worklet via runOnJS)
+  // Navigate to a specific index (called from worklet via runOnJS).
+  // Uses photosRef so the closure never goes stale when photos are reordered.
   const goToIndex = useCallback((idx: number) => {
-    setCurrentIndex(idx);
+    const photo = photosRef.current[idx];
+    setCurrentPhotoId(photo?.id ?? null);
     // Reset zoom for the new photo
     scale.value = 1;
     savedScale.value = 1;
@@ -311,18 +598,6 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps
           </Animated.View>
         </GestureDetector>
 
-        {/* Dot indicator */}
-        {hasMultiple ? (
-          <View style={[styles.lbDots, { bottom: caption ? 76 + insets.bottom : insets.bottom + 44 }]}>
-            {photos.map((_, i) => (
-              <View
-                key={i}
-                style={[styles.lbDot, i === currentIndex && styles.lbDotActive]}
-              />
-            ))}
-          </View>
-        ) : null}
-
         {/* Caption */}
         {caption ? (
           <View style={[styles.lbCaption, { paddingBottom: insets.bottom + 16 }]}>
@@ -330,14 +605,26 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose }: LightboxProps
           </View>
         ) : null}
 
-        {/* Hint */}
-        <View style={[styles.lbHint, { bottom: caption ? 60 + insets.bottom : insets.bottom + 16 }]}>
-          <Text style={styles.lbHintText}>
-            {hasMultiple
-              ? "Swipe left/right to browse · Pinch to zoom · Swipe down to close"
-              : "Pinch to zoom · Double-tap · Swipe down to close"}
-          </Text>
-        </View>
+        {/* Draggable thumbnail strip — replaces dot indicator, allows reordering */}
+        {hasMultiple ? (
+          <View style={[styles.lbStripWrapper, { bottom: caption ? 72 + insets.bottom : insets.bottom + 16 }]}>
+            <DraggablePhotoStrip
+              photos={photos}
+              currentIndex={currentIndex}
+              onSelect={(idx) => goToIndex(idx)}
+              onReorder={onReorder}
+            />
+            <Text style={styles.lbHintText}>
+              Hold &amp; drag thumbnails to reorder · Swipe photo to browse
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.lbStripWrapper, { bottom: insets.bottom + 16 }]}>
+            <Text style={styles.lbHintText}>
+              Pinch to zoom · Double-tap · Swipe down to close
+            </Text>
+          </View>
+        )}
       </Animated.View>
       </GestureHandlerRootView>
     </Modal>
@@ -527,6 +814,33 @@ export default function VineBlockPhotosScreen() {
       loadPhotos();
     }, [loadPhotos]),
   );
+
+  // Called by the lightbox strip when the grower drags photos into a new order.
+  // Optimistically reorders state immediately then persists to the server.
+  const handleReorder = useCallback(async (newPhotoIds: number[]) => {
+    if (!currentFarm?.id || !selectedBlock) return;
+    // Optimistic update: reorder photos state by the new ID order
+    setPhotos((prev) => {
+      const map = new Map(prev.map((p) => [p.id, p]));
+      return newPhotoIds.map((id) => map.get(id)).filter(Boolean) as BlockPhoto[];
+    });
+    try {
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/reorder`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photoIds: newPhotoIds }),
+        },
+      );
+      if (!res.ok) {
+        // Revert by reloading from server
+        loadPhotos();
+      }
+    } catch {
+      loadPhotos();
+    }
+  }, [currentFarm?.id, selectedBlock, loadPhotos]);
 
   const handleAddPhoto = () => {
     if (!currentFarm?.id || !selectedBlock) return;
@@ -751,6 +1065,7 @@ export default function VineBlockPhotosScreen() {
         initialIndex={lightboxIndex}
         visible={lightboxVisible}
         onClose={closeLightbox}
+        onReorder={handleReorder}
       />
 
       {/* Caption editor */}
@@ -938,16 +1253,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
   },
-  lbHint: {
+  lbStripWrapper: {
     position: "absolute",
     left: 0,
     right: 0,
     alignItems: "center",
+    gap: 8,
+    zIndex: 10,
   },
   lbHintText: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
   },
   // Caption sheet
   sheetOverlay: {
@@ -1023,5 +1341,74 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#fff",
+  },
+});
+
+// Styles for DraggablePhotoStrip (separate to keep the main StyleSheet tidy).
+// Width/height on items is applied inline because it is computed dynamically.
+const stripStyles = StyleSheet.create({
+  outerRow: {
+    flexDirection: "row",
+    gap: STRIP_ITEM_GAP,
+    alignItems: "center",
+    flexWrap: "nowrap",
+  },
+  row: {
+    flexDirection: "row",
+    gap: STRIP_ITEM_GAP,
+    alignItems: "center",
+  },
+  item: {
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  itemCurrent: {
+    borderColor: "#fff",
+    borderWidth: 2,
+  },
+  itemCoverBorder: {
+    borderColor: "rgba(255,215,0,0.7)", // gold tint for the cover
+    borderWidth: 2,
+  },
+  itemGap: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.3)",
+    borderStyle: "dashed",
+  },
+  itemImage: {
+    width: "100%",
+    height: "100%",
+  },
+  itemPlaceholder: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  coverBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 3,
+    paddingHorizontal: 2,
+  },
+  coverBadgeText: {
+    fontSize: 8,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 11,
+  },
+  floatingItem: {
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
