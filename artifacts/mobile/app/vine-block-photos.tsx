@@ -341,9 +341,10 @@ interface LightboxProps {
   visible: boolean;
   onClose: () => void;
   onReorder: (newPhotoIds: number[]) => void;
+  onEditCaption: (photo: BlockPhoto) => void;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder, onEditCaption }: LightboxProps) {
   const insets = useSafeAreaInsets();
 
   // Track the current photo by ID so that when the parent reorders photos[]
@@ -617,16 +618,27 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder }: Li
           </Animated.View>
         </GestureDetector>
 
-        {/* Caption */}
-        {caption ? (
-          <View style={[styles.lbCaption, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={styles.lbCaptionText}>{caption}</Text>
-          </View>
+        {/* Caption row — always visible so growers can add/edit from the lightbox */}
+        {photo ? (
+          <Pressable
+            style={[styles.lbCaption, { paddingBottom: insets.bottom + 16 }]}
+            onPress={() => onEditCaption(photo)}
+            hitSlop={8}
+          >
+            <View style={styles.lbCaptionRow}>
+              {caption ? (
+                <Text style={styles.lbCaptionText}>{caption}</Text>
+              ) : (
+                <Text style={styles.lbCaptionPlaceholder}>Add a caption…</Text>
+              )}
+              <Feather name="edit-2" size={14} color="rgba(255,255,255,0.7)" style={styles.lbEditIcon} />
+            </View>
+          </Pressable>
         ) : null}
 
         {/* Draggable thumbnail strip — replaces dot indicator, allows reordering */}
         {hasMultiple ? (
-          <View style={[styles.lbStripWrapper, { bottom: caption ? 72 + insets.bottom : insets.bottom + 16 }]}>
+          <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
             <DraggablePhotoStrip
               photos={photos}
               currentIndex={currentIndex}
@@ -638,7 +650,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder }: Li
             </Text>
           </View>
         ) : (
-          <View style={[styles.lbStripWrapper, { bottom: insets.bottom + 16 }]}>
+          <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
             <Text style={styles.lbHintText}>
               Pinch to zoom · Double-tap · Swipe down to close
             </Text>
@@ -1085,6 +1097,7 @@ export default function VineBlockPhotosScreen() {
         visible={lightboxVisible}
         onClose={closeLightbox}
         onReorder={handleReorder}
+        onEditCaption={handleEditCaption}
       />
 
       {/* Caption editor */}
@@ -1266,11 +1279,30 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
+  lbCaptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   lbCaptionText: {
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: "#fff",
     textAlign: "center",
+    flex: 1,
+    flexShrink: 1,
+  },
+  lbCaptionPlaceholder: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
+    flex: 1,
+    flexShrink: 1,
+  },
+  lbEditIcon: {
+    flexShrink: 0,
   },
   lbStripWrapper: {
     position: "absolute",
