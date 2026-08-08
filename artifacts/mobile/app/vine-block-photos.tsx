@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -52,6 +53,8 @@ interface BlockPhoto {
   /** Short-lived presigned GET URL returned by the API — use directly in <Image>. */
   downloadUrl: string | null;
 }
+
+const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 
 // ---------------------------------------------------------------------------
 // Lightbox
@@ -414,6 +417,47 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder, onEd
   // Background fade
   const bgOpacity = useSharedValue(0);
 
+  // One-time "Hold & drag to reorder" hint
+  const [showReorderHint, setShowReorderHint] = useState(false);
+  const hintOpacity = useSharedValue(0);
+  const hintDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissReorderHint = useCallback(() => {
+    if (hintDismissTimer.current) {
+      clearTimeout(hintDismissTimer.current);
+      hintDismissTimer.current = null;
+    }
+    hintOpacity.value = withTiming(0, { duration: 300 }, () => {
+      runOnJS(setShowReorderHint)(false);
+    });
+    AsyncStorage.setItem(REORDER_HINT_KEY, "1").catch(() => undefined);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check AsyncStorage when the lightbox becomes visible with multiple photos
+  useEffect(() => {
+    if (!visible || photos.length <= 1) return;
+    let cancelled = false;
+    AsyncStorage.getItem(REORDER_HINT_KEY).then((val) => {
+      if (cancelled || val !== null) return;
+      setShowReorderHint(true);
+      hintOpacity.value = withTiming(1, { duration: 300 });
+      hintDismissTimer.current = setTimeout(() => {
+        if (!cancelled) dismissReorderHint();
+      }, 3000);
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+      if (hintDismissTimer.current) {
+        clearTimeout(hintDismissTimer.current);
+        hintDismissTimer.current = null;
+      }
+    };
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hintAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: hintOpacity.value,
+  }));
+
   // Reset everything when the lightbox opens/closes
   useEffect(() => {
     if (visible) {
@@ -639,6 +683,14 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder, onEd
         {/* Draggable thumbnail strip — replaces dot indicator, allows reordering */}
         {hasMultiple ? (
           <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
+            {showReorderHint ? (
+              <Pressable onPress={dismissReorderHint} hitSlop={8}>
+                <Animated.View style={[styles.lbReorderHint, hintAnimatedStyle]}>
+                  <Feather name="move" size={13} color="#fff" style={{ marginRight: 5 }} />
+                  <Text style={styles.lbReorderHintText}>Hold &amp; drag to reorder</Text>
+                </Animated.View>
+              </Pressable>
+            ) : null}
             <DraggablePhotoStrip
               photos={photos}
               currentIndex={currentIndex}
@@ -1329,6 +1381,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "rgba(255,255,255,0.4)",
     textAlign: "center",
+  },
+  lbReorderHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  lbReorderHintText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
   // Caption sheet
   sheetOverlay: {
