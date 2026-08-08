@@ -517,6 +517,18 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   const [year, setYear] = useState(currentYear);
   const { blocks, harvests, scouts, ops, sprays, loading } = useVitData(farmId);
 
+  const { data: farmMeta } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm-meta", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}`, { credentials: "include" });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d.record ?? d) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const vintageYears = useMemo(() => {
     const yrs = [...new Set(harvests.map(h => Number(h.vintageYear)).filter(Boolean))].sort((a, b) => b - a);
     if (!yrs.includes(currentYear)) yrs.unshift(currentYear);
@@ -626,12 +638,14 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* Print header */}
-      <div className="hidden print:block mb-4">
+      <div className="hidden print:block border-b-2 border-gray-800 pb-3 mb-4">
         <div className="flex items-center gap-2 mb-1">
           <Grape className="w-5 h-5 text-purple-600" />
-          <h1 className="text-xl font-bold">Vintage Report — {year}</h1>
+          <h1 className="text-xl font-bold">Vintage Season Report — {year}</h1>
         </div>
-        <p className="text-sm text-gray-500">Produced {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
+        {!!farmMeta?.name && <p className="text-sm font-semibold mt-0.5">{String(farmMeta.name)}</p>}
+        {!!farmMeta?.address && <p className="text-xs text-gray-500">{String(farmMeta.address)}</p>}
+        <p className="text-xs text-gray-400 mt-1">Produced {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</p>
       </div>
 
       {/* Season summary KPIs */}
