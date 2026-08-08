@@ -821,93 +821,153 @@ export async function printHarvest(
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const colSpan = hasPhotos ? 12 : 13;
 
-  // ── 3b. Build yield summary (grouped by vintage or by block) ─────────────
+  // ── 3b. Build per-block yield summary (matching Vintage Season Report) ───────
   const uniqueVintages = [...new Set(records.map((r: Record<string, unknown>) => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
   const groupByVintage = uniqueVintages.length > 1;
 
-  const groupObj: Record<string, Record<string, unknown>[]> = {};
-  const groupKeys: string[] = [];
+  // Always build a per-block summary
+  const blockSummaryMap: Record<string, {
+    blockId: number | null; label: string; variety: string; areaHa: number;
+    totalKg: number; brixSum: number; brixCount: number;
+    phSum: number; phCount: number; taSum: number; taCount: number;
+    potAlcSum: number; potAlcCount: number;
+    photoCell: string;
+  }> = {};
+  const blockSummaryKeys: string[] = [];
+
   for (const r of records) {
-    const key = groupByVintage ? String(r.vintageYear ?? "Unknown") : String(r.blockId ?? "0");
-    if (!groupObj[key]) { groupObj[key] = []; groupKeys.push(key); }
-    groupObj[key].push(r);
-  }
-
-  const summaryRows = groupKeys.map((key: string) => {
-    const grpRecords: Record<string, unknown>[] = groupObj[key];
-    const totalYieldKgGrp = grpRecords.reduce((s: number, r: Record<string, unknown>) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-    const brixVals = grpRecords.map((r: Record<string, unknown>) => parseFloat(String(r.brix ?? ""))).filter((v: number) => !isNaN(v));
-    const avgBrix = brixVals.length > 0 ? brixVals.reduce((a: number, b: number) => a + b, 0) / brixVals.length : null;
-    const thaVals = grpRecords.map((r: Record<string, unknown>) => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter((v: number) => !isNaN(v));
-    const avgTha = thaVals.length > 0 ? thaVals.reduce((a: number, b: number) => a + b, 0) / thaVals.length : null;
-    const sortedDates = [...new Set(
-      grpRecords
-        .map((r: Record<string, unknown>) => r.harvestDate ? new Date(r.harvestDate as string).toLocaleDateString("en-GB") : "")
-        .filter(Boolean)
-    )];
-    const dateStr = sortedDates.length === 0 ? "\u2014"
-      : sortedDates.length === 1 ? sortedDates[0]
-      : `${sortedDates[0]} \u2013 ${sortedDates[sortedDates.length - 1]}`;
-
-    let label: string;
-    let photoCell = "";
-    if (groupByVintage) {
-      label = key;
-    } else {
-      const bid = Number(key);
-      label = !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? key) : "\u2014";
-      if (hasPhotos) {
-        const du = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
-        const cap = !isNaN(bid) && bid > 0 ? (photoCaption[bid] ?? "") : "";
+    const bid = r.blockId != null ? Number(r.blockId) : null;
+    const key = bid != null && !isNaN(bid) && bid > 0 ? String(bid) : "unknown";
+    if (!blockSummaryMap[key]) {
+      const bl = bid != null && !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
+      const bName = bl ? String(bl.blockName ?? "\u2014") : (bid != null ? String(bid) : "\u2014");
+      const variety = bl ? String(bl.variety ?? "\u2014") : "\u2014";
+      const areaHa = bl ? (parseFloat(String(bl.areaHa ?? "0")) || 0) : 0;
+      let photoCell = "";
+      if (hasPhotos && bid != null && !isNaN(bid) && bid > 0) {
+        const du = photoDataUrl[bid];
+        const cap = photoCaption[bid] ?? "";
         photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
           ${du ? `<img src="${du}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
-          <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(label)}</span>
+          <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
           ${cap ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(cap)}</span>` : ""}
         </td>`;
       }
+      blockSummaryMap[key] = {
+        blockId: bid, label: bName, variety, areaHa,
+        totalKg: 0, brixSum: 0, brixCount: 0,
+        phSum: 0, phCount: 0, taSum: 0, taCount: 0,
+        potAlcSum: 0, potAlcCount: 0, photoCell,
+      };
+      blockSummaryKeys.push(key);
     }
+    const row = blockSummaryMap[key];
+    row.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+    const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { row.brixSum += brix; row.brixCount++; }
+    const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) { row.phSum += ph; row.phCount++; }
+    const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) { row.taSum += ta; row.taCount++; }
+    const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) { row.potAlcSum += pa; row.potAlcCount++; }
+  }
 
-    return `<tr>
-      ${hasPhotos && !groupByVintage ? photoCell : ""}
-      <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
-      <td style="padding:5px 5px;border:1px solid #d1d5db">${escHtml(dateStr)}</td>
-      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600">${totalYieldKgGrp > 0 ? totalYieldKgGrp.toFixed(1) + " kg" : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right">${avgTha != null ? avgTha.toFixed(2) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
-    </tr>`;
-  }).join("");
+  const blockSummaryRows = blockSummaryKeys
+    .sort((a, b) => blockSummaryMap[a].label.localeCompare(blockSummaryMap[b].label))
+    .map(key => {
+      const row = blockSummaryMap[key];
+      const tha = row.areaHa > 0 ? (row.totalKg / 1000 / row.areaHa) : null;
+      return `<tr>
+        ${hasPhotos ? row.photoCell : ""}
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(row.label)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(row.variety)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.areaHa > 0 ? row.areaHa.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${row.totalKg > 0 ? row.totalKg.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "\u2014"}</td>
+      </tr>`;
+    }).join("");
 
-  const summaryPhotoHeader = hasPhotos && !groupByVintage
-    ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>`
-    : "";
-  const summaryPhotoFooterCell = hasPhotos && !groupByVintage
-    ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>`
-    : "";
+  // Footer totals for block summary
+  const summBlockRows = blockSummaryKeys.map(k => blockSummaryMap[k]);
+  const summTotalKg = summBlockRows.reduce((s, r) => s + r.totalKg, 0);
+  const summTotalArea = summBlockRows.reduce((s, r) => s + r.areaHa, 0);
+  const summAvgTha = summTotalArea > 0 ? summTotalKg / 1000 / summTotalArea : null;
+  const summBrixRows = summBlockRows.filter(r => r.brixCount > 0).map(r => r.brixSum / r.brixCount);
+  const summAvgBrix = summBrixRows.length > 0 ? summBrixRows.reduce((a, b) => a + b, 0) / summBrixRows.length : null;
+  const summPaRows = summBlockRows.filter(r => r.potAlcCount > 0).map(r => r.potAlcSum / r.potAlcCount);
+  const summAvgPa = summPaRows.length > 0 ? summPaRows.reduce((a, b) => a + b, 0) / summPaRows.length : null;
+  const bsColSpan = hasPhotos ? 10 : 9;
+  const bsPhotoHeader = hasPhotos ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>` : "";
+  const bsPhotoFooterCell = hasPhotos ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>` : "";
+
+  // Also build vintage-grouped summary if multi-vintage (shown above block summary)
+  let vintageSummaryHtml = "";
+  if (groupByVintage) {
+    const vintageObj: Record<string, { totalKg: number; brixSum: number; brixCount: number }> = {};
+    for (const r of records) {
+      const yr = String(r.vintageYear ?? "Unknown");
+      if (!vintageObj[yr]) vintageObj[yr] = { totalKg: 0, brixSum: 0, brixCount: 0 };
+      vintageObj[yr].totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+      const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { vintageObj[yr].brixSum += brix; vintageObj[yr].brixCount++; }
+    }
+    const vintageRows = uniqueVintages.map(yr => {
+      const v = vintageObj[yr] ?? { totalKg: 0, brixSum: 0, brixCount: 0 };
+      return `<tr>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${v.totalKg > 0 ? v.totalKg.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.brixCount > 0 ? (v.brixSum / v.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
+      </tr>`;
+    }).join("");
+    vintageSummaryHtml = `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Yield Summary &mdash; by Vintage Year</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead><tr>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left">Vintage</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Total Yield (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg Brix &deg;</th>
+    </tr></thead>
+    <tbody>${vintageRows}</tbody>
+    <tfoot><tr>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Vintages</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(0)} kg</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+    </tr></tfoot>
+  </table>`;
+  }
 
   const summaryHtml = records.length > 0 ? `
+  ${vintageSummaryHtml}
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
-    Yield Summary &mdash; ${groupByVintage ? "by Vintage Year" : "by Block"}
+    Yield Summary by Block
   </h2>
   <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
     <thead>
       <tr>
-        ${summaryPhotoHeader}
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">${groupByVintage ? "Vintage Year" : "Block"}</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Harvest Date(s)</th>
+        ${bsPhotoHeader}
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg t/ha</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (t/ha)</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
       </tr>
     </thead>
-    <tbody>${summaryRows || "<tr><td colspan='5' style='padding:10px;text-align:center;color:#888'>No records</td></tr>"}</tbody>
+    <tbody>${blockSummaryRows || `<tr><td colspan='${bsColSpan}' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
     <tfoot>
       <tr>
-        ${summaryPhotoFooterCell}
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">Total</td>
+        ${bsPhotoFooterCell}
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700" colspan="2">Season Totals / Averages</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalArea > 0 ? summTotalArea.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalKg > 0 ? summTotalKg.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTha != null ? summAvgTha.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgBrix != null ? summAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(1)} kg</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPa != null ? summAvgPa.toFixed(1) : "\u2014"}</td>
       </tr>
     </tfoot>
   </table>
