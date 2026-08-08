@@ -276,5 +276,16 @@ export async function runWineryMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_maintenance_vessel_idx ON winery_barrel_maintenance (vessel_id)`);
 
+  // ─── Harvest Reception — extended intake fields ────────────────────────────
+  // Gate testing provenance: who tested, what device, whether a lab report is
+  // still expected. Disposal fields: where rejected grapes go (traceability
+  // requirement under UK Wine Regulations).
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS testing_by         text`);
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS testing_equipment  text`);
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS lab_result_pending boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS disposal_route     text`);
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS disposal_notes     text`);
+  await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS disposal_date      date`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

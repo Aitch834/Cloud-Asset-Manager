@@ -1,4 +1,4 @@
-import { useCrud, usePersistedYearFilter, HARVEST_COLUMNS, HARVEST_IMPORT_HEADERS, resolveHarvestField, today, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, NotesCell, SectionLabel, SOURCE_TYPE_OPTIONS, GRAPE_CONDITION_OPTIONS, ViewField } from "./shared";
+import { useCrud, usePersistedYearFilter, useStaff, HARVEST_COLUMNS, HARVEST_IMPORT_HEADERS, resolveHarvestField, today, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, NotesCell, SectionLabel, SOURCE_TYPE_OPTIONS, GRAPE_CONDITION_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -129,14 +129,37 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
     if (importFileRef.current) importFileRef.current.value = "";
   };
 
+  const { staffNames, isLoading: staffLoading } = useStaff(farmId);
+
   const grossKg = parseFloat(String(form.grossWeightKg || "0"));
   const tareKg = parseFloat(String(form.tareWeightKg || "0"));
   const autoNet = !isNaN(grossKg) && !isNaN(tareKg) && grossKg > 0 ? grossKg - tareKg : null;
 
+  const brixVal = parseFloat(String(form.brix || ""));
+  const autoPotentialAlcohol = !isNaN(brixVal) && brixVal > 0 ? (brixVal * 0.55).toFixed(1) : null;
+
+  // Past grower names for datalist suggestions
+  const growerNames = useMemo(
+    () => Array.from(new Set(crud.data.map(r => String(r.grower_name ?? "").trim()).filter(Boolean))).sort(),
+    [crud.data]
+  );
+
+  // Auto-populate variety when block is selected (only if variety field is currently empty)
+  useEffect(() => {
+    if (!form.blockId || !open) return;
+    if (form.variety) return;
+    const block = blocks.find(b => String(b.id) === String(form.blockId));
+    if (block?.variety) sf("variety", String(block.variety));
+  }, [form.blockId, open]);
+
   const openAdd = () => { setEditing(null); setForm({ receptionDate: today, vintageYear: String(new Date().getFullYear()), accepted: "true" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const save = async () => {
-    const payload = { ...form, netWeightKg: autoNet != null ? String(autoNet) : form.netWeightKg };
+    const payload = {
+      ...form,
+      netWeightKg: autoNet != null ? String(autoNet) : form.netWeightKg,
+      potentialAlcohol: autoPotentialAlcohol != null ? autoPotentialAlcohol : form.potentialAlcohol,
+    };
     try {
       if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...payload } as Record<string, unknown> & { id: number });
       else await crud.add.mutateAsync(payload);
@@ -256,20 +279,29 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <div><Label>Vintage Year</Label><Input type="number" value={String(form.vintageYear ?? "")} onChange={e => sf("vintageYear", e.target.value)} placeholder={String(new Date().getFullYear())} /></div>
               <div>
                 <Label>Block</Label>
-                <Select value={String(form.blockId ?? "")} onValueChange={v => sf("blockId", v)}>
+                <Select value={String(form.blockId ?? "")} onValueChange={v => { sf("blockId", v); if (!form.variety) { const blk = blocks.find(b => String(b.id) === v); if (blk?.variety) sf("variety", String(blk.variety)); } }}>
                   <SelectTrigger><SelectValue placeholder="Select block" /></SelectTrigger>
                   <SelectContent>{blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Variety</Label><Input value={String(form.variety ?? "")} onChange={e => sf("variety", e.target.value)} placeholder="e.g. Bacchus, Pinot Noir" /></div>
+              <div>
+                <Label>Variety {!!(form.blockId && blocks.find(b => String(b.id) === String(form.blockId))?.variety) && <span className="text-xs text-muted-foreground font-normal">(from block)</span>}</Label>
+                <Input value={String(form.variety ?? "")} onChange={e => sf("variety", e.target.value)} placeholder="e.g. Bacchus, Pinot Noir" />
+              </div>
               <div>
                 <Label>Source Type</Label>
-                <Select value={String(form.sourceType ?? "")} onValueChange={v => sf("sourceType", v)}>
+                <Select value={String(form.sourceType ?? "")} onValueChange={v => { sf("sourceType", v); if (v === "Own vineyard") sf("growerName", ""); }}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{SOURCE_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Grower Name</Label><Input value={String(form.growerName ?? "")} onChange={e => sf("growerName", e.target.value)} placeholder="If contract grower" /></div>
+              {form.sourceType !== "Own vineyard" && (
+                <div>
+                  <Label>{form.sourceType === "Purchased grapes" ? "Purchased From (Merchant / Grower)" : "Contract Grower Name"}</Label>
+                  <datalist id="grower-names-list">{growerNames.map(n => <option key={n} value={n} />)}</datalist>
+                  <Input list="grower-names-list" value={String(form.growerName ?? "")} onChange={e => sf("growerName", e.target.value)} placeholder={form.sourceType === "Purchased grapes" ? "Merchant or grower name" : "Contract grower name"} />
+                </div>
+              )}
             </div>
             <SectionLabel>Vehicle & transport</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -293,7 +325,26 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <div><Label>Brix °</Label><Input type="number" step="0.1" value={String(form.brix ?? "")} onChange={e => sf("brix", e.target.value)} /></div>
               <div><Label>pH</Label><Input type="number" step="0.01" value={String(form.ph ?? "")} onChange={e => sf("ph", e.target.value)} /></div>
               <div><Label>TA (g/L)</Label><Input type="number" step="0.1" value={String(form.titratableAcidityGl ?? "")} onChange={e => sf("titratableAcidityGl", e.target.value)} /></div>
-              <div><Label>Potential Alcohol %</Label><Input type="number" step="0.1" value={String(form.potentialAlcohol ?? "")} onChange={e => sf("potentialAlcohol", e.target.value)} /></div>
+              <div>
+                <Label>Potential Alcohol %</Label>
+                {autoPotentialAlcohol !== null
+                  ? <div className="border rounded-md px-3 py-2 bg-blue-50 text-blue-900 font-mono text-sm mt-1">{autoPotentialAlcohol} <span className="text-blue-600 text-xs">from Brix</span></div>
+                  : <Input type="number" step="0.1" value={String(form.potentialAlcohol ?? "")} onChange={e => sf("potentialAlcohol", e.target.value)} placeholder="Or enter Brix" />}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Tested by</Label>
+                <StaffSelect value={String(form.testingBy ?? "")} onChange={v => sf("testingBy", v)} staffNames={staffNames} loading={staffLoading} />
+              </div>
+              <div><Label>Testing equipment / device</Label><Input value={String(form.testingEquipment ?? "")} onChange={e => sf("testingEquipment", e.target.value)} placeholder="e.g. Anton Paar EasyDens, Hanna HI98103" /></div>
+            </div>
+            <div className="flex items-center gap-3 rounded-md border px-3 py-2 bg-amber-50/60">
+              <Checkbox id="lab-pending-chk" checked={form.labResultPending === "true" || form.labResultPending === true} onCheckedChange={v => sf("labResultPending", v ? "true" : "false")} />
+              <div>
+                <Label htmlFor="lab-pending-chk" className="cursor-pointer">Lab result still to come</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Tick if pH / TA figures above are gate estimates and a full lab report is expected — edit this record when the report arrives.</p>
+              </div>
             </div>
             <SectionLabel>Condition & allocation</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -307,14 +358,36 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <div><Label>Botrytis %</Label><Input type="number" min="0" max="100" value={String(form.botrytisPct ?? "")} onChange={e => sf("botrytisPct", e.target.value)} /></div>
               <div><Label>MOG % (material other than grapes)</Label><Input type="number" step="0.1" min="0" max="100" value={String(form.mogPct ?? "")} onChange={e => sf("mogPct", e.target.value)} /></div>
               <div><Label>Holding Bin / Tank allocated</Label><Input value={String(form.holdingBin ?? "")} onChange={e => sf("holdingBin", e.target.value)} placeholder="e.g. Bin 3, T2" /></div>
-              <div><Label>Receiving Inspector</Label><Input value={String(form.inspectorName ?? "")} onChange={e => sf("inspectorName", e.target.value)} /></div>
+              <div className="col-span-2 md:col-span-1">
+                <Label>Receiving Inspector</Label>
+                <StaffSelect value={String(form.inspectorName ?? "")} onChange={v => sf("inspectorName", v)} staffNames={staffNames} loading={staffLoading} />
+              </div>
             </div>
             <div className="flex items-center gap-3 rounded-md border px-3 py-2">
               <Checkbox id="accepted-chk" checked={form.accepted !== "false" && form.accepted !== false} onCheckedChange={v => sf("accepted", v ? "true" : "false")} />
               <Label htmlFor="accepted-chk" className="cursor-pointer">Grapes accepted at intake</Label>
             </div>
             {(form.accepted === "false" || form.accepted === false) && (
-              <div><Label>Rejection Reason</Label><Textarea value={String(form.rejectionReason ?? "")} onChange={e => sf("rejectionReason", e.target.value)} rows={2} /></div>
+              <div className="space-y-3 rounded-md border border-red-200 bg-red-50/40 p-3">
+                <div><Label>Rejection Reason</Label><Textarea value={String(form.rejectionReason ?? "")} onChange={e => sf("rejectionReason", e.target.value)} rows={2} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Disposal Route</Label>
+                    <Select value={String(form.disposalRoute ?? "")} onValueChange={v => sf("disposalRoute", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Returned to grower">Returned to grower</SelectItem>
+                        <SelectItem value="Animal feed">Animal feed</SelectItem>
+                        <SelectItem value="Composting / anaerobic digestion">Composting / anaerobic digestion</SelectItem>
+                        <SelectItem value="Licensed waste disposal">Licensed waste disposal</SelectItem>
+                        <SelectItem value="Other">Other — see notes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Disposal Date</Label><Input type="date" value={String(form.disposalDate ?? "")} onChange={e => sf("disposalDate", e.target.value)} /></div>
+                </div>
+                <div><Label>Disposal destination / notes</Label><Textarea value={String(form.disposalNotes ?? "")} onChange={e => sf("disposalNotes", e.target.value)} rows={2} placeholder="e.g. Returned to Smith Farm, driver confirmed 14:30" /></div>
+              </div>
             )}
             <div><Label>Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
           </div>
@@ -349,12 +422,29 @@ export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks
               <ViewField label="pH" value={fmtNum(view.ph, 2)} />
               <ViewField label="TA (g/L)" value={fmtNum(view.titratable_acidity_gl, 1)} />
               <ViewField label="Potential Alcohol %" value={fmtNum(view.potential_alcohol, 1)} />
+              {!!view.testing_by && <ViewField label="Tested by" value={fmt(view.testing_by)} />}
+              {!!view.testing_equipment && <ViewField label="Testing device" value={fmt(view.testing_equipment)} />}
+              {(view.lab_result_pending === true || view.lab_result_pending === "true") && (
+                <div className="col-span-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">Lab result pending — analysis figures may be gate estimates</div>
+              )}
               <ViewField label="Grape Condition" value={fmt(view.grape_condition)} />
               <ViewField label="Botrytis %" value={fmt(view.botrytis_pct)} />
               <ViewField label="MOG %" value={fmtNum(view.mog_pct, 1)} />
               <ViewField label="Holding Bin" value={fmt(view.holding_bin)} />
               <ViewField label="Inspector" value={fmt(view.inspector_name)} />
-              <ViewField label="Status" value={view.accepted === false || view.accepted === "false" ? <span className="text-red-700">Rejected — {String(view.rejection_reason ?? "")}</span> : <span className="text-green-700">Accepted</span>} />
+              <ViewField label="Status" value={view.accepted === false || view.accepted === "false" ? <span className="text-red-700">Rejected</span> : <span className="text-green-700">Accepted</span>} />
+              {(view.accepted === false || view.accepted === "false") && !!view.rejection_reason && (
+                <div className="col-span-2"><ViewField label="Rejection Reason" value={fmt(view.rejection_reason)} /></div>
+              )}
+              {(view.accepted === false || view.accepted === "false") && !!view.disposal_route && (
+                <ViewField label="Disposal Route" value={fmt(view.disposal_route)} />
+              )}
+              {(view.accepted === false || view.accepted === "false") && !!view.disposal_date && (
+                <ViewField label="Disposal Date" value={fmtDate(view.disposal_date)} />
+              )}
+              {(view.accepted === false || view.accepted === "false") && !!view.disposal_notes && (
+                <div className="col-span-2"><ViewField label="Disposal Notes" value={fmt(view.disposal_notes)} /></div>
+              )}
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
             {typeof view.id === "number" && <div className="border-t pt-3 mt-1"><RecordAttachments farmId={farmId} recordType="winery-reception" recordId={view.id} /></div>}
