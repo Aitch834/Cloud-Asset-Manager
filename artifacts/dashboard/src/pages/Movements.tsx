@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Redirect, useLocation } from "wouter";
-import { useFarmMeta, FarmSettingsWarning } from "@/pages/viticulture/shared";
+import { useFarmMeta } from "@/pages/viticulture/shared";
 import {
   Plus, Search, RefreshCw, Loader2, Pencil, Eye, Trash2, X, Printer,
   ArrowRight, Paperclip, CheckCircle2, AlertTriangle, Upload, File, Skull, Download, ExternalLink,
@@ -1189,6 +1189,14 @@ export default function Movements() {
   const [incomingAnimalTags, setIncomingAnimalTags] = useState("");
   const [incomingAnimalBreed, setIncomingAnimalBreed] = useState("");
   const [incomingAnimalSex, setIncomingAnimalSex] = useState("");
+  const idBannerKey = `movements-id-warning-dismissed-${farmId}`;
+  const [idBannerDismissed, setIdBannerDismissed] = useState(() => {
+    try { return sessionStorage.getItem(`movements-id-warning-dismissed-${farmId}`) === "1"; } catch { return false; }
+  });
+  // Sync dismissal state when the user switches farms
+  React.useEffect(() => {
+    try { setIdBannerDismissed(sessionStorage.getItem(idBannerKey) === "1"); } catch { setIdBannerDismissed(false); }
+  }, [farmId, idBannerKey]);
 
   if (!farmId) return <Redirect href="/select" />;
 
@@ -1843,21 +1851,6 @@ export default function Movements() {
         }
       `}</style>
 
-      <FarmSettingsWarning
-        missingFields={[
-          ...(!movFarmRecord?.cphNumber || String(movFarmRecord.cphNumber).trim() === "" ? ["CPH Number"] : []),
-          ...(!movFarmRecord?.sbiNumber || String(movFarmRecord.sbiNumber).trim() === "" ? ["SBI Number"] : []),
-          ...(
-            (!movFarmRecord?.herdMark || String(movFarmRecord.herdMark).trim() === "") &&
-            (!movFarmRecord?.flockMark || String(movFarmRecord.flockMark).trim() === "") &&
-            (!movFarmRecord?.pigHerdMark || String(movFarmRecord.pigHerdMark).trim() === "")
-              ? ["Herd / Flock Mark"]
-              : []
-          ),
-        ]}
-        settingsSection="Livestock"
-        onNavigate={() => navigateTo("/settings/farm")}
-      />
       <TabBar className="mb-6">
         <TabButton active={activeTab === "movements"} onClick={() => setActiveTab("movements")}>Movements</TabButton>
         <TabButton active={activeTab === "mortality"} onClick={() => setActiveTab("mortality")}>Mortality Log</TabButton>
@@ -1915,6 +1908,73 @@ export default function Movements() {
           BCMS Submitted <span className="ml-1 text-xs opacity-60">({submittedCount})</span>
         </TabButton>
       </TabBar>
+      {/* ── Sector-aware livestock identifier warning (Movements list tab only) ── */}
+      {activeTab === "movements" && (() => {
+        if (!movFarmRecord || idBannerDismissed) return null;
+        const r = movFarmRecord as Record<string, unknown>;
+        const hasAnyLivestock =
+          r.sectorBeef || r.sectorSheep || r.sectorDairy || r.sectorPigs ||
+          r.sectorGoats || r.sectorEquine || r.sectorDeer || r.sectorPoultry || r.sectorEggs;
+        if (!hasAnyLivestock) return null;
+
+        const missing: { label: string; anchor: string }[] = [];
+        if (!r.cphNumber || String(r.cphNumber).trim() === "")
+          missing.push({ label: "CPH Number", anchor: "settings-cph" });
+        if ((r.sectorSheep || r.sectorGoats) && (!r.flockMark || String(r.flockMark).trim() === ""))
+          missing.push({ label: "Flock Mark", anchor: "settings-flock-mark" });
+        if ((r.sectorBeef || r.sectorDairy) && (!r.herdMark || String(r.herdMark).trim() === ""))
+          missing.push({ label: "Herd Mark", anchor: "settings-herd-mark" });
+        if (r.sectorPigs && (!r.pigHerdMark || String(r.pigHerdMark).trim() === ""))
+          missing.push({ label: "Pig Herd Mark", anchor: "settings-pig-herd-mark" });
+
+        if (missing.length === 0) return null;
+
+        return (
+          <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 mb-4">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+            <span className="flex-1">
+              <span className="font-semibold">Missing livestock identifiers: </span>
+              {missing.map((f, i) => (
+                <span key={f.label}>
+                  {i > 0 && ", "}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-amber-900 font-medium"
+                    onClick={() => {
+                      navigateTo("/settings/farm");
+                      setTimeout(() => {
+                        const el = document.getElementById(f.anchor);
+                        if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true }); }
+                      }, 400);
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                </span>
+              ))}
+              {" — submissions may fail or be incomplete. "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-amber-900 font-medium"
+                onClick={() => navigateTo("/settings/farm")}
+              >
+                Add in Farm Settings → Livestock
+              </button>
+            </span>
+            <button
+              type="button"
+              aria-label="Dismiss warning"
+              className="shrink-0 ml-1 text-amber-500 hover:text-amber-700"
+              onClick={() => {
+                try { sessionStorage.setItem(idBannerKey, "1"); } catch { /* */ }
+                setIdBannerDismissed(true);
+              }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })()}
       {/* Overdue compliance alert */}
       {overdueMovements.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-900 flex gap-3 items-start">
