@@ -669,7 +669,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
               { key: "cellar_zone", label: "Cellar Zone", fmt: r => String(r.cellar_zone ?? "") },
               { key: "fill_number", label: "Fill Number", fmt: r => r.fill_number != null ? String(r.fill_number) : "" },
-              { key: "_fill_tier", label: "Fill Tier", fmt: r => fillOakLabel(Number(r.fill_number ?? 0)).label },
+              { key: "_fill_tier", label: "Fill Tier", fmt: r => (r.fill_number == null || Number(r.fill_number) === 0) ? "No fills logged" : fillOakLabel(Number(r.fill_number)).label },
               { key: "is_full", label: "Is Full", fmt: r => r.is_full ? "Yes" : "No" },
               { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
               { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
@@ -685,7 +685,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   String(r.vessel_type ?? ""),
                   String(r.cellar_zone ?? ""),
                   r.fill_number != null ? String(r.fill_number) : "\u2014",
-                  fillOakLabel(Number(r.fill_number ?? 0)).label,
+                  (r.fill_number == null || Number(r.fill_number) === 0) ? "No fills logged" : fillOakLabel(Number(r.fill_number)).label,
                   r.is_full ? "Yes" : "No",
                   r.empty_since ? fmtDate(r.empty_since) : "\u2014",
                   idleDays,
@@ -768,15 +768,19 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   variant="outline"
                   className="h-6 text-xs"
                   disabled={exportBarrels.length === 0}
-                  onClick={() => exportCSV(
-                    exportBarrels,
-                    "barrel-health-summary.csv",
-                    barrelHealthCols,
-                    [
-                      csvComment(`Barrel Health Summary — ${farmNameVessels}`),
-                      csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
-                    ],
-                  )}
+                  onClick={() => {
+                    const noFillsCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
+                    exportCSV(
+                      exportBarrels,
+                      "barrel-health-summary.csv",
+                      barrelHealthCols,
+                      [
+                        csvComment(`Barrel Health Summary — ${farmNameVessels}`),
+                        csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
+                        ...(noFillsCount > 0 ? [csvComment(`Warning: ${noFillsCount} barrel${noFillsCount !== 1 ? "s" : ""} with no fill history logged — Fill Tier shows "No fills logged"`)] : []),
+                      ],
+                    );
+                  }}
                 >
                   <FileDown className="w-3 h-3 mr-1" />Export CSV
                 </Button>
