@@ -563,8 +563,28 @@ export async function printVineRegister(
   const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
 
   const safeFarmName = escHtml(farmName);
-  const safeFsaRef = fsaVineRef ? escHtml(fsaVineRef) : "";
   const safeAddress = farmMeta?.address ? escHtml(farmMeta.address) : "";
+
+  // Prefer farmMeta refs over the legacy fsaVineRef argument
+  const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
+  const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+
+  // Render each ref — or an amber warning badge when missing
+  const fsaVineRefHtml = fsaVineRegisterRef
+    ? `FSA Vine Register Ref: <strong>${escHtml(fsaVineRegisterRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Vine Register Ref not set</span>`;
+  const fsaWineRefHtml = fsaWineProductionRef
+    ? `FSA Wine Production Ref: <strong>${escHtml(fsaWineProductionRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+
+  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef;
+  const missingRefWarningBlock = anyMissingRef
+    ? `<div class="missing-refs-notice">
+        <strong>&#9888; Missing registration references</strong> &mdash;
+        the field(s) marked below have not been set in Farm Settings.
+        Add them before submitting this register to the FSA.
+      </div>`
+    : "";
 
   // ── 4. Build the full HTML document ──────────────────────────────────────
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -575,11 +595,13 @@ export async function printVineRegister(
     h1 { font-size: 18px; margin: 0 0 2px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2d6a4f; padding-bottom: 10px; margin-bottom: 16px; }
     .header-left h1 { color: #2d6a4f; }
-    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.8; }
     .badges { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
     .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 10.5px; font-weight: 600; }
     .badge-green { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .badge-blue  { background: #dbeafe; color: #1e3a8a; border: 1px solid #93c5fd; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 11px; margin-bottom: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
@@ -591,13 +613,20 @@ export async function printVineRegister(
     .map-section { margin-bottom: 16px; }
     .map-title { font-size: 11px; font-weight: 700; color: #2d6a4f; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
     .footer { margin-top: 18px; font-size: 10.5px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; display: flex; justify-content: space-between; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    @media print {
+      body { margin: 0; }
+      button { display: none !important; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-refs-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style></head><body>
   <div class="header">
     <div class="header-left">
       <h1>FSA Vine Register</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${safeFsaRef ? ` &nbsp;&middot;&nbsp; FSA Ref: <strong>${safeFsaRef}</strong>` : ""}<br>
+        <strong>${safeFarmName}</strong><br>
+        ${fsaVineRefHtml}<br>
+        ${fsaWineRefHtml}<br>
         ${safeAddress ? `${safeAddress}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
       </div>
       <div class="badges">
@@ -615,6 +644,8 @@ export async function printVineRegister(
       </div>
     </div>
   </div>
+
+  ${missingRefWarningBlock}
 
   <div class="notice">
     <strong>Statutory requirement:</strong> All UK vineyards exceeding 0.01 ha must maintain a Vine Register and notify the Food Standards Agency of changes within 30 days.
