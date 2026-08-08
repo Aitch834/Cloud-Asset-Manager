@@ -37245,7 +37245,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       `),
       db.execute(sql`
         SELECT m.id, m.vessel_id, m.maintenance_date, m.work_type,
-               m.cooperage_name, m.cost_pence, m.notes
+               m.cooperage_name, m.cost_pence, m.notes, v.vessel_ref
         FROM winery_barrel_maintenance m
         JOIN winery_vessels v ON v.id = m.vessel_id
         WHERE m.vessel_id IN (
@@ -37349,7 +37349,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       `),
       db.execute(sql`
         SELECT m.id, m.vessel_id, m.maintenance_date, m.work_type,
-               m.cooperage_name, m.cost_pence, m.notes
+               m.cooperage_name, m.cost_pence, m.notes, v.vessel_ref
         FROM winery_barrel_maintenance m
         JOIN winery_vessels v ON v.id = m.vessel_id
         WHERE m.vessel_id IN (

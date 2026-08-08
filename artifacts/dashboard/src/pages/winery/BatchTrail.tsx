@@ -2340,6 +2340,38 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
     }
   }
 
+  // ── Barrel Cooperage Work ───────────────────────────────────────────────────
+  // One row per maintenance record across all oak barrels in this batch/vintage.
+  // Only emitted when the batch includes barrel-type vessels with maintenance
+  // records (mirrors the on-screen Barrel Provenance section convention).
+  const barrelMaintenanceForCsv = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+  if (barrelMaintenanceForCsv.length > 0) {
+    // Blank separator row
+    pushRow({});
+    // Section heading — re-labels each CSV column so the cooperage data is self-describing
+    pushRow({
+      "Stage": "Barrel Cooperage Work",
+      "Batch Ref": "Barrel",
+      "Date": "Date",
+      "Type / Additive": "Work Type",
+      "Operator": "Cooperage",
+      "SO₂ / Dose": "Cost (£)",
+      "Notes": "Notes",
+    });
+    for (const m of barrelMaintenanceForCsv) {
+      const costPence = m.cost_pence != null ? Number(m.cost_pence) : null;
+      pushRow({
+        "Stage": "Cooperage Work",
+        "Batch Ref": String(m.vessel_ref ?? ""),
+        "Date": m.maintenance_date ? fmtDate(m.maintenance_date) : "",
+        "Type / Additive": String(m.work_type ?? ""),
+        "Operator": String(m.cooperage_name ?? ""),
+        "SO₂ / Dose": costPence != null ? (costPence / 100).toFixed(2) : "",
+        "Notes": String(m.notes ?? ""),
+      });
+    }
+  }
+
   // ── pH & TA Analytical History summary block ────────────────────────────────
   // Stage logic shared with the on-screen panel and PDF via lib/ph-ta-stages.
   // SO₂-test readings supplement the three primary stages (most recent test per
