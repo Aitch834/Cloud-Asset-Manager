@@ -332,7 +332,7 @@ export function HarvestNoteEditor({ assignmentId, farmId, initialNote }: {
   );
 }
 
-export interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; redTractorId?: string | null; }
+export interface Farm { name?: string; address?: string; postcode?: string; cphNumber?: string; sbiNumber?: string | null; redTractorId?: string | null; }
 export interface PrintableAssignment extends FieldCropAssignment { fieldName?: string; soilType?: string; areaHectares?: string | number | null; fieldReference?: string; }
 
 export function PrintCropRegister({ farmId, year, fields, assignments, crops, landUseRecords, onClose }: {
@@ -344,7 +344,8 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
   landUseRecords: LandUseRecord[];
   onClose: () => void;
 }) {
-  const { data: farmData } = useQuery<{ record: Farm }>({
+  const [, navigate] = useLocation();
+  const { data: farmData, isLoading: farmLoading } = useQuery<{ record: Farm }>({
     queryKey: ["farm", farmId],
     queryFn: async () => {
       const r = await fetch(`/api/farms/${farmId}`);
@@ -352,6 +353,11 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
     },
   });
   const farm = farmData?.record;
+
+  // Only show the warning once the farm record has loaded — avoids false positives during loading
+  const missingHeaderFields: string[] = [];
+  if (!farmLoading && farm && !farm.sbiNumber?.trim()) missingHeaderFields.push("SBI Number");
+  if (!farmLoading && farm && !farm.address?.trim()) missingHeaderFields.push("Farm address");
 
   type FieldUseRow = {
     fieldId: number; fieldName?: string; fieldReference?: string;
@@ -414,7 +420,9 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
     printProReport({
       title: "Field Use Register",
       farmName: farm?.name,
+      farmAddress: farm?.address ?? undefined,
       cphNumber: farm?.cphNumber ?? undefined,
+      sbiNumber: farm?.sbiNumber ?? undefined,
       redTractorId: farm?.redTractorId ?? undefined,
       extraMeta: `Season: ${year}`,
       recordCount: fields.length,
@@ -436,12 +444,30 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
           </DialogDescription>
         </DialogHeader>
 
+        {missingHeaderFields.length > 0 && (
+          <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+            <span>
+              <span className="font-medium">Farm Settings incomplete:</span>{" "}
+              {missingHeaderFields.join(", ")} {missingHeaderFields.length === 1 ? "is" : "are"} not set — your printed report will have blank header fields.{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-amber-900 font-medium"
+                onClick={() => { onClose(); navigate("/settings/farm"); }}
+              >
+                Add in Farm Settings → General
+              </button>
+            </span>
+          </div>
+        )}
+
         <div id="fields-print-area" className="border border-border rounded-lg p-6 space-y-5 text-sm mt-2">
           {/* Document header */}
           <div className="flex justify-between items-start border-b pb-4">
             <div>
               <p className="text-base font-bold text-foreground">{farm?.name ?? "Farm"}</p>
               {farm?.address && <p className="text-xs text-foreground/60">{farm.address}{farm.postcode ? `, ${farm.postcode}` : ""}</p>}
+              {farm?.sbiNumber && <p className="text-xs text-foreground/60 mt-0.5">SBI: <span className="font-mono font-semibold">{farm.sbiNumber}</span></p>}
               {farm?.cphNumber && <p className="text-xs text-foreground/60 mt-0.5">CPH: <span className="font-mono font-semibold">{farm.cphNumber}</span></p>}
               {farm?.redTractorId && <p className="text-xs text-foreground/60 mt-0.5">Red Tractor ID: <span className="font-mono font-semibold">{farm.redTractorId}</span></p>}
             </div>
@@ -537,8 +563,8 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={handlePrint} className="gap-2">
-            <Printer className="w-4 h-4" /> Print Record
+          <Button onClick={handlePrint} className="gap-2" disabled={farmLoading}>
+            <Printer className="w-4 h-4" /> {farmLoading ? "Loading…" : "Print Record"}
           </Button>
         </div>
       </DialogContent>

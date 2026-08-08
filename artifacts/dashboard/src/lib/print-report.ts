@@ -4,7 +4,9 @@ export interface ProReportOptions {
   title: string;
   subtitle?: string;
   farmName?: string;
+  farmAddress?: string;
   cphNumber?: string;
+  sbiNumber?: string;
   redTractorId?: string;
   recordCount?: number;
   recordLabel?: string;
@@ -37,8 +39,9 @@ const CSS = (pageSize: string) => `
 
 export function buildProReport(opts: ProReportOptions): string {
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const meta = [
+  const idMeta = [
     opts.cphNumber ? `CPH: ${opts.cphNumber}` : null,
+    opts.sbiNumber ? `SBI: ${opts.sbiNumber}` : null,
     opts.redTractorId ? `Red Tractor ID: ${opts.redTractorId}` : null,
   ].filter(Boolean).join("  ·  ");
   const pageSize = opts.landscape !== false ? "A4 landscape" : "A4";
@@ -52,7 +55,8 @@ export function buildProReport(opts: ProReportOptions): string {
 <div class="hdr">
   <div class="hdr-left">
     <h1>${opts.title}</h1>
-    ${opts.farmName ? `<p><strong>${opts.farmName}</strong>${meta ? `  ·  ${meta}` : ""}</p>` : ""}
+    ${opts.farmName ? `<p><strong>${opts.farmName}</strong>${idMeta ? `  ·  ${idMeta}` : ""}</p>` : ""}
+    ${opts.farmAddress ? `<p style="color:#555">${opts.farmAddress}</p>` : ""}
     ${opts.subtitle ? `<p style="color:#444">${opts.subtitle}</p>` : ""}
     ${opts.extraMeta ? `<p style="color:#444">${opts.extraMeta}</p>` : ""}
   </div>
