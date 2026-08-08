@@ -517,6 +517,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // null = "All Vintages" mode
   const [year, setYear] = useState<number | null>(currentYear);
   const { blocks, harvests, scouts, ops, sprays, loading } = useVitData(farmId);
+  const [, navigate] = useLocation();
 
   const { data: farmMeta } = useQuery<Record<string, unknown> | null>({
     queryKey: ["farm-meta", farmId],
@@ -529,6 +530,13 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     staleTime: 5 * 60 * 1000,
   });
+
+  const missingAddressFields = farmMeta != null
+    ? [
+        !farmMeta.name || String(farmMeta.name).trim() === "" ? "Farm name" : "",
+        !farmMeta.address || String(farmMeta.address).trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
 
   const vintageYears = useMemo(() => {
     const yrs = [...new Set(harvests.map(h => Number(h.vintageYear)).filter(Boolean))].sort((a, b) => b - a);
@@ -676,6 +684,25 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
           {printButton}
         </div>
       </div>
+
+      {/* Farm address warning (no-print) */}
+      {missingAddressFields.length > 0 && (
+        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 no-print">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium">Farm Settings incomplete:</span>{" "}
+            {missingAddressFields.join(", ")}{" "}
+            {missingAddressFields.length === 1 ? "is" : "are"} not set — your printed report will have blank header fields.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => navigate("/settings/farm")}
+            >
+              Add in Farm Settings → General
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Print header */}
       <div className="hidden print:block border-b-2 border-gray-800 pb-3 mb-4">
