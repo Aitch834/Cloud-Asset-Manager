@@ -19,6 +19,7 @@ import Lookups from "@/pages/Lookups";
 import HelpCentre from "@/pages/HelpCentre";
 import NDA from "@/pages/NDA";
 import VersionManagement from "@/pages/VersionManagement";
+import AdPdfGenerator from "@/pages/AdPdfGenerator";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -43,6 +44,7 @@ function PortalRouter() {
         <Route path="/help-articles" component={HelpCentre} />
         <Route path="/nda" component={NDA} />
         <Route path="/version" component={VersionManagement} />
+        <Route path="/ad-pdf" component={AdPdfGenerator} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

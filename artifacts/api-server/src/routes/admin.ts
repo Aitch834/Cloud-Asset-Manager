@@ -1,5 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
+import { execSync } from "child_process";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import crypto from "crypto";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
@@ -2046,6 +2051,70 @@ router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Reque
     }
   }
   res.json({ success: true, inserted, skipped: DEFAULT_HELP_ARTICLES.length - inserted });
+});
+
+// ─── Ad PDF Generator ─────────────────────────────────────────────────────────
+
+router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { format, bgUrl } = req.body as { format?: string; bgUrl?: string };
+  if (!format || !["horizontal", "portrait"].includes(format)) {
+    res.status(400).json({ error: "format must be 'horizontal' or 'portrait'" });
+    return;
+  }
+
+  const tmpId  = crypto.randomUUID();
+  const tmpDir = path.join(os.tmpdir(), `ad-pdf-${tmpId}`);
+  const htmlOut    = path.join(tmpDir, "print.html");
+  const rgbPdf     = path.join(tmpDir, "rgb.pdf");
+  const cmykPdf    = path.join(tmpDir, "cmyk.pdf");
+  const scriptPath = path.resolve(__dirname, "../../scripts/generate_ad_html.py");
+  const srcDir     = path.resolve(__dirname, "../../scripts/ad-templates");
+  const filename   = format === "horizontal"
+    ? "BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf"
+    : "BDE-FarmTrac-HalfPage-Vertical-CMYK.pdf";
+
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    // Step 1: Generate print HTML (plain python3, no nix needed for this step)
+    const bgArg = bgUrl ? `--bg-url "${bgUrl.replace(/"/g, '\\"')}"` : "";
+    execSync(
+      `python3 "${scriptPath}" --format ${format} --out "${htmlOut}" --src-dir "${srcDir}" ${bgArg}`,
+      { timeout: 90_000, stdio: "pipe" },
+    );
+
+    // Step 2: WeasyPrint (RGB PDF) + Ghostscript (CMYK PDF) — both via nix-shell
+    const wpCmd = `python3 -m weasyprint --encoding utf-8 '${htmlOut}' '${rgbPdf}'`;
+    const gsCmd = [
+      "gs -dBATCH -dNOPAUSE -dQUIET -sDEVICE=pdfwrite",
+      "-dCompatibilityLevel=1.3",
+      "-sProcessColorModel=DeviceCMYK -sColorConversionStrategy=CMYK -dOverrideICC=true",
+      `-sOutputFile='${cmykPdf}' '${rgbPdf}'`,
+    ].join(" ");
+    execSync(
+      `nix-shell -p python3Packages.weasyprint ghostscript --run "${wpCmd} && ${gsCmd}"`,
+      { timeout: 180_000, stdio: "pipe" },
+    );
+
+    // Step 3: Return PDF
+    const pdfBuffer = fs.readFileSync(cmykPdf);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    res.send(pdfBuffer);
+  } catch (err: unknown) {
+    console.error("[ad-pdf] Generation failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stderr = (err as { stderr?: Buffer }).stderr;
+    res.status(500).json({
+      error: "PDF generation failed",
+      detail: (stderr ? stderr.toString().slice(-800) : msg.slice(0, 500)),
+    });
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
 });
 
 export default router;
