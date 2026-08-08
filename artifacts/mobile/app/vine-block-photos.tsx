@@ -883,17 +883,17 @@ function PhotoThumbnail({
       onLongPress={handleLongPress}
       onPress={() => onPress(uri, photo)}
     >
-      {uri ? (
-        <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
-      ) : (
-        <View style={styles.thumbPlaceholder}>
-          <Feather name="image" size={24} color={colors.textSecondary} />
-        </View>
-      )}
+      <View style={styles.thumbImgBox}>
+        {uri ? (
+          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.thumbPlaceholder}>
+            <Feather name="image" size={24} color={colors.textSecondary} />
+          </View>
+        )}
+      </View>
       {photo.caption ? (
-        <View style={styles.captionBar}>
-          <Text style={styles.captionText} numberOfLines={1}>{photo.caption}</Text>
-        </View>
+        <Text style={styles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
       ) : null}
     </Pressable>
   );
@@ -1301,33 +1301,32 @@ const styles = StyleSheet.create({
     margin: spacing.xs,
     borderRadius: radius.md,
     overflow: "hidden",
-    backgroundColor: "#f1f5f9",
-    height: THUMB_SIZE,
+    backgroundColor: colors.surface,
     maxWidth: THUMB_SIZE,
+  },
+  thumbImgBox: {
+    height: THUMB_SIZE,
+    backgroundColor: "#f1f5f9",
   },
   thumbPlaceholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#f1f5f9",
+    height: THUMB_SIZE,
   },
   thumbImage: {
     width: "100%",
     height: "100%",
   },
-  captionBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 3,
-  },
-  captionText: {
+  captionBelow: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
-    color: "#fff",
+    fontStyle: "italic",
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    lineHeight: 14,
   },
   footer: {
     padding: spacing.md,
