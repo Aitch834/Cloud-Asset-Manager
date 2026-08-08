@@ -237,10 +237,20 @@ export function BarrelMaintenanceLog({ farmId, vesselId }: { farmId: number; ves
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
   });
 
+  const totalSpendPence = useMemo(() => (data ?? []).reduce((sum, m) => sum + (m.cost_pence != null ? Number(m.cost_pence) : 0), 0), [data]);
+  const recordsWithCost = useMemo(() => (data ?? []).filter(m => m.cost_pence != null).length, [data]);
+
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cooperage / Maintenance</p>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cooperage / Maintenance</p>
+          {!isLoading && !isError && recordsWithCost > 0 && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Total spend: <span className="font-medium text-foreground">£{(totalSpendPence / 100).toFixed(2)}</span> across {recordsWithCost} record{recordsWithCost !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
           <Plus className="w-3 h-3 mr-1" />Log Work
         </Button>
