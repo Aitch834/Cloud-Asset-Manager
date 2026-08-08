@@ -817,9 +817,9 @@ export default function VineBlockPhotosScreen() {
     setLightboxVisible(false);
   }, []);
 
-  const loadPhotos = useCallback(async () => {
+  const loadPhotos = useCallback(async (options?: { silent?: boolean }) => {
     if (!currentFarm?.id || !selectedBlock) return;
-    setPhotosLoading(true);
+    if (!options?.silent) setPhotosLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos`);
       if (res.ok) {
@@ -829,7 +829,7 @@ export default function VineBlockPhotosScreen() {
     } catch {
       // no-op
     } finally {
-      setPhotosLoading(false);
+      if (!options?.silent) setPhotosLoading(false);
     }
   }, [currentFarm?.id, selectedBlock]);
 
@@ -845,6 +845,18 @@ export default function VineBlockPhotosScreen() {
       loadPhotos();
     }, [loadPhotos]),
   );
+
+  // Background interval: silently refresh presigned URLs every 4 minutes so
+  // photos stay visible for growers who keep the screen open without navigating
+  // away (presigned URLs expire after ~5 min and useFocusEffect only fires on
+  // focus changes, not while the screen remains continuously in the foreground).
+  useEffect(() => {
+    if (!selectedBlock) return;
+    const intervalId = setInterval(() => {
+      loadPhotos({ silent: true });
+    }, 4 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [selectedBlock?.id, loadPhotos]);
 
   // Called by the lightbox strip when the grower drags photos into a new order.
   // Optimistically reorders state immediately then persists to the server.
