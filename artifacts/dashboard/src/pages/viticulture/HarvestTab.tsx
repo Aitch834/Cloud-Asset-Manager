@@ -229,7 +229,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
 
     const summaryLabel = groupByVintage ? "Vintage Year" : "Block";
-    const summaryHeader = [summaryLabel, "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °"].map(h => cell(h)).join(",");
+    const summaryHeader = [summaryLabel, "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %"].map(h => cell(h)).join(",");
     const summaryRows = groupKeys.map(key => {
       const grp = groupObj[key];
       const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -237,6 +237,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const avgBrix = brixVals.length > 0 ? brixVals.reduce((a, b) => a + b, 0) / brixVals.length : null;
       const thaVals = grp.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v));
       const avgTha = thaVals.length > 0 ? thaVals.reduce((a, b) => a + b, 0) / thaVals.length : null;
+      const phVals = grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+      const avgPh = phVals.length > 0 ? phVals.reduce((a, b) => a + b, 0) / phVals.length : null;
+      const taVals = grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+      const avgTa = taVals.length > 0 ? taVals.reduce((a, b) => a + b, 0) / taVals.length : null;
+      const paVals = grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+      const avgPa = paVals.length > 0 ? paVals.reduce((a, b) => a + b, 0) / paVals.length : null;
       const sortedDates = [...new Set(
         grp.map(r => r.harvestDate ? new Date(r.harvestDate as string).toLocaleDateString("en-GB") : "").filter(Boolean)
       )];
@@ -258,6 +264,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
         cell(avgTha != null ? avgTha.toFixed(2) : ""),
         cell(avgBrix != null ? avgBrix.toFixed(1) : ""),
+        cell(avgPh != null ? avgPh.toFixed(2) : ""),
+        cell(avgTa != null ? avgTa.toFixed(2) : ""),
+        cell(avgPa != null ? avgPa.toFixed(2) : ""),
       ].join(",");
     });
 
