@@ -19,7 +19,7 @@ The vine register sits at the core. Each block carries its own permanent record 
 
 Spray diary entries are linked to each block and capture product, dose rate, water volume, operator name, EAMU reference and re-entry interval in a format designed to satisfy Red Tractor and organic audits without transcription or reformatting. Disease scouting observations — botrytis pressure, downy or powdery mildew incidence, vine moth trap counts — are recorded at block level and timestamped, providing the evidence trail that certifying bodies and premium buyers increasingly expect to see.
 
-At harvest, the platform captures Brix, total acidity, pH and yield by block, with winery handover notes stored alongside the fruit data. For producers with WOWGB excise duty obligations, harvest tonnages feed directly into the duty records, reducing the reconciliation workload at year end.
+At harvest, the platform captures Brix, total acidity, pH and yield by block, with winery handover notes stored alongside the fruit data. For producers subject to HMRC winemaker duty obligations, harvest tonnages feed directly into the duty records, reducing the reconciliation workload at year end.
 
 Everything works on mobile — a practical necessity for vineyards where the work happens outside, often with limited connectivity.
 
