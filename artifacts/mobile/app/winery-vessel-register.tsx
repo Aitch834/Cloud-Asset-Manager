@@ -103,8 +103,20 @@ function VesselRow({ vessel }: { vessel: WineryVessel }) {
     .join(" · ");
   const capacityLabel = vessel.capacity_litres ? `${vessel.capacity_litres} L` : null;
 
+  const handlePress = () => {
+    router.push({
+      pathname: "/winery-vessel-detail",
+      params: {
+        vesselId: String(vessel.id),
+        vesselRef: vessel.vessel_ref,
+        vesselType: vessel.vessel_type ?? "",
+        notes: vessel.notes ?? "",
+      },
+    });
+  };
+
   return (
-    <View style={[styles.row, hasAlerts && styles.rowAlert]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [styles.row, hasAlerts && styles.rowAlert, pressed && styles.rowPressed]}>
       {/* Left: ref + meta */}
       <View style={styles.rowMain}>
         <View style={styles.rowHeader}>
@@ -173,13 +185,16 @@ function VesselRow({ vessel }: { vessel: WineryVessel }) {
         </View>
       </View>
 
-      {/* Right: capacity chip */}
-      {capacityLabel ? (
-        <View style={styles.capacityChip}>
-          <Text style={styles.capacityText}>{capacityLabel}</Text>
-        </View>
-      ) : null}
-    </View>
+      {/* Right: capacity chip + chevron */}
+      <View style={styles.rowRight}>
+        {capacityLabel ? (
+          <View style={styles.capacityChip}>
+            <Text style={styles.capacityText}>{capacityLabel}</Text>
+          </View>
+        ) : null}
+        <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -376,6 +391,14 @@ const styles = StyleSheet.create({
   },
   rowAlert: {
     borderColor: "#fca5a5",
+  },
+  rowPressed: {
+    opacity: 0.75,
+  },
+  rowRight: {
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: spacing.xs,
   },
   rowMain: {
     flex: 1,
