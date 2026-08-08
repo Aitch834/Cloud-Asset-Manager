@@ -37,3 +37,17 @@ uri = "file://BDE-FarmTrac-VineyardMag-Ads.zip"
 type = "unspecified"
 title = "BDE Farm Trac — Vineyard Magazine Ads (final)"
 description = "Half-page horizontal + half-page vertical + updated submission notes for Jamie."
+
+[[outputs]]
+id = "YxarA2XGISUcZC9mE7kUN"
+uri = "file://attached_assets/ad-cmyk-output/BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf"
+type = "pdf"
+title = "Half Page Horizontal — CMYK PDF (190×133mm, PDF 1.3)"
+description = "Press-ready CMYK PDF for Vineyard magazine. Half page horizontal, 190×133mm trim. PDF 1.3, DeviceCMYK colour space, background image embedded."
+
+[[outputs]]
+id = "Nk7pQVJn4kc-kqS2hvhrq"
+uri = "file://attached_assets/ad-cmyk-output/BDE-FarmTrac-HalfPage-Vertical-CMYK.pdf"
+type = "pdf"
+title = "Half Page Vertical — CMYK PDF (90×267mm, PDF 1.3)"
+description = "Press-ready CMYK PDF. Half page vertical, 90×267mm trim. PDF 1.3, DeviceCMYK colour space, background image embedded."
