@@ -1277,7 +1277,85 @@ export async function printDiseaseScouting(
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
 
-  // ── 3. Build table rows ───────────────────────────────────────────────────
+  // ── 3. Build per-block summary ────────────────────────────────────────────
+  type ScoutBlockEntry = {
+    label: string; visits: number; minDate: string; maxDate: string;
+    maxDowny: number; maxPowdery: number; maxBotrytis: number; maxPhomopsis: number;
+    vineWeevil: boolean; eutypa: boolean; xylella: boolean;
+  };
+  const blockScoutMap: Record<string, ScoutBlockEntry> = {};
+  const blockScoutKeys: string[] = [];
+  for (const r of records) {
+    const bid = r.blockId != null ? Number(r.blockId) : null;
+    const key = bid != null && !isNaN(bid) && bid > 0 ? String(bid) : "unlinked";
+    if (!blockScoutMap[key]) {
+      const bl = bid != null && !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
+      const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
+      blockScoutMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false };
+      blockScoutKeys.push(key);
+    }
+    const entry = blockScoutMap[key];
+    entry.visits++;
+    const sd = String(r.scoutDate ?? "");
+    if (sd && (!entry.minDate || sd < entry.minDate)) entry.minDate = sd;
+    if (sd && (!entry.maxDate || sd > entry.maxDate)) entry.maxDate = sd;
+    entry.maxDowny = Math.max(entry.maxDowny, Number(r.downyMildewPressure) || 0);
+    entry.maxPowdery = Math.max(entry.maxPowdery, Number(r.powderyMildewPressure) || 0);
+    entry.maxBotrytis = Math.max(entry.maxBotrytis, Number(r.botrytisPressure) || 0);
+    entry.maxPhomopsis = Math.max(entry.maxPhomopsis, Number(r.phomopsisPressure) || 0);
+    if (r.vineWeevilSighted) entry.vineWeevil = true;
+    if (r.eutypaDiebackSighted) entry.eutypa = true;
+    if (r.xylellaFastidiosa) entry.xylella = true;
+  }
+
+  const pLabel = (n: number) => ["None", "Low", "Medium", "High"][n] ?? "—";
+  const pColor = (n: number) => ["#6b7280", "#16a34a", "#d97706", "#dc2626"][n] ?? "#6b7280";
+  const blockSummaryRows = blockScoutKeys
+    .sort((a, b) => blockScoutMap[a].label.localeCompare(blockScoutMap[b].label))
+    .map(key => {
+      const e = blockScoutMap[key];
+      const dateRange = e.minDate && e.maxDate
+        ? (e.minDate === e.maxDate ? d(e.minDate) : `${d(e.minDate)} – ${d(e.maxDate)}`)
+        : "—";
+      const alerts: string[] = [];
+      if (e.xylella) alerts.push(`<span style="color:#dc2626;font-weight:700">⚠ Xylella</span>`);
+      if (e.eutypa) alerts.push(`<span style="color:#dc2626;font-weight:600">Eutypa</span>`);
+      if (e.vineWeevil) alerts.push(`<span style="color:#d97706;font-weight:600">Vine Weevil</span>`);
+      return `<tr>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(e.label)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center">${e.visits}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db">${dateRange}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxDowny)}">${pLabel(e.maxDowny)}</span></td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxPowdery)}">${pLabel(e.maxPowdery)}</span></td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxBotrytis)}">${pLabel(e.maxBotrytis)}</span></td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxPhomopsis)}">${pLabel(e.maxPhomopsis)}</span></td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db">${alerts.length > 0 ? alerts.join(", ") : `<span style="color:#9ca3af">None</span>`}</td>
+      </tr>`;
+    }).join("");
+
+  const blockSummaryHtml = records.length > 0 ? `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #166534;padding-bottom:4px;margin:0 0 8px;color:#166534;text-transform:uppercase;letter-spacing:0.04em">
+    Scouting Summary by Block
+  </h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead><tr>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Visits</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Date Range</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Downy</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Powdery</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Botrytis</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Phomopsis</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Alerts</th>
+    </tr></thead>
+    <tbody>${blockSummaryRows || `<tr><td colspan='8' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
+  </table>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #166534;padding-bottom:4px;margin:0 0 8px;color:#166534;text-transform:uppercase;letter-spacing:0.04em">
+    Detailed Scouting Records
+  </h2>
+  ` : "";
+
+  // ── 4. Build table rows ───────────────────────────────────────────────────
   const rows = records.map(r => {
     const bid = Number(r.blockId);
     const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
@@ -1287,8 +1365,7 @@ export async function printDiseaseScouting(
     if (hasPhotos) {
       photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
         ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
-        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
-        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(caption)}</span>` : ""}
+        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3">${escHtml(caption)}</span>` : ""}
       </td>`;
     }
     const pCell = (v: unknown) => {
@@ -1302,7 +1379,7 @@ export async function printDiseaseScouting(
     return `<tr>
       ${photoCell}
       <td>${d(r.scoutDate)}</td>
-      ${hasPhotos ? "" : `<td>${escHtml(bName)}</td>`}
+      <td style="font-weight:600">${escHtml(bName)}</td>
       <td>${escHtml(r.scoutedBy)}</td>
       <td style="text-align:center">${pCell(r.downyMildewPressure)}</td>
       <td style="text-align:center">${pCell(r.powderyMildewPressure)}</td>
@@ -1321,7 +1398,8 @@ export async function printDiseaseScouting(
 
   const safeFarmName = escHtml(farmName);
   const scoutAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
-  const colCount = hasPhotos ? 15 : 16;
+  // Always show block column; photo column is additional when hasPhotos
+  const colCount = hasPhotos ? 17 : 16;
   const xylellaCount = records.filter(r => r.xylellaFastidiosa).length;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -1357,12 +1435,13 @@ export async function printDiseaseScouting(
     </div>
   </div>
   ${xylellaCount > 0 ? `<div class="alert-box"><strong style="color:#dc2626">⚠ Xylella fastidiosa — Notifiable Organism</strong><br>${xylellaCount} record(s) have flagged possible Xylella. Report immediately to APHA via the online plant health portal or call 0300 1000 313.</div>` : ""}
+  ${blockSummaryHtml}
   <table>
     <thead>
       <tr>
-        ${hasPhotos ? `<th style="width:76px">Block / Photo</th>` : ""}
+        ${hasPhotos ? `<th style="width:76px">Photo</th>` : ""}
         <th>Date</th>
-        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Block</th>
         <th>Scout</th>
         <th class="center">Downy</th>
         <th class="center">Powdery</th>
@@ -1442,7 +1521,68 @@ export async function printSprayRecords(
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
 
-  // ── 3. Build table rows ───────────────────────────────────────────────────
+  // ── 3. Build per-block summary ────────────────────────────────────────────
+  type SprayBlockEntry = {
+    label: string; applications: number; minDate: string; maxDate: string;
+    totalAreaHa: number; products: Set<string>;
+  };
+  const blockSprayMap: Record<string, SprayBlockEntry> = {};
+  const blockSprayKeys: string[] = [];
+  for (const r of records) {
+    const bid = r.blockId != null ? Number(r.blockId) : null;
+    const key = bid != null && !isNaN(bid) && bid > 0 ? String(bid) : "unlinked";
+    if (!blockSprayMap[key]) {
+      const bl = bid != null && !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
+      const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
+      blockSprayMap[key] = { label, applications: 0, minDate: "", maxDate: "", totalAreaHa: 0, products: new Set() };
+      blockSprayKeys.push(key);
+    }
+    const entry = blockSprayMap[key];
+    entry.applications++;
+    const ad = String(r.applicationDate ?? "");
+    if (ad && (!entry.minDate || ad < entry.minDate)) entry.minDate = ad;
+    if (ad && (!entry.maxDate || ad > entry.maxDate)) entry.maxDate = ad;
+    entry.totalAreaHa += parseFloat(String(r.areaTreatedHa ?? 0)) || 0;
+    if (r.productName && String(r.productName).trim()) entry.products.add(String(r.productName).trim());
+  }
+
+  const sprayBlockSummaryRows = blockSprayKeys
+    .sort((a, b) => blockSprayMap[a].label.localeCompare(blockSprayMap[b].label))
+    .map(key => {
+      const e = blockSprayMap[key];
+      const dateRange = e.minDate && e.maxDate
+        ? (e.minDate === e.maxDate ? d(e.minDate) : `${d(e.minDate)} – ${d(e.maxDate)}`)
+        : "—";
+      const productList = [...e.products].slice(0, 4).join(", ") + (e.products.size > 4 ? ` +${e.products.size - 4} more` : "");
+      return `<tr>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(e.label)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center">${e.applications}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db">${dateRange}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${e.totalAreaHa > 0 ? e.totalAreaHa.toFixed(4) + " ha" : "—"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db">${escHtml(productList || "—")}</td>
+      </tr>`;
+    }).join("");
+
+  const sprayBlockSummaryHtml = records.length > 0 ? `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #0e4f8a;padding-bottom:4px;margin:0 0 8px;color:#0e4f8a;text-transform:uppercase;letter-spacing:0.04em">
+    Applications by Block
+  </h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead><tr>
+      <th style="background:#0e4f8a;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#0e4f8a;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Applications</th>
+      <th style="background:#0e4f8a;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Date Range</th>
+      <th style="background:#0e4f8a;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Area</th>
+      <th style="background:#0e4f8a;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Products Used</th>
+    </tr></thead>
+    <tbody>${sprayBlockSummaryRows || `<tr><td colspan='5' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
+  </table>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #0e4f8a;padding-bottom:4px;margin:0 0 8px;color:#0e4f8a;text-transform:uppercase;letter-spacing:0.04em">
+    Detailed Spray Records
+  </h2>
+  ` : "";
+
+  // ── 4. Build table rows ───────────────────────────────────────────────────
   const rows = records.map(r => {
     const bid = Number(r.blockId);
     const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
@@ -1452,15 +1592,14 @@ export async function printSprayRecords(
     if (hasPhotos) {
       photoCell = `<td style="padding:4px 6px;vertical-align:middle;text-align:center;width:76px">
         ${dataUrl ? `<img src="${dataUrl}" alt="Block photo" style="width:60px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;margin:0 auto 2px" />` : ""}
-        <span style="font-size:9.5px;color:#555;display:block;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(bName)}</span>
-        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3;margin-top:2px">${escHtml(caption)}</span>` : ""}
+        ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3">${escHtml(caption)}</span>` : ""}
       </td>`;
     }
     const rateStr = r.ratePerHectare ? `${n(r.ratePerHectare)} ${String(r.rateUnit ?? "")}`.trim() : "—";
     return `<tr>
       ${photoCell}
       <td>${d(r.applicationDate)}</td>
-      ${hasPhotos ? "" : `<td>${escHtml(bName)}</td>`}
+      <td style="font-weight:600">${escHtml(bName)}</td>
       <td style="font-weight:600">${escHtml(r.productName)}</td>
       <td>${escHtml(r.mappNumber)}</td>
       <td>${escHtml(r.activeIngredient)}</td>
@@ -1478,7 +1617,8 @@ export async function printSprayRecords(
 
   const safeFarmName = escHtml(farmName);
   const sprayAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
-  const colCount = hasPhotos ? 14 : 15;
+  // Always show block column; photo column is additional when hasPhotos
+  const colCount = hasPhotos ? 16 : 15;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>Spray Diary &mdash; ${safeFarmName}</title>
@@ -1514,12 +1654,13 @@ export async function printSprayRecords(
   <div class="notice">
     <strong>Statutory record:</strong> Spray records must be completed within 48 hours of application and retained for at least 3 years (Plant Protection Products Regulations 2011). Required for WineGB, Red Tractor, and cross-compliance audits.
   </div>
+  ${sprayBlockSummaryHtml}
   <table>
     <thead>
       <tr>
-        ${hasPhotos ? `<th style="width:76px">Block / Photo</th>` : ""}
+        ${hasPhotos ? `<th style="width:76px">Photo</th>` : ""}
         <th>Date</th>
-        ${hasPhotos ? "" : "<th>Block</th>"}
+        <th>Block</th>
         <th>Product Name</th>
         <th>MAPP No.</th>
         <th>Active Ingredient</th>
