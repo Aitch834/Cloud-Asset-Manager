@@ -11,8 +11,35 @@ import { fonts, fontSize } from "@/constants/typography";
 import { CombineIcon } from "@/components/ui/CombineIcon";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
+import { useApiFetch } from "@/lib/hooks/useApiFetch";
 
 type FarmSector = "arable" | "beef" | "dairy" | "pigs" | "poultry" | "livestock";
+
+// ── Vessel Register alert helpers ─────────────────────────────────────────────
+
+interface WineryVesselSummary {
+  vessel_type: string | null;
+  status: string | null;
+  empty_since: string | null;
+  fill_number: number | null;
+}
+
+function _isBarrelType(vesselType: string | null): boolean {
+  const t = (vesselType ?? "").toLowerCase();
+  return t.includes("barrel") || t.includes("barrique");
+}
+
+function _isIdleBarrel(emptySince: string | null): boolean {
+  if (!emptySince) return false;
+  const diffDays = (Date.now() - new Date(emptySince).getTime()) / (1000 * 60 * 60 * 24);
+  return diffDays > 90;
+}
+
+function _isApproachingNeutral(fillNumber: number | null): boolean {
+  return fillNumber != null && fillNumber >= 4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface RecordOption {
   id: string;
@@ -2053,6 +2080,24 @@ export default function RecordScreen() {
   const moduleSet = new Set(activeModuleKeys);
   const modulesLoaded = activeModuleKeys.length > 0;
 
+  // Background fetch for Vessel Register alert badge counts
+  const { records: vesselRecords } = useApiFetch<WineryVesselSummary>(
+    currentFarm?.id,
+    "/api/farms/:farmId/winery-vessels"
+  );
+
+  const vesselAlertCounts = React.useMemo(() => {
+    let idleCount = 0;
+    let neutralCount = 0;
+    for (const v of vesselRecords) {
+      if (_isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
+        if (_isIdleBarrel(v.empty_since)) idleCount++;
+        if (_isApproachingNeutral(v.fill_number)) neutralCount++;
+      }
+    }
+    return { idleCount, neutralCount };
+  }, [vesselRecords]);
+
   const visibleOptions = recordOptions.filter((option) => {
     if (option.requiresSectors && !hasSector(currentFarm, option.requiresSectors)) {
       return false;
@@ -2076,7 +2121,11 @@ export default function RecordScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {visibleOptions.map((option) => (
-          <RecordOptionCard key={option.id} option={option} />
+          <RecordOptionCard
+            key={option.id}
+            option={option}
+            vesselAlertCounts={option.id === "winery-vessel-register" ? vesselAlertCounts : undefined}
+          />
         ))}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -2084,11 +2133,39 @@ export default function RecordScreen() {
   );
 }
 
-function RecordOptionCard({ option }: { option: RecordOption }) {
+function RecordOptionCard({
+  option,
+  vesselAlertCounts,
+}: {
+  option: RecordOption;
+  vesselAlertCounts?: { idleCount: number; neutralCount: number };
+}) {
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push(option.route as never);
   };
+
+  const showVesselBadge =
+    vesselAlertCounts != null &&
+    (vesselAlertCounts.idleCount > 0 || vesselAlertCounts.neutralCount > 0);
+
+  // Build badge label, e.g. "2 idle · 1 neutral"
+  const vesselBadgeLabel = showVesselBadge
+    ? [
+        vesselAlertCounts!.idleCount > 0
+          ? `${vesselAlertCounts!.idleCount} idle`
+          : null,
+        vesselAlertCounts!.neutralCount > 0
+          ? `${vesselAlertCounts!.neutralCount} neutral`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
+  // Use red when there are idle barrels, amber when only neutral
+  const badgeIsRed =
+    showVesselBadge && vesselAlertCounts!.idleCount > 0;
 
   return (
     <Pressable
@@ -2108,6 +2185,28 @@ function RecordOptionCard({ option }: { option: RecordOption }) {
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle}>{option.title}</Text>
         <Text style={styles.cardDescription}>{option.description}</Text>
+        {showVesselBadge && (
+          <View
+            style={[
+              styles.vesselAlertBadge,
+              { backgroundColor: badgeIsRed ? colors.errorBg : colors.warningBg },
+            ]}
+          >
+            <Feather
+              name="alert-triangle"
+              size={11}
+              color={badgeIsRed ? colors.error : colors.accentDark}
+            />
+            <Text
+              style={[
+                styles.vesselAlertBadgeText,
+                { color: badgeIsRed ? colors.error : colors.accentDark },
+              ]}
+            >
+              {vesselBadgeLabel}
+            </Text>
+          </View>
+        )}
       </View>
       <Feather name="chevron-right" size={20} color={colors.textTertiary} />
     </Pressable>
@@ -2172,5 +2271,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
     lineHeight: 18,
+  },
+  vesselAlertBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  vesselAlertBadgeText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.semiBold,
   },
 });
