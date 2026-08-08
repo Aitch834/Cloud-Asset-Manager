@@ -282,6 +282,8 @@ import {
   farmInsuranceClaimsTable,
   farmPlannerEventsTable,
   farmGrantsTable,
+  agriEnvProjectsTable,
+  agriEnvMilestonesTable,
   farmTaskAssignmentsTable,
   taskAssignmentHistoryTable,
   farmAssuranceCertsTable,
@@ -41432,5 +41434,124 @@ router.delete("/farms/:farmId/pest-trap-captures/:id", requireAuth, requireTenan
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pestTrapCapturesTable).where(and(eq(pestTrapCapturesTable.id, id), eq(pestTrapCapturesTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agri-environment Scheme Projects
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/agri-env-projects", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const projects = await db.select().from(agriEnvProjectsTable)
+    .where(eq(agriEnvProjectsTable.farmId, farmId))
+    .orderBy(desc(agriEnvProjectsTable.createdAt));
+  res.json({ projects });
+});
+
+router.post("/farms/:farmId/agri-env-projects", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const { schemeName, administeringBody, agreementReference, designatedLandscape, theme, startDate, endDate, totalGrantValuePence, status, notes } = req.body as Record<string, unknown>;
+  if (!schemeName || typeof schemeName !== "string") { res.status(400).json({ error: "schemeName is required" }); return; }
+  const [project] = await db.insert(agriEnvProjectsTable).values({
+    farmId,
+    schemeName: String(schemeName),
+    administeringBody:   administeringBody   ? String(administeringBody)   : null,
+    agreementReference:  agreementReference  ? String(agreementReference)  : null,
+    designatedLandscape: designatedLandscape ? String(designatedLandscape) : null,
+    theme:               theme               ? String(theme)               : null,
+    startDate:           startDate           ? String(startDate)           : null,
+    endDate:             endDate             ? String(endDate)             : null,
+    totalGrantValuePence: totalGrantValuePence != null ? Number(totalGrantValuePence) : null,
+    status:              status              ? String(status)              : "active",
+    notes:               notes               ? String(notes)               : null,
+  }).returning();
+  res.status(201).json({ project });
+});
+
+router.put("/farms/:farmId/agri-env-projects/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { schemeName, administeringBody, agreementReference, designatedLandscape, theme, startDate, endDate, totalGrantValuePence, status, notes } = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (schemeName        != null) updates["schemeName"]          = String(schemeName);
+  if (administeringBody != null) updates["administeringBody"]   = administeringBody   ? String(administeringBody)   : null;
+  if (agreementReference  != null) updates["agreementReference"]  = agreementReference  ? String(agreementReference)  : null;
+  if (designatedLandscape != null) updates["designatedLandscape"] = designatedLandscape ? String(designatedLandscape) : null;
+  if (theme             != null) updates["theme"]               = theme               ? String(theme)               : null;
+  if (startDate         != null) updates["startDate"]           = startDate           ? String(startDate)           : null;
+  if (endDate           != null) updates["endDate"]             = endDate             ? String(endDate)             : null;
+  if (totalGrantValuePence != null) updates["totalGrantValuePence"] = totalGrantValuePence ? Number(totalGrantValuePence) : null;
+  if (status            != null) updates["status"]              = String(status);
+  if (notes             != null) updates["notes"]               = notes               ? String(notes)               : null;
+  const [project] = await db.update(agriEnvProjectsTable).set(updates as any)
+    .where(and(eq(agriEnvProjectsTable.id, id), eq(agriEnvProjectsTable.farmId, farmId)))
+    .returning();
+  if (!project) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ project });
+});
+
+router.delete("/farms/:farmId/agri-env-projects/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(agriEnvProjectsTable).where(and(eq(agriEnvProjectsTable.id, id), eq(agriEnvProjectsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agri-environment Milestones
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/farms/:farmId/agri-env-projects/:projectId/milestones", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const milestones = await db.select().from(agriEnvMilestonesTable)
+    .where(and(eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)))
+    .orderBy(agriEnvMilestonesTable.createdAt);
+  res.json({ milestones });
+});
+
+router.post("/farms/:farmId/agri-env-projects/:projectId/milestones", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = req.body as Record<string, unknown>;
+  if (!milestoneName || typeof milestoneName !== "string") { res.status(400).json({ error: "milestoneName is required" }); return; }
+  const [milestone] = await db.insert(agriEnvMilestonesTable).values({
+    farmId,
+    projectId,
+    milestoneName:    String(milestoneName),
+    dueDate:          dueDate         ? String(dueDate)         : null,
+    completionDate:   completionDate  ? String(completionDate)  : null,
+    claimAmountPence: claimAmountPence != null ? Number(claimAmountPence) : null,
+    status:           status          ? String(status)          : "pending",
+    evidenceNotes:    evidenceNotes   ? String(evidenceNotes)   : null,
+  }).returning();
+  res.status(201).json({ milestone });
+});
+
+router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = req.body as Record<string, unknown>;
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (milestoneName   != null) updates["milestoneName"]   = String(milestoneName);
+  if (dueDate         != null) updates["dueDate"]         = dueDate         ? String(dueDate)         : null;
+  if (completionDate  != null) updates["completionDate"]  = completionDate  ? String(completionDate)  : null;
+  if (claimAmountPence != null) updates["claimAmountPence"] = claimAmountPence ? Number(claimAmountPence) : null;
+  if (status          != null) updates["status"]          = String(status);
+  if (evidenceNotes   != null) updates["evidenceNotes"]   = evidenceNotes   ? String(evidenceNotes)   : null;
+  const [milestone] = await db.update(agriEnvMilestonesTable).set(updates as any)
+    .where(and(eq(agriEnvMilestonesTable.id, id), eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)))
+    .returning();
+  if (!milestone) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ milestone });
+});
+
+router.delete("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(agriEnvMilestonesTable).where(and(eq(agriEnvMilestonesTable.id, id), eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)));
   res.json({ success: true });
 });

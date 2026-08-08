@@ -9,7 +9,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
-import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive, ChevronDown, Leaf } from "lucide-react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useLocation } from "wouter";
 
@@ -146,12 +146,573 @@ const BLANK_FORM = {
   notes: "",
 };
 
+// ─── Agri-environment Scheme Types ────────────────────────────────────────────
+interface AgriEnvProject {
+  id: number;
+  schemeName: string;
+  administeringBody: string | null;
+  agreementReference: string | null;
+  designatedLandscape: string | null;
+  theme: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  totalGrantValuePence: number | null;
+  status: string;
+  notes: string | null;
+}
+
+interface AgriEnvMilestone {
+  id: number;
+  projectId: number;
+  milestoneName: string;
+  dueDate: string | null;
+  completionDate: string | null;
+  claimAmountPence: number | null;
+  status: string;
+  evidenceNotes: string | null;
+}
+
+const AE_PROJECT_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  applied:   { label: "Applied",   bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200" },
+  active:    { label: "Active",    bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200" },
+  completed: { label: "Completed", bg: "bg-teal-50",   text: "text-teal-700",   border: "border-teal-200" },
+  suspended: { label: "Suspended", bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200" },
+  withdrawn: { label: "Withdrawn", bg: "bg-gray-100",  text: "text-gray-500",   border: "border-gray-200" },
+};
+
+const AE_MILESTONE_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  pending:   { label: "Pending",   bg: "bg-gray-50",   text: "text-gray-700",   border: "border-gray-200" },
+  submitted: { label: "Submitted", bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200" },
+  paid:      { label: "Paid",      bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200" },
+  overdue:   { label: "Overdue",   bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200" },
+};
+
+const AE_COMMON_SCHEMES = [
+  "FiPL (Farming in Protected Landscapes)",
+  "SFI (Sustainable Farming Incentive)",
+  "Countryside Stewardship (CS)",
+  "ELMs (Environmental Land Management)",
+  "RDPE",
+  "AONB Stewardship",
+];
+const AE_COMMON_BODIES = [
+  "Natural England",
+  "RPA (Rural Payments Agency)",
+  "National Park Authority",
+  "AONB Partnership",
+  "Local Authority",
+];
+const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
+const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
+const AE_MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+
+const AE_BLANK_PROJECT = {
+  schemeName: "", administeringBody: "", agreementReference: "",
+  designatedLandscape: "", theme: "", startDate: "", endDate: "",
+  totalGrantValueGBP: "", status: "active", notes: "",
+};
+
+const AE_BLANK_MILESTONE = {
+  milestoneName: "", dueDate: "", completionDate: "",
+  claimAmountGBP: "", status: "pending", evidenceNotes: "",
+};
+
+function AeProjectBadge({ status }: { status: string }) {
+  const cfg = AE_PROJECT_STATUS_CFG[status] ?? AE_PROJECT_STATUS_CFG.active!;
+  return <span className={`text-xs px-2 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
+}
+
+function AeMilestoneBadge({ status }: { status: string }) {
+  const cfg = AE_MILESTONE_STATUS_CFG[status] ?? AE_MILESTONE_STATUS_CFG.pending!;
+  return <span className={`text-xs px-2 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
+}
+
+function AgriEnvTab({ farmId }: { farmId: number | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // Project state
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<AgriEnvProject | null>(null);
+  const [deletingProject, setDeletingProject] = useState<AgriEnvProject | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [projectForm, setProjectForm] = useState({ ...AE_BLANK_PROJECT });
+
+  // Milestone state
+  const [showMilestoneForm, setShowMilestoneForm] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<AgriEnvMilestone | null>(null);
+  const [deletingMilestone, setDeletingMilestone] = useState<AgriEnvMilestone | null>(null);
+  const [milestoneForm, setMilestoneForm] = useState({ ...AE_BLANK_MILESTONE });
+
+  const { data: projData, isLoading } = useQuery({
+    queryKey: ["agri-env-projects", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/agri-env-projects`);
+      if (!r.ok) throw new Error("Failed to load agri-env projects");
+      return r.json() as Promise<{ projects: AgriEnvProject[] }>;
+    },
+    enabled: !!farmId,
+  });
+
+  const { data: msData } = useQuery({
+    queryKey: ["agri-env-milestones", farmId, expandedId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/agri-env-projects/${expandedId}/milestones`);
+      if (!r.ok) throw new Error("Failed to load milestones");
+      return r.json() as Promise<{ milestones: AgriEnvMilestone[] }>;
+    },
+    enabled: !!farmId && expandedId !== null,
+  });
+
+  const projects = projData?.projects ?? [];
+  const milestones = msData?.milestones ?? [];
+
+  const activeCount    = projects.filter(p => ["applied", "active"].includes(p.status)).length;
+  const completedCount = projects.filter(p => p.status === "completed").length;
+  const totalValue     = projects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+
+  const saveProjectMut = useMutation({
+    mutationFn: async (payload: typeof projectForm) => {
+      const body = {
+        schemeName:          payload.schemeName,
+        administeringBody:   payload.administeringBody   || null,
+        agreementReference:  payload.agreementReference  || null,
+        designatedLandscape: payload.designatedLandscape || null,
+        theme:               payload.theme               || null,
+        startDate:           payload.startDate           || null,
+        endDate:             payload.endDate             || null,
+        totalGrantValuePence: payload.totalGrantValueGBP ? Math.round(parseFloat(payload.totalGrantValueGBP) * 100) : null,
+        status:              payload.status,
+        notes:               payload.notes               || null,
+      };
+      const url = editingProject
+        ? `/api/farms/${farmId}/agri-env-projects/${editingProject.id}`
+        : `/api/farms/${farmId}/agri-env-projects`;
+      const r = await fetch(url, { method: editingProject ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(await r.text().catch(() => "Save failed"));
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agri-env-projects", farmId] });
+      toast({ title: editingProject ? "Scheme updated" : "Scheme added" });
+      setShowProjectForm(false); setEditingProject(null);
+    },
+  });
+
+  const deleteProjectMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/farms/${farmId}/agri-env-projects/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text().catch(() => "Delete failed"));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agri-env-projects", farmId] });
+      toast({ title: "Scheme removed" });
+      setDeletingProject(null);
+      if (expandedId === deletingProject?.id) setExpandedId(null);
+    },
+  });
+
+  const saveMilestoneMut = useMutation({
+    mutationFn: async (payload: typeof milestoneForm) => {
+      const body = {
+        milestoneName:    payload.milestoneName,
+        dueDate:          payload.dueDate        || null,
+        completionDate:   payload.completionDate || null,
+        claimAmountPence: payload.claimAmountGBP ? Math.round(parseFloat(payload.claimAmountGBP) * 100) : null,
+        status:           payload.status,
+        evidenceNotes:    payload.evidenceNotes  || null,
+      };
+      const url = editingMilestone
+        ? `/api/farms/${farmId}/agri-env-projects/${expandedId}/milestones/${editingMilestone.id}`
+        : `/api/farms/${farmId}/agri-env-projects/${expandedId}/milestones`;
+      const r = await fetch(url, { method: editingMilestone ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(await r.text().catch(() => "Save failed"));
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agri-env-milestones", farmId, expandedId] });
+      toast({ title: editingMilestone ? "Milestone updated" : "Milestone added" });
+      setShowMilestoneForm(false); setEditingMilestone(null);
+    },
+  });
+
+  const deleteMilestoneMut = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/farms/${farmId}/agri-env-projects/${expandedId}/milestones/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text().catch(() => "Delete failed"));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agri-env-milestones", farmId, expandedId] });
+      toast({ title: "Milestone removed" });
+      setDeletingMilestone(null);
+    },
+  });
+
+  function openAddProject() { setEditingProject(null); setProjectForm({ ...AE_BLANK_PROJECT }); setShowProjectForm(true); }
+  function openEditProject(p: AgriEnvProject) {
+    setEditingProject(p);
+    setProjectForm({
+      schemeName: p.schemeName, administeringBody: p.administeringBody ?? "",
+      agreementReference: p.agreementReference ?? "", designatedLandscape: p.designatedLandscape ?? "",
+      theme: p.theme ?? "", startDate: p.startDate ?? "", endDate: p.endDate ?? "",
+      totalGrantValueGBP: p.totalGrantValuePence ? (p.totalGrantValuePence / 100).toFixed(0) : "",
+      status: p.status, notes: p.notes ?? "",
+    });
+    setShowProjectForm(true);
+  }
+  function openAddMilestone() { setEditingMilestone(null); setMilestoneForm({ ...AE_BLANK_MILESTONE }); setShowMilestoneForm(true); }
+  function openEditMilestone(m: AgriEnvMilestone) {
+    setEditingMilestone(m);
+    setMilestoneForm({
+      milestoneName: m.milestoneName, dueDate: m.dueDate ?? "",
+      completionDate: m.completionDate ?? "",
+      claimAmountGBP: m.claimAmountPence ? (m.claimAmountPence / 100).toFixed(0) : "",
+      status: m.status, evidenceNotes: m.evidenceNotes ?? "",
+    });
+    setShowMilestoneForm(true);
+  }
+
+  const inputSt = { padding: "8px 10px", borderRadius: 6, border: "1px solid #e5e7eb", fontSize: "0.875rem", width: "100%" };
+  const labelSt: React.CSSProperties = { fontSize: "0.78rem", fontWeight: 600, color: "#374151", marginBottom: 4, display: "block" };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+        <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
+          Record agri-environment scheme agreements — FiPL, SFI, Countryside Stewardship, ELMs, AONB stewardship and any other scheme.
+        </p>
+        <Button onClick={openAddProject} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 16 }}>
+          <Plus size={16} /> Add Scheme
+        </Button>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "16px 20px" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 6 }}>Active Schemes</div>
+          <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>{activeCount}</div>
+          <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>{completedCount} completed</div>
+        </div>
+        <div style={{ background: "#f5f3ff", border: "1px solid #e9d5ff", borderRadius: 10, padding: "16px 20px" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#7c3aed", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 6 }}>Total Scheme Value</div>
+          <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "#111827" }}>
+            {totalValue > 0 ? `£${(totalValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}` : "—"}
+          </div>
+          <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
+            across {projects.filter(p => p.status !== "withdrawn").length} scheme(s)
+          </div>
+        </div>
+        <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: 10, padding: "16px 20px" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#d97706", textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: 6 }}>FiPL Info</div>
+          <div style={{ fontSize: "0.82rem", color: "#374151", lineHeight: 1.5, marginTop: 4 }}>
+            Farming in Protected Landscapes — administered by your National Park or AONB team. Runs to 2029.
+          </div>
+        </div>
+      </div>
+
+      {/* Projects list */}
+      {isLoading ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#9ca3af" }}>
+          <Loader2 size={24} className="animate-spin" style={{ display: "inline" }} />
+        </div>
+      ) : projects.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 24px", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
+          <Leaf size={32} color="#d1d5db" style={{ margin: "0 auto 12px" }} />
+          <div style={{ fontSize: "1rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>No agri-environment schemes recorded</div>
+          <div style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: 16 }}>
+            Add your first scheme to track milestones, claim dates and evidence.
+          </div>
+          <Button onClick={openAddProject} size="sm">
+            <Plus size={14} style={{ marginRight: 6 }} /> Add Scheme
+          </Button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {projects.map(project => {
+            const isExpanded = expandedId === project.id;
+            return (
+              <div key={project.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+                {/* Project row */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", cursor: "pointer" }}
+                  onClick={() => setExpandedId(isExpanded ? null : project.id)}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
+                      <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111827" }}>{project.schemeName}</span>
+                      <AeProjectBadge status={project.status} />
+                      {project.theme && (
+                        <span style={{ fontSize: "0.72rem", padding: "1px 8px", borderRadius: 20, border: "1px solid #d1d5db", color: "#6b7280", background: "#f9fafb" }}>
+                          {project.theme}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" as const, marginTop: 4 }}>
+                      {project.administeringBody && <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>{project.administeringBody}</span>}
+                      {project.agreementReference && <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>Ref: {project.agreementReference}</span>}
+                      {project.designatedLandscape && <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>{project.designatedLandscape}</span>}
+                      {(project.startDate || project.endDate) && (
+                        <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                          {project.startDate ? new Date(project.startDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "?"}
+                          {" → "}
+                          {project.endDate ? new Date(project.endDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "ongoing"}
+                        </span>
+                      )}
+                      {!!project.totalGrantValuePence && (
+                        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#059669" }}>
+                          £{(project.totalGrantValuePence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <button onClick={e => { e.stopPropagation(); openEditProject(project); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#6b7280" }}>
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setDeletingProject(project); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#ef4444" }}>
+                      <Trash2 size={14} />
+                    </button>
+                    <ChevronDown size={16} color="#9ca3af" style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                  </div>
+                </div>
+
+                {/* Expanded milestones */}
+                {isExpanded && (
+                  <div style={{ borderTop: "1px solid #f3f4f6", background: "#fafafa", padding: "12px 16px" }}>
+                    {project.notes && (
+                      <div style={{ background: "#f0f4ff", border: "1px solid #c7d2fe", borderRadius: 6, padding: "8px 12px", fontSize: "0.82rem", color: "#3730a3", marginBottom: 12 }}>
+                        <strong>Notes:</strong> {project.notes}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#374151", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+                        Milestones &amp; Claims
+                      </span>
+                      <Button size="sm" variant="outline" onClick={openAddMilestone}
+                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8rem" }}>
+                        <Plus size={12} /> Add Milestone
+                      </Button>
+                    </div>
+                    {milestones.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px 12px", color: "#9ca3af", fontSize: "0.82rem" }}>
+                        No milestones recorded yet — add one to track claim dates and evidence.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {milestones.map(m => (
+                          <div key={m.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
+                                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111827" }}>{m.milestoneName}</span>
+                                <AeMilestoneBadge status={m.status} />
+                                {!!m.claimAmountPence && (
+                                  <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#059669" }}>
+                                    £{(m.claimAmountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, marginTop: 3 }}>
+                                {m.dueDate && <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>Due: {new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                                {m.completionDate && <span style={{ fontSize: "0.78rem", color: "#059669" }}>Done: {new Date(m.completionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                                {m.evidenceNotes && <span style={{ fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic" }}>{m.evidenceNotes}</span>}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => openEditMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#6b7280" }}><Pencil size={13} /></button>
+                              <button onClick={() => setDeletingMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#ef4444" }}><Trash2 size={13} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Project Form Dialog ───────────────────────────────────────────── */}
+      <Dialog open={showProjectForm} onOpenChange={v => { if (!v) { setShowProjectForm(false); setEditingProject(null); saveProjectMut.reset(); } }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader><DialogTitle>{editingProject ? "Edit Scheme" : "Add Agri-environment Scheme"}</DialogTitle></DialogHeader>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelSt}>Scheme Name *</label>
+              <input list="ae-scheme-list" value={projectForm.schemeName}
+                onChange={e => setProjectForm(f => ({ ...f, schemeName: e.target.value }))}
+                style={inputSt} placeholder="e.g. FiPL, SFI, Countryside Stewardship…" />
+              <datalist id="ae-scheme-list">{AE_COMMON_SCHEMES.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Administering Body</label>
+                <input list="ae-body-list" value={projectForm.administeringBody}
+                  onChange={e => setProjectForm(f => ({ ...f, administeringBody: e.target.value }))}
+                  style={inputSt} placeholder="e.g. Natural England" />
+                <datalist id="ae-body-list">{AE_COMMON_BODIES.map(b => <option key={b} value={b} />)}</datalist>
+              </div>
+              <div>
+                <label style={labelSt}>Agreement / Reference No.</label>
+                <input value={projectForm.agreementReference}
+                  onChange={e => setProjectForm(f => ({ ...f, agreementReference: e.target.value }))}
+                  style={inputSt} placeholder="Agreement reference" />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Designated Landscape</label>
+                <input value={projectForm.designatedLandscape}
+                  onChange={e => setProjectForm(f => ({ ...f, designatedLandscape: e.target.value }))}
+                  style={inputSt} placeholder="e.g. South Downs NP" />
+              </div>
+              <div>
+                <label style={labelSt}>Theme (FiPL)</label>
+                <select value={projectForm.theme} onChange={e => setProjectForm(f => ({ ...f, theme: e.target.value }))} style={inputSt}>
+                  <option value="">— not applicable —</option>
+                  {AE_FIPL_THEMES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Start Date</label>
+                <input type="date" value={projectForm.startDate} onChange={e => setProjectForm(f => ({ ...f, startDate: e.target.value }))} style={inputSt} />
+              </div>
+              <div>
+                <label style={labelSt}>End Date</label>
+                <input type="date" value={projectForm.endDate} onChange={e => setProjectForm(f => ({ ...f, endDate: e.target.value }))} style={inputSt} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Total Grant Value (£)</label>
+                <input type="number" min="0" step="1" value={projectForm.totalGrantValueGBP}
+                  onChange={e => setProjectForm(f => ({ ...f, totalGrantValueGBP: e.target.value }))}
+                  style={inputSt} placeholder="0" />
+              </div>
+              <div>
+                <label style={labelSt}>Status</label>
+                <select value={projectForm.status} onChange={e => setProjectForm(f => ({ ...f, status: e.target.value }))} style={inputSt}>
+                  {AE_PROJECT_STATUSES.map(s => <option key={s} value={s}>{AE_PROJECT_STATUS_CFG[s]?.label ?? s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label style={labelSt}>Notes</label>
+              <textarea value={projectForm.notes} onChange={e => setProjectForm(f => ({ ...f, notes: e.target.value }))}
+                style={{ ...inputSt, minHeight: 70, resize: "vertical" as const }}
+                placeholder="Objectives, conditions, required actions…" />
+            </div>
+          </div>
+          <DialogMutationError mutation={saveProjectMut} message="Failed to save — please try again." />
+          <DialogFooter style={{ marginTop: 16 }}>
+            <Button variant="outline" onClick={() => { setShowProjectForm(false); setEditingProject(null); saveProjectMut.reset(); }}>Cancel</Button>
+            <Button disabled={!projectForm.schemeName.trim() || saveProjectMut.isPending} onClick={() => saveProjectMut.mutate(projectForm)}>
+              {saveProjectMut.isPending ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} />Saving…</> : editingProject ? "Save Changes" : "Add Scheme"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Milestone Form Dialog ─────────────────────────────────────────── */}
+      <Dialog open={showMilestoneForm} onOpenChange={v => { if (!v) { setShowMilestoneForm(false); setEditingMilestone(null); saveMilestoneMut.reset(); } }}>
+        <DialogContent style={{ maxWidth: 480 }}>
+          <DialogHeader><DialogTitle>{editingMilestone ? "Edit Milestone" : "Add Milestone"}</DialogTitle></DialogHeader>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelSt}>Milestone Name *</label>
+              <input value={milestoneForm.milestoneName}
+                onChange={e => setMilestoneForm(f => ({ ...f, milestoneName: e.target.value }))}
+                style={inputSt} placeholder="e.g. Year 1 claim, Habitat survey, Q2 payment…" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Due Date</label>
+                <input type="date" value={milestoneForm.dueDate} onChange={e => setMilestoneForm(f => ({ ...f, dueDate: e.target.value }))} style={inputSt} />
+              </div>
+              <div>
+                <label style={labelSt}>Completion Date</label>
+                <input type="date" value={milestoneForm.completionDate} onChange={e => setMilestoneForm(f => ({ ...f, completionDate: e.target.value }))} style={inputSt} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelSt}>Claim Amount (£)</label>
+                <input type="number" min="0" step="1" value={milestoneForm.claimAmountGBP}
+                  onChange={e => setMilestoneForm(f => ({ ...f, claimAmountGBP: e.target.value }))}
+                  style={inputSt} placeholder="0" />
+              </div>
+              <div>
+                <label style={labelSt}>Status</label>
+                <select value={milestoneForm.status} onChange={e => setMilestoneForm(f => ({ ...f, status: e.target.value }))} style={inputSt}>
+                  {AE_MILESTONE_STATUSES.map(s => <option key={s} value={s}>{AE_MILESTONE_STATUS_CFG[s]?.label ?? s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label style={labelSt}>Evidence Notes</label>
+              <textarea value={milestoneForm.evidenceNotes} onChange={e => setMilestoneForm(f => ({ ...f, evidenceNotes: e.target.value }))}
+                style={{ ...inputSt, minHeight: 60, resize: "vertical" as const }}
+                placeholder="Photos taken, reports submitted, site visits completed…" />
+            </div>
+          </div>
+          <DialogMutationError mutation={saveMilestoneMut} message="Failed to save — please try again." />
+          <DialogFooter style={{ marginTop: 16 }}>
+            <Button variant="outline" onClick={() => { setShowMilestoneForm(false); setEditingMilestone(null); saveMilestoneMut.reset(); }}>Cancel</Button>
+            <Button disabled={!milestoneForm.milestoneName.trim() || saveMilestoneMut.isPending} onClick={() => saveMilestoneMut.mutate(milestoneForm)}>
+              {saveMilestoneMut.isPending ? <><Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} />Saving…</> : editingMilestone ? "Save Changes" : "Add Milestone"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Project ────────────────────────────────────────────────── */}
+      <AlertDialog open={!!deletingProject} onOpenChange={v => { if (!v) { setDeletingProject(null); deleteProjectMut.reset(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Scheme?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deletingProject?.schemeName}</strong> and all its milestones. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <DialogMutationError mutation={deleteProjectMut} message="Failed to remove — please try again." />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deletingProject && deleteProjectMut.mutate(deletingProject.id)} style={{ background: "#ef4444" }}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Delete Milestone ─────────────────────────────────────────────── */}
+      <AlertDialog open={!!deletingMilestone} onOpenChange={v => { if (!v) { setDeletingMilestone(null); deleteMilestoneMut.reset(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Milestone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deletingMilestone?.milestoneName}</strong>. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <DialogMutationError mutation={deleteMilestoneMut} message="Failed to remove — please try again." />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deletingMilestone && deleteMilestoneMut.mutate(deletingMilestone.id)} style={{ background: "#ef4444" }}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function GrantsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
 
+  const [mainTab, setMainTab] = useState<"capital" | "agrienv">("capital");
   const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<GrantRecord | null>(null);
@@ -383,18 +944,47 @@ export default function GrantsPage() {
     <AppLayout>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 16px" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
             <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827", margin: 0 }}>Grants & Funding</h1>
             <p style={{ color: "#6b7280", fontSize: "0.875rem", marginTop: 4 }}>
-              Track FETF, Countryside Stewardship capital grants, SFI, and other farming scheme applications.
+              Capital grants and equipment funding, plus agri-environment scheme agreements and milestones.
             </p>
           </div>
-          <Button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Plus size={16} /> Add Grant
-          </Button>
+          {mainTab === "capital" && (
+            <Button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={16} /> Add Grant
+            </Button>
+          )}
         </div>
 
+        {/* Tab bar */}
+        <div style={{ display: "flex", gap: 2, marginBottom: 24, borderBottom: "1px solid #e5e7eb" }}>
+          {([
+            { key: "capital" as const, label: "Equipment & Capital Grants" },
+            { key: "agrienv" as const, label: "Agri-environment Schemes" },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setMainTab(tab.key)}
+              style={{
+                padding: "8px 16px",
+                fontSize: "0.875rem",
+                fontWeight: mainTab === tab.key ? 700 : 500,
+                color: mainTab === tab.key ? "#4f46e5" : "#6b7280",
+                background: "none",
+                border: "none",
+                borderBottom: mainTab === tab.key ? "2px solid #4f46e5" : "2px solid transparent",
+                cursor: "pointer",
+                marginBottom: -1,
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {mainTab === "capital" && <>
         {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
           {/* Approved Grant Value */}
@@ -931,6 +1521,9 @@ export default function GrantsPage() {
           ].filter(Boolean).join("\n") : ""}
           module="grants"
         />
+      </>}
+
+      {mainTab === "agrienv" && <AgriEnvTab farmId={farmId} />}
       </div>
     </AppLayout>
   );

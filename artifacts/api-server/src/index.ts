@@ -21,6 +21,7 @@ import { runTaskLinkMigrations } from "./lib/taskLinkMigrations";
 import { runWoodlandRegenMigrations } from "./lib/woodlandRegenMigrations";
 import { runPestTrapMigrations } from "./lib/pestTrapMigrations";
 import { runSoilAnalysisMigrations } from "./lib/soilAnalysisMigrations";
+import { runAgriEnvMigrations } from "./lib/agriEnvMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -147,6 +148,9 @@ app.listen(port, () => {
   });
   runPestTrapMigrations().catch((err) => {
     console.error("[PEST-TRAP-MIGRATE] Failed:", err);
+  });
+  runAgriEnvMigrations().catch((err) => {
+    console.error("[AGRI-ENV-MIGRATE] Failed:", err);
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);
