@@ -542,6 +542,8 @@ export interface BatchTrailData {
   pressings?: Record<string, unknown>[];
   /** Fill history for any oak barrel used as a source vessel in a bottling record for this batch/vintage */
   barrelFills?: Record<string, unknown>[];
+  /** Cooperage maintenance records for barrel vessels in this batch trail */
+  barrelMaintenance?: Record<string, unknown>[];
 }
 
 export function TrailSection({ icon: Icon, title, count, children }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode }) {

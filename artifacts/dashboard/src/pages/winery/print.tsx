@@ -615,8 +615,20 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   // ── Barrel Provenance Section ─────────────────────────────────────────────
   // Shown only when the batch used an oak barrel as a source vessel for bottling.
   // Fills are grouped per vessel so a report with multiple barrels renders each
-  // barrel's complete fill history in its own card.
+  // barrel's complete fill history in its own card. Cooperage maintenance records
+  // are listed per barrel immediately after the fill history table.
   const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
+  const barrelMaintenance = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+
+  const WORK_TYPE_LABELS: Record<string, string> = {
+    inspection: "Inspection",
+    stave_repair: "Stave repair",
+    head_replacement: "Head replacement",
+    re_toast: "Re-toast",
+    re_char: "Re-char",
+    re_cooper: "Re-cooper",
+    condemned: "Condemned",
+  };
 
   const fillOakLabelPdf = (fillNumber: number): { label: string; bg: string; color: string } => {
     if (fillNumber === 1) return { label: "New oak (1st fill)", bg: "#fef3c7", color: "#92400e" };
@@ -685,6 +697,35 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
         </tr>`;
       }).join("");
 
+      // Cooperage maintenance records for this vessel
+      const vesselMaintRows = barrelMaintenance.filter(m => Number(m.vessel_id) === vid);
+      const maintenanceTableHtml = vesselMaintRows.length > 0 ? `
+        <div style="margin-top:8px;border-top:1px solid #fed7aa;padding-top:6px">
+          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#92400e;margin-bottom:4px">Cooperage Work (${vesselMaintRows.length})</p>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:rgba(0,0,0,0.04)">
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Date</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Work Type</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Cooperage</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:right">Cost</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Notes</th>
+            </tr>
+            ${vesselMaintRows.map(m => {
+              const workLabel = WORK_TYPE_LABELS[String(m.work_type ?? "")] ?? escHtml(String(m.work_type ?? "—"));
+              const costPence = m.cost_pence != null ? parseFloat(String(m.cost_pence)) : null;
+              const costStr = costPence != null ? `£${(costPence / 100).toFixed(2)}` : "—";
+              const isReToast = String(m.work_type) === "re_toast" || String(m.work_type) === "re_char";
+              return `<tr>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${m.maintenance_date ? fmtDate(m.maintenance_date) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px"><span style="font-weight:600${isReToast ? ";color:#b45309" : ""}">${workLabel}</span></td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${m.cooperage_name ? escHtml(String(m.cooperage_name)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;text-align:right;font-family:monospace">${costStr}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${m.notes ? escHtml(String(m.notes)) : ""}</td>
+              </tr>`;
+            }).join("")}
+          </table>
+        </div>` : "";
+
       return `<div style="background:#fff8ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <span style="font-size:12px;font-weight:700;color:#374151">🪵 ${escHtml(String(meta.vessel_ref ?? ""))}</span>
@@ -703,6 +744,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
           </tr>
           ${fillRows}
         </table>
+        ${maintenanceTableHtml}
       </div>`;
     }).join("");
 
