@@ -229,7 +229,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
 
     const summaryLabel = groupByVintage ? "Vintage Year" : "Block";
-    const summaryHeader = [summaryLabel, "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %"].map(h => cell(h)).join(",");
+    const summaryHeader = [summaryLabel, "Picks", "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %"].map(h => cell(h)).join(",");
     const summaryRows = groupKeys.map(key => {
       const grp = groupObj[key];
       const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -260,6 +260,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       return [
         cell(label),
+        cell(grp.length),
         cell(dateStr),
         cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
         cell(avgTha != null ? avgTha.toFixed(2) : ""),
