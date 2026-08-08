@@ -29,7 +29,7 @@ import {
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -188,6 +188,29 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   }, [data, yearFilter, blockFilter, searchText, blocks]);
 
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
+
+  // ── Yield by Block × Vintage chart data ───────────────────────────────────
+  const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
+  const yieldChartData = useMemo(() => {
+    if (yearFilter !== "all") return null;
+    const uniqueVintages = [...new Set(filteredHarvest.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    const linkedRows = filteredHarvest.filter(r => r.blockId != null && r.blockId !== "");
+    const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
+    if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
+    const chartData = uniqueVintages.map(vy => {
+      const entry: Record<string, string | number> = { vintage: vy };
+      for (const bid of uniqueBlockIds) {
+        const name = String(blockName(bid));
+        const grp = filteredHarvest.filter(r => String(r.vintageYear ?? "") === vy && r.blockId === bid);
+        const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+        entry[name] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
+      }
+      return entry;
+    });
+    const blockNames = uniqueBlockIds.map(bid => String(blockName(bid)));
+    return { chartData, blockNames };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredHarvest, yearFilter]);
 
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
@@ -457,6 +480,39 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <span className="text-xs text-muted-foreground">Showing {filteredHarvest.length} of {data.length}</span>
         )}
       </div>
+
+      {/* Yield by Block × Vintage chart */}
+      {yieldChartData && (
+        <div className="rounded-lg border bg-card p-4 space-y-2">
+          <p className="text-sm font-semibold flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4 text-muted-foreground" />
+            Yield by Block × Vintage (kg)
+          </p>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={yieldChartData.chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="vintage" tick={{ fontSize: 12 }} />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : String(v)}
+                unit=" kg"
+                width={64}
+              />
+              <Tooltip formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {yieldChartData.blockNames.map((name, i) => (
+                <Bar
+                  key={name}
+                  dataKey={name}
+                  fill={YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]}
+                  radius={[3, 3, 0, 0]}
+                  maxBarSize={48}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <DataTable
         cols={[
