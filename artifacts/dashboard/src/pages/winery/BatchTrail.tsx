@@ -2104,6 +2104,65 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
     pushStageAttachmentRows("Bottling", r, bottlingAttachments);
   }
 
+  // ── Barrel Provenance ───────────────────────────────────────────────────────
+  // One row per fill across all oak barrels — same data as the on-screen Barrel
+  // Provenance section. Empty section is omitted (same convention as other blocks).
+  // Columns are mapped onto existing BATCH_TRAIL_CSV_HEADER slots with a heading
+  // row re-labelling each slot so spreadsheet readers know what they're looking at.
+  const barrelFillsForCsv = Array.isArray(data.barrelFills) ? data.barrelFills : [];
+  if (barrelFillsForCsv.length > 0) {
+    const csvBarrelDuration = (fillDate: unknown, rackOutDate: unknown): string => {
+      const start = fillDate ? new Date(String(fillDate)) : null;
+      if (!start || isNaN(start.getTime())) return "";
+      const end = rackOutDate ? new Date(String(rackOutDate)) : null;
+      const days = end ? Math.round((end.getTime() - start.getTime()) / 86400000) : null;
+      if (days == null) return "Still maturing";
+      if (days < 0) return "";
+      if (days < 31) return `${days}d`;
+      const months = Math.floor(days / 30.44);
+      return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
+    };
+    // Blank separator row
+    pushRow({});
+    // Section heading — re-labels each CSV column so the barrel data is self-describing
+    pushRow({
+      "Stage": "Barrel Provenance",
+      "Batch Ref": "Batch Ref",
+      "Date": "Fill Date",
+      "Type / Additive": "Fill Number",
+      "Detail": "Wine Name",
+      "SO₂ / Dose": "Vintage",
+      "Unit": "Variety",
+      "SO₂ Ceiling (mg/L)": "Volume (L)",
+      "SO₂ Compliance": "Rack-out Date",
+      "pH": "Duration",
+      "Vessel": "Vessel Ref",
+      "Operator": "Cooperage",
+      "Notes": "Oak Origin / Toasting",
+    });
+    for (const f of barrelFillsForCsv) {
+      const fillNum = f.fill_number != null ? Number(f.fill_number) : null;
+      const fillLabel = fillNum != null ? `Fill ${fillNum}` : "";
+      const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
+      const oakParts = [f.oak_origin ? String(f.oak_origin) : "", f.toasting_level ? `Toasting: ${String(f.toasting_level)}` : ""].filter(Boolean);
+      pushRow({
+        "Stage": "Barrel Fill",
+        "Batch Ref": String(f.fill_batch_ref ?? ""),
+        "Date": f.fill_date ? fmtDate(f.fill_date) : "",
+        "Type / Additive": fillLabel,
+        "Detail": String(f.wine_name ?? ""),
+        "SO₂ / Dose": f.fill_vintage_year != null ? String(f.fill_vintage_year) : "",
+        "Unit": String(f.variety ?? ""),
+        "SO₂ Ceiling (mg/L)": volL != null ? volL.toFixed(0) : "",
+        "SO₂ Compliance": f.rack_out_date ? fmtDate(f.rack_out_date) : "",
+        "pH": csvBarrelDuration(f.fill_date, f.rack_out_date),
+        "Vessel": String(f.vessel_ref ?? ""),
+        "Operator": String(f.cooperage ?? ""),
+        "Notes": oakParts.join("; "),
+      });
+    }
+  }
+
   // ── pH & TA Analytical History summary block ────────────────────────────────
   // Stage logic shared with the on-screen panel and PDF via lib/ph-ta-stages.
   // SO₂-test readings supplement the three primary stages (most recent test per
