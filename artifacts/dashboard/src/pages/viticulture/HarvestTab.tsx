@@ -394,6 +394,82 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
+  const exportBlockSummaryCSV = (rows: Record<string, unknown>[]) => {
+    if (!rows.length) return;
+    const cell = (v: unknown) => {
+      const s = sanitiseCsvCell(v == null ? "" : String(v));
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    // Determine vintage scope label for filename / title
+    const uniqueVintages = [...new Set(rows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
+    const vintageLabel = uniqueVintages.length === 1 ? uniqueVintages[0] : uniqueVintages.length > 1 ? `${uniqueVintages[uniqueVintages.length - 1]}–${uniqueVintages[0]}` : "all";
+
+    // Group by blockId → compute aggregates
+    const blockMap: Record<string, Record<string, unknown>[]> = {};
+    for (const r of rows) {
+      const key = String(r.blockId ?? "__unlinked__");
+      if (!blockMap[key]) blockMap[key] = [];
+      blockMap[key].push(r);
+    }
+
+    const header = [
+      "Vintage", "Block", "Variety", "Area (ha)", "Picks",
+      "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Pot. Alcohol %",
+    ].map(h => cell(h)).join(",");
+
+    const dataRows = Object.entries(blockMap).map(([key, grp]) => {
+      const block = key === "__unlinked__" ? null : blocks.find(b => String(b.id) === key);
+      const name = block ? String(block.blockName ?? "") : "Not linked";
+      const variety = block ? String(block.variety ?? "") : "";
+      const area = block ? String((block.areaHa ?? block.area ?? "")) : "";
+
+      // Vintage column: single vintage from filter, or comma-list if multiple
+      const vintagesInGrp = [...new Set(grp.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+      const vintageCol = vintagesInGrp.join(", ");
+
+      const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      // t/ha is derived from total yield ÷ block area, NOT an average of per-pick t/ha values
+      const areaHaNum = area !== "" ? parseFloat(area) : NaN;
+      const derivedTha = !isNaN(areaHaNum) && areaHaNum > 0 && totalYieldKg > 0
+        ? totalYieldKg / 1000 / areaHaNum
+        : null;
+      const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+      const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+      const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+      const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
+
+      return [
+        cell(vintageCol),
+        cell(name),
+        cell(variety),
+        cell(area !== "" ? parseFloat(area).toFixed(2) : ""),
+        cell(grp.length),
+        cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
+        cell(derivedTha != null ? derivedTha.toFixed(2) : ""),
+        cell(avgBrix != null ? avgBrix.toFixed(1) : ""),
+        cell(avgPh != null ? avgPh.toFixed(2) : ""),
+        cell(avgTa != null ? avgTa.toFixed(2) : ""),
+        cell(avgPa != null ? avgPa.toFixed(2) : ""),
+      ].join(",");
+    });
+
+    const csv = [
+      cell(`Per-Block Yield Summary — Vintage ${vintageLabel} — ${farmName ?? ""}`),
+      header,
+      ...dataRows,
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vineyard-block-yield-summary-${vintageLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
   return (
@@ -438,6 +514,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportBlockSummaryCSV(filteredHarvest)}>
+                <FileDown className="w-4 h-4 mr-2 text-muted-foreground" />
+                Export Block Summary
+                <span className="ml-2 text-xs text-muted-foreground">(one row per block)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => exportHarvestCSV(filteredHarvest, "summary")}>
                 <FileDown className="w-4 h-4 mr-2 text-muted-foreground" />
                 Export Summary
