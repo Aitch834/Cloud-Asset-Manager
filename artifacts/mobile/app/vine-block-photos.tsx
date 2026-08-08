@@ -14,6 +14,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -80,18 +81,10 @@ function clamp(value: number, min: number, max: number) {
 // Draggable photo strip (shown inside lightbox for reordering)
 // ---------------------------------------------------------------------------
 
-// Item size is computed dynamically from photo count — see DraggablePhotoStrip.
+// Strip layout constants — item size is always fixed; overflow scrolls horizontally.
 const STRIP_ITEM_GAP = 6;
 const STRIP_MAX_ITEM_SIZE = 52;
-const STRIP_MIN_ITEM_SIZE = 36;
-const STRIP_H_PADDING = 32; // total horizontal padding around the strip
-
-/** Compute the item size that fits all `count` photos without clipping. */
-function computeStripItemSize(count: number): number {
-  if (count <= 1) return STRIP_MAX_ITEM_SIZE;
-  const available = SCREEN.width - STRIP_H_PADDING - (count - 1) * STRIP_ITEM_GAP;
-  return Math.max(STRIP_MIN_ITEM_SIZE, Math.min(STRIP_MAX_ITEM_SIZE, Math.floor(available / count)));
-}
+const STRIP_SIDE_PADDING = 16; // padding at each end of the scrollable strip
 
 interface DraggablePhotoStripProps {
   photos: BlockPhoto[];
@@ -109,22 +102,29 @@ interface DraggablePhotoStripProps {
  *   change on the cover is ignored at read-time.
  * - Only non-cover photos are draggable; their new order is submitted as
  *   `[cover.id, ...newNonCoverIds]` so the API validation sees the full set.
- * - Item size is computed from the total photo count so every thumbnail fits
- *   on-screen without clipping, even for large galleries.
+ * - Items are always STRIP_MAX_ITEM_SIZE; a horizontal ScrollView handles overflow
+ *   so thumbnails never shrink regardless of gallery size.
+ * - Scroll is locked while a drag is active so pan doesn't fight the ScrollView.
+ * - The active thumbnail is automatically scrolled into view on navigation.
  */
 function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: DraggablePhotoStripProps) {
   // Separate cover from the draggable pool
   const coverPhoto = useMemo(() => photos.find((p) => p.isCover) ?? null, [photos]);
   const nonCoverPhotos = useMemo(() => photos.filter((p) => !p.isCover), [photos]);
 
-  // Dynamic item size — fits all photos on screen width
-  const itemSize = useMemo(() => computeStripItemSize(photos.length), [photos.length]);
+  // Fixed item size — ScrollView handles overflow for large galleries
+  const itemSize = STRIP_MAX_ITEM_SIZE;
   const slotWidth = itemSize + STRIP_ITEM_GAP;
 
   // localOrder stores non-cover photo IDs in display order (ID-based)
   const [localOrder, setLocalOrder] = useState<number[]>(() => nonCoverPhotos.map((p) => p.id));
   const [dragSourceSlot, setDragSourceSlot] = useState<number>(-1);
   const [dropTargetSlot, setDropTargetSlot] = useState<number>(-1);
+  // JS-thread flag that disables the ScrollView while a drag gesture is active
+  const [dragActive, setDragActive] = useState(false);
+
+  // Ref for programmatic scrolling (auto-scroll to active thumbnail)
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const dragPosX = useSharedValue(0);
   const isDragging = useSharedValue(false);
@@ -137,6 +137,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
     setLocalOrder(nonCoverPhotos.map((p) => p.id));
     setDragSourceSlot(-1);
     setDropTargetSlot(-1);
+    setDragActive(false);
     isDragging.value = false;
     dragSourceSlotSv.value = -1;
   }, [nonCoverIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -144,13 +145,36 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   // O(1) photo lookup by ID for rendering
   const photoMap = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos]);
 
-  // ID of the photo currently displayed in the lightbox (for highlight)
+  // ID of the photo currently displayed in the lightbox (for highlight + auto-scroll)
   const currentPhotoId = photos[currentIndex]?.id ?? -1;
+
+  // Auto-scroll the active thumbnail into view whenever navigation changes it.
+  // Positions are computed from the fixed layout: paddingLeft + slot * slotWidth.
+  useEffect(() => {
+    if (!scrollViewRef.current) return;
+    const coverSlotX = STRIP_SIDE_PADDING; // left edge of cover thumbnail
+    let itemLeftX: number;
+    if (currentPhotoId === coverPhoto?.id) {
+      itemLeftX = coverSlotX;
+    } else {
+      const slotInNonCover = localOrder.indexOf(currentPhotoId);
+      if (slotInNonCover < 0) return;
+      const nonCoverBaseX = STRIP_SIDE_PADDING + (coverPhoto ? slotWidth : 0);
+      itemLeftX = nonCoverBaseX + slotInNonCover * slotWidth;
+    }
+    // Centre the thumbnail within the visible strip width
+    const scrollX = Math.max(0, itemLeftX - SCREEN.width / 2 + itemSize / 2);
+    scrollViewRef.current.scrollTo({ x: scrollX, animated: true });
+  }, [currentPhotoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nonCoverCount = nonCoverPhotos.length;
 
   const hapticStart = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  const activateDrag = useCallback(() => {
+    setDragActive(true);
   }, []);
 
   const beginDrag = useCallback((slot: number) => {
@@ -164,6 +188,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   }, []);
 
   const commitReorder = useCallback((sourceSlot: number, targetSlot: number) => {
+    setDragActive(false);
     setDragSourceSlot(-1);
     setDropTargetSlot(-1);
     if (sourceSlot < 0 || sourceSlot === targetSlot) return;
@@ -181,11 +206,12 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   }, [coverPhoto, onReorder]);
 
   const cancelDrag = useCallback(() => {
+    setDragActive(false);
     setDragSourceSlot(-1);
     setDropTargetSlot(-1);
   }, []);
 
-  // Worklet-safe snapshot of slotWidth and nonCoverCount
+  // Worklet-safe snapshots (captured as consts so worklets close over stable values)
   const slotWidthSv = slotWidth;
   const itemSizeSv = itemSize;
 
@@ -198,6 +224,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
       dragSourceSlotSv.value = slot;
       dragPosX.value = slot * slotWidthSv + itemSizeSv / 2;
       runOnJS(hapticStart)();
+      runOnJS(activateDrag)();
       runOnJS(beginDrag)(slot);
     })
     .onUpdate((e) => {
@@ -246,18 +273,24 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   const dragging = dragSourceSlot >= 0;
   const draggedPhotoId = dragging ? localOrder[dragSourceSlot] ?? -1 : -1;
   const draggedPhoto = draggedPhotoId >= 0 ? photoMap.get(draggedPhotoId) : undefined;
-  const nonCoverStripWidth = nonCoverCount * slotWidth - STRIP_ITEM_GAP;
-
-  const iSize = itemSize; // stable reference for inline styles
+  const nonCoverStripWidth = nonCoverCount > 0 ? nonCoverCount * slotWidth - STRIP_ITEM_GAP : 0;
 
   return (
-    <View style={stripStyles.outerRow}>
+    <ScrollView
+      ref={scrollViewRef}
+      horizontal
+      scrollEnabled={!dragActive}
+      showsHorizontalScrollIndicator={false}
+      scrollEventThrottle={16}
+      style={stripStyles.scrollView}
+      contentContainerStyle={stripStyles.outerRow}
+    >
       {/* Cover photo — pinned at position 0, not draggable */}
       {coverPhoto ? (
         <Pressable
           style={[
             stripStyles.item,
-            { width: iSize, height: iSize },
+            { width: itemSize, height: itemSize },
             coverPhoto.id === currentPhotoId && stripStyles.itemCurrent,
             stripStyles.itemCoverBorder,
           ]}
@@ -280,8 +313,8 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
       {/* Draggable non-cover strip */}
       {nonCoverCount > 0 ? (
         <GestureDetector gesture={stripPanGesture}>
-          <View style={{ width: nonCoverStripWidth, height: iSize, position: "relative" }}>
-            <View style={[stripStyles.row, { height: iSize }]}>
+          <View style={{ width: nonCoverStripWidth, height: itemSize, position: "relative" }}>
+            <View style={[stripStyles.row, { height: itemSize }]}>
               {displaySlots.map((photoId, slotIdx) => {
                 const isGap = photoId === null;
                 const ph = !isGap ? photoMap.get(photoId!) : undefined;
@@ -298,7 +331,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
                     }}
                     style={[
                       stripStyles.item,
-                      { width: iSize, height: iSize },
+                      { width: itemSize, height: itemSize },
                       isCurrentPage && stripStyles.itemCurrent,
                       isGap && stripStyles.itemGap,
                     ]}
@@ -315,7 +348,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
 
             {/* Floating copy of the dragged thumbnail */}
             {dragging && draggedPhoto ? (
-              <Animated.View style={[stripStyles.floatingItem, { width: iSize, height: iSize }, floatingStyle]}>
+              <Animated.View style={[stripStyles.floatingItem, { width: itemSize, height: itemSize }, floatingStyle]}>
                 {draggedPhoto.downloadUrl ? (
                   <Image
                     source={{ uri: draggedPhoto.downloadUrl }}
@@ -330,7 +363,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
           </View>
         </GestureDetector>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1477,11 +1510,17 @@ const styles = StyleSheet.create({
 // Styles for DraggablePhotoStrip (separate to keep the main StyleSheet tidy).
 // Width/height on items is applied inline because it is computed dynamically.
 const stripStyles = StyleSheet.create({
+  scrollView: {
+    // Fill the full lightbox width so the strip edge-to-edge
+    width: SCREEN.width,
+  },
   outerRow: {
+    // contentContainerStyle for the horizontal ScrollView
     flexDirection: "row",
     gap: STRIP_ITEM_GAP,
     alignItems: "center",
     flexWrap: "nowrap",
+    paddingHorizontal: STRIP_SIDE_PADDING,
   },
   row: {
     flexDirection: "row",
