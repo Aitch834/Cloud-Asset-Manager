@@ -15,6 +15,7 @@ import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { VEHICLE_TYPES } from "@/lib/equipmentTypes";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,6 +164,8 @@ export default function HarvestPage() {
             </div>
           );
         })()}
+
+        {!!farmId && <ArableFarmSettingsChecklist farmId={farmId} />}
 
         <TabBar className="mb-5">
           <TabButton active={tab === "log"} onClick={() => setTab("log")}>Harvest Log</TabButton>

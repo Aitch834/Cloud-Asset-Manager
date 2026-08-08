@@ -15,6 +15,7 @@ import {
   Bug, Leaf, CheckCircle2,
 } from "lucide-react";
 import { buildProReport, printProReport } from "@/lib/print-report";
+import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
 import { useLocation } from "wouter";
 import { useFarmMeta, FarmSettingsWarning } from "@/pages/viticulture/shared";
 
@@ -603,6 +604,8 @@ export default function SeasonReportsPage() {
                 ) : null}
               </div>
             )}
+
+            {!!farmId && <ArableFarmSettingsChecklist farmId={farmId} />}
 
             <TabBar>
               <TabButton active={tab === "arable"} onClick={() => setTab("arable")}>
