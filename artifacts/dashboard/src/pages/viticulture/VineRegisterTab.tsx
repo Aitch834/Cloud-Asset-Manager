@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useCallback, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -82,6 +82,21 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   useEffect(() => {
     if (highlightBlockId) setHighlightDismissed(false);
   }, [highlightBlockId]);
+
+  // Close the inline block-change picker on Escape
+  const closeChangePicker = useCallback(() => {
+    setChangingBlockEntryId(null);
+    setPendingBlockId(null);
+  }, []);
+
+  useEffect(() => {
+    if (changingBlockEntryId === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeChangePicker(); }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [changingBlockEntryId, closeChangePicker]);
 
   const activeHighlight = highlightBlockId && !highlightDismissed;
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
@@ -498,10 +513,11 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                     </button>
                     <button
                       type="button"
-                      className="rounded px-2 py-0.5 text-xs border border-border text-muted-foreground hover:bg-muted transition-colors"
-                      onClick={() => { setChangingBlockEntryId(null); setPendingBlockId(null); }}
+                      title="Cancel (Esc)"
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      onClick={closeChangePicker}
                     >
-                      Cancel
+                      <XCircle className="w-4 h-4" />
                     </button>
                   </div>
                 );
