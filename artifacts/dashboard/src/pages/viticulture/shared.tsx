@@ -742,6 +742,7 @@ export async function printOperations(
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
+  const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
 
   // ── 3. Build table rows ───────────────────────────────────────────────────
   const rows = records.map(r => {
@@ -805,6 +806,7 @@ export async function printOperations(
       <div>Operations Register</div>
     </div>
   </div>
+  ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these operations are included below but excluded from block-level summaries. Link them to blocks to ensure complete records.</div>` : ""}
   <table>
     <thead>
       <tr>
@@ -883,6 +885,7 @@ export async function printHarvest(
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
+  const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
 
   // ── 3. Build table rows ───────────────────────────────────────────────────
   const rows = records.map(r => {
@@ -1183,6 +1186,7 @@ export async function printHarvest(
       <div>Harvest Register</div>
     </div>
   </div>
+  ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these harvest records are included below but excluded from block-level yield summaries. Link them to blocks to ensure complete data.</div>` : ""}
   ${summaryHtml}
   <table>
     <thead>
@@ -1276,6 +1280,7 @@ export async function printDiseaseScouting(
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
+  const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
 
   // ── 3. Build per-block summary ────────────────────────────────────────────
   type ScoutBlockEntry = {
@@ -1435,6 +1440,7 @@ export async function printDiseaseScouting(
     </div>
   </div>
   ${xylellaCount > 0 ? `<div class="alert-box"><strong style="color:#dc2626">⚠ Xylella fastidiosa — Notifiable Organism</strong><br>${xylellaCount} record(s) have flagged possible Xylella. Report immediately to APHA via the online plant health portal or call 0300 1000 313.</div>` : ""}
+  ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these scouting records are included below but excluded from the block summary. Link them to blocks to ensure complete data.</div>` : ""}
   ${blockSummaryHtml}
   <table>
     <thead>
@@ -1520,6 +1526,7 @@ export async function printSprayRecords(
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.blockName ?? id) : "—";
   };
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
+  const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
 
   // ── 3. Build per-block summary ────────────────────────────────────────────
   type SprayBlockEntry = {
@@ -1654,6 +1661,7 @@ export async function printSprayRecords(
   <div class="notice">
     <strong>Statutory record:</strong> Spray records must be completed within 48 hours of application and retained for at least 3 years (Plant Protection Products Regulations 2011). Required for WineGB, Red Tractor, and cross-compliance audits.
   </div>
+  ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these spray applications are included below but excluded from the block summary. Link them to blocks to ensure complete records.</div>` : ""}
   ${sprayBlockSummaryHtml}
   <table>
     <thead>
