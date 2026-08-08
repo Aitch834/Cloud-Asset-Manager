@@ -373,6 +373,25 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onReorder }: Li
     totalSv.value = photos.length;
   }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Guard against blank slide or out-of-bounds index when the photos array
+  // shrinks (e.g. a photo deleted from the grid while the lightbox is open).
+  useEffect(() => {
+    if (!visible) return;
+    if (photos.length === 0) {
+      // All photos gone — close the lightbox gracefully
+      onClose();
+      return;
+    }
+    const stillExists = photos.some((p) => p.id === currentPhotoId);
+    if (!stillExists && currentPhotoId != null) {
+      // The currently-displayed photo was deleted. Clamp to the nearest
+      // remaining slide (indexSv.value held its old position before deletion).
+      const clampedIdx = Math.min(indexSv.value, photos.length - 1);
+      const newId = photos[clampedIdx]?.id ?? null;
+      setCurrentPhotoId(newId);
+    }
+  }, [photos]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Ref to always-current photos so goToIndex worklet callback never goes stale
   const photosRef = useRef(photos);
   photosRef.current = photos;
