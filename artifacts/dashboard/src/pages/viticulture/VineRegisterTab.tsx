@@ -429,12 +429,19 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               if (!photos || photos.length === 0) return null;
               const coverPhoto = photos[0];
               return (
-                <img
-                  src={api(`farms/${farmId}/vineyard-blocks/${Number(r.blockId)}/photos/${coverPhoto.id}`)}
-                  alt={String(linked.blockName ?? "Block photo")}
-                  loading="lazy"
-                  className="w-12 h-12 object-cover rounded border border-border"
-                />
+                <div className="flex flex-col items-center gap-0.5">
+                  <img
+                    src={api(`farms/${farmId}/vineyard-blocks/${Number(r.blockId)}/photos/${coverPhoto.id}`)}
+                    alt={String(linked.blockName ?? "Block photo")}
+                    loading="lazy"
+                    className="w-12 h-12 object-cover rounded border border-border"
+                  />
+                  {coverPhoto.caption ? (
+                    <span className="text-[10px] text-muted-foreground italic text-center max-w-[60px] leading-tight">
+                      {coverPhoto.caption}
+                    </span>
+                  ) : null}
+                </div>
               );
             },
           },
