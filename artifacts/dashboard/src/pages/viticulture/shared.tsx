@@ -1004,6 +1004,78 @@ export async function printHarvest(
   const bsPhotoHeader = hasPhotos ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>` : "";
   const bsPhotoFooterCell = hasPhotos ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>` : "";
 
+  // ── 3c. Build block × vintage cross-tab (shown after block summary, multi-vintage + multi-block only) ──
+  const uniqueBlockIdsForCross = [...new Set(records.map(r => r.blockId).filter(id => id != null && id !== ""))];
+  const showCrossTab = uniqueVintages.length > 1 && uniqueBlockIdsForCross.length > 1;
+  let crossTabHtml = "";
+  if (showCrossTab) {
+    // vintages in ascending order (uniqueVintages is desc)
+    const crossVintages = [...uniqueVintages].reverse();
+
+    // lookup: blockId → vintageYear → rows
+    const crossLookup: Record<string, Record<string, Record<string, unknown>[]>> = {};
+    for (const r of records) {
+      const bid = String(r.blockId ?? "");
+      const vy = String(r.vintageYear ?? "");
+      if (!crossLookup[bid]) crossLookup[bid] = {};
+      if (!crossLookup[bid][vy]) crossLookup[bid][vy] = [];
+      crossLookup[bid][vy].push(r);
+    }
+
+    const vintageColHeaders = crossVintages.map(vy =>
+      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
+    ).join("");
+
+    const crossBodyRows = uniqueBlockIdsForCross.map(bid => {
+      const bidStr = String(bid);
+      const bidNum = Number(bidStr);
+      const label = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.blockName ?? bidStr) : "—";
+      const vintageCells = crossVintages.map(vy => {
+        const grp = crossLookup[bidStr]?.[vy] ?? [];
+        const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+        return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>`;
+      }).join("");
+      const allForBlock = Object.values(crossLookup[bidStr] ?? {}).flat();
+      const rowTotal = allForBlock.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      const brixAll = allForBlock.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+      const avgBrixRow = brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null;
+      return `<tr>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+        ${vintageCells}
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
+      </tr>`;
+    }).join("");
+
+    const footerVintageCells = crossVintages.map(vy => {
+      const total = records
+        .filter(r => String(r.vintageYear ?? "") === vy)
+        .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>`;
+    }).join("");
+    const grandTotal = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+    const allBrix = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+    const grandAvgBrix = allBrix.length > 0 ? allBrix.reduce((a, b) => a + b, 0) / allBrix.length : null;
+
+    crossTabHtml = `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Block &times; Vintage &mdash; Total Yield (kg)</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead><tr>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+      ${vintageColHeaders}
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
+    </tr></thead>
+    <tbody>${crossBodyRows}</tbody>
+    <tfoot><tr>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      ${footerVintageCells}
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
+    </tr></tfoot>
+  </table>`;
+  }
+
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
   let vintageSummaryHtml = "";
   if (groupByVintage) {
@@ -1074,6 +1146,7 @@ export async function printHarvest(
       </tr>
     </tfoot>
   </table>
+  ${crossTabHtml}
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
     Detailed Records
   </h2>
