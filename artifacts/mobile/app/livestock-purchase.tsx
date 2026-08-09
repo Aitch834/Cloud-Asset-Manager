@@ -22,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { getApiBase, getAuthToken, postRecordAttachment, uploadPhotoToStorage } from "@/lib/uploadPhoto";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 
 const SPECIES_OPTIONS = ["Cattle", "Sheep", "Pigs", "Goats", "Horses", "Deer", "Poultry", "Other"];
 
@@ -157,6 +158,8 @@ export default function LivestockPurchaseScreen() {
 
   const apiBase = getApiBase();
   const farmId = currentFarm?.id;
+  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(farmId);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
   useEffect(() => {
     if (!farmId) return;
@@ -249,6 +252,28 @@ export default function LivestockPurchaseScreen() {
         <Text style={styles.headerTitle}>Livestock Purchase Invoice</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {missingIdentifiers && (
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              "Farm Identifiers Missing",
+              "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting records.",
+            )
+          }
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — required for livestock records."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for livestock records."
+              : "SBI number is missing from your farm profile — required for livestock records."}
+            {" "}Add them in Farm Settings on the dashboard.
+          </Text>
+        </Pressable>
+      )}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.md, paddingBottom: insets.bottom + 100 }} keyboardShouldPersistTaps="handled">
 
@@ -388,6 +413,25 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: fontSize.lg, fontFamily: fonts.semiBold, color: colors.text },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
   section: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

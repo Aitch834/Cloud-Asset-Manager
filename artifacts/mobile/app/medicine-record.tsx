@@ -25,6 +25,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
@@ -54,6 +55,8 @@ export default function MedicineRecordScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const { herds, loading: herdsLoading, error: herdsError, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
+  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
@@ -156,6 +159,28 @@ export default function MedicineRecordScreen() {
         <Text style={styles.title}>Medicine Record</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {missingIdentifiers && (
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              "Farm Identifiers Missing",
+              "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting records.",
+            )
+          }
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — required for medicine records."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for medicine records."
+              : "SBI number is missing from your farm profile — required for medicine records."}
+            {" "}Add them in Farm Settings on the dashboard.
+          </Text>
+        </Pressable>
+      )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView
@@ -443,6 +468,25 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
   form: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   sectionLabel: {
     flexDirection: "row",

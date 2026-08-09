@@ -24,6 +24,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
@@ -58,6 +59,8 @@ export default function TbTestScreen() {
 
   const farmId = currentFarm?.id;
   const { herds, loading: herdsLoading } = useApiHerds(farmId);
+  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(farmId);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -187,6 +190,28 @@ export default function TbTestScreen() {
             <Text style={styles.subtitle}>Tuberculin skin test results & reactor log</Text>
           </View>
         </View>
+
+        {missingIdentifiers && (
+          <Pressable
+            onPress={() =>
+              Alert.alert(
+                "Farm Identifiers Missing",
+                "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting records.",
+              )
+            }
+            style={styles.identifierBanner}
+          >
+            <Feather name="alert-triangle" size={15} color="#92400e" />
+            <Text style={styles.identifierBannerText}>
+              {!cphNumber && !sbiNumber
+                ? "CPH and SBI are missing from your farm profile — required for TB test records."
+                : !cphNumber
+                ? "CPH number is missing from your farm profile — required for TB test records."
+                : "SBI number is missing from your farm profile — required for TB test records."}
+              {" "}Add them in Farm Settings on the dashboard.
+            </Text>
+          </Pressable>
+        )}
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
@@ -473,6 +498,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   backButton: { marginRight: spacing.sm, padding: spacing.xs },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
   title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   subtitle: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   scroll: { flex: 1 },
