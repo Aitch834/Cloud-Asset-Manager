@@ -172,6 +172,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const csvCols = [
     { key: "observationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.observationDate) },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
+    { key: "blockLinked", label: "Block Linked", fmt: (r: Record<string, unknown>) => r.blockId ? "Yes" : "No" },
     { key: "bbchStage", label: "BBCH Stage" },
     { key: "bbchDescription", label: "Description" },
     { key: "percentageReached", label: "% Reached" },
