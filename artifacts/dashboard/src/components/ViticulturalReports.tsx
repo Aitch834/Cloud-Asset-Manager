@@ -1269,10 +1269,10 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     staleTime: 5 * 60 * 1000,
   });
-  const entMissingFields = farmMeta
+  const entMissingFields = farmMeta != null
     ? [
-        !farmMeta.name && "Company / farm name",
-        !farmMeta.address && "Farm address",
+        !farmMeta.name || String(farmMeta.name).trim() === "" ? "Farm name" : "",
+        !farmMeta.address || String(farmMeta.address).trim() === "" ? "Farm address" : "",
       ].filter(Boolean) as string[]
     : [];
 
@@ -1385,7 +1385,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
               className="underline underline-offset-2 hover:text-amber-900 font-medium"
               onClick={() => setLocation("/settings/farm")}
             >
-              Add in Farm Settings → Basic Details
+              Add in Farm Settings → General
             </button>
           </span>
         </div>
