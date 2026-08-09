@@ -568,6 +568,7 @@ export async function printVineRegister(
   // Prefer farmMeta refs over the legacy fsaVineRef argument
   const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
   const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
 
   // Render each ref — or an amber warning badge when missing
   const fsaVineRefHtml = fsaVineRegisterRef
@@ -576,12 +577,15 @@ export async function printVineRegister(
   const fsaWineRefHtml = fsaWineProductionRef
     ? `FSA Wine Production Ref: <strong>${escHtml(fsaWineProductionRef)}</strong>`
     : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+  const appaRefHtml = appaRef
+    ? `APPA Ref: <strong>${escHtml(appaRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
 
-  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef;
+  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
   const missingRefWarningBlock = anyMissingRef
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing registration references</strong> &mdash;
-        the field(s) marked below have not been set in Farm Settings.
+        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
         Add them before submitting this register to the FSA.
       </div>`
     : "";
@@ -627,6 +631,7 @@ export async function printVineRegister(
         <strong>${safeFarmName}</strong><br>
         ${fsaVineRefHtml}<br>
         ${fsaWineRefHtml}<br>
+        ${appaRefHtml}<br>
         ${safeAddress ? `${safeAddress}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
       </div>
       <div class="badges">
