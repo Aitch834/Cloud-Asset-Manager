@@ -87,6 +87,11 @@ function useVitData(farmId: number) {
   };
 }
 
+const BLOCK_COLORS = [
+  "#7c3aed", "#2563eb", "#16a34a", "#dc2626", "#d97706",
+  "#0891b2", "#db2777", "#65a30d", "#9333ea", "#0f766e",
+];
+
 const DISEASE_SERIES = [
   { key: "downyMildewPressure", label: "Downy Mildew", color: "#7c3aed" },
   { key: "powderyMildewPressure", label: "Powdery Mildew", color: "#8b5cf6" },
@@ -622,6 +627,36 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     return Object.values(map).sort((a, b) => b.vintage.localeCompare(a.vintage));
   }, [year, harvests, blockMap]);
 
+  // Per-block yield trend across all vintages (all-vintages mode only)
+  const blockYieldTrendData = useMemo(() => {
+    if (year != null) return { chartData: [], blockLines: [] as { key: string; color: string }[] };
+    const allVintages = [...new Set(
+      harvests.map(h => String(h.vintageYear)).filter(yr => yr && yr !== "null" && yr !== "undefined"),
+    )].sort();
+    const blocksWithData = blocks.filter(
+      b => b.isActive !== false && harvests.some(h => h.blockId === b.id),
+    );
+    if (blocksWithData.length === 0 || allVintages.length === 0) {
+      return { chartData: [], blockLines: [] as { key: string; color: string }[] };
+    }
+    const chartData = allVintages.map(yr => {
+      const row: Record<string, number | string | null> = { vintage: yr };
+      blocksWithData.forEach(bl => {
+        const recs = harvests.filter(h => h.blockId === bl.id && String(h.vintageYear) === yr);
+        if (recs.length === 0) { row[bl.blockName] = null; return; }
+        const totKg = recs.reduce((s, r) => s + n(r.yieldKg), 0);
+        const areaHa = n(bl.areaHa);
+        row[bl.blockName] = areaHa > 0 ? parseFloat((totKg / 1000 / areaHa).toFixed(2)) : null;
+      });
+      return row;
+    });
+    const blockLines = blocksWithData.map((bl, i) => ({
+      key: bl.blockName,
+      color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+    }));
+    return { chartData, blockLines };
+  }, [year, harvests, blocks]);
+
   // Totals
   const totalYieldKg = useMemo(() => vintageHarvest.reduce((s, h) => s + n(h.yieldKg), 0), [vintageHarvest]);
   const totalAreaHa = useMemo(() => {
@@ -799,6 +834,49 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
           </div>
         );
       })()}
+
+      {/* Per-block yield trend chart (all-vintages mode only) */}
+      {year == null && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden no-print">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">Per-Block Yield Trend — All Vintages</h3>
+            <p className="text-xs text-foreground/40">Yield (t/ha) per vintage for each block — spot which blocks are improving or declining</p>
+          </div>
+          <div className="p-4">
+            {blockYieldTrendData.chartData.length === 0 ? (
+              <p className="text-sm text-foreground/40 text-center py-6">
+                No block harvest records found. Link harvest records to blocks to see per-block trends.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(220, blockYieldTrendData.blockLines.length * 18 + 80)}>
+                <LineChart data={blockYieldTrendData.chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    width={50}
+                    label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }}
+                    domain={[0, "auto"]}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  {blockYieldTrendData.blockLines.map(bl => (
+                    <Line
+                      key={bl.key}
+                      type="monotone"
+                      dataKey={bl.key}
+                      stroke={bl.color}
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* All-vintages yield summary table */}
       {year == null && (
