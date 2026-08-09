@@ -80,7 +80,7 @@ export function MortalitySection({ farmId }: { farmId: number }) {
   );
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "reported" | "disposal_arranged" | "disposed" | "closed">("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "mortality", filter: "status", farmId, defaultValue: "all" });
   const [viewRecord, setViewRecord] = useState<MortalityRecord | null>(null);
   const [arrangingDisposal, setArrangingDisposal] = useState<MortalityRecord | null>(null);
   const [loggingCollection, setLoggingCollection] = useState<MortalityRecord | null>(null);

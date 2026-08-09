@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useLocation } from "wouter";
 import { FlaskConical, CheckCircle2, AlertTriangle, Clock, ChevronRight, Info, TrendingUp } from "lucide-react";
@@ -88,7 +89,7 @@ export default function SoilDashboard() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
   const [viewTab, setViewTab] = usePersistedTab<"overview" | "trends">({ page: "soil-dashboard", farmId, validIds: ["overview", "trends"], defaultTab: "overview" });
-  const [selectedNutrient, setSelectedNutrient] = useState("ph");
+  const [selectedNutrient, setSelectedNutrient] = usePersistedFilter({ page: "soil-dashboard", filter: "nutrient", farmId, defaultValue: "ph" });
 
   const fieldsQ = useQuery({
     queryKey: ["fields", farmId],

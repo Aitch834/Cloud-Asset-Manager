@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -148,7 +149,7 @@ export function MobilityTab({ farmId }: { farmId: number }) {
 
   const allMobilityRecords = data?.records ?? [];
 
-  const [yearFilterMob, setYearFilterMob] = useState("all");
+  const [yearFilterMob, setYearFilterMob] = usePersistedFilter({ page: "dairy-mobility", filter: "year", farmId, defaultValue: "all" });
   const yearsMob = useMemo(() => {
     const s = new Set(allMobilityRecords.map(r => r.assessmentDate?.slice(0, 4)).filter(Boolean) as string[]);
     return Array.from(s).sort().reverse();

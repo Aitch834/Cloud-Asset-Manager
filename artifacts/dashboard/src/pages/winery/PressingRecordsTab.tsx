@@ -2,6 +2,7 @@ import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByV
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
 import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS, usePersistedYearFilter } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
@@ -42,7 +43,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedYearFilter("pressing", farmId);
   const [pressingSearch, setPressingSearch] = useState("");
   const [pressingNonCompliantOnly, setPressingNonCompliantOnly] = useState(false);
-  const [signedFilter, setSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
+  const [signedFilter, setSignedFilter] = usePersistedFilter({ page: "pressing-records", filter: "signed", farmId, defaultValue: "all" });
   const pressingSortKey = `pressing-sort-${farmId}`;
   const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "press_efficiency_l_per_kg", "juice_brix", "juice_ph", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
@@ -726,7 +727,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                 type="button"
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
                 title={`${unsignedCount} pressing record${unsignedCount === 1 ? "" : "s"} in the current vintage filter ${unsignedCount === 1 ? "has" : "have"} not been signed off — click to ${signedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
-                onClick={() => setSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+                onClick={() => setSignedFilter(signedFilter === "unsigned" ? "all" : "unsigned")}
               >
                 <PenLine className="w-3 h-3" />{unsignedCount} unsigned
               </button>

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,8 +33,8 @@ export function ThinningRecordsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-thinning-records", "poultry-thinning");
   const tList = (records ?? []) as Record<string, unknown>[];
-  const [flockFilterThin, setFlockFilterThin] = useState("all");
-  const [yearFilterThin, setYearFilterThin] = useState("all");
+  const [flockFilterThin, setFlockFilterThin] = usePersistedFilter({ page: "poultry-thinning", filter: "flock", farmId, defaultValue: "all" });
+  const [yearFilterThin, setYearFilterThin] = usePersistedFilter({ page: "poultry-thinning", filter: "year", farmId, defaultValue: "all" });
   const yearsThin = useMemo(() => {
     const s = new Set(tList.map(r => String(r.thinningDate ?? "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort().reverse();

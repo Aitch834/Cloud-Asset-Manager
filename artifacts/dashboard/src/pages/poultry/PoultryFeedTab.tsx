@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,7 @@ export function PoultryFeedTab({ farmId }: { farmId: number }) {
     const sp = String(d.speciesIntended ?? "").toLowerCase();
     return sp === "poultry" || sp === "mixed";
   }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
-  const [yearFilterFeed, setYearFilterFeed] = useState("all");
+  const [yearFilterFeed, setYearFilterFeed] = usePersistedFilter({ page: "poultry-feed", filter: "year", farmId, defaultValue: "all" });
   const deliveryYears = [...new Set(poultryDeliveries.map(d => String(d.deliveryDate ?? "").slice(0, 4)).filter(Boolean))].sort((a, b) => b.localeCompare(a));
   const filteredDeliveries = yearFilterFeed === "all" ? poultryDeliveries : poultryDeliveries.filter(d => String(d.deliveryDate ?? "").startsWith(yearFilterFeed));
 

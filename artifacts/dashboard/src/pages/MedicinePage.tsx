@@ -5,6 +5,7 @@ import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -883,7 +884,7 @@ function MedicineRegisterContent({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = usePersistedTab<StatusFilter>({ page: "medicine", farmId, validIds: ["all", "in_withdrawal", "cleared", "no_withdrawal", "analytics", "adr"], defaultTab: "all" });
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "medicine", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [historyOpen, setHistoryOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MedicineRecord | null>(null);

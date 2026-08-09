@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,8 +33,8 @@ export function FciTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-fci-documents", "poultry-fci");
   const fciList = (records ?? []) as Record<string, unknown>[];
-  const [flockFilterFci, setFlockFilterFci] = useState("all");
-  const [yearFilterFci, setYearFilterFci] = useState("all");
+  const [flockFilterFci, setFlockFilterFci] = usePersistedFilter({ page: "poultry-fci", filter: "flock", farmId, defaultValue: "all" });
+  const [yearFilterFci, setYearFilterFci] = usePersistedFilter({ page: "poultry-fci", filter: "year", farmId, defaultValue: "all" });
   const yearsFci = useMemo(() => Array.from(new Set(fciList.map(r => String(r.documentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [fciList]);
   const filteredFciList = fciList.filter(r => (flockFilterFci === "all" || String(r.flockId) === flockFilterFci) && (yearFilterFci === "all" || String(r.documentDate ?? "").startsWith(yearFilterFci)));
   const notWithdrawalClear = filteredFciList.filter(r => !r.withdrawalPeriodClear).length;

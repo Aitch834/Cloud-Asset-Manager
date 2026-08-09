@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -291,7 +292,7 @@ export default function SprayPage() {
   const qc = useQueryClient();
   const [tab, setTab] = usePersistedTab<SprayTab>({ page: "spray", farmId, validIds: SPRAY_TAB_IDS, defaultTab: "applications" });
 
-  const [cropYear, setCropYear] = useState<number>(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "spray", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const applicationsQ = useQuery({ queryKey: ["spray-applications", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-applications`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const productsQ = useQuery({ queryKey: ["spray-products", farmId], queryFn: () => fetch(`/api/farms/${farmId}/spray-products`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
   const fieldsQ = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()), enabled: !!farmId, select: d => d.records ?? [] });
@@ -512,7 +513,7 @@ function ApplicationsTab({ applications, products, fields, farmId, loading, onRe
   const bbchStages = useLookupStrings("spray_bbch_stages");
 
   const [search, setSearch] = useState<string>(initialSearch ?? "");
-  const [filterField, setFilterField] = useState("__all__");
+  const [filterField, setFilterField] = usePersistedFilter({ page: "spray-applications", filter: "field", farmId, defaultValue: "__all__" });
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -3102,7 +3103,7 @@ function LerapTab({ farmId, products, fields }: { farmId: number; products: any[
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [soilAutoFilled, setSoilAutoFilled] = useState(false);
   const [bufferAutoFilled, setBufferAutoFilled] = useState(false);
-  const [filterField, setFilterField] = useState("__all__");
+  const [filterField, setFilterField] = usePersistedFilter({ page: "spray-lerap", filter: "field", farmId, defaultValue: "__all__" });
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewRecord, setReviewRecord] = useState<any>(null);
   const [reviewForm, setReviewForm] = useState<{ confirmedOutcome: string; reviewNotes: string }>({ confirmedOutcome: "full_buffer_maintained", reviewNotes: "" });

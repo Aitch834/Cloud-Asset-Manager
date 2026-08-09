@@ -18,6 +18,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
@@ -113,7 +114,7 @@ export function SeedDrillingSection({ farmId, fields }: { farmId: number; fields
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState<number>(() => currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "seed-drilling", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const { data: membersData } = useFarmMembers(farmId);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SeedRecord | null>(null);

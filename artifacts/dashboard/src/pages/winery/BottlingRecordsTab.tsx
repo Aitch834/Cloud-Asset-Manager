@@ -1,6 +1,7 @@
 import { BatchTrailDialog } from "./BatchTrail";
 import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, bottlingSo2Verdict, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
@@ -39,7 +40,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
   const [bottlingSearch, setBottlingSearch] = useState("");
-  const [bottlingSignedFilter, setBottlingSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
+  const [bottlingSignedFilter, setBottlingSignedFilter] = usePersistedFilter({ page: "bottling-records", filter: "signed", farmId, defaultValue: "all" });
   const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
@@ -373,7 +374,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                 type="button"
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
                 title={`${bottlingUnsignedCount} bottling record${bottlingUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${bottlingUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${bottlingSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
-                onClick={() => setBottlingSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+                onClick={() => setBottlingSignedFilter(bottlingSignedFilter === "unsigned" ? "all" : "unsigned")}
               >
                 <PenLine className="w-3 h-3" />{bottlingUnsignedCount} unsigned
               </button>

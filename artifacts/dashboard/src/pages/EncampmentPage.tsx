@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -232,7 +233,7 @@ export default function EncampmentPage() {
   const [editItem, setEditItem] = useState<Encampment | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "encampment", filter: "status", farmId, defaultValue: "all" });
   const [raiseTaskFor, setRaiseTaskFor] = useState<Encampment | null>(null);
   const [viewItem, setViewItem] = useState<Encampment | null>(null);
   const [form, setForm] = useState<Omit<Encampment, "id" | "farmId" | "photos">>({ ...EMPTY });

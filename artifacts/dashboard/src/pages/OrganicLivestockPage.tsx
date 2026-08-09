@@ -4,6 +4,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -940,8 +941,8 @@ function FeedTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const [viewRecord, setViewRecord] = useState<FeedRecord | null>(null);
   const [form, setForm] = useState<Partial<FeedRecord>>({});
   const [supplierId, setSupplierId] = useState<number | null>(null);
-  const [filterYear, setFilterYear] = useState<string>("all");
-  const [filterSpecies, setFilterSpecies] = useState<string>("all");
+  const [filterYear, setFilterYear] = usePersistedFilter({ page: "organic-livestock-feed", filter: "year", farmId, defaultValue: "all" });
+  const [filterSpecies, setFilterSpecies] = usePersistedFilter({ page: "organic-livestock-feed", filter: "species", farmId, defaultValue: "all" });
 
   const { data } = useQuery<{ records: FeedRecord[] }>({
     queryKey: ["organic-livestock-feed", farmId],
@@ -1385,7 +1386,7 @@ function OutdoorAccessTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [editing, setEditing] = useState<OutdoorAccessRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<OutdoorAccessRecord | null>(null);
   const [form, setForm] = useState<Partial<OutdoorAccessRecord>>({});
-  const [yearFilterOA, setYearFilterOA] = useState("all");
+  const [yearFilterOA, setYearFilterOA] = usePersistedFilter({ page: "organic-livestock-outdoor-access", filter: "year", farmId, defaultValue: "all" });
 
   const { data } = useQuery<{ records: OutdoorAccessRecord[] }>({
     queryKey: ["organic-livestock-outdoor-access", farmId],
@@ -1647,7 +1648,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const [viewRecord, setViewRecord] = useState<TreatmentRecord | null>(null);
   const [raiseTaskRecord, setRaiseTaskRecord] = useState<TreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<TreatmentRecord>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-livestock-treatments", filter: "year", farmId, defaultValue: "all" });
 
   const { data } = useQuery<{ records: TreatmentRecord[] }>({
     queryKey: ["organic-livestock-treatments", farmId],
@@ -2633,7 +2634,7 @@ function KiddingSection({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Partial<OlKiddingRecord>>(BLANK);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-livestock-kidding", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
 
   const set = (k: keyof OlKiddingRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
@@ -2967,7 +2968,7 @@ function OrgVetPrescriptionsSection({ farmId }: { farmId: number }) {
   const [userNotes, setUserNotes] = useState("");
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [deletePending, setDeletePending] = useState<{ id: number; msg: string } | null>(null);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-livestock-vet-prescriptions", filter: "year", farmId, defaultValue: "all" });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["vet-prescriptions", farmId],
@@ -3280,7 +3281,7 @@ function OrgSheepDippingSection({ farmId }: { farmId: number }) {
     queryFn: () => fetch(base).then(r => r.json()),
   });
   const records = data?.records ?? [];
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-livestock-sheep-dipping", filter: "year", farmId, defaultValue: "all" });
   const years = useMemo(() => Array.from(new Set(records.map(r => String(r.dipDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
   const filtered = yearFilter === "all" ? records : records.filter(r => String(r.dipDate ?? "").startsWith(yearFilter));
 

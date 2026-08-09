@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { openPrintWindow } from "@/lib/print-report";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,7 +101,7 @@ function WeighTab({ farmId, onRaiseTask }: { farmId: number; onRaiseTask: (row: 
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-weigh-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-weigh", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "beef-weigh", filter: "year", farmId, defaultValue: "all" });
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.weighDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.weighDate ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
@@ -229,7 +230,7 @@ function FinishingTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/beef-finishing-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["beef-finishing", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "beef-finishing", filter: "year", farmId, defaultValue: "all" });
   const years = useMemo(() => Array.from(new Set((rows as Record<string, unknown>[]).map(r => String(r.dateEnteredFinishing ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [rows]);
   const filtered = useMemo(() => yearFilter === "all" ? rows as Record<string, unknown>[] : (rows as Record<string, unknown>[]).filter(r => String(r.dateEnteredFinishing ?? "").startsWith(yearFilter)), [rows, yearFilter]);
 
@@ -356,7 +357,7 @@ function DeadweightTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "beef-deadweight", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-deadweight", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-deadweight-settlements`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/beef-deadweight-settlements/${editing.id}`) : api(`farms/${farmId}/beef-deadweight-settlements`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -464,7 +465,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "beef-rt-checklist", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["beef-rt", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-rt-checklists`), { credentials: "include" }).then(r => r.json()) });
   const { data: membersData, isLoading: membersLoading } = useFarmMembers(farmId);
   const staffNames = (membersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
@@ -558,7 +559,7 @@ function RTChecklistTab({ farmId }: { farmId: number }) {
 
 // ─── REPORTS TAB ──────────────────────────────────────────────────────────────
 function ReportsTab({ farmId }: { farmId: number }) {
-  const [yearFilter, setYearFilter] = useState("__all__");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "beef-reports", filter: "year", farmId, defaultValue: "__all__" });
 
   const weighQ = useQuery({ queryKey: ["beef-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const finishQ = useQuery({ queryKey: ["beef-finishing", farmId], queryFn: () => fetch(api(`farms/${farmId}/beef-finishing-records`), { credentials: "include" }).then(r => r.json()) });

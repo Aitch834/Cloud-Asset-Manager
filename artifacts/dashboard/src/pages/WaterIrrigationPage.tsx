@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { Redirect } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -204,7 +205,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
     }));
   }, [form.licenceId, form.meterReading, form.readingDate]);
 
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "water-meter-readings", filter: "year", farmId, defaultValue: "all" });
   const years = useMemo(() => Array.from(new Set(allReadings.map(r => String(r.readingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allReadings]);
   const filteredReadings = yearFilter === "all" ? allReadings : allReadings.filter(r => String(r.readingDate ?? "").startsWith(yearFilter));
   return (
@@ -281,7 +282,7 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
   function openEnterResult(r: Record<string, unknown>) { setEditing(r); setMode("result"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); }
 
   const allBoreRows = tests as Record<string, unknown>[];
-  const [yearFilterBore, setYearFilterBore] = useState("all");
+  const [yearFilterBore, setYearFilterBore] = usePersistedFilter({ page: "water-borehole-tests", filter: "year", farmId, defaultValue: "all" });
   const yearsBore = useMemo(() => Array.from(new Set(allBoreRows.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allBoreRows]);
   const rows = yearFilterBore === "all" ? allBoreRows : allBoreRows.filter(r => String(r.testDate ?? "").startsWith(yearFilterBore));
   return (
@@ -530,7 +531,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const estimatedCost = effectiveVolume && costPerM3 ? (effectiveVolume * costPerM3).toFixed(2) : null;
 
   const allIrrigRecords = records as Record<string, unknown>[];
-  const [yearFilterIrrig, setYearFilterIrrig] = useState("all");
+  const [yearFilterIrrig, setYearFilterIrrig] = usePersistedFilter({ page: "water-irrigation-records", filter: "year", farmId, defaultValue: "all" });
   const yearsIrrig = useMemo(() => Array.from(new Set(allIrrigRecords.map(r => String(r.irrigationDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allIrrigRecords]);
   const filteredIrrigRecords = yearFilterIrrig === "all" ? allIrrigRecords : allIrrigRecords.filter(r => String(r.irrigationDate ?? "").startsWith(yearFilterIrrig));
   const openCount = filteredIrrigRecords.filter(r => r.status === "open").length;
@@ -974,7 +975,7 @@ function SoilMoistureTab({ farmId }: { farmId: number }) {
   };
 
   const allSoilRecords = records as Record<string, unknown>[];
-  const [yearFilterSoil, setYearFilterSoil] = useState("all");
+  const [yearFilterSoil, setYearFilterSoil] = usePersistedFilter({ page: "water-soil-moisture", filter: "year", farmId, defaultValue: "all" });
   const yearsSoil = useMemo(() => Array.from(new Set(allSoilRecords.map(r => String(r.readingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allSoilRecords]);
   const filteredSoilRecords = yearFilterSoil === "all" ? allSoilRecords : allSoilRecords.filter(r => String(r.readingDate ?? "").startsWith(yearFilterSoil));
   return (
@@ -1067,7 +1068,7 @@ function DroughtManagementTab({ farmId }: { farmId: number }) {
   const STAGES = ["normal", "prolonged dry spell", "drought", "severe drought", "exceptional drought"];
   const RESTRICTIONS = ["none", "voluntary reduction", "stage 1 restriction", "stage 2 restriction", "temporary use ban", "drought permit needed"];
   const allDroughtRecords = records as Record<string, unknown>[];
-  const [yearFilterDrought, setYearFilterDrought] = useState("all");
+  const [yearFilterDrought, setYearFilterDrought] = usePersistedFilter({ page: "water-drought-management", filter: "year", farmId, defaultValue: "all" });
   const yearsDrought = useMemo(() => Array.from(new Set(allDroughtRecords.map(r => String(r.planYear ?? "")).filter(Boolean))).sort().reverse(), [allDroughtRecords]);
   const filteredDroughtRecords = yearFilterDrought === "all" ? allDroughtRecords : allDroughtRecords.filter(r => String(r.planYear ?? "") === yearFilterDrought);
   return (
@@ -1168,7 +1169,7 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
   };
 
   const allCamsRecords = records as Record<string, unknown>[];
-  const [yearFilterCams, setYearFilterCams] = useState("all");
+  const [yearFilterCams, setYearFilterCams] = usePersistedFilter({ page: "water-cams-returns", filter: "year", farmId, defaultValue: "all" });
   const yearsCams = useMemo(() => Array.from(new Set(allCamsRecords.map(r => String(r.returnYear ?? "")).filter(Boolean))).sort().reverse(), [allCamsRecords]);
   const filteredCamsRecords = yearFilterCams === "all" ? allCamsRecords : allCamsRecords.filter(r => String(r.returnYear ?? "") === yearFilterCams);
   return (

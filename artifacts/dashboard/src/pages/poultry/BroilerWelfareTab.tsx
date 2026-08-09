@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,9 +35,9 @@ export function BroilerWelfareTab({ farmId }: { farmId: number }) {
   const { data: bwiMembersData, isLoading: bwiMembersLoading } = useFarmMembers(farmId);
   const bwiStaffNames = (bwiMembersData?.members ?? []).filter((m: any) => m.isActive).map((m: any) => `${m.firstName} ${m.lastName}`);
   const bwiList = (records ?? []) as Record<string, unknown>[];
-  const [flockFilterBwi, setFlockFilterBwi] = useState("all");
-  const [outcomeFilterBwi, setOutcomeFilterBwi] = useState("all");
-  const [yearFilterBwi, setYearFilterBwi] = useState("all");
+  const [flockFilterBwi, setFlockFilterBwi] = usePersistedFilter({ page: "poultry-welfare", filter: "flock", farmId, defaultValue: "all" });
+  const [outcomeFilterBwi, setOutcomeFilterBwi] = usePersistedFilter({ page: "poultry-welfare", filter: "outcome", farmId, defaultValue: "all" });
+  const [yearFilterBwi, setYearFilterBwi] = usePersistedFilter({ page: "poultry-welfare", filter: "year", farmId, defaultValue: "all" });
   const yearsBwi = useMemo(() => Array.from(new Set(bwiList.map(r => String(r.assessmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [bwiList]);
   const filteredBwiList = bwiList.filter(r =>
     (flockFilterBwi === "all" || String(r.flockId) === flockFilterBwi) &&

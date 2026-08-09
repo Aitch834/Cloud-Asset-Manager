@@ -21,6 +21,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useToast } from "@/hooks/use-toast";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { StorageLocationMapPicker } from "@/components/storage/StorageLocationMapPicker";
@@ -416,7 +417,7 @@ function StockMovementsTab({ farmId, locationId }: { farmId: number; locationId:
   const [viewMovement, setViewMovement] = useState<StockMovement | null>(null);
   const [movForm, setMovForm] = useState(emptyMovement());
   const [deleteMovId, setDeleteMovId] = useState<number | null>(null);
-  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [filterYear, setFilterYear] = usePersistedFilter({ page: "storage-stock-movements", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [linkType, setLinkType] = useState<string>("");
   const [linkId, setLinkId] = useState<number | null>(null);
   const [viewLinked, setViewLinked] = useState<{ type: string; id: number } | null>(null);
@@ -895,7 +896,7 @@ function MerchantChargesPanel({ farmId, locationId, location }: { farmId: number
   const [deleteChargeId, setDeleteChargeId] = useState<number | null>(null);
   const [autoGenOpen, setAutoGenOpen] = useState(false);
   const [autoGenForm, setAutoGenForm] = useState(emptyAutoGen());
-  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [filterYear, setFilterYear] = usePersistedFilter({ page: "storage-merchant-charges", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const chargesQ = useQuery<{ records: MerchantCharge[] }>({
     queryKey: ["merchant-charges", farmId, locationId],

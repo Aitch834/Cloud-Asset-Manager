@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { TrendingUp, Printer, ChevronDown, ChevronUp, Leaf, Package } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -75,7 +76,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function FreshProduceReports({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = usePersistedNumberFilter({ page: "fresh-produce-reports", filter: "year", farmId, defaultValue: currentYear });
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection(v => v === s ? null : s);
 

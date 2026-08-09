@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -215,7 +216,7 @@ function BlockConversionTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "organic-vit-block-conversion", filter: "status", farmId, defaultValue: "all" });
 
   const { data, isLoading } = useQuery<{ records: any[] }>({
     queryKey: ["org-vit-block-status", farmId],
@@ -417,7 +418,7 @@ function InputLogTab({ farmId, blocks }: { farmId: number; blocks: Record<string
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-vit-input-log", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [productLookupId, setProductLookupId] = useState<string>("");
   const inputUnits = useLookupStrings("organic_input_units", ["kg/ha", "g/ha", "L/ha", "mL/ha", "kg", "g", "L", "mL", "t/ha", "Other"]);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
@@ -712,7 +713,7 @@ function CopperRegisterTab({ farmId, blocks }: { farmId: number; blocks: Record<
   const [editing, setEditing] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-vit-copper-register", filter: "year", farmId, defaultValue: "all" });
   const copperProducts = useLookupStrings("organic_copper_products", ["Bordeaux Mixture WP", "Copper Hydroxide WP", "Copper Oxychloride WP", "Copper Sulfate (tribasic)", "Nordox 75 WG", "Trophy WG", "Other"]);
   const sprayMethods = useLookupStrings("vineyard_spray_application_methods", ["Knapsack Sprayer", "Tractor-mounted Boom Sprayer", "Air-blast / Vineyard Sprayer", "Lean-to / Facing Sprayer", "Drone Application", "Hand-held Lance", "Other"]);
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
@@ -1049,7 +1050,7 @@ function InputDerogationsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<DerogCase | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-vit-input-derogations", filter: "year", farmId, defaultValue: "all" });
   const [regulatoryOther, setRegulatoryOther] = useState(false);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
   const [recordDecisionFor, setRecordDecisionFor] = useState<DerogCase | null>(null);

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { Link } from "wouter";
 import { printFromRef } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -188,7 +189,7 @@ export default function WasteDisposalPage() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "waste-disposal", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [addOpen, setAddOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<WasteRecord | null>(null);
   const [editRecord, setEditRecord] = useState<WasteRecord | null>(null);

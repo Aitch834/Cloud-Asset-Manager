@@ -231,8 +231,8 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = usePersistedFilter({ page: "financial-transactions", filter: "type", farmId, defaultValue: "all" });
+  const [sourceFilter, setSourceFilter] = usePersistedFilter({ page: "financial-transactions", filter: "source", farmId, defaultValue: "all" });
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-transactions", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -943,7 +943,7 @@ function AttachmentPanel({ farmId, purchaseId }: { farmId: number; purchaseId: n
 function LivestockPurchasesTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "financial-livestock-purchases", filter: "status", farmId, defaultValue: "all" });
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);

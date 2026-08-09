@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, AlertTriangle, ShoppingCart, Package, FlaskConical, CheckCircle2, Clock, Truck, XCircle, ChevronDown, ChevronUp, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -84,8 +85,8 @@ export function DairySuppliesTab({ farmId, dairyType }: { farmId: number; dairyT
   const [drawdownOpen, setDrawdownOpen] = useState(false);
   const [restockOpen, setRestockOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [historyYear, setHistoryYear] = useState("all");
-  const [historyItemType, setHistoryItemType] = useState("all");
+  const [historyYear, setHistoryYear] = usePersistedFilter({ page: "dairy-supplies", filter: "year", farmId, defaultValue: "all" });
+  const [historyItemType, setHistoryItemType] = usePersistedFilter({ page: "dairy-supplies", filter: "item-type", farmId, defaultValue: "all" });
 
   const blankDrawdown = { drawdownDate: today(), itemType: "ppe", itemName: "", ppeStockItemId: "", chemStockItemId: "", quantityUsed: "", unit: "items", usedBy: "", usageContext: "", notes: "" };
   const [dForm, setDForm] = useState<typeof blankDrawdown>(blankDrawdown);

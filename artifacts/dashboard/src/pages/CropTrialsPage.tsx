@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -810,8 +811,8 @@ export default function CropTrialsPage() {
   const [editItem, setEditItem] = useState<Trial | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedTrial, setSelectedTrial] = useState<Trial | null>(null);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "crop-trials", filter: "status", farmId, defaultValue: "all" });
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "crop-trials", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [form, setForm] = useState<typeof EMPTY_TRIAL>({ ...EMPTY_TRIAL });
 

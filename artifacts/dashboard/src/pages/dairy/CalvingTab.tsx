@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -63,7 +64,7 @@ export function CalvingTab({ farmId }: { farmId: number }) {
   const [showManualEarTag, setShowManualEarTag] = useState(false);
   const [showManualVet, setShowManualVet] = useState(false);
   const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "dairy-calving", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
 
   const { data, isLoading } = useQuery<{ records: CalvingRecord[] }>({
     queryKey: ["dairy-calving", farmId],

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1403,7 +1404,7 @@ function AssuranceCertsTab({ farmId }: { farmId: number }) {
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [renewingFrom, setRenewingFrom] = useState<number | null>(null);
-  const [filterTab, setFilterTab] = useState<CertFilter>("all");
+  const [filterTab, setFilterTab] = usePersistedFilter({ page: "inspections-assurance-certs", filter: "type", farmId, defaultValue: "all" });
   const emptyForm = { certificationBody: "", scheme: "", certNumber: "", sectors: "", assessorName: "", assessorMembershipNo: "", issueDate: "", expiryDate: "", status: "active", nextVisitDue: "", notes: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const certificationBodies = useLookupStrings("certification_bodies", CERT_BODIES);

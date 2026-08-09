@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -271,16 +272,14 @@ export function MilkRecordsTab({ farmId }: { farmId: number }) {
 
   // Month filter — default to current month
   const now = new Date();
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-  const [filterMonth, setFilterMonth] = useState(now.getMonth()); // 0-indexed
+  const [filterYear, setFilterYear] = usePersistedNumberFilter({ page: "dairy-milk", filter: "year", farmId, defaultValue: now.getFullYear() });
+  const [filterMonth, setFilterMonth] = usePersistedNumberFilter({ page: "dairy-milk", filter: "month", farmId, defaultValue: now.getMonth() }); // 0-indexed
 
   function stepMonth(dir: 1 | -1) {
-    setFilterMonth(m => {
-      const next = m + dir;
-      if (next < 0) { setFilterYear(y => y - 1); return 11; }
-      if (next > 11) { setFilterYear(y => y + 1); return 0; }
-      return next;
-    });
+    const next = filterMonth + dir;
+    if (next < 0) { setFilterYear(filterYear - 1); setFilterMonth(11); }
+    else if (next > 11) { setFilterYear(filterYear + 1); setFilterMonth(0); }
+    else { setFilterMonth(next); }
   }
 
   const monthLabel = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,8 +41,8 @@ export function SchemeRecordsTab({ farmId }: { farmId: number }) {
   const SCHEMES = ["Red Tractor Poultry (Broiler)", "Red Tractor Poultry (Turkey)", "Red Tractor Poultry (Laying Hens)", "Lion Quality", "RSPCA Assured", "Organic (Soil Association)", "Organic (OF&G)", "Free Range", "Higher Welfare", "M&S Select Farms", "Other"];
   const OUTCOMES = ["Pass", "Conditional Pass", "Fail", "Pending", "Under Review"];
   const schList = records as Record<string, unknown>[];
-  const [schemeNameFilter, setSchemeNameFilter] = useState("all");
-  const [yearFilterSch, setYearFilterSch] = useState("all");
+  const [schemeNameFilter, setSchemeNameFilter] = usePersistedFilter({ page: "poultry-scheme-records", filter: "scheme", farmId, defaultValue: "all" });
+  const [yearFilterSch, setYearFilterSch] = usePersistedFilter({ page: "poultry-scheme-records", filter: "year", farmId, defaultValue: "all" });
   const yearsSch = useMemo(() => Array.from(new Set(schList.map(r => String(r.assessmentYear ?? "")).filter(Boolean))).sort().reverse(), [schList]);
   const filteredSchList = schList.filter(r => (schemeNameFilter === "all" || String(r.schemeName ?? "") === schemeNameFilter) && (yearFilterSch === "all" || String(r.assessmentYear ?? "") === yearFilterSch));
   const today = new Date();

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
-import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
@@ -184,7 +184,7 @@ function MilkTab({ farmId }: { farmId: number }) {
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-milk", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/milk-records`)).then(r => r.json()) });
   const allMilkRecords: MilkRecord[] = data?.records ?? [];
   const milkYears = useMemo(() => Array.from(new Set(allMilkRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allMilkRecords]);
-  const [milkYear, setMilkYear] = useState("all");
+  const [milkYear, setMilkYear] = usePersistedFilter({ page: "sheep-dairy-milk", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => milkYear === "all" ? allMilkRecords : allMilkRecords.filter(r => String(r.recordDate ?? "").startsWith(milkYear)), [allMilkRecords, milkYear]);
 
   const totalYield = records.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
@@ -759,7 +759,7 @@ export function SheepLambingTab({ farmId }: { farmId: number }) {
   const { data, isLoading } = useQuery({ queryKey: ["sheep-dairy-kidding", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/kidding-records`)).then(r => r.json()) });
   const allLambingRecords: SheepLambingRecord[] = data?.records ?? [];
   const lambYears = useMemo(() => Array.from(new Set(allLambingRecords.map(r => String(r.lambingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allLambingRecords]);
-  const [lambYear, setLambYear] = useState("all");
+  const [lambYear, setLambYear] = usePersistedFilter({ page: "sheep-dairy-lambing", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => lambYear === "all" ? allLambingRecords : allLambingRecords.filter(r => String(r.lambingDate ?? "").startsWith(lambYear)), [allLambingRecords, lambYear]);
   const liveCount = records.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.lambCount || 1) : 0), 0);
   const pendingEid = records.filter(r => !r.eidApplied && r.birthOutcome?.includes("live")).length;
@@ -971,7 +971,7 @@ export function BcsTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [bcsYear, setBcsYear] = useState("all");
+  const [bcsYear, setBcsYear] = usePersistedFilter({ page: "sheep-dairy-bcs", filter: "year", farmId, defaultValue: "all" });
   const filteredBcs = useMemo(() => bcsYear === "all" ? records : records.filter(r => String(r.assessmentDate || "").startsWith(bcsYear)), [records, bcsYear]);
 
   const bcsChartData = useMemo(() => {
@@ -1123,7 +1123,7 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const [monDialog, setMonDialog] = useState(false);
   const [editingMon, setEditingMon] = useState<TankRecord | null>(null);
   const [monForm, setMonForm] = useState({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false as boolean, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" });
-  const [monYear, setMonYear] = useState(String(new Date().getFullYear()));
+  const [monYear, setMonYear] = usePersistedFilter({ page: "sheep-dairy-bulk-tank", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   // queries
   const tanksQ = useQuery<{ tanks: BulkTank[] }>({ queryKey: ["sheep-dairy-bulk-tanks", farmId], queryFn: () => fetch(api(`farms/${farmId}/sheep-dairy/bulk-tanks`)).then(r => r.json()) });
@@ -1446,7 +1446,7 @@ export function MvTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(allRecords.map(r => String(r.testDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allRecords]);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "sheep-dairy-mv", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => yearFilter === "all" ? allRecords : allRecords.filter(r => String(r.testDate || "").startsWith(yearFilter)), [allRecords, yearFilter]);
   const latestAccred = allRecords.find(r => r.mvAccreditationStatus)?.mvAccreditationStatus;
   const awaitingCount = allRecords.filter(mvIsAwaiting).length;
@@ -1762,7 +1762,7 @@ export function TuppingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<TuppingRecord | null>(null);
   const [viewing, setViewing] = useState<TuppingRecord | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "sheep-dairy-tupping", filter: "year", farmId, defaultValue: "all" });
 
   const { data: rows = [], isLoading } = useQuery<TuppingRecord[]>({
     queryKey: ["sheep-tupping", farmId],
@@ -1987,7 +1987,7 @@ export function TreatmentRegisterTab({ farmId }: { farmId: number }) {
   });
   const allTreatments: TreatmentRecord[] = data?.records ?? [];
   const treatYears = useMemo(() => Array.from(new Set(allTreatments.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allTreatments]);
-  const [treatYear, setTreatYear] = useState("all");
+  const [treatYear, setTreatYear] = usePersistedFilter({ page: "sheep-dairy-treatments", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => treatYear === "all" ? allTreatments : allTreatments.filter(r => String(r.treatmentDate ?? "").startsWith(treatYear)), [allTreatments, treatYear]);
 
   const save = useMutation({

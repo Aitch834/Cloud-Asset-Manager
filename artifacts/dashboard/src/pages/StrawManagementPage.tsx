@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2078,7 +2079,7 @@ export default function StrawManagementPage() {
   const [permitDlg, setPermitDlg] = useState<{ open: boolean; row?: any }>({ open: false });
   const [expandedOpId, setExpandedOpId] = useState<number | null>(null);
   const [expandedMeterId, setExpandedMeterId] = useState<number | null>(null);
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "straw-management", filter: "year", farmId, defaultValue: "all" });
   const [pendingDelRecord, setPendingDelRecord] = useState<{ type: string; id: number; title: string; message: string; confirmLabel: string } | null>(null);
   const [pendingDelEquip, setPendingDelEquip] = useState<number | null>(null);
   const [pendingDelPermit, setPendingDelPermit] = useState<number | null>(null);

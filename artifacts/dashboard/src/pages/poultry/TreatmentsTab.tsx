@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -86,9 +87,9 @@ export function TreatmentsTab({ farmId }: { farmId: number }) {
     });
   }
 
-  const [flockFilterTx, setFlockFilterTx] = useState("all");
+  const [flockFilterTx, setFlockFilterTx] = usePersistedFilter({ page: "poultry-treatments", filter: "flock", farmId, defaultValue: "all" });
   const [inWithdrawalOnly, setInWithdrawalOnly] = useState(false);
-  const [yearFilterTx, setYearFilterTx] = useState("all");
+  const [yearFilterTx, setYearFilterTx] = usePersistedFilter({ page: "poultry-treatments", filter: "year", farmId, defaultValue: "all" });
   const yearsTx = useMemo(() => Array.from(new Set(records.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
   const filteredTreatments = records.filter(r =>
     (flockFilterTx === "all" || String(r.flockId ?? "") === flockFilterTx) &&

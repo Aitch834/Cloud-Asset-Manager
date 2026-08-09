@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -66,7 +67,7 @@ export function CampylobacterMonitoringTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
   const allCampyRecords: any[] = allRecordsRaw;
-  const [yearFilterCampy, setYearFilterCampy] = useState("all");
+  const [yearFilterCampy, setYearFilterCampy] = usePersistedFilter({ page: "poultry-campylobacter", filter: "year", farmId, defaultValue: "all" });
   const yearsCampy = useMemo(() => {
     const s = new Set(allCampyRecords.map((r: any) => String(r.sampleDate ?? "").slice(0, 4)).filter(Boolean) as string[]);
     return Array.from(s).sort().reverse();

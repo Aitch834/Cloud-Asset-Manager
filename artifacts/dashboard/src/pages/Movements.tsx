@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { downloadCsvFile } from "@/lib/csv";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1146,7 +1147,7 @@ export default function Movements() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "movements", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [showForm, setShowForm] = useState(false);
   const [viewMovement, setViewMovement] = useState<Movement | null>(null);
   const [checklistMovement, setChecklistMovement] = useState<Movement | null>(null);
@@ -1164,7 +1165,7 @@ export default function Movements() {
   const [lostFoundEditId, setLostFoundEditId] = useState<number | null>(null);
   const [lostFoundDeleteId, setLostFoundDeleteId] = useState<number | null>(null);
   const [lostFoundForm, setLostFoundForm] = useState({ earTag: "", status: "lost", eventDate: "", crimeReferenceNumber: "", foundDead: false, notes: "" });
-  const [bcmsFilter, setBcmsFilter] = useState<"all" | "pending" | "submitted">("all");
+  const [bcmsFilter, setBcmsFilter] = usePersistedFilter({ page: "movements", filter: "bcms", farmId, defaultValue: "all" });
   const { toast } = useToast();
   const [submitConfirmId, setSubmitConfirmId] = useState<number | null>(null);
   const [submittingId, setSubmittingId] = useState<number | null>(null);

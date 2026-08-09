@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useSearch } from "wouter";
 import {
@@ -641,10 +642,10 @@ export default function TaskBoardPage() {
   const [view, setView] = usePersistedTab<"board" | "reports">({ page: "task-board", farmId, validIds: ["board", "reports"], defaultTab: "board" });
   const [showNewTask, setShowNewTask] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [deptFilter, setDeptFilter] = useState("all");
-  const [memberFilter, setMemberFilter] = useState("all");
-  const [moduleFilter, setModuleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "task-board", filter: "status", farmId, defaultValue: "all" });
+  const [deptFilter, setDeptFilter] = usePersistedFilter({ page: "task-board", filter: "dept", farmId, defaultValue: "all" });
+  const [memberFilter, setMemberFilter] = usePersistedFilter({ page: "task-board", filter: "member", farmId, defaultValue: "all" });
+  const [moduleFilter, setModuleFilter] = usePersistedFilter({ page: "task-board", filter: "module", farmId, defaultValue: "all" });
   const [completedWindow, setCompletedWindow] = useState("90d");
   const [sortOrder, setSortOrder] = useState("due-asc");
   const [boardPrinting, setBoardPrinting] = useState(false);

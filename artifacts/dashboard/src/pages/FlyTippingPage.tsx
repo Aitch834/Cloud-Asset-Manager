@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -207,9 +208,9 @@ export default function FlyTippingPage({ farmId }: { farmId: number | null }) {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Incident | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "fly-tipping", filter: "status", farmId, defaultValue: "all" });
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "fly-tipping", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [form, setForm] = useState<Omit<Incident, "id" | "farmId" | "photos">>({ ...EMPTY });
   const [claimDropdownVal, setClaimDropdownVal] = useState("");
 

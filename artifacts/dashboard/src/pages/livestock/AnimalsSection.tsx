@@ -776,9 +776,9 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
   const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "livestock-animals", filter: "status", farmId, defaultValue: "active" });
   const [speciesFilter, setSpeciesFilter] = usePersistedFilter({ page: "livestock-animals", filter: "species", farmId, defaultValue: "__all__" });
-  const [herdFilter, setHerdFilter] = useState<string>("__all__");
+  const [herdFilter, setHerdFilter] = usePersistedFilter({ page: "livestock-animals", filter: "herd", farmId, defaultValue: "__all__" });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [form, setForm] = useState(EMPTY_ANIMAL);

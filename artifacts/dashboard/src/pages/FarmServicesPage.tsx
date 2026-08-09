@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useToast } from "@/hooks/use-toast";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -1590,7 +1591,7 @@ function woBadge(status: string) {
 function WorkOrdersTab({ farmId, customers, onRaiseInvoice }: { farmId: number; customers: FarmCustomer[]; onRaiseInvoice: (prefill: InvoicePrefill) => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [filter, setFilter] = useState<"open" | "all">("open");
+  const [filter, setFilter] = usePersistedFilter({ page: "farm-services-work-orders", filter: "status", farmId, defaultValue: "open" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editWo, setEditWo] = useState<WorkOrder | null>(null);
@@ -3440,7 +3441,7 @@ function EquipmentHireTab({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRow, setEditRow] = useState<HireBookingRow | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = usePersistedFilter({ page: "farm-services", filter: "status", farmId, defaultValue: "all" });
   const [showSummary, setShowSummary] = useState(false);
   const [pendingCancel, setPendingCancel] = useState<number | null>(null);
 

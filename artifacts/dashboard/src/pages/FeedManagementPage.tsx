@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -121,7 +122,7 @@ export default function FeedManagementPage() {
     defaultTab: "stock",
     urlOverride: new URLSearchParams(window.location.search).get("tab"),
   });
-  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [stockFilter, setStockFilter] = usePersistedFilter({ page: "feed-management", filter: "stock", farmId, defaultValue: "all" });
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -169,7 +170,7 @@ export default function FeedManagementPage() {
   const [showFpoDialog, setShowFpoDialog] = useState(false);
   const [editFpo, setEditFpo] = useState<Record<string, unknown> | null>(null);
   const [fpoForm, setFpoForm] = useState<Record<string, string>>({});
-  const [fpoFilter, setFpoFilter] = useState<"active" | "all">("active");
+  const [fpoFilter, setFpoFilter] = usePersistedFilter({ page: "feed-management", filter: "fpo", farmId, defaultValue: "active" });
   const [receiveId, setReceiveId] = useState<number | null>(null);
   const [receiveDate, setReceiveDate] = useState(new Date().toISOString().substring(0, 10));
   const [pendingDeleteFpo, setPendingDeleteFpo] = useState<number | null>(null);

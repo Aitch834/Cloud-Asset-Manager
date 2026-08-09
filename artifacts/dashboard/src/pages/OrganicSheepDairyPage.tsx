@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -414,7 +415,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
     setForm(p => ({ ...p, [k]: e.target.value }));
   const set = (k: keyof CollectionRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "org-sheep-dairy-collections", filter: "year", farmId, defaultValue: "all" });
   const [abrKitStockId, setAbrKitStockId] = useState<string>("");
   const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
     queryKey: ["dairy-abr-stock", farmId],
@@ -985,7 +986,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
   });
 
   const mastiYears = useMemo(() => Array.from(new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean))).sort((a, b) => b.localeCompare(a)), [records]);
-  const [mastiYear, setMastiYear] = useState("all");
+  const [mastiYear, setMastiYear] = usePersistedFilter({ page: "org-sheep-dairy-mastitis", filter: "year", farmId, defaultValue: "all" });
   const filtered = useMemo(() => mastiYear === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYear)), [records, mastiYear]);
 
   return (
@@ -1309,7 +1310,7 @@ function TuppingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<TuppingRecord | null>(null);
   const [viewing, setViewing] = useState<TuppingRecord | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "org-sheep-dairy-tupping", filter: "year", farmId, defaultValue: "all" });
 
   const { data: rows = [], isLoading } = useQuery<TuppingRecord[]>({
     queryKey: ["sheep-tupping", farmId],

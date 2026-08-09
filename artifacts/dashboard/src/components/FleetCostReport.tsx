@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { Wrench, Fuel, TrendingDown, Printer, ChevronDown, ChevronUp } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
@@ -55,7 +56,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function FleetCostReport({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = usePersistedNumberFilter({ page: "fleet-cost-report", filter: "year", farmId, defaultValue: currentYear });
   const [showAll, setShowAll] = useState(false);
 
   const { data, isLoading } = useQuery<FleetReportData>({

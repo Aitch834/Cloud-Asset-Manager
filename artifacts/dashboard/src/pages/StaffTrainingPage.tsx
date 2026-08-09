@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -352,8 +353,8 @@ function TrainingTab({ farmId, staffNames, staffLoading, defaultMember }: { farm
   const [viewItem, setViewItem] = useState<TrainingRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState(defaultMember ?? "");
-  const [cropYear, setCropYear] = useState(currentCropYear());
-  const [deptFilter, setDeptFilter] = useState("all");
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "staff-training", filter: "crop-year", farmId, defaultValue: currentCropYear() });
+  const [deptFilter, setDeptFilter] = usePersistedFilter({ page: "staff-training", filter: "dept", farmId, defaultValue: "all" });
   const [historyMember, setHistoryMember] = useState<{ userId: string; name: string } | null>(null);
 
   const membersQ = useFarmMembers(farmId);

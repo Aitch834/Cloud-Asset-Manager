@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { TrendingUp, TrendingDown, Droplets, Package, ShoppingCart, Printer, ChevronDown, ChevronUp } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
@@ -80,7 +81,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function DairyEnterpriseReport({ farmId, endpoint, queryPrefix, speciesNote }: { farmId: number; endpoint?: string; queryPrefix?: string; speciesNote?: string }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = usePersistedNumberFilter({ page: "dairy-enterprise-report-tab", filter: "year", farmId, defaultValue: currentYear });
   const [showMonthly, setShowMonthly] = useState(false);
 
   const actualEndpoint = endpoint ?? `/api/farms/${farmId}/dairy-enterprise-report`;

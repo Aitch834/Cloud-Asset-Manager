@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -757,7 +758,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState({ ...EMPTY_INPUT_FORM });
-  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "ofp-input-log", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["ofp-input-log", farmId, yearFilter],
@@ -881,7 +882,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
           <select
             className="h-8 rounded-md border border-input bg-background px-2 text-sm"
             value={yearFilter}
-            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+            onChange={e => setYearFilter(e.target.value)}
           >
             <option value="all">All years</option>
             {yearRange().map(y => <option key={y} value={y}>{y}</option>)}

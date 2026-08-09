@@ -21,6 +21,7 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { GoatEnterpriseReport } from "@/components/GoatEnterpriseReport";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { apiUrl as api } from "@/lib/api";
@@ -158,7 +159,7 @@ function MatingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "goat-mating", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-mating", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-mating-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-mating-records/${editing.id}`) : api(`farms/${farmId}/goat-mating-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -284,7 +285,7 @@ function ScanningTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "goat-scanning", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-scanning", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-scanning-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-scanning-records/${editing.id}`) : api(`farms/${farmId}/goat-scanning-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -387,7 +388,7 @@ function WeighTab({ farmId }: { farmId: number }) {
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "goat-weigh", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-weigh", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-weigh-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-weigh-records/${editing.id}`) : api(`farms/${farmId}/goat-weigh-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -513,7 +514,7 @@ function CullTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "goat-cull", filter: "year", farmId, defaultValue: "all" });
   const { data: rows = [], isLoading } = useQuery({ queryKey: ["goat-cull", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-cull-records`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-cull-records/${editing.id}`) : api(`farms/${farmId}/goat-cull-records`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); },
@@ -678,8 +679,8 @@ function HealthTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewing, setViewing] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [vaccYearFilter, setVaccYearFilter] = useState("all");
-  const [diseaseYearFilter, setDiseaseYearFilter] = useState("all");
+  const [vaccYearFilter, setVaccYearFilter] = usePersistedFilter({ page: "goat-health", filter: "vacc-year", farmId, defaultValue: "all" });
+  const [diseaseYearFilter, setDiseaseYearFilter] = usePersistedFilter({ page: "goat-health", filter: "disease-year", farmId, defaultValue: "all" });
   const { data: vaccRows = [], isLoading: vLoading } = useQuery({ queryKey: ["goat-vacc", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-vaccination-programmes`), { credentials: "include" }).then(r => r.json()) });
   const { data: diseaseRows = [], isLoading: dLoading } = useQuery({ queryKey: ["goat-disease", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-disease-monitoring`), { credentials: "include" }).then(r => r.json()) });
   const saveVacc = useMutation({ mutationFn: (body: Record<string, unknown>) => { const url = editing ? api(`farms/${farmId}/goat-vaccination-programmes/${editing.id}`) : api(`farms/${farmId}/goat-vaccination-programmes`); return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }); }, onSuccess: () => { qc.invalidateQueries({ queryKey: ["goat-vacc", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });

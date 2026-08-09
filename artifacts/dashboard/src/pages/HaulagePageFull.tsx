@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,7 +161,7 @@ function DispatchesTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
   const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
-  const [yearFilter, setYearFilter] = useState(() => new Date().getFullYear());
+  const [yearFilter, setYearFilter] = usePersistedNumberFilter({ page: "haulage-dispatches", filter: "year", farmId, defaultValue: new Date().getFullYear() });
   const [addOpen, setAddOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
@@ -753,7 +754,7 @@ function TransfersTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const commodityTypes = useLookupStrings("commodity_types", GRAIN_COMMODITIES);
   const loadTypes = useLookupStrings("load_types", LOAD_TYPES);
-  const [yearFilter, setYearFilter] = useState(() => new Date().getFullYear());
+  const [yearFilter, setYearFilter] = usePersistedNumberFilter({ page: "haulage-transfers", filter: "year", farmId, defaultValue: new Date().getFullYear() });
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -995,7 +996,7 @@ function TransfersTab({ farmId }: { farmId: number }) {
 // ─── Grain Position Tab ─────────────────────────────────────────────────────
 function GrainPositionTab({ farmId, onGoToDispatches }: { farmId: number; onGoToDispatches: () => void }) {
   const curYear = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(curYear);
+  const [yearFilter, setYearFilter] = usePersistedNumberFilter({ page: "haulage-grain-position", filter: "year", farmId, defaultValue: curYear });
 
   const stockQ = useQuery({
     queryKey: ["crop-stock-levels", farmId],

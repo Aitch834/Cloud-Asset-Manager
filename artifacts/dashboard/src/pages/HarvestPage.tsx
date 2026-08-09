@@ -4,7 +4,7 @@ import { printFromRef } from "@/lib/print-report";
 import { QUALITY_GRADE_OPTIONS, gradeLabel, gradeColors } from "@/lib/harvestGrades";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
-import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -237,7 +237,7 @@ function HarvestLogTab({ harvests, transports, storages, farmRecord, equipment, 
   const staffNames: string[] = (membersData?.members ?? []).filter((m: any) => m.isActive).map(memberFullName);
   const { displayName: currentUserName } = useUserRole();
   const [search, setSearch] = useState("");
-  const [filterField, setFilterField] = useState("__all__");
+  const [filterField, setFilterField] = usePersistedFilter({ page: "harvest-log", filter: "field", farmId, defaultValue: "__all__" });
   const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "harvest-log", filter: "crop-year", farmId, defaultValue: currentCropYear(), isValid: n => n === 0 || (n >= 2000 && n <= 2100) });
   const [reconcileOpen, setReconcileOpen] = useState(true);
   const [addOpen, setAddOpen] = useState(false);

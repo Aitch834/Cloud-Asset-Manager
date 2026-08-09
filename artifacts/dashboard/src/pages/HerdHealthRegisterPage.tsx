@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { herdSpeciesDisplayLabel, herdProductionSubtype } from "@/lib/herd-utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -378,8 +379,8 @@ export default function HerdHealthRegisterPage() {
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteRecord, setDeleteRecord] = useState<any | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<any | null>(null);
-  const [filterSource, setFilterSource] = useState<string>("__all__");
-  const [filterHerd, setFilterHerd] = useState<string>("__all__");
+  const [filterSource, setFilterSource] = usePersistedFilter({ page: "herd-health-register", filter: "source", farmId, defaultValue: "__all__" });
+  const [filterHerd, setFilterHerd] = usePersistedFilter({ page: "herd-health-register", filter: "herd", farmId, defaultValue: "__all__" });
   const [filterFrom, setFilterFrom] = useState<string>("");
   const [filterTo, setFilterTo] = useState<string>("");
 

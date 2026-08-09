@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -181,7 +182,7 @@ export default function FarmMapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [filterType, setFilterType] = useState("");
+  const [filterType, setFilterType] = usePersistedFilter({ page: "farm-map", filter: "type", farmId, defaultValue: "" });
   const [showInspections, setShowInspections] = useState(false);
   const inspectionMarkersRef = useRef<import("leaflet").Marker[]>([]);
 

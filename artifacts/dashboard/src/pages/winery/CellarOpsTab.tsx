@@ -1,6 +1,7 @@
 import { BatchTrailDialog } from "./BatchTrail";
 import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
@@ -44,9 +45,9 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("cellar-ops", farmId);
-  const [opFilter, setOpFilter] = useState("all");
+  const [opFilter, setOpFilter] = usePersistedFilter({ page: "cellar-ops", filter: "op-type", farmId, defaultValue: "all" });
   const [cellarSearch, setCellarSearch] = useState("");
-  const [cellarSignedFilter, setCellarSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
+  const [cellarSignedFilter, setCellarSignedFilter] = usePersistedFilter({ page: "cellar-ops", filter: "signed", farmId, defaultValue: "all" });
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   // Single source-aware auto-fill state, matching the bottling form's
   // wineColourAutoSource: "fermentation" | "pressing" | null
@@ -328,7 +329,7 @@ export function CellarOpsTab({ farmId }: { farmId: number }) {
                 type="button"
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
                 title={`${cellarUnsignedCount} cellar operation${cellarUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${cellarUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${cellarSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
-                onClick={() => setCellarSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+                onClick={() => setCellarSignedFilter(cellarSignedFilter === "unsigned" ? "all" : "unsigned")}
               >
                 <PenLine className="w-3 h-3" />{cellarUnsignedCount} unsigned
               </button>

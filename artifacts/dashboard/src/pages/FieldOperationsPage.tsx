@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -221,16 +222,16 @@ export default function FieldOperationsPage() {
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("__all__");
-  const [filterField, setFilterField] = useState("__all__");
+  const [filterType, setFilterType] = usePersistedFilter({ page: "field-operations", filter: "type", farmId, defaultValue: "__all__" });
+  const [filterField, setFilterField] = usePersistedFilter({ page: "field-operations", filter: "field", farmId, defaultValue: "__all__" });
 
-  // Pre-filter by fieldName URL param (e.g. from Fields.tsx quick-link)
+  // Pre-filter by fieldName URL param (e.g. from Fields.tsx quick-link) — overrides persisted value
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fn = params.get("fieldName");
     if (fn) setFilterField(fn);
   }, []);
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "field-operations", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [viewRecord, setViewRecord] = useState<any>(null);

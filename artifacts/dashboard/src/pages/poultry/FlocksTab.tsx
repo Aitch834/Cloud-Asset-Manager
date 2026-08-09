@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { type ReactNode, useState, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Eye, Pencil, Trash2 } from "lucide-react";
@@ -154,7 +155,7 @@ export function FlocksTab({ farmId }: { farmId: number }) {
   const { data: herds = [] } = useQuery({ queryKey: ["herds", farmId], queryFn: () => fetch(api(`farms/${farmId}/herds`), { credentials: "include" }).then(r => r.json()).then(d => (Array.isArray(d) ? d : Array.isArray(d?.records) ? d.records : []).filter((h: any) => { const t = String(h.type ?? "").toLowerCase(); return ["poultry", "chicken", "turkey", "broiler", "layer", "hen", "duck", "goose"].some(k => t.includes(k)); })).catch(() => []) });
   const { data: raw, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-flocks", "poultry-flocks");
   const flocks: any[] = Array.isArray(raw) ? (raw as { flock: Record<string, unknown>; houseName: string | null }[]).map(r => ({ ...r.flock, houseName: r.houseName })) : [];
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "flocks", filter: "status", farmId, defaultValue: "active" });
   const filteredFlocks = statusFilter === "all" ? flocks : flocks.filter(f => statusFilter === "active" ? String(f.status ?? "").toLowerCase() !== "depleted" : String(f.status ?? "").toLowerCase() === "depleted");
   const houseList = houses as Record<string, unknown>[];
   const selectedHouse = houseList.find(h => String(h.id) === String(form.houseId)) ?? null;

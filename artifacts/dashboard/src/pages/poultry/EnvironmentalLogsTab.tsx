@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,8 +33,8 @@ export function EnvironmentalLogsTab({ farmId }: { farmId: number }) {
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, form, setForm, save, del, openAdd } = useCrud(farmId, "poultry-environmental-logs", "poultry-env-logs");
   const envList = (records ?? []) as Record<string, unknown>[];
-  const [flockFilterEnv, setFlockFilterEnv] = useState("all");
-  const [yearFilterEnv, setYearFilterEnv] = useState("all");
+  const [flockFilterEnv, setFlockFilterEnv] = usePersistedFilter({ page: "poultry-environmental", filter: "flock", farmId, defaultValue: "all" });
+  const [yearFilterEnv, setYearFilterEnv] = usePersistedFilter({ page: "poultry-environmental", filter: "year", farmId, defaultValue: "all" });
   const [dateFromEnv, setDateFromEnv] = useState("");
   const [dateToEnv, setDateToEnv] = useState("");
   const envYears = useMemo(() => Array.from(new Set(envList.map(r => String(r.logDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [envList]);

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -167,7 +168,7 @@ function MilkTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map(r => String(r.recordDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [milkYearFilter, setMilkYearFilter] = useState("all");
+  const [milkYearFilter, setMilkYearFilter] = usePersistedFilter({ page: "goat-dairy-milk", filter: "year", farmId, defaultValue: "all" });
   const filteredMilk = useMemo(() => milkYearFilter === "all" ? records : records.filter(r => String(r.recordDate || "").startsWith(milkYearFilter)), [records, milkYearFilter]);
 
   const totalYield = filteredMilk.reduce((s, r) => s + (parseFloat(r.yieldLitres || "0") || 0), 0);
@@ -414,7 +415,7 @@ export function MastitisTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [mastiYearFilter, setMastiYearFilter] = useState("all");
+  const [mastiYearFilter, setMastiYearFilter] = usePersistedFilter({ page: "goat-dairy-mastitis", filter: "year", farmId, defaultValue: "all" });
   const filteredMasti = useMemo(() => mastiYearFilter === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYearFilter)), [records, mastiYearFilter]);
 
   const printMasti = () => {
@@ -651,7 +652,7 @@ export function KiddingTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map(r => String(r.kiddingDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [kiddingYearFilter, setKiddingYearFilter] = useState("all");
+  const [kiddingYearFilter, setKiddingYearFilter] = usePersistedFilter({ page: "goat-dairy-kidding", filter: "year", farmId, defaultValue: "all" });
   const filteredKidding = useMemo(() => kiddingYearFilter === "all" ? records : records.filter(r => String(r.kiddingDate || "").startsWith(kiddingYearFilter)), [records, kiddingYearFilter]);
 
   const liveCount = filteredKidding.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.kidCount || 1) : 0), 0);
@@ -817,7 +818,7 @@ export function BcsTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [bcsYearFilter, setBcsYearFilter] = useState("all");
+  const [bcsYearFilter, setBcsYearFilter] = usePersistedFilter({ page: "goat-dairy-bcs", filter: "year", farmId, defaultValue: "all" });
   const filteredBcs = useMemo(() => bcsYearFilter === "all" ? records : records.filter(r => String(r.assessmentDate || "").startsWith(bcsYearFilter)), [records, bcsYearFilter]);
 
   const printBcs = () => {
@@ -1001,7 +1002,7 @@ export function BulkTankTab({ farmId }: { farmId: number }) {
   const [monDialog, setMonDialog] = useState(false);
   const [editingMon, setEditingMon] = useState<TankRecord | null>(null);
   const [monForm, setMonForm] = useState({ tankId: "", recordDate: today(), recordType: "daily-temperature", tankTemperatureCelsius: "", tankCleaned: false as boolean, cleaningProductUsed: "", cleaningProductBatch: "", antibioticResidueTestRef: "", antibioticResidueResult: "", notes: "" });
-  const [monYear, setMonYear] = useState(String(new Date().getFullYear()));
+  const [monYear, setMonYear] = usePersistedFilter({ page: "goat-dairy-bulk-tank", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   // queries
   const tanksQ = useQuery<{ tanks: BulkTank[] }>({ queryKey: ["goat-dairy-bulk-tanks", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/bulk-tanks`)).then(r => r.json()) });
@@ -1323,7 +1324,7 @@ export function CaeTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(allRecords.map(r => String(r.testDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allRecords]);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "goat-dairy-cae", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => yearFilter === "all" ? allRecords : allRecords.filter(r => String(r.testDate || "").startsWith(yearFilter)), [allRecords, yearFilter]);
   const latestAccred = allRecords.find(r => r.caeAccreditationStatus)?.caeAccreditationStatus;
   const awaitingCount = allRecords.filter(caeIsAwaiting).length;

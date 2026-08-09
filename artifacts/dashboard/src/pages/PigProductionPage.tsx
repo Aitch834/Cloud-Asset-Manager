@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
-import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { openPrintWindow } from "@/lib/print-report";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
@@ -111,7 +111,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "pig-movements", filter: "year", farmId, defaultValue: "all" });
 
   const { data: movements = [], isLoading } = useQuery({ queryKey: ["pig-movements", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-movements`), { credentials: "include" }).then(r => r.json()) });
 
@@ -349,7 +349,7 @@ function PigFeedDeliveriesView({ farmId }: { farmId: number }) {
     return sp === "pigs" || sp === "mixed";
   }).sort((a, b) => String(b.deliveryDate ?? "").localeCompare(String(a.deliveryDate ?? "")));
 
-  const [yearFilterDel, setYearFilterDel] = useState("all");
+  const [yearFilterDel, setYearFilterDel] = usePersistedFilter({ page: "pig-feed-deliveries", filter: "year", farmId, defaultValue: "all" });
   const delivYears = useMemo(() => Array.from(new Set(pigDeliveries.map(d => String(d.deliveryDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [pigDeliveries]);
   const displayedDeliveries = yearFilterDel === "all" ? pigDeliveries : pigDeliveries.filter(d => String(d.deliveryDate ?? "").startsWith(yearFilterDel));
 
@@ -417,7 +417,7 @@ function PigPenConsumptionView({ farmId }: { farmId: number }) {
   const rows: Record<string, unknown>[] = Array.isArray(rawRows) ? rawRows : (rawRows?.records ?? rawRows ?? []);
   const sorted = [...rows].sort((a, b) => String(b.consumptionDate ?? "").localeCompare(String(a.consumptionDate ?? "")));
 
-  const [yearFilterCon, setYearFilterCon] = useState("all");
+  const [yearFilterCon, setYearFilterCon] = usePersistedFilter({ page: "pig-feed-consumption", filter: "year", farmId, defaultValue: "all" });
   const conYears = useMemo(() => Array.from(new Set(sorted.map(r => String(r.consumptionDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [sorted]);
   const displayed = yearFilterCon === "all" ? sorted : sorted.filter(r => String(r.consumptionDate ?? "").startsWith(yearFilterCon));
 
@@ -646,7 +646,7 @@ function VetAssessmentsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
 
   const { data: allAssessments = [], isLoading } = useQuery({ queryKey: ["pig-vet", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-vet-assessments`), { credentials: "include" }).then(r => r.json()) });
-  const [vetYearFilter, setVetYearFilter] = useState("all");
+  const [vetYearFilter, setVetYearFilter] = usePersistedFilter({ page: "pig-vet-assessments", filter: "year", farmId, defaultValue: "all" });
   const vetYears = useMemo(() => Array.from(new Set((allAssessments as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allAssessments]);
   const assessments = useMemo(() => vetYearFilter === "all" ? allAssessments as Record<string,unknown>[] : (allAssessments as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(vetYearFilter)), [allAssessments, vetYearFilter]);
 
@@ -780,7 +780,7 @@ function StockmanshipChecksTab({ farmId }: { farmId: number }) {
     const s = new Set<string>((allChecks as Record<string,unknown>[]).map(r => String(r.checkDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allChecks]);
-  const [stockYearFilter, setStockYearFilter] = useState("all");
+  const [stockYearFilter, setStockYearFilter] = usePersistedFilter({ page: "pig-stockmanship-checks", filter: "year", farmId, defaultValue: "all" });
   const checks = useMemo(() => stockYearFilter === "all" ? allChecks : (allChecks as Record<string,unknown>[]).filter(r => String(r.checkDate || "").startsWith(stockYearFilter)), [allChecks, stockYearFilter]);
 
   const printStock = () => {
@@ -906,7 +906,7 @@ function TailBitingRisksTab({ farmId }: { farmId: number }) {
     const s = new Set<string>((allRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allRecords]);
-  const [tbYearFilter, setTbYearFilter] = useState("all");
+  const [tbYearFilter, setTbYearFilter] = usePersistedFilter({ page: "pig-tail-biting-risks", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => tbYearFilter === "all" ? allRecords : (allRecords as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(tbYearFilter)), [allRecords, tbYearFilter]);
 
   const printTb = () => {
@@ -1094,7 +1094,7 @@ function FarrowingRecordsTab({ farmId }: { farmId: number }) {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [showManualVet, setShowManualVet] = useState(false);
   const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "pig-farrowing-records", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
 
   const { data, isLoading } = useQuery<FarrowingRecord[]>({
     queryKey: ["pig-farrowing", farmId],
@@ -1723,7 +1723,7 @@ function PigRedTractorChecklistTab({ farmId }: { farmId: number }) {
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const { data: allRtcRecords = [], isLoading } = useQuery({ queryKey: ["pig-rt-checklist", farmId], queryFn: () => fetch(api(`farms/${farmId}/pig-red-tractor-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
-  const [rtcYearFilter, setRtcYearFilter] = useState("all");
+  const [rtcYearFilter, setRtcYearFilter] = usePersistedFilter({ page: "pig-red-tractor-checklist", filter: "year", farmId, defaultValue: "all" });
   const rtcYears = useMemo(() => Array.from(new Set((allRtcRecords as Record<string,unknown>[]).map(r => String(r.assessmentDate || "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRtcRecords]);
   const records = useMemo(() => rtcYearFilter === "all" ? allRtcRecords as Record<string,unknown>[] : (allRtcRecords as Record<string,unknown>[]).filter(r => String(r.assessmentDate || "").startsWith(rtcYearFilter)), [allRtcRecords, rtcYearFilter]);
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(editing ? api(`farms/${farmId}/pig-red-tractor-checklists/${editing.id}`) : api(`farms/${farmId}/pig-red-tractor-checklists`), { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pig-rt-checklist", farmId] }); setOpen(false); setForm({}); setEditing(null); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
@@ -1981,7 +1981,7 @@ function MedicineRegisterTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(allSorted.map(r => String(r.treatmentDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allSorted]);
-  const [medYearFilter, setMedYearFilter] = useState("all");
+  const [medYearFilter, setMedYearFilter] = usePersistedFilter({ page: "pig-medicine-register", filter: "year", farmId, defaultValue: "all" });
   const sorted = useMemo(() => medYearFilter === "all" ? allSorted : allSorted.filter(r => String(r.treatmentDate || "").startsWith(medYearFilter)), [allSorted, medYearFilter]);
 
   const activeWithdrawals = allSorted.filter(r => r.withdrawalEndDate && new Date(r.withdrawalEndDate as string) > new Date());
@@ -2328,7 +2328,7 @@ function KillRecordsTab({ farmId }: { farmId: number }) {
     const s = new Set<string>((allKillRecords as Record<string,unknown>[]).map(r => String(r.killDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [allKillRecords]);
-  const [killYearFilter, setKillYearFilter] = useState("all");
+  const [killYearFilter, setKillYearFilter] = usePersistedFilter({ page: "pig-kill-records", filter: "year", farmId, defaultValue: "all" });
   const records = useMemo(() => killYearFilter === "all" ? allKillRecords : allKillRecords.filter(r => String(r.killDate || "").startsWith(killYearFilter)), [allKillRecords, killYearFilter]);
 
   const printKill = () => {
@@ -2810,7 +2810,7 @@ function SalmonellaMonitoringTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({});
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "pig-salmonella-monitoring", filter: "year", farmId, defaultValue: "all" });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["pig-salmonella-monitoring", farmId],

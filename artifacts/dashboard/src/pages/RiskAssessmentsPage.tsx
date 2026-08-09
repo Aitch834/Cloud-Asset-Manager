@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { FarmLocationSelect } from "@/components/ui/FarmLocationSelect";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -148,9 +149,9 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [filterRisk, setFilterRisk] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [quickFilter, setQuickFilter] = useState<"none" | "overdue" | "due-soon" | "high-critical">("none");
+  const [filterRisk, setFilterRisk] = usePersistedFilter({ page: "risk-assessments", filter: "risk", farmId, defaultValue: "all" });
+  const [filterStatus, setFilterStatus] = usePersistedFilter({ page: "risk-assessments", filter: "status", farmId, defaultValue: "all" });
+  const [quickFilter, setQuickFilter] = usePersistedFilter({ page: "risk-assessments", filter: "quick", farmId, defaultValue: "none" });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<RiskAssessment | null>(null);
   const [editing, setEditing] = useState<RiskAssessment | null>(null);
@@ -257,7 +258,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
           <p className="text-2xl font-bold text-gray-900">{totalActive}</p>
         </div>
         <button
-          onClick={() => setQuickFilter(q => q === "high-critical" ? "none" : "high-critical")}
+          onClick={() => setQuickFilter(quickFilter === "high-critical" ? "none" : "high-critical")}
           className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "high-critical" ? "bg-red-50 border-red-500 ring-2 ring-red-100" : "bg-white border-red-200 hover:border-red-400"}`}
         >
           <div className="flex items-center gap-1.5 mb-1"><AlertTriangle className="w-3.5 h-3.5 text-red-600" /><p className="text-xs text-red-600 uppercase tracking-wide font-medium">High / Critical</p></div>
@@ -265,7 +266,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
           <p className="text-xs text-gray-400 mt-0.5">{quickFilter === "high-critical" ? "Filtered — click to clear" : "Click to filter"}</p>
         </button>
         <button
-          onClick={() => setQuickFilter(q => q === "overdue" ? "none" : "overdue")}
+          onClick={() => setQuickFilter(quickFilter === "overdue" ? "none" : "overdue")}
           className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "overdue" ? "bg-orange-50 border-orange-500 ring-2 ring-orange-100" : "bg-white border-orange-200 hover:border-orange-400"}`}
         >
           <div className="flex items-center gap-1.5 mb-1"><Clock className="w-3.5 h-3.5 text-orange-600" /><p className="text-xs text-orange-600 uppercase tracking-wide font-medium">Overdue Reviews</p></div>
@@ -273,7 +274,7 @@ function RiskAssessmentTab({ farmId, openId }: { farmId: number; openId?: number
           <p className="text-xs text-gray-400 mt-0.5">{quickFilter === "overdue" ? "Filtered — click to clear" : "Click to filter"}</p>
         </button>
         <button
-          onClick={() => setQuickFilter(q => q === "due-soon" ? "none" : "due-soon")}
+          onClick={() => setQuickFilter(quickFilter === "due-soon" ? "none" : "due-soon")}
           className={`rounded-lg p-4 text-left border transition-all ${quickFilter === "due-soon" ? "bg-yellow-50 border-yellow-500 ring-2 ring-yellow-100" : "bg-white border-yellow-200 hover:border-yellow-400"}`}
         >
           <div className="flex items-center gap-1.5 mb-1"><ShieldCheck className="w-3.5 h-3.5 text-yellow-600" /><p className="text-xs text-yellow-600 uppercase tracking-wide font-medium">Due in 30 Days</p></div>
@@ -911,7 +912,7 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState<typeof EMPTY_PAT_EQUIPMENT>(EMPTY_PAT_EQUIPMENT);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
-  const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
+  const [buildingFilter, setBuildingFilter] = usePersistedFilter({ page: "risk-pat-testing", filter: "building", farmId, defaultValue: "__all__" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showTest, setShowTest] = useState(false);
   const [editingTest, setEditingTest] = useState<PatTestRecord | null>(null);
@@ -1533,7 +1534,7 @@ function FireSafetyTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [form, setForm] = useState<typeof EMPTY_FIRE>(EMPTY_FIRE);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [hlId, setHlId] = useState<number | null>(openId ?? null);
-  const [buildingFilter, setBuildingFilter] = useState<string>("__all__");
+  const [buildingFilter, setBuildingFilter] = usePersistedFilter({ page: "risk-fire-safety", filter: "building", farmId, defaultValue: "__all__" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showService, setShowService] = useState(false);
   const [editingService, setEditingService] = useState<FireService | null>(null);

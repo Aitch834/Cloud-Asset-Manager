@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export function PlacementQualityTab({ farmId }: { farmId: number }) {
   const [editRec, setEditRec] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [flockFilter, setFlockFilter] = useState("all");
+  const [flockFilter, setFlockFilter] = usePersistedFilter({ page: "poultry-placement-quality", filter: "flock", farmId, defaultValue: "all" });
 
   const empty = { flockId: "", assessmentDate: new Date().toISOString().slice(0, 10), assessedBy: "", overallQualityScore: "", uniformityPercent: "", cullCountAtPlacement: "", cullPercentAtPlacement: "", arrivalTemperatureCelsius: "", hatcheryNotified: false, notes: "" };
   const [form, setForm] = useState({ ...empty });

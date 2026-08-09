@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -463,7 +464,7 @@ export default function OrganicArablePage() {
   const [activeTab, setActiveTab] = usePersistedTab<Tab>({ page: "organic-arable", farmId, validIds: ["certification", "field-conversion", "seed-sourcing", "input-log", "harvest-declarations"], defaultTab: "certification" });
 
   // ── Certification ──
-  const [certFilter, setCertFilter] = useState("all");
+  const [certFilter, setCertFilter] = usePersistedFilter({ page: "organic-arable", filter: "cert-status", farmId, defaultValue: "all" });
   const [viewCert, setViewCert] = useState<Row | null>(null);
   const [certOpen, setCertOpen] = useState(false);
   const [certEditing, setCertEditing] = useState<Row | null>(null);
@@ -472,7 +473,7 @@ export default function OrganicArablePage() {
   const [certScopeKeys, setCertScopeKeys] = useState<string[]>([]);
 
   // ── Field Conversion ──
-  const [convFilter, setConvFilter] = useState("all");
+  const [convFilter, setConvFilter] = usePersistedFilter({ page: "organic-arable", filter: "conv-status", farmId, defaultValue: "all" });
   const [viewConv, setViewConv] = useState<Row | null>(null);
   const [convOpen, setConvOpen] = useState(false);
   const [convEditing, setConvEditing] = useState<Row | null>(null);
@@ -481,8 +482,8 @@ export default function OrganicArablePage() {
 
   // ── Seed Sourcing ──
   const [seedSubTab, setSeedSubTab] = useState<"declarations" | "stock">("declarations");
-  const [seedFilterCrop, setSeedFilterCrop] = useState("all");
-  const [seedFilterType, setSeedFilterType] = useState("all");
+  const [seedFilterCrop, setSeedFilterCrop] = usePersistedFilter({ page: "organic-arable", filter: "seed-crop", farmId, defaultValue: "all" });
+  const [seedFilterType, setSeedFilterType] = usePersistedFilter({ page: "organic-arable", filter: "seed-type", farmId, defaultValue: "all" });
   const [viewSeed, setViewSeed] = useState<Row | null>(null);
   const [seedOpen, setSeedOpen] = useState(false);
   const [seedEditing, setSeedEditing] = useState<Row | null>(null);
@@ -502,9 +503,9 @@ export default function OrganicArablePage() {
   const [moveDeleting, setMoveDeleting] = useState<number | null>(null);
 
   // ── Input Log ──
-  const [inputFilterYear, setInputFilterYear] = useState(String(currentYear()));
-  const [inputFilterType, setInputFilterType] = useState("all");
-  const [inputFilterStatus, setInputFilterStatus] = useState("all");
+  const [inputFilterYear, setInputFilterYear] = usePersistedFilter({ page: "organic-arable", filter: "input-year", farmId, defaultValue: String(currentYear()) });
+  const [inputFilterType, setInputFilterType] = usePersistedFilter({ page: "organic-arable", filter: "input-type", farmId, defaultValue: "all" });
+  const [inputFilterStatus, setInputFilterStatus] = usePersistedFilter({ page: "organic-arable", filter: "input-status", farmId, defaultValue: "all" });
   const [viewInput, setViewInput] = useState<Row | null>(null);
   const [inputOpen, setInputOpen] = useState(false);
   const [inputEditing, setInputEditing] = useState<Row | null>(null);
@@ -514,9 +515,9 @@ export default function OrganicArablePage() {
   const [inputAreaAutoFilled, setInputAreaAutoFilled] = useState(false);
 
   // ── Harvest Declarations ──
-  const [harvestFilterYear, setHarvestFilterYear] = useState(String(currentYear()));
-  const [harvestFilterCrop, setHarvestFilterCrop] = useState("all");
-  const [harvestFilterStatus, setHarvestFilterStatus] = useState("all");
+  const [harvestFilterYear, setHarvestFilterYear] = usePersistedFilter({ page: "organic-arable", filter: "harvest-year", farmId, defaultValue: String(currentYear()) });
+  const [harvestFilterCrop, setHarvestFilterCrop] = usePersistedFilter({ page: "organic-arable", filter: "harvest-crop", farmId, defaultValue: "all" });
+  const [harvestFilterStatus, setHarvestFilterStatus] = usePersistedFilter({ page: "organic-arable", filter: "harvest-status", farmId, defaultValue: "all" });
   const [viewHarvest, setViewHarvest] = useState<Row | null>(null);
   const [harvestOpen, setHarvestOpen] = useState(false);
   const [harvestEditing, setHarvestEditing] = useState<Row | null>(null);

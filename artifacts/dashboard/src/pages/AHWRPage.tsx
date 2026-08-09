@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { api } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ export default function AHWRPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [tab, setTab] = usePersistedTab<"reviews" | "analytics">({ page: "ahwr", farmId, validIds: ["reviews", "analytics"], defaultTab: "reviews" });
-  const [speciesFilter, setSpeciesFilter] = useState<string>("all");
+  const [speciesFilter, setSpeciesFilter] = usePersistedFilter({ page: "ahwr", filter: "species", farmId, defaultValue: "all" });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AHWR | null>(null);
   const [form, setForm] = useState<any>(EMPTY);

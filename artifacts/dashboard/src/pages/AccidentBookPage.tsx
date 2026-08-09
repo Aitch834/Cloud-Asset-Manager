@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { printProReport } from "@/lib/print-report";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CropYearSelector } from "@/components/CropYearSelector";
@@ -560,8 +561,8 @@ export default function AccidentBookPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<AccidentRecord | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<"all" | "riddor-pending" | "riddor-reported" | "unsigned">("all");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [filter, setFilter] = usePersistedFilter({ page: "accident-book", filter: "status", farmId, defaultValue: "all" });
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "accident-book", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [allYears, setAllYears] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });

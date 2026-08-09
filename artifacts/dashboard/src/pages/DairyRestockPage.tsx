@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -114,7 +115,7 @@ export default function DairyRestockPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "dairy-restock", filter: "status", farmId, defaultValue: "pending" });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<NewRequestForm>(BLANK);
   const [expandedId, setExpandedId] = useState<number | null>(null);

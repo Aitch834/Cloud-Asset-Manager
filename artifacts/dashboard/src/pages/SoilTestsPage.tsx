@@ -9,6 +9,7 @@ import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -190,8 +191,8 @@ function RegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "soil-tests-register", filter: "crop-year", farmId, defaultValue: currentCropYear() });
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "soil-tests-register", filter: "status", farmId, defaultValue: "all" });
   const [historyField, setHistoryField] = useState<{ id: number; name: string } | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [addTestOpen, setAddTestOpen] = useState(false);
@@ -805,8 +806,8 @@ function RegisterTab({ farmId }: { farmId: number }) {
 }
 
 function PrintTab({ farmId }: { farmId: number }) {
-  const [printYear, setPrintYear] = useState<number | "all">("all");
-  const [printStatus, setPrintStatus] = useState<string>("all");
+  const [printYear, setPrintYear] = usePersistedFilter({ page: "soil-tests-print", filter: "year", farmId, defaultValue: "all" });
+  const [printStatus, setPrintStatus] = usePersistedFilter({ page: "soil-tests-print", filter: "status", farmId, defaultValue: "all" });
 
   const fieldsQ = useQuery<{ records: FieldRecord[] }>({ queryKey: ["fields-soil", farmId], queryFn: () => fetch(`/api/farms/${farmId}/fields`).then(r => r.json()) });
   const testsQ = useQuery<{ records: SoilTestRecord[] }>({ queryKey: ["soil-tests", farmId], queryFn: () => fetch(`/api/farms/${farmId}/soil-tests`).then(r => r.json()) });
@@ -826,7 +827,7 @@ function PrintTab({ farmId }: { farmId: number }) {
   });
   const testsWithResults = allTests.map((test, i) => ({ ...test, results: testDetailResults[i]?.data?.record?.results ?? [] }));
   const filteredTests = testsWithResults
-    .filter(t => printYear === "all" || new Date(t.sampleDate).getFullYear() === printYear)
+    .filter(t => printYear === "all" || String(new Date(t.sampleDate).getFullYear()) === printYear)
     .filter(t => printStatus === "all" || t.status === printStatus);
 
   const handlePrint = () => {
@@ -897,7 +898,7 @@ function PrintTab({ farmId }: { farmId: number }) {
         <div className="flex gap-3 items-end">
           <div>
             <label className="text-xs font-medium text-foreground/60 mb-1 block">Filter by year</label>
-            <select className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={printYear} onChange={e => setPrintYear(e.target.value === "all" ? "all" : parseInt(e.target.value))}>
+            <select className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" value={printYear} onChange={e => setPrintYear(e.target.value)}>
               <option value="all">All years</option>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>

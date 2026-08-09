@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -76,7 +77,7 @@ export default function FarmLocationsPage() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("");
+  const [filterType, setFilterType] = usePersistedFilter({ page: "farm-locations", filter: "type", farmId, defaultValue: "" });
   const [showInactive, setShowInactive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<FarmLocation | null>(null);

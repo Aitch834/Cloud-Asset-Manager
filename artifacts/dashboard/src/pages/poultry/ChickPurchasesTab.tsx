@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,9 +36,9 @@ export function ChickPurchasesTab({ farmId }: { farmId: number }) {
   const hatcherySuppliers = (Array.isArray(supplierData) ? supplierData as Record<string, unknown>[] : []).filter(s => s.supplierType === "hatchery");
   const { data: raw, isLoading, open, setOpen, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-chick-purchases", "poultry-chick-purchases");
   const records = (raw ?? []) as Record<string, unknown>[];
-  const [payStatusFilter, setPayStatusFilter] = useState("all");
-  const [flockFilterCP, setFlockFilterCP] = useState("all");
-  const [yearFilterCP, setYearFilterCP] = useState("all");
+  const [payStatusFilter, setPayStatusFilter] = usePersistedFilter({ page: "poultry-chick-purchases", filter: "pay-status", farmId, defaultValue: "all" });
+  const [flockFilterCP, setFlockFilterCP] = usePersistedFilter({ page: "poultry-chick-purchases", filter: "flock", farmId, defaultValue: "all" });
+  const [yearFilterCP, setYearFilterCP] = usePersistedFilter({ page: "poultry-chick-purchases", filter: "year", farmId, defaultValue: "all" });
   const yearsCP = useMemo(() => {
     const s = new Set(records.map(r => String(r.orderDate ?? r.deliveryDate ?? "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort().reverse();

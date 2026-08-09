@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -260,7 +261,7 @@ export default function VetLedgerPage() {
 
   type VetTab = "visits" | "invoices" | "amrm" | "analytics";
   const [tab, setTab] = usePersistedTab<VetTab>({ page: "vet-ledger", farmId, validIds: ["visits", "invoices", "amrm", "analytics"], defaultTab: "visits" });
-  const [amrmYear, setAmrmYear] = useState<number>(new Date().getFullYear());
+  const [amrmYear, setAmrmYear] = usePersistedNumberFilter({ page: "vet-ledger", filter: "amrm-year", farmId, defaultValue: new Date().getFullYear() });
   const [search, setSearch] = useState("");
   const [raiseTaskVisit, setRaiseTaskVisit] = useState<Record<string, unknown> | null>(null);
 

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -79,8 +80,8 @@ export function CleanoutsTab({ farmId }: { farmId: number }) {
   }
 
   const coList = (records ?? []) as Record<string, unknown>[];
-  const [houseFilterCO, setHouseFilterCO] = useState("all");
-  const [yearFilterCO, setYearFilterCO] = useState("all");
+  const [houseFilterCO, setHouseFilterCO] = usePersistedFilter({ page: "poultry-cleanouts", filter: "house", farmId, defaultValue: "all" });
+  const [yearFilterCO, setYearFilterCO] = usePersistedFilter({ page: "poultry-cleanouts", filter: "year", farmId, defaultValue: "all" });
   const coYears = useMemo(() => Array.from(new Set(coList.map(r => String(r.cleanoutStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [coList]);
   const filteredCoList = coList.filter(r =>
     (houseFilterCO === "all" || String(r.houseId) === houseFilterCO) &&

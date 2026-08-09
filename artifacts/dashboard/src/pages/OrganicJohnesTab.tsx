@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { JohnesDeclarationSection } from "@/components/dairy/JohnesTab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -371,7 +372,7 @@ export function OrganicJohnesTab({ farmId }: { farmId: number }) {
   const [viewRec, setViewRec] = useState<any>(null);
   const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [form, setForm] = useState<any>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-johnes", filter: "year", farmId, defaultValue: "all" });
   const [pendingDel, setPendingDel] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));

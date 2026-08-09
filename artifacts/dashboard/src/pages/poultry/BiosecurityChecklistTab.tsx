@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,9 +64,9 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["poultry-biosecurity", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
 
   const bioList = records as Record<string, unknown>[];
-  const [houseFilterBio, setHouseFilterBio] = useState("all");
-  const [statusFilterBio, setStatusFilterBio] = useState("all");
-  const [yearFilterBio, setYearFilterBio] = useState("all");
+  const [houseFilterBio, setHouseFilterBio] = usePersistedFilter({ page: "poultry-biosecurity", filter: "house", farmId, defaultValue: "all" });
+  const [statusFilterBio, setStatusFilterBio] = usePersistedFilter({ page: "poultry-biosecurity", filter: "status", farmId, defaultValue: "all" });
+  const [yearFilterBio, setYearFilterBio] = usePersistedFilter({ page: "poultry-biosecurity", filter: "year", farmId, defaultValue: "all" });
   const yearsBio = useMemo(() => Array.from(new Set(bioList.map(r => String(r.cleanoutStartDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [bioList]);
   const filteredBioList = bioList.filter(r =>
     (houseFilterBio === "all" || String(r.houseId) === houseFilterBio) &&

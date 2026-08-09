@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -924,7 +925,7 @@ export default function GrantsPage() {
 
   const _initTab = new URLSearchParams(window.location.search).get("tab");
   const [mainTab, setMainTab] = useState<"capital" | "agrienv">(_initTab === "agrienv" ? "agrienv" : "capital");
-  const [statusFilter, setStatusFilter] = useState<GrantStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "grants", filter: "status", farmId, defaultValue: "all" });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<GrantRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<GrantRecord | null>(null);
@@ -939,7 +940,7 @@ export default function GrantsPage() {
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [quickFilter, setQuickFilter] = useState<"approved" | "active" | "deadlines" | null>(null);
-  const [yearFilter, setYearFilter] = useState<number | "all">("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "grants", filter: "year", farmId, defaultValue: "all" });
   const [hideArchived, setHideArchived] = useState(true);
   const { uploadFile } = useUpload();
 
@@ -963,14 +964,14 @@ export default function GrantsPage() {
 
   const baseRecords = useMemo(() => {
     let rs = records;
-    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === yearFilter);
+    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === Number(yearFilter));
     if (hideArchived) rs = rs.filter(r => !["claimed","rejected","withdrawn"].includes(r.status));
     return rs;
   }, [records, yearFilter, hideArchived]);
 
   const archivedCount = useMemo(() => {
     let rs = records;
-    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === yearFilter);
+    if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === Number(yearFilter));
     return rs.filter(r => ["claimed","rejected","withdrawn"].includes(r.status)).length;
   }, [records, yearFilter]);
 
@@ -1271,7 +1272,7 @@ export default function GrantsPage() {
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</span>
             <select
               value={yearFilter}
-              onChange={e => { const v = e.target.value; setYearFilter(v === "all" ? "all" : Number(v)); setQuickFilter(null); setStatusFilter("all"); }}
+              onChange={e => { const v = e.target.value; setYearFilter(v); setQuickFilter(null); setStatusFilter("all"); }}
               style={{ fontSize: "0.85rem", padding: "3px 8px", borderRadius: 6, border: "1px solid #e5e7eb", background: yearFilter !== "all" ? "#eff6ff" : "#fff", color: "#111827", cursor: "pointer", fontWeight: yearFilter !== "all" ? 600 : 400 }}
             >
               <option value="all">All years</option>
@@ -1336,7 +1337,7 @@ export default function GrantsPage() {
               {quickFilter === "approved" ? "No approved grants"
                 : quickFilter === "active" ? "No active applications"
                 : quickFilter === "deadlines" ? "No upcoming or overdue deadlines"
-                : statusFilter !== "all" ? `No ${STATUS_CONFIG[statusFilter].label.toLowerCase()} grants`
+                : statusFilter !== "all" ? `No ${(STATUS_CONFIG as Record<string, {label: string}>)[statusFilter]?.label?.toLowerCase() ?? statusFilter} grants`
                 : records.length === 0 ? "No grants recorded yet"
                 : "No records match the current filters"}
             </div>

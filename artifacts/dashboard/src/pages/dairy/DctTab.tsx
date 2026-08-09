@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -378,10 +379,10 @@ export function DctTab({ farmId }: { farmId: number }) {
 
   const hasHintData = hint && (hint.mastitisCount12m > 0 || hint.recentMastitisScc);
 
-  const [dctYear, setDctYear] = useState<number>(new Date().getFullYear());
+  const [dctYear, setDctYear] = usePersistedNumberFilter({ page: "dairy-dct", filter: "chart-year", farmId, defaultValue: new Date().getFullYear() });
   const allDctRecords = data?.records ?? [];
   const dctYearRecords = allDctRecords.filter(r => r.dryOffDate && new Date(r.dryOffDate).getFullYear() === dctYear);
-  const [dctListYear, setDctListYear] = useState("all");
+  const [dctListYear, setDctListYear] = usePersistedFilter({ page: "dairy-dct", filter: "year", farmId, defaultValue: "all" });
   const dctListYears = React.useMemo(() => Array.from(new Set(allDctRecords.map(r => String(r.dryOffDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allDctRecords]);
   const filteredDctList = dctListYear === "all" ? allDctRecords : allDctRecords.filter(r => String(r.dryOffDate ?? "").startsWith(dctListYear));
 
@@ -476,9 +477,9 @@ ${productRows ? `<h3>Antibiotic Products Used</h3><table><tr><th>Product</th><th
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-700">Annual Stewardship Summary</p>
             <div className="flex items-center gap-1.5">
-              <button onClick={() => setDctYear(y => y - 1)} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"><ChevronLeft className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setDctYear(dctYear - 1)} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50"><ChevronLeft className="h-3.5 w-3.5" /></button>
               <span className="text-sm font-semibold text-gray-800 w-12 text-center">{dctYear}</span>
-              <button onClick={() => setDctYear(y => y + 1)} disabled={dctYear >= new Date().getFullYear()} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setDctYear(dctYear + 1)} disabled={dctYear >= new Date().getFullYear()} className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"><ChevronRight className="h-3.5 w-3.5" /></button>
             </div>
           </div>
           {dctYearRecords.length === 0 ? (

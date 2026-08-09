@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -336,7 +337,7 @@ export function DairyJohnesTab({ farmId }: { farmId: number }) {
   const [viewRec, setViewRec] = useState<any>(null);
   const [mode, setMode] = useState<"log" | "result" | "edit">("log");
   const [form, setForm] = useState<any>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "dairy-johnes", filter: "year", farmId, defaultValue: "all" });
   const [pendingDel, setPendingDel] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));

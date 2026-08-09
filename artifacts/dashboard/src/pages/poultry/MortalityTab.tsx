@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useMemo, type ReactNode } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line } from "recharts";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,8 +32,8 @@ export function MortalityTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
-  const [flockFilterMort, setFlockFilterMort] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "poultry-mortality", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
+  const [flockFilterMort, setFlockFilterMort] = usePersistedFilter({ page: "poultry-mortality", filter: "flock", farmId, defaultValue: "all" });
   const flocks = useFlocks(farmId);
   const { data: records, isLoading, open, setOpen, editing, form, setForm, save, del, openAdd, openEdit } = useCrud(farmId, "poultry-daily-mortality", "poultry-mortality");
 

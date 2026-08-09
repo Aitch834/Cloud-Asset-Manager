@@ -4,6 +4,7 @@ import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -392,7 +393,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
   const allRecords: OrgDairyMastitisRecord[] = data?.records ?? [];
   const uncertifiedCount = allRecords.filter(r => r.treatmentProduct && !r.certifierNotified).length;
 
-  const [filterPreset, setFilterPreset] = useState<"12m" | "all">("12m");
+  const [filterPreset, setFilterPreset] = usePersistedFilter({ page: "organic-dairy-mastitis", filter: "preset", farmId, defaultValue: "12m" });
   const presetFrom = React.useMemo(() => {
     if (filterPreset === "all") return null;
     const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10);
@@ -566,7 +567,7 @@ function CalvingTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<OrgCalvingRecord | null>(null);
   const [form, setForm] = useState<Partial<OrgCalvingRecord>>({});
   const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-dairy-calving", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
   const setF = (k: keyof OrgCalvingRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   const { data, isLoading } = useQuery<{ records: OrgCalvingRecord[] }>({
@@ -822,7 +823,7 @@ function DctTab({ farmId }: { farmId: number }) {
   function openEdit(r: OrgDctRecord) { setEditing(r); setForm({ ...r, dryOffDate: r.dryOffDate.slice(0, 10), expectedCalvingDate: r.expectedCalvingDate?.slice(0, 10) }); setOpen(true); }
 
   const allRecords = data?.records ?? [];
-  const [dctListYear, setDctListYear] = useState("all");
+  const [dctListYear, setDctListYear] = usePersistedFilter({ page: "organic-dairy-dct", filter: "year", farmId, defaultValue: "all" });
   const dctListYears = React.useMemo(() => Array.from(new Set(allRecords.map(r => String(r.dryOffDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRecords]);
   const filteredList = dctListYear === "all" ? allRecords : allRecords.filter(r => String(r.dryOffDate ?? "").startsWith(dctListYear));
 
@@ -2057,7 +2058,7 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     enabled: !!farmId,
   });
   const allFeedRecords = data?.records ?? [];
-  const [yearFilterFeed, setYearFilterFeed] = useState("all");
+  const [yearFilterFeed, setYearFilterFeed] = usePersistedFilter({ page: "organic-dairy-feed", filter: "year", farmId, defaultValue: "all" });
   const yearsFeed = useMemo(() => {
     const s = new Set(allFeedRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort().reverse();
@@ -2379,7 +2380,7 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const [raiseTaskMilkRecord, setRaiseTaskMilkRecord] = useState<DairyTreatmentRecord | null>(null);
   const [raiseTaskMeatRecord, setRaiseTaskMeatRecord] = useState<DairyTreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyTreatmentRecord>>({});
-  const [yearFilter, setYearFilter] = useState<string>("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-dairy-treatments", filter: "year", farmId, defaultValue: "all" });
   const [animalSearch, setAnimalSearch] = useState("");
 
   const { data: herdsData2 } = useQuery<{ records: CoreHerd[] }>({

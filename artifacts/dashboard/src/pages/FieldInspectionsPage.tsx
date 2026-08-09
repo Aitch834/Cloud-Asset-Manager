@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useSearch } from "wouter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -319,10 +320,10 @@ export default function FieldInspectionsPage() {
   const scrolledToTarget = useRef(false);
 
   const [search, setSearch] = useState("");
-  const [filterAction, setFilterAction] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterField, setFilterField] = useState<string>("__all__");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [filterAction, setFilterAction] = usePersistedFilter({ page: "field-inspections", filter: "action", farmId, defaultValue: "all" });
+  const [filterStatus, setFilterStatus] = usePersistedFilter({ page: "field-inspections", filter: "status", farmId, defaultValue: "all" });
+  const [filterField, setFilterField] = usePersistedFilter({ page: "field-inspections", filter: "field", farmId, defaultValue: "__all__" });
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "field-inspections", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [allYears, setAllYears] = useState(false);
   const [resolvedThisMonthMode, setResolvedThisMonthMode] = useState(false);
 

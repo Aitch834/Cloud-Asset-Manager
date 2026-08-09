@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { TradeHistoryTab } from "./TradeHistory";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -711,7 +712,7 @@ function GoodsReceivedTab({ deliveries, products, suppliers, purchaseOrders, loa
 
 function MovementsTab({ movements, products, loading, farmId, onRefresh, toast }: any) {
   const [search, setSearch] = useState("");
-  const [filterProduct, setFilterProduct] = useState("all");
+  const [filterProduct, setFilterProduct] = usePersistedFilter({ page: "suppliers-stock-movements", filter: "product", farmId, defaultValue: "all" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const filtered = (movements ?? []).filter((m: any) => {
@@ -1105,7 +1106,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
     onError: () => toast({ title: "Failed to delete PO", variant: "destructive" }),
   });
 
-  const [statusFilter, setStatusFilter] = useState<string>("outstanding");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "suppliers-stock-po", filter: "status", farmId, defaultValue: "outstanding" });
   const OUTSTANDING_STATUSES = ["draft", "submitted", "sent", "partially_received"];
 
   const statusCounts = (orders ?? []).reduce((acc: Record<string, number>, po: any) => {
@@ -1709,7 +1710,7 @@ function SuppliersTab({ suppliers, loading, farmId, onRefresh, toast }: any) {
   const [viewRecord, setViewRecord] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<string>("all");
+  const [filterType, setFilterType] = usePersistedFilter({ page: "suppliers-stock-suppliers", filter: "type", farmId, defaultValue: "all" });
 
   const { data: contractorsData } = useQuery({
     queryKey: ["contractors-hs", farmId],

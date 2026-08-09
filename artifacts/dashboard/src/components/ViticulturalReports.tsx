@@ -514,8 +514,10 @@ function ensureSeasonPrintStyle() {
 
 export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  // null = "All Vintages" mode
-  const [year, setYear] = useState<number | null>(currentYear);
+  // null = "All Vintages" mode — persisted as "all" sentinel string
+  const [yearStr, setYearStr] = usePersistedNumberFilter({ page: "vintage-season-report", filter: "year", farmId, defaultValue: currentYear });
+  const year: number | null = yearStr === -1 ? null : yearStr;
+  const setYear = (v: number | null) => setYearStr(v == null ? -1 : v);
   const { blocks, harvests, scouts, ops, sprays, loading } = useVitData(farmId);
   const [, navigate] = useLocation();
 
@@ -1248,7 +1250,7 @@ function ensureEntPrintStyle() {
 
 export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = usePersistedNumberFilter({ page: "viticultural-enterprise-report", filter: "year", farmId, defaultValue: currentYear });
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection(v => (v === s ? null : s));
   const [, setLocation] = useLocation();

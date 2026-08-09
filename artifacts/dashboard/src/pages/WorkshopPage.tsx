@@ -19,6 +19,7 @@ import { OtherSelect } from "@/components/ui/other-select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useToast } from "@/hooks/use-toast";
 import { Redirect, Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -1611,7 +1612,7 @@ interface GoodsReturn {
 function GoodsReturnsView({ farmId, parts, staffNames, membersLoading }: { farmId: number; parts: Part[]; staffNames: string[]; membersLoading: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "workshop-goods-returns", filter: "status", farmId, defaultValue: "all" });
   const [newOpen, setNewOpen] = useState(false);
   const [editReturn, setEditReturn] = useState<GoodsReturn | null>(null);
 
@@ -2504,7 +2505,7 @@ function PartsStoreTab({ farmId }: { farmId: number }) {
 
   const [view, setView] = useState<"catalogue" | "history" | "returns" | "stocktake">("catalogue");
   const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState("all");
+  const [catFilter, setCatFilter] = usePersistedFilter({ page: "workshop-parts-store", filter: "category", farmId, defaultValue: "all" });
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -3652,7 +3653,7 @@ export default function WorkshopPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "workshop", farmId, validIds: WORKSHOP_TAB_IDS, defaultTab: "jobs", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const openId = (() => { const n = Number(new URLSearchParams(window.location.search).get("open")); return n > 0 ? n : null; })();
-  const [jobNavStatus, setJobNavStatus] = useState<string>("all");
+  const [jobNavStatus, setJobNavStatus] = usePersistedFilter({ page: "workshop", filter: "job-status", farmId, defaultValue: "all" });
   const [jobNavKey, setJobNavKey] = useState(0);
 
   function navigateTo(dest: Tab, status?: string) {

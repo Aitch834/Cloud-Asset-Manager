@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer,
@@ -853,7 +854,7 @@ function ApiConnectedSoilSensors({ farmId }: { farmId: number }) {
   const [expanded, setExpanded] = useState(false);
   const [days, setDays] = useState<"7" | "14" | "30">("7");
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
-  const [selectedParam, setSelectedParam] = useState<string>("");
+  const [selectedParam, setSelectedParam] = usePersistedFilter({ page: "soil-sensors-api", filter: "param", farmId, defaultValue: "" });
 
   const from = new Date(Date.now() - Number(days) * 86400000).toISOString();
 

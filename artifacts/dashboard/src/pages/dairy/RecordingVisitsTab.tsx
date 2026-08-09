@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -104,7 +105,7 @@ export function RecordingVisitsTab({ farmId }: { farmId: number }) {
   const allAnimals = (animalsQ.data as any)?.animals ?? [];
 
   const visits = data?.visits ?? [];
-  const [yearFilterVisits, setYearFilterVisits] = useState("all");
+  const [yearFilterVisits, setYearFilterVisits] = usePersistedFilter({ page: "dairy-recording-visits", filter: "year", farmId, defaultValue: "all" });
   const yearsVisits = React.useMemo(() => Array.from(new Set(visits.map(v => String(v.visitDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [visits]);
   const filteredVisits = yearFilterVisits === "all" ? visits : visits.filter(v => String(v.visitDate ?? "").startsWith(yearFilterVisits));
 

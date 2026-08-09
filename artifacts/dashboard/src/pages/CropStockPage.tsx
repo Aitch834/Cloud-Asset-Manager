@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -1448,7 +1449,7 @@ function MovementsTab({ farmId }: { farmId: number }) {
   const emptyAdj = { binId: null as number | null, commodity: "", variety: "", movementType: "adjustment", direction: "in", quantityTonnes: "", performedBy: "", notes: "" };
   const [adjForm, setAdjForm] = useState<any>(emptyAdj);
 
-  const [filterCropYear, setFilterCropYear] = useState<string>("__all__");
+  const [filterCropYear, setFilterCropYear] = usePersistedFilter({ page: "crop-stock-movements", filter: "crop-year", farmId, defaultValue: "__all__" });
   const [filterFrom, setFilterFrom] = useState<string>("");
   const [filterTo, setFilterTo] = useState<string>("");
 

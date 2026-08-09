@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useAppStore } from "@/hooks/use-app-store";
 import { CropYearSelector } from "@/components/CropYearSelector";
 import { currentCropYear, isInCropYear, cropYearLabel } from "@/lib/cropYear";
@@ -200,7 +201,7 @@ function VisitorTab({ farmId, farmName }: { farmId: number; farmName: string }) 
   const qc = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "biosecurity-visitor", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Visitor | null>(null);
   const [viewVisitor, setViewVisitor] = useState<Visitor | null>(null);
@@ -653,7 +654,7 @@ function PestControlTab({ farmId, farmName }: { farmId: number; farmName: string
   const qc = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "biosecurity-pest-control", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PestRecord | null>(null);
   const [viewPest, setViewPest] = useState<PestRecord | null>(null);
@@ -1067,7 +1068,7 @@ function CleaningTab({ farmId, farmName }: { farmId: number; farmName: string })
   const { toast } = useToast();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "biosecurity-cleaning", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CleaningRecord | null>(null);
   const [viewCleaning, setViewCleaning] = useState<CleaningRecord | null>(null);
@@ -1878,7 +1879,7 @@ ${r.hazardClassification ? `<div class="hazard">⚠ ${r.hazardClassification}</d
 function CoshhTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [cropYear, setCropYear] = useState(currentCropYear());
+  const [cropYear, setCropYear] = usePersistedNumberFilter({ page: "biosecurity-coshh", filter: "crop-year", farmId, defaultValue: currentCropYear() });
   const [addOpen, setAddOpen] = useState(false);
   const [viewCoshh, setViewCoshh] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card } from "@/components/ui/card";
@@ -1265,7 +1266,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [editing, setEditing] = useState<OrganicInput | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_ORG_INPUT);
-  const [yearFilter, setYearFilter] = useState<number | "all">(new Date().getFullYear());
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-input-register", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [supplierIdFilter, setSupplierIdFilter] = useState<number | null>(null);
   const [poIdFilter, setPoIdFilter] = useState<number | null>(null);
 
@@ -1400,7 +1401,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
           <select
             className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
             value={yearFilter}
-            onChange={e => setYearFilter(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+            onChange={e => setYearFilter(e.target.value)}
           >
             <option value="all">All years</option>
             {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
@@ -1412,7 +1413,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                 {restricted > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{restricted} restricted</span>}
                 {derogation > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{derogation} derogation</span>}
               </div>
-              <Button variant="outline" size="sm" onClick={() => printInputRegister(records, farmName, yearFilter === "all" ? null : yearFilter)} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => printInputRegister(records, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
                 <Printer className="w-4 h-4" />Print Register
               </Button>
             </>

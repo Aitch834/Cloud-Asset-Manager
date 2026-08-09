@@ -1,5 +1,6 @@
 import { useState, useRef, Fragment, useMemo, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useUserRole } from "@/hooks/use-user-role";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { QRCodeSVG } from "qrcode.react";
@@ -318,7 +319,7 @@ function EquipmentDefectsSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { displayName } = useUserRole();
-  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "equipment-defects", filter: "status", farmId, defaultValue: "all" });
   const [formOpen, setFormOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const emptyDefectForm = useMemo(() => ({ ...DEFECT_EMPTY, reportedBy: displayName ?? "" }), [displayName]);
@@ -672,8 +673,8 @@ export default function EquipmentPage() {
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [showDisposed, setShowDisposed] = useState(false);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [gpsFilter, setGpsFilter] = useState<"all" | "tracked" | "untracked">("all");
+  const [typeFilter, setTypeFilter] = usePersistedFilter({ page: "equipment", filter: "type", farmId, defaultValue: "" });
+  const [gpsFilter, setGpsFilter] = usePersistedFilter({ page: "equipment", filter: "gps", farmId, defaultValue: "all" });
   const [qrItem, setQrItem] = useState<EquipmentRecord | null>(null);
   const [disposeItem, setDisposeItem] = useState<EquipmentRecord | null>(null);
   const [disposeForm, setDisposeForm] = useState(EMPTY_DISPOSE_FORM);
@@ -1143,7 +1144,7 @@ export default function EquipmentPage() {
             return (
               <button
                 key={t.value}
-                onClick={() => setTypeFilter(prev => prev === t.value ? "" : t.value)}
+                onClick={() => setTypeFilter(typeFilter === t.value ? "" : t.value)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${typeFilter === t.value ? "bg-orange-600 text-white border-orange-600" : "bg-white text-foreground/60 border-border hover:border-orange-400 hover:text-orange-700"}`}
               >
                 {t.label} ({count})

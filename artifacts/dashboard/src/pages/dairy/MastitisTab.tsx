@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -65,10 +66,10 @@ export function MastitisTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Partial<MastitisRecord>>({});
 
   // ── Filters & view state ──
-  const [filterPreset, setFilterPreset] = useState<"30d" | "90d" | "12m" | "all">("12m");
+  const [filterPreset, setFilterPreset] = usePersistedFilter({ page: "dairy-mastitis", filter: "preset", farmId, defaultValue: "12m" });
   const [filterEarTag, setFilterEarTag] = useState("");
-  const [filterOutcome, setFilterOutcome] = useState("");
-  const [filterGrade, setFilterGrade] = useState("");
+  const [filterOutcome, setFilterOutcome] = usePersistedFilter({ page: "dairy-mastitis", filter: "outcome", farmId, defaultValue: "" });
+  const [filterGrade, setFilterGrade] = usePersistedFilter({ page: "dairy-mastitis", filter: "grade", farmId, defaultValue: "" });
   const [showReports, setShowReports] = useState(false);
 
   const { data, isLoading } = useQuery<{ records: MastitisRecord[] }>({

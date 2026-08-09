@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Plus, Pencil, Trash2, Loader2, BarChart3, Flame, Trees, Zap, FileBarChart, SunMedium, Sprout, Upload, Sparkles, Printer } from "lucide-react";
@@ -674,7 +675,7 @@ const SOURCE_COLOURS: Record<string, string> = {
 function GenerateDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [year, setYear] = useState(String(new Date().getFullYear() - 1));
+  const [year, setYear] = usePersistedFilter({ page: "carbon-generate-emissions", filter: "year", farmId, defaultValue: String(new Date().getFullYear() - 1) });
   const [preview, setPreview] = useState<GeneratedSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -914,7 +915,7 @@ function EmissionsTab({ farmId }: { farmId: number }) {
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [generateOpen, setGenerateOpen] = useState(false);
-  const [filterYear, setFilterYear] = useState("all");
+  const [filterYear, setFilterYear] = usePersistedFilter({ page: "carbon-emissions", filter: "year", farmId, defaultValue: "all" });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["carbon-emissions", farmId],
@@ -1251,7 +1252,7 @@ const SEQ_SOURCE_COLOURS: Record<string, string> = {
 function GenerateSeqDialog({ farmId, onDone }: { farmId: number; onDone: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [year, setYear] = useState(String(new Date().getFullYear() - 1));
+  const [year, setYear] = usePersistedFilter({ page: "carbon-generate-sequestration", filter: "year", farmId, defaultValue: String(new Date().getFullYear() - 1) });
   const [preview, setPreview] = useState<SeqSuggestion[] | null>(null);
   const [existingCount, setExistingCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -1493,7 +1494,7 @@ function SequestrationTab({ farmId }: { farmId: number }) {
     queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record),
   });
 
-  const [filterYear, setFilterYear] = useState("all");
+  const [filterYear, setFilterYear] = usePersistedFilter({ page: "carbon-sequestration", filter: "year", farmId, defaultValue: "all" });
   const allSeqRows = records as Record<string, unknown>[];
   const seqYears = Array.from(new Set(allSeqRows.map(r => String(r.sequestrationYear)))).sort((a, b) => Number(b) - Number(a));
   const filteredSeqRows = filterYear === "all" ? allSeqRows : allSeqRows.filter(r => String(r.sequestrationYear) === filterYear);
@@ -1804,7 +1805,7 @@ function ReductionActionsTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = usePersistedFilter({ page: "carbon-reduction-actions", filter: "status", farmId, defaultValue: "all" });
   const { data: farmRec } = useQuery<Record<string, unknown>>({
     queryKey: ["farm", farmId],
     queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record),
@@ -3342,7 +3343,7 @@ const DEFRA_EF: Record<string, { label: string; unit: string; kgCo2ePerUnit: num
 function CarbonAutoCalcTab({ farmId, onUseForAudit }: { farmId: number; onUseForAudit: (s1: number, s2: number, s3: number, total: number, notes: string) => void }) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
-  const [prefillYear, setPrefillYear] = useState(String(new Date().getFullYear() - 1));
+  const [prefillYear, setPrefillYear] = usePersistedFilter({ page: "carbon-auto-calc", filter: "year", farmId, defaultValue: String(new Date().getFullYear() - 1) });
   const [prefilling, setPrefilling] = useState(false);
   const [prefillSources, setPrefillSources] = useState<{ fuel?: boolean; fertiliser?: boolean; livestock?: boolean; electricity?: boolean } | null>(null);
   const set = (key: string, val: string) => setInputs(p => ({ ...p, [key]: val }));

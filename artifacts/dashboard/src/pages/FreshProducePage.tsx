@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
@@ -659,7 +660,7 @@ export function WaterTestsTab({ farmId }: { farmId: number }) {
   const openEdit = (r: Record<string, unknown>) => { setEditing(r); setMode("edit"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setLabSupplierId((r.labSupplierId as number | null) ?? null); setOpen(true); };
   const openEnterResult = (r: Record<string, unknown>) => { setEditing(r); setMode("result"); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setLabSupplierId((r.labSupplierId as number | null) ?? null); setOpen(true); };
   const allWaterRows = tests as Record<string, unknown>[];
-  const [yearFilterWater, setYearFilterWater] = useState("all");
+  const [yearFilterWater, setYearFilterWater] = usePersistedFilter({ page: "fresh-produce-water-tests", filter: "year", farmId, defaultValue: "all" });
   const yearsWater = useMemo(() => Array.from(new Set(allWaterRows.map(r => String(r.testDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allWaterRows]);
   const rows = yearFilterWater === "all" ? allWaterRows : allWaterRows.filter(r => String(r.testDate ?? "").startsWith(yearFilterWater));
   return (
@@ -789,7 +790,7 @@ export function HarvestTab({ farmId }: { farmId: number }) {
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/horticulture-harvest-records/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-harvest", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const openEdit = (r: Record<string, unknown>) => { setEditing(r); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
   const allHarvestRecords = records as Record<string, unknown>[];
-  const [yearFilterHarvest, setYearFilterHarvest] = useState("all");
+  const [yearFilterHarvest, setYearFilterHarvest] = usePersistedFilter({ page: "fresh-produce-harvest", filter: "year", farmId, defaultValue: "all" });
   const yearsHarvest = useMemo(() => Array.from(new Set(allHarvestRecords.map(r => String(r.harvestDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allHarvestRecords]);
   const filteredHarvestRecords = yearFilterHarvest === "all" ? allHarvestRecords : allHarvestRecords.filter(r => String(r.harvestDate ?? "").startsWith(yearFilterHarvest));
   return (
@@ -952,7 +953,7 @@ export function IntakeTab({ farmId }: { farmId: number }) {
 
   const today = new Date().toISOString().slice(0, 10);
   const allIntakeRecords = records;
-  const [yearFilterIntake, setYearFilterIntake] = useState("all");
+  const [yearFilterIntake, setYearFilterIntake] = usePersistedFilter({ page: "fresh-produce-intake", filter: "year", farmId, defaultValue: "all" });
   const yearsIntake = useMemo(() => Array.from(new Set(allIntakeRecords.map(r => String(r.intakeDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allIntakeRecords]);
   const filteredIntakeRecords = yearFilterIntake === "all" ? allIntakeRecords : allIntakeRecords.filter(r => String(r.intakeDate ?? "").startsWith(yearFilterIntake));
 
@@ -1301,7 +1302,7 @@ export function PackhouseTab({ farmId }: { farmId: number }) {
   }
 
   const allPackhouseRecords = records as Record<string, unknown>[];
-  const [yearFilterPackhouse, setYearFilterPackhouse] = useState("all");
+  const [yearFilterPackhouse, setYearFilterPackhouse] = usePersistedFilter({ page: "fresh-produce-packhouse", filter: "year", farmId, defaultValue: "all" });
   const yearsPackhouse = useMemo(() => Array.from(new Set(allPackhouseRecords.map(r => String(r.packingDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allPackhouseRecords]);
   const filteredPackhouseRecords = yearFilterPackhouse === "all" ? allPackhouseRecords : allPackhouseRecords.filter(r => String(r.packingDate ?? "").startsWith(yearFilterPackhouse));
   return (
@@ -1423,7 +1424,7 @@ export function AllergenTab({ farmId }: { farmId: number }) {
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/allergen-management`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["horti-allergen", farmId] }); setOpen(false); setForm({}); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/allergen-management/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["horti-allergen", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const allAllergenRecords = records as Record<string, unknown>[];
-  const [yearFilterAllergen, setYearFilterAllergen] = useState("all");
+  const [yearFilterAllergen, setYearFilterAllergen] = usePersistedFilter({ page: "fresh-produce-allergen", filter: "year", farmId, defaultValue: "all" });
   const yearsAllergen = useMemo(() => Array.from(new Set(allAllergenRecords.map(r => String(r.reviewDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allAllergenRecords]);
   const filteredAllergenRecords = yearFilterAllergen === "all" ? allAllergenRecords : allAllergenRecords.filter(r => String(r.reviewDate ?? "").startsWith(yearFilterAllergen));
   return (

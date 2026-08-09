@@ -5,6 +5,7 @@ import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,7 +335,7 @@ function TimesheetsTab({ farmId, staffNames, staffMembers }: { farmId: number; s
   });
   const farmName = farmData?.record?.name ?? "";
 
-  const [filterStaff, setFilterStaff] = useState("all");
+  const [filterStaff, setFilterStaff] = usePersistedFilter({ page: "labour-timesheets", filter: "staff", farmId, defaultValue: "all" });
   const [filterMode, setFilterMode] = useState<"month" | "week">("month");
   const [filterMonth, setFilterMonth] = useState(() => isoDate(new Date()).slice(0, 7));
   const [filterWeekStart, setFilterWeekStart] = useState(() => isoDate(getMondayOfWeek(new Date())));
@@ -1223,9 +1224,9 @@ function AbsenceTab({ farmId, staffNames, onPendingCount, staffMembers }: { farm
   const { user } = useSafeUser();
   const managerName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.primaryEmailAddress?.emailAddress || "Manager" : "Manager";
   const thisYear = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(String(thisYear));
-  const [staffFilter, setStaffFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "labour-absence", filter: "year", farmId, defaultValue: String(thisYear) });
+  const [staffFilter, setStaffFilter] = usePersistedFilter({ page: "labour-absence", filter: "staff", farmId, defaultValue: "all" });
+  const [typeFilter, setTypeFilter] = usePersistedFilter({ page: "labour-absence", filter: "type", farmId, defaultValue: "all" });
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Absence | null>(null);
   const [viewAbsence, setViewAbsence] = useState<Absence | null>(null);
@@ -2967,7 +2968,7 @@ type CrossRefAnnotation = {
 function StaffHoursCrossRefTab({ farmId, staffNames }: { farmId: number; staffNames: string[] }) {
   const todayMonday = useMemo(() => isoDate(getMondayOfWeek(new Date())), []);
   const [weekStart, setWeekStart] = useState(todayMonday);
-  const [filterStaff, setFilterStaff] = useState("all");
+  const [filterStaff, setFilterStaff] = usePersistedFilter({ page: "labour-crossref", filter: "staff", farmId, defaultValue: "all" });
 
   const weekEnd = useMemo(() => isoDate(addDays(new Date(weekStart + "T00:00:00"), 6)), [weekStart]);
   const prevWeek = () => setWeekStart(w => isoDate(addDays(new Date(w + "T00:00:00"), -7)));

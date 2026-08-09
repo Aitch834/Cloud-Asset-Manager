@@ -19,6 +19,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 
@@ -181,7 +182,7 @@ function CullRecordsTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map((r: any) => String(r.cullDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "venison-cull-records", filter: "year", farmId, defaultValue: "all" });
   const filtered = useMemo(() => yearFilter === "all" ? records : records.filter((r: any) => String(r.cullDate || "").startsWith(yearFilter)), [records, yearFilter]);
 
   const totalCarcassKg = filtered.reduce((s: number, r: any) => s + (Number(r.carcassWeightKg) || 0), 0);
@@ -418,7 +419,7 @@ function CarcassSalesTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map((r: any) => String(r.saleDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [salesYearFilter, setSalesYearFilter] = useState("all");
+  const [salesYearFilter, setSalesYearFilter] = usePersistedFilter({ page: "venison-carcass-sales", filter: "year", farmId, defaultValue: "all" });
   const filteredSales = useMemo(() => salesYearFilter === "all" ? records : records.filter((r: any) => String(r.saleDate || "").startsWith(salesYearFilter)), [records, salesYearFilter]);
 
   const totalValue = filteredSales.reduce((s: number, r: any) => s + (Number(r.totalValueGbp) || 0), 0);
@@ -612,7 +613,7 @@ function HerdMonitoringTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map((r: any) => String(r.surveyDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [monYearFilter, setMonYearFilter] = useState("all");
+  const [monYearFilter, setMonYearFilter] = usePersistedFilter({ page: "venison-herd-monitoring", filter: "year", farmId, defaultValue: "all" });
   const filteredMon = useMemo(() => monYearFilter === "all" ? records : records.filter((r: any) => String(r.surveyDate || "").startsWith(monYearFilter)), [records, monYearFilter]);
 
   const printMonitoring = () => {
@@ -786,7 +787,7 @@ function HealthRecordsTab({ farmId }: { farmId: number }) {
     const s = new Set<string>(records.map((r: any) => String(r.eventDate || "").slice(0, 4)).filter(Boolean));
     return Array.from(s).sort((a, b) => b.localeCompare(a));
   }, [records]);
-  const [hrYearFilter, setHrYearFilter] = useState("all");
+  const [hrYearFilter, setHrYearFilter] = usePersistedFilter({ page: "venison-health-records", filter: "year", farmId, defaultValue: "all" });
   const filteredHr = useMemo(() => hrYearFilter === "all" ? records : records.filter((r: any) => String(r.eventDate || "").startsWith(hrYearFilter)), [records, hrYearFilter]);
 
   const printHealthRecords = () => {
@@ -948,7 +949,7 @@ function FirearmsRegisterTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const [dlg, setDlg] = useState<{ open: boolean; mode: "add" | "edit" | "view"; row: Record<string, unknown> }>({ open: false, mode: "add", row: {} });
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "venison-firearms-register", filter: "year", farmId, defaultValue: "all" });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["venison-firearms", farmId],

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useCrops } from "@/hooks/use-crops";
@@ -819,7 +820,7 @@ export default function SeedStorePage() {
   const [editPo, setEditPo] = useState<any | null>(null);
   const [viewPo, setViewPo] = useState<any | null>(null);
   const [poForm, setPoForm] = useState<any>({});
-  const [poFilter, setPoFilter] = useState<"active" | "all">("active");
+  const [poFilter, setPoFilter] = usePersistedFilter({ page: "seed-store", filter: "po-status", farmId, defaultValue: "active" });
   const [deletePoTarget, setDeletePoTarget] = useState<any>(null);
   const [pendingCancelPo, setPendingCancelPo] = useState<number | null>(null);
 
@@ -919,8 +920,8 @@ export default function SeedStorePage() {
   );
 
   // ─── Field Allocation ─────────────────────────────────────────────────────
-  const [allocCropFilter, setAllocCropFilter] = useState("all");
-  const [allocStatusFilter, setAllocStatusFilter] = useState("all");
+  const [allocCropFilter, setAllocCropFilter] = usePersistedFilter({ page: "seed-store", filter: "alloc-crop", farmId, defaultValue: "all" });
+  const [allocStatusFilter, setAllocStatusFilter] = usePersistedFilter({ page: "seed-store", filter: "alloc-status", farmId, defaultValue: "all" });
   const [assignBatch, setAssignBatch] = useState<any | null>(null);
   const [assignFieldId, setAssignFieldId] = useState("");
   const [assignBags, setAssignBags] = useState("");

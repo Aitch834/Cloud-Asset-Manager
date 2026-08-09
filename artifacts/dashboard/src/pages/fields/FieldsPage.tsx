@@ -18,6 +18,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { useFields, useAddField, useUpdateField, useDeleteField } from "@/hooks/use-fields";
 import { useCrops, useAddCrop, useFieldCropAssignments, useAssignCrop } from "@/hooks/use-crops";
 import {
@@ -99,7 +100,7 @@ export default function FieldsPage() {
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
   const [assignForField, setAssignForField] = useState<FieldRecord | null>(null);
-  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({ page: "fields", filter: "year", farmId, defaultValue: CURRENT_YEAR });
   const [selectedFieldForHistory, setSelectedFieldForHistory] = useState<FieldRecord | null>(null);
   const [drawerTab, setDrawerTab] = useState<"overview" | "history" | "nmp" | "tenure">("overview");
   const [tenureEditMode, setTenureEditMode] = useState(false);

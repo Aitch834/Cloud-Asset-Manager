@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -407,7 +408,7 @@ export default function NVZPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = usePersistedTab<"summary" | "log" | "risk-assessments" | "closed-periods" | "budget-calc" | "contacts">({ page: "nvz", farmId, validIds: ["summary", "log", "risk-assessments", "closed-periods", "budget-calc", "contacts"], defaultTab: "summary" });
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = usePersistedNumberFilter({ page: "nvz", filter: "year", farmId, defaultValue: new Date().getFullYear() });
   const [addOpen, setAddOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<NvzApplication | null>(null);
   const [viewRecord, setViewRecord] = useState<NvzApplication | null>(null);

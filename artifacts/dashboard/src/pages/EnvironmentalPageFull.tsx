@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -1360,8 +1361,8 @@ function ManagementEventsTab({ farmId, features, schemes }: { farmId: number; fe
   const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [editRecord, setEditRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [filterFeature, setFilterFeature] = useState("__all__");
-  const [filterType, setFilterType] = useState("__all__");
+  const [filterFeature, setFilterFeature] = usePersistedFilter({ page: "environmental-management-events", filter: "feature", farmId, defaultValue: "__all__" });
+  const [filterType, setFilterType] = usePersistedFilter({ page: "environmental-management-events", filter: "type", farmId, defaultValue: "__all__" });
   const [raiseTaskOpen, setRaiseTaskOpen] = useState(false);
   const [pendingTask, setPendingTask] = useState<{ title: string; description: string } | null>(null);
   const [taskAssigneeId, setTaskAssigneeId] = useState<string>("");

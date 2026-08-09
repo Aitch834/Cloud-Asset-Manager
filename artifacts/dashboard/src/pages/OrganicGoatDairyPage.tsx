@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -381,7 +382,7 @@ function OrganicCollectionsTab({ farmId }: { farmId: number }) {
     setForm(p => ({ ...p, [k]: e.target.value }));
   const set = (k: keyof CollectionRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
 
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "org-goat-dairy-collections", filter: "year", farmId, defaultValue: "all" });
   const [abrKitStockId, setAbrKitStockId] = useState<string>("");
   const abrStockQ = useQuery<{ stock: Array<{ id: number; productName: string; lotNumber: string | null; quantityRemaining: number }> }>({
     queryKey: ["dairy-abr-stock", farmId],
@@ -952,7 +953,7 @@ function MastitisTab({ farmId }: { farmId: number }) {
   });
 
   const mastiYears = useMemo(() => Array.from(new Set<string>(records.map(r => String(r.incidentDate || "").slice(0, 4)).filter(Boolean))).sort((a, b) => b.localeCompare(a)), [records]);
-  const [mastiYear, setMastiYear] = useState("all");
+  const [mastiYear, setMastiYear] = usePersistedFilter({ page: "org-goat-dairy-mastitis", filter: "year", farmId, defaultValue: "all" });
   const filtered = useMemo(() => mastiYear === "all" ? records : records.filter(r => String(r.incidentDate || "").startsWith(mastiYear)), [records, mastiYear]);
 
   return (
@@ -1121,7 +1122,7 @@ function KiddingTab({ farmId }: { farmId: number }) {
   });
 
   const kiddingYears = useMemo(() => Array.from(new Set<string>(records.map(r => String(r.kiddingDate || "").slice(0, 4)).filter(Boolean))).sort((a, b) => b.localeCompare(a)), [records]);
-  const [kiddingYearFilter, setKiddingYearFilter] = useState("all");
+  const [kiddingYearFilter, setKiddingYearFilter] = usePersistedFilter({ page: "org-goat-dairy-kidding", filter: "year", farmId, defaultValue: "all" });
   const filteredKidding = useMemo(() => kiddingYearFilter === "all" ? records : records.filter(r => String(r.kiddingDate || "").startsWith(kiddingYearFilter)), [records, kiddingYearFilter]);
 
   const liveCount = filteredKidding.reduce((s, r) => s + (r.birthOutcome?.includes("live") ? (r.kidCount || 1) : 0), 0);

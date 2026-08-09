@@ -1,4 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -39,7 +40,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [isOrganicForm, setIsOrganicForm] = useState(false);
   const [yearFilter, setYearFilter] = usePersistedYearFilter("fermentation", farmId);
   const [fermSearch, setFermSearch] = useState("");
-  const [fermSignedFilter, setFermSignedFilter] = useState<"all" | "signed" | "unsigned">("all");
+  const [fermSignedFilter, setFermSignedFilter] = usePersistedFilter({ page: "fermentation-records", filter: "signed", farmId, defaultValue: "all" });
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
   const farmNameFerm: string = useFarmName(farmId);
@@ -175,7 +176,7 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
                 type="button"
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200 transition-colors"
                 title={`${fermUnsignedCount} fermentation record${fermUnsignedCount === 1 ? "" : "s"} in the current vintage filter ${fermUnsignedCount === 1 ? "has" : "have"} not been signed off — click to ${fermSignedFilter === "unsigned" ? "show all records" : "show only unsigned records"}`}
-                onClick={() => setFermSignedFilter(f => (f === "unsigned" ? "all" : "unsigned"))}
+                onClick={() => setFermSignedFilter(fermSignedFilter === "unsigned" ? "all" : "unsigned")}
               >
                 <PenLine className="w-3 h-3" />{fermUnsignedCount} unsigned
               </button>

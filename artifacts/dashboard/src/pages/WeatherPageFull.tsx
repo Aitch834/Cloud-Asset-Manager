@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -933,7 +934,7 @@ const SUMMARY_PARAMS = [
 function ConnectedStationsTab({ farmId }: { farmId: number }) {
   const [days, setDays] = useState<"7" | "14" | "30">("7");
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
-  const [selectedParam, setSelectedParam] = useState<string>("");
+  const [selectedParam, setSelectedParam] = usePersistedFilter({ page: "weather-connected-stations", filter: "param", farmId, defaultValue: "" });
 
   const from = new Date(Date.now() - Number(days) * 86400000).toISOString();
 

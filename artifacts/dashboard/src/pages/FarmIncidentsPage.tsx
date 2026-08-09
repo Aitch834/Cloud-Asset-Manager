@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -236,8 +237,8 @@ export default function FarmIncidentsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [evidenceFilter, setEvidenceFilter] = useState<"all" | "missing" | "missing_high_risk">("all");
+  const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "farm-incidents", filter: "status", farmId, defaultValue: "all" });
+  const [evidenceFilter, setEvidenceFilter] = usePersistedFilter({ page: "farm-incidents", filter: "evidence", farmId, defaultValue: "all" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewId, setViewId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);

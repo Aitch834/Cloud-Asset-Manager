@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TabButton, TabBar } from "@/components/ui/tab-button";
 import { Button } from "@/components/ui/button";
@@ -611,7 +612,7 @@ function SolarRenewablesTab({ farmId }: { farmId: number }) {
   const base = `/api/farms/${farmId}`;
   type SolarSubTab = "installations" | "generation" | "payments" | "analytics";
   const [subTab, setSubTab] = useState<SolarSubTab>("installations");
-  const [analyticInstallId, setAnalyticInstallId] = useState<string>("__all__");
+  const [analyticInstallId, setAnalyticInstallId] = usePersistedFilter({ page: "fuel-solar-analytics", filter: "installation", farmId, defaultValue: "__all__" });
 
   const EMPTY_INSTALL = { installationName: "", technologyType: "solar_pv", installedCapacityKw: "", installationDate: "", installerName: "", installerSupplierId: null as number | null, gridConnectionRef: "", fitOrSegContractRef: "", tariffProvider: "", tariffRatePence: "", maintenanceContractor: "", maintenanceContractorSupplierId: null as number | null, nextServiceDate: "", notes: "", panelCount: "", mcsCertificateNumber: "", installerMcsNumber: "", buildingName: "", locationId: null as number | null, locationIdType: "" };
   const EMPTY_GEN = { readingDate: "", installationId: "", generationKwh: "", exportKwh: "", selfConsumedKwh: "", fitPaymentPeriod: "", fitPaymentAmount: "", meterReference: "", notes: "" };
@@ -1543,10 +1544,10 @@ export default function FuelEnergyPage() {
   });
 
   // Usage log filters
-  const [usageFilterVehicle, setUsageFilterVehicle] = useState("__all__");
-  const [usageFilterMember, setUsageFilterMember] = useState("__all__");
-  const [usageFilterTank, setUsageFilterTank] = useState("__all__");
-  const [usageFilterActivity, setUsageFilterActivity] = useState("__all__");
+  const [usageFilterVehicle, setUsageFilterVehicle] = usePersistedFilter({ page: "fuel-energy", filter: "vehicle", farmId, defaultValue: "__all__" });
+  const [usageFilterMember, setUsageFilterMember] = usePersistedFilter({ page: "fuel-energy", filter: "member", farmId, defaultValue: "__all__" });
+  const [usageFilterTank, setUsageFilterTank] = usePersistedFilter({ page: "fuel-energy", filter: "tank", farmId, defaultValue: "__all__" });
+  const [usageFilterActivity, setUsageFilterActivity] = usePersistedFilter({ page: "fuel-energy", filter: "activity", farmId, defaultValue: "__all__" });
 
   // Usage dialog
   const [showUsageDialog, setShowUsageDialog] = useState(false);
@@ -1644,8 +1645,8 @@ export default function FuelEnergyPage() {
 
   const CROP_YEAR_OPTIONS = buildCropYearOptions();
   const currentCY = getCropYear(new Date());
-  const [deliveryCropYear, setDeliveryCropYear] = useState<string>(currentCY.label);
-  const [usageCropYear, setUsageCropYear] = useState<string>(currentCY.label);
+  const [deliveryCropYear, setDeliveryCropYear] = usePersistedFilter({ page: "fuel-energy", filter: "delivery-crop-year", farmId, defaultValue: currentCY.label });
+  const [usageCropYear, setUsageCropYear] = usePersistedFilter({ page: "fuel-energy", filter: "usage-crop-year", farmId, defaultValue: currentCY.label });
 
   const tanks: Record<string, unknown>[] = tanksQ.data ?? [];
   const deliveries: Record<string, unknown>[] = deliveriesQ.data ?? [];
@@ -1722,7 +1723,7 @@ export default function FuelEnergyPage() {
   }).reduce((s, r) => s + parseFloat(String(r.consumptionKwh ?? 0)), 0);
   const totalEnergyCostYTD = currentYearReadings.reduce((s, r) => s + (r.costPence ? Number(r.costPence) : 0), 0);
 
-  const [selectedMeterId, setSelectedMeterId] = useState<string>("all");
+  const [selectedMeterId, setSelectedMeterId] = usePersistedFilter({ page: "fuel-energy", filter: "meter", farmId, defaultValue: "all" });
   const filteredReadings = selectedMeterId === "all" ? readings : readings.filter(r => String(r.meterId) === selectedMeterId);
 
   return (

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -362,7 +363,7 @@ export function JohnesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [viewRec, setViewRec] = useState<any>(null);
   const [form, setForm] = useState<any>({});
-  const [yearFilter, setYearFilter] = useState("all");
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "dairy-johnes", filter: "year", farmId, defaultValue: "all" });
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));

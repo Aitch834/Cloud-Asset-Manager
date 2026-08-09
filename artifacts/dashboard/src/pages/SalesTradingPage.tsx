@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -147,7 +148,7 @@ function GrainSalesTab({ farmId }: { farmId: number }) {
   };
   const [form, setForm] = useState<any>(empty);
 
-  const [cropYearFilter, setCropYearFilter] = useState<string>("__all__");
+  const [cropYearFilter, setCropYearFilter] = usePersistedFilter({ page: "sales-grain", filter: "crop-year", farmId, defaultValue: "__all__" });
 
   const q = useQuery({ queryKey: ["grain-sales", farmId], queryFn: () => fetch(`/api/farms/${farmId}/grain-sales`).then(r => r.json()), enabled: !!farmId });
   const records = q.data?.records ?? [];
@@ -580,7 +581,7 @@ function LivestockTradingTab({ farmId }: { farmId: number }) {
   const [openMart, setOpenMart] = useState(false);
   const [editingMart, setEditingMart] = useState<any | null>(null);
   const [deleteMartId, setDeleteMartId] = useState<number | null>(null);
-  const [lsYearFilter, setLsYearFilter] = useState("__all__");
+  const [lsYearFilter, setLsYearFilter] = usePersistedFilter({ page: "sales-livestock-trading", filter: "year", farmId, defaultValue: "__all__" });
   const [expandedDWId, setExpandedDWId] = useState<number | null>(null);
   const [viewDW, setViewDW] = useState<any | null>(null);
   const [viewMart, setViewMart] = useState<any | null>(null);
@@ -1205,7 +1206,7 @@ function MilkSalesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [milkYearFilter, setMilkYearFilter] = useState("__all__");
+  const [milkYearFilter, setMilkYearFilter] = usePersistedFilter({ page: "sales-milk", filter: "year", farmId, defaultValue: "__all__" });
 
   const empty = {
     statementMonth: "", buyerId: null as number | null, buyer: "", cphNumber: "", litresSupplied: "", pencePerLitre: "",
@@ -1444,7 +1445,7 @@ function PoultrySettlementTab({ farmId }: { farmId: number }) {
   const [viewEgg, setViewEgg] = useState<any | null>(null);
   const [deleteBatchId, setDeleteBatchId] = useState<number | null>(null);
   const [deleteEggId, setDeleteEggId] = useState<number | null>(null);
-  const [poultryYearFilter, setPoultryYearFilter] = useState("__all__");
+  const [poultryYearFilter, setPoultryYearFilter] = usePersistedFilter({ page: "sales-poultry-settlement", filter: "year", farmId, defaultValue: "__all__" });
 
   const emptyBatch = {
     flockRef: "", integratorId: null as number | null, integratorName: "", species: "broiler", placementDate: "", catchDate: "",
@@ -1865,7 +1866,7 @@ function PigSalesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [pigYearFilter, setPigYearFilter] = useState("__all__");
+  const [pigYearFilter, setPigYearFilter] = usePersistedFilter({ page: "sales-pig", filter: "year", farmId, defaultValue: "__all__" });
 
   const empty = {
     killDate: "", processorId: null as number | null, processor: "", headCount: "", totalDeadweightKg: "", averageDeadweightKg: "",
@@ -2117,8 +2118,8 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [viewRecord, setViewRecord] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [channelFilter, setChannelFilter] = useState("all");
-  const [directYearFilter, setDirectYearFilter] = useState("__all__");
+  const [channelFilter, setChannelFilter] = usePersistedFilter({ page: "sales-direct", filter: "channel", farmId, defaultValue: "all" });
+  const [directYearFilter, setDirectYearFilter] = usePersistedFilter({ page: "sales-direct", filter: "year", farmId, defaultValue: "__all__" });
 
   const empty = {
     saleDate: "", customerId: null as number | null, channel: "farm_shop", productName: "", productCategory: "",
@@ -2385,7 +2386,7 @@ function DirectSalesTab({ farmId }: { farmId: number }) {
 
 // ─── Reports Tab ───────────────────────────────────────────────────────────────
 function ReportsTab({ farmId }: { farmId: number }) {
-  const [reportYearFilter, setReportYearFilter] = useState("__all__");
+  const [reportYearFilter, setReportYearFilter] = usePersistedFilter({ page: "sales-reports", filter: "year", farmId, defaultValue: "__all__" });
 
   const farmQ = useQuery({ queryKey: ["farm-detail", farmId], queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()), enabled: !!farmId, select: (d: any) => d.record });
   const farm = farmQ.data;
@@ -2661,7 +2662,7 @@ function ContractProgressBar({ calledOff, total, type }: { calledOff: number; to
 function GrainContractsTab({ farmId }: { farmId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [cropYearFilter, setCropYearFilter] = useState<string>("__all__");
+  const [cropYearFilter, setCropYearFilter] = usePersistedFilter({ page: "sales-grain-contracts", filter: "crop-year", farmId, defaultValue: "__all__" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [addType, setAddType] = useState<"forward" | "pool" | null>(null);
   const [editing, setEditing] = useState<any | null>(null);

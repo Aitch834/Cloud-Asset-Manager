@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, PieChart, Pie, Cell, Legend } from "recharts";
 import { useAppStore } from "@/hooks/use-app-store";
@@ -125,7 +126,7 @@ export function BulkTankTab({ farmId, showCollections = true }: { farmId: number
   const [editingMon, setEditingMon] = useState<BulkTankRecord | null>(null);
   const [viewMon, setViewMon] = useState<BulkTankRecord | null>(null);
   const [monForm, setMonForm] = useState<Partial<BulkTankRecord>>({});
-  const [monYearFilter, setMonYearFilter] = useState("all");
+  const [monYearFilter, setMonYearFilter] = usePersistedFilter({ page: "dairy-bulk-tank", filter: "year", farmId, defaultValue: "all" });
 
   const monQ = useQuery<{ records: BulkTankRecord[] }>({
     queryKey: ["dairy-tank-records", farmId],
