@@ -2055,6 +2055,64 @@ router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Reque
 
 // ─── Ad PDF Generator ─────────────────────────────────────────────────────────
 
+router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { format, bgUrl } = req.query as { format?: string; bgUrl?: string };
+  if (!format || !["horizontal", "portrait"].includes(format)) {
+    res.status(400).json({ error: "format must be 'horizontal' or 'portrait'" });
+    return;
+  }
+
+  const tmpId  = crypto.randomUUID();
+  const tmpDir = path.join(os.tmpdir(), `ad-pdf-prev-${tmpId}`);
+  const htmlOut    = path.join(tmpDir, "print.html");
+  const rgbPdf     = path.join(tmpDir, "rgb.pdf");
+  const pngOut     = path.join(tmpDir, "preview.png");
+  const scriptPath = path.resolve(__dirname, "../../scripts/generate_ad_html.py");
+  const srcDir     = path.resolve(__dirname, "../../scripts/ad-templates");
+
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    // Step 1: Generate print HTML
+    const bgArg = bgUrl ? `--bg-url "${bgUrl.replace(/"/g, '\\"')}"` : "";
+    execSync(
+      `python3 "${scriptPath}" --format ${format} --out "${htmlOut}" --src-dir "${srcDir}" ${bgArg}`,
+      { timeout: 90_000, stdio: "pipe" },
+    );
+
+    // Step 2: WeasyPrint (RGB PDF) + Ghostscript (PNG) — both via nix-shell
+    const wpCmd = `python3 -m weasyprint --encoding utf-8 '${htmlOut}' '${rgbPdf}'`;
+    const gsCmd = [
+      "gs -dBATCH -dNOPAUSE -dQUIET -sDEVICE=png16m",
+      "-r150 -dFirstPage=1 -dLastPage=1",
+      `-sOutputFile='${pngOut}' '${rgbPdf}'`,
+    ].join(" ");
+    execSync(
+      `nix-shell -p python3Packages.weasyprint ghostscript --run "${wpCmd} && ${gsCmd}"`,
+      { timeout: 180_000, stdio: "pipe" },
+    );
+
+    // Step 3: Return PNG
+    const pngBuffer = fs.readFileSync(pngOut);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Length", pngBuffer.length);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(pngBuffer);
+  } catch (err: unknown) {
+    console.error("[ad-pdf/preview] Generation failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stderr = (err as { stderr?: Buffer }).stderr;
+    res.status(500).json({
+      error: "Preview generation failed",
+      detail: (stderr ? stderr.toString().slice(-800) : msg.slice(0, 500)),
+    });
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
+
 router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 

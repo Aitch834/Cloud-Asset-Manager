@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getSecret } from "@/lib/auth";
-import { Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye } from "lucide-react";
 
 type Format = "horizontal" | "portrait";
 
@@ -45,6 +45,22 @@ async function generatePdf(format: Format, bgUrl: string): Promise<Blob> {
   return res.blob();
 }
 
+async function fetchPreview(format: Format, bgUrl: string): Promise<string> {
+  const secret = getSecret() ?? "";
+  const params = new URLSearchParams({ format });
+  const trimmed = bgUrl.trim();
+  if (trimmed) params.set("bgUrl", trimmed);
+  const res = await fetch(`/api/admin/ad-pdf/preview?${params.toString()}`, {
+    headers: { "x-admin-secret": secret },
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -57,6 +73,8 @@ function triggerDownload(blob: Blob, filename: string) {
 export default function AdPdfGenerator() {
   const [format, setFormat] = useState<Format>("horizontal");
   const [bgUrl, setBgUrl]   = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const prevObjectUrl = useRef<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => generatePdf(format, bgUrl),
@@ -64,6 +82,30 @@ export default function AdPdfGenerator() {
       triggerDownload(blob, FILENAME[format]);
     },
   });
+
+  const previewMutation = useMutation({
+    mutationFn: () => fetchPreview(format, bgUrl),
+    onSuccess: (url) => {
+      // Revoke previous object URL to avoid memory leaks
+      if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current);
+      prevObjectUrl.current = url;
+      setPreviewUrl(url);
+    },
+  });
+
+  function handleFormatChange(f: Format) {
+    setFormat(f);
+    mutation.reset();
+    previewMutation.reset();
+    setPreviewUrl(null);
+  }
+
+  function handleBgUrlChange(val: string) {
+    setBgUrl(val);
+    mutation.reset();
+    previewMutation.reset();
+    setPreviewUrl(null);
+  }
 
   return (
     <div className="p-8 max-w-2xl">
@@ -89,7 +131,7 @@ export default function AdPdfGenerator() {
               <button
                 key={f.value}
                 type="button"
-                onClick={() => { setFormat(f.value); mutation.reset(); }}
+                onClick={() => handleFormatChange(f.value)}
                 className={`text-left rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   format === f.value
                     ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -116,7 +158,7 @@ export default function AdPdfGenerator() {
               id="bg-url"
               type="url"
               value={bgUrl}
-              onChange={(e) => { setBgUrl(e.target.value); mutation.reset(); }}
+              onChange={(e) => handleBgUrlChange(e.target.value)}
               placeholder={DEFAULT_BG[format]}
               className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
@@ -136,28 +178,61 @@ export default function AdPdfGenerator() {
           <p>Pipeline · WeasyPrint&nbsp;→&nbsp;RGB&nbsp;PDF · Ghostscript&nbsp;→&nbsp;CMYK&nbsp;PDF&nbsp;1.3</p>
         </div>
 
-        {/* Action */}
+        {/* Actions */}
         <div className="flex flex-col gap-3">
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            size="lg"
-            className="w-full sm:w-auto"
-          >
-            {mutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Generating — this takes about a minute…
-              </>
-            ) : (
-              "Generate &amp; Download CMYK PDF"
-            )}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            {/* Preview button */}
+            <Button
+              variant="outline"
+              onClick={() => previewMutation.mutate()}
+              disabled={previewMutation.isPending || mutation.isPending}
+              size="lg"
+            >
+              {previewMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Rendering preview…
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Preview
+                </>
+              )}
+            </Button>
 
-          {mutation.isPending && (
+            {/* Download button */}
+            <Button
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending || previewMutation.isPending}
+              size="lg"
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating — this takes about a minute…
+                </>
+              ) : (
+                "Generate &amp; Download CMYK PDF"
+              )}
+            </Button>
+          </div>
+
+          {(previewMutation.isPending || mutation.isPending) && (
             <p className="text-xs text-muted-foreground">
-              Downloading fonts, rendering ad, converting to CMYK. Please wait — don't navigate away.
+              Downloading fonts, rendering ad, converting colour space. Please wait — don't navigate away.
             </p>
+          )}
+
+          {previewMutation.isError && (
+            <div className="flex items-start gap-2 text-sm text-destructive">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                {previewMutation.error instanceof Error
+                  ? previewMutation.error.message
+                  : "Preview generation failed — check the API server logs."}
+              </span>
+            </div>
           )}
 
           {mutation.isSuccess && (
@@ -178,6 +253,23 @@ export default function AdPdfGenerator() {
             </div>
           )}
         </div>
+
+        {/* PNG preview */}
+        {previewUrl && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Preview</p>
+            <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
+              <img
+                src={previewUrl}
+                alt="Ad preview"
+                className="w-full object-contain"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rendered at 150&nbsp;dpi from the RGB intermediate PDF. Colours will shift slightly after CMYK conversion.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
