@@ -73,6 +73,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -292,7 +293,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols)} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta)} disabled={!filteredScouting.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (filteredScouting.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredScouting.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
         </div>
       </div>
@@ -496,6 +497,34 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         onCancel={() => { setUnlinkRecordId(null); unlinkMutation.reset(); }}
         mutation={unlinkMutation}
       />
+
+      {/* Print pre-flight confirm */}
+      {(() => {
+        const unlinkedInView = filteredScouting.filter(r => !r.blockId);
+        return (
+          <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                  {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
+                </DialogTitle>
+                <DialogDescription>
+                  {unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
+                  <Link className="w-4 h-4 mr-1" />Link first
+                </Button>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta); }}>
+                  <Printer className="w-4 h-4 mr-1" />Print anyway
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Bulk-link Dialog */}
       <Dialog open={bulkLinkOpen} onOpenChange={o => { if (!o) { setBulkLinkOpen(false); bulkLinkMutation.reset(); } }}>
