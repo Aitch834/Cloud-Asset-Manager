@@ -190,6 +190,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   // ── Yield by Block × Vintage chart data ───────────────────────────────────
+  // X-axis = blocks, bar series = vintage years (per spec)
   const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
   const yieldChartData = useMemo(() => {
     if (yearFilter !== "all") return null;
@@ -197,18 +198,17 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const linkedRows = filteredHarvest.filter(r => r.blockId != null && r.blockId !== "");
     const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
     if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
-    const chartData = uniqueVintages.map(vy => {
-      const entry: Record<string, string | number> = { vintage: vy };
-      for (const bid of uniqueBlockIds) {
-        const name = String(blockName(bid));
+    // One entry per block; vintage years become the bar series
+    const chartData = uniqueBlockIds.map(bid => {
+      const entry: Record<string, string | number> = { block: String(blockName(bid)) };
+      for (const vy of uniqueVintages) {
         const grp = filteredHarvest.filter(r => String(r.vintageYear ?? "") === vy && r.blockId === bid);
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        entry[name] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
+        entry[vy] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
       }
       return entry;
     });
-    const blockNames = uniqueBlockIds.map(bid => String(blockName(bid)));
-    return { chartData, blockNames };
+    return { chartData, vintages: uniqueVintages };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter]);
 
@@ -807,7 +807,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={yieldChartData.chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="vintage" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="block" tick={{ fontSize: 12 }} />
               <YAxis
                 tick={{ fontSize: 12 }}
                 tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : String(v)}
@@ -816,10 +816,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               />
               <Tooltip formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {yieldChartData.blockNames.map((name, i) => (
+              {yieldChartData.vintages.map((vy, i) => (
                 <Bar
-                  key={name}
-                  dataKey={name}
+                  key={vy}
+                  dataKey={vy}
                   fill={YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]}
                   radius={[3, 3, 0, 0]}
                   maxBarSize={48}
