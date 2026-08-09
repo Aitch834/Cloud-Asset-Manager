@@ -1199,6 +1199,74 @@ export default function Movements() {
     try { setIdBannerDismissed(sessionStorage.getItem(idBannerKey) === "1"); } catch { setIdBannerDismissed(false); }
   }, [farmId, idBannerKey]);
 
+  // ── Sector-aware livestock identifier warning — shown on all submission tabs ──
+  const idBanner = (() => {
+    if (!movFarmRecord || idBannerDismissed) return null;
+    const r = movFarmRecord as Record<string, unknown>;
+    const hasAnyLivestock =
+      r.sectorBeef || r.sectorSheep || r.sectorDairy || r.sectorPigs ||
+      r.sectorGoats || r.sectorEquine || r.sectorDeer || r.sectorPoultry || r.sectorEggs;
+    if (!hasAnyLivestock) return null;
+
+    const missing: { label: string; anchor: string }[] = [];
+    if (!r.cphNumber || String(r.cphNumber).trim() === "")
+      missing.push({ label: "CPH Number", anchor: "settings-cph" });
+    if ((r.sectorSheep || r.sectorGoats) && (!r.flockMark || String(r.flockMark).trim() === ""))
+      missing.push({ label: "Flock Mark", anchor: "settings-flock-mark" });
+    if ((r.sectorBeef || r.sectorDairy) && (!r.herdMark || String(r.herdMark).trim() === ""))
+      missing.push({ label: "Herd Mark", anchor: "settings-herd-mark" });
+    if (r.sectorPigs && (!r.pigHerdMark || String(r.pigHerdMark).trim() === ""))
+      missing.push({ label: "Pig Herd Mark", anchor: "settings-pig-herd-mark" });
+
+    if (missing.length === 0) return null;
+
+    return (
+      <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 mb-4">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+        <span className="flex-1">
+          <span className="font-semibold">Missing livestock identifiers: </span>
+          {missing.map((f, i) => (
+            <span key={f.label}>
+              {i > 0 && ", "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-amber-900 font-medium"
+                onClick={() => {
+                  navigateTo("/settings/farm");
+                  setTimeout(() => {
+                    const el = document.getElementById(f.anchor);
+                    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true }); }
+                  }, 400);
+                }}
+              >
+                {f.label}
+              </button>
+            </span>
+          ))}
+          {" — submissions may fail or be incomplete. "}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-amber-900 font-medium"
+            onClick={() => navigateTo("/settings/farm")}
+          >
+            Add in Farm Settings → Livestock
+          </button>
+        </span>
+        <button
+          type="button"
+          aria-label="Dismiss warning"
+          className="shrink-0 ml-1 text-amber-500 hover:text-amber-700"
+          onClick={() => {
+            try { sessionStorage.setItem(idBannerKey, "1"); } catch { /* */ }
+            setIdBannerDismissed(true);
+          }}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  })();
+
   if (!farmId) return <Redirect href="/select" />;
 
   const baseUrl = `/api/farms/${farmId}/movements`;
@@ -1909,73 +1977,8 @@ export default function Movements() {
           BCMS Submitted <span className="ml-1 text-xs opacity-60">({submittedCount})</span>
         </TabButton>
       </TabBar>
-      {/* ── Sector-aware livestock identifier warning (Movements list tab only) ── */}
-      {activeTab === "movements" && (() => {
-        if (!movFarmRecord || idBannerDismissed) return null;
-        const r = movFarmRecord as Record<string, unknown>;
-        const hasAnyLivestock =
-          r.sectorBeef || r.sectorSheep || r.sectorDairy || r.sectorPigs ||
-          r.sectorGoats || r.sectorEquine || r.sectorDeer || r.sectorPoultry || r.sectorEggs;
-        if (!hasAnyLivestock) return null;
-
-        const missing: { label: string; anchor: string }[] = [];
-        if (!r.cphNumber || String(r.cphNumber).trim() === "")
-          missing.push({ label: "CPH Number", anchor: "settings-cph" });
-        if ((r.sectorSheep || r.sectorGoats) && (!r.flockMark || String(r.flockMark).trim() === ""))
-          missing.push({ label: "Flock Mark", anchor: "settings-flock-mark" });
-        if ((r.sectorBeef || r.sectorDairy) && (!r.herdMark || String(r.herdMark).trim() === ""))
-          missing.push({ label: "Herd Mark", anchor: "settings-herd-mark" });
-        if (r.sectorPigs && (!r.pigHerdMark || String(r.pigHerdMark).trim() === ""))
-          missing.push({ label: "Pig Herd Mark", anchor: "settings-pig-herd-mark" });
-
-        if (missing.length === 0) return null;
-
-        return (
-          <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 mb-4">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
-            <span className="flex-1">
-              <span className="font-semibold">Missing livestock identifiers: </span>
-              {missing.map((f, i) => (
-                <span key={f.label}>
-                  {i > 0 && ", "}
-                  <button
-                    type="button"
-                    className="underline underline-offset-2 hover:text-amber-900 font-medium"
-                    onClick={() => {
-                      navigateTo("/settings/farm");
-                      setTimeout(() => {
-                        const el = document.getElementById(f.anchor);
-                        if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus({ preventScroll: true }); }
-                      }, 400);
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                </span>
-              ))}
-              {" — submissions may fail or be incomplete. "}
-              <button
-                type="button"
-                className="underline underline-offset-2 hover:text-amber-900 font-medium"
-                onClick={() => navigateTo("/settings/farm")}
-              >
-                Add in Farm Settings → Livestock
-              </button>
-            </span>
-            <button
-              type="button"
-              aria-label="Dismiss warning"
-              className="shrink-0 ml-1 text-amber-500 hover:text-amber-700"
-              onClick={() => {
-                try { sessionStorage.setItem(idBannerKey, "1"); } catch { /* */ }
-                setIdBannerDismissed(true);
-              }}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      })()}
+      {/* ── Sector-aware livestock identifier warning ── */}
+      {idBanner}
       {/* Overdue compliance alert */}
       {overdueMovements.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-900 flex gap-3 items-start">
@@ -3125,6 +3128,9 @@ export default function Movements() {
             </div>
           </div>
 
+          {/* ── Sector-aware livestock identifier warning ── */}
+          {idBanner}
+
           {!bcmsConfigured && (
             <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
               <Shield size={16} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
@@ -3235,6 +3241,9 @@ export default function Movements() {
               )}
             </div>
           </div>
+
+          {/* ── Sector-aware livestock identifier warning ── */}
+          {idBanner}
 
           {/* Sub-tab selector */}
           <div style={{ display: "flex", borderBottom: "2px solid #e5e7eb", marginBottom: "1rem" }}>
@@ -3480,6 +3489,9 @@ export default function Movements() {
               )}
             </div>
           </div>
+
+          {/* ── Sector-aware livestock identifier warning ── */}
+          {idBanner}
 
           <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
             <AlertTriangle size={15} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
