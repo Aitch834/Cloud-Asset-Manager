@@ -317,7 +317,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 
   const pressingBlockHtml = `
 <div class="section">
-  <h2>1. Pressing Record</h2>
+  <h2>Pressing Record</h2>
   <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px">
 
     <!-- Identity row -->
@@ -785,7 +785,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     </div>` : "";
 
     barrelProvenanceHtml = `<div class="section">
-  <h2>6. Barrel Provenance</h2>
+  <h2>Barrel Provenance</h2>
   ${barrelFills.length > 0 ? `<p style="font-size:10px;color:#6b7280;margin-bottom:8px">Fill history for each oak barrel used as a source vessel for a bottling run in this batch trail. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.</p>` : ""}
   ${vesselBlocks}${noFillWarningHtml}
 </div>`;
@@ -807,6 +807,17 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     <p style="font-size:10px;color:#374151">This document covers <strong>all winery records for the entire ${escHtml(vintage)} vintage</strong>, not a single batch. All pressing records, fermentation runs, cellar operations, SO₂ tests, and bottling runs for this vintage year are included. Batch references are shown on each row where available.</p>
   </div>
 </div>` : "";
+
+  // Auto-sequencing section numbers — assigned in the order sections appear in
+  // the output, not hard-coded into each title string. To add or reorder a
+  // section, just adjust the template below; all subsequent numbers update
+  // automatically without any manual label edits.
+  let _sn = 0;
+  const sn = (title: string) => `${++_sn}. ${title}`;
+  // Patches the <h2> inside an already-assembled section HTML block (used for
+  // pressingBlockHtml and barrelProvenanceHtml which are built earlier as strings).
+  const numBlock = (block: string, bareTitle: string) =>
+    block.replace(`<h2>${bareTitle}</h2>`, `<h2>${sn(bareTitle)}</h2>`);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -850,17 +861,17 @@ ${vintageScopeNote}
 ${vintageComparisonHtml}
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
-${pressingBlockHtml}
-${fermRows ? sectionHtml("2. Fermentation", fermHeader + fermRows) : ""}
+${numBlock(pressingBlockHtml, "Pressing Record")}
+${fermRows ? sectionHtml(sn("Fermentation"), fermHeader + fermRows) : ""}
 ${fermAttachmentsHtml}
-${cellarRows ? sectionHtml("3. Cellar operations", cellarHeader + cellarRows) : ""}
+${cellarRows ? sectionHtml(sn("Cellar operations"), cellarHeader + cellarRows) : ""}
 ${cellarAttachmentsHtml}
-${so2Rows ? sectionHtml("4. SO₂ tests", so2Header + so2Rows) : ""}
+${so2Rows ? sectionHtml(sn("SO₂ tests"), so2Header + so2Rows) : ""}
 ${so2Rows && so2HasUnverifiedLimit ? `<p style="font-size:9px;color:#b45309;margin:2px 0 8px">⚠ Limit unverified — one or more SO₂ tests carry an organic ceiling but have no batch reference, so the applicable limit cannot be verified against a batch record.</p>` : ""}
 ${so2AttachmentsHtml}
-${bottlingRows ? sectionHtml("5. Bottling runs", bottlingHeader + bottlingRows) : ""}
+${bottlingRows ? sectionHtml(sn("Bottling runs"), bottlingHeader + bottlingRows) : ""}
 ${bottlingAttachmentsHtml}
-${barrelProvenanceHtml}
+${barrelProvenanceHtml ? numBlock(barrelProvenanceHtml, "Barrel Provenance") : ""}
 
 <div class="signoff">
   <div style="margin-top:28px;border-top:2px solid #374151;padding-top:16px">
