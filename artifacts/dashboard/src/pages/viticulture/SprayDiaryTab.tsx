@@ -364,7 +364,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
         const block = blocks.find(b => b.id === r.blockId);
         const blockNameStr = String(block?.blockName ?? "").toLowerCase();
         const variety = String(block?.variety ?? "").toLowerCase();
-        return blockNameStr.includes(q) || variety.includes(q);
+        const operator = String(r.operatorName ?? "").toLowerCase();
+        return blockNameStr.includes(q) || variety.includes(q) || operator.includes(q);
       });
     }
     return rows;
@@ -415,7 +416,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
           <Input
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
-            placeholder="Search block or variety…"
+            placeholder="Search block, variety or operator…"
             className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
           />
           {searchText && (
