@@ -282,6 +282,32 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const milestones = msData?.milestones ?? [];
   const allMilestones = allMsData?.milestones ?? [];
 
+  // ── Export / print filter state ──────────────────────────────────────────
+  const [aeExportScheme, setAeExportScheme] = useState("all");
+  const [aeExportStatus, setAeExportStatus] = useState("all");
+
+  const uniqueSchemeNames = useMemo(
+    () => [...new Set(projects.map(p => p.schemeName))].sort(),
+    [projects],
+  );
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter(p => {
+      if (aeExportScheme !== "all" && p.schemeName !== aeExportScheme) return false;
+      if (aeExportStatus !== "all" && p.status !== aeExportStatus) return false;
+      return true;
+    });
+  }, [projects, aeExportScheme, aeExportStatus]);
+
+  function exportFilename() {
+    const parts: string[] = ["agri-environment"];
+    if (aeExportScheme !== "all") {
+      parts.push(aeExportScheme.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24));
+    }
+    if (aeExportStatus !== "all") parts.push(aeExportStatus);
+    return parts.join("-") + ".csv";
+  }
+
   // Deadline counts across all milestones (excluding paid ones)
   const pendingMilestones = allMilestones.filter(m => m.status !== "paid");
   const overdueMs  = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
@@ -417,7 +443,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     ];
 
     const rows: (string | number | null)[][] = [header];
-    for (const p of projects) {
+    for (const p of filteredProjects) {
       const ms = milestonesByProject.get(p.id) ?? [];
       const schemeBase = [
         p.schemeName,
@@ -447,7 +473,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
         }
       }
     }
-    downloadCsvFile("agri-environment-schemes.csv", rows);
+    downloadCsvFile(exportFilename(), rows);
   }
 
   return (
@@ -529,6 +555,47 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
               Expand the scheme below to view and update individual milestone statuses.
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Export / print filter bar */}
+      {projects.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+          background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 16,
+          flexWrap: "wrap" as const,
+        }}>
+          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", flexShrink: 0 }}>
+            Export &amp; Print filter:
+          </span>
+          <select
+            value={aeExportScheme}
+            onChange={e => setAeExportScheme(e.target.value)}
+            style={{ fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", color: "#111827" }}
+          >
+            <option value="all">All schemes</option>
+            {uniqueSchemeNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select
+            value={aeExportStatus}
+            onChange={e => setAeExportStatus(e.target.value)}
+            style={{ fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", color: "#111827" }}
+          >
+            <option value="all">All statuses</option>
+            {AE_PROJECT_STATUSES.map(s => <option key={s} value={s}>{AE_PROJECT_STATUS_CFG[s]?.label ?? s}</option>)}
+          </select>
+          {(aeExportScheme !== "all" || aeExportStatus !== "all") && (
+            <span style={{ fontSize: "0.78rem", color: "#6b7280", marginLeft: 2 }}>
+              {filteredProjects.length} of {projects.length} scheme{projects.length !== 1 ? "s" : ""} selected
+              {" · "}
+              <button
+                onClick={() => { setAeExportScheme("all"); setAeExportStatus("all"); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6b7280", textDecoration: "underline", fontSize: "0.78rem" }}
+              >
+                Clear
+              </button>
+            </span>
+          )}
         </div>
       )}
 
@@ -665,22 +732,28 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
       </div>{/* end ae-screen-only */}
 
       {/* ── Print-only full report ────────────────────────────────────────── */}
-      {projects.length > 0 && (() => {
+      {filteredProjects.length > 0 && (() => {
         const milestonesByProject = new Map<number, AgriEnvMilestone[]>();
         for (const m of allMilestones) {
           const arr = milestonesByProject.get(m.projectId) ?? [];
           arr.push(m);
           milestonesByProject.set(m.projectId, arr);
         }
+        const printedValue = filteredProjects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+        const filterLabel = [
+          aeExportScheme !== "all" ? aeExportScheme : null,
+          aeExportStatus !== "all" ? (AE_PROJECT_STATUS_CFG[aeExportStatus]?.label ?? aeExportStatus) : null,
+        ].filter(Boolean).join(" · ");
         return (
           <div style={{ display: "none" }} className="ae-print-only">
             <div style={{ fontFamily: "Georgia, serif", color: "#111827", padding: "0 0 24px" }}>
               <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>Agri-environment Scheme Record</h1>
               <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 24 }}>
                 Exported {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
-                {totalValue > 0 && ` · Total scheme value: £${(totalValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`}
+                {filterLabel && ` · Filtered: ${filterLabel}`}
+                {printedValue > 0 && ` · Total scheme value: £${(printedValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`}
               </p>
-              {projects.map((p, idx) => {
+              {filteredProjects.map((p, idx) => {
                 const ms = milestonesByProject.get(p.id) ?? [];
                 const statusCfg = AE_PROJECT_STATUS_CFG[p.status];
                 return (
