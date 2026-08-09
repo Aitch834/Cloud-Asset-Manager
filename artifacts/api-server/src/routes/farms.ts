@@ -19323,7 +19323,14 @@ router.get("/:farmId/reports/subsidies", requireAuth, requireTenant, requireModu
     )
   );
 
-  res.json({ schemes, subsidyTransactions, year });
+  const agriEnvProjects = await db.select().from(agriEnvProjectsTable).where(
+    and(
+      eq(agriEnvProjectsTable.farmId, farmId),
+      ne(agriEnvProjectsTable.status, "withdrawn")
+    )
+  );
+
+  res.json({ schemes, subsidyTransactions, agriEnvProjects, year });
 });
 
 router.get("/:farmId/reports/year-on-year", requireAuth, requireTenant, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {

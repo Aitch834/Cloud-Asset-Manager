@@ -590,10 +590,12 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
 
   const schemes: any[] = data?.schemes ?? [];
   const subsidyTx: any[] = (data?.subsidyTransactions ?? []).filter((t: any) => ["Agri-Environment Scheme", "Grant / Subsidy"].includes(t.category ?? ""));
+  const agriEnvProjects: any[] = data?.agriEnvProjects ?? [];
 
   const activeSchemes = schemes.filter(s => s.status === "active");
   const totalAnnualSchemes = activeSchemes.reduce((s, sc) => s + (sc.annualPaymentPence ?? 0), 0);
   const totalSubsidyReceived = subsidyTx.reduce((s, t) => s + (t.amountPence ?? 0), 0);
+  const totalAgriEnvGrantValue = agriEnvProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
 
   useEffect(() => {
     onRegisterExport(() => {
@@ -609,6 +611,18 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
           s.status,
         ]),
         [],
+        ["AGRI-ENVIRONMENT SCHEMES", "", "", "", "", ""],
+        ["Scheme", "Agreement Ref.", "Start Date", "End Date", "Total Grant Value", "Status"],
+        ...agriEnvProjects.map((p: any) => [
+          p.schemeName,
+          p.agreementReference || "—",
+          p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—",
+          p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing",
+          p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—",
+          p.status,
+        ]),
+        ["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)],
+        [],
         ["SUBSIDY PAYMENTS RECEIVED", "", "", ""],
         ["Date", "Description", "Category", "Amount"],
         ...subsidyTx.map((t: any) => [
@@ -619,20 +633,22 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
         ]),
         [],
         ["Annual Scheme Value", fmt(totalAnnualSchemes)],
+        ["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)],
         ["Total Received", fmt(totalSubsidyReceived)],
       ];
       downloadCsv(`subsidies-${year}.csv`, rows);
     });
-  }, [data, schemes, subsidyTx, totalAnnualSchemes, totalSubsidyReceived, year, onRegisterExport]);
+  }, [data, schemes, agriEnvProjects, subsidyTx, totalAnnualSchemes, totalAgriEnvGrantValue, totalSubsidyReceived, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
-  if (schemes.length === 0 && subsidyTx.length === 0) return <EmptyState icon={Leaf} message="Add agri-environment scheme agreements and subsidy transactions to see this report." />;
+  if (schemes.length === 0 && subsidyTx.length === 0 && agriEnvProjects.length === 0) return <EmptyState icon={Leaf} message="Add agri-environment scheme agreements and subsidy transactions to see this report." />;
 
   return (
     <div className="space-y-6">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <StatCard label="Active Schemes" value={String(activeSchemes.length)} />
         <StatCard label="Annual Scheme Value" value={fmt(totalAnnualSchemes)} sub="Expected annual total" />
+        <StatCard label="Agri-env Scheme Value" value={fmt(totalAgriEnvGrantValue)} sub="Active & completed agreements" bg="#f0fdf4" border="#bbf7d0" color="#166534" />
         <StatCard label="Subsidy Received" value={fmt(totalSubsidyReceived)} sub={`Recorded in ${year}`} bg="#eff6ff" border="#bfdbfe" color="#1e40af" />
       </div>
 
@@ -666,6 +682,47 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {agriEnvProjects.length > 0 && (
+        <div>
+          <h3 style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: 8, color: "#374151" }}>Agri-environment Schemes</h3>
+          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["Scheme", "Agreement Ref.", "Start", "End", "Total Grant Value", "Status"].map(h => (
+                    <th key={h} style={{ padding: "0.6rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {agriEnvProjects.map((p: any, i) => (
+                  <tr key={p.id} style={{ borderBottom: i < agriEnvProjects.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.schemeName}</td>
+                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{p.agreementReference || "—"}</td>
+                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—"}</td>
+                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing"}</td>
+                    <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—"}</td>
+                    <td style={{ padding: "0.6rem 0.875rem" }}>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 20, textTransform: "capitalize", background: p.status === "active" ? "#dcfce7" : p.status === "completed" ? "#eff6ff" : "#f3f4f6", color: p.status === "active" ? "#166534" : p.status === "completed" ? "#1e40af" : "#374151" }}>
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid #d1fae5", background: "#f0fdf4" }}>
+                  <td colSpan={4} style={{ padding: "0.6rem 0.875rem", fontWeight: 700, color: "#166534" }}>Total Agri-environment Scheme Value</td>
+                  <td style={{ padding: "0.6rem 0.875rem", fontWeight: 700, color: "#166534" }}>{fmt(totalAgriEnvGrantValue)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 6 }}>
+            Showing all agri-environment agreements except withdrawn ones. Grant values are pulled automatically from the Agri-environment tab.
+          </p>
         </div>
       )}
 
