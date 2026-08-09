@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField } from "./shared";
+import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
 import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow } from "./VesselRegisterTab";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -778,10 +778,14 @@ export function So2SummaryBlock({ summary }: { summary: So2Summary }) {
 
 // ─── Vessel Detail (opened from Batch Trail) ──────────────────────────────────
 /**
- * Opens a read-only vessel record dialog directly from the Batch Trail, fetching
- * the full vessel data from the shared winery-vessels list query (cache-first).
+ * Opens a vessel record dialog directly from the Batch Trail, fetching the full
+ * vessel data from the shared winery-vessels list query (cache-first).
+ * Includes an inline Edit form so winemakers can fix details without leaving the trail.
  */
 function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; vesselId: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
   const { data: vessels, isLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-vessels", farmId],
     queryFn: async () => {
@@ -798,6 +802,63 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
       String(vessel.vessel_type ?? "").toLowerCase().includes("barrique")
     : false;
 
+  // ── Edit state ───────────────────────────────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const isBarrelForm = form.vesselType?.toLowerCase().includes("barrel") || form.vesselType?.toLowerCase().includes("barrique");
+
+  // Normalise an API snake_case vessel record into the camelCase keys the form uses,
+  // matching the same key names as the Vessel Register editor in VesselRegisterTab.tsx.
+  const normaliseVesselToForm = (v: Record<string, unknown>): Record<string, string> => {
+    const str = (val: unknown) => (val == null ? "" : String(val));
+    return {
+      vesselRef: str(v.vessel_ref),
+      vesselType: str(v.vessel_type),
+      capacityLitres: str(v.capacity_litres),
+      material: str(v.material),
+      yearPurchased: str(v.year_purchased),
+      manufacturer: str(v.manufacturer),
+      location: str(v.location),
+      status: str(v.status) || "active",
+      oakOrigin: str(v.oak_origin),
+      cooperage: str(v.cooperage),
+      fillNumber: str(v.fill_number),
+      toastingLevel: str(v.toasting_level),
+      cellarZone: str(v.cellar_zone),
+      cellarPosition: str(v.cellar_position),
+      currentContents: str(v.current_contents),
+      currentVolumeLitres: str(v.current_volume_litres),
+      notes: str(v.notes),
+    };
+  };
+
+  const openEdit = () => {
+    if (!vessel) return;
+    setForm(normaliseVesselToForm(vessel));
+    setEditOpen(true);
+  };
+
+  const editMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(form),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+      setEditOpen(false);
+      editMut.reset();
+      toast({ title: "Vessel updated" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
+
   const statusBadge = (s: unknown) => {
     const v = String(s ?? "active");
     if (v === "active") return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Active</span>;
@@ -810,10 +871,13 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Vessel — {vessel ? fmt(vessel.vessel_ref) : `#${vesselId}`}</DialogTitle>
+          {editOpen && <DialogDescription>Edit vessel details below. Changes will be saved to the Vessel Register.</DialogDescription>}
         </DialogHeader>
+
         {isLoading && <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
         {!isLoading && !vessel && <p className="text-sm text-muted-foreground py-4">Vessel record could not be loaded.</p>}
-        {vessel && (
+
+        {vessel && !editOpen && (
           <>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <ViewField label="Vessel Ref" value={<span className="font-mono">{fmt(vessel.vessel_ref)}</span>} />
@@ -853,7 +917,83 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
             <VesselCleanRow farmId={farmId} vesselId={vesselId} readOnly />
           </>
         )}
-        <DialogFooter><Button onClick={onClose}>Close</Button></DialogFooter>
+
+        {vessel && editOpen && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Vessel Reference *</Label><Input value={form.vesselRef ?? ""} onChange={e => sf("vesselRef", e.target.value)} placeholder="e.g. T1, Barrel-B12, A1" /></div>
+              <div>
+                <Label>Vessel Type</Label>
+                <Select value={form.vesselType ?? ""} onValueChange={v => sf("vesselType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>{VESSEL_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Capacity (L)</Label><Input type="number" step="0.1" value={form.capacityLitres ?? ""} onChange={e => sf("capacityLitres", e.target.value)} /></div>
+              <div><Label>Material</Label><Input value={form.material ?? ""} onChange={e => sf("material", e.target.value)} placeholder="e.g. 316L stainless, French oak" /></div>
+              <div><Label>Year Purchased</Label><Input type="number" value={form.yearPurchased ?? ""} onChange={e => sf("yearPurchased", e.target.value)} /></div>
+              <div><Label>Manufacturer</Label><Input value={form.manufacturer ?? ""} onChange={e => sf("manufacturer", e.target.value)} /></div>
+              <div><Label>Location</Label><Input value={form.location ?? ""} onChange={e => sf("location", e.target.value)} placeholder="e.g. Winery floor, East cellar" /></div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status ?? "active"} onValueChange={v => sf("status", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{VESSEL_STATUS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            {isBarrelForm && (
+              <>
+                <SectionLabel>Barrel details</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Oak Origin</Label><Input value={form.oakOrigin ?? ""} onChange={e => sf("oakOrigin", e.target.value)} placeholder="e.g. French Allier, American" /></div>
+                  <div><Label>Cooperage</Label><Input value={form.cooperage ?? ""} onChange={e => sf("cooperage", e.target.value)} placeholder="e.g. Demptos, François Frères" /></div>
+                  <div><Label>Fill Number</Label><Input type="number" min="1" value={form.fillNumber ?? ""} onChange={e => sf("fillNumber", e.target.value)} placeholder="How many vintages used" /></div>
+                  <div>
+                    <Label>Toasting Level</Label>
+                    <Select value={form.toastingLevel ?? ""} onValueChange={v => sf("toastingLevel", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{TOASTING_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <SectionLabel>Cellar location</SectionLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Cellar Zone</Label><Input value={form.cellarZone ?? ""} onChange={e => sf("cellarZone", e.target.value)} placeholder="e.g. Cellar A, Bonded Store" /></div>
+                  <div><Label>Position within Zone</Label><Input value={form.cellarPosition ?? ""} onChange={e => sf("cellarPosition", e.target.value)} placeholder="e.g. R4-P3, Bay 2" /></div>
+                </div>
+              </>
+            )}
+            <SectionLabel>Current state</SectionLabel>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Current Contents</Label><Input value={form.currentContents ?? ""} onChange={e => sf("currentContents", e.target.value)} placeholder="e.g. Bacchus 2024, empty" /></div>
+              <div><Label>Current Volume (L)</Label><Input type="number" step="0.1" value={form.currentVolumeLitres ?? ""} onChange={e => sf("currentVolumeLitres", e.target.value)} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} /></div>
+            <DialogMutationError mutation={editMut} />
+          </div>
+        )}
+
+        <DialogFooter>
+          {!editOpen ? (
+            <>
+              <Button variant="outline" onClick={openEdit} disabled={!vessel}>
+                <Pencil className="h-4 w-4 mr-1.5" />Edit
+              </Button>
+              <Button onClick={onClose}>Close</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => { setEditOpen(false); editMut.reset(); }}>Cancel</Button>
+              <Button
+                onClick={() => editMut.mutate()}
+                disabled={!form.vesselRef || editMut.isPending}
+              >
+                {editMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save changes
+              </Button>
+            </>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
