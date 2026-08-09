@@ -214,12 +214,32 @@ export function OverviewTab({
             { label: "Vintage harvest records complete", ok: harvest.data.length > 0 },
             { label: "Pruning / canopy records logged", ok: false },
             { label: "No Xylella suspicion outstanding", ok: !xylellaAlert },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-2">
-              {item.ok ? <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
-              <span className={item.ok ? "" : "text-muted-foreground"}>{item.label}</span>
-            </div>
-          ))}
+            { label: "All scouting records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "scouting")!.count === 0, tabId: "scouting", unlinkedCount: unlinkedItems.find(i => i.tabId === "scouting")!.count },
+            { label: "All spray diary records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "spray-diary")!.count === 0, tabId: "spray-diary", unlinkedCount: unlinkedItems.find(i => i.tabId === "spray-diary")!.count },
+          ].map((item, i) => {
+            const isClickable = !item.ok && item.tabId;
+            const handleClick = isClickable
+              ? () => (onNavigateWithBulkLink ? onNavigateWithBulkLink(item.tabId!) : onNavigate?.(item.tabId!))
+              : undefined;
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-2${isClickable ? " cursor-pointer hover:bg-red-50 rounded px-1 -mx-1 transition-colors" : ""}`}
+                onClick={handleClick}
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick?.(); } } : undefined}
+              >
+                {item.ok ? <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
+                <span className={item.ok ? "" : "text-muted-foreground"}>{item.label}</span>
+                {!item.ok && item.unlinkedCount != null && item.unlinkedCount > 0 && (
+                  <span className="ml-auto rounded-full bg-red-100 border border-red-200 px-1.5 py-0.5 text-xs font-semibold text-red-700 shrink-0">
+                    {item.unlinkedCount} unlinked
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="bg-slate-50 border rounded-lg p-4 text-sm text-slate-700 space-y-2">
