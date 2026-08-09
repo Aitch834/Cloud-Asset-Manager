@@ -2515,6 +2515,37 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
     }
   }
 
+  // ── Per-barrel fill-history warnings ──────────────────────────────────────
+  // Emit one warning row per barrel vessel used in this batch/vintage that has
+  // no fill history logged. Runs independently of the cooperage section so that
+  // barrels with no fills AND no maintenance records are also caught.
+  // One row per barrel (not per maintenance record) to keep the export concise.
+  const barrelVesselsForCsv = Array.isArray(data.barrelVessels) ? data.barrelVessels : [];
+  if (barrelVesselsForCsv.length > 0) {
+    const filledVesselIds = new Set(
+      barrelFillsForCsv.map(f => f.vessel_id != null ? Number(f.vessel_id) : null).filter((id): id is number => id !== null)
+    );
+    const unfilled = barrelVesselsForCsv.filter(v => {
+      const vid = v.id != null ? Number(v.id) : null;
+      return vid !== null && !filledVesselIds.has(vid);
+    });
+    if (unfilled.length > 0) {
+      pushRow({});
+      pushRow({
+        "Stage": "⚠ Barrel Warnings",
+        "Batch Ref": "Barrel",
+        "Notes": "Issue",
+      });
+      for (const v of unfilled) {
+        pushRow({
+          "Stage": "⚠ Warning",
+          "Batch Ref": String(v.vessel_ref ?? v.name ?? ""),
+          "Notes": "No fill history recorded for this barrel",
+        });
+      }
+    }
+  }
+
   // ── pH & TA Analytical History summary block ────────────────────────────────
   // Stage logic shared with the on-screen panel and PDF via lib/ph-ta-stages.
   // SO₂-test readings supplement the three primary stages (most recent test per
