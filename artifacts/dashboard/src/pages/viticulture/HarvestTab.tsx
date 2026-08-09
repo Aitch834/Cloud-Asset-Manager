@@ -29,7 +29,7 @@ import {
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell } from "@/lib/csv";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   // ── Yield by Block × Vintage chart data ───────────────────────────────────
-  // X-axis = blocks, bar series = vintage years (per spec)
+  // X-axis = vintages (chronological), series per block (Bar + Line overlay)
   const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
   const yieldChartData = useMemo(() => {
     if (yearFilter !== "all") return null;
@@ -199,39 +199,39 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const linkedRows = filteredHarvest.filter(r => r.blockId != null && r.blockId !== "");
     const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
     if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
-    // One entry per block; vintage years become the bar series
-    // Build both kg and t/ha datasets
-    const kgData = uniqueBlockIds.map(bid => {
+
+    // Compute per-block area lookup
+    const blockAreaHa: Record<string, number> = {};
+    for (const bid of uniqueBlockIds) {
       const block = blocks.find(b => b.id === bid);
-      const areaHa = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
-      const entry: Record<string, string | number> = { block: String(blockName(bid)) };
-      for (const vy of uniqueVintages) {
+      const ha = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
+      blockAreaHa[String(bid)] = isNaN(ha) ? 0 : ha;
+    }
+
+    // One entry per vintage; blocks become the bar/line series
+    const kgData = uniqueVintages.map(vy => {
+      const entry: Record<string, string | number> = { vintage: vy };
+      for (const bid of uniqueBlockIds) {
         const grp = filteredHarvest.filter(r => String(r.vintageYear ?? "") === vy && r.blockId === bid);
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        entry[vy] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
-        // Store t/ha under a prefixed key for lookup
-        const tha = !isNaN(areaHa) && areaHa > 0 && total > 0 ? total / 1000 / areaHa : 0;
-        entry[`__tha__${vy}`] = tha > 0 ? parseFloat(tha.toFixed(3)) : 0;
+        entry[String(blockName(bid))] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
       }
       return entry;
     });
-    // Build t/ha chart data (using the derived values)
-    const thaData = kgData.map(entry => {
-      const thaEntry: Record<string, string | number> = { block: entry.block };
-      for (const vy of uniqueVintages) {
-        thaEntry[vy] = entry[`__tha__${vy}`] as number;
+    const thaData = uniqueVintages.map(vy => {
+      const entry: Record<string, string | number> = { vintage: vy };
+      for (const bid of uniqueBlockIds) {
+        const grp = filteredHarvest.filter(r => String(r.vintageYear ?? "") === vy && r.blockId === bid);
+        const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+        const areaHa = blockAreaHa[String(bid)] ?? 0;
+        const tha = areaHa > 0 && total > 0 ? total / 1000 / areaHa : 0;
+        entry[String(blockName(bid))] = tha > 0 ? parseFloat(tha.toFixed(3)) : 0;
       }
-      return thaEntry;
+      return entry;
     });
-    // Strip the __tha__ helper keys from kgData
-    const cleanKgData = kgData.map(entry => {
-      const clean: Record<string, string | number> = {};
-      for (const [k, v] of Object.entries(entry)) {
-        if (!k.startsWith("__tha__")) clean[k] = v;
-      }
-      return clean;
-    });
-    return { kgData: cleanKgData, thaData, vintages: uniqueVintages };
+
+    const blockNames = uniqueBlockIds.map(bid => String(blockName(bid)));
+    return { kgData, thaData, blockNames };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
 
@@ -848,13 +848,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               </button>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart
               data={yieldChartUnit === "kg" ? yieldChartData.kgData : yieldChartData.thaData}
-              margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+              margin={{ top: 8, right: 16, left: 0, bottom: 4 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="block" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="vintage" tick={{ fontSize: 12 }} />
               {yieldChartUnit === "kg" ? (
                 <YAxis
                   tick={{ fontSize: 12 }}
@@ -872,22 +872,40 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               )}
               <Tooltip
                 formatter={(v: number, name: string) =>
-                  yieldChartUnit === "kg"
+                  // Hide line series from tooltip (they duplicate the bar values)
+                  name.endsWith(" trend")
+                    ? [null, null]
+                    : yieldChartUnit === "kg"
                     ? [`${v.toLocaleString()} kg`, name]
                     : [`${v.toFixed(2)} t/ha`, name]
                 }
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {yieldChartData.vintages.map((vy, i) => (
-                <Bar
-                  key={vy}
-                  dataKey={vy}
-                  fill={YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]}
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={48}
-                />
-              ))}
-            </BarChart>
+              {yieldChartData.blockNames.map((bname, i) => {
+                const color = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length];
+                return [
+                  <Bar
+                    key={`bar-${bname}`}
+                    dataKey={bname}
+                    fill={color}
+                    fillOpacity={0.75}
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={40}
+                  />,
+                  <Line
+                    key={`line-${bname}`}
+                    type="monotone"
+                    dataKey={bname}
+                    name={`${bname} trend`}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: color, strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                    legendType="none"
+                  />,
+                ];
+              })}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}
