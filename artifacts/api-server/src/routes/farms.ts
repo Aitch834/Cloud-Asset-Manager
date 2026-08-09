@@ -673,6 +673,25 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
   res.json({ record: updated });
 });
 
+/**
+ * PATCH /farms/:farmId — update CPH and/or SBI numbers only.
+ * Used by the mobile app Farm Profile editor so growers can fix identifiers
+ * without needing to open the full dashboard settings form.
+ */
+router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const { cphNumber, sbiNumber } = req.body as { cphNumber?: string | null; sbiNumber?: string | null };
+  const [updated] = await db.update(farmsTable).set({
+    ...(cphNumber !== undefined ? { cphNumber: cphNumber ?? null } : {}),
+    ...(sbiNumber !== undefined ? { sbiNumber: sbiNumber ?? null } : {}),
+  })
+  .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
+  .returning();
+  if (!updated) { res.status(404).json({ error: "Farm not found" }); return; }
+  res.json({ record: updated });
+});
+
 router.get("/farms/:farmId/dashboard", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

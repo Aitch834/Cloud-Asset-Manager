@@ -2,16 +2,19 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { APP_VERSION_FULL as VERSION_FALLBACK } from "@/constants/version";
+import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
@@ -20,7 +23,9 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { apiFetch } from "@/lib/apiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 import * as Location from "expo-location";
@@ -48,6 +53,49 @@ export default function MoreScreen() {
   const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
+
+  const { cphNumber, sbiNumber, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+
+  // Farm Profile edit state
+  const [cphDraft, setCphDraft] = useState("");
+  const [sbiDraft, setSbiDraft] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  // Keep draft values in sync when identifier data loads
+  useEffect(() => {
+    setCphDraft(cphNumber ?? "");
+    setSbiDraft(sbiNumber ?? "");
+  }, [cphNumber, sbiNumber]);
+
+  async function saveProfile(): Promise<void> {
+    if (!currentFarm?.id) return;
+    setProfileSaving(true);
+    setProfileError(null);
+    setProfileSaved(false);
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cphNumber: cphDraft.trim() || null,
+          sbiNumber: sbiDraft.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error ?? `Request failed (${res.status})`);
+      }
+      refetchIdentifiers();
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (err: unknown) {
+      setProfileError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   const [appVersion, setAppVersion] = useState<string>(VERSION_FALLBACK);
   const [lisStatus, setLisStatus] = useState<LisStatus>(null);
@@ -215,6 +263,47 @@ export default function MoreScreen() {
             icon="grid"
             showChevron={false}
           />
+        </View>
+
+        <SectionHeader title="Farm Profile" />
+        <View style={[styles.section, { padding: spacing.lg }]}>
+          <Input
+            label="CPH Number"
+            placeholder="e.g. 12/345/0001"
+            value={cphDraft}
+            onChangeText={t => { setCphDraft(t); setProfileSaved(false); }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="next"
+          />
+          <Input
+            label="SBI Number"
+            placeholder="e.g. 123456789"
+            value={sbiDraft}
+            onChangeText={t => { setSbiDraft(t); setProfileSaved(false); }}
+            keyboardType="numeric"
+            returnKeyType="done"
+            onSubmitEditing={saveProfile}
+            containerStyle={{ marginBottom: 0 }}
+          />
+          {!!profileError && (
+            <Text style={styles.profileErrorText}>{profileError}</Text>
+          )}
+          {profileSaved && (
+            <Text style={styles.profileSavedText}>✓ Saved — identifiers updated</Text>
+          )}
+          <TouchableOpacity
+            style={[styles.saveButton, profileSaving && styles.saveButtonDisabled]}
+            onPress={saveProfile}
+            disabled={profileSaving}
+            activeOpacity={0.8}
+          >
+            {profileSaving ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Farm Profile</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         <SectionHeader title="Sync" />
@@ -801,5 +890,34 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  saveButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.textInverse,
+  },
+  profileErrorText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.error,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  profileSavedText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.success,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
 });

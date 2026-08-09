@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
 
@@ -7,6 +7,7 @@ interface FarmIdentifiers {
   cphNumber: string | null;
   sbiNumber: string | null;
   loading: boolean;
+  refetch: () => void;
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -37,6 +38,9 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
   const [cphNumber, setCphNumber] = useState<string | null>(null);
   const [sbiNumber, setSbiNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchKey, setFetchKey] = useState(0);
+
+  const refetch = useCallback(() => setFetchKey(k => k + 1), []);
 
   useEffect(() => {
     if (!farmId) {
@@ -64,7 +68,7 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
       }
     })();
     return () => { cancelled = true; };
-  }, [farmId]);
+  }, [farmId, fetchKey]);
 
-  return { cphNumber, sbiNumber, loading };
+  return { cphNumber, sbiNumber, loading, refetch };
 }
