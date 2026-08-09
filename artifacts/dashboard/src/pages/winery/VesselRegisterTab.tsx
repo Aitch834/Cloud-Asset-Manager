@@ -561,6 +561,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   type FlagFilter = "fill-1" | "fill-2" | "fill-3" | "fill-4" | "fill-5plus" | "approaching-neutral" | "idle" | null;
   const [flagFilter, setFlagFilter] = useState<FlagFilter>(null);
 
+  // Is-full filter: null = show all, true = full only, false = empty only
+  const [isFullFilter, setIsFullFilter] = useState<boolean | null>(null);
+
   // Helper: days since a date string
   function daysSince(dateStr: unknown): number | null {
     if (!dateStr) return null;
@@ -620,6 +623,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       if (!isBarrelType) return false;
       if (!matchesFlagFilter(r)) return false;
     }
+    if (isFullFilter !== null) {
+      if (!isBarrelType) return false;
+      if (!!r.is_full !== isFullFilter) return false;
+    }
     return true;
   });
 
@@ -644,8 +651,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cellar Stock — Barrels</p>
-            {(zoneFilter || flagFilter) && (
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter(null); setFlagFilter(null); }}>
+            {(zoneFilter || flagFilter || isFullFilter !== null) && (
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter(null); setFlagFilter(null); setIsFullFilter(null); }}>
                 Show all
               </Button>
             )}
@@ -657,6 +664,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               if (String(r.status ?? "active") !== "active") return false;
               if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
               if (flagFilter && !matchesFlagFilter(r)) return false;
+              if (isFullFilter !== null && !!r.is_full !== isFullFilter) return false;
               return true;
             });
             const scopeParts: string[] = [];
@@ -664,6 +672,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             if (flagFilter === "approaching-neutral") scopeParts.push("Flag: approaching neutral (fill 4+)");
             else if (flagFilter === "idle") scopeParts.push("Flag: idle >90 days");
             else if (flagFilter) scopeParts.push(`Fill tier: ${flagFilter}`);
+            if (isFullFilter === true) scopeParts.push("Is Full: Yes");
+            else if (isFullFilter === false) scopeParts.push("Is Full: No (empty)");
             const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
               { key: "vessel_ref", label: "Vessel Ref", fmt: r => String(r.vessel_ref ?? "") },
               { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
@@ -866,7 +876,36 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             </div>
           )}
 
-          {(zoneFilter || flagFilter) && (
+          {/* Is-full filter chips */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">Filter by fill status</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(() => {
+                const fullCount = barrels.filter(r => r.is_full).length;
+                const emptyCount = barrels.length - fullCount;
+                return (
+                  <>
+                    <button
+                      onClick={() => setIsFullFilter(isFullFilter === true ? null : true)}
+                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-green-50 text-green-700 border-green-200 ${isFullFilter === true ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
+                    >
+                      <span>● Full</span>
+                      <span className="font-bold">{fullCount}</span>
+                    </button>
+                    <button
+                      onClick={() => setIsFullFilter(isFullFilter === false ? null : false)}
+                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-slate-50 text-slate-600 border-slate-200 ${isFullFilter === false ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
+                    >
+                      <span>○ Empty</span>
+                      <span className="font-bold">{emptyCount}</span>
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {(zoneFilter || flagFilter || isFullFilter !== null) && (
             <p className="text-xs text-muted-foreground">
               Showing filtered barrels
               {zoneFilter && <> in <span className="font-medium">{zoneFilter}</span></>}
@@ -874,6 +913,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               {flagFilter === "approaching-neutral" && <> flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}
               {flagFilter === "idle" && <> flagged as <span className="font-medium">idle &gt;90 days</span></>}
               {flagFilter && flagFilter.startsWith("fill-") && <> on <span className="font-medium">{flagFilter === "fill-1" ? "new oak" : flagFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : flagFilter.replace("fill-", "") + (flagFilter === "fill-2" ? "nd" : flagFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
+              {isFullFilter !== null && (flagFilter || zoneFilter) && <> · </>}
+              {isFullFilter === true && <> showing <span className="font-medium">full barrels only</span></>}
+              {isFullFilter === false && <> showing <span className="font-medium">empty barrels only</span></>}
               {" "}— click "Show all" to clear.
             </p>
           )}
