@@ -55,7 +55,7 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Scouting = Record<string, unknown>;
 
-export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean }) {
+export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<Scouting>(farmId, "vineyard-scouting", "vineyard-scouting");
   const { displayName } = useUserRole();
   const farmName = useFarmName(farmId);
@@ -451,6 +451,24 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink 
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
+            {onNavigate && (
+              <>
+                <Button
+                  variant="outline"
+                  className="text-orange-700 border-orange-200 hover:bg-orange-50"
+                  onClick={() => { onNavigate("operations", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Wrench className="w-4 h-4 mr-1" />Operations
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                  onClick={() => { onNavigate("harvest", viewing?.blockId as number | undefined); setViewing(null); }}
+                >
+                  <Grape className="w-4 h-4 mr-1" />Harvest
+                </Button>
+              </>
+            )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
         </DialogContent>
