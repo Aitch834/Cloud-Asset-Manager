@@ -508,7 +508,7 @@ function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = SEASON_PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{display:none!important}#${SEASON_PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:24px}.no-print{display:none!important}#${SEASON_PRINT_ID} .hidden{display:block!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
+  s.textContent = `@media print{body>*{visibility:hidden!important}#${SEASON_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:24px!important}#${SEASON_PRINT_ID} *{visibility:visible!important}#${SEASON_PRINT_ID} .hidden{display:block!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
   document.head.appendChild(s);
 }
 
@@ -1244,7 +1244,7 @@ function ensureEntPrintStyle() {
   if (document.getElementById(ENT_PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = ENT_PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{display:none!important}#${ENT_PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:24px}.no-print{display:none!important}}`;
+  s.textContent = `@media print{body>*{visibility:hidden!important}#${ENT_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:24px!important}#${ENT_PRINT_ID} *{visibility:visible!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
   document.head.appendChild(s);
 }
 
@@ -1396,7 +1396,14 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
         <h1 className="text-xl font-bold">Viticulture Enterprise Report — {year}</h1>
         {!!farmMeta?.name && <p className="text-sm font-semibold mt-0.5">{String(farmMeta.name)}</p>}
         {!!farmMeta?.address && <p className="text-xs text-gray-500">{String(farmMeta.address)}</p>}
-        <p className="text-xs text-gray-400 mt-1">Printed: {new Date().toLocaleDateString("en-GB")}</p>
+        <p className="text-xs text-gray-400 mt-1">
+          {[
+            farmMeta?.appaRef ? `APPA: ${String(farmMeta.appaRef)}` : null,
+            farmMeta?.fsaWineProductionRef ? `FSA Wine: ${String(farmMeta.fsaWineProductionRef)}` : null,
+            farmMeta?.winegbMembershipNumber ? `WineGB: ${String(farmMeta.winegbMembershipNumber)}` : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">Printed: {new Date().toLocaleDateString("en-GB")}</p>
       </div>
 
       {!hasData ? (

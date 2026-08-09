@@ -194,6 +194,47 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   });
   const farmFsaVineRef = String((farmRecordData as any)?.fsaVineRegisterRef ?? "");
 
+  const exportRpaCSV = () => {
+    const cell = (v: unknown) => {
+      const s = String(v == null ? "" : v).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const n = (v: unknown) => {
+      const f = parseFloat(String(v ?? ""));
+      return isNaN(f) ? "" : f.toFixed(2);
+    };
+    const sbi = String(farmRecord?.sbiNumber ?? "");
+    const name = String(farmName ?? "");
+    const address = String(farmRecord?.address ?? "");
+    const printed = new Date().toLocaleDateString("en-GB");
+    const headerRows = [
+      `${cell("RPA Rural Payments — Vineyard Block Reference")}`,
+      `${cell(`Farm: ${name}`)}`,
+      `${cell(`SBI Number: ${sbi}`)}${address ? `,${cell(address)}` : ""}`,
+      `${cell(`Printed: ${printed}`)}`,
+      `${cell("For manual reference when entering data into the Rural Payments portal. This is not a direct submission.")}`,
+      "",
+    ];
+    const colHeaders = ["Block Name", "Parcel / Field Ref", "Variety", "Area (ha)", "Planting Year", "Rootstock", "SBI Number"].map(cell).join(",");
+    const dataRows = blocks.map(b => [
+      cell(b.blockName),
+      cell(b.fieldParcelRef ?? ""),
+      cell(b.variety ?? ""),
+      cell(n(b.areaHa)),
+      cell(b.plantingYear ?? ""),
+      cell(b.rootstock ?? ""),
+      cell(sbi),
+    ].join(","));
+    const csv = [...headerRows, colHeaders, ...dataRows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rpa-vineyard-reference-${name.replace(/\s+/g, "-").toLowerCase() || "farm"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const openAdd = () => {
     setForm({ fsaVineRegisterRef: farmFsaVineRef });
     setCurrent(null);
@@ -351,6 +392,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
           <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>

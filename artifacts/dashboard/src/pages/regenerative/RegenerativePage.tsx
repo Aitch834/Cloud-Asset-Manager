@@ -21,7 +21,7 @@ function ensurePrintStyle() {
   if (document.getElementById(PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{display:none!important}#${PRINT_ID}{display:block!important;position:fixed;inset:0;overflow:auto;background:#fff;z-index:99999;padding:32px 40px}.no-print{display:none!important}.print-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}.print-table th{background:#f3f4f6;text-align:left;padding:6px 8px;font-weight:600;border:1px solid #d1d5db}.print-table td{padding:5px 8px;border:1px solid #e5e7eb}.print-section{margin-bottom:24px}.print-section h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:4px;margin-bottom:8px}}`;
+  s.textContent = `@media print{body>*{visibility:hidden!important}#${PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:32px 40px!important}#${PRINT_ID} *{visibility:visible!important}.no-print{display:none!important;visibility:hidden!important}.print-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}.print-table th{background:#f3f4f6;text-align:left;padding:6px 8px;font-weight:600;border:1px solid #d1d5db}.print-table td{padding:5px 8px;border:1px solid #e5e7eb}.print-section{margin-bottom:24px}.print-section h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:4px;margin-bottom:8px}}`;
   document.head.appendChild(s);
 }
 

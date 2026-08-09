@@ -55,6 +55,27 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Phenology = Record<string, unknown>;
 
+// Maps BBCH stage codes to WineGB's five seasonal vineyard surveys
+const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> = {
+  "05": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "07": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "09": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "11": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "13": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "15": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "53": { surveyName: "Flowering Survey", label: "flowering" },
+  "55": { surveyName: "Flowering Survey", label: "flowering" },
+  "57": { surveyName: "Flowering Survey", label: "flowering" },
+  "60": { surveyName: "Flowering Survey", label: "flowering" },
+  "65": { surveyName: "Flowering Survey", label: "flowering" },
+  "68": { surveyName: "Flowering Survey", label: "flowering" },
+  "77": { surveyName: "Véraison Survey", label: "véraison" },
+  "81": { surveyName: "Véraison Survey", label: "véraison" },
+  "83": { surveyName: "Véraison Survey", label: "véraison" },
+  "85": { surveyName: "Véraison Survey", label: "véraison" },
+  "89": { surveyName: "Harvest Survey", label: "harvest" },
+};
+
 export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const { displayName } = useUserRole();
@@ -64,6 +85,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [current, setCurrent] = useState<Phenology | null>(null);
   const [form, setForm] = useState<Phenology>({});
   const [viewing, setViewing] = useState<Phenology | null>(null);
+  const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
@@ -135,6 +157,9 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const save = async () => {
     if (current) await edit.mutateAsync({ ...form, id: current.id as number });
     else await add.mutateAsync(form);
+    const stage = String(form.bbchStage ?? "");
+    const survey = WINEGB_SURVEY_MAP[stage];
+    if (survey) setWinegbSurveyBanner(survey);
     setOpen(false);
   };
 
@@ -159,6 +184,22 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
   return (
     <div className="space-y-4">
+      {/* WineGB seasonal survey prompt */}
+      {winegbSurveyBanner && (
+        <div className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+          <Globe className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+          <span>
+            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span> — WineGB collect UK-wide data on {winegbSurveyBanner.label} from member vineyards. Submit your observation to contribute to national benchmarking.{" "}
+            <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
+              Go to WineGB surveys →
+            </a>
+          </span>
+          <button type="button" className="ml-auto shrink-0 text-emerald-500 hover:text-emerald-800" onClick={() => setWinegbSurveyBanner(null)} aria-label="Dismiss">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Block highlight banner */}
       {highlightBlockId && blockFilter === String(highlightBlockId) && highlightedBlockName && (
         <div className="flex items-center gap-2.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-800">

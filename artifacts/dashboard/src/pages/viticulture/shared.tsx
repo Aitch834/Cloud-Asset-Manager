@@ -970,6 +970,7 @@ export async function printHarvest(
   const harvestFsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
   const harvestFsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
   const harvestAppaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const harvestWinegbNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
 
   const harvestFsaVineRefHtml = harvestFsaVineRegisterRef
     ? `FSA Vine Register Ref: <strong>${escHtml(harvestFsaVineRegisterRef)}</strong>`
@@ -980,6 +981,9 @@ export async function printHarvest(
   const harvestAppaRefHtml = harvestAppaRef
     ? `APPA Ref: <strong>${escHtml(harvestAppaRef)}</strong>`
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+  const harvestWinegbHtml = harvestWinegbNumber
+    ? `WineGB Membership No: <strong>${escHtml(harvestWinegbNumber)}</strong>`
+    : "";
 
   const harvestAnyMissingRef = !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef;
   const harvestMissingRefWarningBlock = harvestAnyMissingRef
@@ -1250,7 +1254,7 @@ export async function printHarvest(
         ${harvestFsaVineRefHtml}<br>
         ${harvestFsaWineRefHtml}<br>
         ${harvestAppaRefHtml}<br>
-        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+        ${harvestWinegbHtml ? `${harvestWinegbHtml}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
     <div style="text-align:right;font-size:11px;color:#555">
