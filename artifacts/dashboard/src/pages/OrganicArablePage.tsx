@@ -28,6 +28,7 @@ import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { downloadCsvFile } from "@/lib/csv";
 import { printProReport } from "@/lib/print-report";
+import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -933,6 +934,8 @@ export default function OrganicArablePage() {
             Conversion register, seed sourcing, permitted inputs, harvest declarations and certification records
           </p>
         </div>
+
+        {farmId && <ArableFarmSettingsChecklist farmId={farmId} />}
 
         <TabBar>
           <TabButton active={activeTab === "certification"} onClick={() => setActiveTab("certification")}>
