@@ -1191,12 +1191,19 @@ export default function Movements() {
   const [incomingAnimalBreed, setIncomingAnimalBreed] = useState("");
   const [incomingAnimalSex, setIncomingAnimalSex] = useState("");
   const idBannerKey = `movements-id-warning-dismissed-${farmId}`;
-  const [idBannerDismissed, setIdBannerDismissed] = useState(() => {
-    try { return sessionStorage.getItem(`movements-id-warning-dismissed-${farmId}`) === "1"; } catch { return false; }
-  });
+  const BANNER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+  const readBannerDismissed = (key: string): boolean => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+      const { ts } = JSON.parse(raw) as { ts: number };
+      return Date.now() - ts < BANNER_TTL_MS;
+    } catch { return false; }
+  };
+  const [idBannerDismissed, setIdBannerDismissed] = useState(() => readBannerDismissed(`movements-id-warning-dismissed-${farmId}`));
   // Sync dismissal state when the user switches farms
   React.useEffect(() => {
-    try { setIdBannerDismissed(sessionStorage.getItem(idBannerKey) === "1"); } catch { setIdBannerDismissed(false); }
+    setIdBannerDismissed(readBannerDismissed(idBannerKey));
   }, [farmId, idBannerKey]);
 
   // ── Sector-aware livestock identifier warning — shown on all submission tabs ──
@@ -1257,7 +1264,7 @@ export default function Movements() {
           aria-label="Dismiss warning"
           className="shrink-0 ml-1 text-amber-500 hover:text-amber-700"
           onClick={() => {
-            try { sessionStorage.setItem(idBannerKey, "1"); } catch { /* */ }
+            try { localStorage.setItem(idBannerKey, JSON.stringify({ ts: Date.now() })); } catch { /* */ }
             setIdBannerDismissed(true);
           }}
         >
