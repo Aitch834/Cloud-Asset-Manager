@@ -1433,6 +1433,53 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
 
   const hasData = vintageHarvest.length > 0 || yearOps.length > 0 || yearSprays.length > 0;
 
+  // Per-block yield summary — computed at component level so the print-only section can use it
+  const entBlockSummary = useMemo(() => {
+    const map: Record<number | string, {
+      blockId: number | null; blockName: string; variety: string; areaHa: number;
+      totalKg: number; brixSum: number; brixCount: number;
+      phSum: number; phCount: number; taSum: number; taCount: number;
+      potAlcSum: number; potAlcCount: number;
+    }> = {};
+    vintageHarvest.forEach(h => {
+      const key = h.blockId ?? "unknown";
+      if (!map[key]) {
+        const bl = h.blockId != null ? blockMap[h.blockId] : undefined;
+        map[key] = {
+          blockId: h.blockId,
+          blockName: bl?.blockName ?? fmt(h.blockId),
+          variety: bl?.variety ?? "—",
+          areaHa: bl != null ? n(bl.areaHa) : 0,
+          totalKg: 0, brixSum: 0, brixCount: 0,
+          phSum: 0, phCount: 0, taSum: 0, taCount: 0,
+          potAlcSum: 0, potAlcCount: 0,
+        };
+      }
+      const row = map[key];
+      row.totalKg += n(h.yieldKg);
+      if (h.brix != null && h.brix !== "") { row.brixSum += n(h.brix); row.brixCount++; }
+      if (h.ph != null && h.ph !== "") { row.phSum += n(h.ph); row.phCount++; }
+      if (h.titratableAcidityGl != null && h.titratableAcidityGl !== "") { row.taSum += n(h.titratableAcidityGl); row.taCount++; }
+      if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { row.potAlcSum += n(h.potentialAlcohol); row.potAlcCount++; }
+    });
+    const rows = Object.values(map).sort((a, b) => a.blockName.localeCompare(b.blockName));
+    const totalKg = rows.reduce((s, r) => s + r.totalKg, 0);
+    const totalArea = rows.reduce((s, r) => s + r.areaHa, 0);
+    const avgThaVal = totalArea > 0 ? totalKg / 1000 / totalArea : 0;
+    const brixAll = rows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
+    const phAll = rows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
+    const potAlcAll = rows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
+    return {
+      rows,
+      totalKg,
+      totalArea,
+      avgTha: avgThaVal,
+      avgBrix: brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null,
+      avgPh: phAll.length > 0 ? phAll.reduce((a, b) => a + b, 0) / phAll.length : null,
+      avgPotAlc: potAlcAll.length > 0 ? potAlcAll.reduce((a, b) => a + b, 0) / potAlcAll.length : null,
+    };
+  }, [vintageHarvest, blockMap]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-foreground/40 text-sm">
@@ -1620,6 +1667,60 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
               </p>
             </div>
           </div>
+
+          {/* Print-only per-block yield summary — always visible in @media print, outside the collapsible */}
+          {vintageHarvest.length > 0 && entBlockSummary.rows.length > 0 && (
+            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-sm font-semibold">Yield Summary by Block — {year}</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left">Block</th>
+                    <th className="px-3 py-2 text-left">Variety</th>
+                    <th className="px-3 py-2 text-right">Area (ha)</th>
+                    <th className="px-3 py-2 text-right">Total Yield (kg)</th>
+                    <th className="px-3 py-2 text-right">Yield (t/ha)</th>
+                    <th className="px-3 py-2 text-right">Avg Brix °</th>
+                    <th className="px-3 py-2 text-right">Avg pH</th>
+                    <th className="px-3 py-2 text-right">Avg TA (g/L)</th>
+                    <th className="px-3 py-2 text-right">Avg Pot. Alc %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entBlockSummary.rows.map((row, i) => {
+                    const tha = row.areaHa > 0 ? row.totalKg / 1000 / row.areaHa : null;
+                    return (
+                      <tr key={i} className="border-t border-gray-200">
+                        <td className="px-3 py-1.5 font-medium">{row.blockName}</td>
+                        <td className="px-3 py-1.5 text-gray-600">{row.variety}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.areaHa > 0 ? row.areaHa.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.totalKg > 0 ? row.totalKg.toFixed(0) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{tha != null ? tha.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
+                    <td className="px-3 py-1.5" colSpan={2}>Season Totals / Averages</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalArea > 0 ? entBlockSummary.totalArea.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalKg > 0 ? entBlockSummary.totalKg.toFixed(0) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgTha > 0 ? entBlockSummary.avgTha.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgBrix != null ? entBlockSummary.avgBrix.toFixed(1) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPh != null ? entBlockSummary.avgPh.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-1.5" />
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPotAlc != null ? entBlockSummary.avgPotAlc.toFixed(1) : "—"}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
 
           {/* Harvest by block detail */}
           {vintageHarvest.length > 0 && (() => {
