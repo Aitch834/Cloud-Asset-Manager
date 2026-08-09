@@ -371,6 +371,9 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
                 ) : (
                   <View style={stripStyles.itemPlaceholder} />
                 )}
+                {draggedPhoto.caption ? (
+                  <View style={stripStyles.captionDot} />
+                ) : null}
               </Animated.View>
             ) : null}
           </View>
