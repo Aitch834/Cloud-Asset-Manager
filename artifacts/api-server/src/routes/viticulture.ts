@@ -33,6 +33,7 @@ import {
   wineGiCertificationsTable,
   wineGiHarvestDeclarationsTable,
   vineyardScoutingPhotosTable,
+  vineyardSprayDiaryPhotosTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, isNull, inArray, sql } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -976,6 +977,115 @@ router.put("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTenant
 router.delete("/farms/:farmId/vineyard-spray-diary/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId); const id = Number(req.params.id);
   await db.delete(vineyardSprayDiaryTable).where(and(eq(vineyardSprayDiaryTable.id, id), eq(vineyardSprayDiaryTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Spray Diary Photos ─────────────────────────────────────────────
+// Photo evidence attached to individual spray diary records.
+
+const _sprayDiaryPhotoStorage = new ObjectStorageService();
+
+// ── List photos for a spray diary record ──────────────────────────────────────
+router.get("/farms/:farmId/vineyard-spray-diary/:id/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const sprayDiaryId = Number(req.params.id);
+
+  // Verify spray diary record ownership
+  const [record] = await db.select({ id: vineyardSprayDiaryTable.id })
+    .from(vineyardSprayDiaryTable)
+    .where(and(eq(vineyardSprayDiaryTable.id, sprayDiaryId), eq(vineyardSprayDiaryTable.farmId, farmId)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Spray diary record not found" }); return; }
+
+  const rows = await db
+    .select()
+    .from(vineyardSprayDiaryPhotosTable)
+    .where(and(eq(vineyardSprayDiaryPhotosTable.sprayDiaryId, sprayDiaryId), eq(vineyardSprayDiaryPhotosTable.farmId, farmId)))
+    .orderBy(sql`${vineyardSprayDiaryPhotosTable.sortOrder} ASC NULLS LAST`, asc(vineyardSprayDiaryPhotosTable.uploadedAt));
+
+  // Generate presigned download URLs concurrently (5-minute TTL)
+  const photos = await Promise.all(
+    rows.map(async (photo) => ({
+      ...photo,
+      downloadUrl: await _sprayDiaryPhotoStorage.getPresignedDownloadUrl(photo.objectPath, 300),
+    }))
+  );
+
+  res.json({ photos });
+});
+
+// ── Add a photo to a spray diary record ───────────────────────────────────────
+router.post("/farms/:farmId/vineyard-spray-diary/:id/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const sprayDiaryId = Number(req.params.id);
+  const { objectPath, fileName, caption } = req.body as { objectPath?: string; fileName?: string; caption?: string };
+
+  if (!objectPath || typeof objectPath !== "string" || !objectPath.startsWith("/objects/")) {
+    res.status(400).json({ error: "objectPath required and must be a valid upload path" });
+    return;
+  }
+
+  // Verify spray diary record ownership
+  const [record] = await db.select({ id: vineyardSprayDiaryTable.id })
+    .from(vineyardSprayDiaryTable)
+    .where(and(eq(vineyardSprayDiaryTable.id, sprayDiaryId), eq(vineyardSprayDiaryTable.farmId, farmId)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Spray diary record not found" }); return; }
+
+  // Register in farm_record_attachments for storage ACL
+  await db.insert(farmRecordAttachmentsTable).values({
+    farmId,
+    recordType: "vineyard_spray_diary_photo",
+    recordId: sprayDiaryId,
+    fileUrl: objectPath,
+    fileKey: objectPath,
+    fileName: fileName || "spray-diary-photo",
+  });
+
+  const [photo] = await db.insert(vineyardSprayDiaryPhotosTable).values({
+    sprayDiaryId,
+    farmId,
+    objectPath,
+    fileName: fileName || null,
+    caption: caption || null,
+  }).returning();
+
+  res.status(201).json({ photo });
+});
+
+// ── Delete a spray diary photo ─────────────────────────────────────────────────
+router.delete("/farms/:farmId/vineyard-spray-diary/:id/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const sprayDiaryId = Number(req.params.id);
+  const photoId = Number(req.params.photoId);
+
+  const [photo] = await db.select()
+    .from(vineyardSprayDiaryPhotosTable)
+    .where(and(
+      eq(vineyardSprayDiaryPhotosTable.id, photoId),
+      eq(vineyardSprayDiaryPhotosTable.sprayDiaryId, sprayDiaryId),
+      eq(vineyardSprayDiaryPhotosTable.farmId, farmId),
+    ))
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  // Soft-delete the storage ACL record
+  await db.update(farmRecordAttachmentsTable)
+    .set({ deletedAt: new Date() })
+    .where(and(
+      eq(farmRecordAttachmentsTable.farmId, farmId),
+      eq(farmRecordAttachmentsTable.recordType, "vineyard_spray_diary_photo"),
+      eq(farmRecordAttachmentsTable.recordId, sprayDiaryId),
+      eq(farmRecordAttachmentsTable.fileKey, photo.objectPath),
+      isNull(farmRecordAttachmentsTable.deletedAt),
+    ));
+
+  await db.delete(vineyardSprayDiaryPhotosTable)
+    .where(and(
+      eq(vineyardSprayDiaryPhotosTable.id, photoId),
+      eq(vineyardSprayDiaryPhotosTable.farmId, farmId),
+    ));
+
   res.json({ success: true });
 });
 

@@ -1115,6 +1115,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "vine-spray-diary",
+    title: "Vineyard Spray Diary",
+    description: "Log a spray application on a vineyard block — product, MAPP number, rate, area treated, weather conditions and operator details, with photo evidence of application conditions",
+    icon: "droplet",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-spray-diary",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-scouting",
     title: "Vineyard Disease Scouting",
     description: "Walkabout disease & pest pressure log — downy mildew, powdery mildew, botrytis, phomopsis, leafhopper, vine weevil and notifiable organisms (Xylella, Phytophthora viticola)",
