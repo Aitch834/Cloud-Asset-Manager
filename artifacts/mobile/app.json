@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "BDE Farm Trac needs camera access to capture field photos, evidence of compliance activities, and soil samples.",
         "NSLocationWhenInUseUsageDescription": "BDE Farm Trac needs your location to record GPS coordinates for field boundaries, spray records, and soil samples.",
-        "NSPhotoLibraryUsageDescription": "BDE Farm Trac needs photo library access to attach existing photos to compliance records."
+        "NSPhotoLibraryUsageDescription": "BDE Farm Trac needs photo library access to attach existing photos to compliance records.",
+        "NSPhotoLibraryAddUsageDescription": "BDE Farm Trac needs permission to save block photos to your camera roll."
       }
     },
     "android": {
@@ -26,7 +27,8 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -51,6 +53,14 @@
         "expo-image-picker",
         {
           "photosPermission": "BDE Farm Trac needs photo library access to attach existing photos to compliance records."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "BDE Farm Trac needs read access to your photo library.",
+          "savePhotosPermission": "BDE Farm Trac needs permission to save block photos to your camera roll.",
+          "isAccessMediaLocationEnabled": true
         }
       ],
       "expo-sqlite"

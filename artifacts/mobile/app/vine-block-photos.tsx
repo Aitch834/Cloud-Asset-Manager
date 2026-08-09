@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -467,6 +469,33 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const hintOpacity = useSharedValue(0);
   const hintDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveToRoll = useCallback(async () => {
+    const currentPhoto = photosRef.current[indexSv.value];
+    if (!currentPhoto?.downloadUrl || saving) return;
+    setSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library in Settings to save photos.",
+        );
+        return;
+      }
+      const ext = currentPhoto.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}block_photo_${currentPhoto.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(currentPhoto.downloadUrl, tmpUri);
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Save Failed", "Could not save the photo. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [saving]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const dismissReorderHint = useCallback(() => {
     if (hintDismissTimer.current) {
       clearTimeout(hintDismissTimer.current);
@@ -682,6 +711,22 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         >
           <Feather name="x" size={24} color="#fff" />
         </Pressable>
+
+        {/* Save to camera roll button */}
+        {photo ? (
+          <Pressable
+            style={[styles.lbSaveBtn, { top: insets.top + 12 }]}
+            hitSlop={16}
+            onPress={handleSaveToRoll}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="download" size={22} color="#fff" />
+            )}
+          </Pressable>
+        ) : null}
 
         {/* Delete button */}
         {photo ? (
@@ -1361,6 +1406,17 @@ const styles = StyleSheet.create({
   lbDeleteBtn: {
     position: "absolute",
     left: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbSaveBtn: {
+    position: "absolute",
+    left: 64,
     zIndex: 10,
     width: 40,
     height: 40,
