@@ -39040,7 +39040,22 @@ router.delete("/farms/:farmId/dairy-supplies/restock-requests/:id", requireAuth,
 
 // ─── Annual Health & Welfare Reviews (AHWR) ────────────────────────────────────
 
-router.get("/farms/:farmId/ahwr-records", async (req, res) => {
+// Returns all active farm contacts — used by AHWR dialog for vet lookup without requiring
+// a specific module subscription (AHWR spans livestock and Red Tractor modules).
+router.get("/farms/:farmId/ahwr-vet-contacts", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  try {
+    const contacts = await db.select().from(farmContactsTable)
+      .where(and(eq(farmContactsTable.farmId, farmId), eq(farmContactsTable.isActive, true)))
+      .orderBy(farmContactsTable.name);
+    res.json({ contacts });
+  } catch (err) {
+    console.error("[AHWR VET-CONTACTS]", err);
+    res.status(500).json({ error: "Failed to fetch contacts" });
+  }
+});
+
+router.get("/farms/:farmId/ahwr-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   try {
     const records = await db.select().from(annualHealthWelfareReviewsTable)
@@ -39053,23 +39068,34 @@ router.get("/farms/:farmId/ahwr-records", async (req, res) => {
   }
 });
 
-router.post("/farms/:farmId/ahwr-records", async (req, res) => {
+router.post("/farms/:farmId/ahwr-records", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const body = sanitiseBody(req.body);
   try {
+    // Auto-calculate next review due to 12 months from review date when not supplied
+    let nextReviewDue: string | null = body.nextReviewDue ?? null;
+    if (!nextReviewDue && body.reviewDate) {
+      const d = new Date(String(body.reviewDate));
+      d.setFullYear(d.getFullYear() + 1);
+      nextReviewDue = d.toISOString().slice(0, 10);
+    }
     const [row] = await db.insert(annualHealthWelfareReviewsTable).values({
       farmId,
       species: body.species,
       reviewDate: body.reviewDate,
       vetName: body.vetName,
       vetPractice: body.vetPractice ?? null,
+      vetContactId: body.vetContactId ? Number(body.vetContactId) : null,
       ahwrRef: body.ahwrRef ?? null,
       sbiNumber: body.sbiNumber ?? null,
       areasReviewed: body.areasReviewed ?? null,
       keyFindings: body.keyFindings ?? null,
+      healthPriorities: body.healthPriorities ?? null,
       recommendations: body.recommendations ?? null,
       actionsAgreed: body.actionsAgreed ?? null,
-      nextReviewDue: body.nextReviewDue ?? null,
+      agreedWith: body.agreedWith ?? null,
+      outcome: body.outcome ?? null,
+      nextReviewDue,
       documentRef: body.documentRef ?? null,
       notes: body.notes ?? null,
     }).returning();
@@ -39080,7 +39106,7 @@ router.post("/farms/:farmId/ahwr-records", async (req, res) => {
   }
 });
 
-router.put("/farms/:farmId/ahwr-records/:id", async (req, res) => {
+router.put("/farms/:farmId/ahwr-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   const body = sanitiseBody(req.body);
@@ -39090,12 +39116,16 @@ router.put("/farms/:farmId/ahwr-records/:id", async (req, res) => {
       reviewDate: body.reviewDate ?? undefined,
       vetName: body.vetName,
       vetPractice: body.vetPractice ?? null,
+      vetContactId: body.vetContactId ? Number(body.vetContactId) : null,
       ahwrRef: body.ahwrRef ?? null,
       sbiNumber: body.sbiNumber ?? null,
       areasReviewed: body.areasReviewed ?? null,
       keyFindings: body.keyFindings ?? null,
+      healthPriorities: body.healthPriorities ?? null,
       recommendations: body.recommendations ?? null,
       actionsAgreed: body.actionsAgreed ?? null,
+      agreedWith: body.agreedWith ?? null,
+      outcome: body.outcome ?? null,
       nextReviewDue: body.nextReviewDue ?? null,
       documentRef: body.documentRef ?? null,
       notes: body.notes ?? null,
@@ -39107,7 +39137,7 @@ router.put("/farms/:farmId/ahwr-records/:id", async (req, res) => {
   }
 });
 
-router.delete("/farms/:farmId/ahwr-records/:id", async (req, res) => {
+router.delete("/farms/:farmId/ahwr-records/:id", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   try {

@@ -1390,12 +1390,16 @@ export const annualHealthWelfareReviewsTable = pgTable("annual_health_welfare_re
   reviewDate: date("review_date").notNull(),
   vetName: text("vet_name").notNull(),
   vetPractice: text("vet_practice"),
-  ahwrRef: text("ahwr_ref"),          // Government AHWR agreement/claim reference
-  sbiNumber: text("sbi_number"),       // Single Business Identifier for claim
+  vetContactId: integer("vet_contact_id"), // FK to farm_contacts.id — links to registered vet contact
+  ahwrRef: text("ahwr_ref"),          // RPA / vet report reference number assigned after submission
+  sbiNumber: text("sbi_number"),       // Single Business Identifier (auto-filled from Farm Settings)
   areasReviewed: text("areas_reviewed"), // free text or comma-sep list
   keyFindings: text("key_findings"),
+  healthPriorities: text("health_priorities"), // health priorities agreed for the next 12 months
   recommendations: text("recommendations"),
   actionsAgreed: text("actions_agreed"),
+  agreedWith: text("agreed_with"),     // who actions were agreed with (vet name / all parties)
+  outcome: text("outcome"),            // "satisfactory" | "action_required" | "urgent_action"
   nextReviewDue: date("next_review_due"),
   documentRef: text("document_ref"),  // reference to uploaded vet report
   notes: text("notes"),

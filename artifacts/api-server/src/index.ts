@@ -22,6 +22,7 @@ import { runWoodlandRegenMigrations } from "./lib/woodlandRegenMigrations";
 import { runPestTrapMigrations } from "./lib/pestTrapMigrations";
 import { runSoilAnalysisMigrations } from "./lib/soilAnalysisMigrations";
 import { runAgriEnvMigrations } from "./lib/agriEnvMigrations";
+import { runAhwrMigrations } from "./lib/ahwrMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -151,6 +152,9 @@ app.listen(port, () => {
   });
   runAgriEnvMigrations().catch((err) => {
     console.error("[AGRI-ENV-MIGRATE] Failed:", err);
+  });
+  runAhwrMigrations().catch((err) => {
+    console.error("[AHWR-MIGRATE] Failed:", err);
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);
