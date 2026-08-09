@@ -103,6 +103,7 @@ interface FarmFormData {
   appaRegistrationDate: string;
   fsaWineProductionRef: string;
   fsaVineRegisterRef: string;
+  winegbMembershipNumber: string;
   harvestStrictStorage: boolean;
 }
 
@@ -172,6 +173,7 @@ function farmToFormData(farm: Farm & {
     appaRegistrationDate: (farm as any).appaRegistrationDate || "",
     fsaWineProductionRef: (farm as any).fsaWineProductionRef || "",
     fsaVineRegisterRef: (farm as any).fsaVineRegisterRef || "",
+    winegbMembershipNumber: (farm as any).winegbMembershipNumber || "",
     harvestStrictStorage: !!(farm as any).harvestStrictStorage,
   };
 }
@@ -2414,6 +2416,7 @@ export default function FarmSettings() {
       appaRegistrationDate: formData.appaRegistrationDate.trim() || undefined,
       fsaWineProductionRef: formData.fsaWineProductionRef.trim() || undefined,
       fsaVineRegisterRef: formData.fsaVineRegisterRef.trim() || undefined,
+      winegbMembershipNumber: formData.winegbMembershipNumber.trim() || undefined,
       companyNumber: formData.companyNumber.trim() || undefined,
       vatNumber: formData.vatNumber.trim() || undefined,
       bankName: formData.bankName.trim() || undefined,
@@ -3039,6 +3042,19 @@ export default function FarmSettings() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Your holding-level <strong>FSA Vine Register</strong> reference, issued when you register your vineyard planting with the RPA. This is pulled through automatically to Vine Register entries — you only need to enter it once here.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-winegb-number">WineGB Membership Number</Label>
+                  <Input
+                    id="settings-winegb-number"
+                    placeholder="e.g. WGB-12345"
+                    value={formData.winegbMembershipNumber}
+                    onChange={e => updateField("winegbMembershipNumber", e.target.value)}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your <strong>WineGB</strong> membership number, issued on joining Wines of Great Britain. Used to identify your vineyard in WineGB's annual Harvest Yield Survey and industry reporting. Join at <strong>winegb.co.uk</strong>.
                   </p>
                 </div>
               </div>

@@ -470,6 +470,94 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     URL.revokeObjectURL(url);
   };
 
+  // ── WineGB Harvest Yield Survey export ────────────────────────────────────
+  // Aggregates harvest data by grape variety — the exact shape WineGB's annual
+  // Harvest Yield Survey requests from member vineyards.
+  const exportWineGBSurveyCSV = (rows: Record<string, unknown>[]) => {
+    if (!rows.length) return;
+    const cell = (v: unknown) => {
+      const s = sanitiseCsvCell(v == null ? "" : String(v));
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+
+    const uniqueVintages = [...new Set(rows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
+    const vintageLabel = uniqueVintages.length === 1 ? uniqueVintages[0]
+      : uniqueVintages.length > 1 ? `${uniqueVintages[uniqueVintages.length - 1]}–${uniqueVintages[0]}`
+      : "all";
+
+    // Group records by variety (via their linked block)
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+    for (const r of rows) {
+      const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
+      const variety = block ? String(block.variety ?? "").trim() : "";
+      const key = variety || "Unknown / Not linked";
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+      const entry = varietyMap[key];
+      entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+      // Accumulate area from each unique block only once per variety
+      if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
+        entry.blockIds.add(r.blockId);
+        const ha = parseFloat(String((block.areaHa ?? block.area ?? "")));
+        if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
+      }
+      const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
+      const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
+      const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
+      const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
+    }
+
+    const header = [
+      "Variety", "Area Under Vine (ha)", "Total Harvested (kg)", "Yield (kg/ha)",
+      "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %",
+    ].map(h => cell(h)).join(",");
+
+    const dataRows = Object.entries(varietyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([variety, e]) => {
+        const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+        return [
+          cell(variety),
+          cell(e.totalHa > 0 ? e.totalHa.toFixed(2) : ""),
+          cell(e.totalKg > 0 ? e.totalKg.toFixed(1) : ""),
+          cell(kgPerHa != null ? kgPerHa.toFixed(0) : ""),
+          cell(avg(e.brixVals) != null ? avg(e.brixVals)!.toFixed(1) : ""),
+          cell(avg(e.phVals) != null ? avg(e.phVals)!.toFixed(2) : ""),
+          cell(avg(e.taVals) != null ? avg(e.taVals)!.toFixed(2) : ""),
+          cell(avg(e.paVals) != null ? avg(e.paVals)!.toFixed(1) : ""),
+        ].join(",");
+      });
+
+    // Grand total footer
+    const grandKg = Object.values(varietyMap).reduce((s, e) => s + e.totalKg, 0);
+    const grandHa = Object.values(varietyMap).reduce((s, e) => s + e.totalHa, 0);
+    const grandKgPerHa = grandHa > 0 && grandKg > 0 ? grandKg / grandHa : null;
+    const footer = [
+      cell("TOTAL"),
+      cell(grandHa > 0 ? grandHa.toFixed(2) : ""),
+      cell(grandKg > 0 ? grandKg.toFixed(1) : ""),
+      cell(grandKgPerHa != null ? grandKgPerHa.toFixed(0) : ""),
+      cell(""), cell(""), cell(""), cell(""),
+    ].join(",");
+
+    const csv = [
+      cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),
+      cell("Submit this data at winegb.co.uk (members area → Harvest Yield Survey). Select the correct vintage year when submitting."),
+      "",
+      header,
+      ...dataRows,
+      footer,
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `winegb-harvest-survey-${vintageLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
 
   return (
@@ -518,6 +606,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 <FileDown className="w-4 h-4 mr-2 text-muted-foreground" />
                 Export Block Summary
                 <span className="ml-2 text-xs text-muted-foreground">(one row per block)</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => exportWineGBSurveyCSV(filteredHarvest)}>
+                <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
+                Export WineGB Harvest Survey
+                <span className="ml-2 text-xs text-muted-foreground">(by variety, for annual survey)</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => exportHarvestCSV(filteredHarvest, "summary")}>
