@@ -4,7 +4,7 @@ import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
-import { usePersistedFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -1532,18 +1532,27 @@ function MilkCollectionsTab({ farmId, farmName }: { farmId: number; farmName: st
   const [raiseTaskFor, setRaiseTaskFor] = useState<CollectionRecord | null>(null);
   const [formTab, setFormTab] = useState("collection");
 
-  // Month filter — default to current month
+  // Month filter — persisted per farm, default to current month
   const now = new Date();
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-  const [filterMonth, setFilterMonth] = useState(now.getMonth()); // 0-indexed
+  const [filterYear, setFilterYear] = usePersistedNumberFilter({
+    page: "organic-dairy-collections",
+    filter: "year",
+    farmId,
+    defaultValue: now.getFullYear(),
+  });
+  const [filterMonth, setFilterMonth] = usePersistedNumberFilter({
+    page: "organic-dairy-collections",
+    filter: "month",
+    farmId,
+    defaultValue: now.getMonth(),
+    isValid: (v) => v >= 0 && v <= 11,
+  }); // 0-indexed
 
   function stepMonth(dir: 1 | -1) {
-    setFilterMonth(m => {
-      const next = m + dir;
-      if (next < 0) { setFilterYear(y => y - 1); return 11; }
-      if (next > 11) { setFilterYear(y => y + 1); return 0; }
-      return next;
-    });
+    const next = filterMonth + dir;
+    if (next < 0) { setFilterYear(filterYear - 1); setFilterMonth(11); }
+    else if (next > 11) { setFilterYear(filterYear + 1); setFilterMonth(0); }
+    else { setFilterMonth(next); }
   }
 
   const monthLabel = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
