@@ -3,11 +3,16 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -156,15 +161,250 @@ function pence(p: number | null): string {
   return `£${(p / 100).toFixed(2)}`;
 }
 
+// ── Log Movement Form ─────────────────────────────────────────────────────────
+
+interface MovementFormState {
+  movedDate: string;
+  fromZone: string;
+  fromPosition: string;
+  toZone: string;
+  toPosition: string;
+  reason: string;
+  operatorName: string;
+  notes: string;
+}
+
+function todayIso(): string {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+interface LogMovementModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: LogMovementModalProps) {
+  const [form, setForm] = useState<MovementFormState>({
+    movedDate: todayIso(),
+    fromZone: "",
+    fromPosition: "",
+    toZone: "",
+    toPosition: "",
+    reason: "",
+    operatorName: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function set(field: keyof MovementFormState, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.movedDate.trim()) { setError("Date moved is required."); return; }
+    if (!form.toZone.trim()) { setError("To zone is required."); return; }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/movements`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          movedDate: form.movedDate.trim(),
+          fromZone: form.fromZone.trim() || null,
+          fromPosition: form.fromPosition.trim() || null,
+          toZone: form.toZone.trim(),
+          toPosition: form.toPosition.trim() || null,
+          reason: form.reason.trim() || null,
+          operatorName: form.operatorName.trim() || null,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      setForm({ movedDate: todayIso(), fromZone: "", fromPosition: "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save movement.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    setForm({ movedDate: todayIso(), fromZone: "", fromPosition: "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={formStyles.sheet}>
+          {/* Modal header */}
+          <View style={formStyles.sheetHeader}>
+            <Text style={formStyles.sheetTitle}>Log Movement</Text>
+            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={formStyles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={colors.error} />
+                <Text style={formStyles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Date moved */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Date moved <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.movedDate}
+                onChangeText={v => set("movedDate", v)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* From zone / To zone */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>From zone</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.fromZone}
+                  onChangeText={v => set("fromZone", v)}
+                  placeholder="e.g. Cave A"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>To zone <Text style={formStyles.required}>*</Text></Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.toZone}
+                  onChangeText={v => set("toZone", v)}
+                  placeholder="e.g. Cave B"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* From position / To position */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>From position</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.fromPosition}
+                  onChangeText={v => set("fromPosition", v)}
+                  placeholder="e.g. Row 1, Bay 4"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>To position</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.toPosition}
+                  onChangeText={v => set("toPosition", v)}
+                  placeholder="e.g. Row 3, Bay 2"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Reason */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Reason</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.reason}
+                onChangeText={v => set("reason", v)}
+                placeholder="e.g. Racking, Temperature"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Operator */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Operator name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.operatorName}
+                onChangeText={v => set("operatorName", v)}
+                placeholder="Name of person moving barrel"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Notes */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Notes</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.multiline]}
+                value={form.notes}
+                onChangeText={v => set("notes", v)}
+                placeholder="Any additional notes…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                returnKeyType="default"
+              />
+            </View>
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={[formStyles.submitBtn, submitting && formStyles.submitBtnDisabled]}
+              onPress={() => { void handleSubmit(); }}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={formStyles.submitBtnText}>Save movement</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Section components ────────────────────────────────────────────────────────
 
-function SectionHeader({ title, count }: { title: string; count: number }) {
+function SectionHeader({ title, count, action }: { title: string; count: number; action?: React.ReactNode }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.countBadge}>
         <Text style={styles.countText}>{count}</Text>
       </View>
+      {action ? <View style={styles.sectionAction}>{action}</View> : null}
     </View>
   );
 }
@@ -292,6 +532,8 @@ export default function WineryVesselDetailScreen() {
     params.vesselId
   );
 
+  const [movementModalOpen, setMovementModalOpen] = useState(false);
+
   const subtitle = params.vesselType ?? "Vessel";
 
   return (
@@ -360,7 +602,20 @@ export default function WineryVesselDetailScreen() {
           )}
 
           {/* Movements */}
-          <SectionHeader title="Movements" count={data.movements.length} />
+          <SectionHeader
+            title="Movements"
+            count={data.movements.length}
+            action={
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => setMovementModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Feather name="plus" size={13} color={colors.primary} />
+                <Text style={styles.addBtnText}>Log movement</Text>
+              </TouchableOpacity>
+            }
+          />
           {data.movements.length === 0 ? (
             <EmptySection label="No movement records logged." />
           ) : (
@@ -368,6 +623,16 @@ export default function WineryVesselDetailScreen() {
           )}
         </ScrollView>
       )}
+
+      {currentFarm?.id && params.vesselId ? (
+        <LogMovementModal
+          visible={movementModalOpen}
+          farmId={currentFarm.id}
+          vesselId={params.vesselId}
+          onClose={() => setMovementModalOpen(false)}
+          onSuccess={() => { setMovementModalOpen(false); refresh(); }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -482,6 +747,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: colors.textSecondary,
   },
+  sectionAction: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+  addBtnText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
+  },
   // Empty section
   emptySection: {
     backgroundColor: colors.surface,
@@ -580,5 +863,99 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text,
     flex: 1,
+  },
+});
+
+// ── Form styles ───────────────────────────────────────────────────────────────
+
+const formStyles = StyleSheet.create({
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sheetTitle: {
+    fontSize: fontSize.lg,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  closeBtn: {
+    padding: spacing.xs,
+  },
+  body: {
+    padding: spacing.md,
+    gap: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.errorBg,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: colors.error,
+  },
+  field: {
+    gap: 4,
+  },
+  row: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  label: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  required: {
+    color: colors.error,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: colors.text,
+  },
+  multiline: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  submitBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.sm,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
+  },
+  submitBtnText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
   },
 });
