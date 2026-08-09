@@ -750,34 +750,28 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
           </Pressable>
         ) : null}
 
-        {/* Draggable thumbnail strip — replaces dot indicator, allows reordering */}
-        {hasMultiple ? (
-          <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
-            {showReorderHint ? (
-              <Pressable onPress={dismissReorderHint} hitSlop={8}>
-                <Animated.View style={[styles.lbReorderHint, hintAnimatedStyle]}>
-                  <Feather name="move" size={13} color="#fff" style={{ marginRight: 5 }} />
-                  <Text style={styles.lbReorderHintText}>Hold &amp; drag to reorder</Text>
-                </Animated.View>
-              </Pressable>
-            ) : null}
-            <DraggablePhotoStrip
-              photos={photos}
-              currentIndex={currentIndex}
-              onSelect={(idx) => goToIndex(idx)}
-              onReorder={onReorder}
-            />
-            <Text style={styles.lbHintText}>
-              Hold &amp; drag thumbnails to reorder · Swipe photo to browse
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
-            <Text style={styles.lbHintText}>
-              Pinch to zoom · Double-tap · Swipe down to close
-            </Text>
-          </View>
-        )}
+        {/* Draggable thumbnail strip — always shown so growers confirm the right image */}
+        <View style={[styles.lbStripWrapper, { bottom: 72 + insets.bottom }]}>
+          {hasMultiple && showReorderHint ? (
+            <Pressable onPress={dismissReorderHint} hitSlop={8}>
+              <Animated.View style={[styles.lbReorderHint, hintAnimatedStyle]}>
+                <Feather name="move" size={13} color="#fff" style={{ marginRight: 5 }} />
+                <Text style={styles.lbReorderHintText}>Hold &amp; drag to reorder</Text>
+              </Animated.View>
+            </Pressable>
+          ) : null}
+          <DraggablePhotoStrip
+            photos={photos}
+            currentIndex={currentIndex}
+            onSelect={(idx) => goToIndex(idx)}
+            onReorder={onReorder}
+          />
+          <Text style={styles.lbHintText}>
+            {hasMultiple
+              ? "Hold & drag thumbnails to reorder · Swipe photo to browse"
+              : "Pinch to zoom · Double-tap · Swipe down to close"}
+          </Text>
+        </View>
       </Animated.View>
       </GestureHandlerRootView>
     </Modal>
