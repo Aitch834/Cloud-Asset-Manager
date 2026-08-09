@@ -48,8 +48,8 @@ const MODULES = [
   {
     id: "organic-viticulture",
     name: "Organic Viticulture",
-    price: 30,
-    note: "Block conversion register (3-year per-block conversion tracking, certifying body, pre-conversion history — UK Organic Regs 2020), organic inputs log (approved vineyard inputs with approval status and certifier references), copper register with running 28 kg/ha per 7-year limit tracker (colour-coded progress bar), input derogation case register (Sch. 1 / Annex II) with split New Case / Record Decision workflow and Action Required badge, organic wine production additives and SO₂ compliance per vintage (UK-retained EU Reg 203/2012 limits: 100 mg/L red, 150 mg/L white/rosé), certificate register with expiry alerts, and mobile derogation case viewer. Also includes all standard Viticulture tabs and the full 8-tab Winery Management section. Sprays & Inputs, Safety Risk & Audits, Staff & Training, Equipment Workshop & Fuel, and Organic Compliance all bundled at no extra charge.",
+    price: 45,
+    note: "Block conversion register (3-year per-block conversion tracking, certifying body, pre-conversion history — UK Organic Regs 2020), organic inputs log (approved vineyard inputs with approval status and certifier references), copper register with running 28 kg/ha per 7-year limit tracker (colour-coded progress bar), input derogation case register (Sch. 1 / Annex II) with split New Case / Record Decision workflow and Action Required badge, organic wine production additives and SO₂ compliance per vintage (UK-retained EU Reg 203/2012 limits: 100 mg/L red, 150 mg/L white/rosé), certificate register with expiry alerts, and mobile derogation case viewer. Also includes all standard Viticulture tabs and the full 8-tab Winery Management section. Sprays & Inputs, Safety Risk & Audits, Staff & Training, Equipment Workshop & Fuel, and Organic Compliance all bundled at no extra charge. Holdings that subscribe to both Viticulture and Organic Viticulture (producing both certified and conventional wines) receive one module at half price.",
   },
   { id: "farm-diversification", name: "Farm Diversification", price: 15, note: "Farm Shop management, equine & livery health records, shooting & game logs, food hygiene inspections (FHRS), accommodation bookings and diversification income tracking" },
   { id: "grain-crop-storage", name: "Grain & Crop Storage", price: 18, note: "Storage location register, stock movements (intake/dispatch/transfer/drying loss), merchant storage charges, record drill-down linking to haulage, sales and harvest records; Crop Stock Stocktakes with variance badge; mobile capture with offline-first sync" },
@@ -103,21 +103,33 @@ function getFarmDisplayName(farm: Farm): string {
   return farm.name.trim() || `Farm ${farm.id}`;
 }
 
-// Cost excludes any module that is provided for free via a bundle from another selected module.
-function getFarmCost(farm: Farm): number {
-  const bundled = getBundledModules(farm.selectedModules);
-  return BASE_FEE + MODULES
-    .filter(m => farm.selectedModules.includes(m.id) && !bundled.has(m.id))
-    .reduce((acc, m) => acc + m.price, 0);
+// Half-price discount when a holding subscribes to both Viticulture and Organic Viticulture
+// (e.g. producing both certified-organic and conventional wines from the same estate).
+function getDualVitDiscount(farm: Farm): number {
+  const hasVit = farm.selectedModules.includes("viticulture");
+  const hasOrgVit = farm.selectedModules.includes("organic-viticulture");
+  return hasVit && hasOrgVit ? 22.5 : 0;
 }
 
-// Sum of the retail prices of all bundled-in modules (those included free, not separately charged).
+// Cost excludes any module that is provided for free via a bundle from another selected module,
+// and applies the dual-viticulture discount where eligible.
+function getFarmCost(farm: Farm): number {
+  const bundled = getBundledModules(farm.selectedModules);
+  const moduleCost = BASE_FEE + MODULES
+    .filter(m => farm.selectedModules.includes(m.id) && !bundled.has(m.id))
+    .reduce((acc, m) => acc + m.price, 0);
+  return moduleCost - getDualVitDiscount(farm);
+}
+
+// Sum of the retail prices of all bundled-in modules (those included free, not separately charged),
+// plus the dual-viticulture discount where eligible.
 function getFarmBundleSaving(farm: Farm): number {
   const bundled = getBundledModules(farm.selectedModules);
   // Count savings for bundled modules whether or not separately selected — they aren't charged either way.
-  return MODULES
+  const bundleSaving = MODULES
     .filter(m => bundled.has(m.id))
     .reduce((acc, m) => acc + m.price, 0);
+  return bundleSaving + getDualVitDiscount(farm);
 }
 
 export default function Pricing() {
@@ -357,6 +369,7 @@ export default function Pricing() {
                 const bundled = getBundledModules(farm.selectedModules);
                 const bundleSaving = getFarmBundleSaving(farm);
                 const farmCost = getFarmCost(farm);
+                const dualVitDiscount = getDualVitDiscount(farm);
 
                 // Charged modules = selected and NOT bundled
                 const chargedModules = MODULES.filter(m => farm.selectedModules.includes(m.id) && !bundled.has(m.id));
@@ -396,9 +409,15 @@ export default function Pricing() {
                           ))}
                           <div className="flex justify-between text-xs font-semibold text-emerald-700 pt-0.5 border-t border-emerald-200/60 mt-1">
                             <span>Bundle saving</span>
-                            <span>−£{bundleSaving}/mo</span>
+                            <span>−£{bundleSaving - dualVitDiscount}/mo</span>
                           </div>
                         </>
+                      )}
+                      {dualVitDiscount > 0 && (
+                        <div className="flex justify-between text-xs font-semibold text-violet-700 pt-1 border-t border-violet-200/60 mt-1">
+                          <span>Dual Viticulture discount (50% off one module)</span>
+                          <span>−£{dualVitDiscount}/mo</span>
+                        </div>
                       )}
                     </div>
                   </div>
