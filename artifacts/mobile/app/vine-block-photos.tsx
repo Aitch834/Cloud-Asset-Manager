@@ -690,9 +690,12 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
             hitSlop={16}
             onPress={() => {
               const photoId = photo.id;
+              const message = photo.isCover
+                ? "Are you sure you want to delete this photo? This cannot be undone.\n\nThis is the cover photo for this block. The next photo will become the new cover."
+                : "Are you sure you want to delete this photo? This cannot be undone.";
               Alert.alert(
                 "Delete Photo",
-                "Are you sure you want to delete this photo? This cannot be undone.",
+                message,
                 [
                   { text: "Cancel", style: "cancel" },
                   {
