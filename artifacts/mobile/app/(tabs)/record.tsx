@@ -1125,6 +1125,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-spray-diary-history",
+    title: "Spray Diary History",
+    description: "View past vineyard spray diary entries and change the block link on any record",
+    icon: "clock",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-spray-diary-history",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-scouting",
     title: "Vineyard Disease Scouting",
     description: "Walkabout disease & pest pressure log — downy mildew, powdery mildew, botrytis, phomopsis, leafhopper, vine weevil and notifiable organisms (Xylella, Phytophthora viticola)",
@@ -1132,6 +1142,16 @@ const recordOptions: RecordOption[] = [
     color: "#7c3aed",
     bgColor: "#ede9fe",
     route: "/vine-scouting",
+    moduleKeys: ["viticulture"],
+  },
+  {
+    id: "vine-scouting-history",
+    title: "Scouting History",
+    description: "View past vineyard disease scouting records and change the block link on any record",
+    icon: "clock",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-scouting-history",
     moduleKeys: ["viticulture"],
   },
   {
