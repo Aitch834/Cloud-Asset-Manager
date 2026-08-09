@@ -72,6 +72,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yieldChartUnit, setYieldChartUnit] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldChartUnit", farmId, defaultValue: "kg" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
+  const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -749,76 +750,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         )}
       </div>
 
-      {/* On-screen harvest summary table */}
-      {filteredHarvest.length > 0 && (() => {
-        const uniqueVintages = [...new Set(filteredHarvest.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
-        const groupByVintage = uniqueVintages.length > 1;
-        const groupObj: Record<string, Record<string, unknown>[]> = {};
-        const groupKeys: string[] = [];
-        for (const r of filteredHarvest) {
-          const key = groupByVintage ? String(r.vintageYear ?? "Unknown") : String(r.blockId ?? "0");
-          if (!groupObj[key]) { groupObj[key] = []; groupKeys.push(key); }
-          groupObj[key].push(r);
-        }
-        const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-        const summaryRows = groupKeys.map(key => {
-          const grp = groupObj[key];
-          const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-          const thaVals = grp.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v));
-          const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
-          const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
-          const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
-          const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-          const avgTha = avg(thaVals);
-          let label: string;
-          if (groupByVintage) {
-            label = key;
-          } else {
-            const bid = Number(key);
-            label = !isNaN(bid) && bid > 0 ? String(blockName(bid)) : "Not linked";
-          }
-          return { label, picks: grp.length, totalYieldKg, avgTha, avgBrix, avgPh, avgTa, avgPa };
-        });
-        const label = groupByVintage ? "Vintage" : "Block";
-        return (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center gap-1.5">
-              <Grape className="w-4 h-4 text-muted-foreground" />
-              <p className="text-sm font-semibold">Harvest Summary — by {label}</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                    <th className="text-left px-4 py-2 font-medium">{label}</th>
-                    <th className="text-right px-3 py-2 font-medium">Picks</th>
-                    <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
-                    <th className="text-right px-3 py-2 font-medium">Avg t/ha</th>
-                    <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
-                    <th className="text-right px-3 py-2 font-medium">Avg pH</th>
-                    <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
-                    <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summaryRows.map((row, i) => (
-                    <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="px-4 py-2 font-medium">{row.label}</td>
-                      <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.picks}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.avgTha != null ? row.avgTha.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Yield by Block × Vintage chart */}
       {yieldChartData && (
@@ -909,6 +840,84 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Per-block yield summary table */}
+      {filteredHarvest.length > 0 && (() => {
+        const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        const blockMap: Record<string, Record<string, unknown>[]> = {};
+        const blockOrder: string[] = [];
+        for (const r of filteredHarvest) {
+          const key = String(r.blockId ?? "__unlinked__");
+          if (!blockMap[key]) { blockMap[key] = []; blockOrder.push(key); }
+          blockMap[key].push(r);
+        }
+        const summaryRows = blockOrder.map(key => {
+          const grp = blockMap[key];
+          const block = key === "__unlinked__" ? null : blocks.find(b => String(b.id) === key);
+          const name = block ? String(block.blockName ?? "") : "Not linked";
+          const variety = block ? String(block.variety ?? "") : "";
+          const areaRaw = block ? String((block.areaHa ?? block.area ?? "")) : "";
+          const areaHaNum = areaRaw !== "" ? parseFloat(areaRaw) : NaN;
+          const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          const derivedTha = !isNaN(areaHaNum) && areaHaNum > 0 && totalYieldKg > 0
+            ? totalYieldKg / 1000 / areaHaNum : null;
+          const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+          const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+          const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+          const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
+          return { name, variety, areaHa: !isNaN(areaHaNum) ? areaHaNum : null, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
+        });
+        return (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <button
+              type="button"
+              className="w-full px-4 py-2.5 border-b bg-muted/30 flex items-center gap-1.5 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => setBlockSummaryOpen(o => !o)}
+              aria-expanded={blockSummaryOpen}
+            >
+              <Grape className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-sm font-semibold flex-1">Per-Block Yield Summary</p>
+              <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${blockSummaryOpen ? "rotate-90" : ""}`} />
+            </button>
+            {blockSummaryOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                      <th className="text-left px-4 py-2 font-medium">Block</th>
+                      <th className="text-left px-3 py-2 font-medium">Variety</th>
+                      <th className="text-right px-3 py-2 font-medium">Area (ha)</th>
+                      <th className="text-right px-3 py-2 font-medium">Picks</th>
+                      <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
+                      <th className="text-right px-3 py-2 font-medium">t/ha</th>
+                      <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
+                      <th className="text-right px-3 py-2 font-medium">Avg pH</th>
+                      <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
+                      <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summaryRows.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-4 py-2 font-medium">{row.name}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.picks}</td>
+                        <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.derivedTha != null ? row.derivedTha.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <DataTable
         cols={[
