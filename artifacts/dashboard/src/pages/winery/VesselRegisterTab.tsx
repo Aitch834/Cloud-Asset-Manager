@@ -946,7 +946,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   : fmt(r.location);
                 return (
                   <tr key={String(r.id)} className="hover:bg-muted/20">
-                    <td className="p-3 font-mono font-semibold">{fmt(r.vessel_ref)}</td>
+                    <td className="p-3 font-mono font-semibold">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span>{fmt(r.vessel_ref)}</span>
+                        {isBarrelRow && (r.fill_number == null || Number(r.fill_number) === 0) && (
+                          <span className="text-xs rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 font-medium normal-case tracking-normal">No fills logged</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3 text-muted-foreground">
                       <div>{fmt(r.vessel_type)}</div>
                       {isBarrelRow && (() => {
