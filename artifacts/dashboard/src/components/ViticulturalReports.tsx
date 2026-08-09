@@ -585,12 +585,14 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     if (year != null) return [];
     const map: Record<string, {
       vintage: string; totalKg: number; totalAreaHa: number;
-      brixSum: number; brixCount: number; phSum: number; phCount: number; records: number;
+      brixSum: number; brixCount: number; phSum: number; phCount: number;
+      taSum: number; taCount: number; potAlcSum: number; potAlcCount: number;
+      records: number;
     }> = {};
     harvests.forEach(h => {
       const yr = String(h.vintageYear);
       if (!yr || yr === "null" || yr === "undefined") return;
-      if (!map[yr]) map[yr] = { vintage: yr, totalKg: 0, totalAreaHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, records: 0 };
+      if (!map[yr]) map[yr] = { vintage: yr, totalKg: 0, totalAreaHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, potAlcSum: 0, potAlcCount: 0, records: 0 };
       const m = map[yr];
       m.totalKg += n(h.yieldKg);
       // Reconstruct area from t/ha if block area not directly available
@@ -598,6 +600,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       if (tha > 0 && n(h.yieldKg) > 0) m.totalAreaHa += n(h.yieldKg) / 1000 / tha;
       if (h.brix != null && h.brix !== "") { m.brixSum += n(h.brix); m.brixCount++; }
       if (h.ph != null && h.ph !== "") { m.phSum += n(h.ph); m.phCount++; }
+      if (h.titratableAcidityGl != null && h.titratableAcidityGl !== "") { m.taSum += n(h.titratableAcidityGl); m.taCount++; }
+      if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { m.potAlcSum += n(h.potentialAlcohol); m.potAlcCount++; }
       m.records++;
     });
     // Build block-set per vintage for accurate area (avoids double-counting blocks)
@@ -801,7 +805,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">Yield Summary — All Vintages</h3>
-            <p className="text-xs text-foreground/40">Total yield, area, t/ha, average Brix and pH per vintage year</p>
+            <p className="text-xs text-foreground/40">Total yield, area, t/ha, average Brix, pH, TA and potential alcohol per vintage year</p>
           </div>
           {allVintagesSummary.length === 0 ? (
             <p className="text-sm text-foreground/40 text-center py-6">
@@ -820,6 +824,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     <th className="px-4 py-2 text-right">Yield (t/ha)</th>
                     <th className="px-4 py-2 text-right">Avg Brix °</th>
                     <th className="px-4 py-2 text-right">Avg pH</th>
+                    <th className="px-4 py-2 text-right">Avg TA (g/L)</th>
+                    <th className="px-4 py-2 text-right">Avg Pot. Alc %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -835,6 +841,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                         <td className="px-4 py-2 text-right font-mono font-semibold">{tha != null ? tha.toFixed(2) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono">{row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono">{row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.taCount > 0 ? (row.taSum / row.taCount).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "—"}</td>
                       </tr>
                     );
                   })}
@@ -848,8 +856,14 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                   const grandBrixCount = allVintagesSummary.reduce((s, r) => s + r.brixCount, 0);
                   const grandPhSum = allVintagesSummary.reduce((s, r) => s + r.phSum, 0);
                   const grandPhCount = allVintagesSummary.reduce((s, r) => s + r.phCount, 0);
+                  const grandTaSum = allVintagesSummary.reduce((s, r) => s + r.taSum, 0);
+                  const grandTaCount = allVintagesSummary.reduce((s, r) => s + r.taCount, 0);
+                  const grandPotAlcSum = allVintagesSummary.reduce((s, r) => s + r.potAlcSum, 0);
+                  const grandPotAlcCount = allVintagesSummary.reduce((s, r) => s + r.potAlcCount, 0);
                   const grandBrix = grandBrixCount > 0 ? grandBrixSum / grandBrixCount : null;
                   const grandPh = grandPhCount > 0 ? grandPhSum / grandPhCount : null;
+                  const grandTa = grandTaCount > 0 ? grandTaSum / grandTaCount : null;
+                  const grandPotAlc = grandPotAlcCount > 0 ? grandPotAlcSum / grandPotAlcCount : null;
                   return (
                     <tfoot>
                       <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
@@ -861,6 +875,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                         <td className="px-4 py-2 text-right font-mono font-bold">{grandTha != null ? grandTha.toFixed(2) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono font-bold">{grandBrix != null ? grandBrix.toFixed(1) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono font-bold">{grandPh != null ? grandPh.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandTa != null ? grandTa.toFixed(2) : "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono font-bold">{grandPotAlc != null ? grandPotAlc.toFixed(1) : "—"}</td>
                       </tr>
                     </tfoot>
                   );
