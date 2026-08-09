@@ -69,6 +69,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-harvest", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-harvest", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
   const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-harvest", filter: "search", farmId, defaultValue: "" });
+  const [yieldChartUnit, setYieldChartUnit] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldChartUnit", farmId, defaultValue: "kg" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
@@ -199,18 +200,40 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
     if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
     // One entry per block; vintage years become the bar series
-    const chartData = uniqueBlockIds.map(bid => {
+    // Build both kg and t/ha datasets
+    const kgData = uniqueBlockIds.map(bid => {
+      const block = blocks.find(b => b.id === bid);
+      const areaHa = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
       const entry: Record<string, string | number> = { block: String(blockName(bid)) };
       for (const vy of uniqueVintages) {
         const grp = filteredHarvest.filter(r => String(r.vintageYear ?? "") === vy && r.blockId === bid);
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
         entry[vy] = total > 0 ? parseFloat(total.toFixed(1)) : 0;
+        // Store t/ha under a prefixed key for lookup
+        const tha = !isNaN(areaHa) && areaHa > 0 && total > 0 ? total / 1000 / areaHa : 0;
+        entry[`__tha__${vy}`] = tha > 0 ? parseFloat(tha.toFixed(3)) : 0;
       }
       return entry;
     });
-    return { chartData, vintages: uniqueVintages };
+    // Build t/ha chart data (using the derived values)
+    const thaData = kgData.map(entry => {
+      const thaEntry: Record<string, string | number> = { block: entry.block };
+      for (const vy of uniqueVintages) {
+        thaEntry[vy] = entry[`__tha__${vy}`] as number;
+      }
+      return thaEntry;
+    });
+    // Strip the __tha__ helper keys from kgData
+    const cleanKgData = kgData.map(entry => {
+      const clean: Record<string, string | number> = {};
+      for (const [k, v] of Object.entries(entry)) {
+        if (!k.startsWith("__tha__")) clean[k] = v;
+      }
+      return clean;
+    });
+    return { kgData: cleanKgData, thaData, vintages: uniqueVintages };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredHarvest, yearFilter]);
+  }, [filteredHarvest, yearFilter, blocks]);
 
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
@@ -800,21 +823,60 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       {/* Yield by Block × Vintage chart */}
       {yieldChartData && (
         <div className="rounded-lg border bg-card p-4 space-y-2">
-          <p className="text-sm font-semibold flex items-center gap-1.5">
-            <BarChart3 className="w-4 h-4 text-muted-foreground" />
-            Yield by Block × Vintage (kg)
-          </p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-sm font-semibold flex items-center gap-1.5">
+              <BarChart3 className="w-4 h-4 text-muted-foreground" />
+              Yield by Block × Vintage{" "}
+              <span className="font-normal text-muted-foreground">
+                ({yieldChartUnit === "kg" ? "Total kg" : "t/ha"})
+              </span>
+            </p>
+            <div className="flex items-center rounded-md border overflow-hidden text-xs">
+              <button
+                type="button"
+                className={`px-3 py-1 transition-colors ${yieldChartUnit === "kg" ? "bg-primary text-primary-foreground font-semibold" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                onClick={() => setYieldChartUnit("kg")}
+              >
+                Total kg
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1 transition-colors border-l ${yieldChartUnit === "tha" ? "bg-primary text-primary-foreground font-semibold" : "bg-background text-muted-foreground hover:bg-muted"}`}
+                onClick={() => setYieldChartUnit("tha")}
+              >
+                t/ha
+              </button>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={yieldChartData.chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+            <BarChart
+              data={yieldChartUnit === "kg" ? yieldChartData.kgData : yieldChartData.thaData}
+              margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="block" tick={{ fontSize: 12 }} />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : String(v)}
-                unit=" kg"
-                width={64}
+              {yieldChartUnit === "kg" ? (
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : String(v)}
+                  unit=" kg"
+                  width={64}
+                />
+              ) : (
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v: number) => v.toFixed(2)}
+                  unit=" t/ha"
+                  width={72}
+                />
+              )}
+              <Tooltip
+                formatter={(v: number, name: string) =>
+                  yieldChartUnit === "kg"
+                    ? [`${v.toLocaleString()} kg`, name]
+                    : [`${v.toFixed(2)} t/ha`, name]
+                }
               />
-              <Tooltip formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {yieldChartData.vintages.map((vy, i) => (
                 <Bar
