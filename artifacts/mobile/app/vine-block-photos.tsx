@@ -55,6 +55,11 @@ interface BlockPhoto {
   downloadUrl: string | null;
 }
 
+// Stored in AsyncStorage (device-local) so the hint reappears automatically on
+// a fresh install, new device, or app data clear — this is intentional.
+// If server-synced per-user preferences are added in future (e.g. a ui_prefs
+// column on the users table), migrate this flag there so the hint is only shown
+// once per account rather than once per device.
 const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 
 // ---------------------------------------------------------------------------
