@@ -619,6 +619,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   // are listed per barrel immediately after the fill history table.
   const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
   const barrelMaintenance = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+  const barrelVessels = Array.isArray(data.barrelVessels) ? data.barrelVessels : [];
 
   const WORK_TYPE_LABELS: Record<string, string> = {
     inspection: "Inspection",
@@ -650,8 +651,15 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
   };
 
+  // Vessels with at least one fill record (by vessel_id)
+  const vesselIdsWithFills = new Set(barrelFills.map(f => Number(f.vessel_id)));
+  // Barrel-type source vessels that were used in bottling but have NO fill records at all.
+  // This can be non-empty even when other barrels in the same report do have fills, so the
+  // warning must be computed per-vessel and shown alongside (not instead of) normal fill cards.
+  const barrelVesselsWithoutFills = barrelVessels.filter(v => !vesselIdsWithFills.has(Number(v.id)));
+
   let barrelProvenanceHtml = "";
-  if (barrelFills.length > 0) {
+  if (barrelFills.length > 0 || barrelVesselsWithoutFills.length > 0) {
     // Group fills by vessel_id
     const vesselMap = new Map<number, Record<string, unknown>[]>();
     const vesselMeta = new Map<number, Record<string, unknown>>();
@@ -753,10 +761,33 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
       </div>`;
     }).join("");
 
+    // Per-vessel amber warning for any barrel source vessels that have no fill records.
+    // Rendered even when other barrels in the same section do have fills.
+    const noFillWarningHtml = barrelVesselsWithoutFills.length > 0 ? `
+    <div style="border:1px solid #f59e0b;background:#fef3c7;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <span style="font-size:16px;line-height:1.2;flex-shrink:0">⚠</span>
+        <div style="flex:1">
+          <p style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">No fill records found for ${barrelVesselsWithoutFills.length === 1 ? "this barrel" : "these barrels"}</p>
+          <p style="font-size:10px;color:#92400e;margin-bottom:6px">The following barrel vessel${barrelVesselsWithoutFills.length === 1 ? " was" : "s were"} used as a source vessel for bottling in this batch trail, but no fill history has been logged. This may mean fill records are simply missing rather than oak genuinely being absent. Auditors should verify the Vessel Register before signing off this report.</p>
+          <ul style="margin:0;padding:0;list-style:none">
+            ${barrelVesselsWithoutFills.map(v => `<li style="font-size:10px;color:#92400e;padding:2px 0;display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:14px;height:14px;background:#fde68a;border-radius:2px;flex-shrink:0;text-align:center;line-height:14px;font-size:9px">🪵</span>
+              <strong>${escHtml(String(v.vessel_ref ?? ""))}</strong>
+              ${v.vessel_type ? `<span style="color:#b45309;font-size:9px">(${escHtml(String(v.vessel_type))})</span>` : ""}
+              ${v.cooperage ? `<span style="color:#92400e;font-size:9px">· ${escHtml(String(v.cooperage))}</span>` : ""}
+              ${v.capacity_litres != null ? `<span style="color:#b45309;font-size:9px">· ${parseFloat(String(v.capacity_litres)).toFixed(0)} L</span>` : ""}
+            </li>`).join("")}
+          </ul>
+          <p style="font-size:9px;color:#b45309;font-style:italic;margin-top:6px">To resolve: open the Vessel Register and log the fill history for the barrel${barrelVesselsWithoutFills.length === 1 ? "" : "s"} listed above, then reprint this report.</p>
+        </div>
+      </div>
+    </div>` : "";
+
     barrelProvenanceHtml = `<div class="section">
   <h2>6. Barrel Provenance</h2>
-  <p style="font-size:10px;color:#6b7280;margin-bottom:8px">Fill history for each oak barrel used as a source vessel for a bottling run in this batch trail. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.</p>
-  ${vesselBlocks}
+  ${barrelFills.length > 0 ? `<p style="font-size:10px;color:#6b7280;margin-bottom:8px">Fill history for each oak barrel used as a source vessel for a bottling run in this batch trail. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.</p>` : ""}
+  ${vesselBlocks}${noFillWarningHtml}
 </div>`;
   }
 

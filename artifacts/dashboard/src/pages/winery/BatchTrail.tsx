@@ -545,6 +545,9 @@ export interface BatchTrailData {
   barrelFills?: Record<string, unknown>[];
   /** Cooperage maintenance records for barrel vessels in this batch trail */
   barrelMaintenance?: Record<string, unknown>[];
+  /** All barrel-type source vessels used in bottling for this batch/vintage, regardless of fill history.
+   *  Non-empty when barrelFills is empty means fill records are missing — auditors should be warned. */
+  barrelVessels?: Record<string, unknown>[];
 }
 
 export function TrailSection({ icon: Icon, title, count, children }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode }) {

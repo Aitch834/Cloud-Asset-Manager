@@ -37183,10 +37183,10 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
 
   const scope: "batchRef" | "vintageYear" = batchRef ? "batchRef" : "vintageYear";
 
-  let fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills, barrelMaintenance;
+  let fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills, barrelMaintenance, barrelVessels;
 
   if (scope === "batchRef") {
-    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, barrelFills, barrelMaintenance] = await Promise.all([
+    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, barrelFills, barrelMaintenance, barrelVessels] = await Promise.all([
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
@@ -37279,10 +37279,22 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
         ORDER BY m.vessel_id ASC, m.maintenance_date ASC
       `),
+      // All barrel-type source vessels for this batch — returned regardless of whether fill
+      // records exist, so the print report can warn auditors when a barrel was used but has
+      // no fill history logged.
+      db.execute(sql`
+        SELECT DISTINCT v.id, v.vessel_ref, v.vessel_type, v.cooperage, v.capacity_litres
+        FROM winery_vessels v
+        JOIN winery_bottling_records b ON b.source_vessel_id = v.id
+        WHERE b.farm_id = ${farmId} AND b.batch_ref = ${batchRef}
+          AND b.source_vessel_id IS NOT NULL
+          AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
+        ORDER BY v.vessel_ref ASC
+      `),
     ]);
   } else {
     // Vintage-year fallback: fetch all records for this vintage regardless of batch_ref
-    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills, barrelMaintenance] = await Promise.all([
+    [fermentation, cellarOps, so2Tests, bottling, pressAdditions, pressings, barrelFills, barrelMaintenance, barrelVessels] = await Promise.all([
       db.execute(sql`
         SELECT f.id, f.start_date, f.end_date, f.batch_ref, f.vintage_year, f.wine_colour,
                f.fermentation_type, f.yeast_strain, f.inoculation_date, f.volume_litres,
@@ -37383,6 +37395,18 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
         AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
         ORDER BY m.vessel_id ASC, m.maintenance_date ASC
       `),
+      // All barrel-type source vessels for this vintage — returned regardless of whether fill
+      // records exist, so the print report can warn auditors when a barrel was used but has
+      // no fill history logged.
+      db.execute(sql`
+        SELECT DISTINCT v.id, v.vessel_ref, v.vessel_type, v.cooperage, v.capacity_litres
+        FROM winery_vessels v
+        JOIN winery_bottling_records b ON b.source_vessel_id = v.id
+        WHERE b.farm_id = ${farmId} AND b.vintage_year = ${vintageYear}
+          AND b.source_vessel_id IS NOT NULL
+          AND (LOWER(v.vessel_type) LIKE '%barrel%' OR LOWER(v.vessel_type) LIKE '%barrique%')
+        ORDER BY v.vessel_ref ASC
+      `),
     ]);
   }
 
@@ -37398,6 +37422,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
     pressings: pressings ? pressings.rows : [],
     barrelFills: barrelFills ? barrelFills.rows : [],
     barrelMaintenance: barrelMaintenance ? barrelMaintenance.rows : [],
+    barrelVessels: barrelVessels ? barrelVessels.rows : [],
   });
 });
 
