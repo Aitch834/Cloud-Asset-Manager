@@ -1,0 +1,325 @@
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
+
+/**
+ * Idempotent migrations for the ad_templates table.
+ * Safe to run on every startup — uses CREATE TABLE IF NOT EXISTS.
+ * Seeds the two default viticulture templates if the table is empty.
+ */
+export async function runAdTemplateMigrations(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ad_templates (
+      id          serial PRIMARY KEY,
+      name        text NOT NULL,
+      slug        text NOT NULL UNIQUE,
+      width_mm    integer NOT NULL,
+      height_mm   integer NOT NULL,
+      html_body   text NOT NULL,
+      is_default  boolean NOT NULL DEFAULT false,
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      updated_at  timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  // Seed default templates only if none exist
+  const existing = await db.execute(sql`SELECT id FROM ad_templates LIMIT 1`);
+  if ((existing as { rows: unknown[] }).rows.length > 0) return;
+
+  await db.execute(sql`
+    INSERT INTO ad_templates (name, slug, width_mm, height_mm, html_body, is_default)
+    VALUES
+      (${VITICULTURE_HORIZONTAL_NAME}, 'viticulture-horizontal', 190, 133, ${VITICULTURE_HORIZONTAL_HTML}, true),
+      (${VITICULTURE_PORTRAIT_NAME},   'viticulture-portrait',   90,  267, ${VITICULTURE_PORTRAIT_HTML},   false)
+  `);
+
+  console.log("[AD-TEMPLATE-MIGRATE] Seeded default viticulture templates");
+}
+
+const VITICULTURE_HORIZONTAL_NAME = "Viticulture — Half Page Horizontal (190×133 mm)";
+const VITICULTURE_PORTRAIT_NAME   = "Viticulture — Half Page Vertical (90×267 mm)";
+
+// ── Horizontal template (190 × 133 mm) ────────────────────────────────────────
+// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}}
+
+const VITICULTURE_HORIZONTAL_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>BDE Farm Trac — Half Page Horizontal — CMYK</title>
+<style>
+{{font_css}}
+
+@page { size: 190mm 133mm; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 190mm; height: 133mm; overflow: hidden;
+  font-family: 'Inter', sans-serif; }
+
+.ad { position: relative; width: 190mm; height: 133mm; overflow: hidden; }
+
+.bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('{{bg}}');
+  background-size: cover; background-position: center 38%; }
+
+.overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(105deg,
+    rgba(10,7,5,0.88) 0%, rgba(12,9,6,0.70) 48%, rgba(10,7,5,0.28) 100%); }
+
+.top-bar { position: absolute; top: 0; left: 0; right: 0; height: 0.7mm;
+  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  z-index: 4; }
+
+.left-rule { position: absolute; left: 0; top: 0; bottom: 0; width: 1.2mm;
+  background: #2D6A2E; z-index: 4; }
+
+.inner { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; padding: 9mm 10mm 8.4mm 11mm; gap: 6mm; z-index: 3; }
+
+.left { width: 105mm; flex-shrink: 0; display: flex;
+  flex-direction: column; justify-content: space-between; }
+
+.logo { display: block; height: 8mm; width: auto; max-width: 44mm; }
+
+.copy { display: flex; flex-direction: column; gap: 2.2mm;
+  flex: 1; justify-content: center; }
+
+.eyebrow { font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+  letter-spacing: 0.16em; text-transform: uppercase; }
+
+.headline { font-family: 'Playfair Display', serif; font-size: 11.6mm;
+  font-weight: 700; line-height: 1.0; color: #ffffff; }
+.headline em { font-style: italic; color: #C49A6C; }
+
+.subline { font-size: 3mm; color: rgba(255,255,255,0.68);
+  line-height: 1.5; font-weight: 400; max-width: 92mm; }
+
+.features { display: flex; flex-wrap: wrap; gap: 1.6mm 5.2mm; margin-top: auto; }
+.feat { display: flex; align-items: center; gap: 1.4mm;
+  font-size: 2.4mm; font-weight: 500; color: rgba(255,255,255,0.78);
+  white-space: nowrap; }
+.feat::before { content: ''; display: inline-block;
+  width: 0.8mm; height: 0.8mm; border-radius: 50%;
+  background: #C49A6C; flex-shrink: 0; }
+
+.right { flex: 1; display: flex; flex-direction: column;
+  justify-content: space-between; }
+
+.glass-card { background: rgba(255,255,255,0.10);
+  border: 0.1mm solid rgba(196,154,108,0.35); border-radius: 1.4mm;
+  padding: 4.6mm 5.2mm; display: flex; flex-direction: column; }
+
+.card-title { font-family: 'Playfair Display', serif; font-style: italic;
+  font-size: 2.8mm; color: #C49A6C; font-weight: 700;
+  line-height: 1.2; margin-bottom: 2.4mm; }
+
+.card-item { padding: 2mm 0;
+  border-bottom: 0.1mm solid rgba(255,255,255,0.09); }
+.card-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.card-item-title { font-size: 2.4mm; font-weight: 700;
+  color: rgba(255,255,255,0.90); margin-bottom: 0.6mm; }
+.card-item-desc { font-size: 1.9mm; color: rgba(255,255,255,0.50);
+  line-height: 1.35; }
+
+.cta-row { display: flex; align-items: flex-end; gap: 3.2mm; }
+.cta-block { flex: 1; display: flex; flex-direction: column; gap: 1mm; }
+
+.cta { display: block; background: transparent; color: #C49A6C;
+  font-weight: 800; font-size: 2.6mm; padding: 2.2mm 0;
+  border-radius: 0.8mm; border: 0.2mm solid #C49A6C;
+  text-decoration: none; text-align: center; letter-spacing: 0.01em; }
+
+.url { font-size: 1.8mm; color: rgba(255,255,255,0.28);
+  letter-spacing: 0.05em; text-align: center; }
+
+.qr-wrap { display: flex; flex-direction: column; align-items: center;
+  gap: 1mm; flex-shrink: 0; }
+.qr-wrap img { display: block; width: 13mm; height: 13mm;
+  border-radius: 0.6mm; }
+.qr-label { font-size: 1.6mm; color: rgba(255,255,255,0.30);
+  letter-spacing: 0.04em; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="bg"></div>
+  <div class="overlay"></div>
+  <div class="top-bar"></div>
+  <div class="left-rule"></div>
+  <div class="inner">
+    <div class="left">
+      <img class="logo" src="{{logo}}" alt="BDE Farm Trac"/>
+      <div class="copy">
+        <div class="eyebrow">Viticulture · Cloud-based · UK vineyards</div>
+        <div class="headline">Your vineyard.<br><em>Audit-ready.</em></div>
+        <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
+          PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place, accessible anywhere.</div>
+      </div>
+      <div class="features">
+        <span class="feat">Vine register &amp; phenology</span>
+        <span class="feat">PDO &amp; PGI compliance</span>
+        <span class="feat">Spray &amp; scouting logs</span>
+        <span class="feat">Harvest &amp; must chemistry</span>
+        <span class="feat">Organic viticulture</span>
+        <span class="feat">Excise &amp; duty records</span>
+      </div>
+    </div>
+    <div class="right">
+      <div class="glass-card">
+        <div class="card-title">Full farm platform included</div>
+        <div class="card-item">
+          <div class="card-item-title">Red Tractor</div>
+          <div class="card-item-desc">Spray logs, staff certs &amp; inspection evidence</div>
+        </div>
+        <div class="card-item">
+          <div class="card-item-title">Organic Certification</div>
+          <div class="card-item-desc">Input register &amp; derogation records</div>
+        </div>
+        <div class="card-item">
+          <div class="card-item-title">Cloud Security</div>
+          <div class="card-item-desc">Encrypted, auto-backed-up, disaster-recovery ready</div>
+        </div>
+      </div>
+      <div class="cta-row">
+        <div class="cta-block">
+          <div class="cta">Register your interest</div>
+          <div class="url">bdefarmtrac.co.uk</div>
+        </div>
+        <div class="qr-wrap">
+          <img src="{{qr}}" alt="QR"/>
+          <span class="qr-label">Scan to visit</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+
+// ── Portrait template (90 × 267 mm) ───────────────────────────────────────────
+// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}}
+
+const VITICULTURE_PORTRAIT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>BDE Farm Trac — Half Page Vertical — CMYK</title>
+<style>
+{{font_css}}
+
+@page { size: 90mm 267mm; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 90mm; height: 267mm; overflow: hidden;
+  font-family: 'Inter', sans-serif; }
+
+.ad { position: relative; width: 90mm; height: 267mm; overflow: hidden; }
+
+.bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('{{bg}}');
+  background-size: cover; background-position: center 30%; }
+
+.overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg,
+    rgba(8,6,4,0.42) 0%, rgba(8,6,4,0.55) 35%,
+    rgba(8,6,4,0.82) 65%, rgba(8,6,4,0.96) 100%); }
+
+.top-bar { position: absolute; top: 0; left: 0; right: 0; height: 1.4mm;
+  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  z-index: 4; }
+
+.left-rule { position: absolute; left: 0; top: 0; bottom: 0; width: 1.6mm;
+  background: #2D6A2E; z-index: 4; }
+
+.inner { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column;
+  padding: 7.2mm 7.2mm 7.2mm 10mm; z-index: 3; }
+
+.logo { display: block; height: 12mm; width: auto; max-width: 44mm; }
+
+.eyebrow { margin-top: 16mm; font-size: 2.6mm; font-weight: 600; color: #C49A6C;
+  letter-spacing: 0.16em; text-transform: uppercase; line-height: 1.3; }
+
+.headline { font-family: 'Playfair Display', serif; font-size: 14.8mm;
+  font-weight: 700; line-height: 0.98; color: #ffffff; margin-top: 3.6mm; }
+.headline em { font-style: italic; color: #C49A6C; display: block; }
+
+.subline { font-size: 3.4mm; color: rgba(255,255,255,0.68);
+  line-height: 1.5; font-weight: 400; margin-top: 5.2mm; max-width: 82mm; }
+
+.divider { width: 8mm; height: 0.3mm; background: #C49A6C; margin: 6mm 0; }
+
+.features { display: flex; flex-direction: column; gap: 2.8mm; }
+.feat { display: flex; align-items: center; gap: 2.4mm;
+  font-size: 3.2mm; font-weight: 500; color: rgba(255,255,255,0.78); }
+.feat::before { content: ''; display: inline-block;
+  width: 1.2mm; height: 1.2mm; border-radius: 50%;
+  background: #C49A6C; flex-shrink: 0; }
+
+.platform-strip { margin-top: auto;
+  border-top: 0.1mm solid rgba(196,154,108,0.35);
+  padding-top: 4.4mm; display: flex; flex-direction: column; gap: 1.8mm; }
+.platform-label { font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+  letter-spacing: 0.12em; text-transform: uppercase; }
+.platform-items { display: flex; flex-direction: column; gap: 1.4mm; }
+.platform-item { font-size: 2.6mm; color: rgba(255,255,255,0.60); }
+.platform-item strong { color: rgba(255,255,255,0.88); font-weight: 600;
+  margin-right: 0.6mm; }
+
+.cta-row { display: flex; align-items: center; gap: 4mm; margin-top: 5.6mm; }
+
+.cta { flex: 1; display: block; background: transparent; color: #C49A6C;
+  font-weight: 800; font-size: 3mm; padding: 3.2mm 0;
+  border-radius: 1mm; border: 0.25mm solid #C49A6C;
+  text-align: center; letter-spacing: 0.01em; }
+
+.qr-wrap { display: flex; flex-direction: column; align-items: center;
+  gap: 1.4mm; flex-shrink: 0; }
+.qr-wrap img { display: block; width: 18mm; height: 18mm;
+  border-radius: 0.8mm; }
+.qr-label { font-size: 2mm; color: rgba(255,255,255,0.30);
+  letter-spacing: 0.04em; }
+
+.url { font-size: 2.2mm; color: rgba(255,255,255,0.25);
+  letter-spacing: 0.05em; text-align: center; margin-top: 1.6mm; }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="bg"></div>
+  <div class="overlay"></div>
+  <div class="top-bar"></div>
+  <div class="left-rule"></div>
+  <div class="inner">
+    <img class="logo" src="{{logo}}" alt="BDE Farm Trac"/>
+    <div class="eyebrow">Viticulture · UK Vineyards</div>
+    <div class="headline">Your<br>vineyard.<br><em>Audit-<br>ready.</em></div>
+    <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
+      PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place.</div>
+    <div class="divider"></div>
+    <div class="features">
+      <span class="feat">Vine register &amp; phenology</span>
+      <span class="feat">PDO &amp; PGI compliance</span>
+      <span class="feat">Spray &amp; scouting logs</span>
+      <span class="feat">Harvest &amp; must chemistry</span>
+      <span class="feat">Organic viticulture</span>
+      <span class="feat">Excise &amp; duty records</span>
+    </div>
+    <div class="platform-strip">
+      <div class="platform-label">Full farm platform included</div>
+      <div class="platform-items">
+        <div class="platform-item"><strong>Red Tractor</strong> Spray logs &amp; inspection evidence</div>
+        <div class="platform-item"><strong>Organic Cert</strong> Input register &amp; derogation records</div>
+        <div class="platform-item"><strong>Cloud Security</strong> Encrypted, auto-backed-up</div>
+      </div>
+    </div>
+    <div class="cta-row">
+      <div class="cta">Register your interest</div>
+      <div class="qr-wrap">
+        <img src="{{qr}}" alt="QR"/>
+        <span class="qr-label">Scan to visit</span>
+      </div>
+    </div>
+    <div class="url">bdefarmtrac.co.uk</div>
+  </div>
+</div>
+</body>
+</html>`;

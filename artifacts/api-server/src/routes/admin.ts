@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import crypto from "crypto";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -2053,34 +2053,184 @@ router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Reque
   res.json({ success: true, inserted, skipped: DEFAULT_HELP_ARTICLES.length - inserted });
 });
 
-// ─── Ad PDF Generator ─────────────────────────────────────────────────────────
+// ─── Ad Template Library ──────────────────────────────────────────────────────
+
+router.get("/admin/ad-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const rows = await db.select().from(adTemplatesTable).orderBy(asc(adTemplatesTable.id));
+  res.json(rows);
+});
+
+router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { name, slug, widthMm, heightMm, htmlBody, isDefault } = req.body as {
+    name?: string; slug?: string; widthMm?: number; heightMm?: number;
+    htmlBody?: string; isDefault?: boolean;
+  };
+  if (!name || !slug || !widthMm || !heightMm || !htmlBody) {
+    res.status(400).json({ error: "name, slug, widthMm, heightMm and htmlBody are required" });
+    return;
+  }
+  try {
+    const [row] = await db.insert(adTemplatesTable).values({
+      name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm),
+      htmlBody, isDefault: !!isDefault,
+    }).returning();
+    res.status(201).json(row);
+  } catch (err: unknown) {
+    const code = (err as { cause?: { code?: string } }).cause?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "A template with that slug already exists" });
+    } else {
+      console.error("[ad-templates/create]", err);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  }
+});
+
+router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  const { name, slug, widthMm, heightMm, htmlBody, isDefault } = req.body as {
+    name?: string; slug?: string; widthMm?: number; heightMm?: number;
+    htmlBody?: string; isDefault?: boolean;
+  };
+  if (!name || !slug || !widthMm || !heightMm || !htmlBody) {
+    res.status(400).json({ error: "name, slug, widthMm, heightMm and htmlBody are required" });
+    return;
+  }
+  try {
+    const [row] = await db.update(adTemplatesTable)
+      .set({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm),
+             htmlBody, isDefault: !!isDefault, updatedAt: new Date() })
+      .where(eq(adTemplatesTable.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Template not found" }); return; }
+    res.json(row);
+  } catch (err: unknown) {
+    const code = (err as { cause?: { code?: string } }).cause?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "A template with that slug already exists" });
+    } else {
+      console.error("[ad-templates/update]", err);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  }
+});
+
+router.delete("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  const [row] = await db.delete(adTemplatesTable).where(eq(adTemplatesTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Template not found" }); return; }
+  res.json({ success: true });
+});
+
+// ─── Ad PDF Generator — Node-native renderer ──────────────────────────────────
+
+const AD_FONT_URLS: Array<[string, string, string, string]> = [
+  ["Inter", "normal", "400", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf"],
+  ["Inter", "normal", "500", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf"],
+  ["Inter", "normal", "600", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZg.ttf"],
+  ["Inter", "normal", "700", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZg.ttf"],
+  ["Inter", "normal", "800", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyYMZg.ttf"],
+  ["Inter", "normal", "900", "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuBWYMZg.ttf"],
+  ["Playfair Display", "normal", "700", "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKeiukDQ.ttf"],
+  ["Playfair Display", "italic",  "700", "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFRD-vYSZviVYUb_rj3ij__anPXDTnCjmHKM4nYO7KN_k-UbtY.ttf"],
+];
+
+const AD_DEFAULT_BG_URL =
+  "https://images.pexels.com/photos/943700/pexels-photo-943700.jpeg?auto=compress&cs=tinysrgb&w=1920";
+
+/** Download all Inter + Playfair Display weights and return a CSS @font-face block */
+async function buildAdFontCss(): Promise<string> {
+  const faces: string[] = [];
+  for (const [family, style, weight, url] of AD_FONT_URLS) {
+    const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!resp.ok) throw new Error(`Font fetch failed: ${url} (${resp.status})`);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const uri = `data:font/truetype;base64,${buf.toString("base64")}`;
+    faces.push(
+      `@font-face {\n  font-family: '${family}';\n  font-style: ${style};\n  font-weight: ${weight};\n  font-display: swap;\n  src: url('${uri}') format('truetype');\n}`,
+    );
+  }
+  return faces.join("\n");
+}
+
+/** Extract the first base64 data-URI src from an img tag matching the given alt text */
+function extractB64Src(html: string, altText: string): string {
+  const escaped = altText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = html.match(
+    new RegExp(
+      `<img[^>]*alt="${escaped}"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*alt="${escaped}"`,
+    ),
+  );
+  return m ? (m[1] ?? m[2] ?? "") : "";
+}
+
+/**
+ * Substitute {{font_css}}, {{logo}}, {{qr}}, {{bg}} in a template HTML body.
+ * Logo and QR are extracted from the on-disk ad-templates/ HTML files.
+ * Background image is downloaded from bgUrl (falls back to a default vineyard photo).
+ */
+async function renderAdTemplate(htmlBody: string, bgUrl: string, srcDir: string): Promise<string> {
+  // Fonts
+  const fontCss = await buildAdFontCss();
+
+  // Logo + QR — read from existing template HTML files on disk
+  let logoUri = "";
+  let qrUri   = "";
+  if (fs.existsSync(srcDir)) {
+    const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".html"));
+    for (const f of files) {
+      const html = fs.readFileSync(path.join(srcDir, f), "utf-8");
+      if (!logoUri) logoUri = extractB64Src(html, "BDE Farm Trac");
+      if (!qrUri)   qrUri   = extractB64Src(html, "QR — bdefarmtrac.co.uk");
+      if (logoUri && qrUri) break;
+    }
+  }
+
+  // Background image
+  const effectiveBgUrl = bgUrl.trim() || AD_DEFAULT_BG_URL;
+  const bgResp = await fetch(effectiveBgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+  if (!bgResp.ok) throw new Error(`Background fetch failed (${bgResp.status}): ${effectiveBgUrl}`);
+  const bgBuf = Buffer.from(await bgResp.arrayBuffer());
+  const bgUri = `data:image/jpeg;base64,${bgBuf.toString("base64")}`;
+
+  // Substitute placeholders
+  return htmlBody
+    .replace(/\{\{font_css\}\}/g, fontCss)
+    .replace(/\{\{logo\}\}/g, logoUri)
+    .replace(/\{\{qr\}\}/g, qrUri)
+    .replace(/\{\{bg\}\}/g, bgUri);
+}
 
 router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const { format, bgUrl } = req.query as { format?: string; bgUrl?: string };
-  if (!format || !["horizontal", "portrait"].includes(format)) {
-    res.status(400).json({ error: "format must be 'horizontal' or 'portrait'" });
+  const { templateId, bgUrl } = req.query as { templateId?: string; bgUrl?: string };
+  if (!templateId || isNaN(Number(templateId))) {
+    res.status(400).json({ error: "templateId (numeric) is required" });
     return;
   }
 
+  const [template] = await db.select().from(adTemplatesTable)
+    .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
+  if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+
   const tmpId  = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), `ad-pdf-prev-${tmpId}`);
-  const htmlOut    = path.join(tmpDir, "print.html");
-  const rgbPdf     = path.join(tmpDir, "rgb.pdf");
-  const pngOut     = path.join(tmpDir, "preview.png");
-  const scriptPath = path.resolve(__dirname, "../../scripts/generate_ad_html.py");
-  const srcDir     = path.resolve(__dirname, "../../scripts/ad-templates");
+  const htmlOut = path.join(tmpDir, "print.html");
+  const rgbPdf  = path.join(tmpDir, "rgb.pdf");
+  const pngOut  = path.join(tmpDir, "preview.png");
+  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
 
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    // Step 1: Generate print HTML
-    const bgArg = bgUrl ? `--bg-url "${bgUrl.replace(/"/g, '\\"')}"` : "";
-    execSync(
-      `python3 "${scriptPath}" --format ${format} --out "${htmlOut}" --src-dir "${srcDir}" ${bgArg}`,
-      { timeout: 90_000, stdio: "pipe" },
-    );
+    // Step 1: Render HTML via Node-native renderer
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir);
+    fs.writeFileSync(htmlOut, html, "utf-8");
 
     // Step 2: WeasyPrint (RGB PDF) + Ghostscript (PNG) — both via nix-shell
     const wpCmd = `python3 -m weasyprint --encoding utf-8 '${htmlOut}' '${rgbPdf}'`;
@@ -2102,11 +2252,11 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
     res.send(pngBuffer);
   } catch (err: unknown) {
     console.error("[ad-pdf/preview] Generation failed:", err);
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg    = err instanceof Error ? err.message : String(err);
     const stderr = (err as { stderr?: Buffer }).stderr;
     res.status(500).json({
       error: "Preview generation failed",
-      detail: (stderr ? stderr.toString().slice(-800) : msg.slice(0, 500)),
+      detail: stderr ? stderr.toString().slice(-800) : msg.slice(0, 500),
     });
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
@@ -2116,32 +2266,33 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
 router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const { format, bgUrl } = req.body as { format?: string; bgUrl?: string };
-  if (!format || !["horizontal", "portrait"].includes(format)) {
-    res.status(400).json({ error: "format must be 'horizontal' or 'portrait'" });
+  const { templateId, bgUrl } = req.body as { templateId?: number; bgUrl?: string };
+  if (!templateId || isNaN(Number(templateId))) {
+    res.status(400).json({ error: "templateId (numeric) is required" });
     return;
   }
 
-  const tmpId  = crypto.randomUUID();
-  const tmpDir = path.join(os.tmpdir(), `ad-pdf-${tmpId}`);
-  const htmlOut    = path.join(tmpDir, "print.html");
-  const rgbPdf     = path.join(tmpDir, "rgb.pdf");
-  const cmykPdf    = path.join(tmpDir, "cmyk.pdf");
-  const scriptPath = path.resolve(__dirname, "../../scripts/generate_ad_html.py");
-  const srcDir     = path.resolve(__dirname, "../../scripts/ad-templates");
-  const filename   = format === "horizontal"
-    ? "BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf"
-    : "BDE-FarmTrac-HalfPage-Vertical-CMYK.pdf";
+  const [template] = await db.select().from(adTemplatesTable)
+    .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
+  if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+
+  const tmpId   = crypto.randomUUID();
+  const tmpDir  = path.join(os.tmpdir(), `ad-pdf-${tmpId}`);
+  const htmlOut = path.join(tmpDir, "print.html");
+  const rgbPdf  = path.join(tmpDir, "rgb.pdf");
+  const cmykPdf = path.join(tmpDir, "cmyk.pdf");
+  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
+
+  // Derive a safe filename from the template name
+  const safeName = template.name.replace(/[^a-zA-Z0-9-]/g, "_").replace(/_+/g, "_").slice(0, 60);
+  const filename = `BDE-FarmTrac-${safeName}-CMYK.pdf`;
 
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    // Step 1: Generate print HTML (plain python3, no nix needed for this step)
-    const bgArg = bgUrl ? `--bg-url "${bgUrl.replace(/"/g, '\\"')}"` : "";
-    execSync(
-      `python3 "${scriptPath}" --format ${format} --out "${htmlOut}" --src-dir "${srcDir}" ${bgArg}`,
-      { timeout: 90_000, stdio: "pipe" },
-    );
+    // Step 1: Render HTML via Node-native renderer
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir);
+    fs.writeFileSync(htmlOut, html, "utf-8");
 
     // Step 2: WeasyPrint (RGB PDF) + Ghostscript (CMYK PDF) — both via nix-shell
     const wpCmd = `python3 -m weasyprint --encoding utf-8 '${htmlOut}' '${rgbPdf}'`;
@@ -2164,11 +2315,11 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
     res.send(pdfBuffer);
   } catch (err: unknown) {
     console.error("[ad-pdf] Generation failed:", err);
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg    = err instanceof Error ? err.message : String(err);
     const stderr = (err as { stderr?: Buffer }).stderr;
     res.status(500).json({
       error: "PDF generation failed",
-      detail: (stderr ? stderr.toString().slice(-800) : msg.slice(0, 500)),
+      detail: stderr ? stderr.toString().slice(-800) : msg.slice(0, 500),
     });
   } finally {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }

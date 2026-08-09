@@ -5,6 +5,7 @@ import { runLisMigrations } from "./lisMigrations";
 import { runStaffLocationMigrations } from "./staffLocationMigrations";
 import { runScoutingPhotoMigrations } from "./scoutingPhotoMigrations";
 import { runSprayDiaryPhotoMigrations } from "./sprayDiaryPhotoMigrations";
+import { runAdTemplateMigrations } from "./adTemplateMigrations";
 
 const SYSTEM_ROLES = [
   { name: "BDE Super Admin", description: "Full platform access — BDE staff only", isSystemRole: true },
@@ -71,6 +72,7 @@ export async function seedDefaults() {
   await runStaffLocationMigrations().catch((err) => console.error("[STAFF-LOC-MIGRATE] Schema migration error:", err));
   await runScoutingPhotoMigrations().catch((err) => console.error("[SCOUTING-PHOTO-MIGRATE] Schema migration error:", err));
   await runSprayDiaryPhotoMigrations().catch((err) => console.error("[SPRAY-DIARY-PHOTO-MIGRATE] Schema migration error:", err));
+  await runAdTemplateMigrations().catch((err) => console.error("[AD-TEMPLATE-MIGRATE] Schema migration error:", err));
 
   for (const role of SYSTEM_ROLES) {
     const existing = await db.select().from(rolesTable).where(eq(rolesTable.name, role.name)).limit(1);

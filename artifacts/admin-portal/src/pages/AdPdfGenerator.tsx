@@ -1,42 +1,76 @@
 import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getSecret } from "@/lib/auth";
-import { Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye } from "lucide-react";
+import {
+  Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
+  Plus, Pencil, Trash2, ChevronDown, X, Save,
+} from "lucide-react";
 
-type Format = "horizontal" | "portrait";
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const FORMATS: { value: Format; label: string; dims: string; desc: string }[] = [
-  {
-    value: "horizontal",
-    label: "Half Page Horizontal",
-    dims: "190 × 133 mm",
-    desc: "Landscape. Current Vineyard magazine booking.",
-  },
-  {
-    value: "portrait",
-    label: "Half Page Vertical",
-    dims: "90 × 267 mm",
-    desc: "Portrait strip. Confirm trim with publisher before use.",
-  },
-];
+interface AdTemplate {
+  id: number;
+  name: string;
+  slug: string;
+  widthMm: number;
+  heightMm: number;
+  htmlBody: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const DEFAULT_BG: Record<Format, string> = {
-  horizontal: "https://images.pexels.com/photos/943700/pexels-photo-943700.jpeg?auto=compress&cs=tinysrgb&w=1920",
-  portrait:   "https://images.pexels.com/photos/442116/pexels-photo-442116.jpeg?auto=compress&cs=tinysrgb&w=1200",
-};
+// ── API helpers ───────────────────────────────────────────────────────────────
 
-const FILENAME: Record<Format, string> = {
-  horizontal: "BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf",
-  portrait:   "BDE-FarmTrac-HalfPage-Vertical-CMYK.pdf",
-};
+function adminHeaders(): Record<string, string> {
+  return { "Content-Type": "application/json", "x-admin-secret": getSecret() ?? "" };
+}
 
-async function generatePdf(format: Format, bgUrl: string): Promise<Blob> {
-  const secret = getSecret() ?? "";
+async function fetchTemplates(): Promise<AdTemplate[]> {
+  const res = await fetch("/api/admin/ad-templates", { headers: adminHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function createTemplate(data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt">): Promise<AdTemplate> {
+  const res = await fetch("/api/admin/ad-templates", {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
+
+async function updateTemplate(id: number, data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt">): Promise<AdTemplate> {
+  const res = await fetch(`/api/admin/ad-templates/${id}`, {
+    method: "PUT",
+    headers: adminHeaders(),
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  return json;
+}
+
+async function deleteTemplate(id: number): Promise<void> {
+  const res = await fetch(`/api/admin/ad-templates/${id}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+}
+
+async function generatePdf(templateId: number, bgUrl: string): Promise<Blob> {
   const res = await fetch("/api/admin/ad-pdf", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-admin-secret": secret },
-    body: JSON.stringify({ format, bgUrl: bgUrl.trim() || undefined }),
+    headers: adminHeaders(),
+    body: JSON.stringify({ templateId, bgUrl: bgUrl.trim() || undefined }),
   });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
@@ -45,13 +79,12 @@ async function generatePdf(format: Format, bgUrl: string): Promise<Blob> {
   return res.blob();
 }
 
-async function fetchPreview(format: Format, bgUrl: string): Promise<string> {
-  const secret = getSecret() ?? "";
-  const params = new URLSearchParams({ format });
+async function fetchPreview(templateId: number, bgUrl: string): Promise<string> {
+  const params = new URLSearchParams({ templateId: String(templateId) });
   const trimmed = bgUrl.trim();
   if (trimmed) params.set("bgUrl", trimmed);
   const res = await fetch(`/api/admin/ad-pdf/preview?${params.toString()}`, {
-    headers: { "x-admin-secret": secret },
+    headers: { "x-admin-secret": getSecret() ?? "" },
   });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
@@ -70,47 +103,194 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── Template form (create / edit) ─────────────────────────────────────────────
+
+interface TemplateFormProps {
+  initial?: AdTemplate;
+  onSave: (data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt">) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  saveError?: string;
+}
+
+function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: TemplateFormProps) {
+  const [name,     setName]     = useState(initial?.name     ?? "");
+  const [slug,     setSlug]     = useState(initial?.slug     ?? "");
+  const [widthMm,  setWidthMm]  = useState(String(initial?.widthMm  ?? "190"));
+  const [heightMm, setHeightMm] = useState(String(initial?.heightMm ?? "133"));
+  const [htmlBody, setHtmlBody] = useState(initial?.htmlBody ?? "");
+  const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
+
+  function handleNameChange(v: string) {
+    setName(v);
+    if (!initial) {
+      setSlug(v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSave({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm), htmlBody, isDefault });
+  }
+
+  const inputCls = "w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring";
+  const labelCls = "block text-sm font-medium mb-1.5";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Template name</label>
+          <input required className={inputCls} value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Viticulture — Half Page Horizontal" />
+        </div>
+        <div>
+          <label className={labelCls}>Slug <span className="text-muted-foreground font-normal">(unique identifier)</span></label>
+          <input required className={inputCls} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="viticulture-horizontal" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Width (mm)</label>
+          <input required type="number" className={inputCls} value={widthMm} onChange={(e) => setWidthMm(e.target.value)} min={10} max={1000} />
+        </div>
+        <div>
+          <label className={labelCls}>Height (mm)</label>
+          <input required type="number" className={inputCls} value={heightMm} onChange={(e) => setHeightMm(e.target.value)} min={10} max={1000} />
+        </div>
+      </div>
+      <div>
+        <label className={labelCls}>
+          WeasyPrint HTML body
+          <span className="text-muted-foreground font-normal ml-1">
+            — use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
+            <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
+            <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
+            <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> as placeholders
+          </span>
+        </label>
+        <textarea
+          required
+          className={`${inputCls} font-mono text-xs resize-y`}
+          rows={16}
+          value={htmlBody}
+          onChange={(e) => setHtmlBody(e.target.value)}
+          placeholder={"<!DOCTYPE html>\n<html lang=\"en\">\n<head>...</head>\n<body>...</body>\n</html>"}
+          spellCheck={false}
+        />
+        <p className="text-xs text-muted-foreground mt-1.5">
+          The renderer substitutes placeholders then passes the resulting HTML to WeasyPrint. All fonts, logo,
+          QR code, and background image are embedded as base64 data-URIs at render time.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="is-default"
+          type="checkbox"
+          checked={isDefault}
+          onChange={(e) => setIsDefault(e.target.checked)}
+          className="w-4 h-4 rounded border-input"
+        />
+        <label htmlFor="is-default" className="text-sm">Set as default template</label>
+      </div>
+
+      {saveError && (
+        <div className="flex items-start gap-2 text-sm text-destructive">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-2">
+        <Button type="submit" disabled={isSaving} size="sm">
+          {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : <><Save className="w-4 h-4 mr-2" />Save template</>}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+type PanelMode = "none" | "create" | { edit: AdTemplate };
+
 export default function AdPdfGenerator() {
-  const [format, setFormat] = useState<Format>("horizontal");
-  const [bgUrl, setBgUrl]   = useState("");
+  const qc = useQueryClient();
+
+  // Template list
+  const { data: templates = [], isLoading: loadingTemplates } = useQuery<AdTemplate[]>({
+    queryKey: ["ad-templates"],
+    queryFn: fetchTemplates,
+  });
+
+  // Selected template for rendering
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const effectiveId = selectedId ?? (templates.find((t) => t.isDefault)?.id ?? templates[0]?.id ?? null);
+  const selectedTemplate = templates.find((t) => t.id === effectiveId) ?? null;
+
+  // Background URL
+  const [bgUrl, setBgUrl] = useState("");
+
+  // PDF / preview mutations
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const prevObjectUrl = useRef<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => generatePdf(format, bgUrl),
+    mutationFn: () => {
+      if (!effectiveId) throw new Error("No template selected");
+      return generatePdf(effectiveId, bgUrl);
+    },
     onSuccess: (blob) => {
-      triggerDownload(blob, FILENAME[format]);
+      const name = selectedTemplate
+        ? `BDE-FarmTrac-${selectedTemplate.slug}-CMYK.pdf`
+        : "BDE-FarmTrac-CMYK.pdf";
+      triggerDownload(blob, name);
     },
   });
 
   const previewMutation = useMutation({
-    mutationFn: () => fetchPreview(format, bgUrl),
+    mutationFn: () => {
+      if (!effectiveId) throw new Error("No template selected");
+      return fetchPreview(effectiveId, bgUrl);
+    },
     onSuccess: (url) => {
-      // Revoke previous object URL to avoid memory leaks
       if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current);
       prevObjectUrl.current = url;
       setPreviewUrl(url);
     },
   });
 
-  function handleFormatChange(f: Format) {
-    setFormat(f);
+  function resetRendering() {
     mutation.reset();
     previewMutation.reset();
     setPreviewUrl(null);
   }
 
-  function handleBgUrlChange(val: string) {
-    setBgUrl(val);
-    mutation.reset();
-    previewMutation.reset();
-    setPreviewUrl(null);
-  }
+  // CRUD panel
+  const [panel, setPanel] = useState<PanelMode>("none");
+
+  const createMutation = useMutation({
+    mutationFn: createTemplate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); setPanel("none"); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt"> }) =>
+      updateTemplate(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); setPanel("none"); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTemplate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); },
+  });
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-3xl space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-1">
+      <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
           <Megaphone className="w-5 h-5 text-primary" />
         </div>
@@ -122,29 +302,39 @@ export default function AdPdfGenerator() {
         </div>
       </div>
 
-      <div className="mt-8 space-y-6">
-        {/* Format selector */}
-        <fieldset>
-          <legend className="text-sm font-medium mb-3">Ad format</legend>
-          <div className="grid grid-cols-2 gap-3">
-            {FORMATS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => handleFormatChange(f.value)}
-                className={`text-left rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                  format === f.value
-                    ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "border-border hover:bg-muted/50"
-                }`}
+      {/* ── Generator section ── */}
+      <div className="space-y-6">
+        {/* Template selector */}
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Ad template</label>
+          {loadingTemplates ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />Loading templates…
+            </div>
+          ) : templates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No templates yet — create one below.</p>
+          ) : (
+            <div className="relative">
+              <select
+                value={effectiveId ?? ""}
+                onChange={(e) => { setSelectedId(Number(e.target.value)); resetRendering(); }}
+                className="w-full text-sm border border-input rounded-md pl-3 pr-8 py-2 bg-background appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <p className="font-medium text-sm">{f.label}</p>
-                <p className="text-xs font-mono text-muted-foreground mt-0.5">{f.dims}</p>
-                <p className="text-xs text-muted-foreground mt-1">{f.desc}</p>
-              </button>
-            ))}
-          </div>
-        </fieldset>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} — {t.widthMm}×{t.heightMm} mm{t.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            </div>
+          )}
+          {selectedTemplate && (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Trim: {selectedTemplate.widthMm}×{selectedTemplate.heightMm}&nbsp;mm · Slug: <code>{selectedTemplate.slug}</code>
+            </p>
+          )}
+        </div>
 
         {/* Background image override */}
         <div>
@@ -158,62 +348,53 @@ export default function AdPdfGenerator() {
               id="bg-url"
               type="url"
               value={bgUrl}
-              onChange={(e) => handleBgUrlChange(e.target.value)}
-              placeholder={DEFAULT_BG[format]}
+              onChange={(e) => { setBgUrl(e.target.value); resetRendering(); }}
+              placeholder="https://… (leave blank for default vineyard photo)"
               className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <p className="text-xs text-muted-foreground mt-1.5">
-            Leave blank to use the default Pexels vineyard photo. Must be a publicly accessible JPEG URL.
+            Must be a publicly accessible JPEG URL. Leave blank to use the default Pexels vineyard photo.
           </p>
         </div>
 
         {/* Spec summary */}
-        <div className="rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-1">
-          <p className="font-medium text-foreground mb-1.5">Output specification</p>
-          <p>Format · PDF&nbsp;1.3, DeviceCMYK</p>
-          <p>Trim · {FORMATS.find((f) => f.value === format)?.dims}</p>
-          <p>Fonts · Inter (body) + Playfair&nbsp;Display (headlines) — embedded</p>
-          <p>Resolution · 300&nbsp;dpi equivalent (vector text, rasterised photo)</p>
-          <p>Pipeline · WeasyPrint&nbsp;→&nbsp;RGB&nbsp;PDF · Ghostscript&nbsp;→&nbsp;CMYK&nbsp;PDF&nbsp;1.3</p>
-        </div>
+        {selectedTemplate && (
+          <div className="rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-1">
+            <p className="font-medium text-foreground mb-1.5">Output specification</p>
+            <p>Format · PDF&nbsp;1.3, DeviceCMYK</p>
+            <p>Trim · {selectedTemplate.widthMm}&nbsp;×&nbsp;{selectedTemplate.heightMm}&nbsp;mm</p>
+            <p>Fonts · Inter (body) + Playfair&nbsp;Display (headlines) — embedded</p>
+            <p>Resolution · 300&nbsp;dpi equivalent (vector text, rasterised photo)</p>
+            <p>Pipeline · Node renderer → WeasyPrint&nbsp;→&nbsp;RGB&nbsp;PDF · Ghostscript&nbsp;→&nbsp;CMYK&nbsp;PDF&nbsp;1.3</p>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-3">
-            {/* Preview button */}
             <Button
               variant="outline"
               onClick={() => previewMutation.mutate()}
-              disabled={previewMutation.isPending || mutation.isPending}
+              disabled={!effectiveId || previewMutation.isPending || mutation.isPending}
               size="lg"
             >
               {previewMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Rendering preview…
-                </>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
               ) : (
-                <>
-                  <Eye className="w-4 h-4 mr-2" />
-                  Preview
-                </>
+                <><Eye className="w-4 h-4 mr-2" />Preview</>
               )}
             </Button>
 
-            {/* Download button */}
             <Button
               onClick={() => mutation.mutate()}
-              disabled={mutation.isPending || previewMutation.isPending}
+              disabled={!effectiveId || mutation.isPending || previewMutation.isPending}
               size="lg"
             >
               {mutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating — this takes about a minute…
-                </>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
               ) : (
-                "Generate &amp; Download CMYK PDF"
+                "Generate & Download CMYK PDF"
               )}
             </Button>
           </div>
@@ -238,7 +419,7 @@ export default function AdPdfGenerator() {
           {mutation.isSuccess && (
             <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
               <CheckCircle className="w-4 h-4 shrink-0" />
-              PDF downloaded — {FILENAME[format]}
+              PDF downloaded
             </div>
           )}
 
@@ -259,15 +440,117 @@ export default function AdPdfGenerator() {
           <div className="space-y-2">
             <p className="text-sm font-medium">Preview</p>
             <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
-              <img
-                src={previewUrl}
-                alt="Ad preview"
-                className="w-full object-contain"
-              />
+              <img src={previewUrl} alt="Ad preview" className="w-full object-contain" />
             </div>
             <p className="text-xs text-muted-foreground">
               Rendered at 150&nbsp;dpi from the RGB intermediate PDF. Colours will shift slightly after CMYK conversion.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Template library section ── */}
+      <div className="border-t border-border pt-8 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Template library</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Add, edit, or remove ad layouts. Use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> in your HTML.
+            </p>
+          </div>
+          {panel === "none" && (
+            <Button size="sm" variant="outline" onClick={() => setPanel("create")}>
+              <Plus className="w-4 h-4 mr-1.5" />New template
+            </Button>
+          )}
+        </div>
+
+        {/* Create / Edit form */}
+        {panel !== "none" && (
+          <div className="rounded-lg border border-border p-5 bg-muted/20">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold">
+                {panel === "create" ? "New template" : `Edit — ${(panel as { edit: AdTemplate }).edit.name}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPanel("none")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {panel === "create" ? (
+              <TemplateForm
+                onSave={(data) => createMutation.mutate(data)}
+                onCancel={() => setPanel("none")}
+                isSaving={createMutation.isPending}
+                saveError={createMutation.error instanceof Error ? createMutation.error.message : undefined}
+              />
+            ) : (
+              <TemplateForm
+                initial={(panel as { edit: AdTemplate }).edit}
+                onSave={(data) => updateMutation.mutate({ id: (panel as { edit: AdTemplate }).edit.id, data })}
+                onCancel={() => setPanel("none")}
+                isSaving={updateMutation.isPending}
+                saveError={updateMutation.error instanceof Error ? updateMutation.error.message : undefined}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Template list */}
+        {loadingTemplates ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />Loading…
+          </div>
+        ) : templates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No templates yet.</p>
+        ) : (
+          <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+            {templates.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 bg-background">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.widthMm}&nbsp;×&nbsp;{t.heightMm}&nbsp;mm · <code>{t.slug}</code>
+                    {t.isDefault && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">default</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    title="Edit"
+                    onClick={() => setPanel({ edit: t })}
+                    className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      if (!confirm(`Delete template "${t.name}"? This cannot be undone.`)) return;
+                      deleteMutation.mutate(t.id);
+                    }}
+                    className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {deleteMutation.isError && (
+          <div className="flex items-start gap-2 text-sm text-destructive">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{deleteMutation.error instanceof Error ? deleteMutation.error.message : "Delete failed"}</span>
           </div>
         )}
       </div>
