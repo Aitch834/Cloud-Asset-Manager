@@ -89,6 +89,17 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     setPendingBlockId(null);
   }, []);
 
+  // Whether the picker was open when the view dialog was opened — used to show
+  // a reminder toast so the grower knows their pending selection is still waiting.
+  const [pickerWasActive, setPickerWasActive] = useState(false);
+
+  // Open the view dialog without disturbing the picker state. If the picker is
+  // active, record that fact so the close handler can remind the grower.
+  const handleView = useCallback((row: VineReg) => {
+    setPickerWasActive(changingBlockEntryId !== null);
+    setViewing(row);
+  }, [changingBlockEntryId]);
+
   useEffect(() => {
     if (changingBlockEntryId === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -596,7 +607,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           },
         ]}
         rows={displayRows}
-        onView={setViewing}
+        onView={handleView}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
         sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
@@ -604,7 +615,18 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       />
 
       {/* View Dialog */}
-      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+      <Dialog open={!!viewing} onOpenChange={o => {
+        if (!o) {
+          setViewing(null);
+          if (pickerWasActive) {
+            setPickerWasActive(false);
+            toast({
+              title: "Block selection still pending",
+              description: "Your block change is waiting — save or cancel it in the table.",
+            });
+          }
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Vine Register Entry</DialogTitle></DialogHeader>
           {viewing && (
