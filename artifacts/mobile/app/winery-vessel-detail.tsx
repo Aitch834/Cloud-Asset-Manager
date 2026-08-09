@@ -395,6 +395,194 @@ function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: Log
   );
 }
 
+// ── Log Maintenance Form ──────────────────────────────────────────────────────
+
+interface MaintenanceFormState {
+  maintenanceDate: string;
+  workType: string;
+  cooperageName: string;
+  costPounds: string; // user enters £, we convert to pence
+  notes: string;
+}
+
+interface LogMaintenanceModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: LogMaintenanceModalProps) {
+  const [form, setForm] = useState<MaintenanceFormState>({
+    maintenanceDate: todayIso(),
+    workType: "",
+    cooperageName: "",
+    costPounds: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function set(field: keyof MaintenanceFormState, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.maintenanceDate.trim()) { setError("Maintenance date is required."); return; }
+    if (!form.workType.trim()) { setError("Work type is required."); return; }
+    let costPence: number | null = null;
+    if (form.costPounds.trim()) {
+      const parsed = parseFloat(form.costPounds.trim().replace(/^£/, ""));
+      if (isNaN(parsed) || parsed < 0) { setError("Cost must be a valid positive number."); return; }
+      costPence = Math.round(parsed * 100);
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/maintenance`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          maintenanceDate: form.maintenanceDate.trim(),
+          workType: form.workType.trim(),
+          cooperageName: form.cooperageName.trim() || null,
+          costPence,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", costPounds: "", notes: "" });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save maintenance record.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", costPounds: "", notes: "" });
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={formStyles.sheet}>
+          {/* Modal header */}
+          <View style={formStyles.sheetHeader}>
+            <Text style={formStyles.sheetTitle}>Log Maintenance</Text>
+            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={formStyles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={colors.error} />
+                <Text style={formStyles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Maintenance date */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Maintenance date <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.maintenanceDate}
+                onChangeText={v => set("maintenanceDate", v)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Work type */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Work type <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.workType}
+                onChangeText={v => set("workType", v)}
+                placeholder="e.g. Retoasting, Bung replacement, Leak repair"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Cooperage name */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Cooperage name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.cooperageName}
+                onChangeText={v => set("cooperageName", v)}
+                placeholder="e.g. Radoux, François Frères"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Cost */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Cost (£)</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.costPounds}
+                onChangeText={v => set("costPounds", v)}
+                placeholder="e.g. 120.00"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Notes */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Notes</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.multiline]}
+                value={form.notes}
+                onChangeText={v => set("notes", v)}
+                placeholder="Any additional notes…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                returnKeyType="default"
+              />
+            </View>
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={[formStyles.submitBtn, submitting && formStyles.submitBtnDisabled]}
+              onPress={() => { void handleSubmit(); }}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={formStyles.submitBtnText}>Save maintenance record</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Section components ────────────────────────────────────────────────────────
 
 function SectionHeader({ title, count, action }: { title: string; count: number; action?: React.ReactNode }) {
@@ -533,6 +721,7 @@ export default function WineryVesselDetailScreen() {
   );
 
   const [movementModalOpen, setMovementModalOpen] = useState(false);
+  const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
 
   const subtitle = params.vesselType ?? "Vessel";
 
@@ -594,7 +783,20 @@ export default function WineryVesselDetailScreen() {
           )}
 
           {/* Cooperage / maintenance log */}
-          <SectionHeader title="Cooperage & Maintenance" count={data.maintenance.length} />
+          <SectionHeader
+            title="Cooperage & Maintenance"
+            count={data.maintenance.length}
+            action={
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => setMaintenanceModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Feather name="plus" size={13} color={colors.primary} />
+                <Text style={styles.addBtnText}>Log maintenance</Text>
+              </TouchableOpacity>
+            }
+          />
           {data.maintenance.length === 0 ? (
             <EmptySection label="No cooperage or maintenance records." />
           ) : (
@@ -625,13 +827,22 @@ export default function WineryVesselDetailScreen() {
       )}
 
       {currentFarm?.id && params.vesselId ? (
-        <LogMovementModal
-          visible={movementModalOpen}
-          farmId={currentFarm.id}
-          vesselId={params.vesselId}
-          onClose={() => setMovementModalOpen(false)}
-          onSuccess={() => { setMovementModalOpen(false); refresh(); }}
-        />
+        <>
+          <LogMaintenanceModal
+            visible={maintenanceModalOpen}
+            farmId={currentFarm.id}
+            vesselId={params.vesselId}
+            onClose={() => setMaintenanceModalOpen(false)}
+            onSuccess={() => { setMaintenanceModalOpen(false); refresh(); }}
+          />
+          <LogMovementModal
+            visible={movementModalOpen}
+            farmId={currentFarm.id}
+            vesselId={params.vesselId}
+            onClose={() => setMovementModalOpen(false)}
+            onSuccess={() => { setMovementModalOpen(false); refresh(); }}
+          />
+        </>
       ) : null}
     </View>
   );
