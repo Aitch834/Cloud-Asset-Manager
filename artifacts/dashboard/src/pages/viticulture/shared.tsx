@@ -781,6 +781,30 @@ export async function printOperations(
   const opsAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
   const colSpan = hasPhotos ? 9 : 10;
 
+  // ── FSA / APPA refs ───────────────────────────────────────────────────────
+  const opsFsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const opsFsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const opsAppaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+
+  const opsFsaVineRefHtml = opsFsaVineRegisterRef
+    ? `FSA Vine Register Ref: <strong>${escHtml(opsFsaVineRegisterRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Vine Register Ref not set</span>`;
+  const opsFsaWineRefHtml = opsFsaWineProductionRef
+    ? `FSA Wine Production Ref: <strong>${escHtml(opsFsaWineProductionRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+  const opsAppaRefHtml = opsAppaRef
+    ? `APPA Ref: <strong>${escHtml(opsAppaRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+
+  const opsAnyMissingRef = !opsFsaVineRegisterRef || !opsFsaWineProductionRef || !opsAppaRef;
+  const opsMissingRefWarningBlock = opsAnyMissingRef
+    ? `<div class="missing-refs-notice">
+        <strong>&#9888; Missing registration references</strong> &mdash;
+        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        Add them before submitting this report.
+      </div>`
+    : "";
+
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>Vineyard Operations &mdash; ${safeFarmName}</title>
   <style>
@@ -789,6 +813,8 @@ export async function printOperations(
     h1 { font-size: 17px; margin: 0 0 2px; color: #4b3a8a; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4b3a8a; padding-bottom: 10px; margin-bottom: 14px; }
     .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 11px; margin-bottom: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
@@ -796,13 +822,20 @@ export async function printOperations(
     td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
     tr:nth-child(even) td { background: #f5f3ff; }
     .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    @media print {
+      body { margin: 0; } button { display: none !important; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-refs-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style></head><body>
   <div class="header">
     <div>
       <h1>Pruning &amp; Canopy Operations</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong>${opsAddress ? `<br>${opsAddress}` : ""}<br>
+        ${opsFsaVineRefHtml}<br>
+        ${opsFsaWineRefHtml}<br>
+        ${opsAppaRefHtml}<br>
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
@@ -811,6 +844,7 @@ export async function printOperations(
       <div>Operations Register</div>
     </div>
   </div>
+  ${opsMissingRefWarningBlock}
   ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these operations are included below but excluded from block-level summaries. Link them to blocks to ensure complete records.</div>` : ""}
   <table>
     <thead>
@@ -931,6 +965,30 @@ export async function printHarvest(
   const harvestAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const colSpan = hasPhotos ? 12 : 13;
+
+  // ── FSA / APPA refs ───────────────────────────────────────────────────────
+  const harvestFsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const harvestFsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const harvestAppaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+
+  const harvestFsaVineRefHtml = harvestFsaVineRegisterRef
+    ? `FSA Vine Register Ref: <strong>${escHtml(harvestFsaVineRegisterRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Vine Register Ref not set</span>`;
+  const harvestFsaWineRefHtml = harvestFsaWineProductionRef
+    ? `FSA Wine Production Ref: <strong>${escHtml(harvestFsaWineProductionRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+  const harvestAppaRefHtml = harvestAppaRef
+    ? `APPA Ref: <strong>${escHtml(harvestAppaRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+
+  const harvestAnyMissingRef = !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef;
+  const harvestMissingRefWarningBlock = harvestAnyMissingRef
+    ? `<div class="missing-refs-notice">
+        <strong>&#9888; Missing registration references</strong> &mdash;
+        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        Add them before submitting this report.
+      </div>`
+    : "";
 
   // ── 3b. Build per-block yield summary (matching Vintage Season Report) ───────
   const uniqueVintages = [...new Set(records.map((r: Record<string, unknown>) => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse();
@@ -1168,6 +1226,8 @@ export async function printHarvest(
     h1 { font-size: 17px; margin: 0 0 2px; color: #7c3d12; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #7c3d12; padding-bottom: 10px; margin-bottom: 14px; }
     .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 11px; margin-bottom: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
@@ -1176,13 +1236,20 @@ export async function printHarvest(
     tr:nth-child(even) td { background: #fff7ed; }
     .tfoot td { font-weight: 700; background: #ffedd5; border-color: #fdba74; }
     .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    @media print {
+      body { margin: 0; } button { display: none !important; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-refs-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style></head><body>
   <div class="header">
     <div>
       <h1>Harvest &amp; Vintage Records</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong>${harvestAddress ? `<br>${harvestAddress}` : ""}${vintages ? `<br>Vintages: ${vintages}` : ""}<br>
+        ${harvestFsaVineRefHtml}<br>
+        ${harvestFsaWineRefHtml}<br>
+        ${harvestAppaRefHtml}<br>
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
@@ -1191,6 +1258,7 @@ export async function printHarvest(
       <div>Harvest Register</div>
     </div>
   </div>
+  ${harvestMissingRefWarningBlock}
   ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these harvest records are included below but excluded from block-level yield summaries. Link them to blocks to ensure complete data.</div>` : ""}
   ${summaryHtml}
   <table>
