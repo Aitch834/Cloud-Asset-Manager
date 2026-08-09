@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -11,6 +11,23 @@ interface Props {
   selected: VineBlock | null;
   onSelect: (block: VineBlock | null) => void;
   loading?: boolean;
+}
+
+const THUMB_SIZE = 36;
+
+function BlockThumbnail({ uri }: { uri: string | null }) {
+  if (uri) {
+    return (
+      <View style={styles.thumb}>
+        <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.thumb, styles.thumbPlaceholder]}>
+      <Feather name="image" size={14} color={colors.textSecondary} />
+    </View>
+  );
 }
 
 function statusColor(plantingStatus: string) {
@@ -53,6 +70,7 @@ export function VineBlockPicker({ blocks, selected, onSelect, loading }: Props) 
             style={[styles.blockRow, isSelected && styles.blockRowSelected]}
             onPress={() => onSelect(isSelected ? null : block)}
           >
+            <BlockThumbnail uri={block.coverPhotoUrl ?? null} />
             <View style={[styles.statusDot, { backgroundColor: statusColor(block.plantingStatus) }]} />
             <View style={styles.blockInfo}>
               <Text style={[styles.blockName, isSelected && styles.blockNameSelected]}>
@@ -82,6 +100,7 @@ export function VineBlockPicker({ blocks, selected, onSelect, loading }: Props) 
                 style={[styles.blockRow, styles.blockRowSuspended, isSelected && styles.blockRowSelected]}
                 onPress={() => onSelect(isSelected ? null : block)}
               >
+                <BlockThumbnail uri={block.coverPhotoUrl ?? null} />
                 <View style={[styles.statusDot, { backgroundColor: statusColor(block.plantingStatus) }]} />
                 <View style={styles.blockInfo}>
                   <Text style={[styles.blockName, isSelected && styles.blockNameSelected]}>
@@ -141,6 +160,22 @@ const styles = StyleSheet.create({
   blockRowSuspended: {
     borderColor: "#fde68a",
     backgroundColor: "#fffbeb",
+  },
+  thumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: radius.sm,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  thumbImage: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+  },
+  thumbPlaceholder: {
+    backgroundColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   statusDot: {
     width: 8,

@@ -42,6 +42,9 @@ import { sanitiseBody } from "../lib/sanitise";
 
 const router: IRouter = Router();
 
+// Shared storage instance used by enrichBlocks for cover photo URL generation
+const _enrichBlocksStorage = new ObjectStorageService();
+
 // ─── Helper: enrich blocks with current planting data ────────────────────────
 
 async function enrichBlocks(farmId: number) {
@@ -50,6 +53,25 @@ async function enrichBlocks(farmId: number) {
     db.select().from(vineyardBlockPlantingsTable).where(eq(vineyardBlockPlantingsTable.farmId, farmId)).orderBy(vineyardBlockPlantingsTable.id),
     db.select().from(vineyardBlockPhotosTable).where(eq(vineyardBlockPhotosTable.farmId, farmId)).orderBy(desc(vineyardBlockPhotosTable.isCover), sql`${vineyardBlockPhotosTable.sortOrder} ASC NULLS LAST`, asc(vineyardBlockPhotosTable.uploadedAt)),
   ]);
+
+  // Generate cover photo presigned URLs for all blocks in one parallel pass (5-minute TTL)
+  const coverPhotoUrlMap = new Map<number, string | null>();
+  await Promise.all(
+    blocks.map(async block => {
+      const blockPhotos = photos.filter(ph => ph.blockId === block.id);
+      const coverPhoto = blockPhotos.find(ph => ph.isCover) ?? blockPhotos[0] ?? null;
+      if (coverPhoto?.objectPath) {
+        try {
+          const url = await _enrichBlocksStorage.getPresignedDownloadUrl(coverPhoto.objectPath, 300);
+          coverPhotoUrlMap.set(block.id, url);
+        } catch {
+          coverPhotoUrlMap.set(block.id, null);
+        }
+      } else {
+        coverPhotoUrlMap.set(block.id, null);
+      }
+    })
+  );
 
   return blocks.map(block => {
     const blockPlantings = plantings
@@ -82,8 +104,10 @@ async function enrichBlocks(farmId: number) {
       plantingId: current?.id ?? null,
       plantingStatus: current?.status ?? "no_planting",
       plantings: blockPlantings,
-      // Photo gallery — ordered by upload time; first entry is the thumbnail
+      // Photo gallery — ordered by cover first, then sort order, then upload time
       photos: blockPhotos,
+      // Presigned URL for the cover photo (or first photo); null if no photos
+      coverPhotoUrl: coverPhotoUrlMap.get(block.id) ?? null,
     };
   });
 }

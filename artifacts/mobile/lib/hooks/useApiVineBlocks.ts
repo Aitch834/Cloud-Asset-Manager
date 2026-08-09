@@ -11,6 +11,7 @@ export interface VineBlock {
   plantingStatus: string;
   isActive: boolean;
   isOrganicBlock: boolean;
+  coverPhotoUrl: string | null;
 }
 
 const useApiVineBlocksHook = buildCachedApiHook<VineBlock>(
