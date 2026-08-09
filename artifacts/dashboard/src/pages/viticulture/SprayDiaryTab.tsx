@@ -134,6 +134,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
   const [weatherFetching, setWeatherFetching] = useState(false);
   const [weatherMsg, setWeatherMsg] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
+  const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "block", farmId, defaultValue: "__all__" });
   const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "search", farmId, defaultValue: "" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
@@ -355,6 +356,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
   if (!sprayYears.includes(new Date().getFullYear())) sprayYears.unshift(new Date().getFullYear());
   const filteredSpray = useMemo(() => {
     let rows = yearFilter === "all" ? crud.data : crud.data.filter(r => new Date(r.applicationDate as string).getFullYear() === Number(yearFilter));
+    if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
       rows = rows.filter(r => {
@@ -365,7 +367,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
       });
     }
     return rows;
-  }, [crud.data, yearFilter, searchText, blocks]);
+  }, [crud.data, yearFilter, blockFilter, searchText, blocks]);
 
   const maxApps = selectedProduct?.maxApplicationsPerSeason;
   const seasonLimitReached = maxApps != null && seasonApplicationCount >= maxApps;
@@ -387,6 +389,13 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
               <Link className="w-4 h-4 mr-1" />Link unlinked records ({unlinkedSpray.length})
             </Button>
           )}
+          <Select value={blockFilter} onValueChange={setBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${blockFilter !== "__all__" ? "border-purple-400 text-purple-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>{String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
