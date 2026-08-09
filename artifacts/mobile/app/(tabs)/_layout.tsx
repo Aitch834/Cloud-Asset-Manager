@@ -1,7 +1,7 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
+import { Badge, Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -9,8 +9,11 @@ import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/colors";
+import { useFarm } from "@/lib/context/FarmContext";
+import { useApiModules } from "@/lib/hooks/useApiModules";
+import { useBarrelAlertCount } from "@/lib/hooks/useBarrelAlertCount";
 
-function NativeTabLayout() {
+function NativeTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -20,6 +23,7 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="record">
         <Icon sf={{ default: "plus.circle", selected: "plus.circle.fill" }} />
         <Label>Record</Label>
+        {barrelAlertCount > 0 && <Badge>{String(barrelAlertCount)}</Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="map">
         <Icon sf={{ default: "map", selected: "map.fill" }} />
@@ -37,7 +41,7 @@ function NativeTabLayout() {
   );
 }
 
-function ClassicTabLayout() {
+function ClassicTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
   const colorScheme = useColorScheme();
   const safeAreaInsets = useSafeAreaInsets();
   const isDark = colorScheme === "dark";
@@ -98,6 +102,7 @@ function ClassicTabLayout() {
             ) : (
               <Feather name="plus-circle" size={22} color={color} />
             ),
+          tabBarBadge: barrelAlertCount > 0 ? barrelAlertCount : undefined,
         }}
       />
       <Tabs.Screen
@@ -141,8 +146,13 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
+  const { currentFarm } = useFarm();
+  const { activeModuleKeys } = useApiModules(currentFarm?.id);
+  const isViticultureActive = activeModuleKeys.includes("viticulture");
+  const barrelAlertCount = useBarrelAlertCount(currentFarm?.id, isViticultureActive);
+
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
+    return <NativeTabLayout barrelAlertCount={barrelAlertCount} />;
   }
-  return <ClassicTabLayout />;
+  return <ClassicTabLayout barrelAlertCount={barrelAlertCount} />;
 }
