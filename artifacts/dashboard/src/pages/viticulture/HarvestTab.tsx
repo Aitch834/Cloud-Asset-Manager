@@ -303,10 +303,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       // vintages across columns (ascending order for readability)
       const crossVintages = [...uniqueVintages].reverse(); // ascending (uniqueVintages is desc)
 
-      // header row: "Block" | vintage1 | vintage2 | … | Total
-      const crossHeaderCols = [cell("Block"), ...crossVintages.map(v => cell(v)), cell("Total Yield (kg)"), cell("Avg Brix °")];
-      const crossHeader = crossHeaderCols.join(",");
-
       // build lookup: blockId → vintageYear → rows
       const lookup: Record<string, Record<string, Record<string, unknown>[]>> = {};
       for (const r of rows) {
@@ -317,40 +313,113 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         lookup[bid][vy].push(r);
       }
 
-      const crossRows = uniqueBlockIds.map(bid => {
+      const blockLabel = (bid: unknown) => {
         const bidStr = String(bid);
-        const label = (() => { const n = Number(bidStr); return !isNaN(n) && n > 0 ? String(blockName(n)) : "—"; })();
+        const n = Number(bidStr);
+        return !isNaN(n) && n > 0 ? String(blockName(n)) : "—";
+      };
+
+      // ── Helper: build a chemistry sub-table ──────────────────────────────
+      // extractor: rows → number[]  (the raw values to average)
+      // precision: decimal places for cell values
+      const chemSubTable = (
+        title: string,
+        avgLabel: string,
+        extractor: (r: Record<string, unknown>) => number | null,
+        precision: number,
+      ): string[] => {
+        const chemHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell(avgLabel)].join(",");
+        const chemRows = uniqueBlockIds.map(bid => {
+          const bidStr = String(bid);
+          const vintageCells = crossVintages.map(vy => {
+            const grp = lookup[bidStr]?.[vy] ?? [];
+            const vals = grp.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
+            const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+            return cell(avg != null ? avg.toFixed(precision) : "");
+          });
+          const allGrp = Object.values(lookup[bidStr] ?? {}).flat();
+          const allVals = allGrp.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
+          const rowAvg = allVals.length > 0 ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
+          return [cell(blockLabel(bid)), ...vintageCells, cell(rowAvg != null ? rowAvg.toFixed(precision) : "")].join(",");
+        });
+        const grandVals = rows.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
+        const grandAvg = grandVals.length > 0 ? grandVals.reduce((a, b) => a + b, 0) / grandVals.length : null;
+        const chemFooterCells = crossVintages.map(vy => {
+          const vals = rows
+            .filter(r => String(r.vintageYear ?? "") === vy)
+            .map(extractor)
+            .filter((v): v is number => v !== null && !isNaN(v));
+          const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+          return cell(avg != null ? avg.toFixed(precision) : "");
+        });
+        const chemFooter = [cell("All blocks"), ...chemFooterCells, cell(grandAvg != null ? grandAvg.toFixed(precision) : "")].join(",");
+        return [
+          "",
+          cell(title),
+          chemHeader,
+          ...chemRows,
+          chemFooter,
+        ];
+      };
+
+      // ── Yield cross-tab ──────────────────────────────────────────────────
+      const yieldHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell("Total Yield (kg)")].join(",");
+      const yieldRows = uniqueBlockIds.map(bid => {
+        const bidStr = String(bid);
         const vintageCells = crossVintages.map(vy => {
           const grp = lookup[bidStr]?.[vy] ?? [];
           const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
           return cell(total > 0 ? total.toFixed(1) : "");
         });
-        // row totals
         const allRows = Object.values(lookup[bidStr] ?? {}).flat();
         const rowTotal = allRows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        const brixAll = allRows.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
-        const avgBrixRow = brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null;
-        return [cell(label), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : ""), cell(avgBrixRow != null ? avgBrixRow.toFixed(1) : "")].join(",");
+        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : "")].join(",");
       });
-
-      // totals footer row
-      const footerCells = crossVintages.map(vy => {
+      const yieldFooterCells = crossVintages.map(vy => {
         const total = rows
           .filter(r => String(r.vintageYear ?? "") === vy)
           .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
         return cell(total > 0 ? total.toFixed(1) : "");
       });
       const grandTotal = rows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-      const allBrix = rows.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
-      const grandAvgBrix = allBrix.length > 0 ? allBrix.reduce((a, b) => a + b, 0) / allBrix.length : null;
-      const footer = [cell("All blocks"), ...footerCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : ""), cell(grandAvgBrix != null ? grandAvgBrix.toFixed(1) : "")].join(",");
+      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : "")].join(",");
+
+      // ── Chemistry sub-tables ─────────────────────────────────────────────
+      const brixTable = chemSubTable(
+        "Block × Vintage Cross-tab — Avg Brix °",
+        "Avg All Vintages",
+        r => { const v = parseFloat(String(r.brix ?? "")); return isNaN(v) ? null : v; },
+        1,
+      );
+      const phTable = chemSubTable(
+        "Block × Vintage Cross-tab — Avg pH",
+        "Avg All Vintages",
+        r => { const v = parseFloat(String(r.ph ?? "")); return isNaN(v) ? null : v; },
+        2,
+      );
+      const taTable = chemSubTable(
+        "Block × Vintage Cross-tab — Avg TA (g/L)",
+        "Avg All Vintages",
+        r => { const v = parseFloat(String(r.titratableAcidityGl ?? "")); return isNaN(v) ? null : v; },
+        2,
+      );
+      const paTable = chemSubTable(
+        "Block × Vintage Cross-tab — Avg Potential Alcohol %",
+        "Avg All Vintages",
+        r => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; },
+        2,
+      );
 
       crossTabLines = [
         "",
         cell("Block × Vintage Cross-tab — Yield (kg)"),
-        crossHeader,
-        ...crossRows,
-        footer,
+        yieldHeader,
+        ...yieldRows,
+        yieldFooter,
+        ...brixTable,
+        ...phTable,
+        ...taTable,
+        ...paTable,
       ];
     }
 
