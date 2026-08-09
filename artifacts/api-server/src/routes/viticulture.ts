@@ -32,6 +32,7 @@ import {
   wineGiDesignationsTable,
   wineGiCertificationsTable,
   wineGiHarvestDeclarationsTable,
+  vineyardScoutingPhotosTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, isNull, inArray, sql } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -573,6 +574,115 @@ router.delete("/farms/:farmId/vineyard-scouting/:id", requireAuth, requireTenant
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   await db.delete(vineyardScoutingTable).where(and(eq(vineyardScoutingTable.id, id), eq(vineyardScoutingTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+// ─── Vineyard Scouting Photos ─────────────────────────────────────────────────
+// Photo evidence attached to individual disease scouting observations.
+
+const _scoutingPhotoStorage = new ObjectStorageService();
+
+// ── List photos for a scouting record ────────────────────────────────────────
+router.get("/farms/:farmId/vineyard-scouting/:id/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const scoutingId = Number(req.params.id);
+
+  // Verify scouting record ownership
+  const [record] = await db.select({ id: vineyardScoutingTable.id })
+    .from(vineyardScoutingTable)
+    .where(and(eq(vineyardScoutingTable.id, scoutingId), eq(vineyardScoutingTable.farmId, farmId)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Scouting record not found" }); return; }
+
+  const rows = await db
+    .select()
+    .from(vineyardScoutingPhotosTable)
+    .where(and(eq(vineyardScoutingPhotosTable.scoutingId, scoutingId), eq(vineyardScoutingPhotosTable.farmId, farmId)))
+    .orderBy(sql`${vineyardScoutingPhotosTable.sortOrder} ASC NULLS LAST`, asc(vineyardScoutingPhotosTable.uploadedAt));
+
+  // Generate presigned download URLs concurrently (5-minute TTL)
+  const photos = await Promise.all(
+    rows.map(async (photo) => ({
+      ...photo,
+      downloadUrl: await _scoutingPhotoStorage.getPresignedDownloadUrl(photo.objectPath, 300),
+    }))
+  );
+
+  res.json({ photos });
+});
+
+// ── Add a photo to a scouting record ─────────────────────────────────────────
+router.post("/farms/:farmId/vineyard-scouting/:id/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const scoutingId = Number(req.params.id);
+  const { objectPath, fileName, caption } = req.body as { objectPath?: string; fileName?: string; caption?: string };
+
+  if (!objectPath || typeof objectPath !== "string" || !objectPath.startsWith("/objects/")) {
+    res.status(400).json({ error: "objectPath required and must be a valid upload path" });
+    return;
+  }
+
+  // Verify scouting record ownership
+  const [record] = await db.select({ id: vineyardScoutingTable.id })
+    .from(vineyardScoutingTable)
+    .where(and(eq(vineyardScoutingTable.id, scoutingId), eq(vineyardScoutingTable.farmId, farmId)))
+    .limit(1);
+  if (!record) { res.status(404).json({ error: "Scouting record not found" }); return; }
+
+  // Register in farm_record_attachments for storage ACL
+  await db.insert(farmRecordAttachmentsTable).values({
+    farmId,
+    recordType: "vineyard_scouting_photo",
+    recordId: scoutingId,
+    fileUrl: objectPath,
+    fileKey: objectPath,
+    fileName: fileName || "scouting-photo",
+  });
+
+  const [photo] = await db.insert(vineyardScoutingPhotosTable).values({
+    scoutingId,
+    farmId,
+    objectPath,
+    fileName: fileName || null,
+    caption: caption || null,
+  }).returning();
+
+  res.status(201).json({ photo });
+});
+
+// ── Delete a scouting photo ───────────────────────────────────────────────────
+router.delete("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const scoutingId = Number(req.params.id);
+  const photoId = Number(req.params.photoId);
+
+  const [photo] = await db.select()
+    .from(vineyardScoutingPhotosTable)
+    .where(and(
+      eq(vineyardScoutingPhotosTable.id, photoId),
+      eq(vineyardScoutingPhotosTable.scoutingId, scoutingId),
+      eq(vineyardScoutingPhotosTable.farmId, farmId),
+    ))
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  // Soft-delete the storage ACL record
+  await db.update(farmRecordAttachmentsTable)
+    .set({ deletedAt: new Date() })
+    .where(and(
+      eq(farmRecordAttachmentsTable.farmId, farmId),
+      eq(farmRecordAttachmentsTable.recordType, "vineyard_scouting_photo"),
+      eq(farmRecordAttachmentsTable.recordId, scoutingId),
+      eq(farmRecordAttachmentsTable.fileKey, photo.objectPath),
+      isNull(farmRecordAttachmentsTable.deletedAt),
+    ));
+
+  await db.delete(vineyardScoutingPhotosTable)
+    .where(and(
+      eq(vineyardScoutingPhotosTable.id, photoId),
+      eq(vineyardScoutingPhotosTable.farmId, farmId),
+    ));
+
   res.json({ success: true });
 });
 

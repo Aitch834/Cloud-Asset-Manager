@@ -376,6 +376,20 @@ export const vineyardBlockPhotosTable = pgTable("vineyard_block_photos", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Disease Scouting Photo Gallery ──────────────────────────────────────────
+// One or more photos attached to a vineyard scouting observation record.
+export const vineyardScoutingPhotosTable = pgTable("vineyard_scouting_photos", {
+  id: serial("id").primaryKey(),
+  scoutingId: integer("scouting_id").notNull().references(() => vineyardScoutingTable.id, { onDelete: "cascade" }),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  objectPath: text("object_path").notNull(),
+  fileName: text("file_name"),
+  caption: text("caption"),
+  sortOrder: integer("sort_order"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── AI Pest Trap Captures (SWD & flying pest monitoring) ─────────────────────
 // Photo of a trap card captured in the field (mobile), analysed by AI vision to
 // count Spotted Wing Drosophila (male/female) and identify other flying pests.
