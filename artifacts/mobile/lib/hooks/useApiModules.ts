@@ -35,6 +35,9 @@ async function getTenantSlug(): Promise<string> {
 export function useApiModules(farmId: string | undefined) {
   const [activeModuleKeys, setActiveModuleKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // Tracks the farm ID for which activeModuleKeys was last resolved, so callers
+  // can detect the transition window between a farm switch and its module fetch completing.
+  const [resolvedFarmId, setResolvedFarmId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!farmId) return;
@@ -43,6 +46,11 @@ export function useApiModules(farmId: string | undefined) {
     if (!apiDomain) return;
 
     let cancelled = false;
+
+    // Clear stale module state immediately so feature-gated requests from a
+    // previous farm never fire under a new farm ID.
+    setActiveModuleKeys([]);
+    setResolvedFarmId(undefined);
 
     (async () => {
       setLoading(true);
@@ -61,10 +69,13 @@ export function useApiModules(farmId: string | undefined) {
         const data = await res.json();
         if (!cancelled) {
           setActiveModuleKeys(data.activeModuleKeys ?? []);
+          setResolvedFarmId(farmId);
         }
       } catch {
         // Silently fall back — if offline or unauthenticated, all records remain visible
-        // so farmers are never blocked from logging something in the field
+        // so farmers are never blocked from logging something in the field.
+        // resolvedFarmId is intentionally left unset on failure so feature-gated
+        // background requests (e.g. winery-vessels) are not issued for unverified farms.
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,5 +84,5 @@ export function useApiModules(farmId: string | undefined) {
     return () => { cancelled = true; };
   }, [farmId]);
 
-  return { activeModuleKeys, loading };
+  return { activeModuleKeys, loading, resolvedFarmId };
 }

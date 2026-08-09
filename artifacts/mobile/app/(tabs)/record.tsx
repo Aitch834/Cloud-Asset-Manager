@@ -2085,14 +2085,20 @@ function hasSector(farm: { sectorArable?: boolean; sectorBeef?: boolean; sectorD
 export default function RecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { activeModuleKeys } = useApiModules(currentFarm?.id);
+  const { activeModuleKeys, loading: modulesLoading, resolvedFarmId } = useApiModules(currentFarm?.id);
 
   const moduleSet = new Set(activeModuleKeys);
   const modulesLoaded = activeModuleKeys.length > 0;
 
-  // Background fetch for Vessel Register alert badge counts
+  // Background fetch for Vessel Register alert badge counts — only for viticulture farms.
+  // Require resolvedFarmId to match currentFarm.id so we never fire this request during the
+  // transition window after a farm switch (when activeModuleKeys still reflect the old farm).
+  const shouldFetchVessels =
+    !modulesLoading &&
+    resolvedFarmId === currentFarm?.id &&
+    moduleSet.has("viticulture");
   const { records: vesselRecords } = useApiFetch<WineryVesselSummary>(
-    currentFarm?.id,
+    shouldFetchVessels ? currentFarm?.id : undefined,
     "/api/farms/:farmId/winery-vessels"
   );
 
