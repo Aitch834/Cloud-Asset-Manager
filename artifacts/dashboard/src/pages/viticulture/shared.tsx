@@ -184,7 +184,7 @@ export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateSt
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
 export const today = new Date().toISOString().split("T")[0];
 
-export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[]) {
+export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], warningRow?: string) {
   if (!rows.length) return;
   const header = cols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
   const body = rows.map(r =>
@@ -194,7 +194,8 @@ export function exportCSV(rows: Record<string, unknown>[], filename: string, col
       return `"${safe.replace(/"/g, '""')}"`;
     }).join(",")
   ).join("\n");
-  const blob = new Blob(["\uFEFF" + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
+  const prefix = warningRow ? warningRow + "\n" : "";
+  const blob = new Blob(["\uFEFF" + prefix + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }

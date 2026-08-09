@@ -247,7 +247,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
               {operationYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredOperations, "vineyard-operations.csv", csvCols)} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => { const uc = filteredOperations.filter(r => !r.blockId).length; exportCSV(filteredOperations, "vineyard-operations.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => { if (filteredOperations.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printOperations(filteredOperations, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>

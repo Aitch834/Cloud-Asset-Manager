@@ -448,12 +448,17 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ];
     }
 
+    const unlinkedCount = rows.filter(r => !r.blockId).length;
+    const warningLine = unlinkedCount > 0
+      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
+      : "";
+
     let csv: string;
     let filename: string;
 
     if (mode === "summary") {
       // ── Summary-only export ──────────────────────────────────────────────
-      csv = [
+      csv = warningLine + [
         cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
         summaryHeader,
         ...summaryRows,
@@ -470,7 +475,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         }).join(",")
       ).join("\n");
 
-      csv = [
+      csv = warningLine + [
         cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
         summaryHeader,
         ...summaryRows,
@@ -549,7 +554,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ].join(",");
     });
 
-    const csv = [
+    const unlinkedCount = rows.filter(r => !r.blockId).length;
+    const warningLine = unlinkedCount > 0
+      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
+      : "";
+
+    const csv = warningLine + [
       cell(`Per-Block Yield Summary — Vintage ${vintageLabel} — ${farmName ?? ""}`),
       header,
       ...dataRows,
@@ -634,7 +644,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       cell(""), cell(""), cell(""), cell(""),
     ].join(",");
 
-    const csv = [
+    const unlinkedCount = rows.filter(r => !r.blockId).length;
+    const warningLine = unlinkedCount > 0
+      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
+      : "";
+
+    const csv = warningLine + [
       cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),
       cell("Submit this data at winegb.co.uk (members area → Harvest Yield Survey). Select the correct vintage year when submitting."),
       "",

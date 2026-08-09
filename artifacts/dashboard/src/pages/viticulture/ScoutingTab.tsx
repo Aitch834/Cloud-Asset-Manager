@@ -292,7 +292,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               {scoutingYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols)} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => { const uc = filteredScouting.filter(r => !r.blockId).length; exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" variant="outline" onClick={() => { if (filteredScouting.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredScouting.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
         </div>

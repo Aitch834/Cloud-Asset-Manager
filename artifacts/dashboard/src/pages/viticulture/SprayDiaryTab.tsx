@@ -404,7 +404,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
               {sprayYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredSpray, "spray-diary.csv", csvCols)} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => { const uc = filteredSpray.filter(r => !r.blockId).length; exportCSV(filteredSpray, "spray-diary.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
           <Button size="sm" variant="outline" onClick={() => { if (filteredSpray.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
         </div>
