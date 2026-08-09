@@ -50,7 +50,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, FsaCompletenessBar } from "./shared";
 import { OverviewTab } from "./OverviewTab";
 import { VineRegisterTab } from "./VineRegisterTab";
 import { BlocksTab } from "./BlocksTab";
@@ -170,8 +170,11 @@ export default function ViticulturePage() {
           ))}
         </TabBar>
         {tab.startsWith("winery-") && (
-          <div className="flex items-center justify-end py-1">
-            <BatchTrailQuickSearch farmId={selectedFarmId} />
+          <div className="space-y-2 py-1">
+            <FsaCompletenessBar farmId={selectedFarmId} />
+            <div className="flex items-center justify-end">
+              <BatchTrailQuickSearch farmId={selectedFarmId} />
+            </div>
           </div>
         )}
         <div className="bg-muted/30 rounded-xl p-4">

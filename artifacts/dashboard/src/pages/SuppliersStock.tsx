@@ -1101,7 +1101,7 @@ function PurchaseOrdersTab({ orders, products, suppliers, feedStock, loading, fa
   });
 
   const deleteMut = useMutation({
-    mutationFn: (poId: number) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "DELETE" }),
+    mutationFn: (poId: number) => fetch(`/api/farms/${farmId}/purchase-orders/${poId}`, { method: "DELETE" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }),
     onSuccess: () => { toast({ title: "PO deleted" }); onRefresh(); setViewPo(null); },
     onError: () => toast({ title: "Failed to delete PO", variant: "destructive" }),
   });

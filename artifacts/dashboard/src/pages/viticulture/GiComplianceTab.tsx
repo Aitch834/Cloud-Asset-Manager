@@ -51,7 +51,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, FsaCompletenessBar } from "./shared";
 
 
 const GI_SUBTABS = [
@@ -122,6 +122,7 @@ export function GiComplianceTab({ farmId, blocks }: { farmId: number; blocks: Re
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       <div className="flex gap-2 flex-wrap border-b pb-3">
         {GI_SUBTABS.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
