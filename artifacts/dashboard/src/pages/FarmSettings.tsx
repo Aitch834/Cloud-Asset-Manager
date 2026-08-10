@@ -2381,6 +2381,12 @@ export default function FarmSettings() {
       return;
     }
 
+    const sbiTrimmed = formData.sbiNumber.trim();
+    if (sbiTrimmed && !/^\d{9}$/.test(sbiTrimmed)) {
+      toast({ title: "SBI Number must be exactly 9 digits", variant: "destructive" });
+      return;
+    }
+
     updateFarm({
       name: formData.name.trim(),
       cphNumber: formData.cphNumber.trim() || undefined,
@@ -2472,8 +2478,13 @@ export default function FarmSettings() {
                   placeholder="e.g. 105123456"
                   value={formData.sbiNumber}
                   onChange={e => updateField("sbiNumber", e.target.value)}
+                  className={formData.sbiNumber.trim() && !/^\d{9}$/.test(formData.sbiNumber.trim()) ? "border-red-400 focus-visible:ring-red-400" : ""}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Single Business Identifier (Rural Payments Agency)</p>
+                {formData.sbiNumber.trim() && !/^\d{9}$/.test(formData.sbiNumber.trim()) ? (
+                  <p className="text-xs text-red-600 mt-1">SBI must be exactly 9 digits (e.g. 105123456)</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Single Business Identifier (Rural Payments Agency)</p>
+                )}
               </div>
 
               <div>

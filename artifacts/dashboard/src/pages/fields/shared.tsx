@@ -357,6 +357,7 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
   // Only show the warning once the farm record has loaded — avoids false positives during loading
   const missingHeaderFields: string[] = [];
   if (!farmLoading && farm && !farm.sbiNumber?.trim()) missingHeaderFields.push("SBI Number");
+  else if (!farmLoading && farm && farm.sbiNumber?.trim() && !/^\d{9}$/.test(farm.sbiNumber.trim())) missingHeaderFields.push("SBI Number (invalid — must be exactly 9 digits)");
   if (!farmLoading && farm && !farm.address?.trim()) missingHeaderFields.push("Farm address");
 
   type FieldUseRow = {
