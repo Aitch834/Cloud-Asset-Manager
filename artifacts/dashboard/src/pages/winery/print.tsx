@@ -761,17 +761,82 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
       </div>`;
     }).join("");
 
-    // Per-vessel amber warning for any barrel source vessels that have no fill records.
+    // ── Barrels with cooperage/maintenance records but no fill history ──────────
+    // These barrels have known cooperage work but fill entries are absent — an
+    // audit gap. Rendered as their own amber card (mirroring the fill card
+    // layout) so the cooperage table is still visible on the printout, with a
+    // prominent ⚠ "No fill history" badge alongside the vessel header.
+    // Mirrors the per-barrel warning emitted in exportBatchTrailCsv.
+    const noFillMaintItems = barrelVesselsWithoutFills
+      .map(v => ({ v, maintRows: barrelMaintenance.filter(m => Number(m.vessel_id) === Number(v.id)) }))
+      .filter(({ maintRows }) => maintRows.length > 0);
+
+    const noFillMaintBlocks = noFillMaintItems.map(({ v, maintRows }) => {
+      const capacityL = v.capacity_litres != null ? parseFloat(String(v.capacity_litres)) : null;
+      const metaItems = [
+        v.cooperage ? `Cooperage: <strong>${escHtml(String(v.cooperage))}</strong>` : null,
+        v.oak_origin ? `Oak origin: <strong>${escHtml(String(v.oak_origin))}</strong>` : null,
+        v.toasting_level ? `Toasting: <strong>${escHtml(String(v.toasting_level))}</strong>` : null,
+        capacityL != null ? `Capacity: <strong>${capacityL.toFixed(0)} L</strong>` : null,
+      ].filter(Boolean).join(" &nbsp;·&nbsp; ");
+
+      const maintTableRows = maintRows.map(m => {
+        const workLabel = WORK_TYPE_LABELS[String(m.work_type ?? "")] ?? escHtml(String(m.work_type ?? "—"));
+        const costPence = m.cost_pence != null ? parseFloat(String(m.cost_pence)) : null;
+        const costStr = costPence != null ? `£${(costPence / 100).toFixed(2)}` : "—";
+        const isReToast = String(m.work_type) === "re_toast" || String(m.work_type) === "re_char";
+        return `<tr>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${m.maintenance_date ? fmtDate(m.maintenance_date) : "—"}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px"><span style="font-weight:600${isReToast ? ";color:#b45309" : ""}">${workLabel}</span></td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${m.cooperage_name ? escHtml(String(m.cooperage_name)) : "—"}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;text-align:right;font-family:monospace">${costStr}</td>
+          <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${m.notes ? escHtml(String(m.notes)) : ""}</td>
+        </tr>`;
+      }).join("");
+
+      return `<div style="background:#fff8ed;border:2px solid #f59e0b;border-radius:6px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:700;color:#374151">🪵 ${escHtml(String(v.vessel_ref ?? ""))}</span>
+          ${metaItems ? `<span style="font-size:10px;color:#6b7280">${metaItems}</span>` : ""}
+          <span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#92400e;white-space:nowrap">⚠ No fill history recorded</span>
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fed7aa;border-radius:4px;padding:6px 10px;margin-bottom:8px">
+          <p style="font-size:10px;color:#92400e;margin:0">This barrel has cooperage work recorded but no fill history has been logged. Fill records may simply be missing. Auditors should verify the Vessel Register before signing off this report.</p>
+        </div>
+        <div style="border-top:1px solid #fed7aa;padding-top:6px">
+          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#92400e;margin-bottom:4px">Cooperage Work (${maintRows.length})</p>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:rgba(0,0,0,0.04)">
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Date</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Work Type</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Cooperage</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:right">Cost</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #fed7aa;text-align:left">Notes</th>
+            </tr>
+            ${maintTableRows}
+          </table>
+        </div>
+      </div>`;
+    }).join("");
+
+    // Vessels with no fills AND no maintenance records — shown as a plain amber
+    // reference list (no maintenance table to render, so a card would be empty).
+    const noFillNoMaintVessels = barrelVesselsWithoutFills.filter(
+      v => !noFillMaintItems.some(item => Number(item.v.id) === Number(v.id))
+    );
+
+    // Per-vessel amber warning for any barrel source vessels that have no fill records
+    // and no maintenance records (those with maintenance are rendered above as cards).
     // Rendered even when other barrels in the same section do have fills.
-    const noFillWarningHtml = barrelVesselsWithoutFills.length > 0 ? `
+    const noFillWarningHtml = noFillNoMaintVessels.length > 0 ? `
     <div style="border:1px solid #f59e0b;background:#fef3c7;border-radius:6px;padding:10px 14px;margin-bottom:8px">
       <div style="display:flex;align-items:flex-start;gap:8px">
         <span style="font-size:16px;line-height:1.2;flex-shrink:0">⚠</span>
         <div style="flex:1">
-          <p style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">No fill records found for ${barrelVesselsWithoutFills.length === 1 ? "this barrel" : "these barrels"}</p>
-          <p style="font-size:10px;color:#92400e;margin-bottom:6px">The following barrel vessel${barrelVesselsWithoutFills.length === 1 ? " was" : "s were"} used as a source vessel for bottling in this batch trail, but no fill history has been logged. This may mean fill records are simply missing rather than oak genuinely being absent. Auditors should verify the Vessel Register before signing off this report.</p>
+          <p style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">No fill records found for ${noFillNoMaintVessels.length === 1 ? "this barrel" : "these barrels"}</p>
+          <p style="font-size:10px;color:#92400e;margin-bottom:6px">The following barrel vessel${noFillNoMaintVessels.length === 1 ? " was" : "s were"} used as a source vessel for bottling in this batch trail, but no fill history has been logged. This may mean fill records are simply missing rather than oak genuinely being absent. Auditors should verify the Vessel Register before signing off this report.</p>
           <ul style="margin:0;padding:0;list-style:none">
-            ${barrelVesselsWithoutFills.map(v => `<li style="font-size:10px;color:#92400e;padding:2px 0;display:flex;align-items:center;gap:6px">
+            ${noFillNoMaintVessels.map(v => `<li style="font-size:10px;color:#92400e;padding:2px 0;display:flex;align-items:center;gap:6px">
               <span style="display:inline-block;width:14px;height:14px;background:#fde68a;border-radius:2px;flex-shrink:0;text-align:center;line-height:14px;font-size:9px">🪵</span>
               <strong>${escHtml(String(v.vessel_ref ?? ""))}</strong>
               ${v.vessel_type ? `<span style="color:#b45309;font-size:9px">(${escHtml(String(v.vessel_type))})</span>` : ""}
@@ -779,7 +844,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
               ${v.capacity_litres != null ? `<span style="color:#b45309;font-size:9px">· ${parseFloat(String(v.capacity_litres)).toFixed(0)} L</span>` : ""}
             </li>`).join("")}
           </ul>
-          <p style="font-size:9px;color:#b45309;font-style:italic;margin-top:6px">To resolve: open the Vessel Register and log the fill history for the barrel${barrelVesselsWithoutFills.length === 1 ? "" : "s"} listed above, then reprint this report.</p>
+          <p style="font-size:9px;color:#b45309;font-style:italic;margin-top:6px">To resolve: open the Vessel Register and log the fill history for the barrel${noFillNoMaintVessels.length === 1 ? "" : "s"} listed above, then reprint this report.</p>
         </div>
       </div>
     </div>` : "";
@@ -787,7 +852,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     barrelProvenanceHtml = `<div class="section">
   <h2>Barrel Provenance</h2>
   ${barrelFills.length > 0 ? `<p style="font-size:10px;color:#6b7280;margin-bottom:8px">Fill history for each oak barrel used as a source vessel for a bottling run in this batch trail. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.</p>` : ""}
-  ${vesselBlocks}${noFillWarningHtml}
+  ${vesselBlocks}${noFillMaintBlocks}${noFillWarningHtml}
 </div>`;
   }
 
