@@ -858,7 +858,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 </p>
 ${attachmentWarningHtml}
 ${vintageScopeNote}
-${vintageComparisonHtml}
+${vintageComparisonHtml ? numBlock(vintageComparisonHtml, "Vintage pH &amp; TA Comparison") : ""}
 ${so2SummaryHtml}
 ${phTaHistoryHtml}
 ${numBlock(pressingBlockHtml, "Pressing Record")}
