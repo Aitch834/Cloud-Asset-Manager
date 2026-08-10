@@ -1117,12 +1117,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     let fills: Record<string, unknown>[] = [];
                     let maint: Record<string, unknown>[] = [];
                     let movs: Record<string, unknown>[] = [];
+                    let cleans: Record<string, unknown>[] = [];
                     const fetchErrors: string[] = [];
                     try {
-                      const [fillsRes, maintRes, movRes] = await Promise.all([
+                      const [fillsRes, maintRes, movRes, cleansRes] = await Promise.all([
                         fetch(api(`farms/${farmId}/winery-vessels/${vid}/fills`), { credentials: "include" }),
                         fetch(api(`farms/${farmId}/winery-vessels/${vid}/maintenance`), { credentials: "include" }),
                         fetch(api(`farms/${farmId}/winery-vessels/${vid}/movements`), { credentials: "include" }),
+                        fetch(api(`farms/${farmId}/winery-vessels/${vid}/cleans`), { credentials: "include" }),
                       ]);
                       if (fillsRes.ok) { fills = ((await fillsRes.json()).records ?? []) as Record<string, unknown>[]; }
                       else { fetchErrors.push(`Fill history (HTTP ${fillsRes.status})`); }
@@ -1130,6 +1132,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       else { fetchErrors.push(`Maintenance log (HTTP ${maintRes.status})`); }
                       if (movRes.ok) { movs = ((await movRes.json()).records ?? []) as Record<string, unknown>[]; }
                       else { fetchErrors.push(`Location history (HTTP ${movRes.status})`); }
+                      if (cleansRes.ok) { cleans = ((await cleansRes.json()).records ?? []) as Record<string, unknown>[]; }
+                      else { fetchErrors.push(`Cleaning history (HTTP ${cleansRes.status})`); }
                     } catch (err) {
                       win.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;font-size:13px;margin:30px;color:red">Failed to load barrel history: ${String(err)}</p>`;
                       return;
@@ -1280,6 +1284,21 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         String(m.notes ?? ""),
                       ]),
                       "No movements recorded.",
+                    );
+
+                    // Cleaning history
+                    addH2(`Cleaning History (${cleans.length} record${cleans.length !== 1 ? "s" : ""})`);
+                    addTable(
+                      ["Clean Date", "Clean Type", "Rinse Completed", "Agent / Concentration", "Operator", "Notes"],
+                      cleans.map(c => [
+                        c.clean_date ? fmtDate(c.clean_date) : "—",
+                        String(c.clean_type ?? "—"),
+                        c.rinse_completed === true || c.rinse_completed === "true" ? "Yes" : c.rinse_completed === false || c.rinse_completed === "false" ? "No" : "—",
+                        [c.cleaning_product, c.concentration_pct != null ? `${String(c.concentration_pct)}%` : null].filter(Boolean).join(" / ") || "—",
+                        String(c.operator_name ?? "—"),
+                        String(c.notes ?? ""),
+                      ]),
+                      "No cleaning records logged.",
                     );
 
                     const footer = doc.createElement("div");
