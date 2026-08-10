@@ -31,7 +31,7 @@ const SECTORS = [
       { name: "Red Tractor Compliance", desc: "Core compliance platform covering certificates, insurance, COSHH, contractor H&S, and the Week Ahead farm planner." },
       { name: "Equipment Register & Workshop", desc: "PUWER inspection records, service history, sprayer calibration, MOT tracking, and workshop job cards." },
     ],
-    cta: "Start with the Livestock module at £28/month. Add Vet Ledger, Dairy, and Equipment modules as you need them.",
+    cta: "Start with the Livestock & Feed Management module at £35/month. Add Vet Ledger, Dairy, and Equipment modules as you need them.",
   },
   {
     id: "sheep-goat",
@@ -54,7 +54,7 @@ const SECTORS = [
       { name: "Red Tractor Compliance", desc: "Core compliance including certificates, COSHH, contractor H&S, and the Week Ahead farm planner." },
       { name: "Resource Planner", desc: "Labour and equipment planning for peak lambing and shearing periods — with pinch point analysis and Plan vs Actual tracking." },
     ],
-    cta: "Start with the Livestock module at £28/month. Add Vet Ledger and IPM for a complete flock compliance setup.",
+    cta: "Start with the Livestock & Feed Management module at £35/month. Add Vet Ledger and IPM for a complete flock compliance setup.",
   },
   {
     id: "arable",
@@ -100,7 +100,7 @@ const SECTORS = [
       { name: "Spray Records", desc: "Full pesticide and fungicide application records linked to vineyard blocks, with LERAP and COSHH documentation." },
       { name: "Equipment Register & Workshop", desc: "PUWER compliance, service records for vineyard machinery, and workshop job cards." },
     ],
-    cta: "Standard Viticulture module at £22/month. Add Organic Viticulture for an additional £20/month if you hold or are pursuing organic certification.",
+    cta: "Viticulture module at £45/month — includes Sprays & Inputs, Safety Risk & Audits, Staff & Training, and Equipment, Workshop & Fuel bundled free (£75/month of modules included at no extra charge). Add Organic Viticulture at £45/month if you hold or are pursuing organic certification. Holdings producing both organic and conventional wines receive one module at half price.",
   },
   {
     id: "mixed",
