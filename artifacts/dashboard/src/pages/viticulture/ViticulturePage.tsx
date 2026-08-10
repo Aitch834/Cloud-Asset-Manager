@@ -201,7 +201,7 @@ export default function ViticulturePage() {
           {tab === "winery-so2" && <So2TestingTab farmId={selectedFarmId} />}
           {tab === "winery-equipment" && <EquipmentRegisterTab farmId={selectedFarmId} />}
           {tab === "gi-compliance" && <GiComplianceTab farmId={selectedFarmId} blocks={blocks.data} />}
-          {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} requestBulkLink={bulkLinkFor === "spray-diary"} />}
+          {tab === "spray-diary" && <SprayDiaryTab farmId={selectedFarmId} blocks={blocks.data} requestBulkLink={bulkLinkFor === "spray-diary"} onNavigate={handleNavigate} />}
           {tab === "soil-analysis" && <SoilAnalysisTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "analytics" && <ViticulturalAnalyticsTab farmId={selectedFarmId} />}
           {tab === "vintage-report" && <VintageSeasonReportTab farmId={selectedFarmId} />}

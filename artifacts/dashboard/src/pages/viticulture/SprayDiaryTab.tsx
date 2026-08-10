@@ -93,7 +93,7 @@ function vitDegreesToCompass(deg: number): string {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; requestBulkLink?: boolean }) {
+export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; requestBulkLink?: boolean; onNavigate?: (tab: string, blockId?: number) => void }) {
   const crud = useCrud(farmId, "vineyard-spray-diary", "vineyard-spray-diary");
   const farmName = useFarmName(farmId);
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
@@ -557,7 +557,27 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink }: { farmId: num
                 <RecordAttachments farmId={farmId} recordType="vineyard-spray-diary" recordId={view.id} />
               </div>
             )}
-            <DialogFooter><Button onClick={() => setView(null)}>Close</Button></DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setView(null)}>Close</Button>
+              {onNavigate && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="text-orange-700 border-orange-200 hover:bg-orange-50"
+                    onClick={() => { onNavigate("operations", view.blockId as number | undefined); setView(null); }}
+                  >
+                    <Wrench className="w-4 h-4 mr-1" />Operations
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                    onClick={() => { onNavigate("harvest", view.blockId as number | undefined); setView(null); }}
+                  >
+                    <Grape className="w-4 h-4 mr-1" />Harvest
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
