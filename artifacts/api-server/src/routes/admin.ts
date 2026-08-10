@@ -2242,6 +2242,62 @@ async function renderAdTemplate(
     .replace(/\{\{accent_color\}\}/g, accentColor);
 }
 
+router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const { htmlBody, bgUrl, widthMm, heightMm } = req.body as {
+    htmlBody?: string; bgUrl?: string;
+    widthMm?: number; heightMm?: number;
+  };
+  if (!htmlBody || typeof htmlBody !== "string" || !htmlBody.trim()) {
+    res.status(400).json({ error: "htmlBody is required" });
+    return;
+  }
+
+  const tmpId  = crypto.randomUUID();
+  const tmpDir = path.join(os.tmpdir(), `ad-pdf-draft-${tmpId}`);
+  const htmlOut = path.join(tmpDir, "print.html");
+  const rgbPdf  = path.join(tmpDir, "rgb.pdf");
+  const pngOut  = path.join(tmpDir, "preview.png");
+  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
+
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    const html = await renderAdTemplate(htmlBody, bgUrl ?? "", srcDir, {
+      widthMm: widthMm ?? 190, heightMm: heightMm ?? 133,
+    });
+    fs.writeFileSync(htmlOut, html, "utf-8");
+
+    const wpCmd = `python3 -m weasyprint --encoding utf-8 '${htmlOut}' '${rgbPdf}'`;
+    const gsCmd = [
+      "gs -dBATCH -dNOPAUSE -dQUIET -sDEVICE=png16m",
+      "-r150 -dFirstPage=1 -dLastPage=1",
+      `-sOutputFile='${pngOut}' '${rgbPdf}'`,
+    ].join(" ");
+    execSync(
+      `nix-shell -p python3Packages.weasyprint ghostscript --run "${wpCmd} && ${gsCmd}"`,
+      { timeout: 180_000, stdio: "pipe" },
+    );
+
+    const pngBuffer = fs.readFileSync(pngOut);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Length", pngBuffer.length);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(pngBuffer);
+  } catch (err: unknown) {
+    console.error("[ad-pdf/preview-draft] Generation failed:", err);
+    const msg    = err instanceof Error ? err.message : String(err);
+    const stderr = (err as { stderr?: Buffer }).stderr;
+    res.status(500).json({
+      error: "Preview generation failed",
+      detail: stderr ? stderr.toString().slice(-800) : msg.slice(0, 500),
+    });
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
+
 router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 

@@ -137,6 +137,15 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
   const [htmlBody, setHtmlBody] = useState(initial?.htmlBody ?? "");
   const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
 
+  // Draft preview state
+  const [draftPreviewUrl,     setDraftPreviewUrl]     = useState<string | null>(null);
+  const [draftPreviewPending, setDraftPreviewPending] = useState(false);
+  const [draftPreviewError,   setDraftPreviewError]   = useState<string | null>(null);
+  const prevDraftObjectUrl = useRef<string | null>(null);
+  // Monotonic revision counter — completed fetches whose revision doesn't match the
+  // current one are discarded, preventing stale responses from overwriting a newer preview.
+  const previewRevision = useRef(0);
+
   function handleNameChange(v: string) {
     setName(v);
     if (!initial) {
@@ -147,6 +156,42 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSave({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm), htmlBody, isDefault });
+  }
+
+  async function handleDraftPreview() {
+    if (!htmlBody.trim()) return;
+    // Increment revision so any older in-flight request is silently dropped on arrival.
+    const thisRevision = ++previewRevision.current;
+    setDraftPreviewPending(true);
+    setDraftPreviewError(null);
+    try {
+      const res = await fetch("/api/admin/ad-pdf/preview-draft", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          htmlBody,
+          bgUrl: "",
+          widthMm: Number(widthMm) || 190,
+          heightMm: Number(heightMm) || 133,
+        }),
+      });
+      // Discard if a newer request was already dispatched while this one was in flight.
+      if (thisRevision !== previewRevision.current) return;
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (prevDraftObjectUrl.current) URL.revokeObjectURL(prevDraftObjectUrl.current);
+      prevDraftObjectUrl.current = url;
+      setDraftPreviewUrl(url);
+    } catch (err) {
+      if (thisRevision !== previewRevision.current) return;
+      setDraftPreviewError(err instanceof Error ? err.message : "Preview generation failed");
+    } finally {
+      if (thisRevision === previewRevision.current) setDraftPreviewPending(false);
+    }
   }
 
   const inputCls = "w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring";
@@ -167,29 +212,42 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Width (mm)</label>
-          <input required type="number" className={inputCls} value={widthMm} onChange={(e) => setWidthMm(e.target.value)} min={10} max={1000} />
+          <input required type="number" className={inputCls} value={widthMm} onChange={(e) => { setWidthMm(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); }} min={10} max={1000} />
         </div>
         <div>
           <label className={labelCls}>Height (mm)</label>
-          <input required type="number" className={inputCls} value={heightMm} onChange={(e) => setHeightMm(e.target.value)} min={10} max={1000} />
+          <input required type="number" className={inputCls} value={heightMm} onChange={(e) => { setHeightMm(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); }} min={10} max={1000} />
         </div>
       </div>
       <div>
-        <label className={labelCls}>
-          WeasyPrint HTML body
-          <span className="text-muted-foreground font-normal ml-1">
-            — use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
-            <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
-            <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
-            <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> as placeholders
-          </span>
-        </label>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className={labelCls.replace("mb-1.5", "mb-0")}>
+            WeasyPrint HTML body
+            <span className="text-muted-foreground font-normal ml-1">
+              — use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> as placeholders
+            </span>
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!htmlBody.trim() || draftPreviewPending}
+            onClick={handleDraftPreview}
+          >
+            {draftPreviewPending
+              ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Rendering…</>
+              : <><Eye className="w-3.5 h-3.5 mr-1.5" />Preview</>}
+          </Button>
+        </div>
         <textarea
           required
           className={`${inputCls} font-mono text-xs resize-y`}
           rows={16}
           value={htmlBody}
-          onChange={(e) => setHtmlBody(e.target.value)}
+          onChange={(e) => { setHtmlBody(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); }}
           placeholder={"<!DOCTYPE html>\n<html lang=\"en\">\n<head>...</head>\n<body>...</body>\n</html>"}
           spellCheck={false}
         />
@@ -197,6 +255,25 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
           The renderer substitutes placeholders then passes the resulting HTML to WeasyPrint. All fonts, logo,
           QR code, and background image are embedded as base64 data-URIs at render time.
         </p>
+
+        {draftPreviewError && (
+          <div className="flex items-start gap-2 text-sm text-destructive mt-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{draftPreviewError}</span>
+          </div>
+        )}
+
+        {draftPreviewUrl && (
+          <div className="mt-3 space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Draft preview</p>
+            <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
+              <img src={draftPreviewUrl} alt="Draft template preview" className="w-full object-contain" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rendered at 150&nbsp;dpi from the RGB intermediate PDF. The preview uses the default background photo.
+            </p>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <input
