@@ -2,7 +2,7 @@ import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/compone
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -97,6 +97,14 @@ function ScoutingPhotoThumbnail({
   onPress: (photo: ScoutingPhoto) => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state whenever the URL is refreshed so the image retries
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -122,8 +130,17 @@ function ScoutingPhotoThumbnail({
   return (
     <Pressable style={styles.thumbnail} onLongPress={handleLongPress} onPress={() => onPress(photo)}>
       <View style={styles.thumbImgBox}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={styles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <View style={styles.thumbPlaceholder}>
+            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+          </View>
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Feather name="image" size={24} color={colors.textSecondary} />
@@ -176,6 +193,14 @@ function ScoutingPhotoSection({
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
   }, [loadPhotos]);
+
+  // Re-fetch photos whenever the screen comes back into focus so that
+  // short-lived presigned URLs are always fresh after backgrounding the app.
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos({ silent: true });
+    }, [loadPhotos]),
+  );
 
   const handleAddPhoto = async () => {
     const uri = await pickPhoto("Attach Scouting Photo");
