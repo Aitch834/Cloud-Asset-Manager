@@ -23,6 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { getApiBase, getAuthToken, postRecordAttachment, uploadPhotoToStorage } from "@/lib/uploadPhoto";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 
 const SPECIES_OPTIONS = ["Cattle", "Sheep", "Pigs", "Goats", "Horses", "Deer", "Poultry", "Other"];
 
@@ -160,6 +161,7 @@ export default function LivestockPurchaseScreen() {
   const farmId = currentFarm?.id;
   const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("purchase", farmId);
 
   useEffect(() => {
     if (!farmId) return;
@@ -253,7 +255,7 @@ export default function LivestockPurchaseScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {missingIdentifiers && (
+      {missingIdentifiers && !bannerDismissed && (
         <Pressable
           onPress={() =>
             Alert.alert(
@@ -272,6 +274,13 @@ export default function LivestockPurchaseScreen() {
               : "SBI number is missing from your farm profile — required for livestock records."}
             {" "}Add them in Farm Settings on the dashboard.
           </Text>
+          <Pressable
+            onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Dismiss warning"
+          >
+            <Feather name="x" size={15} color="#92400e" />
+          </Pressable>
         </Pressable>
       )}
 
