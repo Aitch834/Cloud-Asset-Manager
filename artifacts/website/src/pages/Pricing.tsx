@@ -57,6 +57,51 @@ const MODULES = [
   { id: "resource-planner", name: "Resource Planner", price: 20, note: "Centralised resource registry for tractors, implements, sprayers, trailers, vehicles, and named staff — each with a colour dot; drag-and-drop resource assignment onto Week Ahead Gantt task bars; pinch point analysis; materials tracking; Planning Status tab; Plan vs Actual (As-Built) recording with variance charts; automatic conflict detection; real-time conflict resolution" },
 ];
 
+// ── Sector filter ──────────────────────────────────────────────────────────────
+// Maps each sector pill label to the module IDs relevant to that sector.
+// red-tractor-compliance is always shown regardless of the active filter.
+const SECTORS = ["All", "Arable", "Livestock", "Viticulture", "Organic", "Fresh Produce", "Diversification"] as const;
+type Sector = typeof SECTORS[number];
+
+const SECTOR_MODULES: Partial<Record<Sector, string[]>> = {
+  Arable: [
+    "field-crop-management", "crop-trials", "sprays-inputs", "soil-management",
+    "grain-crop-storage", "organic-arable", "weather-tracking", "water-irrigation",
+    "environment-sustainability", "equipment-workshop", "staff-training",
+    "safety-risk-audits", "finance-business", "resource-planner", "biosecurity",
+    "platform-addons", "report-builder", "data-api", "biofuel-rtfo",
+  ],
+  Livestock: [
+    "livestock-management", "biosecurity", "sheep-production", "goat-production",
+    "beef-production", "pig-production", "poultry-production", "venison-production",
+    "organic-livestock", "organic-dairy", "organic-venison", "organic-poultry",
+    "staff-training", "equipment-workshop", "finance-business", "safety-risk-audits",
+    "environment-sustainability", "water-irrigation", "platform-addons",
+    "report-builder", "data-api",
+  ],
+  Viticulture: [
+    "viticulture", "organic-viticulture", "sprays-inputs", "equipment-workshop",
+    "staff-training", "safety-risk-audits", "finance-business", "platform-addons",
+    "weather-tracking", "soil-management", "water-irrigation", "report-builder",
+    "data-api", "organic-compliance",
+  ],
+  Organic: [
+    "organic-compliance", "organic-arable", "organic-livestock", "organic-dairy",
+    "organic-fresh-produce", "organic-viticulture", "organic-venison", "organic-poultry",
+  ],
+  "Fresh Produce": [
+    "fresh-produce", "organic-fresh-produce", "sprays-inputs", "staff-training",
+    "safety-risk-audits", "equipment-workshop", "finance-business", "water-irrigation",
+    "environment-sustainability", "platform-addons", "report-builder", "data-api",
+    "biosecurity",
+  ],
+  Diversification: [
+    "farm-diversification", "farm-services-contracting", "equipment-workshop",
+    "finance-business", "staff-training", "safety-risk-audits", "platform-addons",
+    "report-builder", "data-api",
+  ],
+};
+
 // Modules that are bundled (included for free) when a particular module is selected.
 // Keys are the parent module ID; values are the IDs of modules included at no extra charge.
 const BUNDLE_INCLUSIONS: Record<string, string[]> = {
@@ -138,10 +183,19 @@ export default function Pricing() {
   ]);
   const [activeFarmId, setActiveFarmId] = useState(1);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const [sectorFilter, setSectorFilter] = useState<Sector>("All");
   const nextFarmIdRef = useRef(2);
 
   const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
   const activeBundled = useMemo(() => getBundledModules(activeFarm.selectedModules), [activeFarm.selectedModules]);
+
+  // Modules visible in the grid given the active sector filter.
+  // red-tractor-compliance is always shown; bundled modules are always shown (as green cards).
+  const visibleModules = useMemo(() => {
+    if (sectorFilter === "All") return MODULES;
+    const allowed = new Set(SECTOR_MODULES[sectorFilter] ?? []);
+    return MODULES.filter(m => m.required || allowed.has(m.id) || activeBundled.has(m.id));
+  }, [sectorFilter, activeBundled]);
 
   const toggleModule = (moduleId: string, required?: boolean) => {
     if (required) return;
@@ -296,6 +350,24 @@ export default function Pricing() {
 
             <div>
               <h3 className="text-xl font-bold mb-1">2. Select Modules</h3>
+
+              {/* Sector filter pills */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {SECTORS.map(sector => (
+                  <button
+                    key={sector}
+                    onClick={() => setSectorFilter(sector)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-all ${
+                      sectorFilter === sector
+                        ? "bg-brand-forest text-white border-brand-forest"
+                        : "bg-white text-muted-foreground border-border hover:border-brand-light hover:text-foreground"
+                    }`}
+                  >
+                    {sector}
+                  </button>
+                ))}
+              </div>
+
               <p className="text-sm text-muted-foreground mb-4">
                 Configuring modules for <span className="font-semibold text-brand-forest">{getFarmDisplayName(activeFarm)}</span>
                 {activeBundled.size > 0 && (
@@ -304,9 +376,14 @@ export default function Pricing() {
                     {activeBundled.size} module{activeBundled.size !== 1 ? "s" : ""} included free via bundle
                   </span>
                 )}
+                {sectorFilter !== "All" && (
+                  <span className="ml-2 text-muted-foreground">
+                    · Showing {visibleModules.length} of {MODULES.length} modules
+                  </span>
+                )}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {MODULES.map(mod => {
+                {visibleModules.map(mod => {
                   const isSelected = activeFarm.selectedModules.includes(mod.id);
                   const bundledBy = activeBundled.get(mod.id);
                   const isBundled = !!bundledBy;
