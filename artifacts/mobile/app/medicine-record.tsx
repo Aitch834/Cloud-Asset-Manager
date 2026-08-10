@@ -164,12 +164,7 @@ export default function MedicineRecordScreen() {
 
       {missingIdentifiers && !bannerDismissed && (
         <Pressable
-          onPress={() =>
-            Alert.alert(
-              "Farm Identifiers Missing",
-              "Open Farm Settings on the BDE Farm Trac dashboard to add your CPH and SBI numbers before submitting records.",
-            )
-          }
+          onPress={() => router.push("/(tabs)/more")}
           style={styles.identifierBanner}
         >
           <Feather name="alert-triangle" size={15} color="#92400e" />
@@ -179,7 +174,7 @@ export default function MedicineRecordScreen() {
               : !cphNumber
               ? "CPH number is missing from your farm profile — required for medicine records."
               : "SBI number is missing from your farm profile — required for medicine records."}
-            {" "}Add them in Farm Settings on the dashboard.
+            {" "}Tap to go to Settings.
           </Text>
           <Pressable
             onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
