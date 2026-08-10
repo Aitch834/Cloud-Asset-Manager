@@ -11,6 +11,8 @@ export const adTemplatesTable = pgTable("ad_templates", {
   isDefault: boolean("is_default").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Soft-delete: non-null means the template has been archived and will not appear in renders */
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
 });
 
 export type AdTemplate = typeof adTemplatesTable.$inferSelect;

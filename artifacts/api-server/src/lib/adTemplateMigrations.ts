@@ -47,6 +47,9 @@ export async function runAdTemplateMigrations(): Promise<void> {
     )
   `);
 
+  // Soft-delete support: non-null archived_at means the template is retired
+  await db.execute(sql`ALTER TABLE ad_templates ADD COLUMN IF NOT EXISTS archived_at timestamptz`);
+
   // Seed default templates only if none exist
   const existing = await db.execute(sql`SELECT id FROM ad_templates LIMIT 1`);
   if ((existing as { rows: unknown[] }).rows.length === 0) {

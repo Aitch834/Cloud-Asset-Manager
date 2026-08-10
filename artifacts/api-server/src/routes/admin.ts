@@ -6,7 +6,7 @@ import fs from "fs";
 import os from "os";
 import crypto from "crypto";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable } from "@workspace/db";
-import { eq, and, count, desc, sql, asc, inArray } from "drizzle-orm";
+import { eq, and, count, desc, sql, asc, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
@@ -2077,7 +2077,12 @@ router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Reque
 
 router.get("/admin/ad-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const rows = await db.select().from(adTemplatesTable).orderBy(asc(adTemplatesTable.id));
+  const includeArchived = req.query.includeArchived === "1";
+  const rows = includeArchived
+    ? await db.select().from(adTemplatesTable).orderBy(asc(adTemplatesTable.id))
+    : await db.select().from(adTemplatesTable)
+        .where(isNull(adTemplatesTable.archivedAt))
+        .orderBy(asc(adTemplatesTable.id));
   res.json(rows);
 });
 
@@ -2141,9 +2146,23 @@ router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Res
 router.delete("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const id = Number(req.params.id);
-  const [row] = await db.delete(adTemplatesTable).where(eq(adTemplatesTable.id, id)).returning();
+  const [row] = await db.update(adTemplatesTable)
+    .set({ archivedAt: new Date() })
+    .where(eq(adTemplatesTable.id, id))
+    .returning();
   if (!row) { res.status(404).json({ error: "Template not found" }); return; }
   res.json({ success: true });
+});
+
+router.post("/admin/ad-templates/:id/restore", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  const [row] = await db.update(adTemplatesTable)
+    .set({ archivedAt: null })
+    .where(eq(adTemplatesTable.id, id))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Template not found" }); return; }
+  res.json(row);
 });
 
 // ─── Ad PDF Generator — Node-native renderer ──────────────────────────────────
