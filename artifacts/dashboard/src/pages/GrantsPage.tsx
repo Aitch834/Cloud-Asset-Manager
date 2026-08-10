@@ -282,6 +282,20 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const milestones = msData?.milestones ?? [];
   const allMilestones = allMsData?.milestones ?? [];
 
+  // ── On-screen status filter (persisted per farm) ─────────────────────────
+  const [aeScreenStatus, setAeScreenStatus] = usePersistedFilter({
+    page: "grants-agri-env",
+    filter: "screen-status",
+    farmId,
+    defaultValue: "all",
+    validValues: ["all", ...AE_PROJECT_STATUSES] as readonly string[],
+  });
+
+  const screenFilteredProjects = useMemo(() => {
+    if (aeScreenStatus === "all") return projects;
+    return projects.filter(p => p.status === aeScreenStatus);
+  }, [projects, aeScreenStatus]);
+
   // ── Export / print filter state ──────────────────────────────────────────
   const [aeExportScheme, setAeExportScheme] = useState("all");
   const [aeExportStatus, setAeExportStatus] = useState("all");
@@ -599,6 +613,45 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
         </div>
       )}
 
+      {/* On-screen status filter pills */}
+      {projects.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" as const }}>
+          <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", marginRight: 2 }}>Show:</span>
+          {(["all", ...AE_PROJECT_STATUSES] as const).map(s => {
+            const cfg = s === "all" ? null : AE_PROJECT_STATUS_CFG[s];
+            const label = s === "all" ? "All" : (cfg?.label ?? s);
+            const count = s === "all" ? projects.length : projects.filter(p => p.status === s).length;
+            const isActive = aeScreenStatus === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setAeScreenStatus(s)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "4px 12px", borderRadius: 20,
+                  fontSize: "0.8rem", fontWeight: isActive ? 600 : 400,
+                  cursor: "pointer",
+                  border: isActive ? "1.5px solid #374151" : "1px solid #e5e7eb",
+                  background: isActive ? "#111827" : "#f9fafb",
+                  color: isActive ? "#fff" : "#374151",
+                  transition: "all 0.12s",
+                }}
+              >
+                {label}
+                <span style={{
+                  fontSize: "0.7rem", fontWeight: 600,
+                  background: isActive ? "rgba(255,255,255,0.2)" : "#e5e7eb",
+                  color: isActive ? "#fff" : "#6b7280",
+                  borderRadius: 20, padding: "0px 6px", minWidth: 18, textAlign: "center",
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Projects list */}
       {isLoading ? (
         <div style={{ textAlign: "center", padding: 60, color: "#9ca3af" }}>
@@ -615,9 +668,19 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
             <Plus size={14} style={{ marginRight: 6 }} /> Add Scheme
           </Button>
         </div>
+      ) : screenFilteredProjects.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "32px 24px", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
+          <div style={{ fontSize: "0.9rem", color: "#6b7280" }}>
+            No schemes with status <strong>{AE_PROJECT_STATUS_CFG[aeScreenStatus as keyof typeof AE_PROJECT_STATUS_CFG]?.label ?? aeScreenStatus}</strong>.
+          </div>
+          <button onClick={() => setAeScreenStatus("all")}
+            style={{ marginTop: 10, background: "none", border: "none", cursor: "pointer", color: "#374151", textDecoration: "underline", fontSize: "0.82rem" }}>
+            Show all schemes
+          </button>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {projects.map(project => {
+          {screenFilteredProjects.map(project => {
             const isExpanded = expandedId === project.id;
             return (
               <div key={project.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
