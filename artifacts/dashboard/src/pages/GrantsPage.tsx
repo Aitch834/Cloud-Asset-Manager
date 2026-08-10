@@ -296,9 +296,20 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     return projects.filter(p => p.status === aeScreenStatus);
   }, [projects, aeScreenStatus]);
 
-  // ── Export / print filter state ──────────────────────────────────────────
-  const [aeExportScheme, setAeExportScheme] = useState("all");
-  const [aeExportStatus, setAeExportStatus] = useState("all");
+  // ── Export / print filter state (persisted per farm) ────────────────────
+  const [aeExportScheme, setAeExportScheme] = usePersistedFilter({
+    page: "grants-agri-env",
+    filter: "export-scheme",
+    farmId,
+    defaultValue: "all",
+  });
+  const [aeExportStatus, setAeExportStatus] = usePersistedFilter({
+    page: "grants-agri-env",
+    filter: "export-status",
+    farmId,
+    defaultValue: "all",
+    validValues: ["all", ...AE_PROJECT_STATUSES] as readonly string[],
+  });
 
   const uniqueSchemeNames = useMemo(
     () => [...new Set(projects.map(p => p.schemeName))].sort(),
