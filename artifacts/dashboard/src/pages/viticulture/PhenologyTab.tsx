@@ -69,6 +69,9 @@ const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> =
   "60": { surveyName: "Flowering Survey", label: "flowering" },
   "65": { surveyName: "Flowering Survey", label: "flowering" },
   "68": { surveyName: "Flowering Survey", label: "flowering" },
+  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
+  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
+  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
   "77": { surveyName: "Véraison Survey", label: "véraison" },
   "81": { surveyName: "Véraison Survey", label: "véraison" },
   "83": { surveyName: "Véraison Survey", label: "véraison" },
@@ -86,6 +89,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [form, setForm] = useState<Phenology>({});
   const [viewing, setViewing] = useState<Phenology | null>(null);
   const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
+  const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
@@ -159,7 +163,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
     else await add.mutateAsync(form);
     const stage = String(form.bbchStage ?? "");
     const survey = WINEGB_SURVEY_MAP[stage];
-    if (survey) setWinegbSurveyBanner(survey);
+    if (survey && !dismissedSurveys.has(survey.surveyName)) setWinegbSurveyBanner(survey);
     setOpen(false);
   };
 
@@ -190,12 +194,20 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         <div className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <Globe className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
           <span>
-            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span> — WineGB collect UK-wide data on {winegbSurveyBanner.label} from member vineyards. Submit your observation to contribute to national benchmarking.{" "}
+            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span> — WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
             <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
-              Go to WineGB surveys →
+              Vineyard Survey →
             </a>
           </span>
-          <button type="button" className="ml-auto shrink-0 text-emerald-500 hover:text-emerald-800" onClick={() => setWinegbSurveyBanner(null)} aria-label="Dismiss">
+          <button
+            type="button"
+            className="ml-auto shrink-0 text-emerald-500 hover:text-emerald-800"
+            onClick={() => {
+              setDismissedSurveys(prev => new Set(prev).add(winegbSurveyBanner.surveyName));
+              setWinegbSurveyBanner(null);
+            }}
+            aria-label="Dismiss"
+          >
             <XCircle className="w-4 h-4" />
           </button>
         </div>
