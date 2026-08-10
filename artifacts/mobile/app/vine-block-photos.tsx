@@ -859,9 +859,12 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
             hitSlop={16}
             onPress={() => {
               const photoId = photo.id;
-              const message = photo.isCover
-                ? "Are you sure you want to delete this photo? This cannot be undone.\n\nThis is the cover photo for this block. The next photo will become the new cover."
-                : "Are you sure you want to delete this photo? This cannot be undone.";
+              const message =
+                photos.length === 1
+                  ? "This is the only photo for this block — deleting it will leave the block with no images. This cannot be undone."
+                  : photo.isCover
+                  ? "Are you sure you want to delete this photo? This cannot be undone.\n\nThis is the cover photo for this block. The next photo will become the new cover."
+                  : "Are you sure you want to delete this photo? This cannot be undone.";
               Alert.alert(
                 "Delete Photo",
                 message,
@@ -1028,11 +1031,13 @@ function CaptionSheet({
 
 function PhotoThumbnail({
   photo,
+  photosCount,
   onDelete,
   onPress,
   onEditCaption,
 }: {
   photo: BlockPhoto;
+  photosCount: number;
   onDelete: (id: number) => void;
   onPress: (uri: string | null, photo: BlockPhoto) => void;
   onEditCaption: (photo: BlockPhoto) => void;
@@ -1043,7 +1048,24 @@ function PhotoThumbnail({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Photo Options", undefined, [
       { text: "Edit Caption", onPress: () => onEditCaption(photo) },
-      { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          const deleteMessage =
+            photosCount === 1
+              ? "This is the only photo for this block — deleting it will leave the block with no images. This cannot be undone."
+              : "Are you sure you want to delete this photo? This cannot be undone.";
+          Alert.alert(
+            "Delete Photo",
+            deleteMessage,
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+            ],
+          );
+        },
+      },
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -1369,6 +1391,7 @@ export default function VineBlockPhotosScreen() {
           renderItem={({ item }) => (
             <PhotoThumbnail
               photo={item}
+              photosCount={photos.length}
               onDelete={handleDelete}
               onPress={openLightbox}
               onEditCaption={handleEditCaption}
