@@ -1,0 +1,258 @@
+/**
+ * Focused calculation tests for the Irrigation SMD scenario engine.
+ *
+ * The engine uses a day-by-day cumulative stress model (14-day horizon):
+ *  • Irrigation is applied at its scenario time (day 0, 7, or never).
+ *  • At each day the water-stress ratio ETa/ETm is recorded.
+ *  • Mean ETa/ETm over 14 days drives FAO-56 yield loss: (1−Ya/Ym) = Ky×(1−mean ETa/ETm)
+ *  • Revenue saved and net benefit use the skip baseline as the reference.
+ *
+ * Key invariants:
+ *  1. Irrigating now genuinely outperforms waiting 7 days when the crop is stressed
+ *     (7 extra days of stress accumulate before the deferred application).
+ *  2. Skip is the baseline: its irrigationRevenueSaved and netBenefit are 0.
+ *  3. Net benefit = revenue saved − irrigation cost (exact arithmetic).
+ *  4. All results are bounded: yield loss fraction ∈ [0, 0.5], SMD ∈ [0, FC].
+ *  5. When the crop is under no stress (SMD = 0, ETc = rain), all scenarios share
+ *     zero yield loss; irrigating only incurs a cost → negative net benefit.
+ */
+
+import { describe, it, expect } from "vitest";
+import { computeScenarios } from "../irrigationSMD";
+
+// ── Shared fixtures ────────────────────────────────────────────────────────────
+
+/** Typical stressed UK arable field — SMD well above critical threshold */
+const STRESSED = {
+  currentSmdMm: 100,
+  irrigateMm: 25,
+  costPerMmHa: 3.5,
+  fieldAreaHa: 10,
+  cropPricePerTonne: 220,
+  typicalYieldTha: 9.0,
+  Ky: 0.5,
+  fieldCapacityMm: 150,
+  criticalSmdMm: 40,
+  expectedRainfall7dMm: 7,   // 1 mm/day
+  currentDailyEtcMm: 3.0,
+};
+
+/** Field with no current water stress — SMD = 0, ET = rain */
+const UNSTRESSED = {
+  ...STRESSED,
+  currentSmdMm: 0,
+  currentDailyEtcMm: 1.0,
+  expectedRainfall7dMm: 7, // 1 mm/day → net change = 0 each day
+};
+
+// ── 1. Irrigating now genuinely outperforms waiting 7 days when stressed ───────
+
+describe("early irrigation advantage — cumulative stress model", () => {
+  it("irrigate-now mean ETa/ETm > wait-7 mean ETa/ETm when SMD > critical threshold", () => {
+    // 7 extra days of stress accumulate before the deferred application closes
+    // the deficit, so the time-averaged water-use efficiency is lower for wait-7.
+    const r = computeScenarios(STRESSED);
+    expect(r.irrigateNow.etaEtmRatio).toBeGreaterThan(r.wait7.etaEtmRatio);
+  });
+
+  it("irrigate-now yield loss < wait-7 yield loss when stressed", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.irrigateNow.yieldLossTha).toBeLessThan(r.wait7.yieldLossTha);
+  });
+
+  it("irrigate-now net benefit > wait-7 net benefit when stressed", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.irrigateNow.netBenefit).toBeGreaterThan(r.wait7.netBenefit);
+  });
+});
+
+// ── 2. Skip is the zero-cost, zero-benefit baseline ───────────────────────────
+
+describe("skip baseline invariants", () => {
+  it("skip has zero irrigation cost and zero revenue saved", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.skip.irrigationMm).toBe(0);
+    expect(r.skip.irrigationCostTotal).toBe(0);
+    expect(r.skip.irrigationRevenueSaved).toBe(0);
+  });
+
+  it("skip net benefit is 0 (it IS the baseline)", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.skip.netBenefit).toBeCloseTo(0, 10);
+  });
+
+  it("skip has higher yield loss than irrigate-now when stressed", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.skip.yieldLossTha).toBeGreaterThan(r.irrigateNow.yieldLossTha);
+  });
+});
+
+// ── 3. Net benefit arithmetic ─────────────────────────────────────────────────
+
+describe("net benefit arithmetic", () => {
+  it("net benefit = revenue saved − irrigation cost (irrigate now)", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.irrigateNow.netBenefit).toBeCloseTo(
+      r.irrigateNow.irrigationRevenueSaved - r.irrigateNow.irrigationCostTotal,
+      10,
+    );
+  });
+
+  it("net benefit = revenue saved − irrigation cost (wait 7)", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.wait7.netBenefit).toBeCloseTo(
+      r.wait7.irrigationRevenueSaved - r.wait7.irrigationCostTotal,
+      10,
+    );
+  });
+
+  it("irrigation cost = irrigateMm × costPerMmHa × fieldAreaHa", () => {
+    const r = computeScenarios(STRESSED);
+    const expected = STRESSED.irrigateMm * STRESSED.costPerMmHa * STRESSED.fieldAreaHa;
+    expect(r.irrigateNow.irrigationCostTotal).toBeCloseTo(expected, 10);
+    expect(r.wait7.irrigationCostTotal).toBeCloseTo(expected, 10);
+  });
+});
+
+// ── 4. Bounds: yield loss fraction ∈ [0, 0.5], SMD ∈ [0, FC] ─────────────────
+
+describe("bounds on output values", () => {
+  it("yield loss fractions are bounded to [0, 0.5]", () => {
+    const r = computeScenarios({ ...STRESSED, currentSmdMm: 149, currentDailyEtcMm: 8, expectedRainfall7dMm: 0 });
+    for (const s of [r.irrigateNow, r.wait7, r.skip]) {
+      expect(s.yieldLossFraction).toBeGreaterThanOrEqual(0);
+      expect(s.yieldLossFraction).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  it("day-14 SMD stays within [0, fieldCapacity]", () => {
+    const r = computeScenarios({ ...STRESSED, currentSmdMm: 140, currentDailyEtcMm: 10, expectedRainfall7dMm: 0 });
+    for (const s of [r.irrigateNow, r.wait7, r.skip]) {
+      expect(s.projectedSmd14Mm).toBeGreaterThanOrEqual(0);
+      expect(s.projectedSmd14Mm).toBeLessThanOrEqual(STRESSED.fieldCapacityMm);
+      expect(s.projectedSmdAfterMm).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("day-14 SMD never goes negative under heavy rain", () => {
+    const r = computeScenarios({ ...STRESSED, currentSmdMm: 5, currentDailyEtcMm: 0.5, expectedRainfall7dMm: 70 });
+    for (const s of [r.irrigateNow, r.wait7, r.skip]) {
+      expect(s.projectedSmd14Mm).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+// ── 5. Zero-stress case: irrigating when already healthy only costs money ─────
+
+describe("zero stress — no yield benefit from irrigation", () => {
+  it("all scenarios have zero yield loss when ETc = rain and SMD = 0", () => {
+    const r = computeScenarios(UNSTRESSED);
+    // With no net depletion (ETc = rain = 1 mm/day) and starting SMD = 0,
+    // SMD never rises above 0, so no stress accumulates and all yield loss = 0.
+    expect(r.skip.yieldLossTha).toBeCloseTo(0, 6);
+    expect(r.irrigateNow.yieldLossTha).toBeCloseTo(0, 6);
+    expect(r.wait7.yieldLossTha).toBeCloseTo(0, 6);
+  });
+
+  it("irrigating when field is at capacity saves £0 revenue but costs money → negative net benefit", () => {
+    const r = computeScenarios(UNSTRESSED);
+    expect(r.irrigateNow.irrigationRevenueSaved).toBeCloseTo(0, 6);
+    expect(r.irrigateNow.netBenefit).toBeLessThan(0);
+  });
+});
+
+// ── 6. Cost sensitivity ───────────────────────────────────────────────────────
+
+describe("cost sensitivity", () => {
+  it("doubling irrigation cost reduces irrigate-now net benefit by irrigateMm × ΔcostPerMmHa × ha", () => {
+    const low  = computeScenarios({ ...STRESSED, costPerMmHa: 2.0 });
+    const high = computeScenarios({ ...STRESSED, costPerMmHa: 5.0 });
+    const expected = (5.0 - 2.0) * STRESSED.irrigateMm * STRESSED.fieldAreaHa;
+    expect(low.irrigateNow.netBenefit - high.irrigateNow.netBenefit).toBeCloseTo(expected, 4);
+  });
+});
+
+// ── 7. Ordering of scenarios under increasing stress ─────────────────────────
+
+describe("scenario ordering across stress levels", () => {
+  it("all three scenarios have equal 0 yield loss when SMD is well below critical", () => {
+    // SMD = 5 mm, critical = 40 mm — no stress at all for any scenario
+    const r = computeScenarios({ ...STRESSED, currentSmdMm: 5, currentDailyEtcMm: 0.5 });
+    expect(r.skip.yieldLossTha).toBeCloseTo(0, 2);
+    expect(r.irrigateNow.yieldLossTha).toBeCloseTo(0, 2);
+    expect(r.wait7.yieldLossTha).toBeCloseTo(0, 2);
+  });
+
+  it("stress ordering holds: irrigateNow ≤ wait7 ≤ skip yield loss", () => {
+    const r = computeScenarios(STRESSED);
+    expect(r.irrigateNow.yieldLossTha).toBeLessThanOrEqual(r.wait7.yieldLossTha);
+    expect(r.wait7.yieldLossTha).toBeLessThanOrEqual(r.skip.yieldLossTha);
+  });
+});
+
+// ── 8. Forecast rainfall applied only to days 0–6 (not doubled over 14 days) ─
+
+describe("forecast rainfall application — 7-day window only", () => {
+  // Use ETc = 0 and Ky = 0 to isolate pure rainfall effect on SMD.
+  const RAIN_BASE = {
+    ...STRESSED,
+    currentSmdMm: 20,
+    currentDailyEtcMm: 0,  // no evapotranspiration — isolates rain effect
+    irrigateMm: 0,          // no irrigation — isolates skip scenario
+    Ky: 0,                  // disable yield loss so we focus on SMD only
+  };
+
+  it("7 mm forecast (1 mm/day × 7 days) reduces SMD by exactly 7 mm, not 14 mm", () => {
+    // Days 0–6: rain = 1 mm/day → SMD drops from 20 to 13
+    // Days 7–13: no rain, no ETc → SMD stays at 13
+    const r = computeScenarios({ ...RAIN_BASE, expectedRainfall7dMm: 7 });
+    expect(r.skip.projectedSmd14Mm).toBeCloseTo(13, 6);
+  });
+
+  it("0 mm forecast means no rain falls — SMD is unchanged when ETc = 0", () => {
+    const r = computeScenarios({ ...RAIN_BASE, expectedRainfall7dMm: 0 });
+    expect(r.skip.projectedSmd14Mm).toBeCloseTo(20, 6);
+  });
+
+  it("14 mm forecast reduces SMD by exactly 14 mm over the 7-day window (2 mm/day)", () => {
+    // Days 0–6: rain = 2 mm/day → SMD: 20 → 6
+    // Days 7–13: no rain → SMD stays at 6
+    const r = computeScenarios({ ...RAIN_BASE, expectedRainfall7dMm: 14 });
+    expect(r.skip.projectedSmd14Mm).toBeCloseTo(6, 6);
+  });
+
+  it("forecast rain capped at field capacity — oversupply cannot drive SMD below 0", () => {
+    // 70 mm rain over 7 days on a 20 mm deficit → SMD should clamp at 0
+    const r = computeScenarios({ ...RAIN_BASE, expectedRainfall7dMm: 70 });
+    expect(r.skip.projectedSmd14Mm).toBeCloseTo(0, 6);
+    expect(r.skip.projectedSmd14Mm).toBeGreaterThanOrEqual(0);
+  });
+
+  it("scenario results differ for 0 vs 7 mm forecast when crop is stressed", () => {
+    // With rain the skip scenario is less damaging; without it, more damaging
+    const withRain    = computeScenarios({ ...STRESSED, expectedRainfall7dMm: 7 });
+    const withoutRain = computeScenarios({ ...STRESSED, expectedRainfall7dMm: 0 });
+    expect(withRain.skip.yieldLossTha).toBeLessThanOrEqual(withoutRain.skip.yieldLossTha);
+  });
+
+  it("hand-calculated fixture: irrigate-now with known inputs", () => {
+    // Isolated fixture to verify numerical correctness end-to-end.
+    // currentSmd = 30, ETc = 0, rain7d = 14mm (2mm/day for days 0–6), irrigateMm = 20
+    // "Irrigate now" (day 0):
+    //   Day 0: irrigate → smd = clamp(30-20) = 10, rain = 2, etC = 0 → smd = 8
+    //   Days 1–6: smd decreases by 2/day → 8,6,4,2,0,0 (clamps at 0 from day 5)
+    //   Days 7–13: no rain, no ETc → smd stays at 0
+    //   ETa/ETm is 1.0 every day when smd ≤ criticalSmdMm (40) → mean = 1.0
+    //   Yield loss fraction = Ky × (1 − 1.0) = 0
+    // This verifies that enough rain + irrigation eliminates stress entirely.
+    const r = computeScenarios({
+      ...STRESSED,
+      currentSmdMm: 30,
+      currentDailyEtcMm: 0,
+      expectedRainfall7dMm: 14,
+      irrigateMm: 20,
+    });
+    expect(r.irrigateNow.yieldLossTha).toBeCloseTo(0, 6);
+    expect(r.irrigateNow.projectedSmd14Mm).toBeCloseTo(0, 6);
+  });
+});

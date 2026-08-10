@@ -1767,6 +1767,16 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Date the current HPAI national alert was declared (ISO format: YYYY-MM-DD).",
     value: "",
   },
+  "irrigation.costPerMmHa": {
+    label: "Irrigation Cost per mm/ha (£)",
+    description: "Default pump + abstraction cost (£) per mm applied per hectare, used as the platform-level fallback in the Irrigation Advisor. Farms can override this locally in the Advisor panel.",
+    value: "3.50",
+  },
+  "irrigation.abstractionSource": {
+    label: "Default Abstraction Source",
+    description: "Default water abstraction source label shown in the Irrigation Advisor (e.g. Borehole, River, Reservoir). Can be overridden per farm.",
+    value: "Borehole",
+  },
 };
 
 router.get("/version", async (_req: Request, res: Response): Promise<void> => {

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+<title>BDE Farm Trac — Viticulture — Half Page Horizontal</title>
+<!--
+  PRINT SPEC:  190mm × 133mm  (half-page horizontal, Vineyard magazine)
+  BLEED:       196mm × 139mm  (add 3mm each side for bleed if submitting to press)
+  COLOUR MODE: CMYK for final press-ready PDF — convert from RGB at output
+  RESOLUTION:  300dpi minimum — replace background src with licensed hi-res file
+  FONTS:       Inter + Playfair Display — embed / outline before PDF export
+  CONTACT:     Jamie McGrorty · jamie.mcgrorty@kelsey.co.uk · 01303 233883
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100vw; height: 100vh; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: #111; font-family: 'Inter', sans-serif;
+  }
+
+  /*
+   * Fixed-canvas approach: ad is always 1900×1330px (10px per mm at 190×133mm).
+   * .ad-scaler holds the visual (scaled) dimensions so flexbox centres it correctly.
+   * .ad-canvas is the full 1900×1330 canvas, scaled from its top-left corner.
+   * All font sizes and spacing are fixed px — no clamp() shrinkage.
+   */
+  .ad-scaler {
+    position: relative;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .ad-canvas {
+    width: 1900px;
+    height: 1330px;
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: top left;
+  }
+
+  /* Full-bleed vineyard landscape */
+  .bg {
+    position: absolute; inset: 0;
+    background-image: url('https://images.pexels.com/photos/943700/pexels-photo-943700.jpeg?auto=compress&cs=tinysrgb&w=1920');
+    background-size: cover;
+    background-position: center 38%;
+    z-index: 0;
+  }
+
+  /* Two-tone overlay: darker on left for legibility, opens right */
+  .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(105deg,
+      rgba(10,7,5,0.88) 0%,
+      rgba(12,9,6,0.70) 48%,
+      rgba(10,7,5,0.28) 100%);
+    z-index: 1;
+  }
+
+  /* Gold top bar */
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 7px;
+    background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+    z-index: 4;
+  }
+
+  /* Green left edge rule */
+  .left-rule {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 12px;
+    background: #2D6A2E;
+    z-index: 4;
+  }
+
+  /* Inner layout — flex row */
+  .inner {
+    position: relative; z-index: 3;
+    width: 100%; height: 100%;
+    display: flex;
+    padding: 90px 100px 84px 110px;
+    gap: 60px;
+  }
+
+  /* ── LEFT COLUMN: logo + headline + subline + features ── */
+  .left {
+    flex: 0 0 1080px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .logo {
+    height: 80px;
+    width: auto;
+    object-fit: contain;
+    object-position: left center;
+    filter: drop-shadow(0 1px 8px rgba(0,0,0,0.7));
+    align-self: flex-start;
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .eyebrow {
+    font-size: 22px;
+    font-weight: 600;
+    color: #C49A6C;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .headline {
+    font-family: 'Playfair Display', serif;
+    font-size: 112px;
+    font-weight: 700;
+    line-height: 1.0;
+    color: #ffffff;
+  }
+  .headline em { font-style: italic; color: #C49A6C; }
+
+  .subline {
+    font-size: 28px;
+    color: rgba(255,255,255,0.68);
+    line-height: 1.50;
+    font-weight: 400;
+    max-width: 940px;
+  }
+
+  /* Feature bullets — 2-column wrap, 4 rows */
+  .features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 48px;
+    margin-top: auto;
+  }
+  .feat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 23px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.78);
+    white-space: nowrap;
+    width: calc(50% - 24px);
+  }
+  .feat::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #C49A6C;
+    flex-shrink: 0;
+  }
+
+  /* Paper-records callout bullet — gold to draw the eye */
+  .feat-paper {
+    color: #D4A96A;
+    font-weight: 600;
+  }
+  .feat-paper::before {
+    background: #D4A96A;
+    width: 9px; height: 9px;
+  }
+
+  /* ── RIGHT COLUMN: glass card + QR ── */
+  .right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+  }
+
+  /* Glassmorphism card */
+  .glass-card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    border: 1px solid rgba(196,154,108,0.25);
+    border-radius: 14px;
+    padding: 44px 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 28px;
+    color: #C49A6C;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 22px;
+  }
+
+  .card-item {
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.09);
+  }
+  .card-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .card-item-title {
+    font-size: 23px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.90);
+    margin-bottom: 5px;
+  }
+  .card-item-desc {
+    font-size: 18px;
+    color: rgba(255,255,255,0.50);
+    line-height: 1.35;
+  }
+
+  /* ── QR section — replaces CTA row ── */
+  /* No "Register your interest" button. The QR code IS the CTA.
+     A clear label makes it legible to all readers, including
+     those unfamiliar with QR codes. */
+  .qr-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .qr-prompt {
+    font-size: 26px;
+    font-weight: 800;
+    color: #C49A6C;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+
+  .qr-img {
+    width: 170px;
+    height: 170px;
+    border-radius: 10px;
+    display: block;
+    background: #ffffff;
+    padding: 10px;
+  }
+
+  .qr-url {
+    font-size: 20px;
+    color: rgba(255,255,255,0.40);
+    letter-spacing: 0.06em;
+    text-align: center;
+  }
+
+/* WeasyPrint print overrides */
+@page { size: 190mm 133mm; margin: 0; }
+html, body {
+  width: 718.1102px !important; height: 502.6772px !important;
+  min-width: 0 !important; max-width: none !important;
+  min-height: 0 !important; max-height: none !important;
+  overflow: hidden !important; display: block !important;
+  background: transparent !important; margin: 0 !important; padding: 0 !important;
+}
+.ad-scaler {
+  width: 718.1102px !important; height: 502.6772px !important;
+  overflow: hidden !important; position: relative !important;
+}
+.ad-canvas {
+  width: 1900px !important; height: 1330px !important;
+  position: absolute !important; top: 0 !important; left: 0 !important;
+  transform: scale(0.377953) !important; transform-origin: top left !important;
+}
+
+</style>
+</head>
+<body>
+<div class="ad-scaler" id="scaler"><div class="ad-canvas" id="ad">
+  <div class="bg"></div>
+  <div class="overlay"></div>
+  <div class="top-bar"></div>
+  <div class="left-rule"></div>
+
+  <div class="inner">
+    <!-- LEFT: logo, headline, copy, features -->
+    <div class="left">
+      <img class="logo" src="/__mockup/bde-farm-trac-logo.png" alt="BDE Farm Trac"/>
+
+      <div class="copy">
+        <div class="eyebrow">Viticulture · Cloud-based · UK vineyards</div>
+        <div class="headline">Your vineyard.<br><em>Audit-ready.</em></div>
+        <div class="subline">Replace paper diaries, folders and filing cabinets with one secure cloud record — vine register, spray logs, harvest data and excise duty, audit-ready the moment your certifier needs them.</div>
+      </div>
+
+      <div class="features">
+        <span class="feat">Vine register &amp; phenology log</span>
+        <span class="feat">Spray &amp; disease scouting diary</span>
+        <span class="feat">Harvest &amp; must chemistry records</span>
+        <span class="feat">PDO &amp; PGI designation records</span>
+        <span class="feat">Winery cellar &amp; batch trail</span>
+        <span class="feat">Organic viticulture compliance</span>
+        <span class="feat">Excise &amp; duty management</span>
+        <span class="feat feat-paper">Eliminates all paper diaries &amp; records</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: glass card + QR code -->
+    <div class="right">
+      <div class="glass-card">
+        <div class="card-title">Full farm platform included</div>
+        <div class="card-item">
+          <div class="card-item-title">Red Tractor</div>
+          <div class="card-item-desc">Spray logs, staff certs &amp; inspection evidence</div>
+        </div>
+        <div class="card-item">
+          <div class="card-item-title">Organic Certification</div>
+          <div class="card-item-desc">Input register &amp; derogation records</div>
+        </div>
+        <div class="card-item">
+          <div class="card-item-title">Cloud Security</div>
+          <div class="card-item-desc">Encrypted, auto-backed-up, disaster-recovery ready</div>
+        </div>
+      </div>
+
+      <!-- QR code — the primary call to action for a print ad.
+           Label is explicit so all readers know what to do. -->
+      <div class="qr-section">
+        <div class="qr-prompt">Scan QR code for more</div>
+        <img class="qr-img"
+             src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4AQMAAAADqqSRAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABEUlEQVQ4ja2UPQ6DMAyFH2LImBvATeBaHZBA6sC1QL1IegOPDBWvNv1D3YKxMuRbrNjvvQB/1ZOcIB3iqLc1my9AuCVBIWECGj+3tEtXIcxczuEbRZ89Huap1kXFk9jmZeR9P7+DTQ/dX1ft9PHwVjUHPT+TZLD2C2S83nXYqE9080ztKn2KQ4MTGEUy/5Y67MywZnPPtLQJXcHxvX8fX5qaj1p67TyL5cnLLZcymd+GbX9ubsCX30yZNZ91WPNHpZPLlm8nF+bXSCtZ4GarkjB/FEQ+v/NTrppv+eXpMFu+J/BRWf9wAm//merxmf8MTrwmSxbXg6wrFLXY57/18PYfakxNUPj5qwfQcq/PQf6rJ6vXn9aX9KWDAAAAAElFTkSuQmCC"
+             alt="QR — bdefarmtrac.co.uk"/>
+        <div class="qr-url">bdefarmtrac.co.uk</div>
+      </div>
+    </div>
+  </div>
+</div></div><!-- end .ad-canvas / .ad-scaler -->
+
+
+</body>
+</html>

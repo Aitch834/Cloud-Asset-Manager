@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye, ClipboardList, Play, Upload, FileText, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, ScrollText, BarChart3, Drill, Droplets, Tractor, CloudRain, AlertTriangle, FileCheck, Eye, ClipboardList, Play, Upload, FileText, X, Sprout } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -24,6 +24,7 @@ import { useFarmMembers } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 
 import { apiUrl as api } from "@/lib/api";
+import { IrrigationAdvisorTab } from "@/components/irrigation/IrrigationAdvisorTab";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
@@ -1242,8 +1243,8 @@ function CamsReturnsTab({ farmId }: { farmId: number }) {
   );
 }
 
-type Tab = "licences" | "readings" | "borehole" | "records" | "equipment" | "soil-moisture" | "drought" | "cams";
-const WATER_TAB_IDS: Tab[] = ["licences", "readings", "borehole", "records", "equipment", "soil-moisture", "drought", "cams"];
+type Tab = "licences" | "readings" | "borehole" | "records" | "equipment" | "soil-moisture" | "drought" | "cams" | "advisor";
+const WATER_TAB_IDS: Tab[] = ["licences", "readings", "borehole", "records", "equipment", "soil-moisture", "drought", "cams", "advisor"];
 
 export default function WaterIrrigationPage() {
   const { farmId } = useAppStore();
@@ -1261,6 +1262,7 @@ export default function WaterIrrigationPage() {
           <TabButton active={tab === "soil-moisture"} onClick={() => setTab("soil-moisture")}><CloudRain className="w-3.5 h-3.5 mr-1" />Soil Moisture</TabButton>
           <TabButton active={tab === "drought"} onClick={() => setTab("drought")}><AlertTriangle className="w-3.5 h-3.5 mr-1" />Drought Plans</TabButton>
           <TabButton active={tab === "cams"} onClick={() => setTab("cams")}><FileCheck className="w-3.5 h-3.5 mr-1" />CAMS Returns</TabButton>
+          <TabButton active={tab === "advisor"} onClick={() => setTab("advisor")}><Sprout className="w-3.5 h-3.5 mr-1" />Irrigation Advisor</TabButton>
         </TabBar>
         <Card><CardContent className="pt-4">
           {tab === "licences" && <LicencesTab farmId={farmId} />}
@@ -1271,6 +1273,7 @@ export default function WaterIrrigationPage() {
           {tab === "soil-moisture" && <SoilMoistureTab farmId={farmId} />}
           {tab === "drought" && <DroughtManagementTab farmId={farmId} />}
           {tab === "cams" && <CamsReturnsTab farmId={farmId} />}
+          {tab === "advisor" && <IrrigationAdvisorTab farmId={farmId} />}
         </CardContent></Card>
       </div>
     </AppLayout>

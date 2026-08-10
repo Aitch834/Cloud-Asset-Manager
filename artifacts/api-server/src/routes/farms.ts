@@ -23305,6 +23305,124 @@ router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTen
   res.json({ success: true });
 });
 
+// ─── Irrigation Advisor ──────────────────────────────────────────────────────
+// Returns field metadata + current-year crop assignment + 60-day sensor readings
+// so the dashboard can compute SMD and break-even scenarios client-side.
+router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+
+  const fieldId  = req.query.fieldId  ? Number(req.query.fieldId)  : null;
+  const yearStr  = req.query.year as string | undefined;
+  const year     = yearStr ? parseInt(yearStr, 10) : new Date().getFullYear();
+
+  try {
+    // ── 1. All fields for this farm ──────────────────────────────────────────
+    const fields = await db
+      .select({
+        id:            fieldsTable.id,
+        name:          fieldsTable.name,
+        fieldReference: fieldsTable.fieldReference,
+        areaHectares:  fieldsTable.areaHectares,
+        soilType:      fieldsTable.soilType,
+      })
+      .from(fieldsTable)
+      .where(eq(fieldsTable.farmId, farmId))
+      .orderBy(asc(fieldsTable.name));
+
+    // ── 2. Crop assignment for the chosen field + year ────────────────────────
+    let assignment: {
+      id: number; cropName: string; variety: string | null;
+      plantingDate: Date | null; expectedHarvestDate: Date | null; year: number | null;
+    } | null = null;
+
+    if (fieldId) {
+      const rows = await db
+        .select({
+          id:                  fieldCropAssignmentsTable.id,
+          cropName:            cropsTable.name,
+          variety:             cropVarietiesTable.variety,
+          plantingDate:        fieldCropAssignmentsTable.plantingDate,
+          expectedHarvestDate: fieldCropAssignmentsTable.expectedHarvestDate,
+          year:                fieldCropAssignmentsTable.year,
+        })
+        .from(fieldCropAssignmentsTable)
+        .innerJoin(fieldsTable,        eq(fieldCropAssignmentsTable.fieldId,  fieldsTable.id))
+        .innerJoin(cropVarietiesTable, eq(fieldCropAssignmentsTable.varietyId, cropVarietiesTable.id))
+        .innerJoin(cropsTable,         eq(cropVarietiesTable.cropId,           cropsTable.id))
+        .where(and(
+          eq(fieldCropAssignmentsTable.fieldId, fieldId),
+          eq(fieldsTable.farmId, farmId),
+          eq(fieldCropAssignmentsTable.year, year),
+        ))
+        .limit(1);
+      if (rows.length) assignment = rows[0];
+    }
+
+    // ── 3. Aggregate 60-day daily weather (Tmax, Tmin, rainfall) ────────────
+    // Aggregate at the database level so that high-frequency stations (e.g.
+    // 15-minute sampling → ~5,760 rows for air_temperature + rainfall over 60 days)
+    // do not hit a row cap.  The result is at most 60 rows — one per calendar day —
+    // regardless of the station's reporting frequency.
+    //
+    // Provider storage shapes handled:
+    //   Sencrop / Davis / ZENTRA:  sensorCategory = "weather",
+    //     parameter = "air_temperature" | "rainfall" | "precipitation"
+    //   FieldClimate:              same shape (soil sensors use "soil")
+    //   Legacy / custom:           sensorCategory = "temperature" | "rainfall"
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - 60);
+
+    type DailyWeatherRow = {
+      date: string;
+      tmax: string | null;
+      tmin: string | null;
+      rainfall_mm: string | null;
+    };
+    const weatherResult = await db.execute(sql`
+      SELECT
+        DATE(recorded_at AT TIME ZONE 'UTC')::text  AS date,
+        MAX(
+          CASE WHEN parameter IN ('air_temperature', 'air temperature')
+               THEN value::numeric END
+        )                                            AS tmax,
+        MIN(
+          CASE WHEN parameter IN ('air_temperature', 'air temperature')
+               THEN value::numeric END
+        )                                            AS tmin,
+        SUM(
+          CASE WHEN parameter IN ('rainfall', 'precipitation')
+               THEN value::numeric ELSE 0 END
+        )                                            AS rainfall_mm
+      FROM api_sensor_readings
+      WHERE farm_id     = ${farmId}
+        AND recorded_at >= ${fromDate}
+        AND (
+          (sensor_category = 'weather'
+           AND parameter IN ('air_temperature', 'air temperature', 'rainfall', 'precipitation'))
+          OR sensor_category IN ('temperature', 'rainfall', 'precipitation')
+        )
+      GROUP BY DATE(recorded_at AT TIME ZONE 'UTC')
+      ORDER BY date ASC
+    `);
+
+    const dailyWeather = (weatherResult.rows as DailyWeatherRow[]).map(r => ({
+      date:       String(r.date),
+      tmax:        r.tmax       != null ? parseFloat(String(r.tmax))        : null,
+      tmin:        r.tmin       != null ? parseFloat(String(r.tmin))        : null,
+      rainfallMm:  r.rainfall_mm != null ? parseFloat(String(r.rainfall_mm)) : null,
+    }));
+
+    // Station is considered connected if any aggregated row contains temperature data
+    const hasWeatherStation = dailyWeather.some(r => r.tmax != null || r.tmin != null);
+
+    res.json({ fields, assignment, dailyWeather, hasWeatherStation, year });
+  } catch (err) {
+    console.error("[IRRIGATION-ADVISOR] GET:", err);
+    res.status(500).json({ error: "Failed to fetch irrigation advisor data" });
+  }
+});
+
 // ============================================================
 // GRAIN STORAGE QUALITY (sub-tabs on Equipment module)
 // ============================================================
