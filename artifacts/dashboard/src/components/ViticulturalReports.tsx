@@ -119,7 +119,7 @@ function Collapsible({
         <span>{title}</span>
         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
-      {open && <div className="overflow-x-auto border-t border-border">{children}</div>}
+      <div className={`overflow-x-auto border-t border-border${open ? "" : " hidden print:block"}`}>{children}</div>
     </div>
   );
 }
