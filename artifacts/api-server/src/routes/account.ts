@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { getAuth } from "@clerk/express";
 import { sendWelcomeEmail } from "../lib/mailer";
@@ -101,6 +101,61 @@ router.put("/api/account/profile", requireAuth, async (req: Request, res: Respon
     .update(usersTable)
     .set(updates)
     .where(eq(usersTable.id, userId));
+
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// UI Preferences — per-user hint dismissal flags synced across devices
+// ---------------------------------------------------------------------------
+
+router.get("/api/account/ui-prefs", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+
+  // Upsert a default row for brand-new users who haven't hit /profile yet.
+  const [row] = await db
+    .insert(usersTable)
+    .values({ id: userId, uiPrefs: {} })
+    .onConflictDoUpdate({
+      target: usersTable.id,
+      set: { updatedAt: sql`NOW()` },
+    })
+    .returning({ uiPrefs: usersTable.uiPrefs });
+
+  res.json({ uiPrefs: row?.uiPrefs ?? {} });
+});
+
+router.patch("/api/account/ui-prefs", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
+
+  const body = req.body as Record<string, unknown>;
+
+  // Only accept string keys mapping to boolean values — ignore anything else.
+  const patch: Record<string, boolean> = {};
+  for (const [key, val] of Object.entries(body)) {
+    if (typeof key === "string" && typeof val === "boolean") {
+      patch[key] = val;
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    res.status(400).json({ error: "Body must contain at least one { key: boolean } entry" });
+    return;
+  }
+
+  // Upsert: create the row if it doesn't exist yet, then merge the patch into
+  // the existing JSONB column using the || operator so untouched keys are preserved.
+  await db
+    .insert(usersTable)
+    .values({ id: userId, uiPrefs: patch })
+    .onConflictDoUpdate({
+      target: usersTable.id,
+      set: {
+        uiPrefs: sql`COALESCE(users.ui_prefs, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+      },
+    });
 
   res.json({ success: true });
 });

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
@@ -41,6 +40,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
@@ -57,11 +57,9 @@ interface BlockPhoto {
   downloadUrl: string | null;
 }
 
-// Stored in AsyncStorage (device-local) so the hint reappears automatically on
-// a fresh install, new device, or app data clear — this is intentional.
-// If server-synced per-user preferences are added in future (e.g. a ui_prefs
-// column on the users table), migrate this flag there so the hint is only shown
-// once per account rather than once per device.
+// Stored server-side (via useUiPrefs → /api/account/ui-prefs) so dismissal
+// survives device changes.  AsyncStorage is used as a read-through cache by
+// useUiPrefs; the server is the source of truth.
 const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 
 // ---------------------------------------------------------------------------
@@ -399,6 +397,7 @@ interface LightboxProps {
 
 function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption }: LightboxProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useFarm();
 
   // Track the current photo by ID so that when the parent reorders photos[]
   // the displayed photo stays the same (currentIndex is derived, not stored).
@@ -467,6 +466,12 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   // Background fade
   const bgOpacity = useSharedValue(0);
 
+  // Server-synced UI hint dismissal flags.
+  // prefsReady becomes true once the AsyncStorage cache has been read, so we
+  // never show a hint based on an empty "not yet loaded" prefs map.
+  // Scope prefs by user ID so a logout/account-switch never crosses user data.
+  const { prefsReady, isHintDismissed, dismissHint } = useUiPrefs(user?.id);
+
   // One-time "Hold & drag to reorder" hint
   const [showReorderHint, setShowReorderHint] = useState(false);
   const hintOpacity = useSharedValue(0);
@@ -507,29 +512,74 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
     hintOpacity.value = withTiming(0, { duration: 300 }, () => {
       runOnJS(setShowReorderHint)(false);
     });
-    AsyncStorage.setItem(REORDER_HINT_KEY, "1").catch(() => undefined);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Persist dismissal to server (and local cache) via useUiPrefs
+    dismissHint(REORDER_HINT_KEY);
+  }, [dismissHint]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check AsyncStorage when the lightbox becomes visible with multiple photos
+  // Show / hide the reorder hint reactively.
+  //
+  // Dependencies: visible, prefsReady, isHintDismissed
+  //   • `prefsReady` ensures we never show the hint based on an empty "not yet
+  //     loaded" prefs map (critical for a fresh device where the user may have
+  //     already dismissed the hint on another device).
+  //   • `isHintDismissed` is a callback whose identity changes whenever the
+  //     underlying prefs map updates, so the effect re-runs whenever the server
+  //     response arrives.  This lets a mid-session server sync hide a currently
+  //     visible hint (cross-device dismissal correction).
+  //
+  // Clearing the auto-dismiss timer in cleanup prevents double-dismiss when the
+  // effect re-runs because prefs updated.
   useEffect(() => {
-    if (!visible || photos.length <= 1) return;
-    let cancelled = false;
-    AsyncStorage.getItem(REORDER_HINT_KEY).then((val) => {
-      if (cancelled || val !== null) return;
+    // If conditions aren't met, hide the hint and clear any running timer.
+    if (!visible || photos.length <= 1 || !prefsReady) {
+      if (showReorderHint) {
+        if (hintDismissTimer.current) {
+          clearTimeout(hintDismissTimer.current);
+          hintDismissTimer.current = null;
+        }
+        hintOpacity.value = withTiming(0, { duration: 300 }, () => {
+          runOnJS(setShowReorderHint)(false);
+        });
+      }
+      return;
+    }
+
+    if (isHintDismissed(REORDER_HINT_KEY)) {
+      // Dismissed (possibly arriving from server sync) — hide it if showing.
+      if (showReorderHint) {
+        if (hintDismissTimer.current) {
+          clearTimeout(hintDismissTimer.current);
+          hintDismissTimer.current = null;
+        }
+        hintOpacity.value = withTiming(0, { duration: 300 }, () => {
+          runOnJS(setShowReorderHint)(false);
+        });
+      }
+      return;
+    }
+
+    // Not dismissed and lightbox is open with multiple photos — show hint.
+    if (!showReorderHint) {
       setShowReorderHint(true);
       hintOpacity.value = withTiming(1, { duration: 300 });
-      hintDismissTimer.current = setTimeout(() => {
-        if (!cancelled) dismissReorderHint();
-      }, 3000);
-    }).catch(() => undefined);
+    }
+    // (Re-)arm the auto-dismiss timer.  Clear any previous one first so we
+    // don't accumulate timers if the effect re-runs while the hint is visible.
+    if (hintDismissTimer.current) {
+      clearTimeout(hintDismissTimer.current);
+      hintDismissTimer.current = null;
+    }
+    hintDismissTimer.current = setTimeout(() => {
+      dismissReorderHint();
+    }, 3000);
+
     return () => {
-      cancelled = true;
       if (hintDismissTimer.current) {
         clearTimeout(hintDismissTimer.current);
         hintDismissTimer.current = null;
       }
     };
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible, prefsReady, isHintDismissed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hintAnimatedStyle = useAnimatedStyle(() => ({
     opacity: hintOpacity.value,

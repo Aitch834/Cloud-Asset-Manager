@@ -1,6 +1,12 @@
 import { sql } from "drizzle-orm";
 import { index, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
+/** Shape of the ui_prefs JSONB column stored on each user row. */
+export interface UiPrefs {
+  /** Keys are hint IDs (e.g. "lightbox_reorder_hint_shown"); value is true when dismissed. */
+  [hintKey: string]: boolean | undefined;
+}
+
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
   "sessions",
@@ -22,6 +28,8 @@ export const usersTable = pgTable("users", {
   phoneNumber: varchar("phone_number"),
   smsOptIn: varchar("sms_opt_in").notNull().default("none"),
   smsConsentAt: timestamp("sms_consent_at", { withTimezone: true }),
+  /** Per-user UI hint dismissal flags, keyed by hint ID. Added via startup migration. */
+  uiPrefs: jsonb("ui_prefs").$type<UiPrefs>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

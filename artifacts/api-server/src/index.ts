@@ -23,6 +23,7 @@ import { runPestTrapMigrations } from "./lib/pestTrapMigrations";
 import { runSoilAnalysisMigrations } from "./lib/soilAnalysisMigrations";
 import { runAgriEnvMigrations } from "./lib/agriEnvMigrations";
 import { runAhwrMigrations } from "./lib/ahwrMigrations";
+import { runUserUiPrefsMigrations } from "./lib/userUiPrefsMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -155,6 +156,9 @@ app.listen(port, () => {
   });
   runAhwrMigrations().catch((err) => {
     console.error("[AHWR-MIGRATE] Failed:", err);
+  });
+  runUserUiPrefsMigrations().catch((err) => {
+    console.error("[UI-PREFS-MIGRATE] Failed:", err);
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);
