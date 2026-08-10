@@ -26,6 +26,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { identifierJustSavedKey } from "@/lib/hooks/useFarmIdentifiers";
 import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 import * as Location from "expo-location";
@@ -96,6 +98,17 @@ export default function MoreScreen() {
       refetchIdentifiers();
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
+      // Signal other livestock screens so they can show the confirmation nudge
+      if (currentFarm?.id) {
+        try {
+          await AsyncStorage.setItem(
+            identifierJustSavedKey(currentFarm.id),
+            JSON.stringify({ ts: Date.now() }),
+          );
+        } catch {
+          // best-effort
+        }
+      }
     } catch (err: unknown) {
       setProfileError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
     } finally {

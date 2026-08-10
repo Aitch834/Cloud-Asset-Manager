@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -59,8 +59,10 @@ export default function TbTestScreen() {
 
   const farmId = currentFarm?.id;
   const { herds, loading: herdsLoading } = useApiHerds(farmId);
-  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(farmId);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -190,6 +192,15 @@ export default function TbTestScreen() {
             <Text style={styles.subtitle}>Tuberculin skin test results & reactor log</Text>
           </View>
         </View>
+
+        {justSaved && !missingIdentifiers && !identifiersLoading && (
+          <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+            <Feather name="check-circle" size={15} color="#166534" />
+            <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+              Identifiers saved successfully. Tap to dismiss.
+            </Text>
+          </Pressable>
+        )}
 
         {missingIdentifiers && (
           <Pressable
@@ -511,6 +522,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
   },
   title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   subtitle: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },

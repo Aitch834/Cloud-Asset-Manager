@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -159,9 +159,11 @@ export default function LivestockPurchaseScreen() {
 
   const apiBase = getApiBase();
   const farmId = currentFarm?.id;
-  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(farmId);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("purchase", farmId);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   useEffect(() => {
     if (!farmId) return;
@@ -254,6 +256,15 @@ export default function LivestockPurchaseScreen() {
         <Text style={styles.headerTitle}>Livestock Purchase Invoice</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
 
       {missingIdentifiers && !bannerDismissed && (
         <Pressable
@@ -435,6 +446,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
   },
   section: {
     backgroundColor: colors.surface,

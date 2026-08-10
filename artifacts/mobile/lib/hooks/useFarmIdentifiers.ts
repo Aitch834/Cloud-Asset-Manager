@@ -1,7 +1,14 @@
 import { Platform } from "react-native";
 import { useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
+
+const JUST_SAVED_TTL_MS = 10_000; // 10 s — long enough to survive navigation back
+
+export function identifierJustSavedKey(farmId: string | undefined): string {
+  return `identifier-just-saved-${farmId ?? "unknown"}`;
+}
 
 interface FarmIdentifiers {
   cphNumber: string | null;
@@ -9,7 +16,9 @@ interface FarmIdentifiers {
   address: string | null;
   postcode: string | null;
   loading: boolean;
+  justSaved: boolean;
   refetch: () => void;
+  clearJustSaved: () => void;
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -43,8 +52,17 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
   const [postcode, setPostcode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchKey, setFetchKey] = useState(0);
+  const [justSaved, setJustSaved] = useState(false);
 
   const refetch = useCallback(() => setFetchKey(k => k + 1), []);
+  const clearJustSaved = useCallback(() => setJustSaved(false), []);
+
+  // Clear justSaved flag after TTL so the success banner auto-dismisses
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), JUST_SAVED_TTL_MS);
+    return () => clearTimeout(t);
+  }, [justSaved]);
 
   useEffect(() => {
     if (!farmId) {
@@ -66,6 +84,21 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
           setSbiNumber(data.record?.sbiNumber ?? null);
           setAddress(data.record?.address ?? null);
           setPostcode(data.record?.postcode ?? null);
+
+          // Check whether more.tsx wrote a "just saved" flag for this farm
+          try {
+            const key = identifierJustSavedKey(farmId);
+            const raw = await AsyncStorage.getItem(key);
+            if (raw && !cancelled) {
+              const { ts } = JSON.parse(raw) as { ts: number };
+              if (Date.now() - ts < JUST_SAVED_TTL_MS) {
+                setJustSaved(true);
+                await AsyncStorage.removeItem(key); // consume immediately
+              }
+            }
+          } catch {
+            // best-effort; don't surface to user
+          }
         }
       } catch {
         // silently ignore — no identifier data available offline
@@ -76,5 +109,5 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
     return () => { cancelled = true; };
   }, [farmId, fetchKey]);
 
-  return { cphNumber, sbiNumber, address, postcode, loading, refetch };
+  return { cphNumber, sbiNumber, address, postcode, loading, justSaved, refetch, clearJustSaved };
 }

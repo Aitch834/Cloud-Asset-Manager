@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
@@ -56,9 +56,11 @@ export default function MedicineRecordScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const { herds, loading: herdsLoading, error: herdsError, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
-  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("medicine", currentFarm?.id);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
@@ -161,6 +163,15 @@ export default function MedicineRecordScreen() {
         <Text style={styles.title}>Medicine Record</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
 
       {missingIdentifiers && !bannerDismissed && (
         <Pressable
@@ -490,6 +501,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
   },
   form: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   sectionLabel: {

@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -48,8 +48,10 @@ export default function LivestockMovementScreen() {
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
-  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
@@ -144,6 +146,15 @@ export default function LivestockMovementScreen() {
         <Text style={styles.title}>Livestock Movement</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
 
       {missingIdentifiers && (
         <Pressable
@@ -450,5 +461,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
   },
 });

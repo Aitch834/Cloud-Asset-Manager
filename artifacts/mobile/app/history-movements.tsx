@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -73,8 +73,10 @@ export default function HistoryMovementsScreen() {
     currentFarm?.id,
     "/api/farms/:farmId/movements",
   );
-  const { cphNumber, sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
@@ -116,6 +118,15 @@ export default function HistoryMovementsScreen() {
         <Text style={styles.title}>Livestock Movements</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
 
       {missingIdentifiers && (
         <Pressable
@@ -380,5 +391,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
   },
 });
