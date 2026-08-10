@@ -35,7 +35,7 @@ import {
   vineyardScoutingPhotosTable,
   vineyardSprayDiaryPhotosTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, isNull, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, inArray, sql, getTableColumns } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
 import { createScoutingAlerts } from "../lib/alertingJob";
 import { sanitiseBody } from "../lib/sanitise";
@@ -536,7 +536,22 @@ router.get("/farms/:farmId/vineyard-harvest/winery-contacts", requireAuth, requi
 
 router.get("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(vineyardScoutingTable).where(eq(vineyardScoutingTable.farmId, farmId)).orderBy(desc(vineyardScoutingTable.scoutDate));
+  const records = await db
+    .select({
+      ...getTableColumns(vineyardScoutingTable),
+      photoCount: sql<number>`count(${vineyardScoutingPhotosTable.id})::int`,
+    })
+    .from(vineyardScoutingTable)
+    .leftJoin(
+      vineyardScoutingPhotosTable,
+      and(
+        eq(vineyardScoutingPhotosTable.scoutingId, vineyardScoutingTable.id),
+        eq(vineyardScoutingPhotosTable.farmId, vineyardScoutingTable.farmId),
+      ),
+    )
+    .where(eq(vineyardScoutingTable.farmId, farmId))
+    .groupBy(vineyardScoutingTable.id)
+    .orderBy(desc(vineyardScoutingTable.scoutDate));
   res.json({ records });
 });
 

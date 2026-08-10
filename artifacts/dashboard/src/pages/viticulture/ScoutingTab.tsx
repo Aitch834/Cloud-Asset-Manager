@@ -7,8 +7,9 @@ import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
-  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
+  Droplet, FlaskConical, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
+  Camera, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -74,8 +75,23 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
+  const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Fetch photos for the lightbox scouting record; refresh every 4 minutes to keep presigned URLs valid
+  const { data: lightboxData, isLoading: lightboxLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
+    queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/vineyard-scouting/${lightboxScoutingId}/photos`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load photos"); return r.json(); }),
+    enabled: lightboxScoutingId !== null,
+    staleTime: 0,
+    refetchInterval: 4 * 60 * 1000,
+  });
+  const lightboxPhotos = lightboxData?.photos ?? [];
+  const currentPhoto = lightboxPhotos[lightboxPhotoIndex] ?? null;
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
@@ -407,6 +423,24 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
           { key: "botrytisPressure", label: "Botrytis", render: r => pressureLabel(r.botrytisPressure) },
           { key: "vineWeevilSighted", label: "Vine Weevil", render: r => r.vineWeevilSighted ? <Badge variant="destructive">Yes</Badge> : <span className="text-muted-foreground">No</span> },
           { key: "xylellaFastidiosa", label: "Xylella", render: r => r.xylellaFastidiosa ? <Badge className="bg-red-700 text-white hover:bg-red-700">ALERT</Badge> : <span className="text-muted-foreground">No</span> },
+          {
+            key: "photoCount", label: "Photos",
+            render: r => {
+              const count = Number(r.photoCount ?? 0);
+              if (count === 0) return <span className="text-muted-foreground text-xs">—</span>;
+              return (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setLightboxScoutingId(r.id as number); setLightboxPhotoIndex(0); }}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium hover:bg-primary/20 transition-colors"
+                  title="View photos"
+                >
+                  <Camera className="w-3 h-3" />
+                  {count}
+                </button>
+              );
+            },
+          },
         ]}
         rows={filteredScouting}
         onView={setViewing}
@@ -473,6 +507,97 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scouting Photo Lightbox */}
+      <Dialog
+        open={lightboxScoutingId !== null}
+        onOpenChange={o => { if (!o) { setLightboxScoutingId(null); setLightboxPhotoIndex(0); } }}
+      >
+        <DialogContent className="max-w-3xl p-2">
+          <DialogHeader className="px-2 pt-2 pb-1">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Camera className="w-4 h-4 text-muted-foreground" />
+              Scouting Photos
+              {lightboxPhotos.length > 0 && (
+                <span className="text-xs text-muted-foreground font-normal">
+                  {lightboxPhotoIndex + 1} / {lightboxPhotos.length}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {lightboxLoading && (
+            <div className="flex justify-center items-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!lightboxLoading && lightboxPhotos.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-12">No photos attached to this record.</p>
+          )}
+
+          {!lightboxLoading && !!currentPhoto && (
+            <div className="relative">
+              <img
+                src={String(currentPhoto.downloadUrl ?? "")}
+                alt={String(currentPhoto.fileName ?? "Scouting photo")}
+                className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
+                onError={e => { (e.target as HTMLImageElement).src = ""; }}
+              />
+
+              {/* Prev / Next controls */}
+              {lightboxPhotos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxPhotoIndex(i => (i - 1 + lightboxPhotos.length) % lightboxPhotos.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxPhotoIndex(i => (i + 1) % lightboxPhotos.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRightIcon className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Caption */}
+              {!!currentPhoto.caption && (
+                <p className="text-xs text-center text-muted-foreground mt-2 italic px-4">
+                  {String(currentPhoto.caption)}
+                </p>
+              )}
+
+              {/* Thumbnail strip */}
+              {lightboxPhotos.length > 1 && (
+                <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">
+                  {lightboxPhotos.map((ph, idx) => (
+                    <button
+                      key={String(ph.id)}
+                      type="button"
+                      onClick={() => setLightboxPhotoIndex(idx)}
+                      className={`shrink-0 w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === lightboxPhotoIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
+                    >
+                      <img
+                        src={String(ph.downloadUrl ?? "")}
+                        alt={String(ph.fileName ?? "")}
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
