@@ -1127,7 +1127,7 @@ const recordOptions: RecordOption[] = [
   {
     id: "vine-spray-diary-history",
     title: "Spray Diary History",
-    description: "View past vineyard spray diary entries and change the block link on any record",
+    description: "View past vineyard spray diary entries, attach or review application photos, and change the block link on any record",
     icon: "clock",
     color: "#7c3aed",
     bgColor: "#ede9fe",

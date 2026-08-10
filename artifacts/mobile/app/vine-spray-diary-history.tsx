@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -26,6 +27,10 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
+import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
+
+// 4-minute background refresh for presigned URLs
+const PHOTO_REFRESH_MS = 4 * 60 * 1000;
 
 interface SprayDiaryRecord {
   id: number;
@@ -46,6 +51,18 @@ interface SprayDiaryRecord {
   notes: string | null;
 }
 
+interface SprayDiaryPhoto {
+  id: number;
+  sprayDiaryId: number;
+  farmId: number;
+  objectPath: string;
+  fileName: string | null;
+  caption: string | null;
+  sortOrder: number | null;
+  uploadedAt: string;
+  downloadUrl: string | null;
+}
+
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -56,6 +73,322 @@ function formatDate(d: string | null | undefined): string {
 function useBlockName(blockId: number | null, blocks: VineBlock[]): string | null {
   if (!blockId) return null;
   return blocks.find(b => b.id === blockId)?.blockName ?? null;
+}
+
+// ─── Photo Thumbnail ──────────────────────────────────────────────────────────
+
+function SprayPhotoThumbnail({
+  photo,
+  onDelete,
+}: {
+  photo: SprayDiaryPhoto;
+  onDelete: (id: number) => void;
+}) {
+  const uri = photo.downloadUrl ?? null;
+
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert("Photo Options", undefined, [
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "Delete Photo",
+            "Are you sure you want to delete this photo? This cannot be undone.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+            ],
+          );
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  return (
+    <Pressable style={styles.thumbnail} onLongPress={handleLongPress}>
+      <View style={styles.thumbImgBox}>
+        {uri ? (
+          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.thumbPlaceholder}>
+            <Feather name="image" size={24} color={colors.textSecondary} />
+          </View>
+        )}
+      </View>
+      {photo.caption ? (
+        <Text style={styles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ─── Photo Gallery Section ────────────────────────────────────────────────────
+
+function SprayDiaryPhotoSection({
+  farmId,
+  sprayDiaryId,
+}: {
+  farmId: string | number;
+  sprayDiaryId: number;
+}) {
+  const [photos, setPhotos] = useState<SprayDiaryPhoto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`);
+      if (res.ok) {
+        const data: { photos: SprayDiaryPhoto[] } = await res.json();
+        setPhotos(data.photos ?? []);
+      }
+    } catch {
+      // no-op on silent refresh
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, [farmId, sprayDiaryId]);
+
+  // Initial load + 4-minute silent background refresh for presigned URLs
+  useEffect(() => {
+    loadPhotos();
+    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
+  }, [loadPhotos]);
+
+  const handleAddPhoto = async () => {
+    const uri = await pickPhoto("Attach Spray Diary Photo");
+    if (!uri) return;
+
+    setUploading(true);
+    try {
+      const apiBase = getApiBase();
+      const fileName = `spray-diary-${sprayDiaryId}-${Date.now()}.jpg`;
+      const objectPath = await uploadPhotoToStorage(uri, apiBase, fileName);
+      if (!objectPath) {
+        Alert.alert("Upload Failed", "Could not upload the photo. Please try again.");
+        return;
+      }
+
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath, fileName }),
+      });
+
+      if (!res.ok) {
+        Alert.alert("Upload Failed", "Photo was uploaded but could not be saved. Please try again.");
+        return;
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadPhotos();
+    } catch {
+      Alert.alert("Upload Failed", "An error occurred. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: number) => {
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photoId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      } else {
+        Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Delete Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  return (
+    <View style={styles.photoSection}>
+      <View style={styles.photoHeader}>
+        <Text style={styles.sectionLabel}>Application Photos</Text>
+        <Text style={styles.photoCount}>{photos.length} attached</Text>
+      </View>
+      <Text style={styles.photoHint}>
+        Long-press a photo to delete it.
+      </Text>
+
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
+      ) : (
+        <FlatList
+          data={photos}
+          keyExtractor={(item) => String(item.id)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled
+          style={{ marginTop: spacing.sm }}
+          contentContainerStyle={{ gap: spacing.sm }}
+          renderItem={({ item }) => (
+            <SprayPhotoThumbnail
+              photo={item}
+              onDelete={handleDeletePhoto}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyPhotos}>
+              <Feather name="image" size={20} color={colors.textSecondary} />
+              <Text style={styles.emptyPhotosText}>No photos yet</Text>
+            </View>
+          }
+        />
+      )}
+
+      <Pressable
+        style={[styles.addPhotoBtn, uploading && styles.addPhotoBtnDisabled]}
+        onPress={handleAddPhoto}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Feather name="camera" size={16} color={colors.primary} />
+        )}
+        <Text style={styles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Photo Gallery Modal ──────────────────────────────────────────────────────
+
+interface PhotoGalleryModalProps {
+  visible: boolean;
+  record: SprayDiaryRecord | null;
+  farmId: string;
+  blocks: VineBlock[];
+  blocksLoading: boolean;
+  onClose: () => void;
+  onChangeBlock: (record: SprayDiaryRecord) => void;
+}
+
+function PhotoGalleryModal({
+  visible,
+  record,
+  farmId,
+  blocks,
+  blocksLoading: _blocksLoading,
+  onClose,
+  onChangeBlock,
+}: PhotoGalleryModalProps) {
+  const linkedBlockName = record?.blockId
+    ? blocks.find(b => b.id === record.blockId)?.blockName ?? null
+    : null;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
+      <View style={photoModalStyles.container}>
+        {/* Header */}
+        <View style={photoModalStyles.header}>
+          <View style={photoModalStyles.headerLeft}>
+            <Text style={photoModalStyles.title} numberOfLines={1}>
+              {record?.productName ?? "Spray Entry"}
+            </Text>
+            <Text style={photoModalStyles.subtitle}>
+              {formatDate(record?.applicationDate)}
+              {linkedBlockName ? `  ·  ${linkedBlockName}` : ""}
+            </Text>
+          </View>
+          <Pressable onPress={onClose} style={photoModalStyles.closeBtn} hitSlop={12}>
+            <Feather name="x" size={22} color={colors.text} />
+          </Pressable>
+        </View>
+
+        {/* Record summary */}
+        <ScrollView style={photoModalStyles.scroll} contentContainerStyle={photoModalStyles.scrollContent}>
+          {record && (
+            <View style={photoModalStyles.summaryCard}>
+              {record.productType ? (
+                <View style={photoModalStyles.typeBadge}>
+                  <Text style={photoModalStyles.typeBadgeText}>{record.productType}</Text>
+                </View>
+              ) : null}
+              <View style={photoModalStyles.summaryGrid}>
+                {record.activeIngredient ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>Active Ingredient</Text>
+                    <Text style={photoModalStyles.summaryVal}>{record.activeIngredient}</Text>
+                  </View>
+                ) : null}
+                {record.mappNumber ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>MAPP No.</Text>
+                    <Text style={photoModalStyles.summaryVal}>{record.mappNumber}</Text>
+                  </View>
+                ) : null}
+                {record.ratePerHectare != null ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>Rate</Text>
+                    <Text style={photoModalStyles.summaryVal}>
+                      {record.ratePerHectare} {record.rateUnit ?? "L/ha"}
+                    </Text>
+                  </View>
+                ) : null}
+                {record.areaTreatedHa != null ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>Area</Text>
+                    <Text style={photoModalStyles.summaryVal}>{Number(record.areaTreatedHa).toFixed(2)} ha</Text>
+                  </View>
+                ) : null}
+                {record.operatorName ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>Operator</Text>
+                    <Text style={photoModalStyles.summaryVal}>{record.operatorName}</Text>
+                  </View>
+                ) : null}
+                {record.weatherConditions ? (
+                  <View style={photoModalStyles.summaryItem}>
+                    <Text style={photoModalStyles.summaryKey}>Weather</Text>
+                    <Text style={photoModalStyles.summaryVal}>{record.weatherConditions}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {record.notes ? (
+                <Text style={photoModalStyles.notes}>{record.notes}</Text>
+              ) : null}
+            </View>
+          )}
+
+          {/* Photo gallery */}
+          {record && (
+            <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} />
+          )}
+        </ScrollView>
+
+        {/* Footer — Change Block */}
+        <View style={photoModalStyles.footer}>
+          <Button
+            title="Change Block Link"
+            onPress={() => {
+              if (record) {
+                onClose();
+                // small delay so the gallery modal fully closes before the block picker opens
+                setTimeout(() => onChangeBlock(record), 350);
+              }
+            }}
+            variant="outline"
+            fullWidth
+            icon="layers"
+          />
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 // ─── Change Block Modal ────────────────────────────────────────────────────────
@@ -74,7 +407,6 @@ function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onCl
   const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Pre-select the currently linked block when modal opens
   React.useEffect(() => {
     if (visible && record) {
       const current = record.blockId ? blocks.find(b => b.id === record.blockId) ?? null : null;
@@ -182,28 +514,18 @@ function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onCl
 function SprayDiaryRow({
   item,
   blocks,
-  onChangeBlock,
+  onOpenPhotos,
 }: {
   item: SprayDiaryRecord;
   blocks: VineBlock[];
-  onChangeBlock: (record: SprayDiaryRecord) => void;
+  onOpenPhotos: (record: SprayDiaryRecord) => void;
 }) {
   const linkedBlockName = useBlockName(item.blockId, blocks);
   const linked = !!item.blockId;
 
   const handlePress = () => {
     Haptics.selectionAsync();
-    Alert.alert(
-      formatDate(item.applicationDate),
-      item.productName ?? "Spray entry",
-      [
-        {
-          text: "Change Block",
-          onPress: () => onChangeBlock(item),
-        },
-        { text: "Close", style: "cancel" },
-      ],
-    );
+    onOpenPhotos(item);
   };
 
   return (
@@ -237,6 +559,7 @@ function SprayDiaryRow({
             <Text style={styles.areaBadgeText}>{Number(item.areaTreatedHa).toFixed(1)} ha</Text>
           </View>
         ) : null}
+        <Feather name="camera" size={14} color={colors.textSecondary} />
         <Feather name="chevron-right" size={16} color={colors.textSecondary} />
       </View>
     </Pressable>
@@ -255,6 +578,7 @@ export default function VineSprayDiaryHistoryScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
   const [search, setSearch] = useState("");
+  const [photoRecord, setPhotoRecord] = useState<SprayDiaryRecord | null>(null);
   const [changingRecord, setChangingRecord] = useState<SprayDiaryRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, { blockId: number | null }>>({});
 
@@ -280,10 +604,6 @@ export default function VineSprayDiaryHistoryScreen() {
       );
     });
   }, [displayRecords, search, blocks]);
-
-  const handleChangeBlock = (record: SprayDiaryRecord) => {
-    setChangingRecord(record);
-  };
 
   const handleBlockSaved = (recordId: number, block: VineBlock | null) => {
     setLocalUpdates(prev => ({
@@ -332,7 +652,7 @@ export default function VineSprayDiaryHistoryScreen() {
             <SprayDiaryRow
               item={item}
               blocks={blocks}
-              onChangeBlock={handleChangeBlock}
+              onOpenPhotos={setPhotoRecord}
             />
           )}
           ListEmptyComponent={
@@ -347,6 +667,18 @@ export default function VineSprayDiaryHistoryScreen() {
         />
       )}
 
+      {/* Photo gallery modal — opens when a row is tapped */}
+      <PhotoGalleryModal
+        visible={photoRecord !== null}
+        record={photoRecord}
+        farmId={currentFarm?.id ?? ""}
+        blocks={blocks}
+        blocksLoading={blocksLoading}
+        onClose={() => setPhotoRecord(null)}
+        onChangeBlock={record => setChangingRecord(record)}
+      />
+
+      {/* Change block modal — opened from the gallery modal footer */}
       <ChangeBlockModal
         visible={changingRecord !== null}
         record={changingRecord}
@@ -359,6 +691,70 @@ export default function VineSprayDiaryHistoryScreen() {
     </View>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const photoModalStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  headerLeft: { flex: 1, marginRight: spacing.md },
+  title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  closeBtn: { padding: spacing.xs, marginTop: 2 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  typeBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ede9fe",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: spacing.sm,
+  },
+  typeBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+  summaryGrid: { gap: spacing.sm },
+  summaryItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.md },
+  summaryKey: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },
+  summaryVal: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text, flex: 2, textAlign: "right" },
+  notes: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    fontStyle: "italic",
+  },
+  footer: {
+    padding: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+});
 
 const modalStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
@@ -539,4 +935,91 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  // Photo section
+  photoSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  photoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
+  },
+  sectionLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  photoCount: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  photoHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  thumbnail: { alignItems: "center", maxWidth: 90 },
+  thumbImgBox: {
+    width: 80,
+    height: 80,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: colors.border,
+  },
+  thumbImage: { width: "100%", height: "100%" },
+  thumbPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.borderLight,
+  },
+  captionBelow: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 4,
+    textAlign: "center",
+    maxWidth: 80,
+  },
+  emptyPhotos: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  emptyPhotosText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  addPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignSelf: "flex-start",
+  },
+  addPhotoBtnDisabled: { opacity: 0.5 },
+  addPhotoBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
 });
