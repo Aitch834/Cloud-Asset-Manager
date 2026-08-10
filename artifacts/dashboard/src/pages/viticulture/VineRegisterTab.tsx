@@ -403,7 +403,9 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
-          <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
+          {!!farmRecord?.sbiNumber && !!farmRecord?.sectorViticulture && (
+            <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
