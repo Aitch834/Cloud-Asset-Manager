@@ -506,6 +506,211 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
 export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const farmNameVessels = useFarmName(farmId);
+
+  const handleBarrelPrint = async (vessel: Record<string, unknown>) => {
+    // Open the window synchronously within the click handler so popup
+    // blockers treat it as user-initiated, then populate after fetching.
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Loading…</title></head><body><p style=\"font-family:Arial,sans-serif;font-size:13px;margin:30px\">Loading barrel history…</p></body></html>");
+    win.document.close();
+
+    const vid = vessel.id as number;
+    let fills: Record<string, unknown>[] = [];
+    let maint: Record<string, unknown>[] = [];
+    let movs: Record<string, unknown>[] = [];
+    let cleans: Record<string, unknown>[] = [];
+    const fetchErrors: string[] = [];
+    try {
+      const [fillsRes, maintRes, movRes, cleansRes] = await Promise.all([
+        fetch(api(`farms/${farmId}/winery-vessels/${vid}/fills`), { credentials: "include" }),
+        fetch(api(`farms/${farmId}/winery-vessels/${vid}/maintenance`), { credentials: "include" }),
+        fetch(api(`farms/${farmId}/winery-vessels/${vid}/movements`), { credentials: "include" }),
+        fetch(api(`farms/${farmId}/winery-vessels/${vid}/cleans`), { credentials: "include" }),
+      ]);
+      if (fillsRes.ok) { fills = ((await fillsRes.json()).records ?? []) as Record<string, unknown>[]; }
+      else { fetchErrors.push(`Fill history (HTTP ${fillsRes.status})`); }
+      if (maintRes.ok) { maint = ((await maintRes.json()).records ?? []) as Record<string, unknown>[]; }
+      else { fetchErrors.push(`Maintenance log (HTTP ${maintRes.status})`); }
+      if (movRes.ok) { movs = ((await movRes.json()).records ?? []) as Record<string, unknown>[]; }
+      else { fetchErrors.push(`Location history (HTTP ${movRes.status})`); }
+      if (cleansRes.ok) { cleans = ((await cleansRes.json()).records ?? []) as Record<string, unknown>[]; }
+      else { fetchErrors.push(`Cleaning history (HTTP ${cleansRes.status})`); }
+    } catch (err) {
+      win.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;font-size:13px;margin:30px;color:red">Failed to load barrel history: ${String(err)}</p>`;
+      return;
+    }
+
+    const doc = win.document;
+    doc.open();
+    doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Barrel History</title><style>" +
+      "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
+      "h1{font-size:15px;font-weight:700;margin:0 0 2px}" +
+      "h2{font-size:12px;font-weight:700;margin:18px 0 6px;padding-bottom:3px;border-bottom:1px solid #ccc}" +
+      ".meta{font-size:10px;color:#555;margin-bottom:14px}" +
+      ".identity{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px;margin-bottom:4px}" +
+      ".field{font-size:11px}.field .lbl{color:#555;font-size:10px;display:block}" +
+      "table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px}" +
+      "th{background:#f0f0f0;font-weight:700;text-align:left;padding:4px 7px;border:1px solid #ccc}" +
+      "td{padding:3px 7px;border:1px solid #ddd;vertical-align:top}" +
+      "tr:nth-child(even) td{background:#fafafa}" +
+      ".empty{color:#888;font-style:italic;font-size:11px}" +
+      ".footer{margin-top:14px;font-size:9px;color:#888}" +
+      "@media print{body{margin:10mm}}" +
+      "</style></head><body></body></html>");
+    doc.close();
+
+    // Title
+    const h1 = doc.createElement("h1");
+    h1.textContent = `Barrel History — ${String(vessel.vessel_ref ?? "")}`;
+    doc.body.appendChild(h1);
+    const meta = doc.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${farmNameVessels}  ·  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+    doc.body.appendChild(meta);
+
+    // Fetch error warning
+    if (fetchErrors.length > 0) {
+      const warn = doc.createElement("div");
+      warn.style.cssText = "background:#fff3cd;border:1px solid #f0ad4e;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#856404";
+      warn.textContent = `⚠ The following sections could not be loaded and are missing from this report: ${fetchErrors.join(", ")}. Please try again or contact support.`;
+      doc.body.appendChild(warn);
+    }
+
+    // Identity grid
+    const identityFields: [string, string][] = [
+      ["Vessel Ref", String(vessel.vessel_ref ?? "—")],
+      ["Type", String(vessel.vessel_type ?? "—")],
+      ["Capacity", vessel.capacity_litres ? `${fmtNum(vessel.capacity_litres, 0)} L` : "—"],
+      ["Oak Origin", String(vessel.oak_origin ?? "—")],
+      ["Cooperage", String(vessel.cooperage ?? "—")],
+      ["Toasting", String(vessel.toasting_level ?? "—")],
+      ["Cellar Zone", String(vessel.cellar_zone ?? "—")],
+      ["Position", String(vessel.cellar_position ?? "—")],
+      ["Status", vessel.is_full ? "Full" : "Empty"],
+      ["Current Contents", String(vessel.current_contents ?? "—")],
+      ["Current Volume", vessel.current_volume_litres ? `${fmtNum(vessel.current_volume_litres, 0)} L` : "—"],
+      ["Year Purchased", String(vessel.year_purchased ?? "—")],
+    ];
+    const grid = doc.createElement("div");
+    grid.className = "identity";
+    for (const [lbl, val] of identityFields) {
+      const d = doc.createElement("div");
+      d.className = "field";
+      const s = doc.createElement("span");
+      s.className = "lbl";
+      s.textContent = lbl;
+      d.appendChild(s);
+      d.appendChild(doc.createTextNode(val));
+      grid.appendChild(d);
+    }
+    doc.body.appendChild(grid);
+
+    // Helper: section heading
+    const addH2 = (text: string) => {
+      const h2 = doc.createElement("h2");
+      h2.textContent = text;
+      doc.body.appendChild(h2);
+    };
+
+    // Helper: table
+    const addTable = (headers: string[], rows: string[][], emptyMsg: string) => {
+      if (rows.length === 0) {
+        const p = doc.createElement("p");
+        p.className = "empty";
+        p.textContent = emptyMsg;
+        doc.body.appendChild(p);
+        return;
+      }
+      const table = doc.createElement("table");
+      const thead = doc.createElement("thead");
+      const hRow = doc.createElement("tr");
+      for (const h of headers) { const th = doc.createElement("th"); th.textContent = h; hRow.appendChild(th); }
+      thead.appendChild(hRow);
+      table.appendChild(thead);
+      const tbody = doc.createElement("tbody");
+      for (const cells of rows) {
+        const tr = doc.createElement("tr");
+        for (const cell of cells) { const td = doc.createElement("td"); td.textContent = cell; tr.appendChild(td); }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      doc.body.appendChild(table);
+    };
+
+    // Fill history
+    addH2(`Fill History (${fills.length} record${fills.length !== 1 ? "s" : ""})`);
+    addTable(
+      ["Fill No.", "Wine / Variety", "Vintage", "Batch Ref", "Fill Date", "Rack-out Date", "Duration", "Volume (L)", "Operator", "Notes"],
+      fills.map(f => [
+        String(f.fill_number ?? "—"),
+        [f.wine_name, f.variety].filter(Boolean).join(" / ") || "—",
+        String(f.vintage_year ?? "—"),
+        String(f.batch_ref ?? "—"),
+        f.fill_date ? fmtDate(f.fill_date) : "—",
+        f.rack_out_date ? fmtDate(f.rack_out_date) : "Still maturing",
+        durationLabel(f.fill_date, f.rack_out_date),
+        f.volume_litres ? fmtNum(f.volume_litres, 0) : "—",
+        String(f.operator_name ?? "—"),
+        String(f.notes ?? ""),
+      ]),
+      "No fill records logged.",
+    );
+
+    // Maintenance log
+    const totalSpend = maint.reduce((s, m) => s + (m.cost_pence != null ? Number(m.cost_pence) : 0), 0);
+    const maintHdr = `Cooperage / Maintenance (${maint.length} record${maint.length !== 1 ? "s" : ""}${totalSpend > 0 ? ` · Total: £${(totalSpend / 100).toFixed(2)}` : ""})`;
+    addH2(maintHdr);
+    addTable(
+      ["Date", "Work Type", "Cooperage", "Cost (£)", "Notes"],
+      maint.map(m => [
+        m.maintenance_date ? fmtDate(m.maintenance_date) : "—",
+        String(m.work_type ?? "—"),
+        String(m.cooperage_name ?? "—"),
+        m.cost_pence != null ? `£${(Number(m.cost_pence) / 100).toFixed(2)}` : "—",
+        String(m.notes ?? ""),
+      ]),
+      "No cooperage or maintenance records logged.",
+    );
+
+    // Location movements
+    addH2(`Location History (${movs.length} move${movs.length !== 1 ? "s" : ""})`);
+    addTable(
+      ["Date", "Reason", "From", "To", "Operator", "Notes"],
+      movs.map(m => [
+        m.moved_date ? fmtDate(m.moved_date) : "—",
+        String(m.reason ?? "—"),
+        [m.from_zone, m.from_position].filter(Boolean).join(" / ") || "—",
+        [m.to_zone, m.to_position].filter(Boolean).join(" / ") || "—",
+        String(m.operator_name ?? "—"),
+        String(m.notes ?? ""),
+      ]),
+      "No movements recorded.",
+    );
+
+    // Cleaning history
+    addH2(`Cleaning History (${cleans.length} record${cleans.length !== 1 ? "s" : ""})`);
+    addTable(
+      ["Clean Date", "Clean Type", "Rinse Completed", "Agent / Concentration", "Operator", "Notes"],
+      cleans.map(c => [
+        c.clean_date ? fmtDate(c.clean_date) : "—",
+        String(c.clean_type ?? "—"),
+        c.rinse_completed === true || c.rinse_completed === "true" ? "Yes" : c.rinse_completed === false || c.rinse_completed === "false" ? "No" : "—",
+        [c.cleaning_product, c.concentration_pct != null ? `${String(c.concentration_pct)}%` : null].filter(Boolean).join(" / ") || "—",
+        String(c.operator_name ?? "—"),
+        String(c.notes ?? ""),
+      ]),
+      "No cleaning records logged.",
+    );
+
+    const footer = doc.createElement("div");
+    footer.className = "footer";
+    footer.textContent = `BDE Farm Trac · ${farmNameVessels} · Barrel ref: ${String(vessel.vessel_ref ?? "")}`;
+    doc.body.appendChild(footer);
+
+    win.focus();
+    win.print();
+  };
   const crud = useCrud(farmId, "winery-vessels", "winery-vessels");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -983,6 +1188,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <NotesCell notes={r.notes} />
                     <td className="p-3 text-right whitespace-nowrap">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                      {isBarrelRow && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Print barrel history" onClick={() => handleBarrelPrint(r)}><Printer className="h-4 w-4" /></Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
                     </td>
@@ -1102,214 +1310,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {(String(view.vessel_type ?? "").toLowerCase().includes("barrel") || String(view.vessel_type ?? "").toLowerCase().includes("barrique")) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    // Open the window synchronously within the click handler so popup
-                    // blockers treat it as user-initiated, then populate after fetching.
-                    const win = window.open("", "_blank");
-                    if (!win) return;
-                    win.document.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Loading…</title></head><body><p style=\"font-family:Arial,sans-serif;font-size:13px;margin:30px\">Loading barrel history…</p></body></html>");
-                    win.document.close();
-
-                    const vid = view.id as number;
-                    let fills: Record<string, unknown>[] = [];
-                    let maint: Record<string, unknown>[] = [];
-                    let movs: Record<string, unknown>[] = [];
-                    let cleans: Record<string, unknown>[] = [];
-                    const fetchErrors: string[] = [];
-                    try {
-                      const [fillsRes, maintRes, movRes, cleansRes] = await Promise.all([
-                        fetch(api(`farms/${farmId}/winery-vessels/${vid}/fills`), { credentials: "include" }),
-                        fetch(api(`farms/${farmId}/winery-vessels/${vid}/maintenance`), { credentials: "include" }),
-                        fetch(api(`farms/${farmId}/winery-vessels/${vid}/movements`), { credentials: "include" }),
-                        fetch(api(`farms/${farmId}/winery-vessels/${vid}/cleans`), { credentials: "include" }),
-                      ]);
-                      if (fillsRes.ok) { fills = ((await fillsRes.json()).records ?? []) as Record<string, unknown>[]; }
-                      else { fetchErrors.push(`Fill history (HTTP ${fillsRes.status})`); }
-                      if (maintRes.ok) { maint = ((await maintRes.json()).records ?? []) as Record<string, unknown>[]; }
-                      else { fetchErrors.push(`Maintenance log (HTTP ${maintRes.status})`); }
-                      if (movRes.ok) { movs = ((await movRes.json()).records ?? []) as Record<string, unknown>[]; }
-                      else { fetchErrors.push(`Location history (HTTP ${movRes.status})`); }
-                      if (cleansRes.ok) { cleans = ((await cleansRes.json()).records ?? []) as Record<string, unknown>[]; }
-                      else { fetchErrors.push(`Cleaning history (HTTP ${cleansRes.status})`); }
-                    } catch (err) {
-                      win.document.body.innerHTML = `<p style="font-family:Arial,sans-serif;font-size:13px;margin:30px;color:red">Failed to load barrel history: ${String(err)}</p>`;
-                      return;
-                    }
-
-                    const doc = win.document;
-                    doc.open();
-                    doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Barrel History</title><style>" +
-                      "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
-                      "h1{font-size:15px;font-weight:700;margin:0 0 2px}" +
-                      "h2{font-size:12px;font-weight:700;margin:18px 0 6px;padding-bottom:3px;border-bottom:1px solid #ccc}" +
-                      ".meta{font-size:10px;color:#555;margin-bottom:14px}" +
-                      ".identity{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px;margin-bottom:4px}" +
-                      ".field{font-size:11px}.field .lbl{color:#555;font-size:10px;display:block}" +
-                      "table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px}" +
-                      "th{background:#f0f0f0;font-weight:700;text-align:left;padding:4px 7px;border:1px solid #ccc}" +
-                      "td{padding:3px 7px;border:1px solid #ddd;vertical-align:top}" +
-                      "tr:nth-child(even) td{background:#fafafa}" +
-                      ".empty{color:#888;font-style:italic;font-size:11px}" +
-                      ".footer{margin-top:14px;font-size:9px;color:#888}" +
-                      "@media print{body{margin:10mm}}" +
-                      "</style></head><body></body></html>");
-                    doc.close();
-
-                    // Title
-                    const h1 = doc.createElement("h1");
-                    h1.textContent = `Barrel History — ${String(view.vessel_ref ?? "")}`;
-                    doc.body.appendChild(h1);
-                    const meta = doc.createElement("div");
-                    meta.className = "meta";
-                    meta.textContent = `${farmNameVessels}  ·  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
-                    doc.body.appendChild(meta);
-
-                    // Fetch error warning
-                    if (fetchErrors.length > 0) {
-                      const warn = doc.createElement("div");
-                      warn.style.cssText = "background:#fff3cd;border:1px solid #f0ad4e;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#856404";
-                      warn.textContent = `⚠ The following sections could not be loaded and are missing from this report: ${fetchErrors.join(", ")}. Please try again or contact support.`;
-                      doc.body.appendChild(warn);
-                    }
-
-                    // Identity grid
-                    const identityFields: [string, string][] = [
-                      ["Vessel Ref", String(view.vessel_ref ?? "—")],
-                      ["Type", String(view.vessel_type ?? "—")],
-                      ["Capacity", view.capacity_litres ? `${fmtNum(view.capacity_litres, 0)} L` : "—"],
-                      ["Oak Origin", String(view.oak_origin ?? "—")],
-                      ["Cooperage", String(view.cooperage ?? "—")],
-                      ["Toasting", String(view.toasting_level ?? "—")],
-                      ["Cellar Zone", String(view.cellar_zone ?? "—")],
-                      ["Position", String(view.cellar_position ?? "—")],
-                      ["Status", view.is_full ? "Full" : "Empty"],
-                      ["Current Contents", String(view.current_contents ?? "—")],
-                      ["Current Volume", view.current_volume_litres ? `${fmtNum(view.current_volume_litres, 0)} L` : "—"],
-                      ["Year Purchased", String(view.year_purchased ?? "—")],
-                    ];
-                    const grid = doc.createElement("div");
-                    grid.className = "identity";
-                    for (const [lbl, val] of identityFields) {
-                      const d = doc.createElement("div");
-                      d.className = "field";
-                      const s = doc.createElement("span");
-                      s.className = "lbl";
-                      s.textContent = lbl;
-                      d.appendChild(s);
-                      d.appendChild(doc.createTextNode(val));
-                      grid.appendChild(d);
-                    }
-                    doc.body.appendChild(grid);
-
-                    // Helper: section heading
-                    const addH2 = (text: string) => {
-                      const h2 = doc.createElement("h2");
-                      h2.textContent = text;
-                      doc.body.appendChild(h2);
-                    };
-
-                    // Helper: table
-                    const addTable = (headers: string[], rows: string[][], emptyMsg: string) => {
-                      if (rows.length === 0) {
-                        const p = doc.createElement("p");
-                        p.className = "empty";
-                        p.textContent = emptyMsg;
-                        doc.body.appendChild(p);
-                        return;
-                      }
-                      const table = doc.createElement("table");
-                      const thead = doc.createElement("thead");
-                      const hRow = doc.createElement("tr");
-                      for (const h of headers) { const th = doc.createElement("th"); th.textContent = h; hRow.appendChild(th); }
-                      thead.appendChild(hRow);
-                      table.appendChild(thead);
-                      const tbody = doc.createElement("tbody");
-                      for (const cells of rows) {
-                        const tr = doc.createElement("tr");
-                        for (const cell of cells) { const td = doc.createElement("td"); td.textContent = cell; tr.appendChild(td); }
-                        tbody.appendChild(tr);
-                      }
-                      table.appendChild(tbody);
-                      doc.body.appendChild(table);
-                    };
-
-                    // Fill history
-                    addH2(`Fill History (${fills.length} record${fills.length !== 1 ? "s" : ""})`);
-                    addTable(
-                      ["Fill No.", "Wine / Variety", "Vintage", "Batch Ref", "Fill Date", "Rack-out Date", "Duration", "Volume (L)", "Operator", "Notes"],
-                      fills.map(f => [
-                        String(f.fill_number ?? "—"),
-                        [f.wine_name, f.variety].filter(Boolean).join(" / ") || "—",
-                        String(f.vintage_year ?? "—"),
-                        String(f.batch_ref ?? "—"),
-                        f.fill_date ? fmtDate(f.fill_date) : "—",
-                        f.rack_out_date ? fmtDate(f.rack_out_date) : "Still maturing",
-                        durationLabel(f.fill_date, f.rack_out_date),
-                        f.volume_litres ? fmtNum(f.volume_litres, 0) : "—",
-                        String(f.operator_name ?? "—"),
-                        String(f.notes ?? ""),
-                      ]),
-                      "No fill records logged.",
-                    );
-
-                    // Maintenance log
-                    const totalSpend = maint.reduce((s, m) => s + (m.cost_pence != null ? Number(m.cost_pence) : 0), 0);
-                    const maintHdr = `Cooperage / Maintenance (${maint.length} record${maint.length !== 1 ? "s" : ""}${totalSpend > 0 ? ` · Total: £${(totalSpend / 100).toFixed(2)}` : ""})`;
-                    addH2(maintHdr);
-                    addTable(
-                      ["Date", "Work Type", "Cooperage", "Cost (£)", "Notes"],
-                      maint.map(m => [
-                        m.maintenance_date ? fmtDate(m.maintenance_date) : "—",
-                        String(m.work_type ?? "—"),
-                        String(m.cooperage_name ?? "—"),
-                        m.cost_pence != null ? `£${(Number(m.cost_pence) / 100).toFixed(2)}` : "—",
-                        String(m.notes ?? ""),
-                      ]),
-                      "No cooperage or maintenance records logged.",
-                    );
-
-                    // Location movements
-                    addH2(`Location History (${movs.length} move${movs.length !== 1 ? "s" : ""})`);
-                    addTable(
-                      ["Date", "Reason", "From", "To", "Operator", "Notes"],
-                      movs.map(m => [
-                        m.moved_date ? fmtDate(m.moved_date) : "—",
-                        String(m.reason ?? "—"),
-                        [m.from_zone, m.from_position].filter(Boolean).join(" / ") || "—",
-                        [m.to_zone, m.to_position].filter(Boolean).join(" / ") || "—",
-                        String(m.operator_name ?? "—"),
-                        String(m.notes ?? ""),
-                      ]),
-                      "No movements recorded.",
-                    );
-
-                    // Cleaning history
-                    addH2(`Cleaning History (${cleans.length} record${cleans.length !== 1 ? "s" : ""})`);
-                    addTable(
-                      ["Clean Date", "Clean Type", "Rinse Completed", "Agent / Concentration", "Operator", "Notes"],
-                      cleans.map(c => [
-                        c.clean_date ? fmtDate(c.clean_date) : "—",
-                        String(c.clean_type ?? "—"),
-                        c.rinse_completed === true || c.rinse_completed === "true" ? "Yes" : c.rinse_completed === false || c.rinse_completed === "false" ? "No" : "—",
-                        [c.cleaning_product, c.concentration_pct != null ? `${String(c.concentration_pct)}%` : null].filter(Boolean).join(" / ") || "—",
-                        String(c.operator_name ?? "—"),
-                        String(c.notes ?? ""),
-                      ]),
-                      "No cleaning records logged.",
-                    );
-
-                    const footer = doc.createElement("div");
-                    footer.className = "footer";
-                    footer.textContent = `BDE Farm Trac · ${farmNameVessels} · Barrel ref: ${String(view.vessel_ref ?? "")}`;
-                    doc.body.appendChild(footer);
-
-                    win.focus();
-                    win.print();
-                  }}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleBarrelPrint(view)}>
                   <Printer className="w-3 h-3 mr-1" />Print Barrel History
                 </Button>
               )}
