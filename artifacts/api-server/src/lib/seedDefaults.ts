@@ -138,14 +138,22 @@ async function seedDevData() {
   const allDevFarms = await db.select().from(farmsTable).where(eq(farmsTable.tenantId, tenant.id));
 
   for (const devFarm of allDevFarms) {
-    for (const mod of allModules) {
-      const existing = await db.select().from(subscriptionsTable).where(and(
-        eq(subscriptionsTable.farmId, devFarm.id),
-        eq(subscriptionsTable.tenantId, tenant.id),
-        eq(subscriptionsTable.moduleId, mod.id),
-      )).limit(1);
+    // If the farm already has some subscriptions but not all modules, it has been
+    // intentionally configured (e.g. a demo farm with only specific modules).
+    // Skip the all-modules seed so we don't clobber deliberate restrictions.
+    const existingSubRows = await db.select().from(subscriptionsTable).where(and(
+      eq(subscriptionsTable.farmId, devFarm.id),
+      eq(subscriptionsTable.tenantId, tenant.id),
+    ));
+    const existingCount = existingSubRows.length;
+    if (existingCount > 0 && existingCount < allModules.length) {
+      console.log(`[SEED] Skipping full-module seed for farm ${devFarm.id} (${existingCount} configured subscriptions — intentionally limited)`);
+      continue;
+    }
 
-      if (existing.length === 0) {
+    for (const mod of allModules) {
+      const alreadyHas = existingSubRows.some(s => s.moduleId === mod.id);
+      if (!alreadyHas) {
         const periodStart = new Date();
         const periodEnd = new Date(periodStart);
         periodEnd.setFullYear(periodEnd.getFullYear() + 10);
