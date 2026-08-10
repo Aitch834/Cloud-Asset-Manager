@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getSecret } from "@/lib/auth";
 import {
   Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
   Plus, Pencil, Trash2, ChevronDown, X, Save, ChevronRight, Palette,
+  Upload, RotateCcw,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -117,6 +118,164 @@ function triggerDownload(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Brand assets (logo + QR) ──────────────────────────────────────────────────
+
+async function fetchBrandAssets(): Promise<{ logo: string; qr: string }> {
+  const res = await fetch("/api/admin/platform-config", { headers: adminHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json() as { items: Array<{ key: string; currentValue: string | null; defaultValue: string }> };
+  const byKey: Record<string, string> = {};
+  for (const item of json.items) byKey[item.key] = item.currentValue ?? item.defaultValue ?? "";
+  return { logo: byKey["brand.adLogoDataUrl"] ?? "", qr: byKey["brand.adQrDataUrl"] ?? "" };
+}
+
+async function saveBrandAsset(key: string, value: string): Promise<void> {
+  const res = await fetch(`/api/admin/platform-config/${key}`, {
+    method: "PUT",
+    headers: adminHeaders(),
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+}
+
+async function clearBrandAsset(key: string): Promise<void> {
+  const res = await fetch(`/api/admin/platform-config/${key}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+}
+
+function AssetUploader({
+  label, hint, assetKey, currentDataUrl, onSaved,
+}: {
+  label: string;
+  hint: string;
+  assetKey: string;
+  currentDataUrl: string;
+  onSaved: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft]     = useState<string>(currentDataUrl);
+  const [saving, setSaving]   = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [saved,  setSaved]    = useState(false);
+  const [error,  setError]    = useState<string | null>(null);
+
+  // Sync when parent reloads
+  useEffect(() => { setDraft(currentDataUrl); }, [currentDataUrl]);
+
+  const isDirty = draft !== currentDataUrl;
+
+  function handleFile(file: File) {
+    if (file.size > 500 * 1024) { setError("File must be under 500 KB."); return; }
+    if (!file.type.startsWith("image/")) { setError("Please select a PNG, JPG, SVG or WebP image."); return; }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => setDraft(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSave() {
+    if (!draft.trim()) return;
+    setSaving(true); setError(null);
+    try {
+      await saveBrandAsset(assetKey, draft);
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally { setSaving(false); }
+  }
+
+  async function handleClear() {
+    setClearing(true); setError(null);
+    try {
+      await clearBrandAsset(assetKey);
+      setDraft("");
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clear failed");
+    } finally { setClearing(false); }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
+      </div>
+
+      {/* Preview */}
+      <div className="flex items-start gap-4">
+        <div className="w-28 h-20 rounded-lg border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+          {draft ? (
+            <img src={draft} alt={label} className="max-w-full max-h-full object-contain p-1" />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-muted-foreground/40" />
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
+          />
+          <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
+            {draft ? "Replace image" : "Upload image"}
+          </Button>
+          {draft && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={clearing}
+              onClick={handleClear}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+              {clearing ? "Clearing…" : "Clear (use fallback)"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={saving || !draft.trim() || !isDirty}
+          onClick={handleSave}
+        >
+          {saved && !isDirty ? (
+            <><CheckCircle className="w-3.5 h-3.5 mr-1.5" />Saved</>
+          ) : (
+            <><Save className="w-3.5 h-3.5 mr-1.5" />{saving ? "Saving…" : "Save"}</>
+          )}
+        </Button>
+        {isDirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+      </div>
+    </div>
+  );
 }
 
 // ── Template form (create / edit) ─────────────────────────────────────────────
@@ -316,6 +475,12 @@ export default function AdPdfGenerator() {
   const { data: templates = [], isLoading: loadingTemplates } = useQuery<AdTemplate[]>({
     queryKey: ["ad-templates"],
     queryFn: fetchTemplates,
+  });
+
+  // Brand assets
+  const { data: brandAssets, refetch: refetchBrandAssets } = useQuery<{ logo: string; qr: string }>({
+    queryKey: ["brand-assets"],
+    queryFn: fetchBrandAssets,
   });
 
   // Selected template for rendering
@@ -625,6 +790,40 @@ export default function AdPdfGenerator() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* ── Brand assets section ── */}
+      <div className="border-t border-border pt-8 space-y-5">
+        <div>
+          <h2 className="text-base font-semibold">Brand assets</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Logo and QR code embedded into every ad PDF via the{" "}
+            <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code> and{" "}
+            <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> placeholders.
+            Upload once and all templates use them automatically.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-6 divide-y divide-border space-y-6">
+          <AssetUploader
+            label="BDE Farm Trac logo"
+            hint="PNG, SVG or WebP — shown top-right in the ad. Recommended: transparent background, max 500 KB."
+            assetKey="brand.adLogoDataUrl"
+            currentDataUrl={brandAssets?.logo ?? ""}
+            onSaved={() => refetchBrandAssets()}
+          />
+          <div className="pt-6">
+            <AssetUploader
+              label="QR code — bdefarmtrac.co.uk"
+              hint="PNG pointing to bdefarmtrac.co.uk — shown bottom-right in the ad. Recommended: square, max 500 KB."
+              assetKey="brand.adQrDataUrl"
+              currentDataUrl={brandAssets?.qr ?? ""}
+              onSaved={() => refetchBrandAssets()}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          If both fields are blank the renderer falls back to extracting the logo and QR from the legacy on-disk template HTML files.
+        </p>
       </div>
 
       {/* ── Template library section ── */}

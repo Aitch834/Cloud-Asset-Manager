@@ -1,11 +1,36 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
+
+/** Extract the first base64 data-URI src from an img tag matching the given alt text */
+function extractAdB64ByAlt(html: string, altText: string): string {
+  const escaped = altText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = html.match(
+    new RegExp(
+      `<img[^>]*alt="${escaped}"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*alt="${escaped}"`,
+    ),
+  );
+  return m ? (m[1] ?? m[2] ?? "") : "";
+}
+
+/** Extract the first base64 data-URI src from an img tag matching the given CSS class */
+function extractAdB64ByClass(html: string, className: string): string {
+  // Match <img class="logo" src="data:..."> or where class appears among others
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = html.match(
+    new RegExp(`<img[^>]*class="[^"]*\\b${escaped}\\b[^"]*"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*class="[^"]*\\b${escaped}\\b[^"]*"`),
+  );
+  return m ? (m[1] ?? m[2] ?? "") : "";
+}
 
 /**
  * Idempotent migrations for the ad_templates table.
  * Safe to run on every startup — uses CREATE TABLE IF NOT EXISTS.
  * Seeds the two default viticulture templates if the table is empty,
  * and upgrades any already-seeded templates that pre-date placeholder support.
+ * Also seeds the BDE logo and QR code into platform_config from the legacy
+ * on-disk HTML files so templates render correctly after those files are removed.
  */
 export async function runAdTemplateMigrations(): Promise<void> {
   await db.execute(sql`
@@ -32,7 +57,7 @@ export async function runAdTemplateMigrations(): Promise<void> {
         (${VITICULTURE_PORTRAIT_NAME},   'viticulture-portrait',   90,  267, ${VITICULTURE_PORTRAIT_HTML},   false)
     `);
     console.log("[AD-TEMPLATE-MIGRATE] Seeded default viticulture templates");
-    return;
+    // Fall through — still need to seed brand assets into platform_config
   }
 
   // Upgrade pre-placeholder templates: if html_body still contains the old
@@ -66,6 +91,103 @@ export async function runAdTemplateMigrations(): Promise<void> {
       WHERE slug = 'viticulture-portrait'
     `);
     console.log("[AD-TEMPLATE-MIGRATE] Upgraded viticulture-portrait to placeholder version");
+  }
+
+  // ── Seed brand assets (logo + QR) into platform_config ────────────────────
+  // Only writes if the key is missing or empty — never overwrites an admin upload.
+  await seedAdBrandAssets();
+}
+
+/**
+ * Extract the BDE logo and QR code data-URIs from the legacy on-disk ad-template
+ * HTML files and persist them into platform_config so they survive file removal.
+ * Idempotent: skips any key that already has a non-empty value in the DB.
+ */
+/**
+ * Resolve the legacy ad-templates directory, trying multiple candidate paths so
+ * the migration works regardless of whether the process CWD is the api-server
+ * package root or the monorepo root, and regardless of __dirname in dev (src/lib)
+ * vs the production bundle (dist/).
+ */
+function resolveAdTemplatesDir(): string | null {
+  const candidates = [
+    // CWD = artifacts/api-server/ (pnpm script context)
+    path.resolve(process.cwd(), "scripts/ad-templates"),
+    // CWD = monorepo root (some deployment contexts)
+    path.resolve(process.cwd(), "artifacts/api-server/scripts/ad-templates"),
+    // __dirname = artifacts/api-server/dist/ (production esbuild bundle)
+    path.resolve(__dirname, "../scripts/ad-templates"),
+    // __dirname = artifacts/api-server/src/lib/ (dev tsx)
+    path.resolve(__dirname, "../../scripts/ad-templates"),
+  ];
+  return candidates.find((d) => fs.existsSync(d)) ?? null;
+}
+
+async function seedAdBrandAssets(): Promise<void> {
+  const srcDir = resolveAdTemplatesDir();
+  if (!srcDir) {
+    // Files already removed or not found — nothing to seed from; DB values (if any) remain
+    console.log("[AD-TEMPLATE-MIGRATE] Legacy ad-templates directory not found — skipping brand asset seed");
+    return;
+  }
+
+  const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".html"));
+  if (files.length === 0) return;
+
+  // Extract logo (class="logo") and QR (alt text) from whichever file has them.
+  // The legacy HTML files use class="logo" on the logo img (no alt attribute)
+  // and alt="QR — bdefarmtrac.co.uk" on the QR img.
+  let logoUri = "";
+  let qrUri   = "";
+  for (const f of files) {
+    const html = fs.readFileSync(path.join(srcDir, f), "utf-8");
+    if (!logoUri) logoUri = extractAdB64ByClass(html, "logo");
+    if (!qrUri)   qrUri   = extractAdB64ByAlt(html, "QR \u2014 bdefarmtrac.co.uk");
+    if (logoUri && qrUri) break;
+  }
+
+  // Upsert each asset only when the DB row is missing or blank
+  const LOGO_KEY = "brand.adLogoDataUrl";
+  const QR_KEY   = "brand.adQrDataUrl";
+
+  if (logoUri) {
+    await db.execute(sql`
+      INSERT INTO platform_config (key, value, label, description, updated_at)
+      VALUES (
+        ${LOGO_KEY},
+        ${logoUri},
+        ${"Ad Template — BDE Logo (Data URL)"},
+        ${"Base64-encoded BDE Farm Trac logo used in ad PDF templates. Upload a PNG or SVG via the Ad PDF Generator page."},
+        now()
+      )
+      ON CONFLICT (key) DO UPDATE
+        SET value      = EXCLUDED.value,
+            updated_at = now()
+        WHERE platform_config.value = ''
+    `);
+    console.log("[AD-TEMPLATE-MIGRATE] Seeded brand.adLogoDataUrl into platform_config");
+  }
+
+  if (qrUri) {
+    await db.execute(sql`
+      INSERT INTO platform_config (key, value, label, description, updated_at)
+      VALUES (
+        ${QR_KEY},
+        ${qrUri},
+        ${"Ad Template — QR Code (Data URL)"},
+        ${"Base64-encoded QR code pointing to bdefarmtrac.co.uk used in ad PDF templates. Upload a PNG via the Ad PDF Generator page."},
+        now()
+      )
+      ON CONFLICT (key) DO UPDATE
+        SET value      = EXCLUDED.value,
+            updated_at = now()
+        WHERE platform_config.value = ''
+    `);
+    console.log("[AD-TEMPLATE-MIGRATE] Seeded brand.adQrDataUrl into platform_config");
+  }
+
+  if (!logoUri && !qrUri) {
+    console.warn("[AD-TEMPLATE-MIGRATE] No logo or QR found in legacy ad-template files — platform_config not updated");
   }
 }
 

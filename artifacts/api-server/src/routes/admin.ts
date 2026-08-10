@@ -1777,6 +1777,16 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Default water abstraction source label shown in the Irrigation Advisor (e.g. Borehole, River, Reservoir). Can be overridden per farm.",
     value: "Borehole",
   },
+  "brand.adLogoDataUrl": {
+    label: "Ad Template — BDE Logo (Data URL)",
+    description: "Base64-encoded BDE Farm Trac logo used in ad PDF templates. Upload a PNG or SVG via the Ad PDF Generator page. Falls back to extracting the logo from legacy on-disk template files if blank.",
+    value: "",
+  },
+  "brand.adQrDataUrl": {
+    label: "Ad Template — QR Code (Data URL)",
+    description: "Base64-encoded QR code pointing to bdefarmtrac.co.uk used in ad PDF templates. Upload a PNG via the Ad PDF Generator page. Falls back to extracting the QR from legacy on-disk template files if blank.",
+    value: "",
+  },
 };
 
 router.get("/version", async (_req: Request, res: Response): Promise<void> => {
@@ -2167,20 +2177,67 @@ async function buildAdFontCss(): Promise<string> {
   return faces.join("\n");
 }
 
-/** Extract the first base64 data-URI src from an img tag matching the given alt text */
-function extractB64Src(html: string, altText: string): string {
-  const escaped = altText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = html.match(
-    new RegExp(
-      `<img[^>]*alt="${escaped}"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*alt="${escaped}"`,
-    ),
-  );
+/**
+ * Extract the first base64 data-URI src from an img tag.
+ * When matchBy="alt" (default), matches on the alt attribute value.
+ * When matchBy="class", matches on a CSS class name.
+ */
+function extractB64Src(html: string, value: string, matchBy: "alt" | "class" = "alt"): string {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let pattern: string;
+  if (matchBy === "class") {
+    pattern = `<img[^>]*class="[^"]*\\b${escaped}\\b[^"]*"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*class="[^"]*\\b${escaped}\\b[^"]*"`;
+  } else {
+    pattern = `<img[^>]*alt="${escaped}"[^>]*src="(data:[^"]+)"|<img[^>]*src="(data:[^"]+)"[^>]*alt="${escaped}"`;
+  }
+  const m = html.match(new RegExp(pattern));
   return m ? (m[1] ?? m[2] ?? "") : "";
 }
 
 /**
+ * Read the BDE logo and QR code data-URIs from platform config, falling back
+ * to scanning the legacy on-disk ad-templates/ HTML files when the DB rows are blank.
+ */
+async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
+  // Prefer DB-stored values
+  const rows = await db.select().from(platformConfigTable)
+    .where(inArray(platformConfigTable.key, ["brand.adLogoDataUrl", "brand.adQrDataUrl"]));
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  let logoUri = byKey["brand.adLogoDataUrl"] ?? "";
+  let qrUri   = byKey["brand.adQrDataUrl"]   ?? "";
+
+  // Fallback: scan legacy on-disk HTML files.
+  // Try multiple candidate paths to handle all execution contexts:
+  //   • pnpm script CWD = artifacts/api-server/
+  //   • monorepo-root CWD (some deployment contexts)
+  //   • __dirname = dist/ (production esbuild bundle)
+  //   • __dirname = src/routes/ (dev tsx)
+  if (!logoUri || !qrUri) {
+    const candidates = [
+      path.resolve(process.cwd(), "scripts/ad-templates"),
+      path.resolve(process.cwd(), "artifacts/api-server/scripts/ad-templates"),
+      path.resolve(__dirname, "../../scripts/ad-templates"),
+      path.resolve(__dirname, "../../../scripts/ad-templates"),
+    ];
+    const srcDir = candidates.find((d) => fs.existsSync(d));
+    if (srcDir) {
+      const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".html"));
+      for (const f of files) {
+        const html = fs.readFileSync(path.join(srcDir, f), "utf-8");
+        if (!logoUri) logoUri = extractB64Src(html, "logo", "class");
+        if (!qrUri)   qrUri   = extractB64Src(html, "QR \u2014 bdefarmtrac.co.uk", "alt");
+        if (logoUri && qrUri) break;
+      }
+    }
+  }
+
+  return { logoUri, qrUri };
+}
+
+/**
  * Substitute {{font_css}}, {{logo}}, {{qr}}, {{bg}} in a template HTML body.
- * Logo and QR are extracted from the on-disk ad-templates/ HTML files.
+ * Logo and QR are resolved from DB config (with on-disk fallback).
  * Background image is downloaded from bgUrl (falls back to a default vineyard photo).
  */
 // Horizontal defaults (landscape: width > height)
@@ -2196,24 +2253,13 @@ const AD_DEFAULT_ACCENT     = "#C49A6C";
 async function renderAdTemplate(
   htmlBody: string,
   bgUrl: string,
-  srcDir: string,
   opts?: { headline?: string; body?: string; accentColor?: string; widthMm?: number; heightMm?: number },
 ): Promise<string> {
   // Fonts
   const fontCss = await buildAdFontCss();
 
-  // Logo + QR — read from existing template HTML files on disk
-  let logoUri = "";
-  let qrUri   = "";
-  if (fs.existsSync(srcDir)) {
-    const files = fs.readdirSync(srcDir).filter((f) => f.endsWith(".html"));
-    for (const f of files) {
-      const html = fs.readFileSync(path.join(srcDir, f), "utf-8");
-      if (!logoUri) logoUri = extractB64Src(html, "BDE Farm Trac");
-      if (!qrUri)   qrUri   = extractB64Src(html, "QR — bdefarmtrac.co.uk");
-      if (logoUri && qrUri) break;
-    }
-  }
+  // Logo + QR — from DB config, with on-disk fallback
+  const { logoUri, qrUri } = await loadAdBrandAssets();
 
   // Background image
   const effectiveBgUrl = bgUrl.trim() || AD_DEFAULT_BG_URL;
@@ -2259,12 +2305,11 @@ router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res
   const htmlOut = path.join(tmpDir, "print.html");
   const rgbPdf  = path.join(tmpDir, "rgb.pdf");
   const pngOut  = path.join(tmpDir, "preview.png");
-  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
 
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    const html = await renderAdTemplate(htmlBody, bgUrl ?? "", srcDir, {
+    const html = await renderAdTemplate(htmlBody, bgUrl ?? "", {
       widthMm: widthMm ?? 190, heightMm: heightMm ?? 133,
     });
     fs.writeFileSync(htmlOut, html, "utf-8");
@@ -2319,13 +2364,12 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
   const htmlOut = path.join(tmpDir, "print.html");
   const rgbPdf  = path.join(tmpDir, "rgb.pdf");
   const pngOut  = path.join(tmpDir, "preview.png");
-  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
 
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir, {
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", {
       headline, body, accentColor,
       widthMm: template.widthMm, heightMm: template.heightMm,
     });
@@ -2383,7 +2427,6 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   const htmlOut = path.join(tmpDir, "print.html");
   const rgbPdf  = path.join(tmpDir, "rgb.pdf");
   const cmykPdf = path.join(tmpDir, "cmyk.pdf");
-  const srcDir  = path.resolve(__dirname, "../../scripts/ad-templates");
 
   // Derive a safe filename from the template name
   const safeName = template.name.replace(/[^a-zA-Z0-9-]/g, "_").replace(/_+/g, "_").slice(0, 60);
@@ -2393,7 +2436,7 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir, {
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", {
       headline, body, accentColor,
       widthMm: template.widthMm, heightMm: template.heightMm,
     });
