@@ -58,3 +58,10 @@ uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Horizo
 type = "pdf"
 title = "BDE Farm Trac — Vineyard Magazine Horizontal Ad (CMYK PDF)"
 description = "Half-page horizontal, 190 × 133 mm, 300 DPI, CMYK, PDF 1.3 — ready for submission to Kelsey Media"
+
+[[outputs]]
+id = "yKcNd0hczq5_edQ2_RzJh"
+uri = "file://artifacts/website/public/downloads/BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf"
+type = "pdf"
+title = "BDE Farm Trac — Vineyard Magazine Horizontal Ad (CMYK PDF)"
+description = "Half-page horizontal · 190 × 133 mm · 300 DPI · CMYK · PDF 1.3 — ready for Kelsey Media"
