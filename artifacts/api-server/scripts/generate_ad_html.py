@@ -87,7 +87,39 @@ def extract_b64_src(html_path: Path, alt_text: str) -> str | None:
 
 # ── ad templates ──────────────────────────────────────────────────────────────
 
-def build_horizontal(font_css: str, logo_uri: str, qr_uri: str, bg_uri: str) -> str:
+DEFAULT_HEADLINE_H = "Your vineyard.<br><em>Audit-ready.</em>"
+DEFAULT_BODY_H = (
+    "Vine register, phenology, harvest chemistry, spray logs,\n"
+    "          PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place, accessible anywhere."
+)
+DEFAULT_HEADLINE_P = "Your<br>vineyard.<br><em>Audit-<br>ready.</em>"
+DEFAULT_BODY_P = (
+    "Vine register, phenology, harvest chemistry, spray logs,\n"
+    "      PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place."
+)
+DEFAULT_ACCENT = "#C49A6C"
+DEFAULT_ACCENT_DARK = "#B8894A"
+DEFAULT_ACCENT_LIGHT = "#E8C98A"
+DEFAULT_GREEN = "#2D6A2E"
+
+
+def accent_dark(accent: str) -> str:
+    """When the accent is the default gold, return the darker shade; otherwise use the accent itself."""
+    return DEFAULT_ACCENT_DARK if accent == DEFAULT_ACCENT else accent
+
+
+def accent_light(accent: str) -> str:
+    """When the accent is the default gold, return the lighter shade; otherwise use the accent itself."""
+    return DEFAULT_ACCENT_LIGHT if accent == DEFAULT_ACCENT else accent
+
+
+def build_horizontal(font_css: str, logo_uri: str, qr_uri: str, bg_uri: str,
+                     headline: str = "", body: str = "", accent: str = "") -> str:
+    hl  = headline.strip() or DEFAULT_HEADLINE_H
+    bd  = body.strip()     or DEFAULT_BODY_H
+    ac  = accent.strip()   or DEFAULT_ACCENT
+    acd = accent_dark(ac)
+    acl = accent_light(ac)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -112,11 +144,11 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
     rgba(10,7,5,0.88) 0%, rgba(12,9,6,0.70) 48%, rgba(10,7,5,0.28) 100%); }}
 
 .top-bar {{ position: absolute; top: 0; left: 0; right: 0; height: 0.7mm;
-  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  background: linear-gradient(90deg, {acd} 0%, {acl} 50%, {acd} 100%);
   z-index: 4; }}
 
 .left-rule {{ position: absolute; left: 0; top: 0; bottom: 0; width: 1.2mm;
-  background: #2D6A2E; z-index: 4; }}
+  background: {DEFAULT_GREEN}; z-index: 4; }}
 
 .inner {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; padding: 9mm 10mm 8.4mm 11mm; gap: 6mm; z-index: 3; }}
@@ -129,12 +161,12 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
 .copy {{ display: flex; flex-direction: column; gap: 2.2mm;
   flex: 1; justify-content: center; }}
 
-.eyebrow {{ font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+.eyebrow {{ font-size: 2.2mm; font-weight: 600; color: {ac};
   letter-spacing: 0.16em; text-transform: uppercase; }}
 
 .headline {{ font-family: 'Playfair Display', serif; font-size: 11.6mm;
   font-weight: 700; line-height: 1.0; color: #ffffff; }}
-.headline em {{ font-style: italic; color: #C49A6C; }}
+.headline em {{ font-style: italic; color: {ac}; }}
 
 .subline {{ font-size: 3mm; color: rgba(255,255,255,0.68);
   line-height: 1.5; font-weight: 400; max-width: 92mm; }}
@@ -145,7 +177,7 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
   white-space: nowrap; }}
 .feat::before {{ content: ''; display: inline-block;
   width: 0.8mm; height: 0.8mm; border-radius: 50%;
-  background: #C49A6C; flex-shrink: 0; }}
+  background: {ac}; flex-shrink: 0; }}
 
 .right {{ flex: 1; display: flex; flex-direction: column;
   justify-content: space-between; }}
@@ -155,7 +187,7 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
   padding: 4.6mm 5.2mm; display: flex; flex-direction: column; }}
 
 .card-title {{ font-family: 'Playfair Display', serif; font-style: italic;
-  font-size: 2.8mm; color: #C49A6C; font-weight: 700;
+  font-size: 2.8mm; color: {ac}; font-weight: 700;
   line-height: 1.2; margin-bottom: 2.4mm; }}
 
 .card-item {{ padding: 2mm 0;
@@ -170,9 +202,9 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
 .cta-row {{ display: flex; align-items: flex-end; gap: 3.2mm; }}
 .cta-block {{ flex: 1; display: flex; flex-direction: column; gap: 1mm; }}
 
-.cta {{ display: block; background: transparent; color: #C49A6C;
+.cta {{ display: block; background: transparent; color: {ac};
   font-weight: 800; font-size: 2.6mm; padding: 2.2mm 0;
-  border-radius: 0.8mm; border: 0.2mm solid #C49A6C;
+  border-radius: 0.8mm; border: 0.2mm solid {ac};
   text-decoration: none; text-align: center; letter-spacing: 0.01em; }}
 
 .url {{ font-size: 1.8mm; color: rgba(255,255,255,0.28);
@@ -197,9 +229,8 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
       <img class="logo" src="{logo_uri}" alt="BDE Farm Trac"/>
       <div class="copy">
         <div class="eyebrow">Viticulture · Cloud-based · UK vineyards</div>
-        <div class="headline">Your vineyard.<br><em>Audit-ready.</em></div>
-        <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
-          PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place, accessible anywhere.</div>
+        <div class="headline">{hl}</div>
+        <div class="subline">{bd}</div>
       </div>
       <div class="features">
         <span class="feat">Vine register &amp; phenology</span>
@@ -243,7 +274,13 @@ html, body {{ width: 190mm; height: 133mm; overflow: hidden;
 </html>"""
 
 
-def build_portrait(font_css: str, logo_uri: str, qr_uri: str, bg_uri: str) -> str:
+def build_portrait(font_css: str, logo_uri: str, qr_uri: str, bg_uri: str,
+                   headline: str = "", body: str = "", accent: str = "") -> str:
+    hl  = headline.strip() or DEFAULT_HEADLINE_P
+    bd  = body.strip()     or DEFAULT_BODY_P
+    ac  = accent.strip()   or DEFAULT_ACCENT
+    acd = accent_dark(ac)
+    acl = accent_light(ac)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -269,11 +306,11 @@ html, body {{ width: 90mm; height: 267mm; overflow: hidden;
     rgba(8,6,4,0.82) 65%, rgba(8,6,4,0.96) 100%); }}
 
 .top-bar {{ position: absolute; top: 0; left: 0; right: 0; height: 1.4mm;
-  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  background: linear-gradient(90deg, {acd} 0%, {acl} 50%, {acd} 100%);
   z-index: 4; }}
 
 .left-rule {{ position: absolute; left: 0; top: 0; bottom: 0; width: 1.6mm;
-  background: #2D6A2E; z-index: 4; }}
+  background: {DEFAULT_GREEN}; z-index: 4; }}
 
 .inner {{ position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; flex-direction: column;
@@ -281,29 +318,29 @@ html, body {{ width: 90mm; height: 267mm; overflow: hidden;
 
 .logo {{ display: block; height: 12mm; width: auto; max-width: 44mm; }}
 
-.eyebrow {{ margin-top: 16mm; font-size: 2.6mm; font-weight: 600; color: #C49A6C;
+.eyebrow {{ margin-top: 16mm; font-size: 2.6mm; font-weight: 600; color: {ac};
   letter-spacing: 0.16em; text-transform: uppercase; line-height: 1.3; }}
 
 .headline {{ font-family: 'Playfair Display', serif; font-size: 14.8mm;
   font-weight: 700; line-height: 0.98; color: #ffffff; margin-top: 3.6mm; }}
-.headline em {{ font-style: italic; color: #C49A6C; display: block; }}
+.headline em {{ font-style: italic; color: {ac}; display: block; }}
 
 .subline {{ font-size: 3.4mm; color: rgba(255,255,255,0.68);
   line-height: 1.5; font-weight: 400; margin-top: 5.2mm; max-width: 82mm; }}
 
-.divider {{ width: 8mm; height: 0.3mm; background: #C49A6C; margin: 6mm 0; }}
+.divider {{ width: 8mm; height: 0.3mm; background: {ac}; margin: 6mm 0; }}
 
 .features {{ display: flex; flex-direction: column; gap: 2.8mm; }}
 .feat {{ display: flex; align-items: center; gap: 2.4mm;
   font-size: 3.2mm; font-weight: 500; color: rgba(255,255,255,0.78); }}
 .feat::before {{ content: ''; display: inline-block;
   width: 1.2mm; height: 1.2mm; border-radius: 50%;
-  background: #C49A6C; flex-shrink: 0; }}
+  background: {ac}; flex-shrink: 0; }}
 
 .platform-strip {{ margin-top: auto;
   border-top: 0.1mm solid rgba(196,154,108,0.35);
   padding-top: 4.4mm; display: flex; flex-direction: column; gap: 1.8mm; }}
-.platform-label {{ font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+.platform-label {{ font-size: 2.2mm; font-weight: 600; color: {ac};
   letter-spacing: 0.12em; text-transform: uppercase; }}
 .platform-items {{ display: flex; flex-direction: column; gap: 1.4mm; }}
 .platform-item {{ font-size: 2.6mm; color: rgba(255,255,255,0.60); }}
@@ -312,9 +349,9 @@ html, body {{ width: 90mm; height: 267mm; overflow: hidden;
 
 .cta-row {{ display: flex; align-items: center; gap: 4mm; margin-top: 5.6mm; }}
 
-.cta {{ flex: 1; display: block; background: transparent; color: #C49A6C;
+.cta {{ flex: 1; display: block; background: transparent; color: {ac};
   font-weight: 800; font-size: 3mm; padding: 3.2mm 0;
-  border-radius: 1mm; border: 0.25mm solid #C49A6C;
+  border-radius: 1mm; border: 0.25mm solid {ac};
   text-align: center; letter-spacing: 0.01em; }}
 
 .qr-wrap {{ display: flex; flex-direction: column; align-items: center;
@@ -337,9 +374,8 @@ html, body {{ width: 90mm; height: 267mm; overflow: hidden;
   <div class="inner">
     <img class="logo" src="{logo_uri}" alt="BDE Farm Trac"/>
     <div class="eyebrow">Viticulture · UK Vineyards</div>
-    <div class="headline">Your<br>vineyard.<br><em>Audit-<br>ready.</em></div>
-    <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
-      PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place.</div>
+    <div class="headline">{hl}</div>
+    <div class="subline">{bd}</div>
     <div class="divider"></div>
     <div class="features">
       <span class="feat">Vine register &amp; phenology</span>
@@ -378,13 +414,16 @@ def main():
     p.add_argument("--format", required=True, choices=["horizontal", "portrait"])
     p.add_argument("--out",    required=True, help="Output HTML file path")
     p.add_argument("--src-dir", required=True, help="Directory containing template HTML files")
-    p.add_argument("--bg-url", default="", help="Override background image URL")
+    p.add_argument("--bg-url",      default="", help="Override background image URL")
+    p.add_argument("--headline",    default="", help="Override headline HTML (supports <em> for italic gold text)")
+    p.add_argument("--body",        default="", help="Override body / subline HTML")
+    p.add_argument("--accent-color", default="", help="Override accent colour (hex, e.g. #C49A6C)")
     args = p.parse_args()
 
-    fmt    = args.format
-    out    = Path(args.out)
+    fmt     = args.format
+    out     = Path(args.out)
     src_dir = Path(args.src_dir)
-    bg_url = args.bg_url or DEFAULT_BG[fmt]
+    bg_url  = args.bg_url or DEFAULT_BG[fmt]
 
     out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -410,8 +449,11 @@ def main():
     bg_uri = b64uri(fetch(bg_url, "bg"), "image/jpeg")
 
     # Build HTML
-    html = build_horizontal(font_css, logo_uri, qr_uri, bg_uri) if fmt == "horizontal" \
-           else build_portrait(font_css, logo_uri, qr_uri, bg_uri)
+    html = build_horizontal(font_css, logo_uri, qr_uri, bg_uri,
+                            headline=args.headline, body=args.body, accent=args.accent_color) \
+           if fmt == "horizontal" \
+           else build_portrait(font_css, logo_uri, qr_uri, bg_uri,
+                               headline=args.headline, body=args.body, accent=args.accent_color)
     out.write_text(html, encoding="utf-8")
     print(f"Written: {out} ({out.stat().st_size // 1024}KB)", file=sys.stderr)
 

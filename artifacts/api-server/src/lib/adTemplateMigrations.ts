@@ -4,7 +4,8 @@ import { sql } from "drizzle-orm";
 /**
  * Idempotent migrations for the ad_templates table.
  * Safe to run on every startup — uses CREATE TABLE IF NOT EXISTS.
- * Seeds the two default viticulture templates if the table is empty.
+ * Seeds the two default viticulture templates if the table is empty,
+ * and upgrades any already-seeded templates that pre-date placeholder support.
  */
 export async function runAdTemplateMigrations(): Promise<void> {
   await db.execute(sql`
@@ -23,23 +24,62 @@ export async function runAdTemplateMigrations(): Promise<void> {
 
   // Seed default templates only if none exist
   const existing = await db.execute(sql`SELECT id FROM ad_templates LIMIT 1`);
-  if ((existing as { rows: unknown[] }).rows.length > 0) return;
+  if ((existing as { rows: unknown[] }).rows.length === 0) {
+    await db.execute(sql`
+      INSERT INTO ad_templates (name, slug, width_mm, height_mm, html_body, is_default)
+      VALUES
+        (${VITICULTURE_HORIZONTAL_NAME}, 'viticulture-horizontal', 190, 133, ${VITICULTURE_HORIZONTAL_HTML}, true),
+        (${VITICULTURE_PORTRAIT_NAME},   'viticulture-portrait',   90,  267, ${VITICULTURE_PORTRAIT_HTML},   false)
+    `);
+    console.log("[AD-TEMPLATE-MIGRATE] Seeded default viticulture templates");
+    return;
+  }
 
-  await db.execute(sql`
-    INSERT INTO ad_templates (name, slug, width_mm, height_mm, html_body, is_default)
-    VALUES
-      (${VITICULTURE_HORIZONTAL_NAME}, 'viticulture-horizontal', 190, 133, ${VITICULTURE_HORIZONTAL_HTML}, true),
-      (${VITICULTURE_PORTRAIT_NAME},   'viticulture-portrait',   90,  267, ${VITICULTURE_PORTRAIT_HTML},   false)
+  // Upgrade pre-placeholder templates: if html_body still contains the old
+  // hardcoded accent colour it has never been migrated — replace with the
+  // current placeholder-aware version.
+  const hRow = await db.execute(sql`
+    SELECT id FROM ad_templates
+    WHERE slug = 'viticulture-horizontal'
+      AND html_body LIKE '%#C49A6C%'
+    LIMIT 1
   `);
+  if ((hRow as { rows: unknown[] }).rows.length > 0) {
+    await db.execute(sql`
+      UPDATE ad_templates
+      SET html_body = ${VITICULTURE_HORIZONTAL_HTML}, updated_at = now()
+      WHERE slug = 'viticulture-horizontal'
+    `);
+    console.log("[AD-TEMPLATE-MIGRATE] Upgraded viticulture-horizontal to placeholder version");
+  }
 
-  console.log("[AD-TEMPLATE-MIGRATE] Seeded default viticulture templates");
+  const pRow = await db.execute(sql`
+    SELECT id FROM ad_templates
+    WHERE slug = 'viticulture-portrait'
+      AND html_body LIKE '%#C49A6C%'
+    LIMIT 1
+  `);
+  if ((pRow as { rows: unknown[] }).rows.length > 0) {
+    await db.execute(sql`
+      UPDATE ad_templates
+      SET html_body = ${VITICULTURE_PORTRAIT_HTML}, updated_at = now()
+      WHERE slug = 'viticulture-portrait'
+    `);
+    console.log("[AD-TEMPLATE-MIGRATE] Upgraded viticulture-portrait to placeholder version");
+  }
 }
 
 const VITICULTURE_HORIZONTAL_NAME = "Viticulture — Half Page Horizontal (190×133 mm)";
 const VITICULTURE_PORTRAIT_NAME   = "Viticulture — Half Page Vertical (90×267 mm)";
 
 // ── Horizontal template (190 × 133 mm) ────────────────────────────────────────
-// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}}
+// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}},
+//               {{headline}}, {{body}}, {{accent_color}}
+//
+// Defaults applied by renderAdTemplate when placeholders are not overridden:
+//   {{headline}}     → "Your vineyard.<br><em>Audit-ready.</em>"
+//   {{body}}         → "Vine register … all in one place, accessible anywhere."
+//   {{accent_color}} → "#C49A6C"
 
 const VITICULTURE_HORIZONTAL_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -65,7 +105,7 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
     rgba(10,7,5,0.88) 0%, rgba(12,9,6,0.70) 48%, rgba(10,7,5,0.28) 100%); }
 
 .top-bar { position: absolute; top: 0; left: 0; right: 0; height: 0.7mm;
-  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  background: linear-gradient(90deg, {{accent_color}} 0%, {{accent_color}} 50%, {{accent_color}} 100%);
   z-index: 4; }
 
 .left-rule { position: absolute; left: 0; top: 0; bottom: 0; width: 1.2mm;
@@ -82,12 +122,12 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
 .copy { display: flex; flex-direction: column; gap: 2.2mm;
   flex: 1; justify-content: center; }
 
-.eyebrow { font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+.eyebrow { font-size: 2.2mm; font-weight: 600; color: {{accent_color}};
   letter-spacing: 0.16em; text-transform: uppercase; }
 
 .headline { font-family: 'Playfair Display', serif; font-size: 11.6mm;
   font-weight: 700; line-height: 1.0; color: #ffffff; }
-.headline em { font-style: italic; color: #C49A6C; }
+.headline em { font-style: italic; color: {{accent_color}}; }
 
 .subline { font-size: 3mm; color: rgba(255,255,255,0.68);
   line-height: 1.5; font-weight: 400; max-width: 92mm; }
@@ -98,7 +138,7 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
   white-space: nowrap; }
 .feat::before { content: ''; display: inline-block;
   width: 0.8mm; height: 0.8mm; border-radius: 50%;
-  background: #C49A6C; flex-shrink: 0; }
+  background: {{accent_color}}; flex-shrink: 0; }
 
 .right { flex: 1; display: flex; flex-direction: column;
   justify-content: space-between; }
@@ -108,7 +148,7 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
   padding: 4.6mm 5.2mm; display: flex; flex-direction: column; }
 
 .card-title { font-family: 'Playfair Display', serif; font-style: italic;
-  font-size: 2.8mm; color: #C49A6C; font-weight: 700;
+  font-size: 2.8mm; color: {{accent_color}}; font-weight: 700;
   line-height: 1.2; margin-bottom: 2.4mm; }
 
 .card-item { padding: 2mm 0;
@@ -123,9 +163,9 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
 .cta-row { display: flex; align-items: flex-end; gap: 3.2mm; }
 .cta-block { flex: 1; display: flex; flex-direction: column; gap: 1mm; }
 
-.cta { display: block; background: transparent; color: #C49A6C;
+.cta { display: block; background: transparent; color: {{accent_color}};
   font-weight: 800; font-size: 2.6mm; padding: 2.2mm 0;
-  border-radius: 0.8mm; border: 0.2mm solid #C49A6C;
+  border-radius: 0.8mm; border: 0.2mm solid {{accent_color}};
   text-decoration: none; text-align: center; letter-spacing: 0.01em; }
 
 .url { font-size: 1.8mm; color: rgba(255,255,255,0.28);
@@ -150,9 +190,8 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
       <img class="logo" src="{{logo}}" alt="BDE Farm Trac"/>
       <div class="copy">
         <div class="eyebrow">Viticulture · Cloud-based · UK vineyards</div>
-        <div class="headline">Your vineyard.<br><em>Audit-ready.</em></div>
-        <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
-          PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place, accessible anywhere.</div>
+        <div class="headline">{{headline}}</div>
+        <div class="subline">{{body}}</div>
       </div>
       <div class="features">
         <span class="feat">Vine register &amp; phenology</span>
@@ -196,7 +235,13 @@ html, body { width: 190mm; height: 133mm; overflow: hidden;
 </html>`;
 
 // ── Portrait template (90 × 267 mm) ───────────────────────────────────────────
-// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}}
+// Placeholders: {{font_css}}, {{bg}}, {{logo}}, {{qr}},
+//               {{headline}}, {{body}}, {{accent_color}}
+//
+// Defaults applied by renderAdTemplate when placeholders are not overridden:
+//   {{headline}}     → "Your<br>vineyard.<br><em>Audit-<br>ready.</em>"
+//   {{body}}         → "Vine register … all in one place."
+//   {{accent_color}} → "#C49A6C"
 
 const VITICULTURE_PORTRAIT_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -223,7 +268,7 @@ html, body { width: 90mm; height: 267mm; overflow: hidden;
     rgba(8,6,4,0.82) 65%, rgba(8,6,4,0.96) 100%); }
 
 .top-bar { position: absolute; top: 0; left: 0; right: 0; height: 1.4mm;
-  background: linear-gradient(90deg, #B8894A 0%, #E8C98A 50%, #B8894A 100%);
+  background: linear-gradient(90deg, {{accent_color}} 0%, {{accent_color}} 50%, {{accent_color}} 100%);
   z-index: 4; }
 
 .left-rule { position: absolute; left: 0; top: 0; bottom: 0; width: 1.6mm;
@@ -235,29 +280,29 @@ html, body { width: 90mm; height: 267mm; overflow: hidden;
 
 .logo { display: block; height: 12mm; width: auto; max-width: 44mm; }
 
-.eyebrow { margin-top: 16mm; font-size: 2.6mm; font-weight: 600; color: #C49A6C;
+.eyebrow { margin-top: 16mm; font-size: 2.6mm; font-weight: 600; color: {{accent_color}};
   letter-spacing: 0.16em; text-transform: uppercase; line-height: 1.3; }
 
 .headline { font-family: 'Playfair Display', serif; font-size: 14.8mm;
   font-weight: 700; line-height: 0.98; color: #ffffff; margin-top: 3.6mm; }
-.headline em { font-style: italic; color: #C49A6C; display: block; }
+.headline em { font-style: italic; color: {{accent_color}}; display: block; }
 
 .subline { font-size: 3.4mm; color: rgba(255,255,255,0.68);
   line-height: 1.5; font-weight: 400; margin-top: 5.2mm; max-width: 82mm; }
 
-.divider { width: 8mm; height: 0.3mm; background: #C49A6C; margin: 6mm 0; }
+.divider { width: 8mm; height: 0.3mm; background: {{accent_color}}; margin: 6mm 0; }
 
 .features { display: flex; flex-direction: column; gap: 2.8mm; }
 .feat { display: flex; align-items: center; gap: 2.4mm;
   font-size: 3.2mm; font-weight: 500; color: rgba(255,255,255,0.78); }
 .feat::before { content: ''; display: inline-block;
   width: 1.2mm; height: 1.2mm; border-radius: 50%;
-  background: #C49A6C; flex-shrink: 0; }
+  background: {{accent_color}}; flex-shrink: 0; }
 
 .platform-strip { margin-top: auto;
   border-top: 0.1mm solid rgba(196,154,108,0.35);
   padding-top: 4.4mm; display: flex; flex-direction: column; gap: 1.8mm; }
-.platform-label { font-size: 2.2mm; font-weight: 600; color: #C49A6C;
+.platform-label { font-size: 2.2mm; font-weight: 600; color: {{accent_color}};
   letter-spacing: 0.12em; text-transform: uppercase; }
 .platform-items { display: flex; flex-direction: column; gap: 1.4mm; }
 .platform-item { font-size: 2.6mm; color: rgba(255,255,255,0.60); }
@@ -266,9 +311,9 @@ html, body { width: 90mm; height: 267mm; overflow: hidden;
 
 .cta-row { display: flex; align-items: center; gap: 4mm; margin-top: 5.6mm; }
 
-.cta { flex: 1; display: block; background: transparent; color: #C49A6C;
+.cta { flex: 1; display: block; background: transparent; color: {{accent_color}};
   font-weight: 800; font-size: 3mm; padding: 3.2mm 0;
-  border-radius: 1mm; border: 0.25mm solid #C49A6C;
+  border-radius: 1mm; border: 0.25mm solid {{accent_color}};
   text-align: center; letter-spacing: 0.01em; }
 
 .qr-wrap { display: flex; flex-direction: column; align-items: center;
@@ -291,9 +336,8 @@ html, body { width: 90mm; height: 267mm; overflow: hidden;
   <div class="inner">
     <img class="logo" src="{{logo}}" alt="BDE Farm Trac"/>
     <div class="eyebrow">Viticulture · UK Vineyards</div>
-    <div class="headline">Your<br>vineyard.<br><em>Audit-<br>ready.</em></div>
-    <div class="subline">Vine register, phenology, harvest chemistry, spray logs,
-      PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place.</div>
+    <div class="headline">{{headline}}</div>
+    <div class="subline">{{body}}</div>
     <div class="divider"></div>
     <div class="features">
       <span class="feat">Vine register &amp; phenology</span>

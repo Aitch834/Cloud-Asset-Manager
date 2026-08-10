@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { getSecret } from "@/lib/auth";
 import {
   Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
-  Plus, Pencil, Trash2, ChevronDown, X, Save,
+  Plus, Pencil, Trash2, ChevronDown, X, Save, ChevronRight, Palette,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -66,11 +66,24 @@ async function deleteTemplate(id: number): Promise<void> {
   }
 }
 
-async function generatePdf(templateId: number, bgUrl: string): Promise<Blob> {
+interface CustomiseOpts {
+  headline: string;
+  body: string;
+  accentColor: string;
+}
+
+async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<Blob> {
+  const payload: Record<string, string | number | undefined> = {
+    templateId,
+    bgUrl: bgUrl.trim() || undefined,
+  };
+  if (opts.headline.trim()) payload.headline = opts.headline.trim();
+  if (opts.body.trim())     payload.body     = opts.body.trim();
+  if (opts.accentColor.trim()) payload.accentColor = opts.accentColor.trim();
   const res = await fetch("/api/admin/ad-pdf", {
     method: "POST",
     headers: adminHeaders(),
-    body: JSON.stringify({ templateId, bgUrl: bgUrl.trim() || undefined }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
@@ -79,10 +92,13 @@ async function generatePdf(templateId: number, bgUrl: string): Promise<Blob> {
   return res.blob();
 }
 
-async function fetchPreview(templateId: number, bgUrl: string): Promise<string> {
+async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<string> {
   const params = new URLSearchParams({ templateId: String(templateId) });
   const trimmed = bgUrl.trim();
   if (trimmed) params.set("bgUrl", trimmed);
+  if (opts.headline.trim())    params.set("headline",    opts.headline.trim());
+  if (opts.body.trim())        params.set("body",        opts.body.trim());
+  if (opts.accentColor.trim()) params.set("accentColor", opts.accentColor.trim());
   const res = await fetch(`/api/admin/ad-pdf/preview?${params.toString()}`, {
     headers: { "x-admin-secret": getSecret() ?? "" },
   });
@@ -233,6 +249,13 @@ export default function AdPdfGenerator() {
   // Background URL
   const [bgUrl, setBgUrl] = useState("");
 
+  // Customise copy & colour
+  const [customiseOpen, setCustomiseOpen] = useState(false);
+  const [headline,    setHeadline]    = useState("");
+  const [body,        setBody]        = useState("");
+  const [accentColor, setAccentColor] = useState("");
+  const customiseOpts: CustomiseOpts  = { headline, body, accentColor };
+
   // PDF / preview mutations
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const prevObjectUrl = useRef<string | null>(null);
@@ -240,7 +263,7 @@ export default function AdPdfGenerator() {
   const mutation = useMutation({
     mutationFn: () => {
       if (!effectiveId) throw new Error("No template selected");
-      return generatePdf(effectiveId, bgUrl);
+      return generatePdf(effectiveId, bgUrl, customiseOpts);
     },
     onSuccess: (blob) => {
       const name = selectedTemplate
@@ -253,7 +276,7 @@ export default function AdPdfGenerator() {
   const previewMutation = useMutation({
     mutationFn: () => {
       if (!effectiveId) throw new Error("No template selected");
-      return fetchPreview(effectiveId, bgUrl);
+      return fetchPreview(effectiveId, bgUrl, customiseOpts);
     },
     onSuccess: (url) => {
       if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current);
@@ -356,6 +379,84 @@ export default function AdPdfGenerator() {
           <p className="text-xs text-muted-foreground mt-1.5">
             Must be a publicly accessible JPEG URL. Leave blank to use the default Pexels vineyard photo.
           </p>
+        </div>
+
+        {/* Customise copy & colour */}
+        <div className="rounded-lg border border-border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setCustomiseOpen((o) => !o)}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-left hover:bg-muted/40 transition-colors"
+          >
+            <Palette className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="flex-1">Customise copy &amp; colour</span>
+            <span className="text-xs text-muted-foreground mr-1">
+              {customiseOpen ? "" : "optional overrides"}
+            </span>
+            {customiseOpen
+              ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {customiseOpen && (
+            <div className="border-t border-border px-4 py-4 space-y-4 bg-muted/10">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Headline HTML
+                  <span className="font-normal text-muted-foreground ml-1">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={headline}
+                  onChange={(e) => { setHeadline(e.target.value); resetRendering(); }}
+                  placeholder={`Your vineyard.<br><em>Audit-ready.</em>`}
+                  className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Supports inline HTML — use <code className="bg-muted px-1 rounded">&lt;em&gt;</code> for italic accent text, <code className="bg-muted px-1 rounded">&lt;br&gt;</code> for line breaks.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Body copy HTML
+                  <span className="font-normal text-muted-foreground ml-1">(optional)</span>
+                </label>
+                <textarea
+                  value={body}
+                  onChange={(e) => { setBody(e.target.value); resetRendering(); }}
+                  placeholder="Vine register, phenology, harvest chemistry, spray logs, PDO&amp;nbsp;/&amp;nbsp;PGI records and excise duty — all in one place, accessible anywhere."
+                  rows={3}
+                  className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The supporting sentence shown below the headline. Inline HTML is allowed.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Accent colour
+                  <span className="font-normal text-muted-foreground ml-1">(optional)</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={accentColor || "#C49A6C"}
+                    onChange={(e) => { setAccentColor(e.target.value); resetRendering(); }}
+                    className="h-9 w-12 rounded border border-input cursor-pointer bg-background p-0.5"
+                  />
+                  <input
+                    type="text"
+                    value={accentColor}
+                    onChange={(e) => { setAccentColor(e.target.value); resetRendering(); }}
+                    placeholder="#C49A6C (default)"
+                    className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Controls the gold/amber used for the top bar gradient, feature dots, CTA border, and headline italic. Leave blank for the default gold.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Spec summary */}

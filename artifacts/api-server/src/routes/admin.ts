@@ -2183,7 +2183,22 @@ function extractB64Src(html: string, altText: string): string {
  * Logo and QR are extracted from the on-disk ad-templates/ HTML files.
  * Background image is downloaded from bgUrl (falls back to a default vineyard photo).
  */
-async function renderAdTemplate(htmlBody: string, bgUrl: string, srcDir: string): Promise<string> {
+// Horizontal defaults (landscape: width > height)
+const AD_DEFAULT_HEADLINE_H = "Your vineyard.<br><em>Audit-ready.</em>";
+const AD_DEFAULT_BODY_H     = "Vine register, phenology, harvest chemistry, spray logs, PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place, accessible anywhere.";
+
+// Portrait defaults (width ≤ height)
+const AD_DEFAULT_HEADLINE_P = "Your<br>vineyard.<br><em>Audit-<br>ready.</em>";
+const AD_DEFAULT_BODY_P     = "Vine register, phenology, harvest chemistry, spray logs, PDO&nbsp;/&nbsp;PGI records and excise duty — all in one place.";
+
+const AD_DEFAULT_ACCENT     = "#C49A6C";
+
+async function renderAdTemplate(
+  htmlBody: string,
+  bgUrl: string,
+  srcDir: string,
+  opts?: { headline?: string; body?: string; accentColor?: string; widthMm?: number; heightMm?: number },
+): Promise<string> {
   // Fonts
   const fontCss = await buildAdFontCss();
 
@@ -2207,18 +2222,33 @@ async function renderAdTemplate(htmlBody: string, bgUrl: string, srcDir: string)
   const bgBuf = Buffer.from(await bgResp.arrayBuffer());
   const bgUri = `data:image/jpeg;base64,${bgBuf.toString("base64")}`;
 
+  // Select orientation-appropriate defaults: portrait when width ≤ height
+  const isPortrait = (opts?.widthMm ?? 190) <= (opts?.heightMm ?? 133);
+  const defaultHeadline = isPortrait ? AD_DEFAULT_HEADLINE_P : AD_DEFAULT_HEADLINE_H;
+  const defaultBody     = isPortrait ? AD_DEFAULT_BODY_P     : AD_DEFAULT_BODY_H;
+
+  const headline    = opts?.headline?.trim()    || defaultHeadline;
+  const body        = opts?.body?.trim()        || defaultBody;
+  const accentColor = opts?.accentColor?.trim() || AD_DEFAULT_ACCENT;
+
   // Substitute placeholders
   return htmlBody
-    .replace(/\{\{font_css\}\}/g, fontCss)
-    .replace(/\{\{logo\}\}/g, logoUri)
-    .replace(/\{\{qr\}\}/g, qrUri)
-    .replace(/\{\{bg\}\}/g, bgUri);
+    .replace(/\{\{font_css\}\}/g,    fontCss)
+    .replace(/\{\{logo\}\}/g,        logoUri)
+    .replace(/\{\{qr\}\}/g,          qrUri)
+    .replace(/\{\{bg\}\}/g,          bgUri)
+    .replace(/\{\{headline\}\}/g,    headline)
+    .replace(/\{\{body\}\}/g,        body)
+    .replace(/\{\{accent_color\}\}/g, accentColor);
 }
 
 router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const { templateId, bgUrl } = req.query as { templateId?: string; bgUrl?: string };
+  const { templateId, bgUrl, headline, body, accentColor } = req.query as {
+    templateId?: string; bgUrl?: string;
+    headline?: string; body?: string; accentColor?: string;
+  };
   if (!templateId || isNaN(Number(templateId))) {
     res.status(400).json({ error: "templateId (numeric) is required" });
     return;
@@ -2239,7 +2269,10 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir);
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir, {
+      headline, body, accentColor,
+      widthMm: template.widthMm, heightMm: template.heightMm,
+    });
     fs.writeFileSync(htmlOut, html, "utf-8");
 
     // Step 2: WeasyPrint (RGB PDF) + Ghostscript (PNG) — both via nix-shell
@@ -2276,7 +2309,10 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
 router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
-  const { templateId, bgUrl } = req.body as { templateId?: number; bgUrl?: string };
+  const { templateId, bgUrl, headline, body, accentColor } = req.body as {
+    templateId?: number; bgUrl?: string;
+    headline?: string; body?: string; accentColor?: string;
+  };
   if (!templateId || isNaN(Number(templateId))) {
     res.status(400).json({ error: "templateId (numeric) is required" });
     return;
@@ -2301,7 +2337,10 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir);
+    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", srcDir, {
+      headline, body, accentColor,
+      widthMm: template.widthMm, heightMm: template.heightMm,
+    });
     fs.writeFileSync(htmlOut, html, "utf-8");
 
     // Step 2: WeasyPrint (RGB PDF) + Ghostscript (CMYK PDF) — both via nix-shell
