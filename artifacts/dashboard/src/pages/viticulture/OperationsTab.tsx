@@ -50,8 +50,9 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
+import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, FarmSettingsWarning, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Operation = Record<string, unknown>;
 
@@ -59,6 +60,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const { data, isLoading, add, edit, remove } = useCrud<Operation>(farmId, "vineyard-operations", "vineyard-operations");
   const farmName = useFarmName(farmId);
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
+  const [, setLocation] = useLocation();
   const { displayName } = useUserRole();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Operation | null>(null);
@@ -252,6 +254,13 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>
       </div>
+
+      {/* Farm address missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmMeta && !farmMeta.address ? ["Farm address"] : []}
+        settingsSection="Contact & Address"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
