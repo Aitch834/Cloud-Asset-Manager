@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
+import { fetchWineryJson, usePressing, useVessels, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
 import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow } from "./VesselRegisterTab";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -1029,6 +1029,68 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   // the colour directly onto the fermentation/cellar record instead.
   const [assignColourRecords, setAssignColourRecords] = useState<AssignColourTarget[] | null>(null);
   const [openVesselId, setOpenVesselId] = useState<number | null>(null);
+
+  // Cache-first vessel list — same queryKey as VesselDetailFromTrail and the
+  // Vessel Register tab, so no new network request is made when either has
+  // already fetched. Used to enrich cellar-op vessel refs with capacity +
+  // fill-status badges so auditors can spot mismatches without opening the
+  // vessel detail panel.
+  const { data: trailVessels } = useVessels(farmId);
+  const vesselByRef = useMemo(() => {
+    const m = new Map<string, Record<string, unknown>>();
+    for (const v of trailVessels ?? []) {
+      const ref = v.vessel_ref != null ? String(v.vessel_ref).trim() : "";
+      if (ref) m.set(ref.toLowerCase(), v);
+    }
+    return m;
+  }, [trailVessels]);
+
+  // Renders a compact clickable vessel badge: ref (button) + capacity + fill tier.
+  // Returns null when `ref` is falsy. When the vessel isn't found in the cached
+  // list the ref is still shown as a clickable-looking element (it may be a new
+  // vessel not yet synced) but with no extra metadata.
+  const vesselBadge = (ref: string | null | undefined) => {
+    if (!ref) return null;
+    const trimmed = String(ref).trim();
+    const v = vesselByRef.get(trimmed.toLowerCase());
+    const vesselId = v ? Number(v.id) : null;
+    const capacityL = v?.capacity_litres != null && v.capacity_litres !== "" ? parseFloat(String(v.capacity_litres)) : null;
+    const currentVolL = v?.current_volume_litres != null && v.current_volume_litres !== "" ? parseFloat(String(v.current_volume_litres)) : null;
+    const isRetired = v ? String(v.status ?? "active") === "retired" : false;
+
+    // Fill tier: only derivable when both capacity and current volume are known.
+    let fillLabel: string | null = null;
+    let fillCls = "";
+    if (capacityL != null && capacityL > 0 && currentVolL != null) {
+      const pct = (currentVolL / capacityL) * 100;
+      if (pct <= 0)       { fillLabel = "Empty";   fillCls = "bg-gray-100 text-gray-500"; }
+      else if (pct < 25)  { fillLabel = "Low";     fillCls = "bg-amber-100 text-amber-700"; }
+      else if (pct < 75)  { fillLabel = "Partial"; fillCls = "bg-blue-100 text-blue-700"; }
+      else                { fillLabel = "Full";    fillCls = "bg-green-100 text-green-700"; }
+    }
+
+    return (
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-mono transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-400 ${isRetired ? "bg-gray-100 text-gray-500 hover:bg-gray-200" : "bg-blue-50 text-blue-800 hover:bg-blue-100"}`}
+        title={vesselId ? `Open vessel record for ${trimmed}` : trimmed}
+        onClick={() => { if (vesselId) setOpenVesselId(vesselId); }}
+        disabled={!vesselId}
+      >
+        {trimmed}
+        {capacityL != null && (
+          <span className="font-normal font-sans text-muted-foreground" style={{ fontSize: "10px" }}>{capacityL.toFixed(0)} L</span>
+        )}
+        {fillLabel && (
+          <span className={`font-sans font-medium rounded px-1 leading-none ${fillCls}`} style={{ fontSize: "10px" }}>{fillLabel}</span>
+        )}
+        {isRetired && !fillLabel && (
+          <span className="font-sans bg-gray-100 text-gray-500 rounded px-1 leading-none" style={{ fontSize: "10px" }}>Retired</span>
+        )}
+      </button>
+    );
+  };
+
   const openAssignColours = () => {
     if (!data) return;
     const hasColour = (ref: string) =>
@@ -1686,7 +1748,17 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{fmtDate(r.op_date)}</span>
                           <Badge variant="outline" className="text-xs">{CELLAR_OP_LABELS[String(r.op_type)] ?? fmt(r.op_type)}</Badge>
-                          {!!r.from_vessel_ref && <span className="text-xs text-muted-foreground">{String(r.from_vessel_ref)}{r.to_vessel_ref ? ` → ${String(r.to_vessel_ref)}` : ""}</span>}
+                          {(!!r.from_vessel_ref || !!r.to_vessel_ref) && (
+                            <span className="inline-flex items-center gap-1 flex-wrap">
+                              {!!r.from_vessel_ref && vesselBadge(String(r.from_vessel_ref))}
+                              {!!r.to_vessel_ref && (
+                                <>
+                                  <span className="text-xs text-muted-foreground">→</span>
+                                  {vesselBadge(String(r.to_vessel_ref))}
+                                </>
+                              )}
+                            </span>
+                          )}
                           {isVintageScoped && (r.batch_ref ? <span className="text-xs font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{String(r.batch_ref)}</span> : <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">No ref</span>)}
                         </div>
                         {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
