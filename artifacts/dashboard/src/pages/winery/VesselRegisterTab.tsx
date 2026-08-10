@@ -939,6 +939,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
               doc.body.appendChild(meta);
 
+              const noFillsPrintCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
+              if (noFillsPrintCount > 0) {
+                const note = doc.createElement("div");
+                note.style.cssText = "background:#f3e8ff;border:1px solid #c084fc;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#6b21a8";
+                note.textContent = `Note: ${noFillsPrintCount} barrel${noFillsPrintCount !== 1 ? "s" : ""} have no fill history recorded — Fill Tier shows \u201cNo fills logged\u201d for these rows.`;
+                doc.body.appendChild(note);
+              }
+
               const table = doc.createElement("table");
               const thead = doc.createElement("thead");
               const hRow = doc.createElement("tr");
