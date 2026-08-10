@@ -128,6 +128,13 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   // JS-thread flag that disables the ScrollView while a drag gesture is active
   const [dragActive, setDragActive] = useState(false);
 
+  // Caption tooltip state — shown on long-press of a captioned thumbnail
+  const [tooltipPhotoId, setTooltipPhotoId] = useState<number | null>(null);
+  // Stable refs so the timer callback never captures stale state.
+  // Initialized with safe empty values; kept in sync by effects below.
+  const localOrderRef = useRef<number[]>([]);
+  const photoMapRef = useRef<Map<number, BlockPhoto>>(new Map());
+
   // Ref for programmatic scrolling (auto-scroll to active thumbnail)
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -149,6 +156,10 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
 
   // O(1) photo lookup by ID for rendering
   const photoMap = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos]);
+
+  // Keep stable refs in sync so tooltip timer closures are always fresh
+  useEffect(() => { localOrderRef.current = localOrder; }, [localOrder]);
+  useEffect(() => { photoMapRef.current = photoMap; }, [photoMap]);
 
   // ID of the photo currently displayed in the lightbox (for highlight + auto-scroll)
   const currentPhotoId = photos[currentIndex]?.id ?? -1;
@@ -216,9 +227,46 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
     setDropTargetSlot(-1);
   }, []);
 
+  // --- Caption tooltip helpers ---
+
+  /**
+   * Show the tooltip for the given non-cover slot (if the photo has a caption).
+   * Called from the LongPress gesture's onStart worklet via runOnJS.
+   */
+  const showTooltipForSlot = useCallback((slot: number) => {
+    const photoId = localOrderRef.current[slot];
+    if (photoId != null) {
+      const ph = photoMapRef.current.get(photoId);
+      if (ph?.caption) setTooltipPhotoId(photoId);
+    }
+  }, []); // stable — reads via refs
+
+  /** Hide any visible tooltip. Called on release or movement. */
+  const clearTooltip = useCallback(() => {
+    setTooltipPhotoId(null);
+  }, []);
+
   // Worklet-safe snapshots (captured as consts so worklets close over stable values)
   const slotWidthSv = slotWidth;
   const itemSizeSv = itemSize;
+
+  /**
+   * LongPress gesture: fires at 300 ms (before the Pan activates at 450 ms).
+   * Shows the caption tooltip for the pressed slot while the finger is held.
+   * Combined with the Pan gesture using Gesture.Simultaneous so both can
+   * coexist — dragging will clear the tooltip via the Pan's onUpdate check.
+   */
+  const stripLongPressGesture = Gesture.LongPress()
+    .minDuration(300)
+    .onStart((e) => {
+      "worklet";
+      const slot = Math.max(0, Math.min(nonCoverCount - 1, Math.floor(e.x / slotWidthSv)));
+      runOnJS(showTooltipForSlot)(slot);
+    })
+    .onFinalize(() => {
+      "worklet";
+      runOnJS(clearTooltip)();
+    });
 
   const stripPanGesture = Gesture.Pan()
     .activateAfterLongPress(450)
@@ -238,6 +286,8 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
       dragPosX.value = clamped;
       const drop = Math.max(0, Math.min(nonCoverCount - 1, Math.round((clamped - itemSizeSv / 2) / slotWidthSv)));
       runOnJS(updateDrop)(drop);
+      // User is intentionally dragging — dismiss the caption tooltip
+      runOnJS(clearTooltip)();
     })
     .onEnd((e) => {
       "worklet";
@@ -254,6 +304,9 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
       dragSourceSlotSv.value = -1;
       runOnJS(cancelDrag)();
     });
+
+  // Combine drag + tooltip gestures so both can coexist on the same view
+  const stripGesture = Gesture.Simultaneous(stripPanGesture, stripLongPressGesture);
 
   // Build display slots for non-cover photos (ID-based).
   // During drag: source slot becomes a gap (null), gap moves to drop position.
@@ -280,7 +333,19 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
   const draggedPhoto = draggedPhotoId >= 0 ? photoMap.get(draggedPhotoId) : undefined;
   const nonCoverStripWidth = nonCoverCount > 0 ? nonCoverCount * slotWidth - STRIP_ITEM_GAP : 0;
 
+  const tooltipCaption = tooltipPhotoId != null ? (photoMap.get(tooltipPhotoId)?.caption ?? null) : null;
+
   return (
+    <View style={stripStyles.container}>
+      {/* Caption tooltip — rendered above the strip, pointer-events:none so taps fall through */}
+      {tooltipCaption != null ? (
+        <View style={stripStyles.captionTooltip} pointerEvents="none">
+          <Text style={stripStyles.captionTooltipText} numberOfLines={4}>
+            {tooltipCaption}
+          </Text>
+        </View>
+      ) : null}
+
     <ScrollView
       ref={scrollViewRef}
       horizontal
@@ -303,6 +368,11 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
             const idx = photos.findIndex((p) => p.id === coverPhoto.id);
             if (idx >= 0) onSelect(idx);
           }}
+          onLongPress={() => {
+            if (coverPhoto.caption) setTooltipPhotoId(coverPhoto.id);
+          }}
+          onPressOut={() => setTooltipPhotoId(null)}
+          delayLongPress={500}
         >
           {coverPhoto.downloadUrl ? (
             <Image source={{ uri: coverPhoto.downloadUrl }} style={stripStyles.itemImage} resizeMode="cover" />
@@ -320,7 +390,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
 
       {/* Draggable non-cover strip */}
       {nonCoverCount > 0 ? (
-        <GestureDetector gesture={stripPanGesture}>
+        <GestureDetector gesture={stripGesture}>
           <View style={{ width: nonCoverStripWidth, height: itemSize, position: "relative" }}>
             <View style={[stripStyles.row, { height: itemSize }]}>
               {displaySlots.map((photoId, slotIdx) => {
@@ -378,6 +448,7 @@ function DraggablePhotoStrip({ photos, currentIndex, onSelect, onReorder }: Drag
         </GestureDetector>
       ) : null}
     </ScrollView>
+    </View>
   );
 }
 
@@ -1664,9 +1735,29 @@ const styles = StyleSheet.create({
 // Styles for DraggablePhotoStrip (separate to keep the main StyleSheet tidy).
 // Width/height on items is applied inline because it is computed dynamically.
 const stripStyles = StyleSheet.create({
+  container: {
+    // Outer wrapper so the tooltip overlay can be positioned absolutely above the strip
+    width: SCREEN.width,
+  },
   scrollView: {
     // Fill the full lightbox width so the strip edge-to-edge
     width: SCREEN.width,
+  },
+  captionTooltip: {
+    position: "absolute",
+    bottom: STRIP_MAX_ITEM_SIZE + 10,
+    left: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.88)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+  },
+  captionTooltipText: {
+    color: "#fff",
+    fontSize: 13,
+    lineHeight: 18,
   },
   outerRow: {
     // contentContainerStyle for the horizontal ScrollView
