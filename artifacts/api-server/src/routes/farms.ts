@@ -674,17 +674,19 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
 });
 
 /**
- * PATCH /farms/:farmId — update CPH and/or SBI numbers only.
+ * PATCH /farms/:farmId — update CPH, SBI, address and/or postcode.
  * Used by the mobile app Farm Profile editor so growers can fix identifiers
  * without needing to open the full dashboard settings form.
  */
 router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { cphNumber, sbiNumber } = req.body as { cphNumber?: string | null; sbiNumber?: string | null };
+  const { cphNumber, sbiNumber, address, postcode } = req.body as { cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null };
   const [updated] = await db.update(farmsTable).set({
     ...(cphNumber !== undefined ? { cphNumber: cphNumber ?? null } : {}),
     ...(sbiNumber !== undefined ? { sbiNumber: sbiNumber ?? null } : {}),
+    ...(address !== undefined ? { address: address ?? null } : {}),
+    ...(postcode !== undefined ? { postcode: postcode ?? null } : {}),
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();

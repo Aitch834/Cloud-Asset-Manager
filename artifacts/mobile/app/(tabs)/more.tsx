@@ -54,11 +54,13 @@ export default function MoreScreen() {
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
-  const { cphNumber, sbiNumber, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { cphNumber, sbiNumber, address, postcode, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
 
   // Farm Profile edit state
   const [cphDraft, setCphDraft] = useState("");
   const [sbiDraft, setSbiDraft] = useState("");
+  const [addressDraft, setAddressDraft] = useState("");
+  const [postcodeDraft, setPostcodeDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -67,7 +69,9 @@ export default function MoreScreen() {
   useEffect(() => {
     setCphDraft(cphNumber ?? "");
     setSbiDraft(sbiNumber ?? "");
-  }, [cphNumber, sbiNumber]);
+    setAddressDraft(address ?? "");
+    setPostcodeDraft(postcode ?? "");
+  }, [cphNumber, sbiNumber, address, postcode]);
 
   async function saveProfile(): Promise<void> {
     if (!currentFarm?.id) return;
@@ -81,6 +85,8 @@ export default function MoreScreen() {
         body: JSON.stringify({
           cphNumber: cphDraft.trim() || null,
           sbiNumber: sbiDraft.trim() || null,
+          address: addressDraft.trim() || null,
+          postcode: postcodeDraft.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -282,6 +288,24 @@ export default function MoreScreen() {
             value={sbiDraft}
             onChangeText={t => { setSbiDraft(t); setProfileSaved(false); }}
             keyboardType="numeric"
+            returnKeyType="next"
+          />
+          <Input
+            label="Farm Address"
+            placeholder="e.g. Home Farm, Market Lane, Dorchester"
+            value={addressDraft}
+            onChangeText={t => { setAddressDraft(t); setProfileSaved(false); }}
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="next"
+          />
+          <Input
+            label="Postcode"
+            placeholder="e.g. DT1 1AA"
+            value={postcodeDraft}
+            onChangeText={t => { setPostcodeDraft(t); setProfileSaved(false); }}
+            autoCapitalize="characters"
+            autoCorrect={false}
             returnKeyType="done"
             onSubmitEditing={saveProfile}
             containerStyle={{ marginBottom: 0 }}

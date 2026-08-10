@@ -6,6 +6,8 @@ import { getApiBase } from "@/lib/uploadPhoto";
 interface FarmIdentifiers {
   cphNumber: string | null;
   sbiNumber: string | null;
+  address: string | null;
+  postcode: string | null;
   loading: boolean;
   refetch: () => void;
 }
@@ -37,6 +39,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers {
   const [cphNumber, setCphNumber] = useState<string | null>(null);
   const [sbiNumber, setSbiNumber] = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
+  const [postcode, setPostcode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchKey, setFetchKey] = useState(0);
 
@@ -56,10 +60,12 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
         const headers = await getAuthHeaders();
         const res = await fetch(`${apiBase}/api/farms/${farmId}`, { headers });
         if (!res.ok || cancelled) { setLoading(false); return; }
-        const data = await res.json() as { record?: { cphNumber?: string | null; sbiNumber?: string | null } };
+        const data = await res.json() as { record?: { cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null } };
         if (!cancelled) {
           setCphNumber(data.record?.cphNumber ?? null);
           setSbiNumber(data.record?.sbiNumber ?? null);
+          setAddress(data.record?.address ?? null);
+          setPostcode(data.record?.postcode ?? null);
         }
       } catch {
         // silently ignore — no identifier data available offline
@@ -70,5 +76,5 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
     return () => { cancelled = true; };
   }, [farmId, fetchKey]);
 
-  return { cphNumber, sbiNumber, loading, refetch };
+  return { cphNumber, sbiNumber, address, postcode, loading, refetch };
 }
