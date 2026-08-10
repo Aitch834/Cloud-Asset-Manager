@@ -311,6 +311,31 @@ export function printOrganicWineRecords(
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
   const address = farmMeta?.address ? esc(farmMeta.address) : "";
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
+
+  // FSA / APPA refs — amber warning badges when missing
+  const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+
+  const fsaVineRefHtml = fsaVineRegisterRef
+    ? `FSA Vine Register Ref: <strong>${esc(fsaVineRegisterRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Vine Register Ref not set</span>`;
+  const fsaWineRefHtml = fsaWineProductionRef
+    ? `FSA Wine Production Ref: <strong>${esc(fsaWineProductionRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+  const appaRefHtml = appaRef
+    ? `APPA Ref: <strong>${esc(appaRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+
+  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
+  const missingRefWarningBlock = anyMissingRef
+    ? `<div class="missing-refs-notice">
+        <strong>&#9888; Missing registration references</strong> &mdash;
+        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        Add them before submitting this register to your certifying body.
+      </div>`
+    : "";
+
   const rows = records.map(r => `
     <tr>
       <td>${String(r.vintageYear ?? "—")}</td>
@@ -328,23 +353,34 @@ export function printOrganicWineRecords(
   `).join("");
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-  <title>Organic Wine Production Register &mdash; ${farmName}</title>
+  <title>Organic Wine Production Register &mdash; ${esc(farmName)}</title>
   <style>
     body { font-family: Arial, Helvetica, sans-serif; font-size: 11.5px; color: #111; margin: 32px; }
     h1 { font-size: 17px; margin-bottom: 4px; }
-    .meta { font-size: 12px; color: #555; margin-bottom: 14px; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 14px; line-height: 1.8; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
     th { background: #3b1a6b; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
     td { padding: 5px 5px; border: 1px solid #ddd; vertical-align: top; }
     tr:nth-child(even) td { background: #f9f7ff; }
     .notice { background: #f5f3ff; border: 1px solid #c4b5fd; padding: 8px 12px; border-radius: 4px; font-size: 11.5px; margin-bottom: 14px; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 11px; margin-bottom: 14px; }
     .footer { margin-top: 20px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
-    @media print { body { margin: 15px; } }
+    @media print {
+      body { margin: 15px; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-refs-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style></head><body>
   <h1>Organic Wine Production Register</h1>
   <div class="meta">
-    <strong>${esc(farmName)}</strong>${address ? ` &nbsp;&middot;&nbsp; ${address}` : ""} &nbsp;&middot;&nbsp; Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
+    <strong>${esc(farmName)}</strong>${address ? ` &nbsp;&middot;&nbsp; ${address}` : ""}<br>
+    ${fsaVineRefHtml}<br>
+    ${fsaWineRefHtml}<br>
+    ${appaRefHtml}<br>
+    Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
   </div>
+  ${missingRefWarningBlock}
   <div class="notice">
     <strong>SO&#8322; limits for organic wine (UK-retained Reg 203/2012):</strong>
     Red wine &mdash; 100 mg/L total SO&#8322;. White &amp; ros&eacute; &mdash; 150 mg/L.
