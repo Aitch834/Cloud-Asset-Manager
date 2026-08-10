@@ -1881,8 +1881,13 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             {/* Barrel Provenance */}
             {(() => {
               const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
-              if (barrelFills.length === 0) return null;
+              const barrelVessels = Array.isArray(data.barrelVessels) ? data.barrelVessels : [];
+              if (barrelFills.length === 0 && barrelVessels.length === 0) return null;
               const barrelMaintenance = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+
+              // Identify barrel source vessels that have no fill records at all
+              const vesselIdsWithFills = new Set(barrelFills.map(f => f.vessel_id != null ? Number(f.vessel_id) : null).filter((id): id is number => id !== null));
+              const barrelVesselsWithoutFills = barrelVessels.filter(v => !vesselIdsWithFills.has(Number(v.id)));
 
               const WORK_TYPE_LABELS: Record<string, string> = {
                 inspection: "Inspection",
@@ -1927,10 +1932,12 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               }
 
               return (
-                <TrailSection icon={Package} title="Barrel Provenance" count={vesselMap.size}>
-                  <p className="text-xs text-muted-foreground -mt-1 mb-2">
-                    Fill history for each oak barrel used as a source vessel in a bottling run for this batch. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.
-                  </p>
+                <TrailSection icon={Package} title="Barrel Provenance" count={vesselMap.size + barrelVesselsWithoutFills.length}>
+                  {barrelFills.length > 0 && (
+                    <p className="text-xs text-muted-foreground -mt-1 mb-2">
+                      Fill history for each oak barrel used as a source vessel in a bottling run for this batch. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.
+                    </p>
+                  )}
                   <div className="space-y-3">
                     {Array.from(vesselMap.entries()).map(([vid, fills]) => {
                       const meta = vesselMeta.get(vid)!;
@@ -2053,6 +2060,37 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                       );
                     })}
                   </div>
+
+                  {/* Amber callout — barrels used as source vessels that have no fill records */}
+                  {barrelVesselsWithoutFills.length > 0 && (
+                    <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 flex items-start gap-3 mt-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-900 mb-1">
+                          No fill records found for {barrelVesselsWithoutFills.length === 1 ? "this barrel" : "these barrels"}
+                        </p>
+                        <p className="text-xs text-amber-800 mb-2">
+                          The following barrel vessel{barrelVesselsWithoutFills.length === 1 ? " was" : "s were"} used as a source vessel for bottling in this batch trail, but no fill history has been logged. This may mean fill records are simply missing rather than oak genuinely being absent. Auditors should verify the Vessel Register before signing off.
+                        </p>
+                        <ul className="space-y-1 mb-2">
+                          {barrelVesselsWithoutFills.map(v => (
+                            <li key={String(v.id)} className="flex items-center gap-2 text-xs text-amber-900">
+                              <span aria-hidden="true">🪵</span>
+                              <strong>{String(v.vessel_ref ?? "")}</strong>
+                              {!!v.vessel_type && <span className="text-amber-700">({String(v.vessel_type)})</span>}
+                              {!!v.cooperage && <span className="text-amber-700">· {String(v.cooperage)}</span>}
+                              {v.capacity_litres != null && (
+                                <span className="text-amber-700">· {parseFloat(String(v.capacity_litres)).toFixed(0)} L</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-amber-700 italic">
+                          To resolve: open the Vessel Register and log the fill history for the barrel{barrelVesselsWithoutFills.length === 1 ? "" : "s"} listed above.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </TrailSection>
               );
             })()}
