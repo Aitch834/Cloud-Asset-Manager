@@ -3,12 +3,14 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
+import { useUpload } from "@workspace/object-storage-web";
 import {
   Plus, Trash2, Loader2, Eye, Grape, Leaf, ClipboardList, Sprout,
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
-  Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
+  Droplet, FlaskConical, ChevronRight, ChevronLeft, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
+  Camera, Upload, X,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -144,6 +146,66 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { uploadFile } = useUpload();
+
+  const photoFileRef = useRef<HTMLInputElement>(null);
+  const [photoLightboxOpen, setPhotoLightboxOpen] = useState(false);
+  const [photoLightboxIndex, setPhotoLightboxIndex] = useState(0);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
+
+  // Fetch photos for the currently-viewed record; refresh every 4 min to keep presigned URLs valid
+  const { data: sprayPhotosData, isLoading: sprayPhotosLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
+    queryKey: ["vineyard-spray-diary-photos", farmId, view?.id ?? null],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/vineyard-spray-diary/${view!.id}/photos`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load photos"); return r.json(); }),
+    enabled: typeof view?.id === "number",
+    staleTime: 0,
+    refetchInterval: 4 * 60 * 1000,
+  });
+  const sprayPhotos = sprayPhotosData?.photos ?? [];
+
+  async function handlePhotoUpload(file: File) {
+    if (typeof view?.id !== "number") return;
+    setUploadingPhoto(true);
+    try {
+      const uploaded = await uploadFile(file);
+      if (!uploaded?.objectPath) throw new Error("Upload failed");
+      const res = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${view.id}/photos`), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath: uploaded.objectPath, fileName: file.name }),
+      });
+      if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, view.id] });
+      toast({ title: "Photo added" });
+    } catch {
+      toast({ title: "Failed to upload photo", variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function handlePhotoDelete(photoId: number) {
+    if (typeof view?.id !== "number") return;
+    setDeletingPhotoId(photoId);
+    try {
+      const res = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${view.id}/photos/${photoId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, view.id] });
+      toast({ title: "Photo removed" });
+      setPhotoLightboxIndex(i => Math.min(i, Math.max(0, sprayPhotos.length - 2)));
+    } catch {
+      toast({ title: "Failed to remove photo", variant: "destructive" });
+    } finally {
+      setDeletingPhotoId(null);
+    }
+  }
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
   const sfv = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
@@ -553,7 +615,82 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
             {typeof view.id === "number" && (
-              <div className="border-t pt-3 mt-1">
+              <div className="border-t pt-3 mt-1 space-y-4">
+                {/* ── Photo gallery ── */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Camera className="w-4 h-4" />
+                      Photos
+                      {sprayPhotos.length > 0 && (
+                        <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0 text-[10px] font-semibold">
+                          {sprayPhotos.length}
+                        </span>
+                      )}
+                    </span>
+                    <input
+                      ref={photoFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) void handlePhotoUpload(f);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 gap-1 text-xs"
+                      onClick={() => photoFileRef.current?.click()}
+                      disabled={uploadingPhoto}
+                    >
+                      {uploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      {uploadingPhoto ? "Uploading…" : "Add photo"}
+                    </Button>
+                  </div>
+                  {sprayPhotosLoading && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Loading photos…
+                    </div>
+                  )}
+                  {!sprayPhotosLoading && sprayPhotos.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic py-1">No photos attached yet.</p>
+                  )}
+                  {!sprayPhotosLoading && sprayPhotos.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {sprayPhotos.map((ph, idx) => (
+                        <div key={String(ph.id)} className="relative group w-20 h-20 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => { setPhotoLightboxIndex(idx); setPhotoLightboxOpen(true); }}
+                            className="w-full h-full rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
+                          >
+                            <img
+                              src={String(ph.downloadUrl ?? "")}
+                              alt={String(ph.fileName ?? "Photo")}
+                              className="w-full h-full object-cover"
+                              onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            title="Remove photo"
+                            disabled={deletingPhotoId === (ph.id as number)}
+                            onClick={() => void handlePhotoDelete(ph.id as number)}
+                            className="absolute top-0.5 right-0.5 rounded-full bg-black/60 hover:bg-black/80 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          >
+                            {deletingPhotoId === (ph.id as number)
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <X className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* ── Generic file attachments ── */}
                 <RecordAttachments farmId={farmId} recordType="vineyard-spray-diary" recordId={view.id} />
               </div>
             )}
@@ -581,6 +718,82 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Spray diary photo lightbox ── */}
+      {photoLightboxOpen && (() => {
+        const currentPhoto = sprayPhotos[photoLightboxIndex] ?? null;
+        return (
+          <Dialog open={photoLightboxOpen} onOpenChange={o => { if (!o) setPhotoLightboxOpen(false); }}>
+            <DialogContent className="max-w-3xl p-2">
+              <DialogHeader className="px-2 pt-2 pb-1">
+                <DialogTitle className="flex items-center gap-2 text-base">
+                  <Camera className="w-4 h-4 text-muted-foreground" />
+                  Spray Diary Photos
+                  {sprayPhotos.length > 0 && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {photoLightboxIndex + 1} / {sprayPhotos.length}
+                    </span>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+              {currentPhoto && (
+                <div className="relative">
+                  <img
+                    src={String(currentPhoto.downloadUrl ?? "")}
+                    alt={String(currentPhoto.fileName ?? "Spray diary photo")}
+                    className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
+                    onError={e => { (e.target as HTMLImageElement).src = ""; }}
+                  />
+                  {sprayPhotos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPhotoLightboxIndex(i => (i - 1 + sprayPhotos.length) % sprayPhotos.length)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                        aria-label="Previous photo"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPhotoLightboxIndex(i => (i + 1) % sprayPhotos.length)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                        aria-label="Next photo"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                  {!!currentPhoto.caption && (
+                    <p className="text-xs text-center text-muted-foreground mt-2 italic px-4">
+                      {String(currentPhoto.caption)}
+                    </p>
+                  )}
+                  {sprayPhotos.length > 1 && (
+                    <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">
+                      {sprayPhotos.map((ph, idx) => (
+                        <button
+                          key={String(ph.id)}
+                          type="button"
+                          onClick={() => setPhotoLightboxIndex(idx)}
+                          className={`shrink-0 w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === photoLightboxIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
+                        >
+                          <img
+                            src={String(ph.downloadUrl ?? "")}
+                            alt={String(ph.fileName ?? "")}
+                            className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Unlink confirm */}
       <ConfirmDialog
