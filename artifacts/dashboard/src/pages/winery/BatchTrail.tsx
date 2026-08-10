@@ -913,11 +913,11 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
             {isBarrel && (
               <>
                 <BarrelMovementLog farmId={farmId} vesselId={vesselId} currentZone={String(vessel.cellar_zone ?? "")} currentPosition={String(vessel.cellar_position ?? "")} readOnly />
-                <BarrelFillHistory farmId={farmId} vesselId={vesselId} maxExistingFill={Number(vessel.fill_number ?? 0)} readOnly />
-                <BarrelMaintenanceLog farmId={farmId} vesselId={vesselId} readOnly />
+                <BarrelFillHistory farmId={farmId} vesselId={vesselId} maxExistingFill={Number(vessel.fill_number ?? 0)} />
+                <BarrelMaintenanceLog farmId={farmId} vesselId={vesselId} />
               </>
             )}
-            <VesselCleanRow farmId={farmId} vesselId={vesselId} readOnly />
+            <VesselCleanRow farmId={farmId} vesselId={vesselId} />
           </>
         )}
 
