@@ -3,6 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -575,6 +576,29 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
     }
   }, [saving]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [sharing, setSharing] = useState(false);
+
+  const handleShare = useCallback(async () => {
+    const currentPhoto = photosRef.current[indexSv.value];
+    if (!currentPhoto?.downloadUrl || sharing) return;
+    setSharing(true);
+    try {
+      const ext = currentPhoto.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}block_photo_share_${currentPhoto.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(currentPhoto.downloadUrl, tmpUri);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing Not Available", "Sharing is not supported on this device.");
+        return;
+      }
+      await Sharing.shareAsync(dl.uri, { mimeType: `image/${ext === "jpg" ? "jpeg" : ext}` });
+    } catch {
+      Alert.alert("Share Failed", "Could not share the photo. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }, [sharing]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const dismissReorderHint = useCallback(() => {
     if (hintDismissTimer.current) {
       clearTimeout(hintDismissTimer.current);
@@ -848,6 +872,22 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Feather name="download" size={22} color="#fff" />
+            )}
+          </Pressable>
+        ) : null}
+
+        {/* Share button */}
+        {photo ? (
+          <Pressable
+            style={[styles.lbShareBtn, { top: insets.top + 12 }]}
+            hitSlop={16}
+            onPress={handleShare}
+            disabled={sharing}
+          >
+            {sharing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="share-2" size={22} color="#fff" />
             )}
           </Pressable>
         ) : null}
@@ -1564,6 +1604,17 @@ const styles = StyleSheet.create({
   lbSaveBtn: {
     position: "absolute",
     left: 64,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbShareBtn: {
+    position: "absolute",
+    left: 112,
     zIndex: 10,
     width: 40,
     height: 40,
