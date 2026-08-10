@@ -19332,7 +19332,27 @@ router.get("/:farmId/reports/subsidies", requireAuth, requireTenant, requireModu
     )
   );
 
-  res.json({ schemes, subsidyTransactions, agriEnvProjects, year });
+  const agriEnvMilestones = agriEnvProjects.length > 0
+    ? await db.select({
+        id: agriEnvMilestonesTable.id,
+        projectId: agriEnvMilestonesTable.projectId,
+        milestoneName: agriEnvMilestonesTable.milestoneName,
+        dueDate: agriEnvMilestonesTable.dueDate,
+        completionDate: agriEnvMilestonesTable.completionDate,
+        claimAmountPence: agriEnvMilestonesTable.claimAmountPence,
+        status: agriEnvMilestonesTable.status,
+        evidenceNotes: agriEnvMilestonesTable.evidenceNotes,
+      }).from(agriEnvMilestonesTable)
+      .where(
+        and(
+          eq(agriEnvMilestonesTable.farmId, farmId),
+          inArray(agriEnvMilestonesTable.projectId, agriEnvProjects.map(p => p.id))
+        )
+      )
+      .orderBy(agriEnvMilestonesTable.dueDate)
+    : [];
+
+  res.json({ schemes, subsidyTransactions, agriEnvProjects, agriEnvMilestones, year });
 });
 
 router.get("/:farmId/reports/year-on-year", requireAuth, requireTenant, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {

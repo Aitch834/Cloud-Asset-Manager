@@ -591,11 +591,41 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
   const schemes: any[] = data?.schemes ?? [];
   const subsidyTx: any[] = (data?.subsidyTransactions ?? []).filter((t: any) => ["Agri-Environment Scheme", "Grant / Subsidy"].includes(t.category ?? ""));
   const agriEnvProjects: any[] = data?.agriEnvProjects ?? [];
+  const agriEnvMilestones: any[] = data?.agriEnvMilestones ?? [];
+
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+
+  const milestonesByProject = useMemo(() => {
+    const m: Record<number, any[]> = {};
+    for (const ms of agriEnvMilestones) {
+      if (!m[ms.projectId]) m[ms.projectId] = [];
+      m[ms.projectId].push(ms);
+    }
+    return m;
+  }, [agriEnvMilestones]);
+
+  const toggleProject = (id: number) => {
+    setExpandedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const activeSchemes = schemes.filter(s => s.status === "active");
   const totalAnnualSchemes = activeSchemes.reduce((s, sc) => s + (sc.annualPaymentPence ?? 0), 0);
   const totalSubsidyReceived = subsidyTx.reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const totalAgriEnvGrantValue = agriEnvProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+  // Canonical milestone statuses: pending | submitted | paid | overdue
+  const totalMilestonesDrawnDown = agriEnvMilestones.filter(m => m.status === "submitted" || m.status === "paid").reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
+  const totalMilestonesOutstanding = agriEnvMilestones.filter(m => m.status !== "submitted" && m.status !== "paid" && m.claimAmountPence != null).reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
+
+  const msStatusStyle = (status: string): React.CSSProperties => {
+    if (status === "paid") return { background: "#dcfce7", color: "#166534" };
+    if (status === "submitted") return { background: "#dbeafe", color: "#1e40af" };
+    if (status === "overdue") return { background: "#fee2e2", color: "#991b1b" };
+    return { background: "#f3f4f6", color: "#374151" };
+  };
 
   useEffect(() => {
     onRegisterExport(() => {
@@ -611,34 +641,54 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
           s.status,
         ]),
         [],
-        ["AGRI-ENVIRONMENT SCHEMES", "", "", "", "", ""],
-        ["Scheme", "Agreement Ref.", "Start Date", "End Date", "Total Grant Value", "Status"],
-        ...agriEnvProjects.map((p: any) => [
+        ["AGRI-ENVIRONMENT SCHEMES", "", "", "", "", "", "", ""],
+        ["Scheme", "Agreement Ref.", "Start Date", "End Date", "Total Grant Value", "Status", "", ""],
+      ];
+      for (const p of agriEnvProjects) {
+        rows.push([
           p.schemeName,
           p.agreementReference || "—",
           p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—",
           p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing",
           p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—",
-          p.status,
-        ]),
-        ["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)],
-        [],
-        ["SUBSIDY PAYMENTS RECEIVED", "", "", ""],
-        ["Date", "Description", "Category", "Amount"],
-        ...subsidyTx.map((t: any) => [
+          p.status, "", "",
+        ]);
+        const pMilestones = milestonesByProject[p.id] ?? [];
+        if (pMilestones.length > 0) {
+          rows.push(["", "  Milestone", "Due Date", "Completion Date", "Claim Amount", "Status", "", ""]);
+          for (const ms of pMilestones) {
+            rows.push([
+              "",
+              `  ${ms.milestoneName}`,
+              ms.dueDate ? new Date(ms.dueDate).toLocaleDateString("en-GB") : "—",
+              ms.completionDate ? new Date(ms.completionDate).toLocaleDateString("en-GB") : "—",
+              ms.claimAmountPence != null ? fmt(ms.claimAmountPence) : "—",
+              ms.status,
+              "", "",
+            ]);
+          }
+        }
+      }
+      rows.push(["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)]);
+      rows.push(["Total milestones submitted / paid", fmt(totalMilestonesDrawnDown)]);
+      rows.push([]);
+      rows.push(["SUBSIDY PAYMENTS RECEIVED", "", "", ""]);
+      rows.push(["Date", "Description", "Category", "Amount"]);
+      for (const t of subsidyTx) {
+        rows.push([
           new Date(t.transactionDate).toLocaleDateString("en-GB"),
           t.description || "—",
           t.category || "—",
           fmt(t.amountPence),
-        ]),
-        [],
-        ["Annual Scheme Value", fmt(totalAnnualSchemes)],
-        ["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)],
-        ["Total Received", fmt(totalSubsidyReceived)],
-      ];
+        ]);
+      }
+      rows.push([]);
+      rows.push(["Annual Scheme Value", fmt(totalAnnualSchemes)]);
+      rows.push(["Agri-environment schemes total", fmt(totalAgriEnvGrantValue)]);
+      rows.push(["Total Received", fmt(totalSubsidyReceived)]);
       downloadCsv(`subsidies-${year}.csv`, rows);
     });
-  }, [data, schemes, agriEnvProjects, subsidyTx, totalAnnualSchemes, totalAgriEnvGrantValue, totalSubsidyReceived, year, onRegisterExport]);
+  }, [data, schemes, agriEnvProjects, agriEnvMilestones, milestonesByProject, subsidyTx, totalAnnualSchemes, totalAgriEnvGrantValue, totalMilestonesDrawnDown, totalSubsidyReceived, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (schemes.length === 0 && subsidyTx.length === 0 && agriEnvProjects.length === 0) return <EmptyState icon={Leaf} message="Add agri-environment scheme agreements and subsidy transactions to see this report." />;
@@ -651,6 +701,13 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
         <StatCard label="Agri-env Scheme Value" value={fmt(totalAgriEnvGrantValue)} sub="Active & completed agreements" bg="#f0fdf4" border="#bbf7d0" color="#166534" />
         <StatCard label="Subsidy Received" value={fmt(totalSubsidyReceived)} sub={`Recorded in ${year}`} bg="#eff6ff" border="#bfdbfe" color="#1e40af" />
       </div>
+      {agriEnvMilestones.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <StatCard label="Milestones Submitted / Paid" value={fmt(totalMilestonesDrawnDown)} sub="Sum of submitted & paid milestones" bg="#f0fdf4" border="#bbf7d0" color="#166534" />
+          <StatCard label="Milestones Outstanding" value={fmt(totalMilestonesOutstanding)} sub="Pending milestone claim amounts" bg="#fefce8" border="#fde68a" color="#92400e" />
+          <StatCard label="Total Milestones" value={String(agriEnvMilestones.length)} sub="Across all agri-env projects" bg="#fafafa" border="#e5e7eb" color="#374151" />
+        </div>
+      )}
 
       {schemes.length > 0 && (
         <div>
@@ -692,27 +749,88 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  {["Scheme", "Agreement Ref.", "Start", "End", "Total Grant Value", "Status"].map(h => (
+                  {["", "Scheme", "Agreement Ref.", "Start", "End", "Total Grant Value", "Status"].map(h => (
                     <th key={h} style={{ padding: "0.6rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {agriEnvProjects.map((p: any, i) => (
-                  <tr key={p.id} style={{ borderBottom: i < agriEnvProjects.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                    <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.schemeName}</td>
-                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{p.agreementReference || "—"}</td>
-                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—"}</td>
-                    <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing"}</td>
-                    <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—"}</td>
-                    <td style={{ padding: "0.6rem 0.875rem" }}>
-                      <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 20, textTransform: "capitalize", background: p.status === "active" ? "#dcfce7" : p.status === "completed" ? "#eff6ff" : "#f3f4f6", color: p.status === "active" ? "#166534" : p.status === "completed" ? "#1e40af" : "#374151" }}>
-                        {p.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {agriEnvProjects.map((p: any, i) => {
+                  const pMilestones = milestonesByProject[p.id] ?? [];
+                  const isExpanded = expandedProjects.has(p.id);
+                  const claimedTotal = pMilestones.filter((m: any) => m.status === "submitted" || m.status === "paid").reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
+                  return (
+                    <>
+                      <tr key={p.id} style={{ borderBottom: isExpanded ? "none" : (i < agriEnvProjects.length - 1 ? "1px solid #f3f4f6" : "none"), cursor: pMilestones.length > 0 ? "pointer" : undefined, background: isExpanded ? "#f9fafb" : undefined }}
+                        onClick={() => pMilestones.length > 0 && toggleProject(p.id)}>
+                        <td style={{ padding: "0.6rem 0.5rem 0.6rem 0.875rem", width: 24, color: "#9ca3af", fontSize: "0.75rem", userSelect: "none" }}>
+                          {pMilestones.length > 0 ? (isExpanded ? "▾" : "▸") : ""}
+                        </td>
+                        <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>
+                          {p.schemeName}
+                          {pMilestones.length > 0 && (
+                            <span style={{ marginLeft: 6, fontSize: "0.7rem", color: "#6b7280", fontWeight: 400 }}>
+                              {pMilestones.length} milestone{pMilestones.length !== 1 ? "s" : ""}
+                              {claimedTotal > 0 && ` · ${fmt(claimedTotal)} submitted/paid`}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{p.agreementReference || "—"}</td>
+                        <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—"}</td>
+                        <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing"}</td>
+                        <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—"}</td>
+                        <td style={{ padding: "0.6rem 0.875rem" }}>
+                          <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 20, textTransform: "capitalize", background: p.status === "active" ? "#dcfce7" : p.status === "completed" ? "#eff6ff" : "#f3f4f6", color: p.status === "active" ? "#166534" : p.status === "completed" ? "#1e40af" : "#374151" }}>
+                            {p.status}
+                          </span>
+                        </td>
+                      </tr>
+                      {isExpanded && pMilestones.length > 0 && (
+                        <>
+                          <tr style={{ background: "#f9fafb" }}>
+                            <td />
+                            <td colSpan={6} style={{ padding: 0 }}>
+                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                                <thead>
+                                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                                    {["Milestone", "Due Date", "Completion Date", "Claim Amount", "Status"].map(h => (
+                                      <th key={h} style={{ padding: "0.4rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#6b7280", fontSize: "0.72rem" }}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pMilestones.map((ms: any, mi: number) => (
+                                    <tr key={ms.id} style={{ borderBottom: mi < pMilestones.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                                      <td style={{ padding: "0.45rem 0.875rem", paddingLeft: "1.25rem", color: "#374151" }}>{ms.milestoneName}</td>
+                                      <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{ms.dueDate ? new Date(ms.dueDate).toLocaleDateString("en-GB") : "—"}</td>
+                                      <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{ms.completionDate ? new Date(ms.completionDate).toLocaleDateString("en-GB") : "—"}</td>
+                                      <td style={{ padding: "0.45rem 0.875rem", fontWeight: ms.claimAmountPence != null ? 600 : undefined, color: ms.claimAmountPence != null ? "#166534" : "#9ca3af" }}>
+                                        {ms.claimAmountPence != null ? fmt(ms.claimAmountPence) : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.45rem 0.875rem" }}>
+                                        <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "2px 7px", borderRadius: 20, textTransform: "capitalize", ...msStatusStyle(ms.status) }}>
+                                          {ms.status}
+                                        </span>
+                                        {(ms.status !== "submitted" && ms.status !== "paid") && ms.claimAmountPence != null && (
+                                          <span style={{ marginLeft: 6, fontSize: "0.7rem", color: "#b45309" }}>outstanding</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: i < agriEnvProjects.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                            <td colSpan={7} style={{ padding: 0 }} />
+                          </tr>
+                        </>
+                      )}
+                    </>
+                  );
+                })}
                 <tr style={{ borderTop: "2px solid #d1fae5", background: "#f0fdf4" }}>
+                  <td />
                   <td colSpan={4} style={{ padding: "0.6rem 0.875rem", fontWeight: 700, color: "#166534" }}>Total Agri-environment Scheme Value</td>
                   <td style={{ padding: "0.6rem 0.875rem", fontWeight: 700, color: "#166534" }}>{fmt(totalAgriEnvGrantValue)}</td>
                   <td />
@@ -721,7 +839,7 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
             </table>
           </div>
           <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 6 }}>
-            Showing all agri-environment agreements except withdrawn ones. Grant values are pulled automatically from the Agri-environment tab.
+            Click a project row to expand its milestones. Showing all agri-environment agreements except withdrawn ones.
           </p>
         </div>
       )}
