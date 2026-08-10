@@ -293,13 +293,27 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   });
 
   const costs: any[] = data?.costs ?? [];
+  // agriEnvSummary: per-project { id, schemeName, totalGrantValuePence, yearClaimedPence }
+  // yearClaimedPence = sum of completed milestones with completionDate in the selected year only
+  const agriEnvSummary: any[] = data?.agriEnvSummary ?? [];
 
   const sumCat = (cat: string) => costs.filter(t => t.category === cat).reduce((s, t) => s + (t.amountPence ?? 0), 0);
-  const sumCats = (cats: string[], type?: string) => costs.filter(t => (!type || t.transactionType === type) && cats.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
-  // Income by category
+  // Income by category (financial transactions only)
   const incomeValues = INCOME_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
-  const totalOutput = Object.values(incomeValues).reduce((s, v) => s + v, 0);
+  const txIncomeTotal = Object.values(incomeValues).reduce((s, v) => s + v, 0);
+
+  // Only count milestones actually claimed (completed) in the selected year — never the full agreement value
+  const agriEnvYearTotal = agriEnvSummary.reduce((s: number, p: any) => s + (p.yearClaimedPence ?? 0), 0);
+  const agriEnvActiveProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) > 0);
+  // Projects active in year but with no milestone claims yet recorded
+  const agriEnvUnclaimedProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) === 0);
+
+  // Double-count warning: both a financial "Agri-Environment Scheme" transaction AND milestone claims exist
+  const hasDoubleCountRisk = agriEnvYearTotal > 0 && incomeValues["Agri-Environment Scheme"] > 0;
+
+  // Total output includes only milestone claims earned this year
+  const totalOutput = txIncomeTotal + agriEnvYearTotal;
 
   // Variable costs
   const varCosts = VARIABLE_COST_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
@@ -314,30 +328,44 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   useEffect(() => {
     onRegisterExport(() => {
       const rows: (string | number)[][] = [
-        ["Line Item", "Amount"],
-        ["INCOME", ""],
-        ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c])]),
-        ["Total Farm Output", fmt(totalOutput)],
+        ["Line Item", "Amount", "Note"],
+        ["INCOME", "", ""],
+        ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c]), ""]),
+        ...(agriEnvYearTotal > 0 ? [["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`]] : []),
+        ["Total Farm Output", fmt(totalOutput), ""],
         [],
-        ["VARIABLE COSTS", ""],
-        ...VARIABLE_COST_CATS.filter(c => varCosts[c] > 0).map(c => [c, fmt(varCosts[c])]),
-        ["Total Variable Costs", `(${fmt(totalVarCosts)})`],
-        ["Gross Margin", fmt(grossMargin)],
+        ["VARIABLE COSTS", "", ""],
+        ...VARIABLE_COST_CATS.filter(c => varCosts[c] > 0).map(c => [c, fmt(varCosts[c]), ""]),
+        ["Total Variable Costs", `(${fmt(totalVarCosts)})`, ""],
+        ["Gross Margin", fmt(grossMargin), ""],
         [],
-        ["FIXED COSTS / OVERHEADS", ""],
-        ...FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => [c, fmt(fixedCosts[c])]),
-        ["Total Fixed Costs", `(${fmt(totalFixed)})`],
-        ["Net Farm Income", fmt(netFarmIncome)],
+        ["FIXED COSTS / OVERHEADS", "", ""],
+        ...FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => [c, fmt(fixedCosts[c]), ""]),
+        ["Total Fixed Costs", `(${fmt(totalFixed)})`, ""],
+        ["Net Farm Income", fmt(netFarmIncome), ""],
       ];
       downloadCsv(`pl-statement-${year}.csv`, rows);
     });
-  }, [data, totalOutput, totalVarCosts, grossMargin, totalFixed, netFarmIncome, year, onRegisterExport]);
+  }, [data, agriEnvSummary, agriEnvYearTotal, agriEnvActiveProjects, hasDoubleCountRisk, totalOutput, txIncomeTotal, totalVarCosts, grossMargin, totalFixed, netFarmIncome, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
-  if (costs.length === 0) return <EmptyState icon={PoundSterling} message="Add financial transactions to generate the income statement." />;
+  if (costs.length === 0 && agriEnvSummary.length === 0) return <EmptyState icon={PoundSterling} message="Add financial transactions to generate the income statement." />;
 
   return (
     <div>
+      {hasDoubleCountRisk && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.1rem", lineHeight: 1.3 }}>⚠️</span>
+          <div>
+            <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", marginBottom: 2 }}>Possible double-count detected</p>
+            <p style={{ color: "#78350f", fontSize: "0.8rem" }}>
+              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env project records in {year}.
+              The agri-env line below is drawn from the Agri-Env tab. To avoid double-counting, remove either the financial transaction or exclude the agri-env tab line from your total.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
         <StatCard label="Total Farm Output" value={fmt(totalOutput)} bg="#eff6ff" border="#bfdbfe" color="#1e40af" />
         <StatCard label="Gross Margin" value={fmt(grossMargin)} bg={grossMargin >= 0 ? "#f0fdf4" : "#fef2f2"} border={grossMargin >= 0 ? "#bbf7d0" : "#fecaca"} color={grossMargin >= 0 ? "#166534" : "#991b1b"} />
@@ -351,6 +379,24 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
             {INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => (
               <DataRow key={c} label={c} value={fmt(incomeValues[c])} indent />
             ))}
+            {agriEnvYearTotal > 0 && (
+              <tr style={{ background: "#f0fdf4" }}>
+                <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: "#166534" }}>
+                  Agri-environment schemes (milestone claims)
+                  <span style={{ marginLeft: 8, fontSize: "0.7rem", background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
+                    from Agri-Env tab · {agriEnvActiveProjects.length} project{agriEnvActiveProjects.length !== 1 ? "s" : ""}
+                  </span>
+                </td>
+                <td style={{ padding: "0.5rem 0.875rem", color: "#166534", textAlign: "right", fontWeight: 500 }}>{fmt(agriEnvYearTotal)}</td>
+              </tr>
+            )}
+            {agriEnvUnclaimedProjects.length > 0 && agriEnvYearTotal === 0 && (
+              <tr style={{ background: "#fafafa" }}>
+                <td colSpan={2} style={{ padding: "0.45rem 0.875rem", paddingLeft: "1.75rem", color: "#6b7280", fontSize: "0.78rem", fontStyle: "italic" }}>
+                  {agriEnvUnclaimedProjects.length} agri-env project{agriEnvUnclaimedProjects.length !== 1 ? "s" : ""} active — no completed milestone claims recorded for {year}
+                </td>
+              </tr>
+            )}
             <TotalRow label="Total Farm Output" value={fmt(totalOutput)} />
 
             <SectionDivider label="Variable Costs" />
@@ -370,7 +416,7 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
         </table>
       </div>
       <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 8 }}>
-        Based on {costs.length} financial transactions recorded for {year}. Record depreciation as a "Machinery &amp; Equipment" or "Other Expense" transaction to include it in the P&amp;L. For a full balance sheet add assets and liabilities via the Asset Register.
+        Based on {costs.length} financial transaction{costs.length !== 1 ? "s" : ""}{agriEnvYearTotal > 0 ? ` and completed milestone claims from ${agriEnvActiveProjects.length} agri-env project${agriEnvActiveProjects.length !== 1 ? "s" : ""} (from the Agri-Env tab, claims dated in ${year} only)` : agriEnvSummary.length > 0 ? ` — ${agriEnvSummary.length} agri-env project${agriEnvSummary.length !== 1 ? "s" : ""} active but no completed milestone claims in ${year}` : ""} recorded for {year}. Record depreciation as a "Machinery &amp; Equipment" or "Other Expense" transaction to include it in the P&amp;L. For a full balance sheet add assets and liabilities via the Asset Register.
       </p>
     </div>
   );

@@ -19263,7 +19263,51 @@ router.get("/:farmId/reports/gross-margin", requireAuth, requireTenant, requireM
     and(eq(financialTransactionsTable.farmId, farmId), gte(financialTransactionsTable.transactionDate, startDate), lt(financialTransactionsTable.transactionDate, endDate))
   );
 
-  res.json({ harvests, costs, year });
+  // Agri-env projects that overlap with the selected year (non-withdrawn)
+  const agriEnvProjects = await db.select().from(agriEnvProjectsTable).where(
+    and(
+      eq(agriEnvProjectsTable.farmId, farmId),
+      ne(agriEnvProjectsTable.status, "withdrawn"),
+      or(
+        isNull(agriEnvProjectsTable.startDate),
+        lte(agriEnvProjectsTable.startDate, `${year}-12-31`)
+      ),
+      or(
+        isNull(agriEnvProjectsTable.endDate),
+        gte(agriEnvProjectsTable.endDate, `${year}-01-01`)
+      )
+    )
+  );
+
+  // Completed milestone claims whose completionDate falls within the selected year —
+  // these are the amounts actually earned/claimed in the year, not the full agreement value.
+  const agriEnvYearMilestones = agriEnvProjects.length > 0
+    ? await db.select({
+        projectId: agriEnvMilestonesTable.projectId,
+        claimAmountPence: agriEnvMilestonesTable.claimAmountPence,
+      }).from(agriEnvMilestonesTable)
+      .where(
+        and(
+          inArray(agriEnvMilestonesTable.projectId, agriEnvProjects.map(p => p.id)),
+          inArray(agriEnvMilestonesTable.status, ["submitted", "paid"]),
+          isNotNull(agriEnvMilestonesTable.completionDate),
+          gte(agriEnvMilestonesTable.completionDate, `${year}-01-01`),
+          lte(agriEnvMilestonesTable.completionDate, `${year}-12-31`)
+        )
+      )
+    : [];
+
+  // Build a per-project summary: year-claimed amount (milestones only, not total agreement value)
+  const agriEnvSummary = agriEnvProjects.map(p => ({
+    id: p.id,
+    schemeName: p.schemeName,
+    totalGrantValuePence: p.totalGrantValuePence,
+    yearClaimedPence: agriEnvYearMilestones
+      .filter(m => m.projectId === p.id)
+      .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0),
+  }));
+
+  res.json({ harvests, costs, agriEnvSummary, year });
 });
 
 router.get("/:farmId/reports/grain-position", requireAuth, requireTenant, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
