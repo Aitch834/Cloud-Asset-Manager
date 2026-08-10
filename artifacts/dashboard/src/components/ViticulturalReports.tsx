@@ -44,7 +44,7 @@ type OpRec = {
 type SprayRec = {
   id: number; applicationDate: string; blockId: number | null;
   productName: string | null; areaTreatedHa: string | null;
-  ratePerHectare: string | null; quantityUsed: string | null;
+  ratePerHectare: string | null; totalQuantityApplied: string | null;
 };
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -1313,7 +1313,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-2">{fmt(sp.productName)}</td>
                     <td className="px-4 py-2 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
                     <td className="px-4 py-2 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
-                    <td className="px-4 py-2 text-right font-mono">{fmtN(sp.quantityUsed, 2)}</td>
+                    <td className="px-4 py-2 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1347,6 +1347,18 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   const [year, setYear] = usePersistedNumberFilter({ page: "viticultural-enterprise-report", filter: "year", farmId, defaultValue: currentYear });
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection(v => (v === s ? null : s));
+  // Force all sections open before browser renders print layout; restore after.
+  const [forcePrint, setForcePrint] = useState(false);
+  useEffect(() => {
+    const before = () => setForcePrint(true);
+    const after = () => setForcePrint(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
   const [, setLocation] = useLocation();
 
   const { blocks, harvests, ops, sprays, loading } = useVitData(farmId);
@@ -1418,7 +1430,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
       if (!m[p]) m[p] = { applications: 0, totalAreaHa: 0, totalQty: 0 };
       m[p].applications++;
       m[p].totalAreaHa += n(sp.areaTreatedHa);
-      m[p].totalQty += n(sp.quantityUsed);
+      m[p].totalQty += n(sp.totalQuantityApplied);
     });
     return Object.entries(m).sort(([, a], [, b]) => b.applications - a.applications);
   }, [yearSprays]);
@@ -1766,7 +1778,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             return (
               <Collapsible
                 title={`Harvest Detail — ${vintageHarvest.length} record${vintageHarvest.length !== 1 ? "s" : ""} · ${(totalYieldKg / 1000).toFixed(2)} t total`}
-                open={openSection === "harvest"}
+                open={forcePrint || openSection === "harvest"}
                 setOpen={v => toggle(v ? "harvest" : "")}
               >
                 {/* Per-block yield summary */}
@@ -1866,7 +1878,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
           {yearOps.length > 0 && (
             <Collapsible
               title={`Canopy Operations — ${yearOps.length} operation${yearOps.length !== 1 ? "s" : ""} · ${totalOpsHours.toFixed(1)} hours`}
-              open={openSection === "ops"}
+              open={forcePrint || openSection === "ops"}
               setOpen={v => toggle(v ? "ops" : "")}
             >
               <div className="p-4 space-y-3">
@@ -1914,7 +1926,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
           {yearSprays.length > 0 && (
             <Collapsible
               title={`Spray Diary — ${totalSprayApplications} application${totalSprayApplications !== 1 ? "s" : ""} · ${totalSprayArea.toFixed(1)} ha treated`}
-              open={openSection === "sprays"}
+              open={forcePrint || openSection === "sprays"}
               setOpen={v => toggle(v ? "sprays" : "")}
             >
               <div className="p-4 space-y-3">
