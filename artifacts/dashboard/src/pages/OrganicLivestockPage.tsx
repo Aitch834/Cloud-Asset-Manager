@@ -51,6 +51,7 @@ import {
   StrawInventorySection, TbTestsSection,
   WelfareOutcomeSection,
 } from "@/pages/LivestockPage";
+import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
 
 const CERTIFIERS = [
   "Soil Association",
@@ -3654,7 +3655,9 @@ export default function OrganicLivestockPage() {
   return (
     <AppLayout title="Organic Livestock">
       {farmId && (
-        <Tabs value={tab} onValueChange={setTab}>
+        <>
+          <ArableFarmSettingsChecklist farmId={farmId} />
+          <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="conversion">Conversion</TabsTrigger>
             <TabsTrigger value="feed">Feed Records</TabsTrigger>
@@ -3738,6 +3741,7 @@ export default function OrganicLivestockPage() {
             <KiddingSection farmId={farmId} />
           </TabsContent>
         </Tabs>
+        </>
       )}
     </AppLayout>
   );

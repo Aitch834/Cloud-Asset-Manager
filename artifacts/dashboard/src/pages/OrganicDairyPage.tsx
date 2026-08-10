@@ -49,6 +49,7 @@ import { openPrintWindow } from "@/lib/print-report";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
 import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab";
+import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
 
 const FEED_TYPES: [string, string][] = [
   ["Concentrate", "Concentrate"],
@@ -2836,6 +2837,7 @@ export default function OrganicDairyPage() {
     <AppLayout title="Organic Dairy">
       {farmId && (
         <>
+        <ArableFarmSettingsChecklist farmId={farmId} />
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="herd-conversion">Herd Conversion</TabsTrigger>
