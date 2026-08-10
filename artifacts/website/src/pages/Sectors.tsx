@@ -6,6 +6,7 @@ import {
   Beef, Wheat, Grape, Tractor, LayoutGrid, Wrench,
   CheckCircle2, ArrowRight, ChevronRight, AlertTriangle,
   ClipboardList, PoundSterling, ShieldCheck, Smartphone,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -253,6 +254,56 @@ export default function Sectors() {
                 ))}
               </div>
             </div>
+
+            {/* Viticulture Bundle Callout */}
+            {sector.id === "viticulture" && (
+              <div className="mb-12 rounded-2xl border-2 border-purple-200 bg-purple-50 p-6 md:p-8">
+                <div className="flex flex-col md:flex-row md:items-start gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                        <Gift className="w-5 h-5 text-purple-700" />
+                      </div>
+                      <p className="text-purple-900 font-bold text-lg leading-snug">
+                        £75/month of modules bundled free
+                      </p>
+                    </div>
+                    <p className="text-purple-800 text-sm leading-relaxed mb-5">
+                      Every Viticulture subscription automatically includes four additional modules at no extra charge — modules that other sectors pay for separately. That's over £900/year of additional value included in the £45/month Viticulture price.
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {[
+                        { name: "Sprays & Inputs", price: 15, desc: "Spray records, LERAP assessments, IPM plan, beekeeper notifications" },
+                        { name: "Safety, Risk & Audits", price: 20, desc: "H&S register, accident book, COSHH, PAT testing, fire extinguishers" },
+                        { name: "Staff & Training", price: 10, desc: "Training records, PPE compliance, timesheets, right-to-work checks" },
+                        { name: "Equipment, Workshop & Fuel", price: 30, desc: "PUWER inspections, service history, workshop job cards, fuel records" },
+                      ].map((m) => (
+                        <div key={m.name} className="flex gap-3 p-3.5 rounded-xl bg-white border border-purple-100">
+                          <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-foreground text-sm">{m.name}</p>
+                              <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">£{m.price}/mo</span>
+                            </div>
+                            <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">{m.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="md:w-52 shrink-0 flex flex-col items-center text-center bg-white border border-purple-200 rounded-xl p-5 gap-3">
+                    <p className="text-4xl font-extrabold text-purple-700">£75</p>
+                    <p className="text-sm text-purple-900 font-medium leading-snug">per month bundled free with Viticulture</p>
+                    <div className="w-full border-t border-purple-100 pt-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">Select <strong>Viticulture</strong> in the pricing tool to see the full breakdown.</p>
+                    </div>
+                    <Link href="/pricing" className="inline-flex items-center gap-1 text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors">
+                      See full pricing <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Pricing CTA */}
             <div className="rounded-2xl bg-gradient-to-br from-brand-forest to-brand-sage p-8 text-white flex flex-col md:flex-row md:items-center gap-6">
