@@ -670,6 +670,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   const avgPH = phVals.length > 0 ? phVals.reduce((a, b) => a + b, 0) / phVals.length : null;
   const potAlcVals = vintageHarvest.filter(h => h.potentialAlcohol != null && h.potentialAlcohol !== "").map(h => n(h.potentialAlcohol));
   const avgPotAlc = potAlcVals.length > 0 ? potAlcVals.reduce((a, b) => a + b, 0) / potAlcVals.length : null;
+  const taVals = vintageHarvest.filter(h => h.titratableAcidityGl != null && h.titratableAcidityGl !== "").map(h => n(h.titratableAcidityGl));
+  const avgTA = taVals.length > 0 ? taVals.reduce((a, b) => a + b, 0) / taVals.length : null;
   const totalOpsHours = seasonOps.reduce((s, o) => s + n(o.hoursWorked), 0);
   const totalSprayArea = seasonSprays.reduce((s, sp) => s + n(sp.areaTreatedHa), 0);
 
@@ -768,6 +770,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             { label: "Area Harvested", value: totalAreaHa > 0 ? `${totalAreaHa.toFixed(2)} ha` : "—" },
             { label: "Avg Yield (t/ha)", value: avgTha > 0 ? avgTha.toFixed(2) : "—" },
             { label: "Avg Brix °", value: avgBrix != null ? avgBrix.toFixed(1) : "—" },
+            { label: "Avg TA (g/L)", value: avgTA != null ? avgTA.toFixed(1) : "—" },
+            { label: "Avg Pot. Alc %", value: avgPotAlc != null ? avgPotAlc.toFixed(1) : "—" },
           ].map(({ label, value }) => (
             <div key={label} className="rounded-xl border border-border bg-card p-3">
               <p className="text-xs text-foreground/50">{label}</p>
