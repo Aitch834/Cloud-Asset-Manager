@@ -10,12 +10,16 @@
  *   - Obtain from: ZENTRA Cloud account → Settings → API Access
  *   - Authorization: Token {apiToken}   (note: "Token" not "Bearer")
  *
- * API docs: https://zentracloud.com/api/v4/documentation/
+ * API docs: https://zentracloud.com/api/v5/documentation/
  *
  * Endpoints used:
- *   GET /devices/               → list registered devices
+ *   GET /devices/               → list registered devices (paginated via next_url in v5)
  *   GET /readings/?device_sn={sn}&type=json&start_mrid=0
  *                               → latest readings per device
+ *
+ * Upgraded from v4 → v5 (July 2026):
+ *   - v5 is the current API version; v4 returns 404 after ZENTRA Cloud 2.0 release
+ *   - /devices/ now paginates via next_url; getAllDevices() follows pages to completion
  */
 
 import { db } from "@workspace/db";
@@ -24,10 +28,12 @@ import { eq } from "drizzle-orm";
 import { sql as drizzleSql } from "drizzle-orm";
 import { decryptCredential } from "./encrypt";
 
-const ZENTRA_BASE = "https://zentracloud.com/api/v4";
+const ZENTRA_BASE = "https://zentracloud.com/api/v5";
 
 async function zentraGet<T>(path: string, token: string): Promise<T> {
-  const res = await fetch(`${ZENTRA_BASE}${path}`, {
+  // path may be a full URL (next_url from pagination) or a relative path
+  const url = path.startsWith("http") ? path : `${ZENTRA_BASE}${path}`;
+  const res = await fetch(url, {
     headers: {
       "Authorization": `Token ${token}`,
       "Content-Type": "application/json",
@@ -40,16 +46,19 @@ async function zentraGet<T>(path: string, token: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+interface ZentraDeviceEntry {
+  device?: {
+    name?: string;
+    serial_number?: string;
+    description?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+}
+
 interface ZentraDevicesResponse {
-  data?: Array<{
-    device?: {
-      name?: string;
-      serial_number?: string;
-      description?: string;
-      latitude?: number;
-      longitude?: number;
-    };
-  }>;
+  data?: ZentraDeviceEntry[];
+  next_url?: string | null;   // v5 pagination
 }
 
 interface ZentraReadingsResponse {
@@ -63,6 +72,27 @@ interface ZentraReadingsResponse {
       values?: Array<{ timestamp_utc?: string; value?: number; error?: boolean }>;
     }>;
   }>>;
+}
+
+/**
+ * Fetch all devices, following next_url pagination introduced in v5.
+ * Guards against runaway loops with a 50-page hard cap (more than enough for
+ * any real-world ZENTRA account).
+ */
+async function getAllZentraDevices(token: string): Promise<ZentraDeviceEntry[]> {
+  const all: ZentraDeviceEntry[] = [];
+  let nextPath: string | null | undefined = "/devices/";
+  let pages = 0;
+  const MAX_PAGES = 50;
+
+  while (nextPath && pages < MAX_PAGES) {
+    const page: ZentraDevicesResponse = await zentraGet<ZentraDevicesResponse>(nextPath, token);
+    all.push(...(page.data ?? []));
+    nextPath = page.next_url ?? null;
+    pages++;
+  }
+
+  return all;
 }
 
 const ZENTRA_CATEGORY_MAP: Record<string, string> = {
@@ -95,8 +125,7 @@ export async function pollZentraFarm(
   const token = decryptCredential(apiKeyEncrypted);
 
   try {
-    const devicesRes = await zentraGet<ZentraDevicesResponse>("/devices/", token);
-    const devices = devicesRes.data ?? [];
+    const devices = await getAllZentraDevices(token);
 
     let totalReadings = 0;
 
@@ -183,6 +212,7 @@ export async function testZentraCredentials(
 ): Promise<{ ok: boolean; deviceCount?: number; error?: string }> {
   try {
     const token = decryptCredential(apiKeyEncrypted);
+    // Only fetch the first page for a credentials test — we just need to confirm auth works
     const res = await zentraGet<ZentraDevicesResponse>("/devices/", token);
     return { ok: true, deviceCount: (res.data ?? []).length };
   } catch (err) {
