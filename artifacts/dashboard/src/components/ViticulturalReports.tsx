@@ -627,6 +627,27 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     return Object.values(map).sort((a, b) => b.vintage.localeCompare(a.vintage));
   }, [year, harvests, blockMap]);
 
+  // Block filter for per-block yield trend (all-vintages mode only)
+  // null = all blocks shown; Set = subset of block names to show
+  const [selectedBlockNames, setSelectedBlockNames] = useState<Set<string> | null>(null);
+
+  const toggleBlock = (name: string) => {
+    setSelectedBlockNames(prev => {
+      // When null, all blocks are shown — clicking one deselects all others
+      const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
+      const current = prev ?? new Set(allKeys);
+      const next = new Set(current);
+      if (next.has(name)) {
+        next.delete(name);
+        if (next.size === 0) return new Set(allKeys); // prevent empty selection
+      } else {
+        next.add(name);
+        if (next.size === allKeys.length) return null; // back to "all"
+      }
+      return next;
+    });
+  };
+
   // Per-block yield trend across all vintages (all-vintages mode only)
   const blockYieldTrendData = useMemo(() => {
     if (year != null) return { chartData: [], blockLines: [] as { key: string; color: string }[] };
@@ -846,38 +867,77 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             <h3 className="text-sm font-semibold">Per-Block Yield Trend — All Vintages</h3>
             <p className="text-xs text-foreground/40">Yield (t/ha) per vintage for each block — spot which blocks are improving or declining</p>
           </div>
+          {/* Block filter toggles — shown when there are 2+ blocks, hidden on print */}
+          {blockYieldTrendData.blockLines.length >= 2 && (
+            <div className="px-4 py-2.5 border-b border-border bg-muted/10 flex flex-wrap items-center gap-1.5 no-print">
+              <span className="text-xs text-foreground/50 shrink-0 mr-0.5">Show blocks:</span>
+              {blockYieldTrendData.blockLines.map(bl => {
+                const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
+                return (
+                  <button
+                    key={bl.key}
+                    type="button"
+                    onClick={() => toggleBlock(bl.key)}
+                    className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? "border-transparent text-white"
+                        : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                    }`}
+                    style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
+                    title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
+                  >
+                    {bl.key}
+                  </button>
+                );
+              })}
+              {selectedBlockNames != null && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBlockNames(null)}
+                  className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 ml-1"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+          )}
           <div className="p-4">
             {blockYieldTrendData.chartData.length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">
                 No block harvest records found. Link harvest records to blocks to see per-block trends.
               </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(220, blockYieldTrendData.blockLines.length * 18 + 80)}>
-                <LineChart data={blockYieldTrendData.chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    width={50}
-                    label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }}
-                    domain={[0, "auto"]}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  {blockYieldTrendData.blockLines.map(bl => (
-                    <Line
-                      key={bl.key}
-                      type="monotone"
-                      dataKey={bl.key}
-                      stroke={bl.color}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      connectNulls
+            ) : (() => {
+              const visibleLines = blockYieldTrendData.blockLines.filter(
+                bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
+              );
+              return (
+                <ResponsiveContainer width="100%" height={Math.max(220, visibleLines.length * 18 + 80)}>
+                  <LineChart data={blockYieldTrendData.chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      width={50}
+                      label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }}
+                      domain={[0, "auto"]}
                     />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                    {visibleLines.map(bl => (
+                      <Line
+                        key={bl.key}
+                        type="monotone"
+                        dataKey={bl.key}
+                        stroke={bl.color}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              );
+            })()}
           </div>
         </div>
       )}
