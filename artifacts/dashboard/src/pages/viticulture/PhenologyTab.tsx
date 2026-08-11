@@ -138,8 +138,8 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       );
       return toSave.length;
     },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-phenology", farmId] });
+    onSuccess: async (count) => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-phenology", farmId] });
       setBulkLinkOpen(false);
       toast({ title: `${count} ${count === 1 ? "observation" : "observations"} linked`, description: "Block links saved successfully." });
     },

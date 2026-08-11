@@ -352,8 +352,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       );
       return toSave.length;
     },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+    onSuccess: async (count) => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       setBulkLinkOpen(false);
       toast({ title: `${count} ${count === 1 ? "record" : "records"} linked`, description: "Block links saved successfully." });
     },

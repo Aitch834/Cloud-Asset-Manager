@@ -173,8 +173,8 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       );
       return toSave.length;
     },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+    onSuccess: async (count) => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-scouting", farmId] });
       setBulkLinkOpen(false);
       toast({ title: `${count} ${count === 1 ? "record" : "records"} linked`, description: "Block links saved successfully." });
     },

@@ -148,8 +148,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       );
       return toSave.length;
     },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-harvest", farmId] });
+    onSuccess: async (count) => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-harvest", farmId] });
       setBulkLinkOpen(false);
       toast({ title: `${count} harvest ${count === 1 ? "record" : "records"} linked`, description: "Block links saved successfully." });
     },
