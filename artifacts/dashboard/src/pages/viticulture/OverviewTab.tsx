@@ -216,6 +216,8 @@ export function OverviewTab({
             { label: "No Xylella suspicion outstanding", ok: !xylellaAlert },
             { label: "All scouting records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "scouting")!.count === 0, tabId: "scouting", unlinkedCount: unlinkedItems.find(i => i.tabId === "scouting")!.count },
             { label: "All spray diary records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "spray-diary")!.count === 0, tabId: "spray-diary", unlinkedCount: unlinkedItems.find(i => i.tabId === "spray-diary")!.count },
+            { label: "All phenology records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "phenology")!.count === 0, tabId: "phenology", unlinkedCount: unlinkedItems.find(i => i.tabId === "phenology")!.count },
+            { label: "All harvest records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "harvest")!.count === 0, tabId: "harvest", unlinkedCount: unlinkedItems.find(i => i.tabId === "harvest")!.count },
           ].map((item, i) => {
             const isClickable = !item.ok && item.tabId;
             const handleClick = isClickable
