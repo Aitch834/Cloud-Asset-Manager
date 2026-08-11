@@ -22,7 +22,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { kvGet } from "@/lib/database";
+import { kvGet, kvSet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers (mirrored from useApiFetch) ─────────────────────────────────
@@ -447,6 +447,32 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset the form synchronously when the modal opens, then patch in the stored cooperage name
+  useEffect(() => {
+    if (!visible) return;
+    // Synchronous reset so the form is clean before the user can type anything
+    setForm({
+      maintenanceDate: todayIso(),
+      workType: "",
+      cooperageName: "",
+      costPounds: "",
+      notes: "",
+    });
+    setError(null);
+    // Asynchronously prefill cooperage name; only apply if the user hasn't typed yet
+    let cancelled = false;
+    void (async () => {
+      const stored = await kvGet("last_cooperage_name");
+      if (!cancelled && stored) {
+        // Only patch cooperageName — never touch other fields — and only if the
+        // user hasn't already started typing their own value
+        setForm(prev => prev.cooperageName === "" ? { ...prev, cooperageName: stored } : prev);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   function set(field: keyof MaintenanceFormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
@@ -482,6 +508,10 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
       setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", costPounds: "", notes: "" });
+      // Persist cooperage name best-effort after a successful save; storage failure must not affect the success flow
+      if (form.cooperageName.trim()) {
+        kvSet("last_cooperage_name", form.cooperageName.trim()).catch(() => undefined);
+      }
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save maintenance record.");
