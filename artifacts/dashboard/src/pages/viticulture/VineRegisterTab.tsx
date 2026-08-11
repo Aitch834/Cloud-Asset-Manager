@@ -425,6 +425,30 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         onNavigate={() => setLocation("/settings/farm")}
       />
 
+      {/* RPA Export unavailable warning */}
+      {farmRecord && (!farmRecord.sbiNumber || !farmRecord.sectorViticulture) && (
+        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium">RPA Export unavailable:</span>{" "}
+            The RPA Reference Export and Print RPA Reference buttons require{" "}
+            {!farmRecord.sbiNumber && !farmRecord.sectorViticulture
+              ? "an SBI number and a Viticulture sector"
+              : !farmRecord.sbiNumber
+              ? "an SBI number"
+              : "a Viticulture sector"}{" "}
+            to be set.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => setLocation("/settings/farm")}
+            >
+              Add in Farm Settings
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
