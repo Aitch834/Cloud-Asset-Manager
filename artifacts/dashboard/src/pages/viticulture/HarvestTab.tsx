@@ -239,6 +239,73 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
 
+  // ── Chemistry cross-tab data (block × vintage) ────────────────────────────
+  // Only computed when "All vintages" is selected and there are ≥2 vintages + ≥2 linked blocks
+  const chemCrossTabData = useMemo(() => {
+    if (yearFilter !== "all") return null;
+    const linkedRows = filteredHarvest.filter(r => r.blockId != null && r.blockId !== "");
+    const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
+    if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
+
+    // Build lookup: blockId → vintageYear → rows[]
+    const lookup: Record<string, Record<string, Record<string, unknown>[]>> = {};
+    for (const r of linkedRows) {
+      const bid = String(r.blockId ?? "");
+      const vy = String(r.vintageYear ?? "");
+      if (!lookup[bid]) lookup[bid] = {};
+      if (!lookup[bid][vy]) lookup[bid][vy] = [];
+      lookup[bid][vy].push(r);
+    }
+
+    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+
+    type MetricDef = {
+      label: string;
+      key: string;
+      precision: number;
+      extractor: (r: Record<string, unknown>) => number | null;
+    };
+
+    const metrics: MetricDef[] = [
+      { label: "Avg Brix °", key: "brix", precision: 1, extractor: r => { const v = parseFloat(String(r.brix ?? "")); return isNaN(v) ? null : v; } },
+      { label: "Avg pH", key: "ph", precision: 2, extractor: r => { const v = parseFloat(String(r.ph ?? "")); return isNaN(v) ? null : v; } },
+      { label: "Avg TA (g/L)", key: "ta", precision: 2, extractor: r => { const v = parseFloat(String(r.titratableAcidityGl ?? "")); return isNaN(v) ? null : v; } },
+      { label: "Avg Pot. Alc %", key: "pa", precision: 2, extractor: r => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; } },
+    ];
+
+    // Pre-compute per-block, per-vintage, and grand averages for each metric
+    const tables = metrics.map(m => {
+      const rows = uniqueBlockIds.map(bid => {
+        const bidStr = String(bid);
+        const bname = String(blockName(bid));
+        const vintageCells = uniqueVintages.map(vy => {
+          const grp = lookup[bidStr]?.[vy] ?? [];
+          const vals = grp.map(m.extractor).filter((v): v is number => v !== null);
+          return avg(vals);
+        });
+        const allVals = Object.values(lookup[bidStr] ?? {}).flat().map(m.extractor).filter((v): v is number => v !== null);
+        return { bname, vintageCells, rowAvg: avg(allVals) };
+      });
+
+      // Compute footer averages directly from all records for that vintage (record-weighted, not block-weighted)
+      const colAvgs = uniqueVintages.map(vy => {
+        const vals = linkedRows
+          .filter(r => String(r.vintageYear ?? "") === vy)
+          .map(m.extractor)
+          .filter((v): v is number => v !== null);
+        return avg(vals);
+      });
+      const grandVals = linkedRows.map(m.extractor).filter((v): v is number => v !== null);
+      const grandAvg = avg(grandVals);
+
+      return { label: m.label, precision: m.precision, rows, colAvgs, grandAvg };
+    });
+
+    return { uniqueVintages, tables };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredHarvest, yearFilter, blocks]);
+
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
     { key: "vintageYear", label: "Vintage Year" },
@@ -863,6 +930,62 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               })}
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Chemistry cross-tab: block × vintage for Brix, pH, TA, Pot. Alc */}
+      {chemCrossTabData && (
+        <div className="rounded-lg border bg-card p-4 space-y-4">
+          <p className="text-sm font-semibold flex items-center gap-1.5">
+            <FlaskConical className="w-4 h-4 text-muted-foreground" />
+            Chemistry Cross-tab — Block × Vintage
+          </p>
+          {chemCrossTabData.tables.map(tbl => (
+            <div key={tbl.label} className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                      <th className="text-left px-3 py-1.5 font-medium">Block</th>
+                      {chemCrossTabData.uniqueVintages.map(vy => (
+                        <th key={vy} className="text-right px-3 py-1.5 font-medium">{vy}</th>
+                      ))}
+                      <th className="text-right px-3 py-1.5 font-medium border-l">Avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tbl.rows.map((row, ri) => (
+                      <tr key={ri} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-3 py-1.5 font-medium">{row.bname}</td>
+                        {row.vintageCells.map((val, vi) => (
+                          <td key={vi} className="text-right px-3 py-1.5 tabular-nums">
+                            {val != null ? val.toFixed(tbl.precision) : <span className="text-muted-foreground/40">—</span>}
+                          </td>
+                        ))}
+                        <td className="text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground">
+                          {row.rowAvg != null ? row.rowAvg.toFixed(tbl.precision) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/40 font-semibold text-xs">
+                      <td className="px-3 py-1.5">All blocks</td>
+                      {tbl.colAvgs.map((val, vi) => (
+                        <td key={vi} className="text-right px-3 py-1.5 tabular-nums">
+                          {val != null ? val.toFixed(tbl.precision) : "—"}
+                        </td>
+                      ))}
+                      <td className="text-right px-3 py-1.5 tabular-nums border-l">
+                        {tbl.grandAvg != null ? tbl.grandAvg.toFixed(tbl.precision) : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
