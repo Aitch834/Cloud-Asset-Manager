@@ -327,7 +327,10 @@ export function printOrganicWineRecords(
 ) {
   const esc = (v: unknown) => v == null || v === "" ? "" : String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
-  const address = farmMeta?.address ? esc(farmMeta.address) : "";
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const addressHtml = address
+    ? esc(address)
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
 
   // FSA / APPA refs — amber warning badges when missing
@@ -345,11 +348,16 @@ export function printOrganicWineRecords(
     ? `APPA Ref: <strong>${esc(appaRef)}</strong>`
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
 
-  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
+  const anyMissingRef = !address || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
   const missingRefWarningBlock = anyMissingRef
     ? `<div class="missing-refs-notice">
-        <strong>&#9888; Missing registration references</strong> &mdash;
-        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        <strong>&#9888; Missing header information</strong> &mdash;
+        the field(s) marked below (${[
+          !address ? "Farm Address" : "",
+          !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
+          !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
+          !appaRef ? "APPA Ref" : "",
+        ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
         Add them before submitting this register to your certifying body.
       </div>`
     : "";
@@ -392,7 +400,7 @@ export function printOrganicWineRecords(
   </style></head><body>
   <h1>Organic Wine Production Register</h1>
   <div class="meta">
-    <strong>${esc(farmName)}</strong>${address ? ` &nbsp;&middot;&nbsp; ${address}` : ""}<br>
+    <strong>${esc(farmName)}</strong> &nbsp;&middot;&nbsp; ${addressHtml}<br>
     ${fsaVineRefHtml}<br>
     ${fsaWineRefHtml}<br>
     ${appaRefHtml}<br>
