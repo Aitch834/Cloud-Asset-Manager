@@ -248,7 +248,11 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
               <Link className="w-4 h-4 mr-1" />Link unlinked records ({unlinkedPhenology.length})
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => exportCSV(filteredPhenology, "phenology.csv", csvCols)} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            const unlinkedCount = filteredPhenology.filter(r => !r.blockId).length;
+            const warningRow = unlinkedCount > 0 ? `"WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined;
+            exportCSV(filteredPhenology, "phenology.csv", csvCols, warningRow);
+          }} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Button size="sm" variant="outline" onClick={() => { if (filteredPhenology.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(filteredPhenology, farmName ?? "", blocks); } }} disabled={!filteredPhenology.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
