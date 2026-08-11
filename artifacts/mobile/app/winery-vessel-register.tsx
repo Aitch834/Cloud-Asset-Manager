@@ -111,6 +111,8 @@ function VesselRow({ vessel }: { vessel: WineryVessel }) {
         vesselRef: vessel.vessel_ref,
         vesselType: vessel.vessel_type ?? "",
         notes: vessel.notes ?? "",
+        cellarZone: vessel.cellar_zone ?? "",
+        cellarPosition: vessel.cellar_position ?? "",
       },
     });
   };

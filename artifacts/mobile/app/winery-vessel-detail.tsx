@@ -183,15 +183,17 @@ interface LogMovementModalProps {
   visible: boolean;
   farmId: string;
   vesselId: string;
+  initialFromZone?: string;
+  initialFromPosition?: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (toZone: string, toPosition: string) => void;
 }
 
-function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: LogMovementModalProps) {
+function LogMovementModal({ visible, farmId, vesselId, initialFromZone, initialFromPosition, onClose, onSuccess }: LogMovementModalProps) {
   const [form, setForm] = useState<MovementFormState>({
     movedDate: todayIso(),
-    fromZone: "",
-    fromPosition: "",
+    fromZone: initialFromZone ?? "",
+    fromPosition: initialFromPosition ?? "",
     toZone: "",
     toPosition: "",
     reason: "",
@@ -200,6 +202,24 @@ function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: Log
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form each time the modal opens so it picks up the latest from-zone/position
+  useEffect(() => {
+    if (visible) {
+      setForm({
+        movedDate: todayIso(),
+        fromZone: initialFromZone ?? "",
+        fromPosition: initialFromPosition ?? "",
+        toZone: "",
+        toPosition: "",
+        reason: "",
+        operatorName: "",
+        notes: "",
+      });
+      setError(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   function set(field: keyof MovementFormState, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -232,8 +252,10 @@ function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: Log
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
-      setForm({ movedDate: todayIso(), fromZone: "", fromPosition: "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
-      onSuccess();
+      const submittedToZone = form.toZone.trim();
+      const submittedToPosition = form.toPosition.trim();
+      setForm({ movedDate: todayIso(), fromZone: initialFromZone ?? "", fromPosition: initialFromPosition ?? "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
+      onSuccess(submittedToZone, submittedToPosition);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save movement.");
     } finally {
@@ -244,7 +266,7 @@ function LogMovementModal({ visible, farmId, vesselId, onClose, onSuccess }: Log
   function handleClose() {
     if (submitting) return;
     setError(null);
-    setForm({ movedDate: todayIso(), fromZone: "", fromPosition: "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
+    setError(null);
     onClose();
   }
 
@@ -713,6 +735,8 @@ export default function WineryVesselDetailScreen() {
     vesselRef: string;
     vesselType?: string;
     notes?: string;
+    cellarZone?: string;
+    cellarPosition?: string;
   }>();
 
   const { data, loading, refreshing, error, refresh } = useVesselDetail(
@@ -722,6 +746,10 @@ export default function WineryVesselDetailScreen() {
 
   const [movementModalOpen, setMovementModalOpen] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+
+  // Track current vessel location so sequential movements pre-fill the right origin
+  const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
+  const [currentPosition, setCurrentPosition] = useState(params.cellarPosition ?? "");
 
   const subtitle = params.vesselType ?? "Vessel";
 
@@ -839,8 +867,15 @@ export default function WineryVesselDetailScreen() {
             visible={movementModalOpen}
             farmId={currentFarm.id}
             vesselId={params.vesselId}
+            initialFromZone={currentZone}
+            initialFromPosition={currentPosition}
             onClose={() => setMovementModalOpen(false)}
-            onSuccess={() => { setMovementModalOpen(false); refresh(); }}
+            onSuccess={(toZone, toPosition) => {
+              setCurrentZone(toZone);
+              setCurrentPosition(toPosition);
+              setMovementModalOpen(false);
+              refresh();
+            }}
           />
         </>
       ) : null}
