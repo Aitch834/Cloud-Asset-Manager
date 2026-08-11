@@ -1938,6 +1938,38 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             );
           })()}
 
+          {/* Print-only canopy operations hours-by-type summary — always visible in @media print, outside the collapsible */}
+          {yearOps.length > 0 && opsByType.length > 0 && (
+            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-sm font-semibold">Canopy Operations — Hours by Type — {year}</p>
+                <p className="text-xs text-gray-500">{yearOps.length} operation{yearOps.length !== 1 ? "s" : ""} · {totalOpsHours.toFixed(1)} hours total</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left">Operation Type</th>
+                    <th className="px-3 py-2 text-right">Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opsByType.map(([type, hours]) => (
+                    <tr key={type} className="border-t border-gray-200">
+                      <td className="px-3 py-1.5 font-medium">{type}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{(hours as number).toFixed(1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
+                    <td className="px-3 py-1.5">Total</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
           {/* Operations detail */}
           {yearOps.length > 0 && (
             <Collapsible
@@ -1984,6 +2016,36 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                 </table>
               </div>
             </Collapsible>
+          )}
+
+          {/* Print-only spray product summary — always visible in @media print, outside the collapsible */}
+          {yearSprays.length > 0 && sprayByProduct.length > 0 && (
+            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-sm font-semibold">Spray Diary — Product Summary — {year}</p>
+                <p className="text-xs text-gray-500">{totalSprayApplications} application{totalSprayApplications !== 1 ? "s" : ""} · {totalSprayArea.toFixed(1)} ha treated</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left">Product</th>
+                    <th className="px-3 py-2 text-right">Applications</th>
+                    <th className="px-3 py-2 text-right">Total Area (ha)</th>
+                    <th className="px-3 py-2 text-right">Total Qty Used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sprayByProduct.map(([product, stats]) => (
+                    <tr key={product} className="border-t border-gray-200">
+                      <td className="px-3 py-1.5 font-medium">{product}</td>
+                      <td className="px-3 py-1.5 text-right">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).applications}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).totalAreaHa.toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).totalQty.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Spray diary detail */}
