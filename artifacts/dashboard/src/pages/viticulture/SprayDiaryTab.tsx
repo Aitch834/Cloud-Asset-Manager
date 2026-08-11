@@ -406,6 +406,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const csvCols = [
     { key: "applicationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate) },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId) ?? "") },
+    { key: "blockLinked", label: "Block Linked", fmt: (r: Record<string, unknown>) => r.blockId ? "Yes" : "No" },
     { key: "productName", label: "Product Name" },
     { key: "mappNumber", label: "MAPP No." },
     { key: "productType", label: "Type" },

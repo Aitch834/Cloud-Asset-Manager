@@ -198,6 +198,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const csvCols = [
     { key: "operationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.operationDate) },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
+    { key: "blockLinked", label: "Block Linked", fmt: (r: Record<string, unknown>) => r.blockId ? "Yes" : "No" },
     { key: "operationType", label: "Operation Type" },
     { key: "pruningSystem", label: "Pruning System" },
     { key: "budsPerVineTarget", label: "Target Buds/Vine" },
