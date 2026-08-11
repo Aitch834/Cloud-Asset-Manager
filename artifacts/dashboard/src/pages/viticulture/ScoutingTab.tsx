@@ -75,6 +75,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printBlockFilter, setPrintBlockFilter] = useState("__all__");
   const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const queryClient = useQueryClient();
@@ -259,6 +260,9 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     }
     return rows;
   }, [data, yearFilter, blockFilter, searchText, blocks]);
+
+  const printRows = useMemo(() => printBlockFilter === "__all__" ? data : data.filter(r => String(r.blockId) === printBlockFilter), [data, printBlockFilter]);
+
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin w-6 h-6 text-muted-foreground" /></div>;
@@ -310,7 +314,14 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => { const uc = filteredScouting.filter(r => !r.blockId).length; exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (filteredScouting.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta, blockFilter !== "__all__" ? (blocks.find(b => String(b.id) === blockFilter)?.blockName as string | undefined) : undefined); } }} disabled={!filteredScouting.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Print: all blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
         </div>
       </div>
@@ -626,24 +637,24 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
 
       {/* Print pre-flight confirm */}
       {(() => {
-        const unlinkedInView = filteredScouting.filter(r => !r.blockId);
+        const unlinkedInPrint = printRows.filter(r => !r.blockId);
         return (
           <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                  {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
+                  {unlinkedInPrint.length} {unlinkedInPrint.length === 1 ? "record isn't" : "records aren't"} linked to a block
                 </DialogTitle>
                 <DialogDescription>
-                  {unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.
+                  {unlinkedInPrint.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInPrint.length === 1 ? "it" : "them"} first, or print anyway.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printDiseaseScouting(filteredScouting, farmName, farmId, blocks, farmMeta, blockFilter !== "__all__" ? (blocks.find(b => String(b.id) === blockFilter)?.blockName as string | undefined) : undefined); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>
