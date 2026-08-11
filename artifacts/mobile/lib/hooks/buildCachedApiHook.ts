@@ -42,7 +42,10 @@ export interface CachedHookResult<T> {
 export function buildCachedApiHook<T>(
   getCacheKey: (farmId: string) => string,
   getEndpoint: (farmId: string, domain: string) => string,
-  transform: (json: unknown) => T[]
+  transform: (json: unknown) => T[],
+  /** Optional transform applied to each item before it is written to AsyncStorage cache.
+   *  Use this to strip fields that become stale quickly (e.g. presigned URLs). */
+  cacheTransform?: (item: T) => T
 ) {
   return function useCachedData(farmId: string | undefined): CachedHookResult<T> {
     const [items, setItems] = useState<T[]>([]);
@@ -70,11 +73,16 @@ export function buildCachedApiHook<T>(
       const isNumericFarm = /^\d+$/.test(farmId);
 
       (async () => {
-        // Step 1: Load from cache immediately — fast, no spinner
+        // Step 1: Load from cache immediately — fast, no spinner.
+        // Apply cacheTransform on read too so that existing cache entries
+        // written by prior app versions (which may still contain stale fields
+        // such as expired presigned URLs) are sanitized before they reach state.
         try {
           const cached = await kvGet(getCacheKey(farmId));
           if (cached && !cancelled) {
-            setItems(JSON.parse(cached));
+            const parsed: T[] = JSON.parse(cached);
+            const hydrated = cacheTransform ? parsed.map(cacheTransform) : parsed;
+            setItems(hydrated);
             setLoading(false);
             setFromCache(true);
           }
@@ -120,8 +128,11 @@ export function buildCachedApiHook<T>(
             setLoading(false);
           }
 
-          // Save fresh data to cache for future offline use
-          await kvSet(getCacheKey(farmId), JSON.stringify(fresh));
+          // Save fresh data to cache for future offline use.
+          // Apply cacheTransform (if provided) to strip fields that become
+          // stale quickly (e.g. presigned URLs) before writing to storage.
+          const toCache = cacheTransform ? fresh.map(cacheTransform) : fresh;
+          await kvSet(getCacheKey(farmId), JSON.stringify(toCache));
         } catch (err: unknown) {
           if (!cancelled) {
             const msg = err instanceof Error ? err.message : "Failed to load";
