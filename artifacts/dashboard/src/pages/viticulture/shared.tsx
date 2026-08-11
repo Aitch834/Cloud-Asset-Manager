@@ -1282,6 +1282,7 @@ export async function printHarvest(
       const bidStr = String(bid);
       const bidNum = Number(bidStr);
       const label = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.blockName ?? bidStr) : "—";
+      const variety = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.variety ?? "—") : "—";
       const vintageCells = crossVintages.map(vy => {
         const grp = crossLookup[bidStr]?.[vy] ?? [];
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -1299,6 +1300,7 @@ export async function printHarvest(
       const avgPaRow = paAll.length > 0 ? paAll.reduce((a, b) => a + b, 0) / paAll.length : null;
       return `<tr>
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
         ${vintageCells}
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
@@ -1329,6 +1331,7 @@ export async function printHarvest(
   <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
     <thead><tr>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
       ${vintageColHeaders}
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
@@ -1339,6 +1342,7 @@ export async function printHarvest(
     <tbody>${crossBodyRows}</tbody>
     <tfoot><tr>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
