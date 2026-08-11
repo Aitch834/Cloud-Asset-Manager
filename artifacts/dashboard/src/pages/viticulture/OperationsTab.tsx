@@ -52,7 +52,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, FarmSettingsWarning, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Operation = Record<string, unknown>;
 
@@ -262,6 +262,9 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
       />
+
+      {/* FSA / APPA registration pre-flight check */}
+      <FsaCompletenessBar farmId={farmId} />
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
