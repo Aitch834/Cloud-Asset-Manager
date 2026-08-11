@@ -2,6 +2,19 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+// __dirname is not defined in ESM (tsx dev) — derive it from import.meta.url instead.
+// In production esbuild CJS bundles __dirname is injected by bundler, so this shim
+// is only active in the dev tsx path.
+const __esmDirname = (() => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    // Fallback: production CJS bundle where __dirname is available globally
+    return typeof __dirname !== "undefined" ? __dirname : process.cwd();
+  }
+})();
 
 /** Extract the first base64 data-URI src from an img tag matching the given alt text */
 function extractAdB64ByAlt(html: string, altText: string): string {
@@ -118,10 +131,10 @@ function resolveAdTemplatesDir(): string | null {
     path.resolve(process.cwd(), "scripts/ad-templates"),
     // CWD = monorepo root (some deployment contexts)
     path.resolve(process.cwd(), "artifacts/api-server/scripts/ad-templates"),
-    // __dirname = artifacts/api-server/dist/ (production esbuild bundle)
-    path.resolve(__dirname, "../scripts/ad-templates"),
-    // __dirname = artifacts/api-server/src/lib/ (dev tsx)
-    path.resolve(__dirname, "../../scripts/ad-templates"),
+    // __esmDirname = artifacts/api-server/dist/ (production esbuild bundle)
+    path.resolve(__esmDirname, "../scripts/ad-templates"),
+    // __esmDirname = artifacts/api-server/src/lib/ (dev tsx)
+    path.resolve(__esmDirname, "../../scripts/ad-templates"),
   ];
   return candidates.find((d) => fs.existsSync(d)) ?? null;
 }
