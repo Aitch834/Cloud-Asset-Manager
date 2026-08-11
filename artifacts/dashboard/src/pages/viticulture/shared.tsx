@@ -337,6 +337,7 @@ export function printOrganicWineRecords(
   const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
   const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
   const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const winegbMembershipNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
 
   const fsaVineRefHtml = fsaVineRegisterRef
     ? `FSA Vine Register Ref: <strong>${esc(fsaVineRegisterRef)}</strong>`
@@ -347,6 +348,9 @@ export function printOrganicWineRecords(
   const appaRefHtml = appaRef
     ? `APPA Ref: <strong>${esc(appaRef)}</strong>`
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+  const winegbHtml = winegbMembershipNumber
+    ? `WineGB Membership No: <strong>${esc(winegbMembershipNumber)}</strong><br>`
+    : "";
 
   const anyMissingRef = !address || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
   const missingRefWarningBlock = anyMissingRef
@@ -404,7 +408,7 @@ export function printOrganicWineRecords(
     ${fsaVineRefHtml}<br>
     ${fsaWineRefHtml}<br>
     ${appaRefHtml}<br>
-    Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
+    ${winegbHtml}Vintages: ${vintages || "All"} &nbsp;&middot;&nbsp; Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record(s)
   </div>
   ${missingRefWarningBlock}
   <div class="notice">
