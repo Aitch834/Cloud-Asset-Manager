@@ -893,6 +893,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             const avgTha = avg(thaVals);
             return { vintage: key, picks: grp.length, totalYieldKg, avgTha, avgBrix, avgPh, avgTa, avgPa };
           });
+          const vFooterTotalKg = vintageRows.reduce((s, r) => s + r.totalYieldKg, 0);
+          const vFooterTotalPicks = vintageRows.reduce((s, r) => s + r.picks, 0);
+          const vFooterAvgTha = avg(filteredHarvest.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v)));
+          const vFooterAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+          const vFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+          const vFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+          const vFooterAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
           return (
             <div className="rounded-lg border bg-card overflow-hidden">
               <button
@@ -934,6 +941,20 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         </tr>
                       ))}
                     </tbody>
+                    {vintageRows.length > 1 && (
+                      <tfoot>
+                        <tr className="border-t-2 bg-muted/40 font-semibold">
+                          <td className="px-4 py-2">Total / Average</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTha != null ? vFooterAvgTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgBrix != null ? vFooterAvgBrix.toFixed(1) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPh != null ? vFooterAvgPh.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTa != null ? vFooterAvgTa.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPa != null ? vFooterAvgPa.toFixed(2) : "—"}</td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               )}
@@ -965,6 +986,18 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
           return { name, variety, areaHa: !isNaN(areaHaNum) ? areaHaNum : null, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
         });
+        const bFooterTotalKg = summaryRows.reduce((s, r) => s + r.totalYieldKg, 0);
+        const bFooterTotalPicks = summaryRows.reduce((s, r) => s + r.picks, 0);
+        // Only include rows with a known positive area in the t/ha calculation so
+        // the numerator (yield) and denominator (area) cover the same population.
+        const rowsWithArea = summaryRows.filter(r => r.areaHa != null && r.areaHa > 0);
+        const bFooterTotalArea = rowsWithArea.reduce((s, r) => s + (r.areaHa ?? 0), 0);
+        const bFooterAreaYieldKg = rowsWithArea.reduce((s, r) => s + r.totalYieldKg, 0);
+        const bFooterDerivedTha = bFooterTotalArea > 0 && bFooterAreaYieldKg > 0 ? bFooterAreaYieldKg / 1000 / bFooterTotalArea : null;
+        const bFooterAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+        const bFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+        const bFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+        const bFooterAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
@@ -1010,6 +1043,22 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       </tr>
                     ))}
                   </tbody>
+                  {summaryRows.length > 1 && (
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/40 font-semibold">
+                        <td className="px-4 py-2">Total / Average</td>
+                        <td className="px-3 py-2" />
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalArea > 0 ? bFooterTotalArea.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalPicks}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalKg > 0 ? bFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterDerivedTha != null ? bFooterDerivedTha.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgBrix != null ? bFooterAvgBrix.toFixed(1) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPh != null ? bFooterAvgPh.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgTa != null ? bFooterAvgTa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPa != null ? bFooterAvgPa.toFixed(2) : "—"}</td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             )}
