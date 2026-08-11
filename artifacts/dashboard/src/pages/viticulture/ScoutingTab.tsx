@@ -52,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printDiseaseScouting, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printDiseaseScouting, useFarmMeta, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Scouting = Record<string, unknown>;
 
@@ -271,6 +271,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       {xylellaRows.length > 0 && (
         <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
           <ShieldAlert className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />

@@ -53,7 +53,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, useFarmMeta, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 const SPRAY_PRODUCT_TYPES = [
   "Fungicide", "Herbicide", "Insecticide", "Acaricide",
@@ -445,6 +445,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold text-sm">Spray Diary</h3>
