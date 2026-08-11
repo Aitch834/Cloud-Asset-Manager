@@ -997,7 +997,10 @@ router.delete("/farms/:farmId/winery-age-verification/:id", requireAuth, require
 
 router.get("/farms/:farmId/vineyard-spray-diary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(vineyardSprayDiaryTable).where(eq(vineyardSprayDiaryTable.farmId, farmId)).orderBy(desc(vineyardSprayDiaryTable.applicationDate));
+  const records = await db.select({
+    ...getTableColumns(vineyardSprayDiaryTable),
+    photoCount: sql<number>`(SELECT COUNT(*) FROM vineyard_spray_diary_photos WHERE spray_diary_id = ${vineyardSprayDiaryTable.id})::int`,
+  }).from(vineyardSprayDiaryTable).where(eq(vineyardSprayDiaryTable.farmId, farmId)).orderBy(desc(vineyardSprayDiaryTable.applicationDate));
   res.json({ records });
 });
 

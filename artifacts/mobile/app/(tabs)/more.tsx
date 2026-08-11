@@ -303,6 +303,11 @@ export default function MoreScreen() {
             keyboardType="numeric"
             returnKeyType="next"
           />
+          {sbiDraft.trim().length > 0 && !/^\d{9}$/.test(sbiDraft.trim()) && (
+            <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", marginTop: -spacing.sm, marginBottom: spacing.sm }}>
+              SBI must be exactly 9 digits (e.g. 123456789)
+            </Text>
+          )}
           <Input
             label="Farm Address"
             placeholder="e.g. Home Farm, Market Lane, Dorchester"

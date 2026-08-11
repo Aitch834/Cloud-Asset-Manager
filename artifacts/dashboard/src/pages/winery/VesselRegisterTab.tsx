@@ -503,6 +503,12 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
   );
 }
 
+/** Returns true if the vessel type string indicates a barrel or barrique. */
+function isBarrelVessel(vesselType: unknown): boolean {
+  const t = String(vesselType ?? "").toLowerCase();
+  return t.includes("barrel") || t.includes("barrique");
+}
+
 export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const farmNameVessels = useFarmName(farmId);
@@ -720,7 +726,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const isBarrel = form.vesselType?.toLowerCase().includes("barrel") || form.vesselType?.toLowerCase().includes("barrique");
+  const isBarrel = isBarrelVessel(form.vesselType);
 
   const openAdd = () => { setEditing(null); setForm({ status: "active" }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]))); setOpen(true); };
@@ -755,10 +761,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   ];
 
   // Cellar stock summary — barrels only, grouped by cellar_zone
-  const barrels = crud.data.filter(r => {
-    const t = String(r.vessel_type ?? "").toLowerCase();
-    return t.includes("barrel") || t.includes("barrique");
-  });
+  const barrels = crud.data.filter(r => isBarrelVessel(r.vessel_type));
   const cellarZones = Array.from(new Set(barrels.map(r => String(r.cellar_zone || "Unassigned")))).sort();
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
 
@@ -821,8 +824,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   }
 
   const filteredData = crud.data.filter(r => {
-    const t = String(r.vessel_type ?? "").toLowerCase();
-    const isBarrelType = t.includes("barrel") || t.includes("barrique");
+    const isBarrelType = isBarrelVessel(r.vessel_type);
     if (zoneFilter) {
       if (!isBarrelType) return false;
       if (String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
@@ -1168,7 +1170,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             </tr></thead>
             <tbody className="divide-y">
               {filteredData.map(r => {
-                const isBarrelRow = String(r.vessel_type ?? "").toLowerCase().includes("barrel") || String(r.vessel_type ?? "").toLowerCase().includes("barrique");
+                const isBarrelRow = isBarrelVessel(r.vessel_type);
                 const locationDisplay = r.cellar_zone
                   ? `${String(r.cellar_zone)}${r.cellar_position ? ` / ${String(r.cellar_position)}` : ""}`
                   : fmt(r.location);
@@ -1304,7 +1306,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <ViewField label="Manufacturer" value={fmt(view.manufacturer)} />
               <ViewField label="Location" value={fmt(view.location)} />
               <ViewField label="Status" value={statusBadge(view.status)} />
-              {String(view.vessel_type ?? "").toLowerCase().includes("barrel") && (
+              {isBarrelVessel(view.vessel_type) && (
                 <>
                   <ViewField label="Oak Origin" value={fmt(view.oak_origin)} />
                   <ViewField label="Cooperage" value={fmt(view.cooperage)} />
@@ -1323,7 +1325,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <ViewField label="Current Volume" value={view.current_volume_litres ? `${fmtNum(view.current_volume_litres, 0)} L` : "—"} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
-            {(String(view.vessel_type ?? "").toLowerCase().includes("barrel") || String(view.vessel_type ?? "").toLowerCase().includes("barrique")) && (
+            {isBarrelVessel(view.vessel_type) && (
               <>
                 <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} />
                 <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
@@ -1332,7 +1334,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             )}
             <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             <DialogFooter className="flex-col sm:flex-row gap-2">
-              {(String(view.vessel_type ?? "").toLowerCase().includes("barrel") || String(view.vessel_type ?? "").toLowerCase().includes("barrique")) && (
+              {isBarrelVessel(view.vessel_type) && (
                 <Button variant="outline" size="sm" onClick={() => handleBarrelPrint(view)}>
                   <Printer className="w-3 h-3 mr-1" />Print Barrel History
                 </Button>

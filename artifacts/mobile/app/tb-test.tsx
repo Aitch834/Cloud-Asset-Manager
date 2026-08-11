@@ -25,6 +25,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiHerds } from "@/lib/hooks/useApiHerds";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
@@ -59,6 +60,7 @@ export default function TbTestScreen() {
 
   const farmId = currentFarm?.id;
   const { herds, loading: herdsLoading } = useApiHerds(farmId);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-test", farmId);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
@@ -202,7 +204,7 @@ export default function TbTestScreen() {
           </Pressable>
         )}
 
-        {missingIdentifiers && (
+        {missingIdentifiers && !bannerDismissed && (
           <Pressable
             onPress={() => router.push("/(tabs)/more")}
             style={styles.identifierBanner}
@@ -216,6 +218,13 @@ export default function TbTestScreen() {
                 : "SBI number is missing from your farm profile — required for TB test records."}
               {" "}Tap to go to Settings.
             </Text>
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Dismiss warning"
+            >
+              <Feather name="x" size={15} color="#92400e" />
+            </Pressable>
           </Pressable>
         )}
 

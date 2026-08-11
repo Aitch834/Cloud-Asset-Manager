@@ -513,7 +513,7 @@ function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = SEASON_PRINT_ID + "-css";
-  s.textContent = `@page{size:A4 landscape;margin:1cm}@media print{body>*{visibility:hidden!important}#${SEASON_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:visible!important;background:#fff!important;z-index:99999!important;padding:16px!important}#${SEASON_PRINT_ID} *{visibility:visible!important}#${SEASON_PRINT_ID} .hidden{display:block!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}#${SEASON_PRINT_ID} .overflow-x-auto{overflow:visible!important}.print-all-vintages-tbl{width:100%!important}.print-all-vintages-tbl table{width:100%!important;font-size:8.5px!important;table-layout:fixed!important}.print-all-vintages-tbl th,.print-all-vintages-tbl td{padding:2px 4px!important;word-break:break-word}.print-chart-card{page-break-inside:avoid;break-inside:avoid}.print-chart-card .recharts-responsive-container{width:100%!important}.print-block-chart-cap .recharts-responsive-container{height:300px!important;max-height:300px!important}.print-block-chart-cap .recharts-wrapper{height:300px!important}.print-block-chart-cap .recharts-wrapper svg{height:300px!important}}`;
+  s.textContent = `@page{size:A4 landscape;margin:1cm}@media print{body>*{visibility:hidden!important}#${SEASON_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:visible!important;background:#fff!important;z-index:99999!important;padding:16px!important}#${SEASON_PRINT_ID} *{visibility:visible!important}#${SEASON_PRINT_ID} .hidden{display:block!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}#${SEASON_PRINT_ID} .overflow-x-auto{overflow:visible!important}.print-all-vintages-tbl{width:100%!important}.print-all-vintages-tbl table{width:100%!important;font-size:8.5px!important;table-layout:fixed!important}.print-all-vintages-tbl th,.print-all-vintages-tbl td{padding:2px 4px!important;word-break:break-word}.print-chem-xtab{width:100%!important}.print-chem-xtab table{width:100%!important;font-size:8.5px!important;table-layout:auto!important}.print-chem-xtab th,.print-chem-xtab td{padding:2px 4px!important;word-break:break-word}.print-chart-card{page-break-inside:avoid;break-inside:avoid;break-before:avoid}.print-chart-card .recharts-responsive-container{width:100%!important}.print-block-chart-cap .recharts-responsive-container{height:300px!important;max-height:300px!important}.print-block-chart-cap .recharts-wrapper{height:300px!important}.print-block-chart-cap .recharts-wrapper svg{height:300px!important}}`;
   document.head.appendChild(s);
 }
 
@@ -630,6 +630,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // Block filter for per-block yield trend (all-vintages mode only)
   // null = all blocks shown; Set = subset of block names to show
   const [selectedBlockNames, setSelectedBlockNames] = useState<Set<string> | null>(null);
+  // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
+  const [chartInTha, setChartInTha] = useState(false);
 
   const toggleBlock = (name: string) => {
     setSelectedBlockNames(prev => {
@@ -791,6 +793,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             { label: "Area Harvested", value: totalAreaHa > 0 ? `${totalAreaHa.toFixed(2)} ha` : "—" },
             { label: "Avg Yield (t/ha)", value: avgTha > 0 ? avgTha.toFixed(2) : "—" },
             { label: "Avg Brix °", value: avgBrix != null ? avgBrix.toFixed(1) : "—" },
+            { label: "Avg pH", value: avgPH != null ? avgPH.toFixed(2) : "—" },
             { label: "Avg TA (g/L)", value: avgTA != null ? avgTA.toFixed(1) : "—" },
             { label: "Avg Pot. Alc %", value: avgPotAlc != null ? avgPotAlc.toFixed(1) : "—" },
           ].map(({ label, value }) => (
@@ -813,15 +816,40 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
           }));
         return (
           <div className="rounded-xl border border-border bg-card overflow-hidden print-chart-card">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h3 className="text-sm font-semibold">Yield Trend — All Vintages</h3>
-              <p className="text-xs text-foreground/40">Total tonnes picked (bars) and yield per hectare (line) across recorded vintages</p>
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Yield Trend — All Vintages</h3>
+                <p className="text-xs text-foreground/40">
+                  {chartInTha
+                    ? "Yield per hectare (t/ha) — comparable across blocks of different sizes"
+                    : "Total tonnes picked (bars) and yield per hectare (line) across recorded vintages"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChartInTha(v => !v)}
+                className="no-print shrink-0 h-7 px-2.5 rounded-md border border-border bg-background text-xs font-medium hover:bg-muted/50 transition-colors"
+                title="Toggle between total yield and yield per hectare"
+              >
+                {chartInTha ? "Show total (t)" : "Show t/ha"}
+              </button>
             </div>
             <div className="p-4">
               {chartData.length === 0 ? (
                 <p className="text-sm text-foreground/40 text-center py-6">
                   No harvest records found. Add records in the Harvest tab to see the yield trend.
                 </p>
+              ) : chartInTha ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="vintage" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} width={54} label={{ value: "t/ha", position: "insideTop", offset: -4, fontSize: 10 }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="Yield (t/ha)" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={60} />
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
@@ -959,7 +987,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                 <thead>
                   <tr className="bg-muted/20 text-foreground/60 text-xs">
                     <th className="px-4 py-2 text-left">Vintage</th>
-                    <th className="px-4 py-2 text-right">Records</th>
+                    <th className="px-4 py-2 text-right">Picks</th>
                     <th className="px-4 py-2 text-right">Total Yield (kg)</th>
                     <th className="px-4 py-2 text-right">Total Yield (t)</th>
                     <th className="px-4 py-2 text-right">Area (ha)</th>
@@ -976,7 +1004,15 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     return (
                       <tr key={row.vintage} className="border-t border-border/40 hover:bg-muted/20">
                         <td className="px-4 py-2 font-semibold text-purple-700">{row.vintage}</td>
-                        <td className="px-4 py-2 text-right text-foreground/60">{row.records}</td>
+                        <td className="px-4 py-2 text-right">
+                          {row.records === 1 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+                          ) : row.records <= 3 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.records} picks</span>
+                          ) : (
+                            <span className="text-foreground/60">{row.records}</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right font-mono">{row.totalKg > 0 ? row.totalKg.toFixed(0) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono">{row.totalKg > 0 ? (row.totalKg / 1000).toFixed(2) : "—"}</td>
                         <td className="px-4 py-2 text-right font-mono">{row.totalAreaHa > 0 ? row.totalAreaHa.toFixed(2) : "—"}</td>
@@ -1029,12 +1065,74 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* Chemistry cross-tab — all-vintages mode (#799/#802/#805) */}
+      {year == null && allVintagesSummary.length > 0 && (() => {
+        const vintages = [...allVintagesSummary].sort((a, b) => a.vintage.localeCompare(b.vintage));
+        type VRow = typeof allVintagesSummary[0];
+        const chemRows: { label: string; format: (v: VRow) => string }[] = [
+          { label: "Yield (t/ha)", format: v => v.totalAreaHa > 0 ? (v.totalKg / 1000 / v.totalAreaHa).toFixed(2) : "—" },
+          { label: "Avg Brix °",   format: v => v.brixCount > 0 ? (v.brixSum / v.brixCount).toFixed(1) : "—" },
+          { label: "Avg pH",       format: v => v.phCount > 0 ? (v.phSum / v.phCount).toFixed(2) : "—" },
+          { label: "Avg TA (g/L)", format: v => v.taCount > 0 ? (v.taSum / v.taCount).toFixed(2) : "—" },
+          { label: "Avg Pot. Alc %", format: v => v.potAlcCount > 0 ? (v.potAlcSum / v.potAlcCount).toFixed(1) : "—" },
+        ];
+        const pickBadge = (records: number) => records === 1
+          ? <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-1.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+          : records <= 3
+          ? <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-1.5">{records} picks</span>
+          : <span className="text-foreground/40 text-xs">{records} picks</span>;
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden print-chem-xtab">
+            <div className="px-4 py-3 border-b border-border bg-muted/30">
+              <h3 className="text-sm font-semibold">Chemistry Summary — All Vintages</h3>
+              <p className="text-xs text-foreground/40">Yield and must chemistry averages per vintage — compare trends across years at a glance</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left sticky left-0 bg-muted/20 z-10">Metric</th>
+                    {vintages.map(v => (
+                      <th key={v.vintage} className="px-4 py-2 text-right min-w-[90px]">
+                        <span className="font-semibold text-purple-700">{v.vintage}</span>
+                        <div className="mt-0.5">{pickBadge(v.records)}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {chemRows.map(row => (
+                    <tr key={row.label} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-4 py-2 font-medium text-foreground/70 sticky left-0 bg-card">{row.label}</td>
+                      {vintages.map(v => (
+                        <td key={v.vintage} className="px-4 py-2 text-right font-mono">{row.format(v)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Harvest by block (single-vintage mode only) */}
       {year != null && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="text-sm font-semibold">Harvest Records — {year} Vintage</h3>
           <p className="text-xs text-foreground/40">Per-block yield and must chemistry</p>
         </div>
+        {year != null && vintageHarvest.length > 0 && vintageHarvest.length <= 3 && (
+          <div className="flex items-start gap-2.5 px-4 py-2.5 border-b border-amber-200 bg-amber-50">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+            <p className="text-xs text-amber-800">
+              <span className="font-semibold">
+                {vintageHarvest.length === 1 ? "Only 1 pick recorded" : `Only ${vintageHarvest.length} picks recorded`}
+              </span>
+              {" "}— data may not be representative of the full vintage.
+            </p>
+          </div>
+        )}
         {vintageHarvest.length === 0 ? (
           <p className="text-sm text-foreground/40 text-center py-6">
             No harvest records for {year}. Add records in the Harvest tab.

@@ -941,15 +941,177 @@ function MaintenanceCard({
   );
 }
 
-function MovementCard({ record }: { record: BarrelMovement }) {
+// ── Edit Movement Modal ───────────────────────────────────────────────────────
+
+interface EditMovementModalProps {
+  visible: boolean;
+  farmId: string | undefined;
+  vesselId: string | undefined;
+  record: BarrelMovement;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function EditMovementModal({ visible, farmId, vesselId, record, onClose, onSuccess }: EditMovementModalProps) {
+  const [form, setForm] = useState<MovementFormState>({
+    movedDate: record.moved_date?.slice(0, 10) ?? todayIso(),
+    fromZone: record.from_zone ?? "",
+    fromPosition: record.from_position ?? "",
+    toZone: record.to_zone ?? "",
+    toPosition: record.to_position ?? "",
+    reason: record.reason ?? "",
+    operatorName: record.operator_name ?? "",
+    notes: record.notes ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setForm({
+        movedDate: record.moved_date?.slice(0, 10) ?? todayIso(),
+        fromZone: record.from_zone ?? "",
+        fromPosition: record.from_position ?? "",
+        toZone: record.to_zone ?? "",
+        toPosition: record.to_position ?? "",
+        reason: record.reason ?? "",
+        operatorName: record.operator_name ?? "",
+        notes: record.notes ?? "",
+      });
+      setError(null);
+    }
+  }, [visible, record]);
+
+  async function handleSave() {
+    if (!form.toZone.trim()) { setError("Destination zone is required."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/movements/${record.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          movedDate: form.movedDate,
+          fromZone: form.fromZone.trim() || null,
+          fromPosition: form.fromPosition.trim() || null,
+          toZone: form.toZone.trim(),
+          toPosition: form.toPosition.trim() || null,
+          reason: form.reason.trim() || null,
+          operatorName: form.operatorName.trim() || null,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      onSuccess();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={formStyles.sheetHeader}>
+          <Text style={formStyles.sheetTitle}>Edit Movement</Text>
+          <Pressable onPress={onClose} style={formStyles.closeBtn}>
+            <Feather name="x" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+          {!!error && (
+            <View style={formStyles.errorBanner}>
+              <Feather name="alert-circle" size={14} color={colors.error} />
+              <Text style={formStyles.errorText}>{error}</Text>
+            </View>
+          )}
+          <View style={formStyles.row}>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>Date <Text style={formStyles.required}>*</Text></Text>
+              <TextInput style={formStyles.input} value={form.movedDate} onChangeText={t => setForm(f => ({ ...f, movedDate: t }))} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} keyboardType="numbers-and-punctuation" returnKeyType="next" />
+            </View>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>Reason</Text>
+              <TextInput style={formStyles.input} value={form.reason} onChangeText={t => setForm(f => ({ ...f, reason: t }))} placeholder="e.g. Rotation" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+            </View>
+          </View>
+          <View style={formStyles.row}>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>From Zone</Text>
+              <TextInput style={formStyles.input} value={form.fromZone} onChangeText={t => setForm(f => ({ ...f, fromZone: t }))} placeholder="e.g. Barrel Store A" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+            </View>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>From Position</Text>
+              <TextInput style={formStyles.input} value={form.fromPosition} onChangeText={t => setForm(f => ({ ...f, fromPosition: t }))} placeholder="e.g. Row 3" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+            </View>
+          </View>
+          <View style={formStyles.row}>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>To Zone <Text style={formStyles.required}>*</Text></Text>
+              <TextInput style={formStyles.input} value={form.toZone} onChangeText={t => setForm(f => ({ ...f, toZone: t }))} placeholder="e.g. Barrel Store B" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+            </View>
+            <View style={[formStyles.field, { flex: 1 }]}>
+              <Text style={formStyles.label}>To Position</Text>
+              <TextInput style={formStyles.input} value={form.toPosition} onChangeText={t => setForm(f => ({ ...f, toPosition: t }))} placeholder="e.g. Row 1" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+            </View>
+          </View>
+          <View style={formStyles.field}>
+            <Text style={formStyles.label}>Operator Name</Text>
+            <TextInput style={formStyles.input} value={form.operatorName} onChangeText={t => setForm(f => ({ ...f, operatorName: t }))} placeholder="e.g. J. Smith" placeholderTextColor={colors.textTertiary} returnKeyType="next" />
+          </View>
+          <View style={formStyles.field}>
+            <Text style={formStyles.label}>Notes</Text>
+            <TextInput style={[formStyles.input, formStyles.multiline]} value={form.notes} onChangeText={t => setForm(f => ({ ...f, notes: t }))} placeholder="Optional notes…" placeholderTextColor={colors.textTertiary} multiline numberOfLines={3} />
+          </View>
+          <Pressable style={[formStyles.submitBtn, saving && formStyles.submitBtnDisabled]} onPress={handleSave} disabled={saving}>
+            <Text style={formStyles.submitBtnText}>{saving ? "Saving…" : "Save movement"}</Text>
+          </Pressable>
+          <Pressable
+            style={{ alignItems: "center", paddingVertical: spacing.sm, marginTop: 4 }}
+            onPress={onClose}
+            disabled={saving}
+          >
+            <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.textSecondary }}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function MovementCard({ record, onEdit, onDelete }: { record: BarrelMovement; onEdit?: (r: BarrelMovement) => void; onDelete?: (r: BarrelMovement) => void }) {
   const fromLabel = [record.from_zone, record.from_position].filter(Boolean).join(" · ") || "Unknown";
   const toLabel = [record.to_zone, record.to_position].filter(Boolean).join(" · ") || "—";
 
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{fmt(record.moved_date)}</Text>
-        {record.reason ? <Text style={styles.cardMeta}>{record.reason}</Text> : null}
+      <View style={[styles.cardHeader, { justifyContent: "space-between" }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>{fmt(record.moved_date)}</Text>
+          {record.reason ? <Text style={styles.cardMeta}>{record.reason}</Text> : null}
+        </View>
+        {(onEdit || onDelete) && (
+          <View style={{ flexDirection: "row", gap: 4, marginLeft: 8 }}>
+            {onEdit && (
+              <TouchableOpacity onPress={() => onEdit(record)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.cardActionBtn}>
+                <Feather name="edit-2" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity onPress={() => onDelete(record)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.cardActionBtn}>
+                <Feather name="trash-2" size={14} color="#ef4444" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.movementRoute}>
@@ -990,10 +1152,44 @@ export default function WineryVesselDetailScreen() {
   const [movementModalOpen, setMovementModalOpen] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
+  const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
 
   // Track current vessel location so sequential movements pre-fill the right origin
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
   const [currentPosition, setCurrentPosition] = useState(params.cellarPosition ?? "");
+
+  function handleDeleteMovement(record: BarrelMovement) {
+    Alert.alert(
+      "Delete movement?",
+      `This will permanently remove the movement recorded on ${fmt(record.moved_date)}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const apiBase = getApiBase();
+              if (!apiBase) throw new Error("No API domain configured.");
+              const headers = await getAuthHeaders();
+              const res = await fetch(
+                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/movements/${record.id}`,
+                { method: "DELETE", headers },
+              );
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({})) as { error?: string };
+                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+                return;
+              }
+              refresh();
+            } catch (err) {
+              Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete movement.");
+            }
+          },
+        },
+      ],
+    );
+  }
 
   function handleDeleteMaintenance(record: BarrelMaintenance) {
     Alert.alert(
@@ -1133,7 +1329,14 @@ export default function WineryVesselDetailScreen() {
           {data.movements.length === 0 ? (
             <EmptySection label="No movement records logged." />
           ) : (
-            data.movements.map(mv => <MovementCard key={mv.id} record={mv} />)
+            data.movements.map(mv => (
+              <MovementCard
+                key={mv.id}
+                record={mv}
+                onEdit={r => setEditingMovement(r)}
+                onDelete={handleDeleteMovement}
+              />
+            ))
           )}
         </ScrollView>
       )}
@@ -1155,6 +1358,16 @@ export default function WineryVesselDetailScreen() {
             onClose={() => setEditingMaintenance(null)}
             onSuccess={() => { setEditingMaintenance(null); refresh(); }}
           />
+          {editingMovement !== null && (
+            <EditMovementModal
+              visible={editingMovement !== null}
+              farmId={String(currentFarm.id)}
+              vesselId={params.vesselId}
+              record={editingMovement}
+              onClose={() => setEditingMovement(null)}
+              onSuccess={() => { setEditingMovement(null); refresh(); }}
+            />
+          )}
           <LogMovementModal
             visible={movementModalOpen}
             farmId={currentFarm.id}
@@ -1333,6 +1546,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.xs,
     flexWrap: "wrap",
+  },
+  cardActionBtn: {
+    padding: 4,
+    borderRadius: 4,
   },
   cardTitle: {
     fontSize: fontSize.sm,

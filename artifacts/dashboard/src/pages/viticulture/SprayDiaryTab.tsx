@@ -582,6 +582,18 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
             { key: "ratePerHectare", label: "Rate/ha", render: r => r.ratePerHectare ? `${fmtNum(r.ratePerHectare)} ${fmt(r.rateUnit)}` : "—" },
             { key: "areaTreatedHa", label: "Area (ha)", render: r => fmtNum(r.areaTreatedHa, 4) },
             { key: "operatorName", label: "Operator" },
+            {
+              key: "photoCount",
+              label: "Photos",
+              render: r => {
+                const count = typeof r.photoCount === "number" ? r.photoCount : 0;
+                return count > 0
+                  ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 ring-1 ring-inset ring-blue-200">
+                      <Camera className="w-3 h-3" />{count}
+                    </span>
+                  : <span className="text-foreground/30 text-xs">—</span>;
+              },
+            },
           ]}
           rows={filteredSpray}
           onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}

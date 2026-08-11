@@ -2217,7 +2217,16 @@ function extractB64Src(html: string, value: string, matchBy: "alt" | "class" = "
  * Read the BDE logo and QR code data-URIs from platform config, falling back
  * to scanning the legacy on-disk ad-templates/ HTML files when the DB rows are blank.
  */
+// Simple in-memory cache so rapid successive renders reuse the already-fetched URIs
+let _brandAssetCache: { logoUri: string; qrUri: string; cachedAt: number } | null = null;
+const BRAND_ASSET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
+  // Return cached result if still fresh
+  if (_brandAssetCache && Date.now() - _brandAssetCache.cachedAt < BRAND_ASSET_CACHE_TTL_MS) {
+    return { logoUri: _brandAssetCache.logoUri, qrUri: _brandAssetCache.qrUri };
+  }
+
   // Prefer DB-stored values
   const rows = await db.select().from(platformConfigTable)
     .where(inArray(platformConfigTable.key, ["brand.adLogoDataUrl", "brand.adQrDataUrl"]));
@@ -2251,6 +2260,7 @@ async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> 
     }
   }
 
+  _brandAssetCache = { logoUri, qrUri, cachedAt: Date.now() };
   return { logoUri, qrUri };
 }
 
@@ -2440,6 +2450,10 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   const [template] = await db.select().from(adTemplatesTable)
     .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+  if (template.archivedAt) { res.status(422).json({ error: "Template has been archived and cannot be rendered." }); return; }
+
+  // Snapshot the HTML body immediately so a mid-flight archive cannot affect this render
+  const snapshotHtmlBody = template.htmlBody;
 
   const tmpId   = crypto.randomUUID();
   const tmpDir  = path.join(os.tmpdir(), `ad-pdf-${tmpId}`);
@@ -2454,8 +2468,8 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", {
+    // Step 1: Render HTML via Node-native renderer (uses snapshot taken before any async work)
+    const html = await renderAdTemplate(snapshotHtmlBody, bgUrl ?? "", {
       headline, body, accentColor,
       widthMm: template.widthMm, heightMm: template.heightMm,
     });

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,6 +19,8 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 
 interface TbTestRecord {
   id: number;
@@ -75,6 +77,10 @@ export default function HistoryTbTestsScreen() {
     currentFarm?.id,
     "/api/farms/:farmId/tb-tests",
   );
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-tests-history", currentFarm?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
@@ -109,6 +115,39 @@ export default function HistoryTbTestsScreen() {
         <Text style={styles.title}>TB Test Records</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
+
+      {missingIdentifiers && !bannerDismissed && (
+        <Pressable
+          onPress={() => router.push("/(tabs)/more")}
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — required for TB test records."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for TB test records."
+              : "SBI number is missing from your farm profile — required for TB test records."}
+            {" "}Tap to go to Settings.
+          </Text>
+          <Pressable
+            onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Dismiss warning"
+          >
+            <Feather name="x" size={15} color="#92400e" />
+          </Pressable>
+        </Pressable>
+      )}
 
       <View style={styles.filterBar}>
         <View style={styles.searchRow}>
@@ -218,6 +257,10 @@ export default function HistoryTbTestsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  identifierBanner: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, marginHorizontal: spacing.lg, marginVertical: spacing.sm, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: "#F59E0B", borderRadius: radius.md, padding: spacing.md },
+  identifierBannerText: { flex: 1, fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", lineHeight: 18 },
+  identifierBannerSaved: { backgroundColor: colors.successBg, borderColor: "#86EFAC" },
+  identifierBannerSavedText: { color: "#166534" },
   backBtn: { width: 40, alignItems: "flex-start" },
   title: { flex: 1, textAlign: "center", fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
   filterBar: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, paddingTop: spacing.sm },

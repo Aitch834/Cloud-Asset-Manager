@@ -38082,6 +38082,29 @@ router.post("/farms/:farmId/winery-vessels/:vesselId/movements", requireAuth, re
   res.status(201).json({ record: r.rows[0] });
 });
 
+router.put("/farms/:farmId/winery-vessels/:vesselId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const movementId = parseInt(req.params.movementId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.movedDate || !b.toZone) { res.status(400).json({ error: "moved_date and to_zone are required" }); return; }
+  await db.execute(sql`
+    UPDATE winery_barrel_movements SET
+      moved_date=${nd(b.movedDate)},from_zone=${n(b.fromZone)},from_position=${n(b.fromPosition)},
+      to_zone=${n(b.toZone)},to_position=${n(b.toPosition)},reason=${n(b.reason)},
+      operator_name=${n(b.operatorName)},notes=${n(b.notes)}
+    WHERE id=${movementId} AND vessel_id=${vesselId} AND farm_id=${farmId}
+  `);
+  await db.execute(sql`
+    UPDATE winery_vessels v SET
+      cellar_zone    = (SELECT to_zone     FROM winery_barrel_movements WHERE vessel_id = ${vesselId} ORDER BY moved_date DESC, created_at DESC LIMIT 1),
+      cellar_position = (SELECT to_position FROM winery_barrel_movements WHERE vessel_id = ${vesselId} ORDER BY moved_date DESC, created_at DESC LIMIT 1)
+    WHERE v.id = ${vesselId} AND v.farm_id = ${farmId}
+  `);
+  const r = await db.execute(sql`SELECT * FROM winery_barrel_movements WHERE id=${movementId} AND farm_id=${farmId}`);
+  res.json({ record: r.rows[0] });
+});
+
 router.delete("/farms/:farmId/winery-vessels/:vesselId/movements/:movementId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const vesselId = parseInt(req.params.vesselId as string);

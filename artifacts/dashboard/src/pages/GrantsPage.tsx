@@ -725,6 +725,34 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                         </span>
                       )}
                     </div>
+                    {/* Drawdown progress bar */}
+                    {!!project.totalGrantValuePence && (() => {
+                      const paidPence = allMilestones
+                        .filter(m => m.projectId === project.id && m.status === "paid")
+                        .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+                      const submittedPence = allMilestones
+                        .filter(m => m.projectId === project.id && m.status === "submitted")
+                        .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+                      const total = project.totalGrantValuePence!;
+                      const pct = Math.min(100, Math.round(paidPence / total * 100));
+                      const pctSub = Math.min(100 - pct, Math.round(submittedPence / total * 100));
+                      const claimedLabel = paidPence > 0
+                        ? `£${(paidPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} of £${(total / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} claimed`
+                        : `£${(total / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} total — no paid claims yet`;
+                      return (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                            <span style={{ fontSize: "0.71rem", color: "#6b7280" }}>{claimedLabel}</span>
+                            <span style={{ fontSize: "0.71rem", fontWeight: 600, color: pct >= 100 ? "#059669" : "#374151" }}>{pct}% drawn</span>
+                          </div>
+                          <div style={{ height: 6, background: "#e5e7eb", borderRadius: 4, overflow: "hidden", display: "flex" }}>
+                            <div style={{ height: "100%", width: `${pct}%`, background: "#059669", transition: "width 0.3s" }} />
+                            {pctSub > 0 && <div style={{ height: "100%", width: `${pctSub}%`, background: "#93c5fd", transition: "width 0.3s" }} />}
+                          </div>
+                          {pctSub > 0 && <div style={{ fontSize: "0.69rem", color: "#6b7280", marginTop: 2 }}>£{(submittedPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} submitted (awaiting payment)</div>}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                     <button onClick={e => { e.stopPropagation(); openEditProject(project); }}

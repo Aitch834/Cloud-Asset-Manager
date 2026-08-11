@@ -21,6 +21,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 
@@ -75,6 +76,7 @@ export default function HistoryMovementsScreen() {
   );
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("movements-history", currentFarm?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
@@ -128,7 +130,7 @@ export default function HistoryMovementsScreen() {
         </Pressable>
       )}
 
-      {missingIdentifiers && (
+      {missingIdentifiers && !bannerDismissed && (
         <Pressable
           onPress={() => router.push("/(tabs)/more")}
           style={styles.identifierBanner}
@@ -142,6 +144,13 @@ export default function HistoryMovementsScreen() {
               : "SBI number is missing from your farm profile — required for movement submissions."}
             {" "}Tap to go to Settings.
           </Text>
+          <Pressable
+            onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Dismiss warning"
+          >
+            <Feather name="x" size={15} color="#92400e" />
+          </Pressable>
         </Pressable>
       )}
 

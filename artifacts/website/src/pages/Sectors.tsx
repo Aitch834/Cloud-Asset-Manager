@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Beef, Wheat, Grape, Tractor, LayoutGrid, Wrench,
   CheckCircle2, ArrowRight, ChevronRight, AlertTriangle,
@@ -159,6 +159,12 @@ const WHY = [
 
 export default function Sectors() {
   const [active, setActive] = useState(SECTORS[0].id);
+  // Pre-select sector from ?sector= query param so Sectors page links from other pages work
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get("sector");
+    if (s && SECTORS.some(sec => sec.id === s)) setActive(s);
+  }, []);
   const sector = SECTORS.find((s) => s.id === active)!;
   const Icon = sector.icon as React.ElementType;
 
