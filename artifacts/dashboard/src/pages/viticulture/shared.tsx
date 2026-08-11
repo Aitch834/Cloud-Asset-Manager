@@ -1207,19 +1207,31 @@ export async function printHarvest(
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
   let vintageSummaryHtml = "";
   if (groupByVintage) {
-    const vintageObj: Record<string, { totalKg: number; brixSum: number; brixCount: number }> = {};
+    const vintageObj: Record<string, { totalKg: number; brixSum: number; brixCount: number; phSum: number; phCount: number; taSum: number; taCount: number; paSum: number; paCount: number }> = {};
     for (const r of records) {
       const yr = String(r.vintageYear ?? "Unknown");
-      if (!vintageObj[yr]) vintageObj[yr] = { totalKg: 0, brixSum: 0, brixCount: 0 };
+      if (!vintageObj[yr]) vintageObj[yr] = { totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
       vintageObj[yr].totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { vintageObj[yr].brixSum += brix; vintageObj[yr].brixCount++; }
+      const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) { vintageObj[yr].phSum += ph; vintageObj[yr].phCount++; }
+      const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) { vintageObj[yr].taSum += ta; vintageObj[yr].taCount++; }
+      const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) { vintageObj[yr].paSum += pa; vintageObj[yr].paCount++; }
     }
+    const vsAllPh = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+    const vsGrandAvgPh = vsAllPh.length > 0 ? vsAllPh.reduce((a, b) => a + b, 0) / vsAllPh.length : null;
+    const vsAllTa = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+    const vsGrandAvgTa = vsAllTa.length > 0 ? vsAllTa.reduce((a, b) => a + b, 0) / vsAllTa.length : null;
+    const vsAllPa = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+    const vsGrandAvgPa = vsAllPa.length > 0 ? vsAllPa.reduce((a, b) => a + b, 0) / vsAllPa.length : null;
     const vintageRows = uniqueVintages.map(yr => {
-      const v = vintageObj[yr] ?? { totalKg: 0, brixSum: 0, brixCount: 0 };
+      const v = vintageObj[yr] ?? { totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
       return `<tr>
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${v.totalKg > 0 ? v.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.brixCount > 0 ? (v.brixSum / v.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.phCount > 0 ? (v.phSum / v.phCount).toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.taCount > 0 ? (v.taSum / v.taCount).toFixed(1) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.paCount > 0 ? (v.paSum / v.paCount).toFixed(1) : "\u2014"}</td>
       </tr>`;
     }).join("");
     vintageSummaryHtml = `
@@ -1229,12 +1241,18 @@ export async function printHarvest(
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left">Vintage</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Total Yield (kg)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg Brix &deg;</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg pH</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg TA (g/L)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg Pot. Alc %</th>
     </tr></thead>
     <tbody>${vintageRows}</tbody>
     <tfoot><tr>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Vintages</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(0)} kg</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgPh != null ? vsGrandAvgPh.toFixed(2) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgTa != null ? vsGrandAvgTa.toFixed(1) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgPa != null ? vsGrandAvgPa.toFixed(1) : "\u2014"}</td>
     </tr></tfoot>
   </table>`;
   }
