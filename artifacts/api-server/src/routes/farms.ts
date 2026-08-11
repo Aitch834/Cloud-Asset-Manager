@@ -38032,6 +38032,21 @@ router.post("/farms/:farmId/winery-vessels/:vesselId/maintenance", requireAuth, 
   res.status(201).json({ record: r.rows[0] });
 });
 
+router.put("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const vesselId = parseInt(req.params.vesselId as string);
+  const maintenanceId = parseInt(req.params.maintenanceId as string);
+  const b = sanitiseBody(req.body);
+  if (!b.maintenanceDate || !b.workType) { res.status(400).json({ error: "maintenance_date and work_type are required" }); return; }
+  const r = await db.execute(sql`
+    UPDATE winery_barrel_maintenance SET
+      maintenance_date=${nd(b.maintenanceDate)}, work_type=${n(b.workType)},
+      cooperage_name=${n(b.cooperageName)}, cost_pence=${ni(b.costPence)}, notes=${n(b.notes)}
+    WHERE id=${maintenanceId} AND vessel_id=${vesselId} AND farm_id=${farmId} RETURNING *`);
+  if (!r.rows.length) { res.status(404).json({ error: "Record not found" }); return; }
+  res.json({ record: r.rows[0] });
+});
+
 router.delete("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const vesselId = parseInt(req.params.vesselId as string);

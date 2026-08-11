@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -605,6 +606,194 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
   );
 }
 
+// ── Edit Maintenance Modal ────────────────────────────────────────────────────
+
+interface EditMaintenanceModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  record: BarrelMaintenance | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSuccess }: EditMaintenanceModalProps) {
+  const [form, setForm] = useState<MaintenanceFormState>({
+    maintenanceDate: "",
+    workType: "",
+    cooperageName: "",
+    costPounds: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill when record changes or modal opens
+  useEffect(() => {
+    if (visible && record) {
+      setForm({
+        maintenanceDate: record.maintenance_date ?? "",
+        workType: record.work_type ?? "",
+        cooperageName: record.cooperage_name ?? "",
+        costPounds: record.cost_pence != null ? (record.cost_pence / 100).toFixed(2) : "",
+        notes: record.notes ?? "",
+      });
+      setError(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, record]);
+
+  function set(field: keyof MaintenanceFormState, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.maintenanceDate.trim()) { setError("Maintenance date is required."); return; }
+    if (!form.workType.trim()) { setError("Work type is required."); return; }
+    let costPence: number | null = null;
+    if (form.costPounds.trim()) {
+      const parsed = parseFloat(form.costPounds.trim().replace(/^£/, ""));
+      if (isNaN(parsed) || parsed < 0) { setError("Cost must be a valid positive number."); return; }
+      costPence = Math.round(parsed * 100);
+    }
+    if (!record) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/maintenance/${record.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          maintenanceDate: form.maintenanceDate.trim(),
+          workType: form.workType.trim(),
+          cooperageName: form.cooperageName.trim() || null,
+          costPence,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save changes.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={formStyles.sheet}>
+          <View style={formStyles.sheetHeader}>
+            <Text style={formStyles.sheetTitle}>Edit Maintenance</Text>
+            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={formStyles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={colors.error} />
+                <Text style={formStyles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Maintenance date <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.maintenanceDate}
+                onChangeText={v => set("maintenanceDate", v)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Work type <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.workType}
+                onChangeText={v => set("workType", v)}
+                placeholder="e.g. Retoasting, Bung replacement, Leak repair"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Cooperage name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.cooperageName}
+                onChangeText={v => set("cooperageName", v)}
+                placeholder="e.g. Radoux, François Frères"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Cost (£)</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.costPounds}
+                onChangeText={v => set("costPounds", v)}
+                placeholder="e.g. 120.00"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Notes</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.multiline]}
+                value={form.notes}
+                onChangeText={v => set("notes", v)}
+                placeholder="Any additional notes…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                returnKeyType="default"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[formStyles.submitBtn, submitting && formStyles.submitBtnDisabled]}
+              onPress={() => { void handleSubmit(); }}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={formStyles.submitBtnText}>Save changes</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Section components ────────────────────────────────────────────────────────
 
 function SectionHeader({ title, count, action }: { title: string; count: number; action?: React.ReactNode }) {
@@ -672,12 +861,36 @@ function FillCard({ fill }: { fill: BarrelFill }) {
   );
 }
 
-function MaintenanceCard({ record }: { record: BarrelMaintenance }) {
+function MaintenanceCard({
+  record,
+  onEdit,
+  onDelete,
+}: {
+  record: BarrelMaintenance;
+  onEdit: (record: BarrelMaintenance) => void;
+  onDelete: (record: BarrelMaintenance) => void;
+}) {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{record.work_type ?? "Maintenance"}</Text>
         <Text style={styles.cardMeta}>{fmt(record.maintenance_date)}</Text>
+        <TouchableOpacity
+          style={styles.cardIconBtn}
+          onPress={() => onEdit(record)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+          activeOpacity={0.6}
+        >
+          <Feather name="edit-2" size={14} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.cardIconBtn}
+          onPress={() => onDelete(record)}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+          activeOpacity={0.6}
+        >
+          <Feather name="trash-2" size={14} color={colors.error} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.cardRow}>
@@ -746,10 +959,44 @@ export default function WineryVesselDetailScreen() {
 
   const [movementModalOpen, setMovementModalOpen] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
+  const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
 
   // Track current vessel location so sequential movements pre-fill the right origin
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
   const [currentPosition, setCurrentPosition] = useState(params.cellarPosition ?? "");
+
+  function handleDeleteMaintenance(record: BarrelMaintenance) {
+    Alert.alert(
+      "Delete record?",
+      `This will permanently remove the "${record.work_type ?? "maintenance"}" record dated ${fmt(record.maintenance_date)}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const apiBase = getApiBase();
+              if (!apiBase) throw new Error("No API domain configured.");
+              const headers = await getAuthHeaders();
+              const res = await fetch(
+                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/maintenance/${record.id}`,
+                { method: "DELETE", headers },
+              );
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({})) as { error?: string };
+                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+                return;
+              }
+              refresh();
+            } catch (err) {
+              Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete record.");
+            }
+          },
+        },
+      ],
+    );
+  }
 
   const subtitle = params.vesselType ?? "Vessel";
 
@@ -828,7 +1075,14 @@ export default function WineryVesselDetailScreen() {
           {data.maintenance.length === 0 ? (
             <EmptySection label="No cooperage or maintenance records." />
           ) : (
-            data.maintenance.map(m => <MaintenanceCard key={m.id} record={m} />)
+            data.maintenance.map(m => (
+              <MaintenanceCard
+                key={m.id}
+                record={m}
+                onEdit={r => setEditingMaintenance(r)}
+                onDelete={handleDeleteMaintenance}
+              />
+            ))
           )}
 
           {/* Movements */}
@@ -862,6 +1116,14 @@ export default function WineryVesselDetailScreen() {
             vesselId={params.vesselId}
             onClose={() => setMaintenanceModalOpen(false)}
             onSuccess={() => { setMaintenanceModalOpen(false); refresh(); }}
+          />
+          <EditMaintenanceModal
+            visible={editingMaintenance !== null}
+            farmId={currentFarm.id}
+            vesselId={params.vesselId}
+            record={editingMaintenance}
+            onClose={() => setEditingMaintenance(null)}
+            onSuccess={() => { setEditingMaintenance(null); refresh(); }}
           />
           <LogMovementModal
             visible={movementModalOpen}
@@ -1085,6 +1347,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 18,
     fontStyle: "italic",
+  },
+  // Card icon action buttons (edit / delete)
+  cardIconBtn: {
+    padding: 2,
   },
   // Fill badge
   fillBadge: {
