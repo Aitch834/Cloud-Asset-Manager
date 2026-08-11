@@ -26,6 +26,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 
@@ -571,11 +572,19 @@ function SprayDiaryRow({
 export default function VineSprayDiaryHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
+  const { address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
   const { records, loading, refreshing, error, refresh } = useApiFetch<SprayDiaryRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-spray-diary",
   );
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
+
+  const missingAddressFields: string[] = !identifiersLoading
+    ? [
+        !currentFarm?.name || currentFarm.name.trim() === "" ? "Farm name" : "",
+        !address || address.trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
 
   const [search, setSearch] = useState("");
   const [photoRecord, setPhotoRecord] = useState<SprayDiaryRecord | null>(null);
@@ -633,6 +642,21 @@ export default function VineSprayDiaryHistoryScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      {missingAddressFields.length > 0 && (
+        <Pressable
+          onPress={() => router.push("/(tabs)/more")}
+          style={styles.addressWarning}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.addressWarningText}>
+            <Text style={styles.addressWarningBold}>Farm Settings incomplete: </Text>
+            {missingAddressFields.join(", ")}{" "}
+            {missingAddressFields.length === 1 ? "is" : "are"} not set — your report will have blank header fields.{" "}
+            Tap to update in Farm Settings.
+          </Text>
+        </Pressable>
+      )}
 
       {loading && !refreshing ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
@@ -884,6 +908,28 @@ const styles = StyleSheet.create({
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
+  addressWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  addressWarningText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
+  addressWarningBold: {
+    fontFamily: fonts.semiBold,
+  },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
   blockTag: {
     flexDirection: "row",
