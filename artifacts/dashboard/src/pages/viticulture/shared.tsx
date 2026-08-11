@@ -215,6 +215,17 @@ export function printExciseReturn(
     + (parseFloat(String(record.totalLitresTastings ?? 0)) || 0);
   const address = farmMeta?.address ? esc(farmMeta.address) : "";
   const vatNumber = farmMeta?.vatNumber ? esc(farmMeta.vatNumber) : "";
+
+  // FSA / APPA refs — amber warning when missing (consistent with other print functions)
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const appaRefHtml = appaRef
+    ? `APPA Ref: <strong>${esc(appaRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
+  const fsaWineRefHtml = fsaWineProductionRef
+    ? `FSA Wine Production Ref: <strong>${esc(fsaWineProductionRef)}</strong>`
+    : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>HMRC Alcohol Duty Return — ${esc(farmName)}</title>
   <style>
@@ -232,9 +243,14 @@ export function printExciseReturn(
     .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
     .badge-spr { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .badge-std { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
     .notice { background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; }
     .footer { margin-top: 28px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
-    @media print { body { margin: 20px; } button { display: none; } }
+    @media print {
+      body { margin: 20px; }
+      button { display: none; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style></head><body>
   <div class="header">
     <div>
@@ -243,6 +259,8 @@ export function printExciseReturn(
         <strong>${esc(farmName)}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${esc(licenceNo)}` : ""}<br>
         ${address ? `${address}<br>` : ""}
         ${vatNumber ? `VAT Reg No: ${vatNumber}<br>` : ""}
+        ${appaRefHtml}<br>
+        ${fsaWineRefHtml}<br>
         Return Period: <strong>${d(record.periodStart)} &ndash; ${d(record.periodEnd)}</strong>
       </div>
     </div>
