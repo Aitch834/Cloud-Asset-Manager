@@ -51,7 +51,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Phenology = Record<string, unknown>;
 
@@ -81,6 +81,7 @@ const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> =
 
 export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
+  const farmName = useFarmName(farmId);
   const { displayName } = useUserRole();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -91,6 +92,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
   const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
@@ -247,6 +249,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(filteredPhenology, "phenology.csv", csvCols)} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (filteredPhenology.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(filteredPhenology, farmName ?? "", blocks); } }} disabled={!filteredPhenology.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
       </div>
@@ -368,6 +371,34 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print pre-flight confirm */}
+      {(() => {
+        const unlinkedInView = filteredPhenology.filter(r => !r.blockId);
+        return (
+          <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                  {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
+                </DialogTitle>
+                <DialogDescription>
+                  {unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
+                  <Link className="w-4 h-4 mr-1" />Link first
+                </Button>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printPhenology(filteredPhenology, farmName ?? "", blocks); }}>
+                  <Printer className="w-4 h-4 mr-1" />Print anyway
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>

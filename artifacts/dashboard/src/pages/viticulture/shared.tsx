@@ -1565,6 +1565,104 @@ export async function printHarvest(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export async function printPhenology(
+  records: Record<string, unknown>[],
+  farmName: string,
+  blocks?: Record<string, unknown>[],
+) {
+  const win = window.open("", "_blank", "width=1100,height=850");
+  if (!win) return;
+
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Phenology — Loading…</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555}p{font-size:14px}</style>
+    </head><body><p>Preparing report…</p></body></html>`);
+
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const n = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+
+  // Build block name lookup
+  const blockLookup: Record<number, Record<string, unknown>> = {};
+  (blocks ?? []).forEach(b => { blockLookup[b.id as number] = b; });
+  const blockName = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.blockName ?? id) : "—";
+  };
+
+  const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
+
+  const rows = records.map(r => `<tr>
+    <td>${d(r.observationDate)}</td>
+    <td>${escHtml(blockName(r.blockId))}</td>
+    <td style="text-align:center;font-weight:600">${escHtml(r.bbchStage)}</td>
+    <td>${escHtml(r.bbchDescription)}</td>
+    <td style="text-align:right">${r.percentageReached != null && r.percentageReached !== "" ? `${r.percentageReached}%` : "—"}</td>
+    <td>${escHtml(r.observer)}</td>
+    <td style="text-align:right">${n(r.temperatureC, 1)}</td>
+    <td>${escHtml(r.notes)}</td>
+  </tr>`).join("");
+
+  const safeFarmName = escHtml(farmName);
+  const years = [...new Set(records.map(r => new Date(r.observationDate as string).getFullYear()))].sort().reverse().join(", ");
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Phenology (BBCH Growth Stages) &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 18mm 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; margin: 0; }
+    h1 { font-size: 17px; margin: 0 0 2px; color: #4b3a8a; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4b3a8a; padding-bottom: 10px; margin-bottom: 14px; }
+    .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #4b3a8a; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
+    td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #f5f3ff; }
+    .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
+    @media print { body { margin: 0; } button { display: none !important; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>Phenology (BBCH Growth Stages)</h1>
+      <div class="meta">
+        <strong>${safeFarmName}</strong><br>
+        ${years ? `Season(s): ${years}<br>` : ""}
+        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+      </div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#555">
+      <div style="font-size:13px;font-weight:700;color:#4b3a8a">Viticulture</div>
+      <div>Phenology Register</div>
+    </div>
+  </div>
+  ${unlinkedCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;padding:7px 10px;border-radius:4px;font-size:10.5px;margin-bottom:12px;color:#78350f"><strong>&#9888; ${unlinkedCount} observation${unlinkedCount === 1 ? "" : "s"} not linked to a block</strong> &mdash; these records are included below but cannot be attributed to a specific block.</div>` : ""}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Block</th>
+        <th style="text-align:center">BBCH Stage</th>
+        <th>Description</th>
+        <th style="text-align:right">% Reached</th>
+        <th>Observer</th>
+        <th style="text-align:right">Temp (°C)</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan='8' style='text-align:center;color:#888;padding:14px'>No records</td></tr>`}
+    </tbody>
+  </table>
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Phenology Register &nbsp;&middot;&nbsp; BBCH Growth Stage observations</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 export async function printDiseaseScouting(
   records: Record<string, unknown>[],
   farmName: string,
