@@ -414,6 +414,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     { key: "areaTreatedHa", label: "Area (ha)" },
     { key: "operatorName", label: "Operator" },
     { key: "harvestIntervalDays", label: "Harvest Interval (days)" },
+    { key: "notes", label: "Notes" },
   ];
 
   const sprayYears = Array.from(new Set(crud.data.map(r => new Date(r.applicationDate as string).getFullYear()))).sort((a, b) => b - a);
