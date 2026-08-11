@@ -1054,7 +1054,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       {vintageRows.map((row, i) => (
                         <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                           <td className="px-4 py-2 font-medium">{row.vintage}</td>
-                          <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.picks}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">
+                            {row.picks === 1 ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+                            ) : row.picks <= 3 ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
+                            ) : (
+                              <span className="text-muted-foreground">{row.picks}</span>
+                            )}
+                          </td>
                           <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgTha != null ? row.avgTha.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
@@ -1156,7 +1164,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className="px-4 py-2 font-medium">{row.name}</td>
                         <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.picks}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {row.picks === 1 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+                          ) : row.picks <= 3 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
+                          ) : (
+                            <span className="text-muted-foreground">{row.picks}</span>
+                          )}
+                        </td>
                         <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.derivedTha != null ? row.derivedTha.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
