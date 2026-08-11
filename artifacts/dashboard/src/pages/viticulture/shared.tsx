@@ -419,6 +419,149 @@ function escHtml(v: unknown): string {
     .replace(/'/g, "&#x27;");
 }
 
+// ─── Yield-by-Block × Vintage chart SVG builder (for print) ──────────────────
+
+const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
+
+function buildYieldTrendChartSvg(
+  records: Record<string, unknown>[],
+  blockLookup: Record<number, Record<string, unknown>>,
+): string {
+  const linkedRows = records.filter(r => r.blockId != null && r.blockId !== "");
+  const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+  const allBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
+  if (uniqueVintages.length < 2 || allBlockIds.length < 2) return "";
+
+  const blockCount = allBlockIds.length; // render ALL blocks — no cap
+  const vintageCount = uniqueVintages.length;
+
+  const bname = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.blockName ?? id) : String(id);
+  };
+
+  // Build data matrix: bidStr → vintageYear → total kg
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const r of linkedRows) {
+    const bid = String(r.blockId);
+    const vy = String(r.vintageYear ?? "");
+    if (!matrix[bid]) matrix[bid] = {};
+    matrix[bid][vy] = (matrix[bid][vy] ?? 0) + (parseFloat(String(r.yieldKg ?? 0)) || 0);
+  }
+
+  const allVals = Object.values(matrix).flatMap(v => Object.values(v));
+  const maxVal = Math.max(...allVals, 1);
+
+  // Legend layout — 4 columns, rows grow to fit all blocks
+  const legendCols = 4;
+  const legendRows = Math.ceil(blockCount / legendCols);
+  const legendH = legendRows * 14 + 10; // 10px top gap inside MB
+
+  // Canvas dimensions — height grows with legend
+  const W = 700; const plotH = 200;
+  const ML = 68; const MR = 16; const MT = 18; const MB = legendH + 22;
+  const H = plotH + MT + MB;
+  const plotW = W - ML - MR;
+
+  // Bar width — allow as narrow as 2 px for large block counts; bars become thin
+  // but remain individually addressable via trend lines + legend
+  const groupW = plotW / vintageCount;
+  const barW = Math.max(2, Math.min((groupW - 6) / blockCount, 28));
+  const totalBarsW = barW * blockCount;
+
+  // Nice round Y-axis ceiling
+  const magnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+  const yMax = Math.ceil(maxVal / magnitude) * magnitude;
+  const yTicks = 5;
+
+  const sy = (v: number) => plotH - (v / yMax) * plotH;
+
+  // Grid lines + Y labels
+  const gridLines: string[] = [];
+  const yLabels: string[] = [];
+  for (let i = 0; i <= yTicks; i++) {
+    const val = (yMax / yTicks) * i;
+    const y = sy(val);
+    gridLines.push(`<line x1="0" y1="${y.toFixed(1)}" x2="${plotW}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="0.5"/>`);
+    const label = val >= 1000 ? `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}t` : val.toFixed(0);
+    yLabels.push(`<text x="-5" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#555" font-family="Arial,sans-serif">${label}</text>`);
+  }
+
+  // X labels
+  const xLabels = uniqueVintages.map((vy, i) => {
+    const x = i * groupW + groupW / 2;
+    return `<text x="${x.toFixed(1)}" y="${(plotH + 13).toFixed(1)}" text-anchor="middle" font-size="9" fill="#333" font-family="Arial,sans-serif">${escHtml(vy)}</text>`;
+  });
+
+  // Bars + trend-point map
+  const bars: string[] = [];
+  // trendCenters[bi][vi] = [cx, cy]
+  const trendCenters: Array<Array<[number, number]>> = Array.from({ length: blockCount }, () => []);
+
+  for (let vi = 0; vi < vintageCount; vi++) {
+    const vy = uniqueVintages[vi];
+    const groupLeft = vi * groupW + (groupW - totalBarsW) / 2;
+    for (let bi = 0; bi < blockCount; bi++) {
+      const bid = String(allBlockIds[bi]);
+      const val = matrix[bid]?.[vy] ?? 0;
+      const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+      const bx = groupLeft + bi * barW;
+      const bh = val > 0 ? (val / yMax) * plotH : 0;
+      const by = plotH - bh;
+      const cx = bx + barW / 2;
+      const cy = val > 0 ? by : plotH;
+      trendCenters[bi].push([cx, cy]);
+      if (val > 0) {
+        // For very narrow bars skip rx rounding so they remain visible
+        const rx = barW >= 3 ? "1.5" : "0";
+        const w = Math.max(barW - (barW >= 3 ? 1 : 0), 1).toFixed(1);
+        bars.push(`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${w}" height="${bh.toFixed(1)}" fill="${color}" fill-opacity="0.72" rx="${rx}"/>`);
+      }
+    }
+  }
+
+  // Trend lines + dots (always drawn over bars)
+  const trendLines: string[] = [];
+  for (let bi = 0; bi < blockCount; bi++) {
+    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const pts = trendCenters[bi];
+    if (pts.length < 2) continue;
+    const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+    trendLines.push(`<path d="${d}" stroke="${color}" stroke-width="2" fill="none" stroke-dasharray="4,2" opacity="0.9"/>`);
+    pts.forEach(([cx, cy]) => {
+      trendLines.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.8" fill="${color}" stroke="white" stroke-width="1.2"/>`);
+    });
+  }
+
+  // Legend — all blocks, 4 columns, rows expand downward
+  const legendColW = Math.floor(plotW / legendCols);
+  const legendItems: string[] = [];
+  for (let bi = 0; bi < blockCount; bi++) {
+    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const label = bname(allBlockIds[bi]);
+    const col = bi % legendCols;
+    const row = Math.floor(bi / legendCols);
+    const lx = col * legendColW;
+    const ly = plotH + 28 + row * 14;
+    legendItems.push(`<rect x="${lx}" y="${(ly - 7).toFixed(1)}" width="10" height="10" fill="${color}" fill-opacity="0.72" rx="1.5"/>
+      <text x="${lx + 13}" y="${ly}" font-size="8.5" fill="#333" font-family="Arial,sans-serif">${escHtml(label)}</text>`);
+  }
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;border:1px solid #d1d5db;border-radius:4px;background:#fafaf9">
+    <g transform="translate(${ML},${MT})">
+      ${gridLines.join("")}
+      ${bars.join("")}
+      ${trendLines.join("")}
+      <line x1="0" y1="0" x2="0" y2="${plotH}" stroke="#374151" stroke-width="1"/>
+      <line x1="0" y1="${plotH}" x2="${plotW}" y2="${plotH}" stroke="#374151" stroke-width="1"/>
+      ${yLabels.join("")}
+      ${xLabels.join("")}
+      <text transform="translate(-52,${(plotH / 2).toFixed(0)}) rotate(-90)" text-anchor="middle" font-size="9" fill="#666" font-family="Arial,sans-serif">Yield (kg)</text>
+      ${legendItems.join("")}
+    </g>
+  </svg>`;
+}
+
 // ─── Block-map SVG builder (for print) ───────────────────────────────────────
 
 type LatLng = { lat: number; lng: number };
@@ -1204,6 +1347,11 @@ export async function printHarvest(
   </table>`;
   }
 
+  // ── 3d. Build yield-by-block × vintage chart SVG ─────────────────────────
+  const yieldChartSvgHtml = showCrossTab
+    ? buildYieldTrendChartSvg(records, blockLookup2)
+    : "";
+
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
   let vintageSummaryHtml = "";
   if (groupByVintage) {
@@ -1318,6 +1466,10 @@ export async function printHarvest(
     </tfoot>
   </table>
   ${crossTabHtml}
+  ${yieldChartSvgHtml ? `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:always">Yield by Block &times; Vintage</h2>
+  <p style="font-size:10px;color:#666;margin:0 0 6px">Bars show total yield per block per vintage; dashed trend lines connect each block's performance across vintages.</p>
+  <div style="margin-bottom:18px">${yieldChartSvgHtml}</div>` : ""}
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
     Detailed Records
   </h2>
