@@ -2068,12 +2068,37 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
     enabled: !!farmId,
   });
   const allFeedRecords = data?.records ?? [];
-  const [yearFilterFeed, setYearFilterFeed] = usePersistedFilter({ page: "organic-dairy-feed", filter: "year", farmId, defaultValue: "all" });
-  const yearsFeed = useMemo(() => {
-    const s = new Set(allFeedRecords.map(r => String(r.recordDate ?? "").slice(0, 4)).filter(Boolean));
-    return Array.from(s).sort().reverse();
-  }, [allFeedRecords]);
-  const records = yearFilterFeed === "all" ? allFeedRecords : allFeedRecords.filter(r => String(r.recordDate ?? "").startsWith(yearFilterFeed));
+
+  // Month navigator — persisted per farm, default to current month
+  const nowFeed = new Date();
+  const [feedFilterYear, setFeedFilterYear] = usePersistedNumberFilter({
+    page: "organic-dairy-feed",
+    filter: "year",
+    farmId,
+    defaultValue: nowFeed.getFullYear(),
+  });
+  const [feedFilterMonth, setFeedFilterMonth] = usePersistedNumberFilter({
+    page: "organic-dairy-feed",
+    filter: "month",
+    farmId,
+    defaultValue: nowFeed.getMonth(),
+    isValid: (v) => v >= 0 && v <= 11,
+  }); // 0-indexed
+
+  function stepFeedMonth(dir: 1 | -1) {
+    const next = feedFilterMonth + dir;
+    if (next < 0) { setFeedFilterYear(feedFilterYear - 1); setFeedFilterMonth(11); }
+    else if (next > 11) { setFeedFilterYear(feedFilterYear + 1); setFeedFilterMonth(0); }
+    else { setFeedFilterMonth(next); }
+  }
+
+  const feedMonthLabel = new Date(feedFilterYear, feedFilterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+  const records = useMemo(() => allFeedRecords.filter(r => {
+    if (!r.recordDate) return false;
+    const d = new Date(r.recordDate);
+    return d.getFullYear() === feedFilterYear && d.getMonth() === feedFilterMonth;
+  }), [allFeedRecords, feedFilterYear, feedFilterMonth]);
 
   const { data: suppData } = useQuery<{ suppliers: FarmSupplier[] }>({
     queryKey: ["suppliers-list", farmId],
@@ -2119,21 +2144,23 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <div className="flex flex-wrap gap-2 items-center">
-          <Select value={yearFilterFeed} onValueChange={setYearFilterFeed}>
-            <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All years</SelectItem>
-              {yearsFeed.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={() => printFeedNutritionLog(allFeedRecords, farmName)} disabled={allFeedRecords.length === 0} className="gap-1.5">
-            <Printer className="h-4 w-4" />Print Feed Log
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => printFeedNutritionLog(allFeedRecords, farmName)} disabled={allFeedRecords.length === 0} className="gap-1.5">
+          <Printer className="h-4 w-4" />Print Feed Log
+        </Button>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Feed Record
         </Button>
+      </div>
+
+      {/* ── Month Navigation ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+        <button onClick={() => stepFeedMonth(-1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Previous month">
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">{feedMonthLabel}</span>
+        <button onClick={() => stepFeedMonth(1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Next month">
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        </button>
       </div>
       {records.length > 0 && (() => {
         const totalQty = records.reduce((s, r) => s + (r.quantityKg ? parseFloat(String(r.quantityKg)) : 0), 0);
@@ -2177,7 +2204,11 @@ function FeedNutritionTab({ farmId, farmName }: { farmId: number; farmName: stri
         <TableBody>
           {records.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No feed records{yearFilterFeed !== "all" ? ` for ${yearFilterFeed}` : ""} yet</TableCell>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                {allFeedRecords.length > 0
+                  ? `No feed records for ${feedMonthLabel} — use the arrows to browse other months.`
+                  : "No feed records yet — click Add Feed Record to begin."}
+              </TableCell>
             </TableRow>
           )}
           {records.map((r) => (
@@ -2390,8 +2421,32 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const [raiseTaskMilkRecord, setRaiseTaskMilkRecord] = useState<DairyTreatmentRecord | null>(null);
   const [raiseTaskMeatRecord, setRaiseTaskMeatRecord] = useState<DairyTreatmentRecord | null>(null);
   const [form, setForm] = useState<Partial<DairyTreatmentRecord>>({});
-  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-dairy-treatments", filter: "year", farmId, defaultValue: "all" });
   const [animalSearch, setAnimalSearch] = useState("");
+
+  // Month navigator — persisted per farm, default to current month
+  const nowTreat = new Date();
+  const [treatFilterYear, setTreatFilterYear] = usePersistedNumberFilter({
+    page: "organic-dairy-treatments",
+    filter: "year",
+    farmId,
+    defaultValue: nowTreat.getFullYear(),
+  });
+  const [treatFilterMonth, setTreatFilterMonth] = usePersistedNumberFilter({
+    page: "organic-dairy-treatments",
+    filter: "month",
+    farmId,
+    defaultValue: nowTreat.getMonth(),
+    isValid: (v) => v >= 0 && v <= 11,
+  }); // 0-indexed
+
+  function stepTreatMonth(dir: 1 | -1) {
+    const next = treatFilterMonth + dir;
+    if (next < 0) { setTreatFilterYear(treatFilterYear - 1); setTreatFilterMonth(11); }
+    else if (next > 11) { setTreatFilterYear(treatFilterYear + 1); setTreatFilterMonth(0); }
+    else { setTreatFilterMonth(next); }
+  }
+
+  const treatMonthLabel = new Date(treatFilterYear, treatFilterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
   const { data: herdsData2 } = useQuery<{ records: CoreHerd[] }>({
     queryKey: ["herds", farmId],
@@ -2465,8 +2520,11 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
   const f = (k: keyof DairyTreatmentRecord) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
-  const dairyTreatYears = useMemo(() => Array.from(new Set(records.map(r => String(r.treatmentDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [records]);
-  const filteredDairyTreatments = useMemo(() => yearFilter === "all" ? records : records.filter(r => String(r.treatmentDate ?? "").startsWith(yearFilter)), [records, yearFilter]);
+  const filteredDairyTreatments = useMemo(() => records.filter(r => {
+    if (!r.treatmentDate) return false;
+    const d = new Date(r.treatmentDate);
+    return d.getFullYear() === treatFilterYear && d.getMonth() === treatFilterMonth;
+  }), [records, treatFilterYear, treatFilterMonth]);
 
   return (
     <div className="space-y-4">
@@ -2477,18 +2535,23 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
         </div>
       )}
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-2">
-          <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All years</SelectItem>{dairyTreatYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={() => printDairyTreatmentRegister(records, farmName)} disabled={records.length === 0} className="gap-1.5">
-            <Printer className="h-4 w-4" />Print Treatment Register
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => printDairyTreatmentRegister(records, farmName)} disabled={records.length === 0} className="gap-1.5">
+          <Printer className="h-4 w-4" />Print Treatment Register
+        </Button>
         <Button onClick={openNew} size="sm">
           <Plus className="h-4 w-4 mr-1" /> Add Standalone Treatment
         </Button>
+      </div>
+
+      {/* ── Month Navigation ─────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+        <button onClick={() => stepTreatMonth(-1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Previous month">
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">{treatMonthLabel}</span>
+        <button onClick={() => stepTreatMonth(1)} className="p-1 rounded hover:bg-gray-200 transition-colors" aria-label="Next month">
+          <ChevronRight className="h-4 w-4 text-gray-600" />
+        </button>
       </div>
       <Table>
         <TableHeader>
@@ -2530,6 +2593,13 @@ function TreatmentsTab({ farmId, farmName }: { farmId: number; farmName: string 
             <TableRow>
               <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 No treatment records yet. When you record a vet treatment for an organic herd in the Medicine Register, it will appear here automatically.
+              </TableCell>
+            </TableRow>
+          )}
+          {records.length > 0 && filteredDairyTreatments.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                No standalone treatments for {treatMonthLabel} — use the arrows to browse other months.
               </TableCell>
             </TableRow>
           )}
