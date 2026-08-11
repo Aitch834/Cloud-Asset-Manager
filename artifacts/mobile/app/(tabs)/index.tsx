@@ -27,6 +27,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
 import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
+import { apiFetch } from "@/lib/apiFetch";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 
 interface RecentActivity {
@@ -55,6 +56,30 @@ export default function HomeScreen() {
     cropEvents: 0,
     soilSamples: 0,
   });
+
+  const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0 });
+
+  const fetchUnlinkedCounts = useCallback(async () => {
+    if (!currentFarm?.id) return;
+    try {
+      const [scoutRes, sprayRes] = await Promise.all([
+        apiFetch(`/api/farms/${currentFarm.id}/vineyard-scouting`),
+        apiFetch(`/api/farms/${currentFarm.id}/vineyard-spray-diary`),
+      ]);
+      const scoutData = scoutRes.ok ? await scoutRes.json() : { records: [] };
+      const sprayData = sprayRes.ok ? await sprayRes.json() : { records: [] };
+      const scoutRecords: { blockId: number | null }[] = scoutData.records ?? [];
+      const sprayRecords: { blockId: number | null }[] = sprayData.records ?? [];
+      setUnlinkedCounts({
+        scouting: scoutRecords.filter(r => r.blockId == null).length,
+        sprayDiary: sprayRecords.filter(r => r.blockId == null).length,
+      });
+    } catch { /* ignore */ }
+  }, [currentFarm?.id]);
+
+  useEffect(() => {
+    fetchUnlinkedCounts();
+  }, [fetchUnlinkedCounts]);
 
   const [liveWeather, setLiveWeather] = useState<{
     temperature: string;
@@ -174,9 +199,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather]);
+  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -336,6 +361,48 @@ export default function HomeScreen() {
             </View>
           </View>
         </Card>
+
+        {(unlinkedCounts.scouting > 0 || unlinkedCounts.sprayDiary > 0) && (
+          <>
+            <SectionHeader title="Compliance Gaps" />
+            {unlinkedCounts.scouting > 0 && (
+              <Pressable
+                style={styles.unlinkedBanner}
+                onPress={() => router.push("/vine-scouting-history")}
+              >
+                <View style={styles.unlinkedIconWrap}>
+                  <Feather name="alert-triangle" size={18} color={colors.warning} />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>
+                    {unlinkedCounts.scouting} unlinked scouting{" "}
+                    {unlinkedCounts.scouting === 1 ? "record" : "records"}
+                  </Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to link to a vineyard block</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            )}
+            {unlinkedCounts.sprayDiary > 0 && (
+              <Pressable
+                style={styles.unlinkedBanner}
+                onPress={() => router.push("/vine-spray-diary-history")}
+              >
+                <View style={styles.unlinkedIconWrap}>
+                  <Feather name="alert-triangle" size={18} color={colors.warning} />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>
+                    {unlinkedCounts.sprayDiary} unlinked spray diary{" "}
+                    {unlinkedCounts.sprayDiary === 1 ? "record" : "records"}
+                  </Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to link to a vineyard block</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            )}
+          </>
+        )}
 
         {recentActivity.length > 0 && (
           <>
@@ -500,5 +567,40 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.borderLight,
     marginLeft: spacing.lg + 36 + spacing.md,
+  },
+  unlinkedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.warningBg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.warning + "55",
+    gap: spacing.md,
+  },
+  unlinkedIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.warning + "22",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unlinkedContent: {
+    flex: 1,
+  },
+  unlinkedTitle: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  unlinkedSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
 });
