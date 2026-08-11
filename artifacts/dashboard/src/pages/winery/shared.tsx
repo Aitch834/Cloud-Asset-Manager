@@ -118,10 +118,25 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
 }
 
 export function useVessels(farmId: number) {
+  // Reactively observe the farm-dashboard query (shares the same cache entry
+  // used by the Sidebar and Dashboard page). Using useQuery here — not the
+  // imperative getQueryData — means the component re-evaluates `enabled` as
+  // soon as the dashboard data arrives, so a direct page load or refresh on
+  // a viticulture farm will still trigger the vessel fetch once the
+  // farm-dashboard request resolves.
+  const { data: dashboardData } = useQuery<{ activeSubscriptions?: Array<{ moduleKey: string }> }>({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const activeSubs = (dashboardData?.activeSubscriptions ?? []).map((s) => s.moduleKey);
+  const viticultureActive =
+    activeSubs.includes("viticulture") || activeSubs.includes("organic-viticulture");
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-vessels", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
 }
