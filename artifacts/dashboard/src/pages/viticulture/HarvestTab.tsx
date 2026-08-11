@@ -9,6 +9,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -75,6 +76,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
+  const [summarySort, setSummarySort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1117,6 +1119,40 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
           return { name, variety, areaHa: !isNaN(areaHaNum) ? areaHaNum : null, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
         });
+        // Sort rows; nulls sort last regardless of direction
+        const sortedSummaryRows = [...summaryRows].sort((a, b) => {
+          const d = summarySort.dir === "asc" ? 1 : -1;
+          switch (summarySort.col) {
+            case "name":    return d * a.name.localeCompare(b.name);
+            case "variety": {
+              const av = a.variety || ""; const bv = b.variety || "";
+              if (!av && !bv) return 0;
+              if (!av) return 1;   // empty variety always last, regardless of direction
+              if (!bv) return -1;
+              return d * av.localeCompare(bv);
+            }
+            case "areaHa":  return d * ((a.areaHa ?? (d > 0 ? Infinity : -Infinity)) - (b.areaHa ?? (d > 0 ? Infinity : -Infinity)));
+            case "picks":   return d * (a.picks - b.picks);
+            case "totalYieldKg": return d * (a.totalYieldKg - b.totalYieldKg);
+            case "derivedTha":   return d * ((a.derivedTha ?? (d > 0 ? Infinity : -Infinity)) - (b.derivedTha ?? (d > 0 ? Infinity : -Infinity)));
+            case "avgBrix": return d * ((a.avgBrix ?? (d > 0 ? Infinity : -Infinity)) - (b.avgBrix ?? (d > 0 ? Infinity : -Infinity)));
+            case "avgPh":   return d * ((a.avgPh ?? (d > 0 ? Infinity : -Infinity)) - (b.avgPh ?? (d > 0 ? Infinity : -Infinity)));
+            case "avgTa":   return d * ((a.avgTa ?? (d > 0 ? Infinity : -Infinity)) - (b.avgTa ?? (d > 0 ? Infinity : -Infinity)));
+            case "avgPa":   return d * ((a.avgPa ?? (d > 0 ? Infinity : -Infinity)) - (b.avgPa ?? (d > 0 ? Infinity : -Infinity)));
+            default: return 0;
+          }
+        });
+        const toggleSort = (col: string) => setSummarySort(prev =>
+          prev.col === col
+            ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+            : { col, dir: col === "name" || col === "variety" ? "asc" : "desc" }
+        );
+        const SortIcon = ({ col }: { col: string }) => {
+          if (summarySort.col !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />;
+          return summarySort.dir === "asc"
+            ? <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
+            : <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />;
+        };
         const bFooterTotalKg = summaryRows.reduce((s, r) => s + r.totalYieldKg, 0);
         const bFooterTotalPicks = summaryRows.reduce((s, r) => s + r.picks, 0);
         // Only include rows with a known positive area in the t/ha calculation so
@@ -1146,20 +1182,35 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="text-left px-4 py-2 font-medium">Block</th>
-                      <th className="text-left px-3 py-2 font-medium">Variety</th>
-                      <th className="text-right px-3 py-2 font-medium">Area (ha)</th>
-                      <th className="text-right px-3 py-2 font-medium">Picks</th>
-                      <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
-                      <th className="text-right px-3 py-2 font-medium">t/ha</th>
-                      <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
-                      <th className="text-right px-3 py-2 font-medium">Avg pH</th>
-                      <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
-                      <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
+                      {([
+                        { col: "name",         label: "Block",            align: "left"  },
+                        { col: "variety",      label: "Variety",          align: "left"  },
+                        { col: "areaHa",       label: "Area (ha)",        align: "right" },
+                        { col: "picks",        label: "Picks",            align: "right" },
+                        { col: "totalYieldKg", label: "Total Yield (kg)", align: "right" },
+                        { col: "derivedTha",   label: "t/ha",             align: "right" },
+                        { col: "avgBrix",      label: "Avg Brix °",       align: "right" },
+                        { col: "avgPh",        label: "Avg pH",           align: "right" },
+                        { col: "avgTa",        label: "Avg TA (g/L)",     align: "right" },
+                        { col: "avgPa",        label: "Avg Pot. Alc %",   align: "right" },
+                      ] as { col: string; label: string; align: "left" | "right" }[]).map(({ col, label, align }) => (
+                        <th
+                          key={col}
+                          className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col)}
+                            className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${summarySort.col === col ? "text-foreground" : ""}`}
+                          >
+                            {label}<SortIcon col={col} />
+                          </button>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {summaryRows.map((row, i) => (
+                    {sortedSummaryRows.map((row, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-2 font-medium">{row.name}</td>
                         <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
