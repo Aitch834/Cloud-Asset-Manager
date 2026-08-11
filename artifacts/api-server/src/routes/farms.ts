@@ -41914,3 +41914,51 @@ router.delete("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", requ
   await db.delete(agriEnvMilestonesTable).where(and(eq(agriEnvMilestonesTable.id, id), eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)));
   res.json({ success: true });
 });
+
+// ─── WineGB Seasonal Survey Submissions ───────────────────────────────────────
+
+const VALID_WINEGB_SURVEY_KEYS = ["bud_burst", "frost_damage", "flowering", "veraison", "harvest"] as const;
+type WinegbSurveyKey = typeof VALID_WINEGB_SURVEY_KEYS[number];
+
+router.get("/farms/:farmId/winegb-submissions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = parseInt(String(req.query.year ?? new Date().getFullYear()), 10);
+  if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
+  const rows = await db.execute(sql`
+    SELECT survey_key, submitted, submitted_at
+    FROM vineyard_winegb_submissions
+    WHERE farm_id = ${farmId} AND season_year = ${year}
+  `);
+  // Return a map keyed by survey_key for easy lookup on the frontend
+  const map: Record<string, { submitted: boolean; submittedAt: string | null }> = {};
+  for (const row of rows.rows) {
+    map[String(row.survey_key)] = {
+      submitted: !!row.submitted,
+      submittedAt: row.submitted_at ? String(row.submitted_at) : null,
+    };
+  }
+  res.json({ year, submissions: map });
+});
+
+router.put("/farms/:farmId/winegb-submissions/:surveyKey", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const surveyKey = req.params.surveyKey as string;
+  if (!(VALID_WINEGB_SURVEY_KEYS as readonly string[]).includes(surveyKey)) {
+    res.status(400).json({ error: "Invalid survey key" }); return;
+  }
+  const b = sanitiseBody(req.body);
+  const submitted = b.submitted === true || b.submitted === "true" || b.submitted === 1;
+  const year = b.year ? parseInt(String(b.year), 10) : new Date().getFullYear();
+  if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
+  const submittedAt = submitted ? new Date() : null;
+  const r = await db.execute(sql`
+    INSERT INTO vineyard_winegb_submissions (farm_id, season_year, survey_key, submitted, submitted_at, updated_at)
+    VALUES (${farmId}, ${year}, ${surveyKey}, ${submitted}, ${submittedAt}, NOW())
+    ON CONFLICT (farm_id, season_year, survey_key) DO UPDATE SET
+      submitted    = EXCLUDED.submitted,
+      submitted_at = CASE WHEN EXCLUDED.submitted THEN EXCLUDED.submitted_at ELSE NULL END,
+      updated_at   = NOW()
+    RETURNING *
+  `);
+  res.json({ record: r.rows[0] });
+});

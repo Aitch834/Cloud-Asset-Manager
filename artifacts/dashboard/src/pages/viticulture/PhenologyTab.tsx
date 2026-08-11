@@ -79,6 +79,137 @@ const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> =
   "89": { surveyName: "Harvest Survey", label: "harvest" },
 };
 
+// ─── WineGB Submissions Panel ──────────────────────────────────────────────────
+
+type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
+
+interface WinegbSurvey {
+  key: WinegbSurveyKey;
+  label: string;
+  /** Rough UK season months (1-based) when this survey is typically collected */
+  months: number[];
+}
+
+const WINEGB_SURVEYS: WinegbSurvey[] = [
+  { key: "bud_burst",    label: "Bud Burst",    months: [3, 4]    },
+  { key: "frost_damage", label: "Frost Damage",  months: [3, 4, 5] },
+  { key: "flowering",    label: "Flowering",     months: [6, 7]    },
+  { key: "veraison",     label: "Véraison",      months: [8, 9]    },
+  { key: "harvest",      label: "Harvest",        months: [9, 10]   },
+];
+
+function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; seasonYear: number }) {
+  const queryClient = useQueryClient();
+  const currentMonth = new Date().getMonth() + 1; // 1-based
+  const isCurrentSeason = seasonYear === new Date().getFullYear();
+
+  const { data, isLoading } = useQuery<{ submissions: Record<string, { submitted: boolean; submittedAt: string | null }> }>({
+    queryKey: ["winegb-submissions", farmId, seasonYear],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/winegb-submissions?year=${seasonYear}`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ key, submitted }: { key: WinegbSurveyKey; submitted: boolean }) => {
+      const r = await fetch(api(`farms/${farmId}/winegb-submissions/${key}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submitted, year: seasonYear }),
+      });
+      if (!r.ok) throw new Error("Failed to save");
+      return r.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["winegb-submissions", farmId, seasonYear] });
+    },
+  });
+
+  const submissions = data?.submissions ?? {};
+
+  const allDone = WINEGB_SURVEYS.every(s => submissions[s.key]?.submitted);
+  const doneCount = WINEGB_SURVEYS.filter(s => submissions[s.key]?.submitted).length;
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-3">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2">
+          <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="text-sm font-semibold text-emerald-900">WineGB Seasonal Surveys — {seasonYear}</span>
+          {allDone && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 border border-green-200 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="w-3 h-3" /> All submitted
+            </span>
+          )}
+          {!allDone && doneCount > 0 && (
+            <span className="text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
+              {doneCount}/{WINEGB_SURVEYS.length} submitted
+            </span>
+          )}
+        </div>
+        <a
+          href="https://winegb.co.uk/production/vineyards-wineries/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900 shrink-0"
+        >
+          Submit to WineGB →
+        </a>
+      </div>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-emerald-700 py-1">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
+          {WINEGB_SURVEYS.map(survey => {
+            const state = submissions[survey.key];
+            const isSubmitted = state?.submitted ?? false;
+            const isInSeason = isCurrentSeason && survey.months.includes(currentMonth);
+            const isPending = toggleMutation.isPending && toggleMutation.variables?.key === survey.key;
+
+            return (
+              <button
+                key={survey.key}
+                type="button"
+                disabled={isPending}
+                onClick={() => toggleMutation.mutate({ key: survey.key, submitted: !isSubmitted })}
+                className={[
+                  "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
+                  isSubmitted
+                    ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                    : isInSeason
+                    ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                    : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50",
+                ].join(" ")}
+                aria-label={`${isSubmitted ? "Unmark" : "Mark"} ${survey.label} as submitted`}
+              >
+                {isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                ) : isSubmitted ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                ) : isInSeason ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                ) : (
+                  <div className="w-3.5 h-3.5 rounded-sm border border-emerald-300 shrink-0" />
+                )}
+                <span className="font-medium leading-tight">{survey.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-emerald-700 leading-snug">
+        Tick each survey once you've submitted your data to WineGB.
+        {isCurrentSeason && !allDone && " Surveys highlighted in amber are currently in season."}
+      </p>
+    </div>
+  );
+}
+
 export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const farmName = useFarmName(farmId);
@@ -175,6 +306,9 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const filteredPhenology = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
+  // Derive the season year for the WineGB panel from the year filter
+  const winegbSeasonYear = yearFilter === "all" ? new Date().getFullYear() : Number(yearFilter);
+
   const csvCols = [
     { key: "observationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.observationDate) },
     { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
@@ -223,6 +357,10 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
           <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
         </div>
       )}
+
+      {/* WineGB Submissions Panel */}
+      <WinegbSubmissionsPanel farmId={farmId} seasonYear={winegbSeasonYear} />
+
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Phenology (BBCH Growth Stages)</p>

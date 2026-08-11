@@ -24,6 +24,7 @@ import { runSoilAnalysisMigrations } from "./lib/soilAnalysisMigrations";
 import { runAgriEnvMigrations } from "./lib/agriEnvMigrations";
 import { runAhwrMigrations } from "./lib/ahwrMigrations";
 import { runUserUiPrefsMigrations } from "./lib/userUiPrefsMigrations";
+import { runWinegbSubmissionsMigrations } from "./lib/winegbSubmissionsMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -159,6 +160,9 @@ app.listen(port, () => {
   });
   runUserUiPrefsMigrations().catch((err) => {
     console.error("[UI-PREFS-MIGRATE] Failed:", err);
+  });
+  runWinegbSubmissionsMigrations().catch((err) => {
+    console.error("[WINEGB-SUBMISSIONS-MIGRATE] Failed:", err);
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);
