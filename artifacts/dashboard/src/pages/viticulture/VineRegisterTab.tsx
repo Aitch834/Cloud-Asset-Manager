@@ -53,7 +53,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, printRpaReference, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -405,7 +405,10 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           {!!farmRecord?.sbiNumber && !!farmRecord?.sectorViticulture && (
-            <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
+            <>
+              <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
+              <Button size="sm" variant="outline" onClick={() => printRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Print a formatted PDF reference sheet for the Rural Payments portal"><Printer className="w-4 h-4 mr-1" />Print RPA Reference</Button>
+            </>
           )}
           <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>

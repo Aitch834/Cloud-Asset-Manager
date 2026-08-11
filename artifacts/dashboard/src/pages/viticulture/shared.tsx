@@ -438,6 +438,126 @@ export function printOrganicWineRecords(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export function printRpaReference(
+  blocks: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const esc = (v: unknown) => v == null || v === "" ? "" : String(v)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const n = (v: unknown, dp = 2) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
+
+  const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const sbiHtml = sbi
+    ? `SBI Number: <strong>${esc(sbi)}</strong>`
+    : `<span class="fsa-missing">&#9888; SBI Number not set</span>`;
+  const addressHtml = address
+    ? esc(address)
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
+
+  const totalHa = blocks.reduce((sum, b) => sum + (parseFloat(String(b.areaHa ?? 0)) || 0), 0);
+
+  const rows = blocks.map(b => `
+    <tr>
+      <td>${esc(b.blockName)}</td>
+      <td>${esc(b.fieldParcelRef ?? "")}</td>
+      <td>${esc(b.variety ?? "")}</td>
+      <td style="text-align:right">${n(b.areaHa)} ha</td>
+      <td>${esc(b.plantingYear ?? "")}</td>
+      <td>${esc(b.rootstock ?? "")}</td>
+      <td>${esc(sbi)}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>RPA Rural Payments — Vineyard Block Reference &mdash; ${esc(farmName)}</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #111; margin: 40px; }
+    h1 { font-size: 17px; margin-bottom: 2px; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 20px; }
+    .meta { font-size: 12px; color: #555; line-height: 1.8; }
+    .notice { background: #fffbeb; border: 2px solid #f59e0b; padding: 10px 14px; border-radius: 4px; font-size: 13px; font-weight: 700; color: #78350f; margin-bottom: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #166534; color: white; padding: 7px 8px; text-align: left; font-size: 12px; white-space: nowrap; }
+    th:last-child { text-align: center; }
+    td { padding: 6px 8px; border: 1px solid #d1d5db; font-size: 12px; vertical-align: middle; }
+    td:nth-child(4) { text-align: right; }
+    td:nth-child(7) { text-align: center; font-size: 11px; color: #555; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+    .totals-row td { font-weight: 700; background: #dcfce7; border-color: #86efac; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .footer { margin-top: 24px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+    @media print {
+      body { margin: 20px; }
+      .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .notice { background: #fffbeb !important; border-color: #f59e0b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr:nth-child(even) td { background: #f0fdf4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .totals-row td { background: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { background: #166534 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>RPA Rural Payments &mdash; Vineyard Block Reference</h1>
+      <div class="meta">
+        <strong>${esc(farmName)}</strong><br>
+        ${addressHtml}<br>
+        ${sbiHtml}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="meta">Printed: <strong>${printed}</strong></div>
+      <div class="meta" style="margin-top:4px">${blocks.length} block${blocks.length === 1 ? "" : "s"} &nbsp;&middot;&nbsp; ${totalHa.toFixed(2)} ha total</div>
+    </div>
+  </div>
+
+  <div class="notice">
+    &#9888;&nbsp; For manual reference only &mdash; not a direct RPA submission.
+    Use this sheet when entering data into the Rural Payments portal at
+    ruralpayments.service.gov.uk
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Block Name</th>
+        <th>Parcel / Field Ref</th>
+        <th>Variety</th>
+        <th style="text-align:right">Area (ha)</th>
+        <th>Planting Year</th>
+        <th>Rootstock</th>
+        <th style="text-align:center">SBI Number</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || "<tr><td colspan='7' style='text-align:center;color:#888'>No blocks</td></tr>"}
+    </tbody>
+    <tfoot>
+      <tr class="totals-row">
+        <td colspan="3">Total</td>
+        <td style="text-align:right">${totalHa.toFixed(2)} ha</td>
+        <td colspan="3"></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp;
+    For manual reference when entering data into the Rural Payments portal (ruralpayments.service.gov.uk).
+    This document is not a direct RPA submission and carries no legal weight.
+    Always verify block data against your official Rural Payments records.
+  </div>
+  </body></html>`;
+
+  const win = window.open("", "_blank", "width=900,height=800");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 /** Escape a plain-text value for safe insertion into an HTML document. */
 function escHtml(v: unknown): string {
   if (v == null || v === "") return "—";
