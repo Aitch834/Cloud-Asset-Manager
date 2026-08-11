@@ -866,9 +866,82 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         </div>
       )}
 
-      {/* Per-block yield summary table */}
+      {/* Yield summary table — grouped by vintage (all vintages) or by block (single vintage) */}
       {filteredHarvest.length > 0 && (() => {
         const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        const groupByVintage = yearFilter === "all";
+
+        if (groupByVintage) {
+          // ── Group by vintage year ──────────────────────────────────────────
+          const vintageMap: Record<string, Record<string, unknown>[]> = {};
+          const vintageOrder: string[] = [];
+          for (const r of filteredHarvest) {
+            const key = String(r.vintageYear ?? "Unknown");
+            if (!vintageMap[key]) { vintageMap[key] = []; vintageOrder.push(key); }
+            vintageMap[key].push(r);
+          }
+          // Sort descending (most recent first)
+          vintageOrder.sort((a, b) => Number(b) - Number(a));
+          const vintageRows = vintageOrder.map(key => {
+            const grp = vintageMap[key];
+            const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+            const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+            const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+            const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+            const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
+            const thaVals = grp.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v));
+            const avgTha = avg(thaVals);
+            return { vintage: key, picks: grp.length, totalYieldKg, avgTha, avgBrix, avgPh, avgTa, avgPa };
+          });
+          return (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <button
+                type="button"
+                className="w-full px-4 py-2.5 border-b bg-muted/30 flex items-center gap-1.5 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setBlockSummaryOpen(o => !o)}
+                aria-expanded={blockSummaryOpen}
+              >
+                <Grape className="w-4 h-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold flex-1">Yield Summary by Vintage</p>
+                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${blockSummaryOpen ? "rotate-90" : ""}`} />
+              </button>
+              {blockSummaryOpen && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                        <th className="text-left px-4 py-2 font-medium">Vintage</th>
+                        <th className="text-right px-3 py-2 font-medium">Picks</th>
+                        <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
+                        <th className="text-right px-3 py-2 font-medium">Avg t/ha</th>
+                        <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
+                        <th className="text-right px-3 py-2 font-medium">Avg pH</th>
+                        <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
+                        <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vintageRows.map((row, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                          <td className="px-4 py-2 font-medium">{row.vintage}</td>
+                          <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.picks}</td>
+                          <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTha != null ? row.avgTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // ── Group by block (single vintage selected) ───────────────────────
         const blockMap: Record<string, Record<string, unknown>[]> = {};
         const blockOrder: string[] = [];
         for (const r of filteredHarvest) {
