@@ -513,7 +513,7 @@ function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
   const s = document.createElement("style");
   s.id = SEASON_PRINT_ID + "-css";
-  s.textContent = `@page{size:A4 landscape;margin:1cm}@media print{body>*{visibility:hidden!important}#${SEASON_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:visible!important;background:#fff!important;z-index:99999!important;padding:16px!important}#${SEASON_PRINT_ID} *{visibility:visible!important}#${SEASON_PRINT_ID} .hidden{display:block!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}#${SEASON_PRINT_ID} .overflow-x-auto{overflow:visible!important}.print-all-vintages-tbl{width:100%!important}.print-all-vintages-tbl table{width:100%!important;font-size:8.5px!important;table-layout:fixed!important}.print-all-vintages-tbl th,.print-all-vintages-tbl td{padding:2px 4px!important;word-break:break-word}.print-chart-card{page-break-inside:avoid;break-inside:avoid}.print-chart-card .recharts-responsive-container{width:100%!important}}`;
+  s.textContent = `@page{size:A4 landscape;margin:1cm}@media print{body>*{visibility:hidden!important}#${SEASON_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:visible!important;background:#fff!important;z-index:99999!important;padding:16px!important}#${SEASON_PRINT_ID} *{visibility:visible!important}#${SEASON_PRINT_ID} .hidden{display:block!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}#${SEASON_PRINT_ID} .overflow-x-auto{overflow:visible!important}.print-all-vintages-tbl{width:100%!important}.print-all-vintages-tbl table{width:100%!important;font-size:8.5px!important;table-layout:fixed!important}.print-all-vintages-tbl th,.print-all-vintages-tbl td{padding:2px 4px!important;word-break:break-word}.print-chart-card{page-break-inside:avoid;break-inside:avoid}.print-chart-card .recharts-responsive-container{width:100%!important}.print-block-chart-cap .recharts-responsive-container{height:300px!important;max-height:300px!important}.print-block-chart-cap .recharts-wrapper{height:300px!important}.print-block-chart-cap .recharts-wrapper svg{height:300px!important}}`;
   document.head.appendChild(s);
 }
 
@@ -901,7 +901,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               )}
             </div>
           )}
-          <div className="p-4">
+          <div className="p-4 print-block-chart-cap">
             {blockYieldTrendData.chartData.length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">
                 No block harvest records found. Link harvest records to blocks to see per-block trends.
