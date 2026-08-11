@@ -645,6 +645,25 @@ export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?:
 
       <DataTable
         cols={[
+          {
+            key: "coverPhotoUrl",
+            label: "",
+            render: r => {
+              const url = r.coverPhotoUrl as string | null;
+              return url ? (
+                <img
+                  src={url}
+                  alt={`${String(r.blockName ?? "")} cover`}
+                  className="w-10 h-10 rounded object-cover border border-border flex-shrink-0"
+                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              ) : (
+                <div className="w-10 h-10 rounded border border-dashed border-border bg-muted flex items-center justify-center flex-shrink-0">
+                  <ImageOff className="w-4 h-4 text-muted-foreground/40" />
+                </div>
+              );
+            },
+          },
           { key: "blockName", label: "Block" },
           { key: "blockRef", label: "Ref" },
           { key: "variety", label: "Variety" },
