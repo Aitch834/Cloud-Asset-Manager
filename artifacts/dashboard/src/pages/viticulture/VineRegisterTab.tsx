@@ -252,12 +252,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     setVarietyOther(false);
     setOpen(true);
   };
-  const openEdit = (r: VineReg) => {
+  const openEdit = useCallback((r: VineReg) => {
+    setPickerWasActive(changingBlockEntryId !== null);
     setForm({ ...r, fsaVineRegisterRef: r.fsaVineRegisterRef || farmFsaVineRef });
     setCurrent(r);
     setVarietyOther(!!r.registeredVariety && !UK_GRAPE_VARIETIES.includes(String(r.registeredVariety)));
     setOpen(true);
-  };
+  }, [changingBlockEntryId, farmFsaVineRef]);
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
   const save = async () => {
     if (current) await edit.mutateAsync({ ...form, id: current.id as number });
@@ -809,7 +810,20 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>
+      <Dialog open={open} onOpenChange={o => {
+        if (!o) {
+          setOpen(false);
+          add.reset();
+          edit.reset();
+          if (pickerWasActive) {
+            setPickerWasActive(false);
+            toast({
+              title: "Block selection still pending",
+              description: "Your block change is waiting — save or cancel it in the table.",
+            });
+          }
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{current ? "Edit" : "Add"} Vine Register Entry</DialogTitle></DialogHeader>
           <div className="space-y-3">
