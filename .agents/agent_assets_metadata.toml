@@ -119,40 +119,40 @@ description = "A5 portrait — job cards, invoicing, equipment compliance"
 id = "wk0lsHgxADG3wwToFLIVL"
 uri = "file://screenshots/leaflet-v2-beef-dairy.jpg"
 type = "image"
-title = "Beef & Dairy — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Beef & Dairy — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
 
 [[outputs]]
 id = "hGJeoK80UoiAk8MoDuIdY"
 uri = "file://screenshots/leaflet-v2-sheep-goat.jpg"
 type = "image"
-title = "Sheep & Goat — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Sheep & Goat — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
 
 [[outputs]]
 id = "MWN5PW8FvEwMzjnq9SODN"
 uri = "file://screenshots/leaflet-v2-arable.jpg"
 type = "image"
-title = "Arable — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Arable — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
 
 [[outputs]]
 id = "EMA9RMqMAaF8etTYGOvry"
 uri = "file://screenshots/leaflet-v2-viticulture.jpg"
 type = "image"
-title = "Viticulture — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Viticulture — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
 
 [[outputs]]
 id = "tCZhqX_mfa_e-5KYaduOm"
 uri = "file://screenshots/leaflet-v2-mixed.jpg"
 type = "image"
-title = "Mixed Farming — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Mixed Farming — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
 
 [[outputs]]
 id = "IRreqKqfkzu-eKgEAi8Yq"
 uri = "file://screenshots/leaflet-v2-contracting.jpg"
 type = "image"
-title = "Agricultural Contracting — v2 (QR + logo)"
-description = "Cloud-based badge · logo in footer · QR code · updated tagline"
+title = "Agricultural Contracting — v2"
+description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
