@@ -468,7 +468,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => { const uc = filteredSpray.filter(r => !r.blockId).length; exportCSV(filteredSpray, "spray-diary.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (filteredSpray.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (filteredSpray.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta, blockFilter !== "__all__" ? (blocks.find(b => String(b.id) === blockFilter)?.blockName as string | undefined) : undefined); } }} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
         </div>
       </div>
@@ -838,7 +838,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printSprayRecords(filteredSpray, farmName, farmId, blocks, farmMeta, blockFilter !== "__all__" ? (blocks.find(b => String(b.id) === blockFilter)?.blockName as string | undefined) : undefined); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>

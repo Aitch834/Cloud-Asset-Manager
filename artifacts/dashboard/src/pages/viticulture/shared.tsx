@@ -1571,6 +1571,7 @@ export async function printDiseaseScouting(
   farmId?: number,
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
+  blockLabel?: string,
 ) {
   const win = window.open("", "_blank", "width=1200,height=850");
   if (!win) return;
@@ -1769,7 +1770,7 @@ export async function printDiseaseScouting(
       <h1>Disease &amp; Pest Scouting Register</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong>${scoutAddress ? `<br>${scoutAddress}` : ""}<br>
-        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+        ${blockLabel ? `Block: <strong>${escHtml(blockLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
     <div style="text-align:right;font-size:11px;color:#555">
@@ -1820,6 +1821,7 @@ export async function printSprayRecords(
   farmId?: number,
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
+  blockLabel?: string,
 ) {
   const win = window.open("", "_blank", "width=1200,height=850");
   if (!win) return;
@@ -1988,7 +1990,7 @@ export async function printSprayRecords(
       <h1>Spray Diary</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong>${sprayAddress ? `<br>${sprayAddress}` : ""}<br>
-        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} application${records.length === 1 ? "" : "s"}
+        ${blockLabel ? `Block: <strong>${escHtml(blockLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} application${records.length === 1 ? "" : "s"}
       </div>
     </div>
     <div style="text-align:right;font-size:11px;color:#555">
