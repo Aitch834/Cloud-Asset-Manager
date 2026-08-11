@@ -55,7 +55,7 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
       headers: buildApiHeaders(token),
     });
     if (!res.ok) return [];
-    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; }> };
+    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; sectorViticulture: boolean; }> };
     return (data.farms ?? []).map((f) => ({
       id: String(f.id),
       name: f.name,
@@ -65,6 +65,7 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
       sectorDairy: f.sectorDairy,
       sectorPigs: f.sectorPigs,
       sectorPoultry: f.sectorPoultry,
+      sectorViticulture: f.sectorViticulture ?? false,
     }));
   } catch {
     return [];
@@ -126,6 +127,7 @@ const DEMO_FARMS: Farm[] = [
     sectorDairy: false,
     sectorPigs: false,
     sectorPoultry: false,
+    sectorViticulture: false,
   },
   {
     id: "farm-2",
@@ -136,6 +138,7 @@ const DEMO_FARMS: Farm[] = [
     sectorDairy: true,
     sectorPigs: false,
     sectorPoultry: true,
+    sectorViticulture: false,
   },
 ];
 

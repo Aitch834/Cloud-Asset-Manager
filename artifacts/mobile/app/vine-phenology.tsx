@@ -1,6 +1,7 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -57,6 +58,36 @@ const BBCH_STAGES: { code: string; desc: string; season: string }[] = [
 
 const seasons = Array.from(new Set(BBCH_STAGES.map(s => s.season)));
 
+// Maps BBCH stage codes to WineGB's seasonal vineyard surveys
+const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> = {
+  "05": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "07": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "09": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "11": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "13": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "15": { surveyName: "Bud Burst Survey", label: "bud burst" },
+  "53": { surveyName: "Flowering Survey", label: "flowering" },
+  "55": { surveyName: "Flowering Survey", label: "flowering" },
+  "57": { surveyName: "Flowering Survey", label: "flowering" },
+  "60": { surveyName: "Flowering Survey", label: "flowering" },
+  "65": { surveyName: "Flowering Survey", label: "flowering" },
+  "68": { surveyName: "Flowering Survey", label: "flowering" },
+  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
+  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
+  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
+  "77": { surveyName: "Véraison Survey", label: "véraison" },
+  "81": { surveyName: "Véraison Survey", label: "véraison" },
+  "83": { surveyName: "Véraison Survey", label: "véraison" },
+  "85": { surveyName: "Véraison Survey", label: "véraison" },
+  "89": { surveyName: "Harvest Survey", label: "harvest" },
+};
+
+const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
+
+// Module-level session store — persists across screen remounts within the same JS runtime session.
+// Resets only when the app process is killed. Not persisted to disk (as per spec).
+const _sessionDismissedSurveys = new Set<string>();
+
 export default function VinePhenologyScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
@@ -78,7 +109,18 @@ export default function VinePhenologyScreen() {
   const [temperatureC, setTemperatureC] = useState("");
   const [notes, setNotes] = useState("");
 
+  // WineGB survey banner state — per-stage per-session dismissal (session store is module-level)
+  const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
+
   const filteredStages = seasonFilter ? BBCH_STAGES.filter(s => s.season === seasonFilter) : BBCH_STAGES;
+
+  const dismissBanner = () => {
+    if (winegbSurveyBanner) {
+      _sessionDismissedSurveys.add(winegbSurveyBanner.surveyName);
+    }
+    setWinegbSurveyBanner(null);
+    router.back();
+  };
 
   const handleSave = async () => {
     if (!observationDate || !selectedStage) {
@@ -108,6 +150,16 @@ export default function VinePhenologyScreen() {
     await refreshPendingCount();
 
     setSaving(false);
+
+    // Show WineGB survey nudge for viticulture farms when a relevant BBCH stage is saved
+    if (currentFarm?.sectorViticulture) {
+      const survey = WINEGB_SURVEY_MAP[selectedStage.code];
+      if (survey && !_sessionDismissedSurveys.has(survey.surveyName)) {
+        setWinegbSurveyBanner(survey);
+        return; // stay on screen to show banner
+      }
+    }
+
     router.back();
   };
 
@@ -125,76 +177,111 @@ export default function VinePhenologyScreen() {
           <Text style={styles.title}>Vine Phenology Observation</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Observation Details</Text>
-          <Text style={styles.fieldLabel}>Observation Date *</Text>
-          <Input
-            placeholder="YYYY-MM-DD"
-            value={observationDate}
-            onChangeText={v => { if (v <= today) setObservationDate(v); }}
-            keyboardType="numeric"
-          />
-          <Text style={styles.fieldLabel}>Block / Area</Text>
-          <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
-          {!selectedBlock && (
-            <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
-          )}
-          <Text style={styles.fieldLabel}>Observer</Text>
-          <StaffMemberPicker
-            members={members}
-            selected={selectedObserver}
-            onSelect={setSelectedObserver}
-            loading={false}
-            error={null}
-          />
-          {!selectedObserver && (
-            <Input placeholder="Or type name manually" value={manualObserver} onChangeText={setManualObserver} style={{ marginTop: spacing.xs }} />
-          )}
-          <View style={styles.twoCol}>
+        {/* WineGB seasonal survey nudge */}
+        {winegbSurveyBanner && (
+          <View style={styles.winegbBanner}>
+            <Feather name="globe" size={16} color="#059669" style={{ marginTop: 1 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>% Reached</Text>
-              <Input placeholder="e.g. 50" value={percentageReached} onChangeText={setPercentageReached} keyboardType="numeric" />
+              <Text style={styles.winegbBannerTitle}>WineGB {winegbSurveyBanner.surveyName}</Text>
+              <Text style={styles.winegbBannerBody}>
+                WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
+                <Text
+                  style={styles.winegbBannerLink}
+                  onPress={() => void Linking.openURL(WINEGB_SURVEY_URL)}
+                >
+                  Vineyard Survey →
+                </Text>
+              </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.fieldLabel}>Temperature (°C)</Text>
-              <Input placeholder="e.g. 18.5" value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" />
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>BBCH Growth Stage *</Text>
-          <Text style={styles.helperText}>Select the growth stage that best matches your current observation.</Text>
-          <View style={styles.seasonTabs}>
-            <Pressable style={[styles.seasonTab, !seasonFilter && styles.seasonTabActive]} onPress={() => setSeasonFilter(null)}>
-              <Text style={[styles.seasonTabText, !seasonFilter && styles.seasonTabTextActive]}>All</Text>
-            </Pressable>
-            {seasons.map(s => (
-              <Pressable key={s} style={[styles.seasonTab, seasonFilter === s && styles.seasonTabActive]} onPress={() => setSeasonFilter(s)}>
-                <Text style={[styles.seasonTabText, seasonFilter === s && styles.seasonTabTextActive]}>{s}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {filteredStages.map(stage => (
             <Pressable
-              key={stage.code}
-              style={[styles.stageOption, selectedStage?.code === stage.code && styles.stageOptionSelected]}
-              onPress={() => { Haptics.selectionAsync(); setSelectedStage(stage); }}
+              onPress={dismissBanner}
+              hitSlop={8}
+              accessibilityLabel="Dismiss WineGB survey prompt"
+              style={styles.winegbDismiss}
             >
-              <View style={[styles.stageBadge, selectedStage?.code === stage.code && { backgroundColor: colors.primary }]}>
-                <Text style={[styles.stageBadgeText, selectedStage?.code === stage.code && { color: "#fff" }]}>{stage.code}</Text>
-              </View>
-              <Text style={[styles.stageDesc, selectedStage?.code === stage.code && { color: colors.primary }]}>{stage.desc}</Text>
+              <Feather name="x" size={16} color="#059669" />
             </Pressable>
-          ))}
-        </View>
+          </View>
+        )}
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <Input placeholder="Additional observations…" value={notes} onChangeText={setNotes} multiline numberOfLines={4} />
-        </View>
+        {!winegbSurveyBanner && (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Observation Details</Text>
+              <Text style={styles.fieldLabel}>Observation Date *</Text>
+              <Input
+                placeholder="YYYY-MM-DD"
+                value={observationDate}
+                onChangeText={v => { if (v <= today) setObservationDate(v); }}
+                keyboardType="numeric"
+              />
+              <Text style={styles.fieldLabel}>Block / Area</Text>
+              <VineBlockPicker blocks={blocks} selected={selectedBlock} onSelect={setSelectedBlock} loading={blocksLoading} />
+              {!selectedBlock && (
+                <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
+              )}
+              <Text style={styles.fieldLabel}>Observer</Text>
+              <StaffMemberPicker
+                members={members}
+                selected={selectedObserver}
+                onSelect={setSelectedObserver}
+                loading={false}
+                error={null}
+              />
+              {!selectedObserver && (
+                <Input placeholder="Or type name manually" value={manualObserver} onChangeText={setManualObserver} style={{ marginTop: spacing.xs }} />
+              )}
+              <View style={styles.twoCol}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>% Reached</Text>
+                  <Input placeholder="e.g. 50" value={percentageReached} onChangeText={setPercentageReached} keyboardType="numeric" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Temperature (°C)</Text>
+                  <Input placeholder="e.g. 18.5" value={temperatureC} onChangeText={setTemperatureC} keyboardType="decimal-pad" />
+                </View>
+              </View>
+            </View>
 
-        <Button title={saving ? "Saving…" : "Save Phenology Observation"} onPress={handleSave} disabled={saving} />
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>BBCH Growth Stage *</Text>
+              <Text style={styles.helperText}>Select the growth stage that best matches your current observation.</Text>
+              <View style={styles.seasonTabs}>
+                <Pressable style={[styles.seasonTab, !seasonFilter && styles.seasonTabActive]} onPress={() => setSeasonFilter(null)}>
+                  <Text style={[styles.seasonTabText, !seasonFilter && styles.seasonTabTextActive]}>All</Text>
+                </Pressable>
+                {seasons.map(s => (
+                  <Pressable key={s} style={[styles.seasonTab, seasonFilter === s && styles.seasonTabActive]} onPress={() => setSeasonFilter(s)}>
+                    <Text style={[styles.seasonTabText, seasonFilter === s && styles.seasonTabTextActive]}>{s}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {filteredStages.map(stage => (
+                <Pressable
+                  key={stage.code}
+                  style={[styles.stageOption, selectedStage?.code === stage.code && styles.stageOptionSelected]}
+                  onPress={() => { Haptics.selectionAsync(); setSelectedStage(stage); }}
+                >
+                  <View style={[styles.stageBadge, selectedStage?.code === stage.code && { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.stageBadgeText, selectedStage?.code === stage.code && { color: "#fff" }]}>{stage.code}</Text>
+                  </View>
+                  <Text style={[styles.stageDesc, selectedStage?.code === stage.code && { color: colors.primary }]}>{stage.desc}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Notes</Text>
+              <Input placeholder="Additional observations…" value={notes} onChangeText={setNotes} multiline numberOfLines={4} />
+            </View>
+
+            <Button title={saving ? "Saving…" : "Save Phenology Observation"} onPress={handleSave} disabled={saving} />
+          </>
+        )}
+
+        {winegbSurveyBanner && (
+          <Button title="Done" onPress={dismissBanner} />
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -221,4 +308,34 @@ const styles = StyleSheet.create({
   stageBadge: { width: 40, height: 28, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   stageBadgeText: { fontSize: fontSize.xs, fontFamily: fonts.bold, color: colors.textSecondary },
   stageDesc: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.text, flex: 1 },
+  winegbBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: "#ecfdf5",
+    borderWidth: 1,
+    borderColor: "#6ee7b7",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  winegbBannerTitle: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: "#065f46",
+    marginBottom: 2,
+  },
+  winegbBannerBody: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: "#065f46",
+    lineHeight: 20,
+  },
+  winegbBannerLink: {
+    fontFamily: fonts.semiBold,
+    textDecorationLine: "underline",
+    color: "#065f46",
+  },
+  winegbDismiss: {
+    paddingTop: 2,
+  },
 });

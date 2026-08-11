@@ -14,6 +14,7 @@ export interface Farm {
   sectorDairy: boolean;
   sectorPigs: boolean;
   sectorPoultry: boolean;
+  sectorViticulture: boolean;
 }
 
 export interface SprayRecord {
