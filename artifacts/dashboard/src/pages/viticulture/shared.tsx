@@ -1181,7 +1181,7 @@ export async function printHarvest(
   // Always build a per-block summary
   const blockSummaryMap: Record<string, {
     blockId: number | null; label: string; variety: string; areaHa: number;
-    totalKg: number; brixSum: number; brixCount: number;
+    picks: number; totalKg: number; brixSum: number; brixCount: number;
     phSum: number; phCount: number; taSum: number; taCount: number;
     potAlcSum: number; potAlcCount: number;
     photoCell: string;
@@ -1208,13 +1208,14 @@ export async function printHarvest(
       }
       blockSummaryMap[key] = {
         blockId: bid, label: bName, variety, areaHa,
-        totalKg: 0, brixSum: 0, brixCount: 0,
+        picks: 0, totalKg: 0, brixSum: 0, brixCount: 0,
         phSum: 0, phCount: 0, taSum: 0, taCount: 0,
         potAlcSum: 0, potAlcCount: 0, photoCell,
       };
       blockSummaryKeys.push(key);
     }
     const row = blockSummaryMap[key];
+    row.picks++;
     row.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
     const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { row.brixSum += brix; row.brixCount++; }
     const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) { row.phSum += ph; row.phCount++; }
@@ -1232,6 +1233,7 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(row.label)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(row.variety)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.areaHa > 0 ? row.areaHa.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.picks}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${row.totalKg > 0 ? row.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
@@ -1250,7 +1252,7 @@ export async function printHarvest(
   const summAvgBrix = summBrixRows.length > 0 ? summBrixRows.reduce((a, b) => a + b, 0) / summBrixRows.length : null;
   const summPaRows = summBlockRows.filter(r => r.potAlcCount > 0).map(r => r.potAlcSum / r.potAlcCount);
   const summAvgPa = summPaRows.length > 0 ? summPaRows.reduce((a, b) => a + b, 0) / summPaRows.length : null;
-  const bsColSpan = hasPhotos ? 10 : 9;
+  const bsColSpan = hasPhotos ? 11 : 10;
   const bsPhotoHeader = hasPhotos ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>` : "";
   const bsPhotoFooterCell = hasPhotos ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>` : "";
 
@@ -1442,6 +1444,7 @@ export async function printHarvest(
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
+        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Picks</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (t/ha)</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
@@ -1456,6 +1459,7 @@ export async function printHarvest(
         ${bsPhotoFooterCell}
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700" colspan="2">Season Totals / Averages</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalArea > 0 ? summTotalArea.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalKg > 0 ? summTotalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTha != null ? summAvgTha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgBrix != null ? summAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
