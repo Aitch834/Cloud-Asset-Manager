@@ -841,7 +841,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
       {/* Per-block yield trend chart (all-vintages mode only) */}
       {year == null && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden no-print">
+        <div className="rounded-xl border border-border bg-card overflow-hidden print-chart-card">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">Per-Block Yield Trend — All Vintages</h3>
             <p className="text-xs text-foreground/40">Yield (t/ha) per vintage for each block — spot which blocks are improving or declining</p>
