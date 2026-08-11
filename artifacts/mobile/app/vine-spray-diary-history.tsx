@@ -7,7 +7,9 @@ import {
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -215,14 +218,12 @@ function SprayDiaryPhotoSection({
   };
 
   return (
-    <View style={styles.photoSection}>
-      <View style={styles.photoHeader}>
-        <Text style={styles.sectionLabel}>Application Photos</Text>
-        <Text style={styles.photoCount}>{photos.length} attached</Text>
+    <View style={editStyles.photoSection}>
+      <View style={editStyles.photoHeader}>
+        <Text style={editStyles.photoSectionTitle}>Application Photos</Text>
+        <Text style={editStyles.photoCount}>{photos.length} attached</Text>
       </View>
-      <Text style={styles.photoHint}>
-        Long-press a photo to delete it.
-      </Text>
+      <Text style={editStyles.photoHint}>Long-press a photo to delete it.</Text>
 
       {loading ? (
         <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
@@ -242,16 +243,16 @@ function SprayDiaryPhotoSection({
             />
           )}
           ListEmptyComponent={
-            <View style={styles.emptyPhotos}>
+            <View style={editStyles.emptyPhotos}>
               <Feather name="image" size={20} color={colors.textSecondary} />
-              <Text style={styles.emptyPhotosText}>No photos yet</Text>
+              <Text style={editStyles.emptyPhotosText}>No photos yet</Text>
             </View>
           }
         />
       )}
 
       <Pressable
-        style={[styles.addPhotoBtn, uploading && styles.addPhotoBtnDisabled]}
+        style={[editStyles.addPhotoBtn, uploading && editStyles.addPhotoBtnDisabled]}
         onPress={handleAddPhoto}
         disabled={uploading}
       >
@@ -260,252 +261,308 @@ function SprayDiaryPhotoSection({
         ) : (
           <Feather name="camera" size={16} color={colors.primary} />
         )}
-        <Text style={styles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
+        <Text style={editStyles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
       </Pressable>
     </View>
   );
 }
 
-// ─── Photo Gallery Modal ──────────────────────────────────────────────────────
+// ─── Edit Spray Diary Modal ───────────────────────────────────────────────────
 
-interface PhotoGalleryModalProps {
+interface EditSprayDiaryModalProps {
   visible: boolean;
   record: SprayDiaryRecord | null;
   farmId: string;
   blocks: VineBlock[];
   blocksLoading: boolean;
   onClose: () => void;
-  onChangeBlock: (record: SprayDiaryRecord) => void;
+  onSaved: (recordId: number, updated: Partial<SprayDiaryRecord>) => void;
 }
 
-function PhotoGalleryModal({
-  visible,
-  record,
-  farmId,
-  blocks,
-  blocksLoading: _blocksLoading,
-  onClose,
-  onChangeBlock,
-}: PhotoGalleryModalProps) {
-  const linkedBlockName = record?.blockId
-    ? blocks.find(b => b.id === record.blockId)?.blockName ?? null
-    : null;
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
-      <View style={photoModalStyles.container}>
-        {/* Header */}
-        <View style={photoModalStyles.header}>
-          <View style={photoModalStyles.headerLeft}>
-            <Text style={photoModalStyles.title} numberOfLines={1}>
-              {record?.productName ?? "Spray Entry"}
-            </Text>
-            <Text style={photoModalStyles.subtitle}>
-              {formatDate(record?.applicationDate)}
-              {linkedBlockName ? `  ·  ${linkedBlockName}` : ""}
-            </Text>
-          </View>
-          <Pressable onPress={onClose} style={photoModalStyles.closeBtn} hitSlop={12}>
-            <Feather name="x" size={22} color={colors.text} />
-          </Pressable>
-        </View>
-
-        {/* Record summary */}
-        <ScrollView style={photoModalStyles.scroll} contentContainerStyle={photoModalStyles.scrollContent}>
-          {record && (
-            <View style={photoModalStyles.summaryCard}>
-              {record.productType ? (
-                <View style={photoModalStyles.typeBadge}>
-                  <Text style={photoModalStyles.typeBadgeText}>{record.productType}</Text>
-                </View>
-              ) : null}
-              <View style={photoModalStyles.summaryGrid}>
-                {record.activeIngredient ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>Active Ingredient</Text>
-                    <Text style={photoModalStyles.summaryVal}>{record.activeIngredient}</Text>
-                  </View>
-                ) : null}
-                {record.mappNumber ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>MAPP No.</Text>
-                    <Text style={photoModalStyles.summaryVal}>{record.mappNumber}</Text>
-                  </View>
-                ) : null}
-                {record.ratePerHectare != null ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>Rate</Text>
-                    <Text style={photoModalStyles.summaryVal}>
-                      {record.ratePerHectare} {record.rateUnit ?? "L/ha"}
-                    </Text>
-                  </View>
-                ) : null}
-                {record.areaTreatedHa != null ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>Area</Text>
-                    <Text style={photoModalStyles.summaryVal}>{Number(record.areaTreatedHa).toFixed(2)} ha</Text>
-                  </View>
-                ) : null}
-                {record.operatorName ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>Operator</Text>
-                    <Text style={photoModalStyles.summaryVal}>{record.operatorName}</Text>
-                  </View>
-                ) : null}
-                {record.weatherConditions ? (
-                  <View style={photoModalStyles.summaryItem}>
-                    <Text style={photoModalStyles.summaryKey}>Weather</Text>
-                    <Text style={photoModalStyles.summaryVal}>{record.weatherConditions}</Text>
-                  </View>
-                ) : null}
-              </View>
-              {record.notes ? (
-                <Text style={photoModalStyles.notes}>{record.notes}</Text>
-              ) : null}
-            </View>
-          )}
-
-          {/* Photo gallery */}
-          {record && (
-            <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} />
-          )}
-        </ScrollView>
-
-        {/* Footer — Change Block */}
-        <View style={photoModalStyles.footer}>
-          <Button
-            title="Change Block Link"
-            onPress={() => {
-              if (record) {
-                onClose();
-                // small delay so the gallery modal fully closes before the block picker opens
-                setTimeout(() => onChangeBlock(record), 350);
-              }
-            }}
-            variant="outline"
-            fullWidth
-            icon="layers"
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Change Block Modal ────────────────────────────────────────────────────────
-
-interface ChangeBlockModalProps {
-  visible: boolean;
-  record: SprayDiaryRecord | null;
-  farmId: string;
-  blocks: VineBlock[];
-  blocksLoading: boolean;
-  onClose: () => void;
-  onSaved: (recordId: number, block: VineBlock | null) => void;
-}
-
-function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: ChangeBlockModalProps) {
-  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: EditSprayDiaryModalProps) {
   const [saving, setSaving] = useState(false);
 
+  // Form state
+  const [applicationDate, setApplicationDate] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [productName, setProductName] = useState("");
+  const [mappNumber, setMappNumber] = useState("");
+  const [activeIngredient, setActiveIngredient] = useState("");
+  const [productType, setProductType] = useState("");
+  const [ratePerHectare, setRatePerHectare] = useState("");
+  const [rateUnit, setRateUnit] = useState("L/ha");
+  const [areaTreatedHa, setAreaTreatedHa] = useState("");
+  const [windSpeedMph, setWindSpeedMph] = useState("");
+  const [temperatureCelsius, setTemperatureCelsius] = useState("");
+  const [weatherConditions, setWeatherConditions] = useState("");
+  const [operatorName, setOperatorName] = useState("");
+  const [operatorCertificateNo, setOperatorCertificateNo] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Pre-fill from record when modal opens
   React.useEffect(() => {
     if (visible && record) {
+      setApplicationDate(record.applicationDate ?? "");
       const current = record.blockId ? blocks.find(b => b.id === record.blockId) ?? null : null;
       setSelectedBlock(current);
+      setProductName(record.productName ?? "");
+      setMappNumber(record.mappNumber ?? "");
+      setActiveIngredient(record.activeIngredient ?? "");
+      setProductType(record.productType ?? "");
+      setRatePerHectare(record.ratePerHectare != null ? String(record.ratePerHectare) : "");
+      setRateUnit(record.rateUnit ?? "L/ha");
+      setAreaTreatedHa(record.areaTreatedHa != null ? String(record.areaTreatedHa) : "");
+      setWindSpeedMph(record.windSpeedMph != null ? String(record.windSpeedMph) : "");
+      setTemperatureCelsius(record.temperatureCelsius != null ? String(record.temperatureCelsius) : "");
+      setWeatherConditions(record.weatherConditions ?? "");
+      setOperatorName(record.operatorName ?? "");
+      setOperatorCertificateNo(record.operatorCertificateNo ?? "");
+      setNotes(record.notes ?? "");
     }
   }, [visible, record, blocks]);
 
-  const handleConfirm = async () => {
+  const handleSave = async () => {
     if (!record) return;
+    if (!applicationDate || !productName.trim()) {
+      Alert.alert("Required Fields", "Please enter an application date and product name.");
+      return;
+    }
+
     setSaving(true);
     try {
+      const body: Record<string, unknown> = {
+        applicationDate,
+        blockId: selectedBlock?.id ?? null,
+        productName: productName.trim(),
+        mappNumber: mappNumber.trim() || null,
+        activeIngredient: activeIngredient.trim() || null,
+        productType: productType.trim() || null,
+        ratePerHectare: ratePerHectare ? parseFloat(ratePerHectare) : null,
+        rateUnit: rateUnit.trim() || null,
+        areaTreatedHa: areaTreatedHa ? parseFloat(areaTreatedHa) : null,
+        windSpeedMph: windSpeedMph ? parseFloat(windSpeedMph) : null,
+        temperatureCelsius: temperatureCelsius ? parseFloat(temperatureCelsius) : null,
+        weatherConditions: weatherConditions.trim() || null,
+        operatorName: operatorName.trim() || null,
+        operatorCertificateNo: operatorCertificateNo.trim() || null,
+        notes: notes.trim() || null,
+      };
+
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${record.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blockId: selectedBlock?.id ?? null,
-        }),
+        body: JSON.stringify(body),
       });
+
       if (!res.ok) {
-        Alert.alert("Save Failed", "Could not update the block link. Please try again.");
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Save Failed", (err as any).error ?? "Could not save the record. Please try again.");
         setSaving(false);
         return;
       }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSaved(record.id, selectedBlock);
+      onSaved(record.id, body as Partial<SprayDiaryRecord>);
     } catch {
       Alert.alert("Save Failed", "Could not reach the server. Please try again.");
-    } finally {
       setSaving(false);
     }
   };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
-      <View style={modalStyles.container}>
-        <View style={modalStyles.header}>
-          <Text style={modalStyles.title}>Change Block</Text>
-          <Pressable onPress={onClose} style={modalStyles.closeBtn} hitSlop={12}>
-            <Feather name="x" size={22} color={colors.text} />
-          </Pressable>
-        </View>
-
-        {record && (
-          <Text style={modalStyles.subtitle}>
-            Spray diary · {formatDate(record.applicationDate)}
-            {record.productName ? `  ·  ${record.productName}` : ""}
-          </Text>
-        )}
-
-        <ScrollView style={modalStyles.scroll} contentContainerStyle={modalStyles.scrollContent} keyboardShouldPersistTaps="handled">
-          <Text style={modalStyles.sectionLabel}>Select a block to link this record to</Text>
-
-          {blocksLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.md }} />
-          ) : blocks.length === 0 ? (
-            <Text style={modalStyles.emptyText}>No vineyard blocks found for this farm.</Text>
-          ) : (
-            <VineBlockPicker
-              blocks={blocks}
-              selected={selectedBlock}
-              onSelect={setSelectedBlock}
-              loading={false}
-            />
-          )}
-
-          {selectedBlock && (
-            <View style={modalStyles.selectedInfo}>
-              <Feather name="check-circle" size={16} color={colors.success} />
-              <Text style={modalStyles.selectedInfoText}>
-                Will link to <Text style={{ fontFamily: fonts.semiBold }}>{selectedBlock.blockName}</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={editStyles.container}>
+          {/* Header */}
+          <View style={editStyles.header}>
+            <View style={editStyles.headerLeft}>
+              <Text style={editStyles.title} numberOfLines={1}>
+                {record?.productName ?? "Edit Spray Entry"}
               </Text>
+              <Text style={editStyles.subtitle}>{formatDate(record?.applicationDate)}</Text>
             </View>
-          )}
+            <Pressable onPress={onClose} style={editStyles.closeBtn} hitSlop={12}>
+              <Feather name="x" size={22} color={colors.text} />
+            </Pressable>
+          </View>
 
-          {!selectedBlock && record?.blockId && (
-            <View style={modalStyles.unlinkInfo}>
-              <Feather name="info" size={16} color={colors.textSecondary} />
-              <Text style={modalStyles.unlinkInfoText}>Clearing the selection will unlink this record from its current block.</Text>
+          <ScrollView style={editStyles.scroll} contentContainerStyle={editStyles.scrollContent} keyboardShouldPersistTaps="handled">
+            {/* ── Application Details ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Application Details</Text>
+
+              <Text style={editStyles.fieldLabel}>Application Date *</Text>
+              <Input
+                placeholder="YYYY-MM-DD"
+                value={applicationDate}
+                onChangeText={setApplicationDate}
+                keyboardType="numeric"
+              />
+
+              <Text style={editStyles.fieldLabel}>Vineyard Block</Text>
+              {blocksLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.sm }} />
+              ) : (
+                <VineBlockPicker
+                  blocks={blocks}
+                  selected={selectedBlock}
+                  onSelect={setSelectedBlock}
+                  loading={false}
+                />
+              )}
+              {selectedBlock && (
+                <Pressable onPress={() => setSelectedBlock(null)} style={editStyles.clearBlockBtn}>
+                  <Feather name="x" size={12} color={colors.textSecondary} />
+                  <Text style={editStyles.clearBlockText}>Clear block link</Text>
+                </Pressable>
+              )}
             </View>
-          )}
-        </ScrollView>
 
-        <View style={modalStyles.footer}>
-          <Button
-            title={saving ? "Saving…" : "Confirm"}
-            onPress={handleConfirm}
-            disabled={saving}
-            fullWidth
-          />
-          <Button
-            title="Cancel"
-            onPress={onClose}
-            variant="outline"
-            fullWidth
-            style={{ marginTop: spacing.sm }}
-          />
+            {/* ── Product ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Product</Text>
+
+              <Text style={editStyles.fieldLabel}>Product Name *</Text>
+              <Input
+                placeholder="e.g. Mancozeb 80 WG"
+                value={productName}
+                onChangeText={setProductName}
+              />
+
+              <Text style={editStyles.fieldLabel}>MAPP Number</Text>
+              <Input
+                placeholder="e.g. MAPP 12345"
+                value={mappNumber}
+                onChangeText={setMappNumber}
+              />
+
+              <Text style={editStyles.fieldLabel}>Active Ingredient</Text>
+              <Input
+                placeholder="e.g. Mancozeb"
+                value={activeIngredient}
+                onChangeText={setActiveIngredient}
+              />
+
+              <Text style={editStyles.fieldLabel}>Product Type</Text>
+              <Input
+                placeholder="e.g. Fungicide, Insecticide, Herbicide"
+                value={productType}
+                onChangeText={setProductType}
+              />
+
+              <View style={editStyles.row}>
+                <Input
+                  label="Rate"
+                  placeholder="e.g. 2.0"
+                  value={ratePerHectare}
+                  onChangeText={setRatePerHectare}
+                  keyboardType="decimal-pad"
+                  containerStyle={editStyles.flex}
+                />
+                <Input
+                  label="Unit"
+                  placeholder="L/ha"
+                  value={rateUnit}
+                  onChangeText={setRateUnit}
+                  containerStyle={{ width: 100 }}
+                />
+              </View>
+
+              <Input
+                label="Area Treated (ha)"
+                placeholder="e.g. 3.5"
+                value={areaTreatedHa}
+                onChangeText={setAreaTreatedHa}
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            {/* ── Weather Conditions ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Weather Conditions</Text>
+
+              <View style={editStyles.row}>
+                <Input
+                  label="Wind Speed (mph)"
+                  placeholder="e.g. 5"
+                  value={windSpeedMph}
+                  onChangeText={setWindSpeedMph}
+                  keyboardType="decimal-pad"
+                  containerStyle={editStyles.flex}
+                />
+                <Input
+                  label="Temperature (°C)"
+                  placeholder="e.g. 18"
+                  value={temperatureCelsius}
+                  onChangeText={setTemperatureCelsius}
+                  keyboardType="decimal-pad"
+                  containerStyle={editStyles.flex}
+                />
+              </View>
+
+              <Input
+                label="Weather Conditions"
+                placeholder="e.g. Dry, overcast, light breeze"
+                value={weatherConditions}
+                onChangeText={setWeatherConditions}
+              />
+            </View>
+
+            {/* ── Operator ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Operator</Text>
+
+              <Text style={editStyles.fieldLabel}>Operator Name</Text>
+              <Input
+                placeholder="e.g. John Smith"
+                value={operatorName}
+                onChangeText={setOperatorName}
+              />
+
+              <Text style={editStyles.fieldLabel}>Certificate No. (PA1/PA6/NPTC)</Text>
+              <Input
+                placeholder="e.g. 12345/67890"
+                value={operatorCertificateNo}
+                onChangeText={setOperatorCertificateNo}
+              />
+            </View>
+
+            {/* ── Notes ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Notes</Text>
+              <Input
+                placeholder="Additional notes about the application…"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* ── Photos ── */}
+            {record && (
+              <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} />
+            )}
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={editStyles.footer}>
+            <Button
+              title={saving ? "Saving…" : "Save Changes"}
+              onPress={handleSave}
+              disabled={saving}
+              fullWidth
+            />
+            <Button
+              title="Cancel"
+              onPress={onClose}
+              variant="outline"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -515,18 +572,18 @@ function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onCl
 function SprayDiaryRow({
   item,
   blocks,
-  onOpenPhotos,
+  onEdit,
 }: {
   item: SprayDiaryRecord;
   blocks: VineBlock[];
-  onOpenPhotos: (record: SprayDiaryRecord) => void;
+  onEdit: (record: SprayDiaryRecord) => void;
 }) {
   const linkedBlockName = useBlockName(item.blockId, blocks);
   const linked = !!item.blockId;
 
   const handlePress = () => {
     Haptics.selectionAsync();
-    onOpenPhotos(item);
+    onEdit(item);
   };
 
   return (
@@ -560,7 +617,7 @@ function SprayDiaryRow({
             <Text style={styles.areaBadgeText}>{Number(item.areaTreatedHa).toFixed(1)} ha</Text>
           </View>
         ) : null}
-        <Feather name="camera" size={14} color={colors.textSecondary} />
+        <Feather name="edit-2" size={14} color={colors.textSecondary} />
         <Feather name="chevron-right" size={16} color={colors.textSecondary} />
       </View>
     </Pressable>
@@ -587,14 +644,13 @@ export default function VineSprayDiaryHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
-  const [photoRecord, setPhotoRecord] = useState<SprayDiaryRecord | null>(null);
-  const [changingRecord, setChangingRecord] = useState<SprayDiaryRecord | null>(null);
-  const [localUpdates, setLocalUpdates] = useState<Record<number, { blockId: number | null }>>({});
+  const [editingRecord, setEditingRecord] = useState<SprayDiaryRecord | null>(null);
+  const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<SprayDiaryRecord>>>({});
 
   const displayRecords = useMemo(() => {
     return records.map(r => {
       const update = localUpdates[r.id];
-      if (update !== undefined) return { ...r, blockId: update.blockId };
+      if (update !== undefined) return { ...r, ...update };
       return r;
     });
   }, [records, localUpdates]);
@@ -614,12 +670,12 @@ export default function VineSprayDiaryHistoryScreen() {
     });
   }, [displayRecords, search, blocks]);
 
-  const handleBlockSaved = (recordId: number, block: VineBlock | null) => {
+  const handleSaved = (recordId: number, updated: Partial<SprayDiaryRecord>) => {
     setLocalUpdates(prev => ({
       ...prev,
-      [recordId]: { blockId: block?.id ?? null },
+      [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
-    setChangingRecord(null);
+    setEditingRecord(null);
   };
 
   return (
@@ -676,7 +732,7 @@ export default function VineSprayDiaryHistoryScreen() {
             <SprayDiaryRow
               item={item}
               blocks={blocks}
-              onOpenPhotos={setPhotoRecord}
+              onEdit={setEditingRecord}
             />
           )}
           ListEmptyComponent={
@@ -691,34 +747,22 @@ export default function VineSprayDiaryHistoryScreen() {
         />
       )}
 
-      {/* Photo gallery modal — opens when a row is tapped */}
-      <PhotoGalleryModal
-        visible={photoRecord !== null}
-        record={photoRecord}
+      <EditSprayDiaryModal
+        visible={editingRecord !== null}
+        record={editingRecord}
         farmId={currentFarm?.id ?? ""}
         blocks={blocks}
         blocksLoading={blocksLoading}
-        onClose={() => setPhotoRecord(null)}
-        onChangeBlock={record => setChangingRecord(record)}
-      />
-
-      {/* Change block modal — opened from the gallery modal footer */}
-      <ChangeBlockModal
-        visible={changingRecord !== null}
-        record={changingRecord}
-        farmId={currentFarm?.id ?? ""}
-        blocks={blocks}
-        blocksLoading={blocksLoading}
-        onClose={() => setChangingRecord(null)}
-        onSaved={handleBlockSaved}
+        onClose={() => setEditingRecord(null)}
+        onSaved={handleSaved}
       />
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Edit Modal Styles ────────────────────────────────────────────────────────
 
-const photoModalStyles = StyleSheet.create({
+const editStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
@@ -741,115 +785,41 @@ const photoModalStyles = StyleSheet.create({
   },
   closeBtn: { padding: spacing.xs, marginTop: 2 },
   scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
-  summaryCard: {
+  scrollContent: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.lg,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 3,
-    elevation: 2,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
-  typeBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ede9fe",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: spacing.sm,
-  },
-  typeBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
-  summaryGrid: { gap: spacing.sm },
-  summaryItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.md },
-  summaryKey: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, flex: 1 },
-  summaryVal: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text, flex: 2, textAlign: "right" },
-  notes: {
-    fontFamily: fonts.regular,
+  sectionTitle: {
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    marginTop: spacing.sm,
-    fontStyle: "italic",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
   },
-  footer: {
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-});
-
-const modalStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
-  closeBtn: { padding: spacing.xs },
-  subtitle: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-  },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, gap: spacing.sm },
-  sectionLabel: {
+  fieldLabel: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
   },
-  emptyText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  selectedInfo: {
+  row: { flexDirection: "row", gap: spacing.md },
+  flex: { flex: 1 },
+  clearBlockBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    padding: spacing.sm,
-    backgroundColor: "#f0fdf4",
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.success,
+    gap: 4,
+    alignSelf: "flex-start",
+    marginTop: 4,
   },
-  selectedInfoText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.success,
-    flex: 1,
-  },
-  unlinkInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    padding: spacing.sm,
-    backgroundColor: colors.background,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  unlinkInfoText: {
+  clearBlockText: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
-    flex: 1,
+    textDecorationLine: "underline",
   },
   footer: {
     padding: spacing.lg,
@@ -857,7 +827,67 @@ const modalStyles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
+  // Photo section (inside card)
+  photoSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  photoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  photoSectionTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  photoCount: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  photoHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  emptyPhotos: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  emptyPhotosText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  addPhotoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignSelf: "flex-start",
+  },
+  addPhotoBtnDisabled: { opacity: 0.5 },
+  addPhotoBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
 });
+
+// ─── Screen Styles ────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
@@ -981,41 +1011,6 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
-  // Photo section
-  photoSection: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  photoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.xs,
-  },
-  sectionLabel: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  photoCount: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-  },
-  photoHint: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
   thumbnail: { alignItems: "center", maxWidth: 90 },
   thumbImgBox: {
     width: 80,
@@ -1038,34 +1033,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     maxWidth: 80,
-  },
-  emptyPhotos: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  emptyPhotosText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  addPhotoBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    alignSelf: "flex-start",
-  },
-  addPhotoBtnDisabled: { opacity: 0.5 },
-  addPhotoBtnText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.sm,
-    color: colors.primary,
   },
 });

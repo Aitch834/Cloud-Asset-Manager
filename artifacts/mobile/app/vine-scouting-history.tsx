@@ -6,7 +6,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -74,122 +77,268 @@ function highestPressure(r: ScoutingRecord): { label: string; color: string } | 
   return pressureBadge(max);
 }
 
-// ─── Change Block Modal ────────────────────────────────────────────────────────
+// ─── Pressure Picker ──────────────────────────────────────────────────────────
 
-interface ChangeBlockModalProps {
+function PressurePicker({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <View style={editStyles.pressureRow}>
+      <Text style={editStyles.pressureLabel}>{label}</Text>
+      <View style={editStyles.pressureButtons}>
+        {PRESSURE_LABELS.map((l, i) => (
+          <Pressable
+            key={i}
+            style={[editStyles.pressureBtn, value === i && { backgroundColor: PRESSURE_COLORS[i], borderColor: PRESSURE_COLORS[i] }]}
+            onPress={() => { Haptics.selectionAsync(); onChange(i); }}
+          >
+            <Text style={[editStyles.pressureBtnText, value === i && { color: "#fff" }]}>{l}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── Boolean Toggle ───────────────────────────────────────────────────────────
+
+function BooleanToggle({ label, value, onChange, urgent }: { label: string; value: boolean; onChange: (v: boolean) => void; urgent?: boolean }) {
+  return (
+    <Pressable
+      style={[editStyles.toggleRow, value && urgent && editStyles.toggleRowUrgent, value && !urgent && editStyles.toggleRowActive]}
+      onPress={() => { Haptics.selectionAsync(); onChange(!value); }}
+    >
+      <Feather name={value ? "check-square" : "square"} size={18} color={value ? (urgent ? colors.error : colors.success) : colors.textSecondary} />
+      <Text style={[editStyles.toggleLabel, value && urgent && { color: colors.error }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// ─── Edit Scouting Modal ──────────────────────────────────────────────────────
+
+interface EditScoutingModalProps {
   visible: boolean;
   record: ScoutingRecord | null;
   farmId: string;
   blocks: VineBlock[];
   blocksLoading: boolean;
   onClose: () => void;
-  onSaved: (recordId: number, block: VineBlock | null) => void;
+  onSaved: (recordId: number, updated: Partial<ScoutingRecord>) => void;
 }
 
-function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: ChangeBlockModalProps) {
-  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: EditScoutingModalProps) {
   const [saving, setSaving] = useState(false);
 
-  // Pre-select the currently linked block when modal opens
+  // Form state
+  const [scoutDate, setScoutDate] = useState("");
+  const [scoutedBy, setScoutedBy] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+  const [downyMildew, setDownyMildew] = useState(0);
+  const [powderyMildew, setPowderyMildew] = useState(0);
+  const [botrytis, setBotrytis] = useState(0);
+  const [phomopsis, setPhomopsis] = useState(0);
+  const [leafhopper, setLeafhopper] = useState(0);
+  const [spiderMite, setSpiderMite] = useState(0);
+  const [vineWeevil, setVineWeevil] = useState(false);
+  const [eutypaDieback, setEutypaDieback] = useState(false);
+  const [xylella, setXylella] = useState(false);
+  const [phytophthora, setPhytophthora] = useState(false);
+  const [actionTaken, setActionTaken] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Pre-fill from record when modal opens
   React.useEffect(() => {
     if (visible && record) {
+      setScoutDate(record.scoutDate ?? "");
+      setScoutedBy(record.scoutedBy ?? "");
       const current = record.blockId ? blocks.find(b => b.id === record.blockId) ?? null : null;
       setSelectedBlock(current);
+      setDownyMildew(Number(record.downyMildewPressure ?? 0));
+      setPowderyMildew(Number(record.powderyMildewPressure ?? 0));
+      setBotrytis(Number(record.botrytisPressure ?? 0));
+      setPhomopsis(Number(record.phomopsisPressure ?? 0));
+      setLeafhopper(Number(record.leafhopperPressure ?? 0));
+      setSpiderMite(Number(record.spiderMitePressure ?? 0));
+      setVineWeevil(Boolean(record.vineWeevilSighted));
+      setEutypaDieback(Boolean(record.eutypaDiebackSighted));
+      setXylella(Boolean(record.xylellaFastidiosa));
+      setPhytophthora(Boolean(record.phytophthoraViticola));
+      setActionTaken(record.actionTaken ?? "");
+      setNotes(record.notes ?? "");
     }
   }, [visible, record, blocks]);
 
-  const handleConfirm = async () => {
+  const doSave = async () => {
     if (!record) return;
     setSaving(true);
     try {
+      const body = {
+        scoutDate: scoutDate || null,
+        scoutedBy: scoutedBy.trim() || null,
+        blockId: selectedBlock?.id ?? null,
+        blockName: selectedBlock?.blockName ?? null,
+        downyMildewPressure: downyMildew,
+        powderyMildewPressure: powderyMildew,
+        botrytisPressure: botrytis,
+        phomopsisPressure: phomopsis,
+        leafhopperPressure: leafhopper,
+        spiderMitePressure: spiderMite,
+        vineWeevilSighted: vineWeevil,
+        eutypaDiebackSighted: eutypaDieback,
+        xylellaFastidiosa: xylella,
+        phytophthoraViticola: phytophthora,
+        actionTaken: actionTaken.trim() || null,
+        notes: notes.trim() || null,
+      };
+
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${record.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          blockId: selectedBlock?.id ?? null,
-          blockName: selectedBlock?.blockName ?? null,
-        }),
+        body: JSON.stringify(body),
       });
+
       if (!res.ok) {
-        Alert.alert("Save Failed", "Could not update the block link. Please try again.");
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Save Failed", (err as any).error ?? "Could not save the record. Please try again.");
         setSaving(false);
         return;
       }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSaved(record.id, selectedBlock);
+      onSaved(record.id, body);
     } catch {
       Alert.alert("Save Failed", "Could not reach the server. Please try again.");
-    } finally {
       setSaving(false);
     }
   };
 
+  const handleSave = () => {
+    if (!scoutDate || !scoutedBy.trim()) {
+      Alert.alert("Required Fields", "Please enter a scout date and scouted by name.");
+      return;
+    }
+    if (xylella || phytophthora) {
+      Alert.alert(
+        "⚠️ Notifiable Pest Flagged",
+        "You have flagged a possible notifiable plant pest. You must report this to APHA immediately on 0300 1000 313.\n\nRecord will still be saved.",
+        [
+          { text: "Understood — Save Record", style: "destructive", onPress: doSave },
+          { text: "Cancel" },
+        ],
+      );
+      return;
+    }
+    doSave();
+  };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
-      <View style={modalStyles.container}>
-        <View style={modalStyles.header}>
-          <Text style={modalStyles.title}>Change Block</Text>
-          <Pressable onPress={onClose} style={modalStyles.closeBtn} hitSlop={12}>
-            <Feather name="x" size={22} color={colors.text} />
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={editStyles.container}>
+          {/* Header */}
+          <View style={editStyles.header}>
+            <Text style={editStyles.title}>Edit Scouting Record</Text>
+            <Pressable onPress={onClose} style={editStyles.closeBtn} hitSlop={12}>
+              <Feather name="x" size={22} color={colors.text} />
+            </Pressable>
+          </View>
 
-        {record && (
-          <Text style={modalStyles.subtitle}>
-            Scouting record · {formatDate(record.scoutDate)}
-            {record.scoutedBy ? `  ·  ${record.scoutedBy}` : ""}
-          </Text>
-        )}
+          <ScrollView style={editStyles.scroll} contentContainerStyle={editStyles.scrollContent} keyboardShouldPersistTaps="handled">
+            {/* ── Walkabout Details ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Walkabout Details</Text>
 
-        <ScrollView style={modalStyles.scroll} contentContainerStyle={modalStyles.scrollContent} keyboardShouldPersistTaps="handled">
-          <Text style={modalStyles.sectionLabel}>Select a block to link this record to</Text>
+              <Text style={editStyles.fieldLabel}>Scout Date *</Text>
+              <Input
+                placeholder="YYYY-MM-DD"
+                value={scoutDate}
+                onChangeText={setScoutDate}
+                keyboardType="numeric"
+              />
 
-          {blocksLoading ? (
-            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.md }} />
-          ) : blocks.length === 0 ? (
-            <Text style={modalStyles.emptyText}>No vineyard blocks found for this farm.</Text>
-          ) : (
-            <VineBlockPicker
-              blocks={blocks}
-              selected={selectedBlock}
-              onSelect={setSelectedBlock}
-              loading={false}
-            />
-          )}
+              <Text style={editStyles.fieldLabel}>Scouted By *</Text>
+              <Input
+                placeholder="Enter name"
+                value={scoutedBy}
+                onChangeText={setScoutedBy}
+              />
 
-          {selectedBlock && (
-            <View style={modalStyles.selectedInfo}>
-              <Feather name="check-circle" size={16} color={colors.success} />
-              <Text style={modalStyles.selectedInfoText}>
-                Will link to <Text style={{ fontFamily: fonts.semiBold }}>{selectedBlock.blockName}</Text>
+              <Text style={editStyles.fieldLabel}>Block / Area</Text>
+              {blocksLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.sm }} />
+              ) : (
+                <VineBlockPicker
+                  blocks={blocks}
+                  selected={selectedBlock}
+                  onSelect={setSelectedBlock}
+                  loading={false}
+                />
+              )}
+              {selectedBlock && (
+                <Pressable
+                  onPress={() => setSelectedBlock(null)}
+                  style={editStyles.clearBlockBtn}
+                >
+                  <Feather name="x" size={12} color={colors.textSecondary} />
+                  <Text style={editStyles.clearBlockText}>Clear block link</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* ── Disease Pressure ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Disease Pressure</Text>
+              <PressurePicker label="Downy Mildew" value={downyMildew} onChange={setDownyMildew} />
+              <PressurePicker label="Powdery Mildew" value={powderyMildew} onChange={setPowderyMildew} />
+              <PressurePicker label="Botrytis" value={botrytis} onChange={setBotrytis} />
+              <PressurePicker label="Phomopsis" value={phomopsis} onChange={setPhomopsis} />
+            </View>
+
+            {/* ── Pest Pressure ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Pest Pressure</Text>
+              <PressurePicker label="Leafhopper" value={leafhopper} onChange={setLeafhopper} />
+              <PressurePicker label="Spider Mite" value={spiderMite} onChange={setSpiderMite} />
+              <BooleanToggle label="Vine Weevil sighted" value={vineWeevil} onChange={setVineWeevil} urgent />
+              <BooleanToggle label="Eutypa Dieback sighted" value={eutypaDieback} onChange={setEutypaDieback} />
+            </View>
+
+            {/* ── Notifiable ── */}
+            <View style={[editStyles.card, { borderColor: colors.error, borderWidth: 1.5 }]}>
+              <Text style={[editStyles.sectionTitle, { color: colors.error }]}>Notifiable Plant Pests</Text>
+              <Text style={editStyles.helperText}>
+                Report to APHA immediately on 0300 1000 313 if any of these are suspected. Do not move plant material off-site.
               </Text>
+              <BooleanToggle label="Xylella fastidiosa suspected" value={xylella} onChange={setXylella} urgent />
+              <BooleanToggle label="Phytophthora viticola suspected" value={phytophthora} onChange={setPhytophthora} urgent />
             </View>
-          )}
 
-          {!selectedBlock && record?.blockId && (
-            <View style={modalStyles.unlinkInfo}>
-              <Feather name="info" size={16} color={colors.textSecondary} />
-              <Text style={modalStyles.unlinkInfoText}>Clearing the selection will unlink this record from its current block.</Text>
+            {/* ── Actions & Notes ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Actions & Notes</Text>
+              <Text style={editStyles.fieldLabel}>Action Taken</Text>
+              <Input placeholder="Describe any action taken…" value={actionTaken} onChangeText={setActionTaken} multiline numberOfLines={3} />
+              <Text style={editStyles.fieldLabel}>Notes</Text>
+              <Input placeholder="Additional observations…" value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
             </View>
-          )}
-        </ScrollView>
+          </ScrollView>
 
-        <View style={modalStyles.footer}>
-          <Button
-            title={saving ? "Saving…" : "Confirm"}
-            onPress={handleConfirm}
-            disabled={saving}
-            fullWidth
-          />
-          <Button
-            title="Cancel"
-            onPress={onClose}
-            variant="outline"
-            fullWidth
-            style={{ marginTop: spacing.sm }}
-          />
+          {/* Footer */}
+          <View style={editStyles.footer}>
+            <Button
+              title={saving ? "Saving…" : "Save Changes"}
+              onPress={handleSave}
+              disabled={saving}
+              fullWidth
+            />
+            <Button
+              title="Cancel"
+              onPress={onClose}
+              variant="outline"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -198,10 +347,10 @@ function ChangeBlockModal({ visible, record, farmId, blocks, blocksLoading, onCl
 
 function ScoutingRow({
   item,
-  onChangeBlock,
+  onEdit,
 }: {
   item: ScoutingRecord;
-  onChangeBlock: (record: ScoutingRecord) => void;
+  onEdit: (record: ScoutingRecord) => void;
 }) {
   const linked = !!item.blockId;
   const pressure = highestPressure(item);
@@ -209,17 +358,7 @@ function ScoutingRow({
 
   const handlePress = () => {
     Haptics.selectionAsync();
-    Alert.alert(
-      formatDate(item.scoutDate),
-      item.blockName ? `Block: ${item.blockName}` : "No block linked",
-      [
-        {
-          text: "Change Block",
-          onPress: () => onChangeBlock(item),
-        },
-        { text: "Close", style: "cancel" },
-      ],
-    );
+    onEdit(item);
   };
 
   return (
@@ -254,6 +393,7 @@ function ScoutingRow({
             <Text style={[styles.badgeText, { color: pressure.color }]}>{pressure.label}</Text>
           </View>
         )}
+        <Feather name="edit-2" size={14} color={colors.textSecondary} />
         <Feather name="chevron-right" size={16} color={colors.textSecondary} />
       </View>
     </Pressable>
@@ -272,13 +412,13 @@ export default function VineScoutingHistoryScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
   const [search, setSearch] = useState("");
-  const [changingRecord, setChangingRecord] = useState<ScoutingRecord | null>(null);
-  const [localUpdates, setLocalUpdates] = useState<Record<number, { blockId: number | null; blockName: string | null }>>({});
+  const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
+  const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
 
   const displayRecords = useMemo(() => {
     return records.map(r => {
       const update = localUpdates[r.id];
-      if (update !== undefined) return { ...r, blockId: update.blockId, blockName: update.blockName };
+      if (update !== undefined) return { ...r, ...update };
       return r;
     });
   }, [records, localUpdates]);
@@ -293,16 +433,12 @@ export default function VineScoutingHistoryScreen() {
     );
   }, [displayRecords, search]);
 
-  const handleChangeBlock = (record: ScoutingRecord) => {
-    setChangingRecord(record);
-  };
-
-  const handleBlockSaved = (recordId: number, block: VineBlock | null) => {
+  const handleSaved = (recordId: number, updated: Partial<ScoutingRecord>) => {
     setLocalUpdates(prev => ({
       ...prev,
-      [recordId]: { blockId: block?.id ?? null, blockName: block?.blockName ?? null },
+      [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
-    setChangingRecord(null);
+    setEditingRecord(null);
   };
 
   return (
@@ -341,7 +477,7 @@ export default function VineScoutingHistoryScreen() {
           contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <ScoutingRow item={item} onChangeBlock={handleChangeBlock} />
+            <ScoutingRow item={item} onEdit={setEditingRecord} />
           )}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -355,20 +491,22 @@ export default function VineScoutingHistoryScreen() {
         />
       )}
 
-      <ChangeBlockModal
-        visible={changingRecord !== null}
-        record={changingRecord}
+      <EditScoutingModal
+        visible={editingRecord !== null}
+        record={editingRecord}
         farmId={currentFarm?.id ?? ""}
         blocks={blocks}
         blocksLoading={blocksLoading}
-        onClose={() => setChangingRecord(null)}
-        onSaved={handleBlockSaved}
+        onClose={() => setEditingRecord(null)}
+        onSaved={handleSaved}
       />
     </View>
   );
 }
 
-const modalStyles = StyleSheet.create({
+// ─── Edit Modal Styles ────────────────────────────────────────────────────────
+
+const editStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
@@ -383,62 +521,72 @@ const modalStyles = StyleSheet.create({
   },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text },
   closeBtn: { padding: spacing.xs },
-  subtitle: {
-    fontFamily: fonts.regular,
+  scroll: { flex: 1 },
+  scrollContent: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
   },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.lg, gap: spacing.sm },
-  sectionLabel: {
+  fieldLabel: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
   },
-  emptyText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
-  selectedInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    padding: spacing.sm,
-    backgroundColor: "#f0fdf4",
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.success,
-  },
-  selectedInfoText: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.sm,
-    color: colors.success,
-    flex: 1,
-  },
-  unlinkInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    padding: spacing.sm,
-    backgroundColor: colors.background,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  unlinkInfoText: {
+  helperText: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
-    flex: 1,
+    lineHeight: 18,
   },
+  clearBlockBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    marginTop: 4,
+  },
+  clearBlockText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textDecorationLine: "underline",
+  },
+  pressureRow: { gap: spacing.xs },
+  pressureLabel: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text },
+  pressureButtons: { flexDirection: "row", gap: spacing.xs },
+  pressureBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+  },
+  pressureBtnText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  toggleRowActive: { borderColor: colors.success, backgroundColor: "#f0fdf4" },
+  toggleRowUrgent: { borderColor: colors.error, backgroundColor: "#fef2f2" },
+  toggleLabel: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
   footer: {
     padding: spacing.lg,
     borderTopWidth: 1,
@@ -446,6 +594,8 @@ const modalStyles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 });
+
+// ─── Screen Styles ────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
