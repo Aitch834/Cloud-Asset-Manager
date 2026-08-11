@@ -72,3 +72,45 @@ uri = "file://artifacts/website/public/downloads/BDE-FarmTrac-HalfPage-Horizonta
 type = "image"
 title = "BDE Farm Trac — Horizontal Ad proof (2244 × 1571 px, 300 DPI)"
 description = "High-resolution render of the redesigned half-page horizontal ad — 190 × 133 mm at 300 DPI"
+
+[[outputs]]
+id = "3Zgr2NE7axnoDInZlTk6Y"
+uri = "file://screenshots/leaflet-beef-dairy.jpg"
+type = "image"
+title = "Beef & Dairy Leaflet"
+description = "A5 portrait — cattle compliance, TB testing, BCMS, dairy records"
+
+[[outputs]]
+id = "4vjEz4aeWPMyvj1fPGlbe"
+uri = "file://screenshots/leaflet-sheep-goat.jpg"
+type = "image"
+title = "Sheep & Goat Leaflet"
+description = "A5 portrait — EID compliance, LIS submissions, lambing analytics"
+
+[[outputs]]
+id = "cURUYlwgnRJkK_Ws6bQC_"
+uri = "file://screenshots/leaflet-arable.jpg"
+type = "image"
+title = "Arable Leaflet"
+description = "A5 portrait — spray records, NVZ compliance, grain storage"
+
+[[outputs]]
+id = "rtEmlhfH-SlBqDn7iulCN"
+uri = "file://screenshots/leaflet-viticulture.jpg"
+type = "image"
+title = "Viticulture Leaflet"
+description = "A5 portrait — vine records, 8-tab winery management, SO₂ compliance"
+
+[[outputs]]
+id = "eXdJvp6vkGnf0Y1jjapoG"
+uri = "file://screenshots/leaflet-mixed.jpg"
+type = "image"
+title = "Mixed Farming Leaflet"
+description = "A5 portrait — modular platform across every enterprise"
+
+[[outputs]]
+id = "_pDNgz-o3c4jL7EN8-Y9t"
+uri = "file://screenshots/leaflet-contracting.jpg"
+type = "image"
+title = "Agricultural Contracting Leaflet"
+description = "A5 portrait — job cards, invoicing, equipment compliance"
