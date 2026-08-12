@@ -1159,7 +1159,13 @@ export default function GrantsPage() {
   const [fetfPickerOpen, setFetfPickerOpen] = useState(false);
   const [fetfSearch, setFetfSearch] = useState("");
   const [uploadingId, setUploadingId] = useState<number | null>(null);
-  const [quickFilter, setQuickFilter] = useState<"approved" | "active" | "deadlines" | null>(null);
+  const [quickFilter, setQuickFilter] = usePersistedFilter({
+    page: "grants",
+    filter: "quick",
+    farmId,
+    defaultValue: "",
+    validValues: ["", "approved", "active", "deadlines"] as const,
+  });
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "grants", filter: "year", farmId, defaultValue: "all" });
   const [hideArchived, setHideArchived] = useState(true);
   const { uploadFile } = useUpload();
@@ -1422,7 +1428,7 @@ export default function GrantsPage() {
           {/* Approved Grant Value */}
           <div
             style={{ ...cardStyle, background: isApprovedActive ? "#f5f3ff" : "#fff", border: `1px solid ${isApprovedActive ? "#a78bfa" : "#e5e7eb"}`, outline: isApprovedActive ? "2px solid #7c3aed" : "none", outlineOffset: 2 }}
-            onClick={() => { setQuickFilter(isApprovedActive ? null : "approved"); setStatusFilter("all"); }}
+            onClick={() => { setQuickFilter(isApprovedActive ? "" : "approved"); setStatusFilter("all"); }}
             title="Click to filter by approved, purchased & claimed"
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1438,7 +1444,7 @@ export default function GrantsPage() {
           {/* Active Applications */}
           <div
             style={{ ...cardStyle, background: isActiveFilterOn ? "#f0fdf4" : cardActiveRecords.length > 0 ? "#f0fdf4" : "#fff", border: `1px solid ${isActiveFilterOn ? "#16a34a" : cardActiveRecords.length > 0 ? "#bbf7d0" : "#e5e7eb"}`, outline: isActiveFilterOn ? "2px solid #16a34a" : "none", outlineOffset: 2 }}
-            onClick={() => { setQuickFilter(isActiveFilterOn ? null : "active"); setStatusFilter("all"); }}
+            onClick={() => { setQuickFilter(isActiveFilterOn ? "" : "active"); setStatusFilter("all"); }}
             title="Click to filter active applications"
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1454,7 +1460,7 @@ export default function GrantsPage() {
           {/* Upcoming Deadlines */}
           <div
             style={{ ...cardStyle, background: dlBg, border: `1px solid ${dlBorder}`, outline: isDeadlinesFilterOn ? `2px solid ${dlAccent}` : "none", outlineOffset: 2 }}
-            onClick={() => { setQuickFilter(isDeadlinesFilterOn ? null : "deadlines"); setStatusFilter("all"); }}
+            onClick={() => { setQuickFilter(isDeadlinesFilterOn ? "" : "deadlines"); setStatusFilter("all"); }}
             title="Click to filter records with upcoming or overdue deadlines"
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1492,7 +1498,7 @@ export default function GrantsPage() {
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Year</span>
             <select
               value={yearFilter}
-              onChange={e => { const v = e.target.value; setYearFilter(v); setQuickFilter(null); setStatusFilter("all"); }}
+              onChange={e => { const v = e.target.value; setYearFilter(v); setQuickFilter(""); setStatusFilter("all"); }}
               style={{ fontSize: "0.85rem", padding: "3px 8px", borderRadius: 6, border: "1px solid #e5e7eb", background: yearFilter !== "all" ? "#eff6ff" : "#fff", color: "#111827", cursor: "pointer", fontWeight: yearFilter !== "all" ? 600 : 400 }}
             >
               <option value="all">All years</option>
@@ -1504,7 +1510,7 @@ export default function GrantsPage() {
             <>
               <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
               <button
-                onClick={() => { setHideArchived(h => !h); setQuickFilter(null); }}
+                onClick={() => { setHideArchived(h => !h); setQuickFilter(""); }}
                 style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "0.82rem", padding: "3px 10px", borderRadius: 6, border: "1px solid", background: hideArchived ? "#fff" : "#fef9c3", borderColor: hideArchived ? "#e5e7eb" : "#fbbf24", color: hideArchived ? "#374151" : "#92400e", cursor: "pointer", fontWeight: 500 }}
               >
                 <Archive size={13} />
@@ -1514,7 +1520,7 @@ export default function GrantsPage() {
           )}
           {(yearFilter !== "all" || !hideArchived) && (
             <button
-              onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(null); setStatusFilter("all"); }}
+              onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(""); setStatusFilter("all"); }}
               style={{ fontSize: "0.78rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginLeft: 2 }}
             >
               Reset filters
@@ -1534,7 +1540,7 @@ export default function GrantsPage() {
             const active = statusFilter === s;
             const cfg = s === "all" ? null : STATUS_CONFIG[s];
             return (
-              <button key={s} onClick={() => { setStatusFilter(s); setQuickFilter(null); }}
+              <button key={s} onClick={() => { setStatusFilter(s); setQuickFilter(""); }}
                 style={{
                   padding: "4px 12px", borderRadius: 20, fontSize: "0.8rem", fontWeight: active ? 700 : 500, cursor: "pointer", border: "1px solid",
                   background: active ? "#f0f4ff" : "#fff",
