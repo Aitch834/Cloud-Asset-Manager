@@ -1,18 +1,23 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -34,6 +39,8 @@ import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 
 const today = new Date().toISOString().split("T")[0];
 
+const SCREEN = Dimensions.get("window");
+
 const PRESSURE_LABELS = ["None", "Low", "Medium", "High"];
 const PRESSURE_COLORS = [colors.textSecondary, colors.success, colors.warning ?? "#f59e0b", colors.error];
 
@@ -51,6 +58,223 @@ interface ScoutingPhoto {
   uploadedAt: string;
   downloadUrl: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Scouting Photo Lightbox
+// ---------------------------------------------------------------------------
+
+interface ScoutingLightboxProps {
+  photo: ScoutingPhoto | null;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: (id: number) => void;
+}
+
+function ScoutingPhotoLightbox({ photo, visible, onClose, onDelete }: ScoutingLightboxProps) {
+  const insets = useSafeAreaInsets();
+  const [sharing, setSharing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Reset in-flight flags whenever a different photo is opened so the Delete
+  // and Share buttons are never permanently disabled after a prior action.
+  useEffect(() => {
+    setSharing(false);
+    setDeleting(false);
+  }, [photo?.id]);
+
+  const handleShare = useCallback(async () => {
+    if (!photo?.downloadUrl || sharing) return;
+    setSharing(true);
+    try {
+      const ext = photo.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}scouting_share_${photo.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(photo.downloadUrl, tmpUri);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing Not Available", "Sharing is not supported on this device.");
+        return;
+      }
+      await Sharing.shareAsync(dl.uri, { mimeType: `image/${ext === "jpg" ? "jpeg" : ext}` });
+    } catch {
+      Alert.alert("Share Failed", "Could not share the photo. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }, [photo, sharing]);
+
+  const handleDelete = useCallback(() => {
+    if (!photo || deleting) return;
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to delete this photo? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setDeleting(true);
+            onDelete(photo.id);
+            onClose();
+          },
+        },
+      ],
+    );
+  }, [photo, deleting, onDelete, onClose]);
+
+  if (!photo) return null;
+
+  const uri = photo.downloadUrl;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
+      <View style={lbStyles.backdrop}>
+        {/* Close button */}
+        <Pressable
+          style={[lbStyles.closeBtn, { top: insets.top + 12 }]}
+          onPress={onClose}
+          hitSlop={12}
+        >
+          <Feather name="x" size={24} color="#fff" />
+        </Pressable>
+
+        {/* Photo */}
+        <View style={lbStyles.imageWrapper}>
+          {uri ? (
+            <Image
+              source={{ uri }}
+              style={lbStyles.image}
+              resizeMode="contain"
+            />
+          ) : (
+            <View style={lbStyles.imagePlaceholder}>
+              <Feather name="image" size={48} color="rgba(255,255,255,0.3)" />
+            </View>
+          )}
+        </View>
+
+        {/* Caption */}
+        {photo.caption ? (
+          <View style={lbStyles.captionBar}>
+            <Text style={lbStyles.captionText} numberOfLines={3}>
+              {photo.caption}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Action bar */}
+        <View style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+          {/* Share */}
+          <Pressable
+            style={[lbStyles.actionBtn, sharing && lbStyles.actionBtnDisabled]}
+            onPress={handleShare}
+            disabled={sharing || !uri}
+          >
+            {sharing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="share-2" size={22} color="#fff" />
+            )}
+            <Text style={lbStyles.actionBtnText}>{sharing ? "Sharing…" : "Share"}</Text>
+          </Pressable>
+
+          {/* Delete */}
+          <Pressable
+            style={[lbStyles.actionBtn, lbStyles.actionBtnDanger]}
+            onPress={handleDelete}
+            disabled={deleting}
+          >
+            <Feather name="trash-2" size={22} color="#fca5a5" />
+            <Text style={[lbStyles.actionBtnText, { color: "#fca5a5" }]}>Delete</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const lbStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+  },
+  imageWrapper: {
+    width: SCREEN.width,
+    height: SCREEN.height * 0.62,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  image: {
+    width: SCREEN.width,
+    height: SCREEN.height * 0.62,
+  },
+  imagePlaceholder: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  captionBar: {
+    marginTop: 12,
+    marginHorizontal: 24,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    padding: 12,
+    alignSelf: "stretch",
+  },
+  captionText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  actionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 24,
+    paddingTop: 16,
+    paddingHorizontal: 32,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  actionBtn: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    flex: 1,
+  },
+  actionBtnDisabled: { opacity: 0.5 },
+  actionBtnDanger: { backgroundColor: "rgba(220,38,38,0.15)" },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
+
+// ---------------------------------------------------------------------------
 
 function PressurePicker({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
@@ -168,6 +392,7 @@ function ScoutingPhotoSection({
   const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<ScoutingPhoto | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
@@ -253,23 +478,7 @@ function ScoutingPhotoSection({
   };
 
   const handlePressPhoto = (photo: ScoutingPhoto) => {
-    if (!photo.downloadUrl) return;
-    Alert.alert(
-      photo.caption ? photo.caption : "Scouting Photo",
-      undefined,
-      [
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            Alert.alert("Delete Photo", "Are you sure? This cannot be undone.", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => handleDeletePhoto(photo.id) },
-            ]),
-        },
-        { text: "Close", style: "cancel" },
-      ],
-    );
+    setLightboxPhoto(photo);
   };
 
   return (
@@ -279,7 +488,7 @@ function ScoutingPhotoSection({
         <Text style={styles.photoHint}>{photos.length} attached</Text>
       </View>
       <Text style={styles.helperText}>
-        Attach photos of disease symptoms as on-field evidence. Long-press a photo to delete it.
+        Tap a photo to view, share or delete. Long-press a thumbnail to delete quickly.
       </Text>
 
       {loading ? (
@@ -321,6 +530,16 @@ function ScoutingPhotoSection({
         )}
         <Text style={styles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
       </Pressable>
+
+      <ScoutingPhotoLightbox
+        photo={lightboxPhoto}
+        visible={lightboxPhoto !== null}
+        onClose={() => setLightboxPhoto(null)}
+        onDelete={(id) => {
+          handleDeletePhoto(id);
+          setLightboxPhoto(null);
+        }}
+      />
     </View>
   );
 }
