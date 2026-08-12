@@ -245,40 +245,40 @@ description = "Full-bleed image visible throughout, gradient fade to near-white,
 id = "nDJOsblIQ00VTYSKBjcgW"
 uri = "file://screenshots/leaflet-v5-beef-dairy.jpg"
 type = "image"
-title = "Beef & Dairy — v5 final"
-description = "Image top half · red tint bottom half · full footer visible"
+title = "Beef & Dairy — final"
+description = "Footer complete, image top half, red tint bottom half"
 
 [[outputs]]
 id = "62ithnY-46yO7BNlqoAc8"
 uri = "file://screenshots/leaflet-v5-sheep-goat.jpg"
 type = "image"
-title = "Sheep & Goat — v5 final"
-description = "Image top half · amber tint bottom half · full footer visible"
+title = "Sheep & Goat — final"
+description = "Footer complete, image top half, amber tint bottom half"
 
 [[outputs]]
 id = "mEZHNlosaUy-gAIBTuSoy"
 uri = "file://screenshots/leaflet-v5-arable.jpg"
 type = "image"
-title = "Arable — v5 final"
-description = "Image top half · warm amber tint bottom half · full footer visible"
+title = "Arable — final"
+description = "Footer complete, image top half, warm amber tint bottom half"
 
 [[outputs]]
 id = "Dbq5Zr_UItqYYLEEfrmET"
 uri = "file://screenshots/leaflet-v5-viticulture.jpg"
 type = "image"
-title = "Viticulture — v5 final"
-description = "Image top half · purple tint bottom half · full footer visible"
+title = "Viticulture — final"
+description = "Footer complete, image top half, purple tint bottom half"
 
 [[outputs]]
 id = "_oO-5WPxjH-mh5iuI3uH4"
 uri = "file://screenshots/leaflet-v5-mixed.jpg"
 type = "image"
-title = "Mixed Farming — v5 final"
-description = "Image top half · green tint bottom half · full footer visible"
+title = "Mixed Farming — final"
+description = "Footer complete, image top half, green tint bottom half"
 
 [[outputs]]
 id = "XrFP_P6qRlK6CseDzuav_"
 uri = "file://screenshots/leaflet-v5-contracting.jpg"
 type = "image"
-title = "Agricultural Contracting — v5 final"
-description = "Image top half · blue tint bottom half · full footer visible"
+title = "Agricultural Contracting — final"
+description = "Footer complete, image top half, blue tint bottom half"
