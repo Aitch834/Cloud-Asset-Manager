@@ -2075,8 +2075,15 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         <ul className="space-y-1 mb-2">
                           {barrelVesselsWithoutFills.map(v => (
                             <li key={String(v.id)} className="flex items-center gap-2 text-xs text-amber-900">
-                              <span aria-hidden="true">🪵</span>
-                              <strong>{String(v.vessel_ref ?? "")}</strong>
+                              <button
+                                className="inline-flex items-center gap-1 font-semibold hover:text-amber-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded transition-colors"
+                                title="Open full barrel record"
+                                onClick={() => setOpenVesselId(Number(v.id))}
+                              >
+                                <span aria-hidden="true">🪵</span>
+                                {String(v.vessel_ref ?? "")}
+                                <Eye className="h-3 w-3 text-amber-600" />
+                              </button>
                               {!!v.vessel_type && <span className="text-amber-700">({String(v.vessel_type)})</span>}
                               {!!v.cooperage && <span className="text-amber-700">· {String(v.cooperage)}</span>}
                               {v.capacity_litres != null && (
@@ -2086,7 +2093,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                           ))}
                         </ul>
                         <p className="text-xs text-amber-700 italic">
-                          To resolve: open the Vessel Register and log the fill history for the barrel{barrelVesselsWithoutFills.length === 1 ? "" : "s"} listed above.
+                          Click a barrel ref above to open its record and log the missing fill history.
                         </p>
                       </div>
                     </div>
