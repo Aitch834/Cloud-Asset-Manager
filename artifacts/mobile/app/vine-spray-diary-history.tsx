@@ -5,6 +5,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -13,11 +14,20 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { VineBlockPicker } from "@/components/VineBlockPicker";
@@ -35,6 +45,22 @@ import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 
 // 4-minute background refresh for presigned URLs
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
+
+// ─── Lightbox constants ───────────────────────────────────────────────────────
+
+const SCREEN = Dimensions.get("window");
+const LB_SWIPE_DOWN_THRESHOLD = 120;
+const LB_SWIPE_HORIZ_THRESHOLD = 60;
+const LB_MIN_SCALE = 1;
+const LB_MAX_SCALE = 5;
+const LB_DIR_NONE = 0;
+const LB_DIR_HORIZ = 1;
+const LB_DIR_VERT = 2;
+
+function lbClamp(value: number, min: number, max: number) {
+  "worklet";
+  return Math.min(Math.max(value, min), max);
+}
 
 interface SprayDiaryRecord {
   id: number;
@@ -79,18 +105,279 @@ function useBlockName(blockId: number | null, blocks: VineBlock[]): string | nul
   return blocks.find(b => b.id === blockId)?.blockName ?? null;
 }
 
+// ─── Spray Photo Lightbox ─────────────────────────────────────────────────────
+
+interface SprayLightboxProps {
+  photos: SprayDiaryPhoto[];
+  initialIndex: number;
+  visible: boolean;
+  onClose: () => void;
+}
+
+function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLightboxProps) {
+  const insets = useSafeAreaInsets();
+
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  // UI-thread shared values
+  const indexSv = useSharedValue(initialIndex);
+  const totalSv = useSharedValue(photos.length);
+
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const slideX = useSharedValue(0);
+  const gestureDir = useSharedValue(LB_DIR_NONE);
+  const bgOpacity = useSharedValue(0);
+
+  // Keep totalSv in sync
+  useEffect(() => {
+    totalSv.value = photos.length;
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset on open/close
+  useEffect(() => {
+    if (visible) {
+      const idx = Math.min(initialIndex, photos.length - 1);
+      setCurrentIndex(idx);
+      indexSv.value = idx;
+      scale.value = 1;
+      savedScale.value = 1;
+      translateX.value = 0;
+      translateY.value = 0;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+      slideX.value = 0;
+      bgOpacity.value = withTiming(1, { duration: 200 });
+    } else {
+      bgOpacity.value = withTiming(0, { duration: 150 });
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ref so worklet callbacks are never stale
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
+  const goToIndex = useCallback((idx: number) => {
+    setCurrentIndex(idx);
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    slideX.value = 0;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pinch-to-zoom
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = lbClamp(savedScale.value * e.scale, LB_MIN_SCALE, LB_MAX_SCALE);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      if (scale.value < LB_MIN_SCALE) {
+        scale.value = withSpring(LB_MIN_SCALE);
+        savedScale.value = LB_MIN_SCALE;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    });
+
+  // Pan: zoom-pan + swipe-down dismiss + horizontal navigation
+  const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      gestureDir.value = LB_DIR_NONE;
+    })
+    .onUpdate((e) => {
+      if (scale.value > 1) {
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
+        return;
+      }
+      if (gestureDir.value === LB_DIR_NONE) {
+        if (Math.abs(e.translationX) > 8 || Math.abs(e.translationY) > 8) {
+          gestureDir.value =
+            Math.abs(e.translationX) >= Math.abs(e.translationY)
+              ? LB_DIR_HORIZ
+              : LB_DIR_VERT;
+        }
+        return;
+      }
+      if (gestureDir.value === LB_DIR_HORIZ) {
+        slideX.value = e.translationX;
+      } else {
+        translateY.value = Math.max(0, e.translationY);
+      }
+    })
+    .onEnd((e) => {
+      if (scale.value > 1) {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+        return;
+      }
+      if (gestureDir.value === LB_DIR_HORIZ) {
+        const dx = e.translationX;
+        if (dx < -LB_SWIPE_HORIZ_THRESHOLD && indexSv.value < totalSv.value - 1) {
+          const next = indexSv.value + 1;
+          indexSv.value = next;
+          slideX.value = withTiming(-SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(next);
+          });
+        } else if (dx > LB_SWIPE_HORIZ_THRESHOLD && indexSv.value > 0) {
+          const prev = indexSv.value - 1;
+          indexSv.value = prev;
+          slideX.value = withTiming(SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(prev);
+          });
+        } else {
+          slideX.value = withSpring(0);
+        }
+      } else if (gestureDir.value === LB_DIR_VERT) {
+        if (e.translationY > LB_SWIPE_DOWN_THRESHOLD) {
+          translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
+            runOnJS(onClose)();
+          });
+        } else {
+          translateY.value = withSpring(0);
+        }
+      }
+    });
+
+  // Double-tap: toggle 2.5× zoom
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1) {
+        scale.value = withSpring(1);
+        savedScale.value = 1;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      } else {
+        scale.value = withSpring(2.5);
+        savedScale.value = 2.5;
+      }
+    });
+
+  const composed = Gesture.Simultaneous(
+    Gesture.Race(doubleTapGesture, panGesture),
+    pinchGesture,
+  );
+
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value + slideX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bgOpacity.value,
+  }));
+
+  const photo = photos[currentIndex];
+  const uri = photo?.downloadUrl ?? null;
+  const caption = photo?.caption ?? null;
+  const hasMultiple = photos.length > 1;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar hidden />
+        <Animated.View style={[lbStyles.overlay, bgStyle]}>
+          {/* Close button */}
+          <Pressable
+            style={[lbStyles.closeBtn, { top: insets.top + 12 }]}
+            onPress={onClose}
+            hitSlop={16}
+          >
+            <Feather name="x" size={24} color="#fff" />
+          </Pressable>
+
+          {/* Photo counter */}
+          {hasMultiple ? (
+            <View style={[lbStyles.counter, { top: insets.top + 20 }]}>
+              <Text style={lbStyles.counterText}>
+                {currentIndex + 1} / {photos.length}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Zoomable image */}
+          <GestureDetector gesture={composed}>
+            <Animated.View style={[lbStyles.imageContainer, imageStyle]}>
+              {uri ? (
+                <Image
+                  source={{ uri }}
+                  style={lbStyles.image}
+                  resizeMode="contain"
+                />
+              ) : (
+                <ActivityIndicator size="large" color="#fff" />
+              )}
+            </Animated.View>
+          </GestureDetector>
+
+          {/* Caption (read-only) */}
+          {caption ? (
+            <View style={[lbStyles.captionBar, { paddingBottom: insets.bottom + 16 }]}>
+              <Text style={lbStyles.captionText}>{caption}</Text>
+            </View>
+          ) : null}
+
+          {/* Hint */}
+          <View style={[lbStyles.hintBar, { bottom: (caption ? 60 : 16) + insets.bottom }]}>
+            <Text style={lbStyles.hintText}>
+              {hasMultiple
+                ? "Swipe to browse · Pinch to zoom · Swipe down to close"
+                : "Pinch to zoom · Double-tap · Swipe down to close"}
+            </Text>
+          </View>
+        </Animated.View>
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
 // ─── Photo Thumbnail ──────────────────────────────────────────────────────────
 
 function SprayPhotoThumbnail({
   photo,
+  onPress,
   onDelete,
 }: {
   photo: SprayDiaryPhoto;
+  onPress: () => void;
   onDelete: (id: number) => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  // Prevent onPress from firing when the gesture was a long-press
+  const wasLongPress = useRef(false);
+
+  const handlePress = () => {
+    if (wasLongPress.current) {
+      wasLongPress.current = false;
+      return;
+    }
+    onPress();
+  };
 
   const handleLongPress = () => {
+    wasLongPress.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Photo Options", undefined, [
       {
@@ -112,7 +399,7 @@ function SprayPhotoThumbnail({
   };
 
   return (
-    <Pressable style={styles.thumbnail} onLongPress={handleLongPress}>
+    <Pressable style={styles.thumbnail} onPress={handlePress} onLongPress={handleLongPress}>
       <View style={styles.thumbImgBox}>
         {uri ? (
           <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
@@ -141,6 +428,7 @@ function SprayDiaryPhotoSection({
   const [photos, setPhotos] = useState<SprayDiaryPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
@@ -223,32 +511,41 @@ function SprayDiaryPhotoSection({
         <Text style={editStyles.photoSectionTitle}>Application Photos</Text>
         <Text style={editStyles.photoCount}>{photos.length} attached</Text>
       </View>
-      <Text style={editStyles.photoHint}>Long-press a photo to delete it.</Text>
+      <Text style={editStyles.photoHint}>Tap to view full-screen · Long-press to delete.</Text>
 
       {loading ? (
         <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
       ) : (
-        <FlatList
-          data={photos}
-          keyExtractor={(item) => String(item.id)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled
-          style={{ marginTop: spacing.sm }}
-          contentContainerStyle={{ gap: spacing.sm }}
-          renderItem={({ item }) => (
-            <SprayPhotoThumbnail
-              photo={item}
-              onDelete={handleDeletePhoto}
-            />
-          )}
-          ListEmptyComponent={
-            <View style={editStyles.emptyPhotos}>
-              <Feather name="image" size={20} color={colors.textSecondary} />
-              <Text style={editStyles.emptyPhotosText}>No photos yet</Text>
-            </View>
-          }
-        />
+        <>
+          <FlatList
+            data={photos}
+            keyExtractor={(item) => String(item.id)}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            scrollEnabled
+            style={{ marginTop: spacing.sm }}
+            contentContainerStyle={{ gap: spacing.sm }}
+            renderItem={({ index, item }) => (
+              <SprayPhotoThumbnail
+                photo={item}
+                onPress={() => setLightboxIndex(index)}
+                onDelete={handleDeletePhoto}
+              />
+            )}
+            ListEmptyComponent={
+              <View style={editStyles.emptyPhotos}>
+                <Feather name="image" size={20} color={colors.textSecondary} />
+                <Text style={editStyles.emptyPhotosText}>No photos yet</Text>
+              </View>
+            }
+          />
+          <SprayPhotoLightbox
+            photos={photos}
+            initialIndex={lightboxIndex ?? 0}
+            visible={lightboxIndex !== null}
+            onClose={() => setLightboxIndex(null)}
+          />
+        </>
       )}
 
       <Pressable
@@ -1077,5 +1374,78 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     maxWidth: 80,
+  },
+});
+
+// ─── Lightbox Styles ──────────────────────────────────────────────────────────
+
+const lbStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  counter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  counterText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.85)",
+    letterSpacing: 0.5,
+  },
+  imageContainer: {
+    width: SCREEN.width,
+    height: SCREEN.height,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  image: {
+    width: SCREEN.width,
+    height: SCREEN.height,
+  },
+  captionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  captionText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    textAlign: "center",
+  },
+  hintBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  hintText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center",
   },
 });
