@@ -156,6 +156,14 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [photoLightboxIndex, setPhotoLightboxIndex] = useState(0);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+
+  // Clear any pending upload when the viewed record changes or the dialog closes
+  useEffect(() => {
+    setPendingPhotoFile(null);
+    setPendingPhotoCaption("");
+  }, [view?.id]);
 
   // Fetch photos for the currently-viewed record; refresh every 4 min to keep presigned URLs valid
   const { data: sprayPhotosData, isLoading: sprayPhotosLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
@@ -169,17 +177,19 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   });
   const sprayPhotos = sprayPhotosData?.photos ?? [];
 
-  async function handlePhotoUpload(file: File) {
+  async function handlePhotoUpload(file: File, caption: string) {
     if (typeof view?.id !== "number") return;
     setUploadingPhoto(true);
     try {
       const uploaded = await uploadFile(file);
       if (!uploaded?.objectPath) throw new Error("Upload failed");
+      const body: Record<string, unknown> = { objectPath: uploaded.objectPath, fileName: file.name };
+      if (caption.trim()) body.caption = caption.trim();
       const res = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${view.id}/photos`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ objectPath: uploaded.objectPath, fileName: file.name }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
       void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, view.id] });
@@ -188,6 +198,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       toast({ title: "Failed to upload photo", variant: "destructive" });
     } finally {
       setUploadingPhoto(false);
+      setPendingPhotoFile(null);
+      setPendingPhotoCaption("");
     }
   }
 
@@ -669,21 +681,68 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                       className="hidden"
                       onChange={e => {
                         const f = e.target.files?.[0];
-                        if (f) void handlePhotoUpload(f);
+                        if (f) { setPendingPhotoFile(f); setPendingPhotoCaption(""); }
                         e.target.value = "";
                       }}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 gap-1 text-xs"
-                      onClick={() => photoFileRef.current?.click()}
-                      disabled={uploadingPhoto}
-                    >
-                      {uploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                      {uploadingPhoto ? "Uploading…" : "Add photo"}
-                    </Button>
+                    {!pendingPhotoFile && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 gap-1 text-xs"
+                        onClick={() => photoFileRef.current?.click()}
+                        disabled={uploadingPhoto}
+                      >
+                        <Upload className="w-3 h-3" />
+                        Add photo
+                      </Button>
+                    )}
                   </div>
+                  {/* ── Caption input shown after file is chosen, before upload ── */}
+                  {pendingPhotoFile && (
+                    <div className="mt-2 rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                      <p className="text-xs font-medium truncate text-muted-foreground">
+                        <Camera className="w-3 h-3 inline mr-1" />
+                        {pendingPhotoFile.name}
+                      </p>
+                      <div className="space-y-1">
+                        <Label htmlFor="photo-caption" className="text-xs">Caption <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                        <Input
+                          id="photo-caption"
+                          value={pendingPhotoCaption}
+                          onChange={e => setPendingPhotoCaption(e.target.value)}
+                          placeholder="e.g. before spray, canopy coverage, batch label…"
+                          className="h-8 text-xs"
+                          disabled={uploadingPhoto}
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === "Enter") { e.preventDefault(); void handlePhotoUpload(pendingPhotoFile, pendingPhotoCaption); }
+                            if (e.key === "Escape") { setPendingPhotoFile(null); setPendingPhotoCaption(""); }
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-7 px-3 text-xs gap-1"
+                          onClick={() => void handlePhotoUpload(pendingPhotoFile, pendingPhotoCaption)}
+                          disabled={uploadingPhoto}
+                        >
+                          {uploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                          {uploadingPhoto ? "Uploading…" : "Upload"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-3 text-xs"
+                          onClick={() => { setPendingPhotoFile(null); setPendingPhotoCaption(""); }}
+                          disabled={uploadingPhoto}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {sprayPhotosLoading && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                       <Loader2 className="w-3 h-3 animate-spin" /> Loading photos…
