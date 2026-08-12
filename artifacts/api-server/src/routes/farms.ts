@@ -23485,7 +23485,40 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
     // Station is considered connected if any aggregated row contains temperature data
     const hasWeatherStation = dailyWeather.some(r => r.tmax != null || r.tmin != null);
 
-    res.json({ fields, assignment, dailyWeather, hasWeatherStation, year });
+    // ── 4. Open-Meteo 7-day forecast rainfall (free, no API key required) ────
+    // Use the farm's lat/lng if available; gracefully falls back to null.
+    let forecastRainfall7dMm: number | null = null;
+    try {
+      const [farmRow] = await db
+        .select({ latitude: farmsTable.latitude, longitude: farmsTable.longitude })
+        .from(farmsTable)
+        .where(eq(farmsTable.id, farmId))
+        .limit(1);
+      const lat = farmRow?.latitude ? parseFloat(farmRow.latitude) : null;
+      const lng = farmRow?.longitude ? parseFloat(farmRow.longitude) : null;
+      if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&forecast_days=7&timezone=Europe%2FLondon`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const resp = await fetch(url, { signal: controller.signal });
+          if (resp.ok) {
+            const json = await resp.json() as {
+              daily?: { precipitation_sum?: (number | null)[] };
+            };
+            const sums = json.daily?.precipitation_sum ?? [];
+            const total = sums.reduce<number>((acc, v) => acc + (v ?? 0), 0);
+            forecastRainfall7dMm = Math.round(total * 10) / 10;
+          }
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+    } catch {
+      // Non-fatal — forecast is optional
+    }
+
+    res.json({ fields, assignment, dailyWeather, hasWeatherStation, forecastRainfall7dMm, year });
   } catch (err) {
     console.error("[IRRIGATION-ADVISOR] GET:", err);
     res.status(500).json({ error: "Failed to fetch irrigation advisor data" });

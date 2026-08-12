@@ -83,6 +83,8 @@ interface AdvisorPayload {
   /** Pre-aggregated daily weather: at most one row per calendar day, ≤ 60 rows total. */
   dailyWeather: DailyWeatherRow[];
   hasWeatherStation: boolean;
+  /** 7-day rainfall forecast from Open-Meteo (null when farm has no location set). */
+  forecastRainfall7dMm: number | null;
   year: number;
 }
 
@@ -259,11 +261,28 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
 
   // ── Cost defaults — seeded from localStorage, fallback to platform config ──
   const [defaults, setDefaultsState] = useState<IrrigDefaults>(() => loadDefaults(farmId));
-  // Seed from platform config if this farm has no localStorage overrides
-  const seededRef = useRef(false);
+
+  // ── Reset all per-farm UI state when the active farm changes ─────────────
+  // (The component may stay mounted while the parent switches farmId.)
+  const prevFarmIdRef = useRef(farmId);
   useEffect(() => {
-    if (!platformConfig || seededRef.current) return;
-    seededRef.current = true;
+    if (prevFarmIdRef.current === farmId) return;
+    prevFarmIdRef.current = farmId;
+    setDefaultsState(loadDefaults(farmId));
+    // Refs reset so the seeding effects re-run for the new farm.
+    // (rainfallFromForecast state + ref cleared via setForecastFlag below;
+    //  both are in scope because this callback runs after all declarations.)
+    setForecastFlag(false); // eslint-disable-line no-use-before-define
+    configSeededForFarmRef.current = null;  // eslint-disable-line no-use-before-define
+    forecastSeededForFarmRef.current = null; // eslint-disable-line no-use-before-define
+  }, [farmId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Seed from platform config if this farm has no localStorage overrides.
+  // Keyed by farmId so switching farms re-triggers seeding for the new farm.
+  const configSeededForFarmRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!platformConfig || configSeededForFarmRef.current === farmId) return;
+    configSeededForFarmRef.current = farmId;
     if (localStorage.getItem(LS_KEY(farmId))) return; // already have farm overrides
     const serverCost = platformConfig["irrigation.costPerMmHa"];
     if (serverCost) {
@@ -274,7 +293,17 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   function updateDefault(key: keyof IrrigDefaults, value: string) {
     const next = { ...defaults, [key]: value };
     setDefaultsState(next);
-    saveDefaults(farmId, next);
+    // Do NOT persist a forecast-seeded rainfall value as a user override when
+    // an unrelated field is saved — that would freeze the old forecast and
+    // prevent re-seeding on the next mount.  Only write expectedRainfall7dMm
+    // to localStorage when the user explicitly edits that field.
+    if (key !== "expectedRainfall7dMm" && rainfallFromForecastRef.current) { // eslint-disable-line no-use-before-define
+      const { expectedRainfall7dMm: _omit, ...rest } = next;
+      void _omit;
+      saveDefaults(farmId, rest as IrrigDefaults);
+    } else {
+      saveDefaults(farmId, next);
+    }
   }
 
   // ── Manual data entry mode (when no weather station) ──────────────────────
@@ -282,7 +311,7 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   const [manualRows, setManualRows] = useState<ManualDay[]>(() => makeManualDays());
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const { data, isLoading, isError } = useQuery<AdvisorPayload>({
+  const { data, isLoading, isFetching, isError } = useQuery<AdvisorPayload>({
     queryKey: ["irrigation-advisor", farmId, selectedFieldId, year],
     queryFn: () => {
       const params = new URLSearchParams({ year });
@@ -291,6 +320,40 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
         .then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); });
     },
   });
+
+  // ── Forecast rainfall pre-fill ────────────────────────────────────────────
+  // Keyed by farmId so switching farms re-seeds from the new farm's forecast.
+  // Guards against isFetching to ensure we never use stale data from a prior farm.
+  const forecastSeededForFarmRef = useRef<number | null>(null);
+  const [rainfallFromForecast, setRainfallFromForecast] = useState(false);
+  // Ref kept in sync with the state for synchronous reads in event handlers.
+  const rainfallFromForecastRef = useRef(false);
+  function setForecastFlag(val: boolean) {
+    rainfallFromForecastRef.current = val;
+    setRainfallFromForecast(val);
+  }
+  useEffect(() => {
+    if (!data || isFetching) return;                            // wait for fresh data
+    if (forecastSeededForFarmRef.current === farmId) return;   // already seeded for this farm
+    if (data.forecastRainfall7dMm == null) {
+      forecastSeededForFarmRef.current = farmId;               // no forecast available — mark done
+      return;
+    }
+    forecastSeededForFarmRef.current = farmId;
+    // Only pre-fill when there is no manually-edited localStorage override for rainfall
+    const stored = localStorage.getItem(LS_KEY(farmId));
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as Partial<IrrigDefaults>;
+        if (parsed.expectedRainfall7dMm != null) return; // user has a stored preference
+      } catch { /* ignore */ }
+    }
+    setDefaultsState(prev => ({
+      ...prev,
+      expectedRainfall7dMm: String(data.forecastRainfall7dMm),
+    }));
+    setForecastFlag(true);
+  }, [data, isFetching, farmId]);
 
   // ── Field/crop derivations ─────────────────────────────────────────────────
   const field = useMemo(
@@ -688,14 +751,29 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                 <p className="text-xs text-muted-foreground">mm per irrigation run</p>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Expected rain (7d, mm)</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Expected rain (7d, mm)</Label>
+                  {rainfallFromForecast && data?.forecastRainfall7dMm != null && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                      <CloudRain className="w-2.5 h-2.5" />
+                      Forecast
+                    </span>
+                  )}
+                </div>
                 <Input
                   type="number" step="1" min="0"
                   value={defaults.expectedRainfall7dMm}
-                  onChange={e => updateDefault("expectedRainfall7dMm", e.target.value)}
+                  onChange={e => {
+                    setForecastFlag(false);
+                    updateDefault("expectedRainfall7dMm", e.target.value);
+                  }}
                   className="h-8 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">Forecast / estimate</p>
+                <p className="text-xs text-muted-foreground">
+                  {rainfallFromForecast && data?.forecastRainfall7dMm != null
+                    ? "Pre-filled from Open-Meteo forecast"
+                    : "Forecast / estimate"}
+                </p>
               </div>
             </div>
           </div>
