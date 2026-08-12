@@ -2125,7 +2125,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName); }}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, batchTrailEmbed.sig, batchTrailEmbed.signerInfo); }} title={batchTrailEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
+              <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, batchTrailEmbed.sig, batchTrailEmbed.signerInfo, trailVessels ?? undefined); }} title={batchTrailEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
                 <Printer className="w-3.5 h-3.5 mr-1" />Print / Export PDF
                 {batchTrailEmbed.willEmbed && <ShieldCheck className="w-3.5 h-3.5 ml-1 text-green-600" aria-label="Signed — signature will be embedded" />}
               </Button>

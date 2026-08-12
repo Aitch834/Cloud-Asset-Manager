@@ -60,7 +60,7 @@ export function signatureEmbedFrom(record: Record<string, unknown> | null | unde
   };
 }
 
-export async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }) {
+export async function printBatchTrail(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, auditSig?: string | null, signerInfo?: { name: string | null; role: string | null; signedAt: string | null; signerDate?: string | null }, vessels?: Record<string, unknown>[]) {
   // Fetch attachments for the pressing record(s) (best-effort — PDF still prints if this fails).
   // In vintage scope the trail spans every pressing session in data.pressings,
   // so attachments are fetched for ALL of them (keyed per pressing id) and
@@ -110,6 +110,64 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     r.batch_ref
       ? `<span style="font-family:monospace;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:3px;white-space:nowrap">${escHtml(String(r.batch_ref))}</span>`
       : `<span style="font-size:10px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">No ref</span>`;
+
+  // ── Vessel lookup — capacity + fill status for cellar ops vessel column ──────
+  // If the caller didn't pass pre-loaded vessel data (e.g. query not yet resolved
+  // at the moment the print button was clicked), fetch it now so the PDF always
+  // has the same data as the on-screen badges.
+  let resolvedVessels: Record<string, unknown>[] = vessels ?? [];
+  if (!vessels) {
+    try {
+      const vr = await fetch(api(`farms/${farmId}/winery-vessels`), { credentials: "include" });
+      if (vr.ok) {
+        const body = await vr.json() as unknown;
+        const records = body != null && typeof body === "object" && Array.isArray((body as Record<string, unknown>).records)
+          ? (body as Record<string, unknown>).records as Record<string, unknown>[]
+          : Array.isArray(body) ? body as Record<string, unknown>[] : [];
+        resolvedVessels = records;
+      }
+    } catch {
+      // Non-fatal — PDF will still print with plain vessel refs
+    }
+  }
+  const pdfVesselByRef = new Map<string, Record<string, unknown>>();
+  for (const v of resolvedVessels) {
+    const ref = v.vessel_ref != null ? String(v.vessel_ref).trim() : "";
+    if (ref) pdfVesselByRef.set(ref.toLowerCase(), v);
+  }
+  // Renders a vessel ref as plain text + capacity badge using the same fill-tier
+  // thresholds and labels as the on-screen vesselBadge (≤0% Empty, <25% Low,
+  // <75% Partial, ≥75% Full). No interactivity in the PDF.
+  const vesselRefWithCapacity = (ref: unknown): string => {
+    if (ref == null || ref === "") return "—";
+    const trimmed = String(ref).trim();
+    const v = pdfVesselByRef.get(trimmed.toLowerCase());
+    const capacityL = v?.capacity_litres != null && v.capacity_litres !== ""
+      ? parseFloat(String(v.capacity_litres))
+      : null;
+    const currentVolL = v?.current_volume_litres != null && v.current_volume_litres !== ""
+      ? parseFloat(String(v.current_volume_litres))
+      : null;
+    const isRetired = v ? String(v.status ?? "active") === "retired" : false;
+    let capacityBadge = "";
+    if (capacityL != null) {
+      capacityBadge = `<span style="font-size:9px;background:#f3f4f6;color:#374151;padding:1px 4px;border-radius:3px;margin-left:3px;white-space:nowrap">${capacityL.toFixed(0)} L</span>`;
+    }
+    let fillBadge = "";
+    if (capacityL != null && capacityL > 0 && currentVolL != null) {
+      const pct = (currentVolL / capacityL) * 100;
+      let fillLabel: string; let fillBg: string; let fillColor: string;
+      if (pct <= 0)       { fillLabel = "Empty";   fillBg = "#f3f4f6"; fillColor = "#6b7280"; }
+      else if (pct < 25)  { fillLabel = "Low";     fillBg = "#fef3c7"; fillColor = "#92400e"; }
+      else if (pct < 75)  { fillLabel = "Partial"; fillBg = "#dbeafe"; fillColor = "#1e40af"; }
+      else                { fillLabel = "Full";    fillBg = "#dcfce7"; fillColor = "#166534"; }
+      fillBadge = `<span style="font-size:9px;background:${fillBg};color:${fillColor};padding:1px 4px;border-radius:3px;margin-left:3px;white-space:nowrap">${fillLabel}</span>`;
+    }
+    const retiredBadge = isRetired
+      ? `<span style="font-size:9px;background:#fee2e2;color:#b91c1c;padding:1px 4px;border-radius:3px;margin-left:3px;white-space:nowrap">Retired</span>`
+      : "";
+    return `${escHtml(trimmed)}${capacityBadge}${fillBadge}${retiredBadge}`;
+  };
 
   const sectionHtml = (title: string, rows: string) =>
     rows ? `<div class="section"><h2>${escHtml(title)}</h2><table>${rows}</table></div>` : "";
@@ -478,7 +536,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     return `<tr${isSulfiting ? ' style="background:#fefce8"' : ""}>
     <td>${escHtml(fmtDate(r.op_date))}</td>
     <td>${escHtml(CELLAR_OP_LABELS[String(r.op_type)] ?? r.op_type)}</td>
-    <td>${[r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).map(escHtml).join(" → ")}</td>
+    <td>${[r.from_vessel_ref, r.to_vessel_ref].filter(v => v != null && v !== "").map(vesselRefWithCapacity).join(" → ")}</td>
     <td style="text-align:right">${r.volume_moved_litres != null ? parseFloat(String(r.volume_moved_litres)).toFixed(1) : "—"}</td>
     <td style="font-family:monospace">${isSulfiting ? so2Detail : "—"}</td>
     <td style="text-align:right;font-family:monospace">${runningCell}</td>
