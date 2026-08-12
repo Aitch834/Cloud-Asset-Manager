@@ -9,7 +9,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
-  Camera, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Camera, ChevronLeft, ChevronRight as ChevronRightIcon, Trash,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -78,6 +78,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [printBlockFilter, setPrintBlockFilter] = useState("__all__");
   const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
+  const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -221,6 +222,29 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     },
     onError: () => {
       toast({ title: "Failed to update block", variant: "destructive" });
+    },
+  });
+
+  // ── Delete scouting photo ─────────────────────────────────────────────────
+  const deletePhotoMutation = useMutation({
+    mutationFn: async ({ scoutingId, photoId }: { scoutingId: number; photoId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed to delete photo");
+      return r.json();
+    },
+    onSuccess: () => {
+      // Clamp index before refetch in case we deleted the last photo in the list
+      setLightboxPhotoIndex(prev => Math.max(0, Math.min(prev, lightboxPhotos.length - 2)));
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+      setDeletePhotoId(null);
+      toast({ title: "Photo deleted", description: "The photo has been removed from this scouting record." });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete photo", variant: "destructive" });
     },
   });
 
@@ -551,13 +575,24 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
           )}
 
           {!lightboxLoading && !!currentPhoto && (
-            <div className="relative">
+            <div className="relative group/lightbox">
               <img
                 src={String(currentPhoto.downloadUrl ?? "")}
                 alt={String(currentPhoto.fileName ?? "Scouting photo")}
                 className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
                 onError={e => { (e.target as HTMLImageElement).src = ""; }}
               />
+
+              {/* Delete button — visible on hover or keyboard focus */}
+              <button
+                type="button"
+                onClick={() => setDeletePhotoId(currentPhoto.id as number)}
+                className="absolute top-2 right-2 rounded-full bg-black/50 hover:bg-red-600/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
+                aria-label="Delete photo"
+                title="Delete this photo"
+              >
+                <Trash className="w-4 h-4" />
+              </button>
 
               {/* Prev / Next controls */}
               {lightboxPhotos.length > 1 && (
@@ -623,6 +658,18 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
           module="Viticulture"
         />
       )}
+
+      {/* Delete photo confirm */}
+      <ConfirmDialog
+        open={deletePhotoId !== null}
+        title="Delete photo?"
+        message="This photo will be permanently removed from the scouting record. This cannot be undone."
+        confirmLabel="Delete photo"
+        confirmVariant="destructive"
+        onConfirm={() => deletePhotoMutation.mutate({ scoutingId: lightboxScoutingId!, photoId: deletePhotoId! })}
+        onCancel={() => { setDeletePhotoId(null); deletePhotoMutation.reset(); }}
+        mutation={deletePhotoMutation}
+      />
 
       {/* Unlink confirm */}
       <ConfirmDialog
