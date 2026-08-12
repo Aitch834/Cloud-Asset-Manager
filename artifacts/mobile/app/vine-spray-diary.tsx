@@ -55,12 +55,22 @@ function SprayPhotoThumbnail({
   photo,
   onDelete,
   onPress,
+  onReload,
 }: {
   photo: SprayDiaryPhoto;
   onDelete: (id: number) => void;
   onPress: (photo: SprayDiaryPhoto) => void;
+  onReload?: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state whenever the URL is refreshed so the image retries
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -86,8 +96,22 @@ function SprayPhotoThumbnail({
   return (
     <Pressable style={styles.thumbnail} onLongPress={handleLongPress} onPress={() => onPress(photo)}>
       <View style={styles.thumbImgBox}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={styles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <Pressable
+            style={styles.thumbPlaceholder}
+            onPress={() => { onReload?.(); }}
+            hitSlop={8}
+          >
+            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+          </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Feather name="image" size={24} color={colors.textSecondary} />
@@ -245,6 +269,7 @@ function SprayDiaryPhotoSection({
               photo={item}
               onDelete={handleDeletePhoto}
               onPress={handlePressPhoto}
+              onReload={() => loadPhotos({ silent: true })}
             />
           )}
           ListEmptyComponent={
@@ -655,6 +680,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.borderLight,
   },
+  thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
   captionBelow: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
