@@ -2,8 +2,9 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { sanitiseCsvCell } from "@/lib/csv";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
+import { apiUrl } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -626,8 +627,12 @@ function GrainPositionTab({ farmId, year, onRegisterExport }: { farmId: number; 
   );
 }
 
+const MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+type MilestoneStatus = typeof MILESTONE_STATUSES[number];
+
 // ── Subsidies Tab ────────────────────────────────────────────────────────────
 function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["report-subsidies", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/subsidies?year=${year}`).then(r => r.json()),
@@ -640,6 +645,29 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
   const agriEnvMilestones: any[] = data?.agriEnvMilestones ?? [];
 
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+  const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
+
+  const updateMilestoneStatus = useMutation({
+    mutationFn: async ({ milestoneId, projectId, status }: { milestoneId: number; projectId: number; status: string }) => {
+      const res = await fetch(apiUrl(`farms/${farmId}/agri-env-projects/${projectId}/milestones/${milestoneId}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update milestone status");
+      return res.json();
+    },
+    onSuccess: () => {
+      setMilestoneError(null);
+      queryClient.invalidateQueries({ queryKey: ["report-subsidies", farmId, year] });
+      queryClient.invalidateQueries({ queryKey: ["report-gross-margin", farmId, year] });
+    },
+    onError: () => {
+      setMilestoneError("Failed to update milestone status. Please try again.");
+    },
+    onSettled: () => setUpdatingMilestone(null),
+  });
 
   const milestonesByProject = useMemo(() => {
     const m: Record<number, any[]> = {};
@@ -845,7 +873,9 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {pMilestones.map((ms: any, mi: number) => (
+                                  {pMilestones.map((ms: any, mi: number) => {
+                                    const isUpdating = updatingMilestone === ms.id;
+                                    return (
                                     <tr key={ms.id} style={{ borderBottom: mi < pMilestones.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                                       <td style={{ padding: "0.45rem 0.875rem", paddingLeft: "1.25rem", color: "#374151" }}>{ms.milestoneName}</td>
                                       <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{ms.dueDate ? new Date(ms.dueDate).toLocaleDateString("en-GB") : "—"}</td>
@@ -853,18 +883,45 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                       <td style={{ padding: "0.45rem 0.875rem", fontWeight: ms.claimAmountPence != null ? 600 : undefined, color: ms.claimAmountPence != null ? "#166534" : "#9ca3af" }}>
                                         {ms.claimAmountPence != null ? fmt(ms.claimAmountPence) : "—"}
                                       </td>
-                                      <td style={{ padding: "0.45rem 0.875rem" }}>
-                                        <span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "2px 7px", borderRadius: 20, textTransform: "capitalize", ...msStatusStyle(ms.status) }}>
-                                          {ms.status}
-                                        </span>
-                                        {(ms.status !== "submitted" && ms.status !== "paid") && ms.claimAmountPence != null && (
-                                          <span style={{ marginLeft: 6, fontSize: "0.7rem", color: "#b45309" }}>outstanding</span>
-                                        )}
+                                      <td style={{ padding: "0.45rem 0.875rem" }} onClick={e => e.stopPropagation()}>
+                                        <select
+                                          disabled={isUpdating}
+                                          value={ms.status ?? "pending"}
+                                          onChange={e => {
+                                            const newStatus = e.target.value as MilestoneStatus;
+                                            setUpdatingMilestone(ms.id);
+                                            updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus });
+                                          }}
+                                          style={{
+                                            fontSize: "0.7rem",
+                                            fontWeight: 600,
+                                            padding: "2px 22px 2px 7px",
+                                            borderRadius: 20,
+                                            textTransform: "capitalize",
+                                            border: "1px solid transparent",
+                                            cursor: isUpdating ? "wait" : "pointer",
+                                            appearance: "auto",
+                                            opacity: isUpdating ? 0.6 : 1,
+                                            ...msStatusStyle(ms.status ?? "pending"),
+                                          }}
+                                        >
+                                          {MILESTONE_STATUSES.map(s => (
+                                            <option key={s} value={s} style={{ textTransform: "capitalize" }}>{s}</option>
+                                          ))}
+                                        </select>
                                       </td>
                                     </tr>
-                                  ))}
+                                    );
+                                  })}
                                 </tbody>
                               </table>
+                              {milestoneError && (
+                                <div style={{ padding: "0.5rem 0.875rem", background: "#fef2f2", borderTop: "1px solid #fecaca", color: "#991b1b", fontSize: "0.78rem", display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span>⚠</span>
+                                  <span>{milestoneError}</span>
+                                  <button onClick={() => setMilestoneError(null)} style={{ marginLeft: "auto", fontSize: "0.75rem", color: "#991b1b", background: "none", border: "none", cursor: "pointer", padding: "0 4px" }}>✕</button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                           <tr style={{ borderBottom: i < agriEnvProjects.length - 1 ? "1px solid #f3f4f6" : "none" }}>
