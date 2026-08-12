@@ -120,25 +120,59 @@ export const CROP_PROFILES: Record<string, CropProfile> = {
 /**
  * Available water capacity (AWC, mm) per effective root zone by soil type.
  * Based on AHDB soil texture guide for UK conditions.
+ * Keys are lowercase space-separated; getFieldCapacity() normalises underscores before lookup.
  */
 export const FIELD_CAPACITY_BY_SOIL: Record<string, number> = {
+  // Coarse / light-textured
+  "sand": 90,
   "light sandy": 90,
   "sandy": 90,
   "loamy sand": 100,
+  // Medium-light
   "sandy loam": 120,
   "light loam": 135,
+  "sandy clay loam": 145,
+  // Medium
   "medium loam": 150,
   "loam": 150,
+  // Medium-fine / silty
   "silty loam": 155,
   "silt loam": 155,
   "silt": 155,
+  // Fine
   "clay loam": 160,
+  "sandy clay": 160,
   "silty clay loam": 165,
+  "silty clay": 170,
+  // Heavy
   "heavy clay": 175,
   "clay": 175,
+  // Organic
   "peat": 200,
 };
 export const DEFAULT_FIELD_CAPACITY_MM = 150; // medium loam default
+
+/**
+ * Canonical MAFF/AHDB texture classes shown in field-edit dropdowns.
+ * Values match the keys used in FIELD_CAPACITY_BY_SOIL (underscore format for DB storage).
+ */
+export const SOIL_TYPE_OPTIONS: { value: string; label: string; awcMm: number }[] = [
+  { value: "sand",             label: "Sand",             awcMm: 90  },
+  { value: "loamy_sand",       label: "Loamy Sand",       awcMm: 100 },
+  { value: "sandy_loam",       label: "Sandy Loam",       awcMm: 120 },
+  { value: "light_loam",       label: "Light Loam",       awcMm: 135 },
+  { value: "sandy_clay_loam",  label: "Sandy Clay Loam",  awcMm: 145 },
+  { value: "medium_loam",      label: "Medium Loam",      awcMm: 150 },
+  { value: "silty_loam",       label: "Silty Loam",       awcMm: 155 },
+  { value: "silt",             label: "Silt",             awcMm: 155 },
+  { value: "clay_loam",        label: "Clay Loam",        awcMm: 160 },
+  { value: "sandy_clay",       label: "Sandy Clay",       awcMm: 160 },
+  { value: "silty_clay_loam",  label: "Silty Clay Loam",  awcMm: 165 },
+  { value: "silty_clay",       label: "Silty Clay",       awcMm: 170 },
+  { value: "clay",             label: "Clay",             awcMm: 175 },
+  { value: "heavy_clay",       label: "Heavy Clay",       awcMm: 175 },
+  { value: "peat",             label: "Peat",             awcMm: 200 },
+];
 
 /**
  * UK monthly reference ET₀ normals (mm/day) — mean for ~52°N (Midlands).
@@ -171,12 +205,19 @@ export function matchCropProfile(cropName: string): CropProfile | null {
   return null;
 }
 
-/** Return available water capacity (mm) for a given soil type string */
+/** Return available water capacity (mm) for a given soil type string.
+ *  Accepts both underscore format (DB storage, e.g. "medium_loam") and
+ *  space-separated format (legacy free-text, e.g. "medium loam").
+ */
 export function getFieldCapacity(soilType?: string | null): number {
   if (!soilType) return DEFAULT_FIELD_CAPACITY_MM;
-  const lower = soilType.toLowerCase().trim();
+  // Normalise: lowercase, trim, underscores → spaces
+  const normalised = soilType.toLowerCase().trim().replace(/_/g, " ");
+  // Exact match first (avoids "silty clay" → "silty clay loam" false-positive)
+  if (FIELD_CAPACITY_BY_SOIL[normalised] !== undefined) return FIELD_CAPACITY_BY_SOIL[normalised];
+  // Substring containment fallback for legacy free-text values
   for (const [key, fc] of Object.entries(FIELD_CAPACITY_BY_SOIL)) {
-    if (lower.includes(key) || key.includes(lower)) return fc;
+    if (normalised.includes(key) || key.includes(normalised)) return fc;
   }
   return DEFAULT_FIELD_CAPACITY_MM;
 }

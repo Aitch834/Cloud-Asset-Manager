@@ -47,6 +47,7 @@ import { printProReport } from "@/lib/print-report";
 import { printSeedBagLabels } from "@/lib/print-labels";
 import { cropYearOptions, cropYearLabel, currentCropYear, isInCropYear } from "@/lib/cropYear";
 import { getEstablishmentPercent, calculateSeedRate, suggestTargetPopulation, BLACKGRASS_TARGET_POPULATION_M2 } from "@/lib/seedRateCalculator";
+import { SOIL_TYPE_OPTIONS } from "@/lib/irrigationData";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
 import CropSeasonReport from "@/components/CropSeasonReport";
@@ -737,7 +738,15 @@ export function FieldCardMenu({
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Soil Type</label>
-                <Input {...register("soilType")} placeholder="e.g. Clay loam" />
+                <select
+                  {...register("soilType")}
+                  className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">— Select soil type —</option>
+                  {SOIL_TYPE_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div>
