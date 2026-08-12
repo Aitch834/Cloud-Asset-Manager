@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiPigFlocks } from "@/lib/hooks/useApiPigFlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigMedicineTreatment } from "@/lib/types";
 
@@ -40,6 +42,10 @@ export default function PigMedicineTreatmentScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { flocks, loading: flocksLoading, fromCache, error: flocksError } = useApiPigFlocks(currentFarm?.id);
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("pig-medicine", currentFarm?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);
 
   const [flockId, setFlockId] = useState<number>(0);
@@ -129,6 +135,39 @@ export default function PigMedicineTreatmentScreen() {
         <Text style={styles.title}>Medicine Treatment</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      {justSaved && !missingIdentifiers && !identifiersLoading && (
+        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
+          <Feather name="check-circle" size={15} color="#166534" />
+          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
+            Identifiers saved successfully. Tap to dismiss.
+          </Text>
+        </Pressable>
+      )}
+
+      {missingIdentifiers && !bannerDismissed && (
+        <Pressable
+          onPress={() => router.push("/(tabs)/more")}
+          style={styles.identifierBanner}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.identifierBannerText}>
+            {!cphNumber && !sbiNumber
+              ? "CPH and SBI are missing from your farm profile — required for pig medicine records."
+              : !cphNumber
+              ? "CPH number is missing from your farm profile — required for pig medicine records."
+              : "SBI number is missing from your farm profile — required for pig medicine records."}
+            {" "}Tap to go to Settings.
+          </Text>
+          <Pressable
+            onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Dismiss warning"
+          >
+            <Feather name="x" size={15} color="#92400e" />
+          </Pressable>
+        </Pressable>
+      )}
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
@@ -270,4 +309,30 @@ const styles = StyleSheet.create({
   toggleLabel: { fontFamily: fonts.medium, fontSize: fontSize.md, color: colors.text },
   warningBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#fef3c7", borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: "#fbbf24" },
   warningText: { fontFamily: fonts.medium, fontSize: fontSize.sm, color: "#92400e", flex: 1 },
+  identifierBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  identifierBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
+  identifierBannerSaved: {
+    backgroundColor: colors.successBg,
+    borderColor: "#86EFAC",
+  },
+  identifierBannerSavedText: {
+    color: "#166534",
+  },
 });
