@@ -18,14 +18,14 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import {
   Loader2, Sprout, Gauge, CloudRain, TrendingDown, TrendingUp,
-  Minus, Info, Thermometer, BarChart3, AlertCircle,
+  Minus, Info, Thermometer, BarChart3, AlertCircle, PlusCircle,
 } from "lucide-react";
 import { apiUrl as api } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,6 +33,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   matchCropProfile,
   getFieldCapacity,
@@ -181,7 +184,7 @@ function SmdGauge({ smd, fc, critical }: { smd: number; fc: number; critical: nu
   );
 }
 
-function ScenarioCard({ result, accent, icon }: { result: ScenarioResult; accent: string; icon: React.ReactNode }) {
+function ScenarioCard({ result, accent, icon, onLog }: { result: ScenarioResult; accent: string; icon: React.ReactNode; onLog?: () => void }) {
   const netPositive = result.netBenefit >= 0;
   return (
     <div className={`rounded-lg border p-4 space-y-3 ${accent}`}>
@@ -219,7 +222,161 @@ function ScenarioCard({ result, accent, icon }: { result: ScenarioResult; accent
           {netPositive ? "+" : ""}{fmtGbp(result.netBenefit)}
         </span>
       </div>
+      {result.irrigationMm > 0 && onLog && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full text-xs h-7"
+          onClick={onLog}
+        >
+          <PlusCircle className="w-3.5 h-3.5 mr-1" />
+          Log this application
+        </Button>
+      )}
     </div>
+  );
+}
+
+// ─── Log Application Dialog ───────────────────────────────────────────────────
+
+interface LogAppPrefill {
+  fieldId: string;
+  fieldName: string;
+  cropName: string;
+  applicationDepthMm: number;
+  scenarioLabel: string;
+}
+
+function LogApplicationDialog({
+  farmId,
+  prefill,
+  onClose,
+}: {
+  farmId: number;
+  prefill: LogAppPrefill;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    irrigationDate: today,
+    cropType: prefill.cropName,
+    applicationDepthMm: String(prefill.applicationDepthMm),
+    irrigationMethod: "Overhead sprinkler",
+    status: "closed",
+    notes: "",
+  });
+
+  const save = useMutation({
+    mutationFn: (b: Record<string, unknown>) =>
+      fetch(api(`farms/${farmId}/irrigation-records`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(b),
+      }).then(async r => {
+        if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); }
+        return r;
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["irrig-records", farmId] });
+      onClose();
+    },
+  });
+
+  function handleSave() {
+    const payload: Record<string, unknown> = {
+      irrigationDate: form.irrigationDate,
+      cropType: form.cropType || undefined,
+      applicationDepthMm: form.applicationDepthMm ? parseFloat(form.applicationDepthMm) : undefined,
+      irrigationMethod: form.irrigationMethod,
+      status: form.status,
+      notes: form.notes || undefined,
+    };
+    if (prefill.fieldId) payload.fieldId = parseInt(prefill.fieldId);
+    save.mutate(payload);
+  }
+
+  return (
+    <Dialog open onOpenChange={v => { if (!v) { save.reset(); onClose(); } }}>
+      <DialogContent style={{ maxWidth: "32rem" }}>
+        <DialogHeader>
+          <DialogTitle>Log Irrigation Application</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Pre-filled from the <strong>{prefill.scenarioLabel}</strong> scenario — adjust before saving.
+          The record will appear in the Applications tab.
+        </p>
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          <div>
+            <Label>Date *</Label>
+            <Input
+              type="date"
+              value={form.irrigationDate}
+              onChange={e => setForm(f => ({ ...f, irrigationDate: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Field</Label>
+            <Input value={prefill.fieldName} readOnly className="bg-muted/50 text-muted-foreground" />
+          </div>
+          <div>
+            <Label>Crop Type</Label>
+            <Input
+              value={form.cropType}
+              onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))}
+              placeholder="e.g. Wheat"
+            />
+          </div>
+          <div>
+            <Label>Application Depth (mm)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={form.applicationDepthMm}
+              onChange={e => setForm(f => ({ ...f, applicationDepthMm: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Method *</Label>
+            <Select value={form.irrigationMethod} onValueChange={v => setForm(f => ({ ...f, irrigationMethod: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["Overhead sprinkler", "Drip / trickle", "Furrow / flood", "Pivot", "Boom", "Traveller", "Hand-held", "Other"].map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="closed">Complete</SelectItem>
+                <SelectItem value="open">Open (in progress)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label>Notes</Label>
+            <Input
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Optional notes"
+            />
+          </div>
+        </div>
+        <DialogMutationError mutation={save} message="Failed to save — please try again." />
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Log Application
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -250,6 +407,9 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   // ── Selection state ────────────────────────────────────────────────────────
   const [selectedFieldId, setSelectedFieldId] = useState<string>("");
   const [year, setYear] = useState<string>(String(currentYear));
+
+  // ── Log-application dialog ─────────────────────────────────────────────────
+  const [logPrefill, setLogPrefill] = useState<LogAppPrefill | null>(null);
 
   // ── Platform config (provides server-side fallback defaults) ───────────────
   const { data: platformConfig } = useQuery<Record<string, string>>({
@@ -795,11 +955,25 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                   result={scenarios.irrigateNow}
                   accent="border bg-green-50/50"
                   icon={<TrendingUp className="w-4 h-4 text-green-600" />}
+                  onLog={() => setLogPrefill({
+                    fieldId: selectedFieldId,
+                    fieldName: field?.name ?? "",
+                    cropName: data?.assignment?.cropName ?? "",
+                    applicationDepthMm: scenarios.irrigateNow.irrigationMm,
+                    scenarioLabel: scenarios.irrigateNow.label,
+                  })}
                 />
                 <ScenarioCard
                   result={scenarios.wait7}
                   accent="border bg-yellow-50/50"
                   icon={<Minus className="w-4 h-4 text-yellow-600" />}
+                  onLog={() => setLogPrefill({
+                    fieldId: selectedFieldId,
+                    fieldName: field?.name ?? "",
+                    cropName: data?.assignment?.cropName ?? "",
+                    applicationDepthMm: scenarios.wait7.irrigationMm,
+                    scenarioLabel: scenarios.wait7.label,
+                  })}
                 />
                 <ScenarioCard
                   result={scenarios.skip}
@@ -841,6 +1015,15 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
             </p>
           </div>
         </>
+      )}
+
+      {/* ── Log Application dialog (triggered from scenario cards) ── */}
+      {logPrefill && (
+        <LogApplicationDialog
+          farmId={farmId}
+          prefill={logPrefill}
+          onClose={() => setLogPrefill(null)}
+        />
       )}
     </div>
   );
