@@ -256,9 +256,16 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
         </div>
       </div>
 
-      {/* Farm address missing warning */}
+      {/* Farm Settings missing / invalid field warning */}
       <FarmSettingsWarning
-        missingFields={farmMeta && !farmMeta.address ? ["Farm address"] : []}
+        missingFields={farmMeta ? [
+          ...(!String(farmMeta.sbiNumber ?? "").trim()
+            ? ["SBI Number"]
+            : !/^\d{9}$/.test(String(farmMeta.sbiNumber ?? "").trim())
+              ? ["SBI Number (invalid — must be exactly 9 digits)"]
+              : []),
+          ...(!String(farmMeta.address ?? "").trim() ? ["Farm address"] : []),
+        ] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
       />
