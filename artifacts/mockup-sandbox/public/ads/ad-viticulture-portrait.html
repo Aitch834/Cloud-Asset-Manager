@@ -117,22 +117,29 @@
   .platform-item { display:flex; align-items:center; gap:18px; font-size:26px; color:rgba(255,255,255,0.60); }
   .platform-item strong { color:rgba(255,255,255,0.88); font-weight:600; margin-right:6px; }
   /* CTA row */
-  .cta-row {
-    display:flex; align-items:center; gap:40px;
-    margin-top:56px;
+  /* Paper-records callout bullet — gold to draw the eye */
+  .feat-paper {
+    color:#D4A96A;
+    font-weight:600;
   }
-  .cta {
-    flex:1; display:block; background:transparent;
-    color:#C49A6C; font-weight:800; font-size:30px;
-    padding:32px 0; border-radius:10px;
-    border:2.5px solid #C49A6C;
-    text-decoration:none; text-align:center;
-    letter-spacing:0.01em;
+  .feat-paper::before {
+    background:#D4A96A;
+    width:14px; height:14px;
+  }
+  /* QR section — replaces CTA row.
+     No "Register your interest" button. The QR code IS the CTA. */
+  .qr-section {
+    margin-top:56px;
+    display:flex; flex-direction:column; align-items:center; gap:20px;
+  }
+  .qr-prompt {
+    font-size:30px; font-weight:800; color:#C49A6C;
+    letter-spacing:0.06em; text-align:center;
+    text-transform:uppercase; line-height:1.2;
   }
   .qr-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; flex-shrink:0; }
-  .qr-wrap img { width:180px; height:180px; border-radius:8px; display:block; }
-  .qr-label { font-size:20px; color:rgba(255,255,255,0.30); letter-spacing:0.04em; }
-  .url { font-size:22px; color:rgba(255,255,255,0.25); letter-spacing:0.05em; text-align:center; margin-top:16px; }
+  .qr-wrap img { width:220px; height:220px; border-radius:10px; display:block; background:#fff; padding:12px; }
+  .url { font-size:22px; color:rgba(255,255,255,0.35); letter-spacing:0.05em; text-align:center; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -155,6 +162,8 @@
       <span class="feat">Harvest &amp; must chemistry</span>
       <span class="feat">Organic viticulture</span>
       <span class="feat">Excise &amp; duty records</span>
+      <span class="feat">Winery cellar &amp; batch trail</span>
+      <span class="feat feat-paper">Eliminates all paper diaries &amp; records</span>
     </div>
     <div class="platform-strip">
       <div class="platform-label">Full farm platform included</div>
@@ -164,14 +173,13 @@
         <div class="platform-item"><strong>Cloud Security</strong> Encrypted, auto-backed-up</div>
       </div>
     </div>
-    <div class="cta-row">
-      <a class="cta" href="https://bdefarmtrac.co.uk" target="_blank" rel="noopener">Register your interest</a>
+    <div class="qr-section">
+      <div class="qr-prompt">Scan QR code for more</div>
       <div class="qr-wrap">
         <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4AQMAAAADqqSRAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAABEUlEQVQ4ja2UPQ6DMAyFH2LImBvATeBaHZBA6sC1QL1IegOPDBWvNv1D3YKxMuRbrNjvvQB/1ZOcIB3iqLc1my9AuCVBIWECGj+3tEtXIcxczuEbRZ89Huap1kXFk9jmZeR9P7+DTQ/dX1ft9PHwVjUHPT+TZLD2C2S83nXYqE9080ztKn2KQ4MTGEUy/5Y67MywZnPPtLQJXcHxvX8fX5qaj1p67TyL5cnLLZcymd+GbX9ubsCX30yZNZ91WPNHpZPLlm8nF+bXSCtZ4GarkjB/FEQ+v/NTrppv+eXpMFu+J/BRWf9wAm//merxmf8MTrwmSxbXg6wrFLXY57/18PYfakxNUPj5qwfQcq/PQf6rJ6vXn9aX9KWDAAAAAElFTkSuQmCC" alt="QR — bdefarmtrac.co.uk"/>
-        <span class="qr-label">Scan to visit</span>
       </div>
+      <div class="url">bdefarmtrac.co.uk</div>
     </div>
-    <div class="url">bdefarmtrac.co.uk</div>
   </div>
 </div>
 </div>
