@@ -158,6 +158,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [deletingPhotoId, setDeletingPhotoId] = useState<number | null>(null);
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+  // When the lightbox is opened directly from the table badge (no view dialog), store the record id here
+  const [photoOnlyRecordId, setPhotoOnlyRecordId] = useState<number | null>(null);
 
   // Clear any pending upload when the viewed record changes or the dialog closes
   useEffect(() => {
@@ -165,13 +167,16 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     setPendingPhotoCaption("");
   }, [view?.id]);
 
+  // The active record id for the photo query — either the viewed record or the badge-clicked record
+  const activePhotoRecordId = typeof view?.id === "number" ? (view.id as number) : photoOnlyRecordId;
+
   // Fetch photos for the currently-viewed record; refresh every 4 min to keep presigned URLs valid
   const { data: sprayPhotosData, isLoading: sprayPhotosLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
-    queryKey: ["vineyard-spray-diary-photos", farmId, view?.id ?? null],
+    queryKey: ["vineyard-spray-diary-photos", farmId, activePhotoRecordId],
     queryFn: () =>
-      fetch(api(`farms/${farmId}/vineyard-spray-diary/${view!.id}/photos`), { credentials: "include" })
+      fetch(api(`farms/${farmId}/vineyard-spray-diary/${activePhotoRecordId}/photos`), { credentials: "include" })
         .then(r => { if (!r.ok) throw new Error("Failed to load photos"); return r.json(); }),
-    enabled: typeof view?.id === "number",
+    enabled: activePhotoRecordId !== null,
     staleTime: 0,
     refetchInterval: 4 * 60 * 1000,
   });
@@ -621,11 +626,22 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               label: "Photos",
               render: r => {
                 const count = typeof r.photoCount === "number" ? r.photoCount : 0;
-                return count > 0
-                  ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 ring-1 ring-inset ring-blue-200">
-                      <Camera className="w-3 h-3" />{count}
-                    </span>
-                  : <span className="text-foreground/30 text-xs">—</span>;
+                if (count === 0) return <span className="text-foreground/30 text-xs">—</span>;
+                return (
+                  <button
+                    type="button"
+                    title="View photos"
+                    onClick={e => {
+                      e.stopPropagation();
+                      setPhotoOnlyRecordId(r.id as number);
+                      setPhotoLightboxIndex(0);
+                      setPhotoLightboxOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-3 h-3" />{count}
+                  </button>
+                );
               },
             },
           ]}
@@ -816,7 +832,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       {photoLightboxOpen && (() => {
         const currentPhoto = sprayPhotos[photoLightboxIndex] ?? null;
         return (
-          <Dialog open={photoLightboxOpen} onOpenChange={o => { if (!o) setPhotoLightboxOpen(false); }}>
+          <Dialog open={photoLightboxOpen} onOpenChange={o => { if (!o) { setPhotoLightboxOpen(false); setPhotoOnlyRecordId(null); } }}>
             <DialogContent className="max-w-3xl p-2">
               <DialogHeader className="px-2 pt-2 pb-1">
                 <DialogTitle className="flex items-center gap-2 text-base">
