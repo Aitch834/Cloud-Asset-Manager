@@ -852,7 +852,22 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                         <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", fontFamily: "monospace", fontSize: "0.8rem" }}>{p.agreementReference || "—"}</td>
                         <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.startDate ? new Date(p.startDate).toLocaleDateString("en-GB") : "—"}</td>
                         <td style={{ padding: "0.6rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{p.endDate ? new Date(p.endDate).toLocaleDateString("en-GB") : "Ongoing"}</td>
-                        <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>{p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—"}</td>
+                        <td style={{ padding: "0.6rem 0.875rem", fontWeight: 500 }}>
+                          {p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—"}
+                          {p.totalGrantValuePence > 0 && (() => {
+                            const pct = Math.min(100, (claimedTotal / p.totalGrantValuePence) * 100);
+                            return (
+                              <div style={{ marginTop: 4 }}>
+                                <div style={{ background: "#e5e7eb", borderRadius: 4, height: 6, width: "100%", minWidth: 80 }}>
+                                  <div style={{ background: "#166534", borderRadius: 4, height: 6, width: `${pct}%`, opacity: 0.85 }} />
+                                </div>
+                                <div style={{ fontSize: "0.68rem", color: "#6b7280", marginTop: 2, whiteSpace: "nowrap" }}>
+                                  {fmt(claimedTotal)} claimed · {pct.toFixed(0)}%
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td style={{ padding: "0.6rem 0.875rem" }}>
                           <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 8px", borderRadius: 20, textTransform: "capitalize", background: p.status === "active" ? "#dcfce7" : p.status === "completed" ? "#eff6ff" : "#f3f4f6", color: p.status === "active" ? "#166534" : p.status === "completed" ? "#1e40af" : "#374151" }}>
                             {p.status}
