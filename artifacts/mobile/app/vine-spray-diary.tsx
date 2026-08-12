@@ -1,7 +1,7 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -140,6 +140,14 @@ function SprayDiaryPhotoSection({
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
   }, [loadPhotos]);
+
+  // Immediately refresh presigned URLs on focus so photos never show as broken
+  // after the grower returns from another app (matching vine-scouting.tsx pattern)
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos({ silent: true });
+    }, [loadPhotos]),
+  );
 
   const handleAddPhoto = async () => {
     const uri = await pickPhoto("Attach Spray Diary Photo");
