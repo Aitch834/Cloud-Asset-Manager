@@ -63,9 +63,18 @@ export default function MoreScreen() {
   const [sbiDraft, setSbiDraft] = useState("");
   const [addressDraft, setAddressDraft] = useState("");
   const [postcodeDraft, setPostcodeDraft] = useState("");
+  const [postcodeBlurred, setPostcodeBlurred] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
+
+  // UK postcode: one or two alpha chars, one digit, optional alpha/digit, optional space, one digit, two alpha chars
+  const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+  const postcodeVal = postcodeDraft.trim();
+  const showPostcodeWarning =
+    postcodeBlurred &&
+    postcodeVal.length > 0 &&
+    !UK_POSTCODE_RE.test(postcodeVal);
 
   // Keep draft values in sync when identifier data loads
   useEffect(() => {
@@ -73,10 +82,13 @@ export default function MoreScreen() {
     setSbiDraft(sbiNumber ?? "");
     setAddressDraft(address ?? "");
     setPostcodeDraft(postcode ?? "");
+    setPostcodeBlurred(false);
   }, [cphNumber, sbiNumber, address, postcode]);
 
   async function saveProfile(): Promise<void> {
     if (!currentFarm?.id) return;
+    // Reveal any postcode warning if the grower taps Save without having blurred the field
+    setPostcodeBlurred(true);
     setProfileSaving(true);
     setProfileError(null);
     setProfileSaved(false);
@@ -322,12 +334,18 @@ export default function MoreScreen() {
             placeholder="e.g. DT1 1AA"
             value={postcodeDraft}
             onChangeText={t => { setPostcodeDraft(t); setProfileSaved(false); }}
+            onBlur={() => setPostcodeBlurred(true)}
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="done"
             onSubmitEditing={saveProfile}
-            containerStyle={{ marginBottom: 0 }}
+            containerStyle={{ marginBottom: showPostcodeWarning ? spacing.xs : 0 }}
           />
+          {showPostcodeWarning && (
+            <Text style={styles.postcodeWarningText}>
+              This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
+            </Text>
+          )}
           {!!profileError && (
             <Text style={styles.profileErrorText}>{profileError}</Text>
           )}
@@ -960,6 +978,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.success,
     marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  postcodeWarningText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    marginTop: -spacing.xs,
     marginBottom: spacing.sm,
   },
 });
