@@ -450,7 +450,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
               — use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
-              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> as placeholders
+              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{headline}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{body}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{accent_color}}"}</code> as placeholders
             </span>
           </label>
           <Button
@@ -476,7 +479,11 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
         />
         <p className="text-xs text-muted-foreground mt-1.5">
           The renderer substitutes placeholders then passes the resulting HTML to WeasyPrint. All fonts, logo,
-          QR code, and background image are embedded as base64 data-URIs at render time.
+          QR code, and background image are embedded as base64 data-URIs at render time.{" "}
+          <code className="bg-muted px-1 rounded">{"{{headline}}"}</code>,{" "}
+          <code className="bg-muted px-1 rounded">{"{{body}}"}</code>, and{" "}
+          <code className="bg-muted px-1 rounded">{"{{accent_color}}"}</code> are filled from the{" "}
+          <strong>Customise</strong> fields on this page; they fall back to built-in defaults when those fields are left blank.
         </p>
 
         {draftPreviewError && (
@@ -1077,7 +1084,10 @@ export default function AdPdfGenerator() {
               Add, edit, or remove ad layouts. Use <code className="text-xs bg-muted px-1 rounded">{"{{font_css}}"}</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">{"{{logo}}"}</code>,{" "}
               <code className="text-xs bg-muted px-1 rounded">{"{{bg}}"}</code>,{" "}
-              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code> in your HTML.
+              <code className="text-xs bg-muted px-1 rounded">{"{{qr}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{headline}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{body}}"}</code>,{" "}
+              <code className="text-xs bg-muted px-1 rounded">{"{{accent_color}}"}</code> in your HTML.
             </p>
           </div>
           {panel === "none" && (
