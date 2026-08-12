@@ -346,9 +346,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
   const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
 
   // Draft preview state
-  const [draftPreviewUrl,     setDraftPreviewUrl]     = useState<string | null>(null);
-  const [draftPreviewPending, setDraftPreviewPending] = useState(false);
-  const [draftPreviewError,   setDraftPreviewError]   = useState<string | null>(null);
+  const [draftBgUrl, setDraftBgUrl] = useState("");
+  const [draftPreviewUrl,     setDraftPreviewUrl]      = useState<string | null>(null);
+  const [draftPreviewPending, setDraftPreviewPending]  = useState(false);
+  const [draftPreviewError,   setDraftPreviewError]    = useState<string | null>(null);
   const prevDraftObjectUrl = useRef<string | null>(null);
   // Monotonic revision counter — completed fetches whose revision doesn't match the
   // current one are discarded, preventing stale responses from overwriting a newer preview.
@@ -393,7 +394,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
         headers: adminHeaders(),
         body: JSON.stringify({
           htmlBody,
-          bgUrl: "",
+          bgUrl: draftBgUrl,
           widthMm: Number(widthMm) || 190,
           heightMm: Number(heightMm) || 133,
         }),
@@ -456,17 +457,26 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
               <code className="text-xs bg-muted px-1 rounded">{"{{accent_color}}"}</code> as placeholders
             </span>
           </label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!htmlBody.trim() || draftPreviewPending}
-            onClick={handleDraftPreview}
-          >
-            {draftPreviewPending
-              ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Rendering…</>
-              : <><Eye className="w-3.5 h-3.5 mr-1.5" />Preview</>}
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              type="url"
+              value={draftBgUrl}
+              onChange={(e) => { setDraftBgUrl(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); }}
+              placeholder="Background image URL (optional)"
+              className="w-64 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!htmlBody.trim() || draftPreviewPending}
+              onClick={handleDraftPreview}
+            >
+              {draftPreviewPending
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Rendering…</>
+                : <><Eye className="w-3.5 h-3.5 mr-1.5" />Preview</>}
+            </Button>
+          </div>
         </div>
         <textarea
           required
@@ -500,7 +510,8 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
               <img src={draftPreviewUrl} alt="Draft template preview" className="w-full object-contain" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Rendered at 150&nbsp;dpi from the RGB intermediate PDF. The preview uses the default background photo.
+              Rendered at 150&nbsp;dpi from the RGB intermediate PDF.{" "}
+              {draftBgUrl.trim() ? "Background image from the URL above." : "Using the default background photo — paste a URL above to preview with a custom one."}
             </p>
           </div>
         )}

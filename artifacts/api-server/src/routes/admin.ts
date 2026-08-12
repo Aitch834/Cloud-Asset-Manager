@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import crypto from "crypto";
+import dns from "dns";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable, adCopyPresetsTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
@@ -2301,6 +2302,96 @@ async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> 
 }
 
 /**
+ * Validate an external image URL before the server fetches it.
+ * Blocks non-HTTPS schemes, private/reserved IP ranges, and non-image responses.
+ * Returns the fetched buffer on success; throws a descriptive Error on any violation.
+ */
+const BG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const BG_FETCH_TIMEOUT_MS = 10_000;     // 10 s
+
+function isPrivateIp(addr: string): boolean {
+  // IPv4 private/reserved ranges
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(addr);
+  if (v4) {
+    const [, a, b] = v4.map(Number);
+    if (
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 0) ||
+      (a === 100 && b >= 64 && b <= 127) || // RFC 6598 shared
+      (a === 198 && (b === 18 || b === 19))  // RFC 2544
+    ) return true;
+    return false;
+  }
+  // IPv6: loopback, link-local, unique-local
+  const lower = addr.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (lower === "::1") return true;
+  if (lower.startsWith("fe80:")) return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  return false;
+}
+
+async function fetchExternalImage(rawUrl: string): Promise<Buffer> {
+  let parsed: URL;
+  try { parsed = new URL(rawUrl); } catch { throw new Error("Invalid background image URL."); }
+  if (parsed.protocol !== "https:") throw new Error("Background image URL must use HTTPS.");
+
+  // Resolve DNS and block private addresses (prevents SSRF to internal services)
+  const hostname = parsed.hostname;
+  let addresses: dns.LookupAddress[];
+  try {
+    addresses = await dns.promises.lookup(hostname, { all: true });
+  } catch {
+    throw new Error(`Cannot resolve background image host: ${hostname}`);
+  }
+  for (const { address } of addresses) {
+    if (isPrivateIp(address)) {
+      throw new Error("Background image URL resolves to a private or reserved address.");
+    }
+  }
+
+  // Fetch with timeout and size cap
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BG_FETCH_TIMEOUT_MS);
+  let resp: Response;
+  try {
+    resp = await fetch(rawUrl, {
+      signal: controller.signal,
+      headers: { "User-Agent": "BDEFarmTracAdRenderer/1.0" },
+      redirect: "follow",
+    }) as unknown as Response;
+  } catch (err: unknown) {
+    throw new Error(`Background image fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!(resp as unknown as { ok: boolean }).ok) {
+    throw new Error(`Background image fetch failed (HTTP ${(resp as unknown as { status: number }).status}).`);
+  }
+
+  // Validate Content-Type is an image
+  const ct = (resp as unknown as { headers: { get(k: string): string | null } }).headers.get("content-type") ?? "";
+  if (!ct.startsWith("image/")) {
+    throw new Error(`Background URL returned non-image content-type: ${ct || "(none)"}`);
+  }
+
+  // Enforce size limit
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = (resp as unknown as { body: ReadableStream<Uint8Array> | null }).body;
+  if (!reader) throw new Error("Background image response had no body.");
+  for await (const chunk of reader as AsyncIterable<Uint8Array>) {
+    total += chunk.length;
+    if (total > BG_MAX_BYTES) throw new Error("Background image exceeds the 10 MB limit.");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
  * Substitute {{font_css}}, {{logo}}, {{qr}}, {{bg}} in a template HTML body.
  * Logo and QR are resolved from DB config (with on-disk fallback).
  * Background image is downloaded from bgUrl (falls back to a default vineyard photo).
@@ -2326,11 +2417,18 @@ async function renderAdTemplate(
   // Logo + QR — from DB config, with on-disk fallback
   const { logoUri, qrUri } = await loadAdBrandAssets();
 
-  // Background image
+  // Background image — use SSRF-safe fetch for user-supplied URLs; default URL is internal/trusted
   const effectiveBgUrl = bgUrl.trim() || AD_DEFAULT_BG_URL;
-  const bgResp = await fetch(effectiveBgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-  if (!bgResp.ok) throw new Error(`Background fetch failed (${bgResp.status}): ${effectiveBgUrl}`);
-  const bgBuf = Buffer.from(await bgResp.arrayBuffer());
+  let bgBuf: Buffer;
+  if (bgUrl.trim()) {
+    // User-supplied: go through full SSRF validation
+    bgBuf = await fetchExternalImage(effectiveBgUrl);
+  } else {
+    // Default URL (internal constant) — simple fetch, no SSRF risk
+    const bgResp = await fetch(effectiveBgUrl);
+    if (!bgResp.ok) throw new Error(`Background fetch failed (${bgResp.status})`);
+    bgBuf = Buffer.from(await bgResp.arrayBuffer());
+  }
   const bgUri = `data:image/jpeg;base64,${bgBuf.toString("base64")}`;
 
   // Select orientation-appropriate defaults: portrait when width ≤ height
