@@ -245,40 +245,40 @@ description = "Full-bleed image visible throughout, gradient fade to near-white,
 id = "nDJOsblIQ00VTYSKBjcgW"
 uri = "file://screenshots/leaflet-v5-beef-dairy.jpg"
 type = "image"
-title = "Beef & Dairy — v5"
-description = "Photo top half · red tint gradient carries down · no panel blocking image"
+title = "Beef & Dairy — v5 final"
+description = "Image top half · red tint bottom half · full footer visible"
 
 [[outputs]]
 id = "62ithnY-46yO7BNlqoAc8"
 uri = "file://screenshots/leaflet-v5-sheep-goat.jpg"
 type = "image"
-title = "Sheep & Goat — v5"
-description = "Photo top half · amber tint gradient carries down · no panel blocking image"
+title = "Sheep & Goat — v5 final"
+description = "Image top half · amber tint bottom half · full footer visible"
 
 [[outputs]]
 id = "mEZHNlosaUy-gAIBTuSoy"
 uri = "file://screenshots/leaflet-v5-arable.jpg"
 type = "image"
-title = "Arable — v5"
-description = "Photo top half · warm amber tint gradient carries down · no panel blocking image"
+title = "Arable — v5 final"
+description = "Image top half · warm amber tint bottom half · full footer visible"
 
 [[outputs]]
 id = "Dbq5Zr_UItqYYLEEfrmET"
 uri = "file://screenshots/leaflet-v5-viticulture.jpg"
 type = "image"
-title = "Viticulture — v5"
-description = "Photo top half · purple tint gradient carries down · no panel blocking image"
+title = "Viticulture — v5 final"
+description = "Image top half · purple tint bottom half · full footer visible"
 
 [[outputs]]
 id = "_oO-5WPxjH-mh5iuI3uH4"
 uri = "file://screenshots/leaflet-v5-mixed.jpg"
 type = "image"
-title = "Mixed Farming — v5"
-description = "Photo top half · green tint gradient carries down · no panel blocking image"
+title = "Mixed Farming — v5 final"
+description = "Image top half · green tint bottom half · full footer visible"
 
 [[outputs]]
 id = "XrFP_P6qRlK6CseDzuav_"
 uri = "file://screenshots/leaflet-v5-contracting.jpg"
 type = "image"
-title = "Agricultural Contracting — v5"
-description = "Photo top half · blue tint gradient carries down · no panel blocking image"
+title = "Agricultural Contracting — v5 final"
+description = "Image top half · blue tint bottom half · full footer visible"
