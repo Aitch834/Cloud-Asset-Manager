@@ -11,6 +11,8 @@ export function identifierJustSavedKey(farmId: string | undefined): string {
 }
 
 interface FarmIdentifiers {
+  farmName: string | null;
+  contactPhone: string | null;
   cphNumber: string | null;
   sbiNumber: string | null;
   address: string | null;
@@ -46,6 +48,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers {
+  const [farmName, setFarmName] = useState<string | null>(null);
+  const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [cphNumber, setCphNumber] = useState<string | null>(null);
   const [sbiNumber, setSbiNumber] = useState<string | null>(null);
   const [address, setAddress] = useState<string | null>(null);
@@ -78,8 +82,10 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
         const headers = await getAuthHeaders();
         const res = await fetch(`${apiBase}/api/farms/${farmId}`, { headers });
         if (!res.ok || cancelled) { setLoading(false); return; }
-        const data = await res.json() as { record?: { cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null } };
+        const data = await res.json() as { record?: { name?: string | null; contactPhone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null } };
         if (!cancelled) {
+          setFarmName(data.record?.name ?? null);
+          setContactPhone(data.record?.contactPhone ?? null);
           setCphNumber(data.record?.cphNumber ?? null);
           setSbiNumber(data.record?.sbiNumber ?? null);
           setAddress(data.record?.address ?? null);
@@ -109,5 +115,5 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
     return () => { cancelled = true; };
   }, [farmId, fetchKey]);
 
-  return { cphNumber, sbiNumber, address, postcode, loading, justSaved, refetch, clearJustSaved };
+  return { farmName, contactPhone, cphNumber, sbiNumber, address, postcode, loading, justSaved, refetch, clearJustSaved };
 }

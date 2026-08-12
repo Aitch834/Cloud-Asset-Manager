@@ -56,9 +56,11 @@ export default function MoreScreen() {
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
-  const { cphNumber, sbiNumber, address, postcode, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { farmName, contactPhone, cphNumber, sbiNumber, address, postcode, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
 
   // Farm Profile edit state
+  const [farmNameDraft, setFarmNameDraft] = useState("");
+  const [phoneDraft, setPhoneDraft] = useState("");
   const [cphDraft, setCphDraft] = useState("");
   const [sbiDraft, setSbiDraft] = useState("");
   const [addressDraft, setAddressDraft] = useState("");
@@ -78,15 +80,21 @@ export default function MoreScreen() {
 
   // Keep draft values in sync when identifier data loads
   useEffect(() => {
+    setFarmNameDraft(farmName ?? "");
+    setPhoneDraft(contactPhone ?? "");
     setCphDraft(cphNumber ?? "");
     setSbiDraft(sbiNumber ?? "");
     setAddressDraft(address ?? "");
     setPostcodeDraft(postcode ?? "");
     setPostcodeBlurred(false);
-  }, [cphNumber, sbiNumber, address, postcode]);
+  }, [farmName, contactPhone, cphNumber, sbiNumber, address, postcode]);
 
   async function saveProfile(): Promise<void> {
     if (!currentFarm?.id) return;
+    if (!farmNameDraft.trim()) {
+      setProfileError("Farm name cannot be empty.");
+      return;
+    }
     // Reveal any postcode warning if the grower taps Save without having blurred the field
     setPostcodeBlurred(true);
     setProfileSaving(true);
@@ -97,6 +105,8 @@ export default function MoreScreen() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: farmNameDraft.trim() || null,
+          phone: phoneDraft.trim() || null,
           cphNumber: cphDraft.trim() || null,
           sbiNumber: sbiDraft.trim() || null,
           address: addressDraft.trim() || null,
@@ -298,6 +308,24 @@ export default function MoreScreen() {
 
         <SectionHeader title="Farm Profile" />
         <View style={[styles.section, { padding: spacing.lg }]}>
+          <Input
+            label="Farm Name"
+            placeholder="e.g. Manor Farm"
+            value={farmNameDraft}
+            onChangeText={t => { setFarmNameDraft(t); setProfileSaved(false); }}
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="next"
+          />
+          <Input
+            label="Contact Phone"
+            placeholder="e.g. 01234 567890"
+            value={phoneDraft}
+            onChangeText={t => { setPhoneDraft(t); setProfileSaved(false); }}
+            keyboardType="phone-pad"
+            autoCorrect={false}
+            returnKeyType="next"
+          />
           <Input
             label="CPH Number"
             placeholder="e.g. 12/345/0001"

@@ -674,15 +674,20 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
 });
 
 /**
- * PATCH /farms/:farmId — update CPH, SBI, address and/or postcode.
+ * PATCH /farms/:farmId — update name, phone, CPH, SBI, address and/or postcode.
  * Used by the mobile app Farm Profile editor so growers can fix identifiers
  * without needing to open the full dashboard settings form.
  */
 router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { cphNumber, sbiNumber, address, postcode } = req.body as { cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null };
+  const { name, phone, cphNumber, sbiNumber, address, postcode } = req.body as { name?: string | null; phone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null };
+  if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
+    res.status(400).json({ error: "Farm name cannot be empty" }); return;
+  }
   const [updated] = await db.update(farmsTable).set({
+    ...(name !== undefined ? { name: name!.trim() } : {}),
+    ...(phone !== undefined ? { contactPhone: phone ? phone.trim() : null } : {}),
     ...(cphNumber !== undefined ? { cphNumber: cphNumber ?? null } : {}),
     ...(sbiNumber !== undefined ? { sbiNumber: sbiNumber ?? null } : {}),
     ...(address !== undefined ? { address: address ?? null } : {}),

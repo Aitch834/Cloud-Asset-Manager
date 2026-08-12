@@ -31,6 +31,7 @@ export const farmsTable = pgTable("farms", {
   latitude: text("latitude"),
   longitude: text("longitude"),
   what3words: text("what3words"),
+  contactPhone: text("contact_phone"),
   emergencyContactName: text("emergency_contact_name"),
   emergencyContactRelationship: text("emergency_contact_relationship"),
   emergencyContactPhone: text("emergency_contact_phone"),
