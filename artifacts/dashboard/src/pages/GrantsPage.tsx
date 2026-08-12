@@ -291,10 +291,21 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     validValues: ["all", ...AE_PROJECT_STATUSES] as readonly string[],
   });
 
+  // ── On-screen scheme name filter (persisted per farm) ────────────────────
+  const [aeScreenScheme, setAeScreenScheme] = usePersistedFilter({
+    page: "grants-agri-env",
+    filter: "screen-scheme",
+    farmId,
+    defaultValue: "all",
+  });
+
   const screenFilteredProjects = useMemo(() => {
-    if (aeScreenStatus === "all") return projects;
-    return projects.filter(p => p.status === aeScreenStatus);
-  }, [projects, aeScreenStatus]);
+    return projects.filter(p => {
+      if (aeScreenStatus !== "all" && p.status !== aeScreenStatus) return false;
+      if (aeScreenScheme !== "all" && p.schemeName !== aeScreenScheme) return false;
+      return true;
+    });
+  }, [projects, aeScreenStatus, aeScreenScheme]);
 
   // ── Export / print filter state (persisted per farm) ────────────────────
   const [aeExportScheme, setAeExportScheme] = usePersistedFilter({
@@ -624,42 +635,71 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
         </div>
       )}
 
-      {/* On-screen status filter pills */}
+      {/* On-screen filter bar — scheme dropdown + status pills */}
       {projects.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" as const }}>
-          <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", marginRight: 2 }}>Show:</span>
-          {(["all", ...AE_PROJECT_STATUSES] as const).map(s => {
-            const cfg = s === "all" ? null : AE_PROJECT_STATUS_CFG[s];
-            const label = s === "all" ? "All" : (cfg?.label ?? s);
-            const count = s === "all" ? projects.length : projects.filter(p => p.status === s).length;
-            const isActive = aeScreenStatus === s;
-            return (
+        <div style={{ marginBottom: 14 }}>
+          {/* Scheme name filter */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" as const }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", flexShrink: 0 }}>Scheme:</span>
+            <select
+              value={aeScreenScheme}
+              onChange={e => setAeScreenScheme(e.target.value)}
+              style={{
+                fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6,
+                border: aeScreenScheme !== "all" ? "1.5px solid #374151" : "1px solid #d1d5db",
+                background: aeScreenScheme !== "all" ? "#111827" : "#fff",
+                color: aeScreenScheme !== "all" ? "#fff" : "#111827",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All schemes</option>
+              {uniqueSchemeNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            {aeScreenScheme !== "all" && (
               <button
-                key={s}
-                onClick={() => setAeScreenStatus(s)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "4px 12px", borderRadius: 20,
-                  fontSize: "0.8rem", fontWeight: isActive ? 600 : 400,
-                  cursor: "pointer",
-                  border: isActive ? "1.5px solid #374151" : "1px solid #e5e7eb",
-                  background: isActive ? "#111827" : "#f9fafb",
-                  color: isActive ? "#fff" : "#374151",
-                  transition: "all 0.12s",
-                }}
+                onClick={() => setAeScreenScheme("all")}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6b7280", fontSize: "0.78rem", textDecoration: "underline" }}
               >
-                {label}
-                <span style={{
-                  fontSize: "0.7rem", fontWeight: 600,
-                  background: isActive ? "rgba(255,255,255,0.2)" : "#e5e7eb",
-                  color: isActive ? "#fff" : "#6b7280",
-                  borderRadius: 20, padding: "0px 6px", minWidth: 18, textAlign: "center",
-                }}>
-                  {count}
-                </span>
+                Clear
               </button>
-            );
-          })}
+            )}
+          </div>
+          {/* Status pills */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", marginRight: 2 }}>Status:</span>
+            {(["all", ...AE_PROJECT_STATUSES] as const).map(s => {
+              const cfg = s === "all" ? null : AE_PROJECT_STATUS_CFG[s];
+              const label = s === "all" ? "All" : (cfg?.label ?? s);
+              const count = s === "all" ? projects.length : projects.filter(p => p.status === s).length;
+              const isActive = aeScreenStatus === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setAeScreenStatus(s)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "4px 12px", borderRadius: 20,
+                    fontSize: "0.8rem", fontWeight: isActive ? 600 : 400,
+                    cursor: "pointer",
+                    border: isActive ? "1.5px solid #374151" : "1px solid #e5e7eb",
+                    background: isActive ? "#111827" : "#f9fafb",
+                    color: isActive ? "#fff" : "#374151",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  {label}
+                  <span style={{
+                    fontSize: "0.7rem", fontWeight: 600,
+                    background: isActive ? "rgba(255,255,255,0.2)" : "#e5e7eb",
+                    color: isActive ? "#fff" : "#6b7280",
+                    borderRadius: 20, padding: "0px 6px", minWidth: 18, textAlign: "center",
+                  }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -682,11 +722,16 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
       ) : screenFilteredProjects.length === 0 ? (
         <div style={{ textAlign: "center", padding: "32px 24px", background: "#f9fafb", borderRadius: 10, border: "1px dashed #e5e7eb" }}>
           <div style={{ fontSize: "0.9rem", color: "#6b7280" }}>
-            No schemes with status <strong>{AE_PROJECT_STATUS_CFG[aeScreenStatus as keyof typeof AE_PROJECT_STATUS_CFG]?.label ?? aeScreenStatus}</strong>.
+            No schemes match
+            {aeScreenScheme !== "all" && <> scheme <strong>{aeScreenScheme}</strong></>}
+            {aeScreenScheme !== "all" && aeScreenStatus !== "all" && <> with</>}
+            {aeScreenStatus !== "all" && <> status <strong>{AE_PROJECT_STATUS_CFG[aeScreenStatus as keyof typeof AE_PROJECT_STATUS_CFG]?.label ?? aeScreenStatus}</strong></>}.
           </div>
-          <button onClick={() => setAeScreenStatus("all")}
-            style={{ marginTop: 10, background: "none", border: "none", cursor: "pointer", color: "#374151", textDecoration: "underline", fontSize: "0.82rem" }}>
-            Show all schemes
+          <button
+            onClick={() => { setAeScreenStatus("all"); setAeScreenScheme("all"); }}
+            style={{ marginTop: 10, background: "none", border: "none", cursor: "pointer", color: "#374151", textDecoration: "underline", fontSize: "0.82rem" }}
+          >
+            Clear filters
           </button>
         </div>
       ) : (
