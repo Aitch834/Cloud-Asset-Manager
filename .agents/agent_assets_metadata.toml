@@ -156,3 +156,45 @@ uri = "file://screenshots/leaflet-v2-contracting.jpg"
 type = "image"
 title = "Agricultural Contracting — v2"
 description = "Badges aligned · Secure + No Manual Backups · QR · logo footer"
+
+[[outputs]]
+id = "vR6Cs3YCBCBCLFXYZSyfZ"
+uri = "file://screenshots/leaflet-v3-beef-dairy.jpg"
+type = "image"
+title = "Beef & Dairy — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "o94SjjmyTiYsuqhvQihzJ"
+uri = "file://screenshots/leaflet-v3-sheep-goat.jpg"
+type = "image"
+title = "Sheep & Goat — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "0O5VpDdlBNlSf93wZFnpS"
+uri = "file://screenshots/leaflet-v3-arable.jpg"
+type = "image"
+title = "Arable — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "wH9SB_VOkcBGtkcrGbQd_"
+uri = "file://screenshots/leaflet-v3-viticulture.jpg"
+type = "image"
+title = "Viticulture — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "XvHxOtEJG1MBmUPKh4ToW"
+uri = "file://screenshots/leaflet-v3-mixed.jpg"
+type = "image"
+title = "Mixed Farming — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "DDFiHOffRRHiiwANi3Ryz"
+uri = "file://screenshots/leaflet-v3-contracting.jpg"
+type = "image"
+title = "Agricultural Contracting — v3"
+description = "Full-bleed photo · white card · dark text · subtle gradient"
