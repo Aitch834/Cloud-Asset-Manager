@@ -156,6 +156,7 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
 
   const harvests: any[] = data?.harvests ?? [];
   const costs: any[] = data?.costs ?? [];
+  const agriEnvSummary: any[] = data?.agriEnvSummary ?? [];
 
   const cropMap = useMemo(() => {
     const m: Record<string, { yield: number; area: number; count: number }> = {};
@@ -172,10 +173,20 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
   const totalYield = Object.values(cropMap).reduce((s, c) => s + c.yield, 0);
   const totalArea = Object.values(cropMap).reduce((s, c) => s + c.area, 0);
 
-  const incomeTotal = costs.filter(t => t.transactionType === "income").reduce((s, t) => s + (t.amountPence ?? 0), 0);
+  const txIncomeTotal = costs.filter(t => t.transactionType === "income").reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const cropSales = costs.filter(t => t.category === "Crop Sales").reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const varCostTotal = costs.filter(t => t.transactionType === "expense" && VARIABLE_COST_CATS.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
+
+  // Agri-env milestone claims earned in the selected year (same logic as P&L tab)
+  const agriEnvYearTotal = agriEnvSummary.reduce((s: number, p: any) => s + (p.yearClaimedPence ?? 0), 0);
+  const agriEnvActiveProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) > 0);
+
+  const incomeTotal = txIncomeTotal + agriEnvYearTotal;
   const grossMargin = incomeTotal - varCostTotal;
+
+  // Double-count warning: financial "Agri-Environment Scheme" transaction AND milestone claims both present
+  const agriEnvTxIncome = costs.filter(t => t.category === "Agri-Environment Scheme").reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+  const hasDoubleCountRisk = agriEnvYearTotal > 0 && agriEnvTxIncome > 0;
 
   const costByCat = useMemo(() => {
     const m: Record<string, number> = {};
@@ -201,22 +212,38 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
       rows.push(["Total Variable Costs", fmt(varCostTotal), totalArea > 0 ? fmt(Math.round(varCostTotal / totalArea)) : "—"]);
       rows.push([]);
       rows.push(["Summary", ""]);
+      rows.push(["Financial income", fmt(txIncomeTotal)]);
+      if (agriEnvYearTotal > 0) {
+        rows.push([`Agri-env schemes (from Agri-Env tab, ${agriEnvActiveProjects.length} project${agriEnvActiveProjects.length !== 1 ? "s" : ""})`, fmt(agriEnvYearTotal), hasDoubleCountRisk ? "WARNING: also recorded as financial transaction — possible double-count" : ""]);
+      }
       rows.push(["Total Farm Output", fmt(incomeTotal)]);
       rows.push(["Total Variable Costs", fmt(varCostTotal)]);
       rows.push(["Gross Margin", fmt(grossMargin)]);
       downloadCsv(`gross-margin-${year}.csv`, rows);
     });
-  }, [data, cropMap, costByCat, totalArea, varCostTotal, incomeTotal, grossMargin, year, onRegisterExport]);
+  }, [data, cropMap, costByCat, totalArea, varCostTotal, txIncomeTotal, agriEnvYearTotal, agriEnvActiveProjects, hasDoubleCountRisk, incomeTotal, grossMargin, year, onRegisterExport]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
-  if (harvests.length === 0 && costs.length === 0) return <EmptyState icon={TrendingUp} message="Add harvest records and financial transactions to generate this report." />;
+  if (harvests.length === 0 && costs.length === 0 && agriEnvYearTotal === 0) return <EmptyState icon={TrendingUp} message="Add harvest records, financial transactions, or agri-env milestone claims to generate this report." />;
 
   return (
     <div className="space-y-6">
+      {hasDoubleCountRisk && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.1rem", lineHeight: 1.3 }}>⚠️</span>
+          <div>
+            <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", marginBottom: 2 }}>Possible double-count detected</p>
+            <p style={{ color: "#78350f", fontSize: "0.8rem" }}>
+              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env project records in {year}.
+              The agri-env line below is drawn from the Agri-Env tab. To avoid double-counting, remove either the financial transaction or the agri-env tab milestone claims from your totals.
+            </p>
+          </div>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <StatCard label="Total Area Harvested" value={`${fmtN(totalArea)} ha`} />
         <StatCard label="Total Yield" value={`${fmtN(totalYield)} t`} sub={totalArea > 0 ? `${fmtN(totalYield / totalArea)} t/ha avg` : undefined} />
-        <StatCard label="Total Farm Output" value={fmt(incomeTotal)} bg="#eff6ff" border="#bfdbfe" color="#1e40af" />
+        <StatCard label="Total Farm Output" value={fmt(incomeTotal)} bg="#eff6ff" border="#bfdbfe" color="#1e40af" sub={agriEnvYearTotal > 0 ? `Incl. ${fmt(agriEnvYearTotal)} agri-env schemes (from Agri-Env tab)` : undefined} />
         <StatCard label="Gross Margin" value={fmt(grossMargin)} bg={grossMargin >= 0 ? "#f0fdf4" : "#fef2f2"} border={grossMargin >= 0 ? "#bbf7d0" : "#fecaca"} color={grossMargin >= 0 ? "#166534" : "#991b1b"} />
       </div>
 
