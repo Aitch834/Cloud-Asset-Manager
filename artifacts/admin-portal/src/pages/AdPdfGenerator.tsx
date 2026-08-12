@@ -362,23 +362,14 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
     }
   }
 
-  const [placeholderWarn, setPlaceholderWarn] = useState<string | null>(null);
+  const REQUIRED_PLACEHOLDERS = ["{{font_css}}", "{{logo}}", "{{bg}}", "{{qr}}"] as const;
+
+  const missingPlaceholders = htmlBody.trim()
+    ? REQUIRED_PLACEHOLDERS.filter((p) => !htmlBody.includes(p))
+    : [];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const missing: string[] = [];
-    if (!htmlBody.includes("{{logo}}")) missing.push("{{logo}}");
-    if (!htmlBody.includes("{{qr}}"))   missing.push("{{qr}}");
-    if (missing.length > 0) {
-      setPlaceholderWarn(`The HTML is missing required placeholder${missing.length > 1 ? "s" : ""}: ${missing.join(" and ")}. The rendered PDF will be blank for ${missing.length > 1 ? "those fields" : "that field"}. Save anyway?`);
-      return;
-    }
-    setPlaceholderWarn(null);
-    onSave({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm), htmlBody, isDefault });
-  }
-
-  function confirmSaveAnyway() {
-    setPlaceholderWarn(null);
     onSave({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm), htmlBody, isDefault });
   }
 
@@ -534,25 +525,24 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
         </div>
       )}
 
-      {placeholderWarn && (
+      {missingPlaceholders.length > 0 && (
         <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 border border-amber-200">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-amber-800">{placeholderWarn}</p>
-            <div className="flex gap-2 mt-2">
-              <Button type="button" size="sm" variant="outline" className="text-amber-800 border-amber-300 hover:bg-amber-100" onClick={confirmSaveAnyway}>
-                Save anyway
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setPlaceholderWarn(null)}>
-                Go back
-              </Button>
-            </div>
-          </div>
+          <p className="text-sm text-amber-800">
+            Missing placeholder{missingPlaceholders.length > 1 ? "s" : ""}:{" "}
+            {missingPlaceholders.map((p, i) => (
+              <span key={p}>
+                <code className="text-xs bg-amber-100 px-1 rounded">{p}</code>
+                {i < missingPlaceholders.length - 1 ? ", " : ""}
+              </span>
+            ))}
+            . The rendered PDF will be blank for {missingPlaceholders.length > 1 ? "those fields" : "that field"}.
+          </p>
         </div>
       )}
 
       <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={isSaving || !!placeholderWarn} size="sm">
+        <Button type="submit" disabled={isSaving} size="sm">
           {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : <><Save className="w-4 h-4 mr-2" />Save template</>}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
