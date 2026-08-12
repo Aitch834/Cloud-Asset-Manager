@@ -1075,17 +1075,36 @@ function PhotoThumbnail({
   onDelete,
   onPress,
   onEditCaption,
+  onShowTooltip,
+  onHideTooltip,
 }: {
   photo: BlockPhoto;
   photosCount: number;
   onDelete: (id: number) => void;
   onPress: (uri: string | null, photo: BlockPhoto) => void;
   onEditCaption: (photo: BlockPhoto) => void;
+  onShowTooltip: (caption: string) => void;
+  onHideTooltip: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  // Set to true when a long-press fires so onPressOut can show the Alert; cleared
+  // there immediately.  RN 0.81 Pressability does NOT emit onPress after a
+  // recognised long press, so no suppression of onPress is needed.
+  const longPressJustFiredRef = useRef(false);
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    longPressJustFiredRef.current = true;
+    // Show caption tooltip while the finger is held (captioned photos only)
+    if (photo.caption) {
+      onShowTooltip(photo.caption);
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!longPressJustFiredRef.current) return;
+    longPressJustFiredRef.current = false; // reset immediately
+    onHideTooltip();
     Alert.alert("Photo Options", undefined, [
       { text: "Edit Caption", onPress: () => onEditCaption(photo) },
       {
@@ -1114,6 +1133,7 @@ function PhotoThumbnail({
     <Pressable
       style={styles.thumbnail}
       onLongPress={handleLongPress}
+      onPressOut={handlePressOut}
       onPress={() => onPress(uri, photo)}
     >
       <View style={styles.thumbImgBox}>
@@ -1153,6 +1173,9 @@ export default function VineBlockPhotosScreen() {
   // Caption sheet state
   const [captionPhoto, setCaptionPhoto] = useState<BlockPhoto | null>(null);
   const [captionSaving, setCaptionSaving] = useState(false);
+
+  // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
+  const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
 
   const openLightbox = useCallback((_uri: string | null, photo: BlockPhoto) => {
     setPhotos((prev) => {
@@ -1435,6 +1458,8 @@ export default function VineBlockPhotosScreen() {
               onDelete={handleDelete}
               onPress={openLightbox}
               onEditCaption={handleEditCaption}
+              onShowTooltip={setGridTooltipCaption}
+              onHideTooltip={() => setGridTooltipCaption(null)}
             />
           )}
           ListFooterComponent={
@@ -1452,6 +1477,15 @@ export default function VineBlockPhotosScreen() {
           }
         />
       )}
+
+      {/* Grid caption tooltip — shown while a captioned thumbnail is long-pressed */}
+      {gridTooltipCaption != null ? (
+        <View style={styles.gridCaptionTooltip} pointerEvents="none">
+          <Text style={styles.gridCaptionTooltipText} numberOfLines={4}>
+            {gridTooltipCaption}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Full-screen lightbox */}
       <PhotoLightbox
@@ -1571,6 +1605,23 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  gridCaptionTooltip: {
+    position: "absolute",
+    bottom: 80,
+    left: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.88)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+  },
+  gridCaptionTooltipText: {
+    color: "#fff",
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
   },
   // Lightbox styles
   lbOverlay: {
