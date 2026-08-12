@@ -12,12 +12,12 @@ description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow st
 - `LIS_B2C_PRIMARY_SECRET` / `LIS_B2C_SECONDARY_SECRET` — client secrets for CLA app registration
 - `LIS_CLA_REDIRECT_URI` — (optional) OAuth callback URI; if not set, constructed from request host
 
-## Production Registration Status (July 2026)
-- BDE Farm Trac registered in CLA **Production** area — status: **Submitted** (20 Jul 2026)
-- Redirect URI submitted to LIS for approval
-- Awaiting LIS to issue production subscription keys
-- Support incident reopened (parallel track) — awaiting LIS response
-- Still using sandbox B2C client ID (`91afad18-…`) until production client ID received from LIS
+## Production Registration Status (August 2026)
+- BDE Farm Trac registered in CLA **Production** area — `cla-public` subscription **APPROVED** 12 Aug 2026
+- LIS DeveloperHub email confirmed: "retrieve your API credentials" from DeveloperHub portal
+- LIS support (INC0208722, Aquil Asif, 12 Aug 2026): approved, next step = **submit 1 test sample** for LIS to validate, then full development unlocked
+- **Action needed:** retrieve production subscription key + production B2C client ID from DeveloperHub; set as Replit secrets; make one real production TransferRequests submission for LIS to validate
+- Still using sandbox B2C client ID (`91afad18-…`) until production client ID retrieved from DeveloperHub
 
 **Go-live checklist (when LIS responds):**
 1. Set `LIS_B2C_CLIENT_ID` to production client ID
