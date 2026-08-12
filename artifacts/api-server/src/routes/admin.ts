@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import crypto from "crypto";
-import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable } from "@workspace/db";
+import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable, adCopyPresetsTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
@@ -2163,6 +2163,42 @@ router.post("/admin/ad-templates/:id/restore", requireAuth, async (req: Request,
     .returning();
   if (!row) { res.status(404).json({ error: "Template not found" }); return; }
   res.json(row);
+});
+
+// ─── Ad Copy Presets ──────────────────────────────────────────────────────────
+
+router.get("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const rows = await db.select().from(adCopyPresetsTable).orderBy(asc(adCopyPresetsTable.name));
+  res.json(rows);
+});
+
+router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { name, headline, body, accentColor } = req.body as {
+    name?: string; headline?: string; body?: string; accentColor?: string;
+  };
+  if (!name?.trim()) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const [row] = await db.insert(adCopyPresetsTable).values({
+    name: name.trim(),
+    headline: headline?.trim() ?? "",
+    body: body?.trim() ?? "",
+    accentColor: accentColor?.trim() ?? "",
+  }).returning();
+  res.status(201).json(row);
+});
+
+router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  const [row] = await db.delete(adCopyPresetsTable)
+    .where(eq(adCopyPresetsTable.id, id))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Preset not found" }); return; }
+  res.json({ success: true });
 });
 
 // ─── Ad PDF Generator — Node-native renderer ──────────────────────────────────

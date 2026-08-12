@@ -5,10 +5,20 @@ import { getSecret } from "@/lib/auth";
 import {
   Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
   Plus, Pencil, Trash2, ChevronDown, X, Save, ChevronRight, Palette,
-  Upload, RotateCcw, Archive,
+  Upload, RotateCcw, Archive, BookmarkPlus, BookOpen,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface AdCopyPreset {
+  id: number;
+  name: string;
+  headline: string;
+  body: string;
+  accentColor: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface AdTemplate {
   id: number;
@@ -156,6 +166,34 @@ async function saveBrandAsset(key: string, value: string): Promise<void> {
 
 async function clearBrandAsset(key: string): Promise<void> {
   const res = await fetch(`/api/admin/platform-config/${key}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+}
+
+async function fetchPresets(): Promise<AdCopyPreset[]> {
+  const res = await fetch("/api/admin/ad-copy-presets", { headers: adminHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function savePreset(data: { name: string; headline: string; body: string; accentColor: string }): Promise<AdCopyPreset> {
+  const res = await fetch("/api/admin/ad-copy-presets", {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  return json;
+}
+
+async function deletePreset(id: number): Promise<void> {
+  const res = await fetch(`/api/admin/ad-copy-presets/${id}`, {
     method: "DELETE",
     headers: adminHeaders(),
   });
@@ -602,6 +640,53 @@ export default function AdPdfGenerator() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); },
   });
 
+  // Presets
+  const { data: presets = [] } = useQuery<AdCopyPreset[]>({
+    queryKey: ["ad-copy-presets"],
+    queryFn: fetchPresets,
+  });
+
+  const [presetName, setPresetName]   = useState("");
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetSaveErr, setPresetSaveErr] = useState<string | null>(null);
+  const [presetSaved, setPresetSaved]   = useState(false);
+
+  const savePresetMutation = useMutation({
+    mutationFn: savePreset,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ad-copy-presets"] });
+      setPresetName("");
+      setPresetSaved(true);
+      setSavingPreset(false);
+      setTimeout(() => setPresetSaved(false), 2500);
+    },
+    onError: (err) => {
+      setPresetSaveErr(err instanceof Error ? err.message : "Save failed");
+      setSavingPreset(false);
+    },
+  });
+
+  const deletePresetMutation = useMutation({
+    mutationFn: deletePreset,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-copy-presets"] }); },
+  });
+
+  function handleSavePreset() {
+    if (!presetName.trim()) return;
+    setPresetSaveErr(null);
+    setSavingPreset(true);
+    savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor });
+  }
+
+  function handleLoadPreset(id: number) {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    setHeadline(p.headline);
+    setBody(p.body);
+    setAccentColor(p.accentColor);
+    resetRendering();
+  }
+
   return (
     <div className="p-8 max-w-3xl space-y-8">
       {/* Header */}
@@ -691,6 +776,29 @@ export default function AdPdfGenerator() {
           </button>
           {customiseOpen && (
             <div className="border-t border-border px-4 py-4 space-y-4 bg-muted/10">
+
+              {/* ── Load preset ── */}
+              {presets.length > 0 && (
+                <div className="flex items-center gap-2 pb-2 border-b border-border">
+                  <BookOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <label className="text-sm font-medium whitespace-nowrap">Load preset</label>
+                  <div className="relative flex-1">
+                    <select
+                      defaultValue=""
+                      onChange={(e) => { if (e.target.value) handleLoadPreset(Number(e.target.value)); e.target.value = ""; }}
+                      className="w-full text-sm border border-input rounded-md pl-3 pr-8 py-2 bg-background appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="" disabled>Select a saved preset…</option>
+                      {presets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                  {deletePresetMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Headline HTML
@@ -747,6 +855,90 @@ export default function AdPdfGenerator() {
                   Controls the gold/amber used for the top bar gradient, feature dots, CTA border, and headline italic. Leave blank for the default gold.
                 </p>
               </div>
+
+              {/* ── Save as preset ── */}
+              <div className="pt-2 border-t border-border space-y-2">
+                <p className="text-sm font-medium flex items-center gap-1.5">
+                  <BookmarkPlus className="w-4 h-4 text-muted-foreground" />
+                  Save as preset
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={presetName}
+                    onChange={(e) => { setPresetName(e.target.value); setPresetSaveErr(null); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSavePreset(); } }}
+                    placeholder="Preset name, e.g. Harvest 2026"
+                    className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!presetName.trim() || savingPreset}
+                    onClick={handleSavePreset}
+                  >
+                    {presetSaved ? (
+                      <><CheckCircle className="w-3.5 h-3.5 mr-1.5 text-green-600" />Saved</>
+                    ) : savingPreset ? (
+                      <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                    ) : (
+                      <><Save className="w-3.5 h-3.5 mr-1.5" />Save</>
+                    )}
+                  </Button>
+                </div>
+                {presetSaveErr && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />{presetSaveErr}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Stores the current headline, body, and accent colour under a name so you can reload it later without re-typing.
+                </p>
+              </div>
+
+              {/* ── Manage presets (delete) ── */}
+              {presets.length > 0 && (
+                <div className="pt-2 border-t border-border space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-1.5">Saved presets</p>
+                  {presets.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 py-1 group">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{p.name}</p>
+                        <p className="text-xs text-muted-foreground truncate font-mono">
+                          {[p.headline && `"${p.headline.slice(0, 40)}${p.headline.length > 40 ? "…" : ""}"`, p.accentColor && p.accentColor].filter(Boolean).join(" · ") || "no overrides"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        title={`Load "${p.name}"`}
+                        onClick={() => handleLoadPreset(p.id)}
+                        className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title={`Delete "${p.name}"`}
+                        disabled={deletePresetMutation.isPending}
+                        onClick={() => {
+                          if (!confirm(`Delete preset "${p.name}"?`)) return;
+                          deletePresetMutation.mutate(p.id);
+                        }}
+                        className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {deletePresetMutation.isError && (
+                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {deletePresetMutation.error instanceof Error ? deletePresetMutation.error.message : "Delete failed"}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

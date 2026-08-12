@@ -46,6 +46,19 @@ function extractAdB64ByClass(html: string, className: string): string {
  * on-disk HTML files so templates render correctly after those files are removed.
  */
 export async function runAdTemplateMigrations(): Promise<void> {
+  // ad_copy_presets — named reusable copy+colour sets for the Ad PDF Generator
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ad_copy_presets (
+      id          serial PRIMARY KEY,
+      name        text NOT NULL,
+      headline    text NOT NULL DEFAULT '',
+      body        text NOT NULL DEFAULT '',
+      accent_color text NOT NULL DEFAULT '',
+      created_at  timestamptz NOT NULL DEFAULT now(),
+      updated_at  timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS ad_templates (
       id          serial PRIMARY KEY,
