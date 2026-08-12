@@ -1988,7 +1988,7 @@ export async function printDiseaseScouting(
       <td style="text-align:center">${r.xylellaFastidiosa ? `<span style="color:#dc2626;font-weight:700">⚠ ALERT</span>` : `<span style="color:#9ca3af">No</span>`}</td>
       <td>${d(r.nextScoutDate)}</td>
       <td style="max-width:120px;white-space:normal">${escHtml(r.actionTaken)}</td>
-      <td style="max-width:120px;white-space:normal">${escHtml(r.notes)}</td>
+      <td style="max-width:120px;white-space:normal">${escHtml(r.notes)}${Number(r.photoCount) > 0 ? `${r.notes ? "<br>" : ""}<span style="font-size:9px;border:1px solid #888;border-radius:2px;padding:0 3px;white-space:nowrap;display:inline-block;margin-top:2px">&#128247; ${Number(r.photoCount)} photo${Number(r.photoCount) === 1 ? "" : "s"}</span>` : ""}</td>
     </tr>`;
   }).join("");
 
