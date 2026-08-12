@@ -982,8 +982,8 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 ${attachmentWarningHtml}
 ${vintageScopeNote}
 ${vintageComparisonHtml ? numBlock(vintageComparisonHtml, "Vintage pH &amp; TA Comparison") : ""}
-${so2SummaryHtml}
-${phTaHistoryHtml}
+${so2SummaryHtml ? numBlock(so2SummaryHtml, "SO₂ Compliance Summary") : ""}
+${phTaHistoryHtml ? numBlock(phTaHistoryHtml, "pH &amp; TA Analytical History") : ""}
 ${numBlock(pressingBlockHtml, "Pressing Record")}
 ${fermRows ? sectionHtml(sn("Fermentation"), fermHeader + fermRows) : ""}
 ${fermAttachmentsHtml}
