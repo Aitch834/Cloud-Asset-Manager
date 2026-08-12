@@ -1704,7 +1704,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                           {(r.is_organic === true || r.is_organic === "true" || r.is_organic === 1) && (
                             <Badge className="text-xs bg-green-100 text-green-800 border-0 inline-flex items-center gap-0.5"><Leaf className="w-3 h-3" />Organic</Badge>
                           )}
-                          {!!r.vessel_ref && <span className="text-xs text-muted-foreground">Vessel: {String(r.vessel_ref)}</span>}
+                          {vesselBadge(r.vessel_ref != null ? String(r.vessel_ref) : null)}
                           {isVintageScoped && (r.batch_ref ? <span className="text-xs font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{String(r.batch_ref)}</span> : <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">No ref</span>)}
                         </div>
                         {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
@@ -1795,7 +1795,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{fmtDate(r.test_date)}</span>
                           <Badge variant="outline" className="text-xs">{SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? fmt(r.test_stage)}</Badge>
-                          {!!r.vessel_ref && <span className="text-xs text-muted-foreground">Vessel: {String(r.vessel_ref)}</span>}
+                          {vesselBadge(r.vessel_ref != null ? String(r.vessel_ref) : null)}
                           {isVintageScoped && (r.batch_ref ? <span className="text-xs font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{String(r.batch_ref)}</span> : <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">No ref</span>)}
                         </div>
                         <So2Badge compliant={r.so2_compliant} />
