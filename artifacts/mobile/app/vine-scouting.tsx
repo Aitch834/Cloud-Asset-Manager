@@ -315,10 +315,12 @@ function ScoutingPhotoThumbnail({
   photo,
   onDelete,
   onPress,
+  onReload,
 }: {
   photo: ScoutingPhoto;
   onDelete: (id: number) => void;
   onPress: (photo: ScoutingPhoto) => void;
+  onReload?: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
@@ -362,9 +364,14 @@ function ScoutingPhotoThumbnail({
             onError={() => setImgError(true)}
           />
         ) : imgError ? (
-          <View style={styles.thumbPlaceholder}>
+          <Pressable
+            style={styles.thumbPlaceholder}
+            onPress={() => { onReload?.(); }}
+            hitSlop={8}
+          >
             <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-          </View>
+            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+          </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Feather name="image" size={24} color={colors.textSecondary} />
@@ -507,6 +514,7 @@ function ScoutingPhotoSection({
               photo={item}
               onDelete={handleDeletePhoto}
               onPress={handlePressPhoto}
+              onReload={() => loadPhotos({ silent: true })}
             />
           )}
           ListEmptyComponent={
@@ -817,7 +825,8 @@ const styles = StyleSheet.create({
   thumbnail: { width: 88, gap: spacing.xs },
   thumbImgBox: { width: 88, height: 88, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.border },
   thumbImage: { width: "100%", height: "100%" },
-  thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
+  thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
   captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
   emptyPhotos: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
   emptyPhotosText: { fontSize: fontSize.sm, color: colors.textSecondary },
