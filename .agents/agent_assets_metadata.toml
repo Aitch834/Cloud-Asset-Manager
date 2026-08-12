@@ -198,3 +198,45 @@ uri = "file://screenshots/leaflet-v3-contracting.jpg"
 type = "image"
 title = "Agricultural Contracting — v3"
 description = "Full-bleed photo · white card · dark text · subtle gradient"
+
+[[outputs]]
+id = "FY45DTkjuaDtp-2Tzf57U"
+uri = "file://screenshots/leaflet-v4-beef-dairy.jpg"
+type = "image"
+title = "Beef & Dairy — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
+
+[[outputs]]
+id = "aQQ5z2xMhlDeZu0PKZRgP"
+uri = "file://screenshots/leaflet-v4-sheep-goat.jpg"
+type = "image"
+title = "Sheep & Goat — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
+
+[[outputs]]
+id = "Svj-_7r3WxGtLlbqCNDTi"
+uri = "file://screenshots/leaflet-v4-arable.jpg"
+type = "image"
+title = "Arable — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
+
+[[outputs]]
+id = "XoqnfxrdtAUGl1eTyg-by"
+uri = "file://screenshots/leaflet-v4-viticulture.jpg"
+type = "image"
+title = "Viticulture — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
+
+[[outputs]]
+id = "EUaVoOU-6_8yhXDT-jodt"
+uri = "file://screenshots/leaflet-v4-mixed.jpg"
+type = "image"
+title = "Mixed Farming — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
+
+[[outputs]]
+id = "-gouHR1zmSzEJImtBumHj"
+uri = "file://screenshots/leaflet-v4-contracting.jpg"
+type = "image"
+title = "Agricultural Contracting — v4"
+description = "Full-bleed image visible throughout, gradient fade to near-white, no tiling"
