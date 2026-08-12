@@ -95,6 +95,10 @@ export default function MoreScreen() {
       setProfileError("Farm name cannot be empty.");
       return;
     }
+    if (sbiDraft.trim().length > 0 && !/^\d{9}$/.test(sbiDraft.trim())) {
+      setProfileError("SBI Number must be exactly 9 digits (e.g. 123456789).");
+      return;
+    }
     // Reveal any postcode warning if the grower taps Save without having blurred the field
     setPostcodeBlurred(true);
     setProfileSaving(true);
