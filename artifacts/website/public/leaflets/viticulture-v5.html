@@ -5,7 +5,6 @@
 <title>BDE Farm Trac – Viticulture</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-@page{size:A5 portrait;margin:0}
 
 /* ── Design at exact A5 pixel dimensions: 559×794 px at 96 dpi ──
    Screen and print render identically — no reflow, no clipping. */
@@ -24,9 +23,12 @@ body{background:#ffffff;font-family:-apple-system,'Helvetica Neue',Arial,sans-se
 }
 
 /* Print: assert exact A5 — layout is already identical so nothing reflows */
+@page{size:148mm 210mm;margin:0}
 @media print{
-  html,body{background:none;display:block;padding:0}
-  .page{width:148mm;height:210mm;min-height:0;overflow:hidden}
+  html,body{background:none;display:block;padding:0;margin:0}
+  .page{width:148mm;height:210mm;min-height:0;overflow:hidden;position:relative}
+  .spacer-flex{display:none}
+  .footer{position:absolute;bottom:0;left:0;right:0}
 }
 
 .grad{position:absolute;inset:0;z-index:1;pointer-events:none;
