@@ -543,6 +543,28 @@ function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, o
             {record && (
               <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} />
             )}
+
+            {/* ── Quick Links ── */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Quick Links</Text>
+              <Text style={editStyles.quickLinkHint}>Jump to a related record for this application</Text>
+              <Pressable
+                style={editStyles.quickLinkBtn}
+                onPress={() => { onClose(); router.push("/vine-operation"); }}
+              >
+                <Feather name="tool" size={16} color={colors.primary} />
+                <Text style={editStyles.quickLinkText}>Log Vineyard Operation</Text>
+                <Feather name="arrow-right" size={16} color={colors.textSecondary} />
+              </Pressable>
+              <Pressable
+                style={[editStyles.quickLinkBtn, { marginTop: spacing.sm }]}
+                onPress={() => { onClose(); router.push("/vine-harvest"); }}
+              >
+                <Feather name="package" size={16} color={colors.primary} />
+                <Text style={editStyles.quickLinkText}>Log Harvest Record</Text>
+                <Feather name="arrow-right" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </View>
           </ScrollView>
 
           {/* Footer */}
@@ -820,6 +842,28 @@ const editStyles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     textDecorationLine: "underline",
+  },
+  quickLinkHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  quickLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickLinkText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
   },
   footer: {
     padding: spacing.lg,
