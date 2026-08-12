@@ -60,7 +60,7 @@ export default function TbTestScreen() {
 
   const farmId = currentFarm?.id;
   const { herds, loading: herdsLoading } = useApiHerds(farmId);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-test", farmId);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-test", farmId, user?.id);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 

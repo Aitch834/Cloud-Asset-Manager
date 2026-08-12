@@ -72,14 +72,14 @@ const TEST_TYPE_LABELS: Record<string, string> = {
 
 export default function HistoryTbTestsScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { records, loading, refreshing, error, refresh } = useApiFetch<TbTestRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/tb-tests",
   );
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-tests-history", currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("tb-tests-history", currentFarm?.id, user?.id);
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [search, setSearch] = useState("");

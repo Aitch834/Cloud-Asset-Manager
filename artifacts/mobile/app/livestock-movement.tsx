@@ -45,13 +45,13 @@ const SPECIES_OPTIONS_FALLBACK = ["Cattle", "Sheep", "Pigs", "Goats", "Deer", "H
 
 export default function LivestockMovementScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm, user: _user } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_OPTIONS_FALLBACK);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("movement", currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("movement", currentFarm?.id, user?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);

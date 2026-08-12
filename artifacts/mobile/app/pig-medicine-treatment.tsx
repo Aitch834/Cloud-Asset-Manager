@@ -44,7 +44,7 @@ export default function PigMedicineTreatmentScreen() {
   const { flocks, loading: flocksLoading, fromCache, error: flocksError } = useApiPigFlocks(currentFarm?.id);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("pig-medicine", currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("pig-medicine", currentFarm?.id, user?.id);
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);
 

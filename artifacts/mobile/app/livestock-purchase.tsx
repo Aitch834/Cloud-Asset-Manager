@@ -132,7 +132,7 @@ function PickerRow({ label, options, value, onChange }: { label: string; options
 
 export default function LivestockPurchaseScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const [saving, setSaving] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
 
@@ -161,7 +161,7 @@ export default function LivestockPurchaseScreen() {
   const farmId = currentFarm?.id;
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("purchase", farmId);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("purchase", farmId, user?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 

@@ -58,7 +58,7 @@ export default function MedicineRecordScreen() {
   const { herds, loading: herdsLoading, error: herdsError, fromCache: herdsCached } = useApiHerds(currentFarm?.id);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("medicine", currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("medicine", currentFarm?.id, user?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);

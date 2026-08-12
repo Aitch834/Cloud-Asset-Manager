@@ -1,66 +1,40 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useUiPrefs } from "./useUiPrefs";
 
-const BANNER_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-function bannerKey(screen: string, farmId: string | undefined): string {
-  return `identifier-banner-dismissed-${screen}-${farmId ?? "unknown"}`;
+function prefKey(screen: string, farmId: string | undefined): string {
+  return `identifier_banner_dismissed_${screen}_${farmId ?? "unknown"}`;
 }
 
 /**
- * Persists the "CPH/SBI identifier banner dismissed" state for a given screen
- * and farm, mirroring the dashboard's 30-day localStorage TTL pattern.
+ * Returns whether the CPH/SBI identifier banner has been dismissed for a given
+ * screen and farm, backed by the server-synced `useUiPrefs` store so that a
+ * dismissal on one device suppresses the banner on all of the user's devices
+ * after the next prefs sync.
  *
- * The in-memory state is reset to false synchronously whenever the screen or
- * farmId key changes, so switching farms never leaks a stale dismissal from
- * the previous farm.
+ * Blocks "dismissed" from becoming true until `prefsReady` is set, so we
+ * never incorrectly hide the banner while the initial load is in-flight.
  *
  * @param screen  - A stable slug that uniquely identifies the screen
  *                  (e.g. "purchase", "medicine", "movement")
  * @param farmId  - The current farm ID (used to scope the key per farm)
+ * @param userId  - The current user ID (required to scope prefs per user)
  */
 export function useIdentifierBannerDismiss(
   screen: string,
   farmId: string | undefined,
+  userId: string | null | undefined,
 ): { dismissed: boolean; dismiss: () => void } {
-  const [dismissed, setDismissed] = useState(false);
+  const key = prefKey(screen, farmId);
+  const { prefsReady, isHintDismissed, dismissHint } = useUiPrefs(userId);
 
-  // Read persisted state on mount or when farmId/screen changes.
-  // Always reset to false first so a farm-switch cannot inherit the previous
-  // farm's dismissed state while the async read is in flight.
-  useEffect(() => {
-    setDismissed(false); // synchronous reset — safe before the async read
-    let cancelled = false;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(bannerKey(screen, farmId));
-        if (!raw || cancelled) return;
-        const { ts } = JSON.parse(raw) as { ts: number };
-        if (cancelled) return;
-        if (Date.now() - ts < BANNER_TTL_MS) {
-          setDismissed(true);
-        } else {
-          // TTL expired — remove the stale entry
-          await AsyncStorage.removeItem(bannerKey(screen, farmId));
-        }
-      } catch {
-        // Offline or parse error — treat as not dismissed (already false)
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [screen, farmId]);
+  const dismiss = useCallback(() => {
+    dismissHint(key);
+  }, [dismissHint, key]);
 
-  const dismiss = useCallback(async () => {
-    setDismissed(true);
-    try {
-      await AsyncStorage.setItem(
-        bannerKey(screen, farmId),
-        JSON.stringify({ ts: Date.now() }),
-      );
-    } catch {
-      // Best-effort; in-memory state already updated
-    }
-  }, [screen, farmId]);
+  // Only treat the banner as dismissed once prefs have loaded; this prevents
+  // the banner from briefly appearing on a fresh device where the cache is
+  // empty and then disappearing once the server confirms it was dismissed.
+  const dismissed = prefsReady && isHintDismissed(key);
 
   return { dismissed, dismiss };
 }
