@@ -151,6 +151,16 @@ const SECTORS = [
   },
 ];
 
+// Maps Sectors page sector IDs to the matching filter pill name in Pricing.tsx.
+// Sectors with no direct Pricing filter (mixed, contracting) are omitted so the
+// Pricing page falls back to "All".
+const SECTOR_TO_PRICING: Record<string, string> = {
+  "beef-dairy": "Livestock",
+  "sheep-goat": "Livestock",
+  "arable": "Arable",
+  "viticulture": "Viticulture",
+};
+
 const WHY = [
   { icon: ClipboardList, title: "Built for compliance, not just record-keeping", body: "Every module in BDE Farm Trac was designed around the specific audit requirements of the sector it serves — Red Tractor, organic certification, NVZ rules, and government livestock movement reporting. Records are structured to be audit-ready, not just stored." },
   { icon: Smartphone, title: "Mobile-first for field workers", body: "The BDE Farm Trac mobile app works offline in areas with poor signal and syncs automatically when connectivity returns. Field workers capture records at the point of work — no transcription from paper notebooks at the end of the day." },
@@ -317,7 +327,7 @@ export default function Sectors() {
                     <div className="w-full border-t border-purple-100 pt-3">
                       <p className="text-xs text-muted-foreground leading-relaxed">Select <strong>Viticulture</strong> in the pricing tool to see the full breakdown.</p>
                     </div>
-                    <Link href="/pricing" className="inline-flex items-center gap-1 text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors">
+                    <Link href="/pricing?sector=Viticulture" className="inline-flex items-center gap-1 text-sm font-semibold text-purple-700 hover:text-purple-900 transition-colors">
                       See full pricing <ChevronRight className="w-4 h-4" />
                     </Link>
                   </div>
@@ -334,7 +344,7 @@ export default function Sectors() {
               </div>
               <div className="flex gap-3 shrink-0">
                 <Button variant="outline" className="border-white/40 text-white hover:bg-white/10 bg-transparent" asChild>
-                  <Link href="/pricing">See full pricing</Link>
+                  <Link href={`/pricing${SECTOR_TO_PRICING[sector.id] ? `?sector=${SECTOR_TO_PRICING[sector.id]}` : ""}`}>See full pricing</Link>
                 </Button>
                 <Button className="bg-white text-brand-forest hover:bg-emerald-50" asChild>
                   <Link href="/register-interest">

@@ -117,7 +117,10 @@ export default function Pricing() {
   ]);
   const [activeFarmId, setActiveFarmId] = useState(1);
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
-  const [sectorFilter, setSectorFilter] = useState<Sector>("All");
+  const [sectorFilter, setSectorFilter] = useState<Sector>(() => {
+    const param = new URLSearchParams(window.location.search).get("sector") as Sector | null;
+    return param && (SECTORS as readonly string[]).includes(param) ? param : "All";
+  });
   const nextFarmIdRef = useRef(2);
 
   const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
