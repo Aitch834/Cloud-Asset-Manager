@@ -1401,9 +1401,14 @@ export async function printHarvest(
   const summBlockRows = blockSummaryKeys.map(k => blockSummaryMap[k]);
   const summTotalKg = summBlockRows.reduce((s, r) => s + r.totalKg, 0);
   const summTotalArea = summBlockRows.reduce((s, r) => s + r.areaHa, 0);
+  const summTotalPicks = summBlockRows.reduce((s, r) => s + r.picks, 0);
   const summAvgTha = summTotalArea > 0 ? summTotalKg / 1000 / summTotalArea : null;
   const summBrixRows = summBlockRows.filter(r => r.brixCount > 0).map(r => r.brixSum / r.brixCount);
   const summAvgBrix = summBrixRows.length > 0 ? summBrixRows.reduce((a, b) => a + b, 0) / summBrixRows.length : null;
+  const summPhRows = summBlockRows.filter(r => r.phCount > 0).map(r => r.phSum / r.phCount);
+  const summAvgPh = summPhRows.length > 0 ? summPhRows.reduce((a, b) => a + b, 0) / summPhRows.length : null;
+  const summTaRows = summBlockRows.filter(r => r.taCount > 0).map(r => r.taSum / r.taCount);
+  const summAvgTa = summTaRows.length > 0 ? summTaRows.reduce((a, b) => a + b, 0) / summTaRows.length : null;
   const summPaRows = summBlockRows.filter(r => r.potAlcCount > 0).map(r => r.potAlcSum / r.potAlcCount);
   const summAvgPa = summPaRows.length > 0 ? summPaRows.reduce((a, b) => a + b, 0) / summPaRows.length : null;
   const bsColSpan = hasPhotos ? 11 : 10;
@@ -1615,14 +1620,14 @@ export async function printHarvest(
     <tfoot>
       <tr>
         ${bsPhotoFooterCell}
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700" colspan="2">Season Totals / Averages</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700" colspan="2">Farm Totals / Averages</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalArea > 0 ? summTotalArea.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalPicks}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalKg > 0 ? summTotalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTha != null ? summAvgTha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgBrix != null ? summAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPh != null ? summAvgPh.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTa != null ? summAvgTa.toFixed(1) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPa != null ? summAvgPa.toFixed(1) : "\u2014"}</td>
       </tr>
     </tfoot>
