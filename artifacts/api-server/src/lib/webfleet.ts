@@ -62,17 +62,25 @@ async function fetchWebfleetVehicles(
   creds: WebfleetCredentials,
   appApiKey: string,
 ): Promise<WebfleetVehicle[]> {
+  // Webfleet.connect migrated to HTTP Basic Authentication in June 2026.
+  // username + password must no longer be sent as URL query parameters —
+  // they must be Base64-encoded and sent in the Authorization header instead.
+  // account and apikey remain as query parameters.
   const params = new URLSearchParams({
     lang:         "en",
     outputformat: "json",
     action:       "showVehicleReport",
     account:      creds.account,
-    username:     creds.username,
-    password:     creds.password,
     apikey:       appApiKey,
   });
 
-  const res = await fetch(`${WEBFLEET_API_BASE}?${params.toString()}`);
+  const basicCredential = Buffer.from(`${creds.username}:${creds.password}`).toString("base64");
+
+  const res = await fetch(`${WEBFLEET_API_BASE}?${params.toString()}`, {
+    headers: {
+      Authorization: `Basic ${basicCredential}`,
+    },
+  });
   if (!res.ok) throw new Error(`Webfleet API HTTP error: ${res.status}`);
 
   const json = await res.json() as WebfleetVehicle[] | WebfleetApiResponse;
