@@ -78,6 +78,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
   const [varietySummaryOpen, setVarietySummaryOpen] = useState(true);
   const [summarySort, setSummarySort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
+  const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1011,60 +1012,131 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       )}
 
       {/* Chemistry cross-tab: block × vintage for Brix, pH, TA, Pot. Alc */}
-      {chemCrossTabData && (
-        <div className="rounded-lg border bg-card p-4 space-y-4">
-          <p className="text-sm font-semibold flex items-center gap-1.5">
-            <FlaskConical className="w-4 h-4 text-muted-foreground" />
-            Chemistry Cross-tab — Block × Vintage
-          </p>
-          {chemCrossTabData.tables.map(tbl => (
-            <div key={tbl.label} className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="text-left px-3 py-1.5 font-medium">Block</th>
-                      {chemCrossTabData.uniqueVintages.map(vy => (
-                        <th key={vy} className="text-right px-3 py-1.5 font-medium">{vy}</th>
-                      ))}
-                      <th className="text-right px-3 py-1.5 font-medium border-l">Avg</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tbl.rows.map((row, ri) => (
-                      <tr key={ri} className="border-b last:border-0 hover:bg-muted/20">
-                        <td className="px-3 py-1.5 font-medium">{row.bname}</td>
-                        {row.vintageCells.map((val, vi) => (
-                          <td key={vi} className="text-right px-3 py-1.5 tabular-nums">
-                            {val != null ? val.toFixed(tbl.precision) : <span className="text-muted-foreground/40">—</span>}
-                          </td>
-                        ))}
-                        <td className="text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground">
-                          {row.rowAvg != null ? row.rowAvg.toFixed(tbl.precision) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 bg-muted/40 font-semibold text-xs">
-                      <td className="px-3 py-1.5">All blocks</td>
-                      {tbl.colAvgs.map((val, vi) => (
-                        <td key={vi} className="text-right px-3 py-1.5 tabular-nums">
-                          {val != null ? val.toFixed(tbl.precision) : "—"}
-                        </td>
-                      ))}
-                      <td className="text-right px-3 py-1.5 tabular-nums border-l">
-                        {tbl.grandAvg != null ? tbl.grandAvg.toFixed(tbl.precision) : "—"}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+      {chemCrossTabData && (() => {
+        const { uniqueVintages, tables } = chemCrossTabData;
+
+        const handleChemSortCol = (col: string) => {
+          setChemSort(prev =>
+            prev?.col === col
+              ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+              : { col, dir: "desc" }
+          );
+        };
+
+        const ChemSortIcon = ({ col }: { col: string }) => {
+          if (!chemSort || chemSort.col !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30 inline-block" />;
+          return chemSort.dir === "asc"
+            ? <ArrowUp className="w-3 h-3 ml-1 text-primary inline-block" />
+            : <ArrowDown className="w-3 h-3 ml-1 text-primary inline-block" />;
+        };
+
+        const sortRows = (rows: typeof tables[0]["rows"], vintageIndex: number) => {
+          if (!chemSort) return rows;
+          const d = chemSort.dir === "asc" ? 1 : -1;
+          return [...rows].sort((a, b) => {
+            let av: number | null, bv: number | null;
+            if (chemSort.col === "avg") {
+              av = a.rowAvg; bv = b.rowAvg;
+            } else {
+              av = a.vintageCells[vintageIndex]; bv = b.vintageCells[vintageIndex];
+            }
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return (av - bv) * d;
+          });
+        };
+
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold flex items-center gap-1.5">
+                <FlaskConical className="w-4 h-4 text-muted-foreground" />
+                Chemistry Cross-tab — Block × Vintage
+              </p>
+              {chemSort && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  onClick={() => setChemSort(null)}
+                >
+                  Clear sort
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+            {tables.map(tbl => {
+              const vintageIndex = chemSort && chemSort.col !== "avg"
+                ? uniqueVintages.indexOf(chemSort.col)
+                : -1;
+              const sortedRows = sortRows(tbl.rows, vintageIndex);
+              return (
+                <div key={tbl.label} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                          <th className="text-left px-3 py-1.5 font-medium">Block</th>
+                          {uniqueVintages.map(vy => (
+                            <th key={vy} className="text-right px-3 py-1.5 font-medium">
+                              <button
+                                type="button"
+                                className={`inline-flex items-center justify-end hover:text-foreground transition-colors ${chemSort?.col === vy ? "text-foreground" : ""}`}
+                                onClick={() => handleChemSortCol(vy)}
+                                title={`Sort by ${vy}`}
+                              >
+                                {vy}<ChemSortIcon col={vy} />
+                              </button>
+                            </th>
+                          ))}
+                          <th className="text-right px-3 py-1.5 font-medium border-l">
+                            <button
+                              type="button"
+                              className={`inline-flex items-center justify-end hover:text-foreground transition-colors ${chemSort?.col === "avg" ? "text-foreground" : ""}`}
+                              onClick={() => handleChemSortCol("avg")}
+                              title="Sort by row average"
+                            >
+                              Avg<ChemSortIcon col="avg" />
+                            </button>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedRows.map((row, ri) => (
+                          <tr key={ri} className="border-b last:border-0 hover:bg-muted/20">
+                            <td className="px-3 py-1.5 font-medium">{row.bname}</td>
+                            {row.vintageCells.map((val, vi) => (
+                              <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
+                                {val != null ? val.toFixed(tbl.precision) : <span className="text-muted-foreground/40">—</span>}
+                              </td>
+                            ))}
+                            <td className={`text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground ${chemSort?.col === "avg" ? "bg-muted/30" : ""}`}>
+                              {row.rowAvg != null ? row.rowAvg.toFixed(tbl.precision) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 bg-muted/40 font-semibold text-xs">
+                          <td className="px-3 py-1.5">All blocks</td>
+                          {tbl.colAvgs.map((val, vi) => (
+                            <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
+                              {val != null ? val.toFixed(tbl.precision) : "—"}
+                            </td>
+                          ))}
+                          <td className={`text-right px-3 py-1.5 tabular-nums border-l ${chemSort?.col === "avg" ? "bg-muted/30" : ""}`}>
+                            {tbl.grandAvg != null ? tbl.grandAvg.toFixed(tbl.precision) : "—"}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Yield summary table — grouped by vintage (all vintages) or by block (single vintage) */}
       {filteredHarvest.length > 0 && (() => {
