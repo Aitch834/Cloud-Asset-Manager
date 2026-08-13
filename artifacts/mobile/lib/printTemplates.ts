@@ -73,8 +73,22 @@ function wrap(body: string, pageStyle?: string) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${PAGE_STYLE}${pageStyle ?? ""}</style></head><body>${body}</body></html>`;
 }
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function fmt(val: string | undefined | null, fallback = "—") {
   return val && val.trim() ? val.trim() : fallback;
+}
+
+/** Like fmt() but HTML-escapes the result — use for user-supplied strings in HTML templates. */
+function efmt(val: string | undefined | null, fallback = "—"): string {
+  return escHtml(fmt(val, fallback));
 }
 
 function fmtDate(iso: string | undefined | null) {
@@ -764,6 +778,140 @@ export function grainIntakeDocketHtml(record: ThirdPartyGrainIntakeMobile, farmN
     ${docFooter("Third-Party Grain Intake Docket")}`;
 
   return wrap(body);
+}
+
+export interface VineSprayDiaryRow {
+  id: number;
+  applicationDate: string | null;
+  blockName: string | null;
+  productName: string | null;
+  mappNumber: string | null;
+  activeIngredient: string | null;
+  productType: string | null;
+  ratePerHectare: number | null;
+  rateUnit: string | null;
+  areaTreatedHa: number | null;
+  windSpeedMph: number | null;
+  temperatureCelsius: number | null;
+  weatherConditions: string | null;
+  operatorName: string | null;
+  operatorCertificateNo: string | null;
+  notes: string | null;
+}
+
+export function vineSprayDiaryHtml(
+  records: VineSprayDiaryRow[],
+  farmName: string | null,
+  farmAddress: string | null,
+  farmPostcode: string | null,
+  searchQuery?: string,
+): string {
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  // Escape all user-supplied strings before inserting into HTML
+  const eFarmName = efmt(farmName);
+  const eAddress = farmAddress && farmAddress.trim() ? escHtml(farmAddress.trim()) : "";
+  const ePostcode = farmPostcode && farmPostcode.trim() ? escHtml(farmPostcode.trim()) : "";
+  const addressParts = [eAddress, ePostcode].filter(Boolean).join(", ");
+  const eSearch = searchQuery && searchQuery.trim() ? escHtml(searchQuery.trim()) : "";
+
+  const header = `
+    <div class="header">
+      <div class="logo-block">
+        <h1>BDE Farm Trac</h1>
+        <p>Vineyard Compliance Platform</p>
+      </div>
+      <div class="doc-title">
+        <h2>Vine Spray Diary</h2>
+        <p>Date: ${safeDate}</p>
+        <p>${records.length} record${records.length === 1 ? "" : "s"}${eSearch ? ` &middot; Filter: &ldquo;${eSearch}&rdquo;` : ""}</p>
+      </div>
+    </div>
+    <div class="farm-bar" style="flex-direction:column;gap:4px;">
+      <div style="display:flex;gap:28px;">
+        <span>Farm: <strong>${eFarmName}</strong></span>
+        <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
+      </div>
+      ${addressParts ? `<div><span>Address: <strong>${addressParts}</strong></span></div>` : ""}
+    </div>`;
+
+  // Build a clear, accurate list of which fields are missing
+  const missingFields: string[] = [];
+  if (!farmName || !farmName.trim()) missingFields.push("Farm name");
+  if (!farmAddress || !farmAddress.trim()) missingFields.push("Farm address");
+  const missingWarning = missingFields.length > 0
+    ? `<div class="warning-box">⚠ ${missingFields.join(" and ")} not set — update Farm Settings to populate the header.</div>`
+    : "";
+
+  const tableRows = records.map((r) => {
+    // Numeric fields are formatted as numbers — safe to interpolate directly
+    const rate = r.ratePerHectare != null
+      ? `${r.ratePerHectare} ${efmt(r.rateUnit, "")}`.trim()
+      : "—";
+    const weatherParts: string[] = [];
+    if (r.windSpeedMph != null) weatherParts.push(`${r.windSpeedMph} mph`);
+    if (r.temperatureCelsius != null) weatherParts.push(`${r.temperatureCelsius} \u00b0C`);
+    if (r.weatherConditions) weatherParts.push(escHtml(r.weatherConditions));
+    const weather = weatherParts.length > 0 ? weatherParts.join(" &middot; ") : "—";
+
+    return `
+      <tr>
+        <td>${fmtDate(r.applicationDate)}</td>
+        <td><strong>${efmt(r.productName)}</strong>${r.productType ? `<br><span style="color:#555;font-size:8.5pt">${efmt(r.productType)}</span>` : ""}</td>
+        <td>${efmt(r.mappNumber)}</td>
+        <td>${efmt(r.activeIngredient)}</td>
+        <td>${rate}</td>
+        <td>${r.areaTreatedHa != null ? `${Number(r.areaTreatedHa).toFixed(2)} ha` : "—"}</td>
+        <td>${efmt(r.blockName)}</td>
+        <td style="font-size:8.5pt">${weather}</td>
+        <td>${efmt(r.operatorName)}${r.operatorCertificateNo ? `<br><span style="color:#555;font-size:8pt">${efmt(r.operatorCertificateNo)}</span>` : ""}</td>
+      </tr>`;
+  }).join("");
+
+  const tableEmpty = `<tr><td colspan="9" style="text-align:center;color:#888;padding:16px 8px;">No spray diary records match the current filter.</td></tr>`;
+
+  const extraCss = `
+    table { font-size: 8.5pt; }
+    th { font-size: 8pt; }
+    td { padding: 4px 6px; }
+  `;
+
+  const body = `
+    ${header}
+    ${missingWarning}
+    <div class="warning-box" style="background:#f0f9ff;border-color:#7dd3fc;color:#075985;">
+      &#8505; This spray diary must be retained for a minimum of 3 years. All pesticide applications must comply
+      with product label instructions and current certification requirements.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Product</th>
+          <th>MAPP No.</th>
+          <th>Active Ingredient</th>
+          <th>Rate</th>
+          <th>Area</th>
+          <th>Block</th>
+          <th>Weather</th>
+          <th>Operator</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${records.length > 0 ? tableRows : tableEmpty}
+      </tbody>
+    </table>
+    ${records.some(r => r.notes) ? `
+      <div class="section-heading">Notes</div>
+      <table>
+        ${records.filter(r => r.notes).map(r => `
+          <tr>
+            <td class="label" style="width:22%">${fmtDate(r.applicationDate)} &mdash; ${efmt(r.productName)}</td>
+            <td>${efmt(r.notes)}</td>
+          </tr>`).join("")}
+      </table>` : ""}
+    ${docFooter("Vine Spray Diary")}`;
+
+  return wrap(body, extraCss);
 }
 
 export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobile, farmName: string): string {

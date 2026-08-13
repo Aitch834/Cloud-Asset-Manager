@@ -42,6 +42,8 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { vineSprayDiaryHtml, type VineSprayDiaryRow } from "@/lib/printTemplates";
 
 // 4-minute background refresh for presigned URLs
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
@@ -948,12 +950,13 @@ function SprayDiaryRow({
 export default function VineSprayDiaryHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { address, postcode, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
   const { records, loading, refreshing, error, refresh } = useApiFetch<SprayDiaryRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-spray-diary",
   );
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
+  const { savePdf } = usePrint();
 
   const missingAddressFields: string[] = !identifiersLoading
     ? [
@@ -965,6 +968,7 @@ export default function VineSprayDiaryHistoryScreen() {
   const [search, setSearch] = useState("");
   const [editingRecord, setEditingRecord] = useState<SprayDiaryRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<SprayDiaryRecord>>>({});
+  const [exporting, setExporting] = useState(false);
 
   const displayRecords = useMemo(() => {
     return records.map(r => {
@@ -997,6 +1001,43 @@ export default function VineSprayDiaryHistoryScreen() {
     setEditingRecord(null);
   };
 
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const rows: VineSprayDiaryRow[] = filtered.map(r => ({
+        id: r.id,
+        applicationDate: r.applicationDate,
+        blockName: r.blockId ? (blocks.find(b => b.id === r.blockId)?.blockName ?? null) : null,
+        productName: r.productName,
+        mappNumber: r.mappNumber,
+        activeIngredient: r.activeIngredient,
+        productType: r.productType,
+        ratePerHectare: r.ratePerHectare,
+        rateUnit: r.rateUnit,
+        areaTreatedHa: r.areaTreatedHa,
+        windSpeedMph: r.windSpeedMph,
+        temperatureCelsius: r.temperatureCelsius,
+        weatherConditions: r.weatherConditions,
+        operatorName: r.operatorName,
+        operatorCertificateNo: r.operatorCertificateNo,
+        notes: r.notes,
+      }));
+      const html = vineSprayDiaryHtml(
+        rows,
+        currentFarm?.name ?? null,
+        address,
+        postcode,
+        search.trim() || undefined,
+      );
+      await savePdf(html, "Vine Spray Diary");
+    } catch {
+      Alert.alert("Export Failed", "Could not generate the spray diary report. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -1004,6 +1045,20 @@ export default function VineSprayDiaryHistoryScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Spray Diary History</Text>
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting || filtered.length === 0}
+          style={[styles.exportBtn, (exporting || filtered.length === 0) && styles.exportBtnDisabled]}
+          hitSlop={8}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Feather name="share" size={18} color={filtered.length === 0 ? colors.textSecondary : colors.primary} />
+          }
+          <Text style={[styles.exportBtnText, filtered.length === 0 && styles.exportBtnTextDisabled]}>
+            {exporting ? "Exporting…" : "Export"}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={styles.searchRow}>
@@ -1244,6 +1299,19 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  exportBtnDisabled: { borderColor: colors.border },
+  exportBtnText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+  exportBtnTextDisabled: { color: colors.textSecondary },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
