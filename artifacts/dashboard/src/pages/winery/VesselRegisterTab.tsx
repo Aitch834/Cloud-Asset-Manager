@@ -22,6 +22,7 @@ import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Cart
 import SignatureCanvas from "react-signature-canvas";
 
 import { apiUrl as api } from "@/lib/api";
+import { Tooltip as RadixTooltip, TooltipContent as RadixTooltipContent, TooltipProvider as RadixTooltipProvider, TooltipTrigger as RadixTooltipTrigger } from "@/components/ui/tooltip";
 
 // ─── Barrel Fill History ──────────────────────────────────────────────────────
 function fillOakLabel(fillNumber: number): { label: string; cls: string } {
@@ -1306,7 +1307,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <td className="p-3 text-right whitespace-nowrap">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
                       {isBarrelRow && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Print barrel history" onClick={() => handleBarrelPrint(r)}><Printer className="h-4 w-4" /></Button>
+                        <RadixTooltipProvider>
+                          <RadixTooltip>
+                            <RadixTooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleBarrelPrint(r)}><Printer className="h-4 w-4" /></Button>
+                            </RadixTooltipTrigger>
+                            <RadixTooltipContent>Print barrel history</RadixTooltipContent>
+                          </RadixTooltip>
+                        </RadixTooltipProvider>
                       )}
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
