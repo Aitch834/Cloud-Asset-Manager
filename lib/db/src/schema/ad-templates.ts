@@ -16,7 +16,7 @@ export type NewAdCopyPreset = typeof adCopyPresetsTable.$inferInsert;
 export const adTemplatesTable = pgTable("ad_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   widthMm: integer("width_mm").notNull(),
   heightMm: integer("height_mm").notNull(),
   /** Full WeasyPrint HTML with {{font_css}}, {{logo}}, {{bg}}, {{qr}} placeholders */

@@ -428,6 +428,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
         <div>
           <label className={labelCls}>Slug <span className="text-muted-foreground font-normal">(unique identifier)</span></label>
           <input required className={inputCls} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="viticulture-horizontal" />
+          <p className="text-xs text-muted-foreground mt-1">Must be unique among active templates only — archived templates free up their slug.</p>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">

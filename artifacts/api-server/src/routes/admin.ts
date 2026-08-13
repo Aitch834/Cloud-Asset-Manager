@@ -2114,7 +2114,7 @@ router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Respon
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
     if (code === "23505") {
-      res.status(409).json({ error: "A template with that slug already exists" });
+      res.status(409).json({ error: "An active template with that slug already exists. Archive the existing template first, or choose a different slug." });
     } else {
       console.error("[ad-templates/create]", err);
       res.status(500).json({ error: "Failed to create template" });
@@ -2144,7 +2144,7 @@ router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Res
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
     if (code === "23505") {
-      res.status(409).json({ error: "A template with that slug already exists" });
+      res.status(409).json({ error: "An active template with that slug already exists. Archive the existing template first, or choose a different slug." });
     } else {
       console.error("[ad-templates/update]", err);
       res.status(500).json({ error: "Failed to update template" });
@@ -2166,12 +2166,22 @@ router.delete("/admin/ad-templates/:id", requireAuth, async (req: Request, res: 
 router.post("/admin/ad-templates/:id/restore", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const id = Number(req.params.id);
-  const [row] = await db.update(adTemplatesTable)
-    .set({ archivedAt: null })
-    .where(eq(adTemplatesTable.id, id))
-    .returning();
-  if (!row) { res.status(404).json({ error: "Template not found" }); return; }
-  res.json(row);
+  try {
+    const [row] = await db.update(adTemplatesTable)
+      .set({ archivedAt: null })
+      .where(eq(adTemplatesTable.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Template not found" }); return; }
+    res.json(row);
+  } catch (err: unknown) {
+    const code = (err as { cause?: { code?: string } }).cause?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "Another active template already uses that slug. Archive or rename it before restoring this one." });
+    } else {
+      console.error("[ad-templates/restore]", err);
+      res.status(500).json({ error: "Failed to restore template" });
+    }
+  }
 });
 
 // ─── Ad Copy Presets ──────────────────────────────────────────────────────────

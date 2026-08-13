@@ -63,7 +63,7 @@ export async function runAdTemplateMigrations(): Promise<void> {
     CREATE TABLE IF NOT EXISTS ad_templates (
       id          serial PRIMARY KEY,
       name        text NOT NULL,
-      slug        text NOT NULL UNIQUE,
+      slug        text NOT NULL,
       width_mm    integer NOT NULL,
       height_mm   integer NOT NULL,
       html_body   text NOT NULL,
@@ -75,6 +75,37 @@ export async function runAdTemplateMigrations(): Promise<void> {
 
   // Soft-delete support: non-null archived_at means the template is retired
   await db.execute(sql`ALTER TABLE ad_templates ADD COLUMN IF NOT EXISTS archived_at timestamptz`);
+
+  // Replace any unconditional UNIQUE constraint on slug with a partial unique index
+  // so that only non-archived (active) templates must have unique slugs. This allows
+  // an archived template's slug to be reused by a newly created template.
+  // Two possible constraint names to cover:
+  //   - ad_templates_slug_key   — PostgreSQL's auto-generated name from `slug text NOT NULL UNIQUE`
+  //   - ad_templates_slug_unique — Drizzle ORM's generated name from .unique()
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ad_templates_slug_key'
+          AND conrelid = 'ad_templates'::regclass
+      ) THEN
+        ALTER TABLE ad_templates DROP CONSTRAINT ad_templates_slug_key;
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ad_templates_slug_unique'
+          AND conrelid = 'ad_templates'::regclass
+      ) THEN
+        ALTER TABLE ad_templates DROP CONSTRAINT ad_templates_slug_unique;
+      END IF;
+    END $$
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS ad_templates_slug_active_unique
+      ON ad_templates (slug)
+      WHERE archived_at IS NULL
+  `);
 
   // Seed default templates only if none exist
   const existing = await db.execute(sql`SELECT id FROM ad_templates LIMIT 1`);
