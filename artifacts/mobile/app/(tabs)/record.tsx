@@ -12,6 +12,11 @@ import { CombineIcon } from "@/components/ui/CombineIcon";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import {
+  isBarrelType as _isBarrelType,
+  isIdleBarrel as _isIdleBarrel,
+  isApproachingNeutral as _isApproachingNeutral,
+} from "@/lib/utils/vesselAlerts";
 
 type FarmSector = "arable" | "beef" | "dairy" | "pigs" | "poultry" | "livestock";
 
@@ -22,21 +27,6 @@ interface WineryVesselSummary {
   status: string | null;
   empty_since: string | null;
   fill_number: number | null;
-}
-
-function _isBarrelType(vesselType: string | null): boolean {
-  const t = (vesselType ?? "").toLowerCase();
-  return t.includes("barrel") || t.includes("barrique");
-}
-
-function _isIdleBarrel(emptySince: string | null): boolean {
-  if (!emptySince) return false;
-  const diffDays = (Date.now() - new Date(emptySince).getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays > 90;
-}
-
-function _isApproachingNeutral(fillNumber: number | null): boolean {
-  return fillNumber != null && fillNumber >= 4;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

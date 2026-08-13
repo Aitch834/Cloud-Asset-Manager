@@ -1,26 +1,16 @@
 import React from "react";
 import { useApiFetch } from "./useApiFetch";
+import {
+  isBarrelType,
+  isIdleBarrel,
+  isApproachingNeutral,
+} from "../utils/vesselAlerts";
 
 interface WineryVesselSummary {
   vessel_type: string | null;
   status: string | null;
   empty_since: string | null;
   fill_number: number | null;
-}
-
-function isBarrelType(vesselType: string | null): boolean {
-  const t = (vesselType ?? "").toLowerCase();
-  return t.includes("barrel") || t.includes("barrique");
-}
-
-function isIdleBarrel(emptySince: string | null): boolean {
-  if (!emptySince) return false;
-  const diffDays = (Date.now() - new Date(emptySince).getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays > 90;
-}
-
-function isApproachingNeutral(fillNumber: number | null): boolean {
-  return fillNumber != null && fillNumber >= 4;
 }
 
 /**
