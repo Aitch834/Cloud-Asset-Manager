@@ -127,6 +127,15 @@ export default function ViticulturePage() {
   const [bulkLinkFor, setBulkLinkFor] = useState<string | null>(null);
   const blocks = useCrud(selectedFarmId ?? 0, "vineyard-blocks", "vineyard-blocks");
 
+  const { data: dashData, isLoading: dashLoading } = useQuery<{ activeSubscriptions?: Array<{ moduleKey: string }> }>({
+    queryKey: ["farm-dashboard", selectedFarmId],
+    queryFn: () => fetch(`/api/farms/${selectedFarmId}/dashboard`).then(r => r.json()),
+    enabled: !!selectedFarmId,
+    staleTime: 60_000,
+  });
+  const activeSubs = (dashData?.activeSubscriptions ?? []).map(s => s.moduleKey);
+  const hasViticulture = activeSubs.includes("viticulture") || activeSubs.includes("organic-viticulture");
+
   const handleNavigate = (toTab: string, blockId?: number) => {
     setHighlightBlockId(blockId);
     setTab(toTab);
@@ -142,6 +151,26 @@ export default function ViticulturePage() {
   if (!selectedFarmId) return (
     <AppLayout>
       <div className="flex items-center justify-center h-64 text-muted-foreground">Select a farm to view Viticulture records.</div>
+    </AppLayout>
+  );
+
+  if (dashLoading) return (
+    <AppLayout>
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading farm details…
+      </div>
+    </AppLayout>
+  );
+
+  if (!hasViticulture) return (
+    <AppLayout>
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-4">
+        <Grape className="w-10 h-10 text-purple-200" />
+        <h2 className="text-lg font-semibold text-gray-800">Viticulture module not active</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          This farm doesn't have the Viticulture module enabled. Contact your account manager to add it to your subscription.
+        </p>
+      </div>
     </AppLayout>
   );
 

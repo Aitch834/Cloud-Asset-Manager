@@ -1766,9 +1766,38 @@ export default function OrganicViticulturePage() {
     enabled: !!farmId,
   });
 
+  const { data: dashData, isLoading: dashLoading } = useQuery<{ activeSubscriptions?: Array<{ moduleKey: string }> }>({
+    queryKey: ["farm-dashboard", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const activeSubs = (dashData?.activeSubscriptions ?? []).map(s => s.moduleKey);
+  const hasOrganicVit = activeSubs.includes("organic-viticulture");
+
   if (!farmId) return (
     <AppLayout>
       <div className="flex items-center justify-center h-64 text-gray-500">No farm selected.</div>
+    </AppLayout>
+  );
+
+  if (dashLoading) return (
+    <AppLayout>
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading farm details…
+      </div>
+    </AppLayout>
+  );
+
+  if (!hasOrganicVit) return (
+    <AppLayout>
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-4">
+        <Grape className="h-10 w-10 text-purple-200" />
+        <h2 className="text-lg font-semibold text-gray-800">Organic Viticulture module not active</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          This farm doesn't have the Organic Viticulture module enabled. Contact your account manager to add it to your subscription.
+        </p>
+      </div>
     </AppLayout>
   );
 
