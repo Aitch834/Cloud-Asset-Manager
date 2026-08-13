@@ -1284,9 +1284,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span>{fmt(r.vessel_ref)}</span>
                         {isBarrelRow && (r.fill_number == null || Number(r.fill_number) === 0) && (
-                          Number(r.maintenance_count ?? 0) > 0
-                            ? <span className="text-xs rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 font-medium normal-case tracking-normal">⚠ No fills</span>
-                            : <span className="text-xs rounded px-1.5 py-0.5 bg-gray-100 text-gray-500 font-medium normal-case tracking-normal">No fills</span>
+                          <span className="text-xs rounded border px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 font-medium normal-case tracking-normal">No fills logged</span>
                         )}
                       </div>
                     </td>
