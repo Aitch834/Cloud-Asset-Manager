@@ -1382,9 +1382,14 @@ export async function printHarvest(
     .map(key => {
       const row = blockSummaryMap[key];
       const tha = row.areaHa > 0 ? (row.totalKg / 1000 / row.areaHa) : null;
+      const pickBadgeHtml = row.picks === 1
+        ? ` <span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fbbf24;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap">&#9888; 1 pick \u2014 low confidence</span>`
+        : row.picks <= 3
+        ? ` <span style="display:inline-block;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:3px;padding:1px 5px;font-size:9px;white-space:nowrap">${row.picks} picks</span>`
+        : "";
       return `<tr>
         ${hasPhotos ? row.photoCell : ""}
-        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(row.label)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(row.label)}${pickBadgeHtml}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(row.variety)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.areaHa > 0 ? row.areaHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.picks}</td>
@@ -1619,13 +1624,14 @@ export async function printHarvest(
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
   let vintageSummaryHtml = "";
   if (groupByVintage) {
-    const vintageObj: Record<string, { totalKg: number; brixSum: number; brixCount: number; phSum: number; phCount: number; taSum: number; taCount: number; paSum: number; paCount: number }> = {};
+    const vintageObj: Record<string, { picks: number; totalKg: number; brixSum: number; brixCount: number; phSum: number; phCount: number; taSum: number; taCount: number; paSum: number; paCount: number }> = {};
     // Track distinct block IDs per vintage so we can compute t/ha from actual block areas
     const vintageBlockIds: Record<string, Set<number>> = {};
     for (const r of records) {
       const yr = String(r.vintageYear ?? "Unknown");
-      if (!vintageObj[yr]) vintageObj[yr] = { totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
+      if (!vintageObj[yr]) vintageObj[yr] = { picks: 0, totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
       if (!vintageBlockIds[yr]) vintageBlockIds[yr] = new Set();
+      vintageObj[yr].picks++;
       vintageObj[yr].totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       const bid = Number(r.blockId);
       if (!isNaN(bid) && bid > 0) vintageBlockIds[yr].add(bid);
@@ -1657,10 +1663,15 @@ export async function printHarvest(
     const grandTotalArea = [...allBlockIds].reduce((s, bid) => s + (parseFloat(String(blockLookup2[bid]?.areaHa ?? "0")) || 0), 0);
     const grandTha = grandTotalArea > 0 && totalKg > 0 ? totalKg / 1000 / grandTotalArea : null;
     const vintageRows = uniqueVintages.map(yr => {
-      const v = vintageObj[yr] ?? { totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
+      const v = vintageObj[yr] ?? { picks: 0, totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
       const tha = vintageTha(yr);
+      const vPickBadgeHtml = v.picks === 1
+        ? ` <span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fbbf24;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap">&#9888; 1 pick \u2014 low confidence</span>`
+        : v.picks <= 3
+        ? ` <span style="display:inline-block;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:3px;padding:1px 5px;font-size:9px;white-space:nowrap">${v.picks} picks</span>`
+        : "";
       return `<tr>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}${vPickBadgeHtml}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${v.totalKg > 0 ? v.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.brixCount > 0 ? (v.brixSum / v.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
