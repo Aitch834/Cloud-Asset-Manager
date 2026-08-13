@@ -437,23 +437,57 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
 export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const qKey = ["winery-vessel-cleans", farmId, vesselId];
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["winery-vessel-cleans", farmId, vesselId],
+    queryKey: qKey,
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${vesselId}/cleans`)).records ?? []) as Record<string, unknown>[],
     enabled: !!vesselId,
   });
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState<Record<string, string | boolean>>({ cleanDate: today, rinseCompleted: "true" });
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingClean, setEditingClean] = useState<Record<string, unknown> | null>(null);
+  const blankForm = () => ({ cleanDate: today, rinseCompleted: "true" });
+  const [form, setForm] = useState<Record<string, string | boolean>>(blankForm());
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
-  const addMut = useMutation({
-    mutationFn: async () => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); } },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }); setShowAdd(false); setForm({ cleanDate: today, rinseCompleted: "true" }); toast({ title: "Clean record added" }); },
+  const openAdd = () => { setEditingClean(null); setForm(blankForm()); setShowForm(true); };
+  const openEdit = (c: Record<string, unknown>) => {
+    setEditingClean(c);
+    setForm({
+      cleanDate:        c.clean_date        != null ? String(c.clean_date)        : "",
+      cleanType:        c.clean_type        != null ? String(c.clean_type)        : "",
+      cleaningProduct:  c.cleaning_product  != null ? String(c.cleaning_product)  : "",
+      concentrationPct: c.concentration_pct != null ? String(c.concentration_pct) : "",
+      waterTempC:       c.water_temp_c      != null ? String(c.water_temp_c)      : "",
+      contactTimeMin:   c.contact_time_min  != null ? String(c.contact_time_min)  : "",
+      operatorName:     c.operator_name     != null ? String(c.operator_name)     : "",
+      notes:            c.notes             != null ? String(c.notes)             : "",
+      rinseCompleted:   c.rinse_completed === false || c.rinse_completed === "false" ? "false" : "true",
+    });
+    setShowForm(true);
+  };
+  const closeForm = () => { setShowForm(false); setEditingClean(null); saveMut.reset(); };
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const isEdit = !!editingClean;
+      const url = isEdit
+        ? api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${editingClean!.id}`)
+        : api(`farms/${farmId}/winery-vessels/${vesselId}/cleans`);
+      const r = await fetch(url, { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      closeForm();
+      toast({ title: editingClean ? "Clean record updated" : "Clean record added" });
+    },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
+
   const delMut = useMutation({
-    mutationFn: async (cleanId: number) => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); } },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["winery-vessel-cleans", farmId, vesselId] }),
+    mutationFn: async (cleanId: number) => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Delete failed"); } },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
 
@@ -461,10 +495,11 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleaning History</p>
-        {!readOnly && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>}
+        {!readOnly && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAdd}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>}
       </div>
-      {!readOnly && showAdd && (
+      {!readOnly && showForm && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{editingClean ? "Edit clean record" : "New clean record"}</p>
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Clean Date *</Label><Input type="date" max={today} value={String(form.cleanDate ?? "")} onChange={e => sf("cleanDate", e.target.value)} className="h-8 text-xs" /></div>
             <div><Label className="text-xs">Clean Type</Label>
@@ -484,21 +519,29 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
             <Label htmlFor="rinse-chk" className="text-xs cursor-pointer">Final rinse completed</Label>
           </div>
           <div><Label className="text-xs">Notes</Label><Textarea value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
+          <DialogMutationError mutation={saveMut} />
           <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.cleanDate || addMut.isPending}>{addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save Clean</Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={() => saveMut.mutate()} disabled={!form.cleanDate || saveMut.isPending}>{saveMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}{editingClean ? "Save Changes" : "Save Clean"}</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={closeForm}>Cancel</Button>
           </div>
         </div>
       )}
       {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isError ? <QueryErrorNotice label="cleaning records" error={error} /> : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No cleaning records yet.</p> : (
         <div className="space-y-1">
           {(data ?? []).map(c => (
-            <div key={String(c.id)} className="flex items-center justify-between text-xs border rounded px-3 py-1.5">
-              <span className="font-medium">{fmtDate(c.clean_date)}</span>
-              <span className="text-muted-foreground">{fmt(c.clean_type)}</span>
-              <span className="text-muted-foreground">{fmt(c.cleaning_product)}</span>
-              <span>{c.rinse_completed ? <span className="text-green-700">Rinse ✓</span> : <span className="text-red-600">No rinse</span>}</span>
-              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>}
+            <div key={String(c.id)} className="flex items-center justify-between text-xs border rounded px-3 py-1.5 gap-2">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <span className="font-medium shrink-0">{fmtDate(c.clean_date)}</span>
+                <span className="text-muted-foreground shrink-0">{fmt(c.clean_type)}</span>
+                <span className="text-muted-foreground truncate">{fmt(c.cleaning_product)}</span>
+                <span className="shrink-0">{c.rinse_completed ? <span className="text-green-700">Rinse ✓</span> : <span className="text-red-600">No rinse</span>}</span>
+              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              )}
             </div>
           ))}
         </div>

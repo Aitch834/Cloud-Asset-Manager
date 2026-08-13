@@ -38021,6 +38021,14 @@ router.post("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requi
   const r = await db.execute(sql`INSERT INTO winery_vessel_cleans (farm_id,vessel_id,clean_date,clean_type,cleaning_product,concentration_pct,water_temp_c,contact_time_min,rinse_completed,operator_name,notes) VALUES (${farmId},${vesselId},${nd(b.cleanDate)},${n(b.cleanType)},${n(b.cleaningProduct)},${nf(b.concentrationPct)},${nf(b.waterTempC)},${ni(b.contactTimeMin)},${nb(b.rinseCompleted) ?? true},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
+router.put("/farms/:farmId/winery-vessels/:vesselId/cleans/:cleanId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body); const cleanId = parseInt(req.params.cleanId as string);
+  const vesselId2 = parseInt(req.params.vesselId as string);
+  const r = await db.execute(sql`UPDATE winery_vessel_cleans SET clean_date=${nd(b.cleanDate)},clean_type=${n(b.cleanType)},cleaning_product=${n(b.cleaningProduct)},concentration_pct=${nf(b.concentrationPct)},water_temp_c=${nf(b.waterTempC)},contact_time_min=${ni(b.contactTimeMin)},rinse_completed=${nb(b.rinseCompleted) ?? true},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${cleanId} AND farm_id=${farmId} AND vessel_id=${vesselId2} RETURNING *`);
+  if (!r.rows.length) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ record: r.rows[0] });
+});
 router.delete("/farms/:farmId/winery-vessels/:vesselId/cleans/:cleanId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   await db.execute(sql`DELETE FROM winery_vessel_cleans WHERE id=${parseInt(req.params.cleanId as string)} AND farm_id=${farmId}`);
