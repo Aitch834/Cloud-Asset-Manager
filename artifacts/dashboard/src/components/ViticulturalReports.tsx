@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
-import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -628,26 +628,43 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   }, [year, harvests, blockMap]);
 
   // Block filter for per-block yield trend (all-vintages mode only)
-  // null = all blocks shown; Set = subset of block names to show
-  const [selectedBlockNames, setSelectedBlockNames] = useState<Set<string> | null>(null);
+  // Persisted as JSON array in localStorage; empty string = "all blocks" (null)
+  const [_storedBlocks, _setStoredBlocks] = usePersistedFilter({
+    page: "vintage-season-report",
+    filter: "block-selection",
+    farmId,
+    defaultValue: "",
+  });
+  const selectedBlockNames: Set<string> | null = useMemo(() => {
+    if (!_storedBlocks) return null;
+    try {
+      const arr = JSON.parse(_storedBlocks) as string[];
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      return new Set(arr);
+    } catch {
+      return null;
+    }
+  }, [_storedBlocks]);
+  const _persistBlockNames = (v: Set<string> | null) => {
+    _setStoredBlocks(v == null ? "" : JSON.stringify([...v]));
+  };
+
   // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
   const [chartInTha, setChartInTha] = useState(false);
 
   const toggleBlock = (name: string) => {
-    setSelectedBlockNames(prev => {
-      // When null, all blocks are shown — clicking one deselects all others
-      const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
-      const current = prev ?? new Set(allKeys);
-      const next = new Set(current);
-      if (next.has(name)) {
-        next.delete(name);
-        if (next.size === 0) return new Set(allKeys); // prevent empty selection
-      } else {
-        next.add(name);
-        if (next.size === allKeys.length) return null; // back to "all"
-      }
-      return next;
-    });
+    // When null, all blocks are shown — clicking one deselects all others
+    const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
+    const current = selectedBlockNames ?? new Set(allKeys);
+    const next = new Set(current);
+    if (next.has(name)) {
+      next.delete(name);
+      if (next.size === 0) { _persistBlockNames(null); return; } // prevent empty selection
+    } else {
+      next.add(name);
+      if (next.size === allKeys.length) { _persistBlockNames(null); return; } // back to "all"
+    }
+    _persistBlockNames(next);
   };
 
   // Per-block yield trend across all vintages (all-vintages mode only)
@@ -921,7 +938,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               {selectedBlockNames != null && (
                 <button
                   type="button"
-                  onClick={() => setSelectedBlockNames(null)}
+                  onClick={() => _persistBlockNames(null)}
                   className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 ml-1"
                 >
                   Show all
