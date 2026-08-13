@@ -225,6 +225,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       setShowAdd(false);
       setForm({ maintenanceDate: today });
       toast({ title: "Maintenance record added" });
@@ -237,7 +238,10 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance/${id}`), { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error("Delete failed");
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+    },
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
   });
 
@@ -1193,7 +1197,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span>{fmt(r.vessel_ref)}</span>
                         {isBarrelRow && (r.fill_number == null || Number(r.fill_number) === 0) && (
-                          <span className="text-xs rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 font-medium normal-case tracking-normal">No fills logged</span>
+                          Number(r.maintenance_count ?? 0) > 0
+                            ? <span className="text-xs rounded px-1.5 py-0.5 bg-amber-100 text-amber-800 font-medium normal-case tracking-normal">⚠ No fills</span>
+                            : <span className="text-xs rounded px-1.5 py-0.5 bg-gray-100 text-gray-500 font-medium normal-case tracking-normal">No fills</span>
                         )}
                       </div>
                     </td>
