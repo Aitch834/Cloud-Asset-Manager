@@ -134,6 +134,17 @@ export default function Pricing() {
     return MODULES.filter(m => m.required || allowed.has(m.id) || activeBundled.has(m.id));
   }, [sectorFilter, activeBundled]);
 
+  // Count of modules each sector pill would show (including bundled modules for the active farm).
+  const sectorModuleCount = useMemo(() => {
+    const counts: Partial<Record<Sector, number>> = {};
+    counts["All"] = MODULES.length;
+    for (const sector of SECTORS.filter(s => s !== "All")) {
+      const allowed = new Set(SECTOR_MODULES[sector] ?? []);
+      counts[sector] = MODULES.filter(m => m.required || allowed.has(m.id) || activeBundled.has(m.id)).length;
+    }
+    return counts;
+  }, [activeBundled]);
+
   const toggleModule = (moduleId: string, required?: boolean) => {
     if (required) return;
     // Don't allow toggling a module that is currently bundled (it's included for free; it doesn't need selecting)
@@ -290,19 +301,26 @@ export default function Pricing() {
 
               {/* Sector filter pills */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {SECTORS.map(sector => (
-                  <button
-                    key={sector}
-                    onClick={() => setSectorFilter(sector)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-all ${
-                      sectorFilter === sector
-                        ? "bg-brand-forest text-white border-brand-forest"
-                        : "bg-white text-muted-foreground border-border hover:border-brand-light hover:text-foreground"
-                    }`}
-                  >
-                    {sector}
-                  </button>
-                ))}
+                {SECTORS.map(sector => {
+                  const count = sectorModuleCount[sector] ?? 0;
+                  const isActive = sectorFilter === sector;
+                  return (
+                    <button
+                      key={sector}
+                      onClick={() => setSectorFilter(sector)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-all ${
+                        isActive
+                          ? "bg-brand-forest text-white border-brand-forest"
+                          : "bg-white text-muted-foreground border-border hover:border-brand-light hover:text-foreground"
+                      }`}
+                    >
+                      {sector}
+                      <span className={`text-xs font-normal tabular-nums ${
+                        isActive ? "text-white/70" : "text-muted-foreground/60"
+                      }`}>{count}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <p className="text-sm text-muted-foreground mb-4">
