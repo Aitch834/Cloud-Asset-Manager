@@ -1187,13 +1187,38 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
             const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
             const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-            const thaVals = grp.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v));
-            const avgTha = avg(thaVals);
-            return { vintage: key, picks: grp.length, totalYieldKg, avgTha, avgBrix, avgPh, avgTa, avgPa };
+            // Derive t/ha consistently: totalKg / 1000 / sum(distinct linked block areas for this vintage)
+            const seenBids = new Set<unknown>();
+            let vintageAreaHa = 0;
+            for (const r of grp) {
+              if (r.blockId != null && !seenBids.has(r.blockId)) {
+                seenBids.add(r.blockId);
+                const block = blocks.find(b => b.id === r.blockId);
+                if (block) {
+                  const ha = parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? ""));
+                  if (!isNaN(ha) && ha > 0) vintageAreaHa += ha;
+                }
+              }
+            }
+            const derivedTha = vintageAreaHa > 0 && totalYieldKg > 0 ? totalYieldKg / 1000 / vintageAreaHa : null;
+            return { vintage: key, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
           });
           const vFooterTotalKg = vintageRows.reduce((s, r) => s + r.totalYieldKg, 0);
           const vFooterTotalPicks = vintageRows.reduce((s, r) => s + r.picks, 0);
-          const vFooterAvgTha = avg(filteredHarvest.map(r => parseFloat(String(r.yieldTonnesPerHa ?? ""))).filter(v => !isNaN(v)));
+          // Footer t/ha: grand total kg / 1000 / sum of all distinct linked block areas across all vintages
+          const allSeenBids = new Set<unknown>();
+          let grandAreaHa = 0;
+          for (const r of filteredHarvest) {
+            if (r.blockId != null && !allSeenBids.has(r.blockId)) {
+              allSeenBids.add(r.blockId);
+              const block = blocks.find(b => b.id === r.blockId);
+              if (block) {
+                const ha = parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? ""));
+                if (!isNaN(ha) && ha > 0) grandAreaHa += ha;
+              }
+            }
+          }
+          const vFooterDerivedTha = grandAreaHa > 0 && vFooterTotalKg > 0 ? vFooterTotalKg / 1000 / grandAreaHa : null;
           const vFooterAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
           const vFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
           const vFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
@@ -1239,7 +1264,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                             )}
                           </td>
                           <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTha != null ? row.avgTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.derivedTha != null ? row.derivedTha.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
@@ -1253,7 +1278,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           <td className="px-4 py-2">Total / Average</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTha != null ? vFooterAvgTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{vFooterDerivedTha != null ? vFooterDerivedTha.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgBrix != null ? vFooterAvgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPh != null ? vFooterAvgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTa != null ? vFooterAvgTa.toFixed(2) : "—"}</td>
