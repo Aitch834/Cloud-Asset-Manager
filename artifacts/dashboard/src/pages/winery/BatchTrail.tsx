@@ -545,6 +545,8 @@ export interface BatchTrailData {
   barrelFills?: Record<string, unknown>[];
   /** Cooperage maintenance records for barrel vessels in this batch trail */
   barrelMaintenance?: Record<string, unknown>[];
+  /** Cleaning records (steam / SO₂ flush / CIP etc.) for barrel vessels in this batch trail */
+  barrelCleaning?: Record<string, unknown>[];
   /** All barrel-type source vessels used in bottling for this batch/vintage, regardless of fill history.
    *  Non-empty when barrelFills is empty means fill records are missing — auditors should be warned. */
   barrelVessels?: Record<string, unknown>[];

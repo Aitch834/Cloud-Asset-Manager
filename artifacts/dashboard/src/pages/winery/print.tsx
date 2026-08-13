@@ -677,6 +677,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   // are listed per barrel immediately after the fill history table.
   const barrelFills = Array.isArray(data.barrelFills) ? data.barrelFills : [];
   const barrelMaintenance = Array.isArray(data.barrelMaintenance) ? data.barrelMaintenance : [];
+  const barrelCleaning = Array.isArray(data.barrelCleaning) ? data.barrelCleaning : [];
   const barrelVessels = Array.isArray(data.barrelVessels) ? data.barrelVessels : [];
 
   const WORK_TYPE_LABELS: Record<string, string> = {
@@ -797,6 +798,34 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
           </table>
         </div>` : "";
 
+      // Cleaning records for this vessel
+      const vesselCleanRows = barrelCleaning.filter(c => Number(c.vessel_id) === vid);
+      const cleaningTableHtml = vesselCleanRows.length > 0 ? `
+        <div style="margin-top:8px;border-top:1px solid #fed7aa;padding-top:6px">
+          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#0369a1;margin-bottom:4px">Cleaning History (${vesselCleanRows.length})</p>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:rgba(0,0,0,0.04)">
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Date</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Method</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Product</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Operator</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Rinse</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Notes</th>
+            </tr>
+            ${vesselCleanRows.map(c => {
+              const rinseCompleted = c.rinse_completed === true || c.rinse_completed === "true" || c.rinse_completed === 1;
+              return `<tr>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.clean_date ? fmtDate(c.clean_date) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;font-weight:600">${c.clean_type ? escHtml(String(c.clean_type)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.cleaning_product ? escHtml(String(c.cleaning_product)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.operator_name ? escHtml(String(c.operator_name)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${rinseCompleted ? '<span style="color:#166534;font-weight:600">✓ Yes</span>' : '<span style="color:#b91c1c">✗ No</span>'}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${c.notes ? escHtml(String(c.notes)) : ""}</td>
+              </tr>`;
+            }).join("")}
+          </table>
+        </div>` : "";
+
       return `<div style="background:#fff8ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <span style="font-size:12px;font-weight:700;color:#374151">🪵 ${escHtml(String(meta.vessel_ref ?? ""))}</span>
@@ -816,20 +845,24 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
           ${fillRows}
         </table>
         ${maintenanceTableHtml}
+        ${cleaningTableHtml}
       </div>`;
     }).join("");
 
-    // ── Barrels with cooperage/maintenance records but no fill history ──────────
-    // These barrels have known cooperage work but fill entries are absent — an
-    // audit gap. Rendered as their own amber card (mirroring the fill card
-    // layout) so the cooperage table is still visible on the printout, with a
-    // prominent ⚠ "No fill history" badge alongside the vessel header.
+    // ── Barrels with cooperage/maintenance or cleaning records but no fill history ──
+    // These barrels have known work but fill entries are absent — an audit gap.
+    // Rendered as their own amber card so the tables are still visible on the
+    // printout, with a prominent ⚠ "No fill history" badge alongside the vessel header.
     // Mirrors the per-barrel warning emitted in exportBatchTrailCsv.
     const noFillMaintItems = barrelVesselsWithoutFills
-      .map(v => ({ v, maintRows: barrelMaintenance.filter(m => Number(m.vessel_id) === Number(v.id)) }))
-      .filter(({ maintRows }) => maintRows.length > 0);
+      .map(v => ({
+        v,
+        maintRows: barrelMaintenance.filter(m => Number(m.vessel_id) === Number(v.id)),
+        cleanRows: barrelCleaning.filter(c => Number(c.vessel_id) === Number(v.id)),
+      }))
+      .filter(({ maintRows, cleanRows }) => maintRows.length > 0 || cleanRows.length > 0);
 
-    const noFillMaintBlocks = noFillMaintItems.map(({ v, maintRows }) => {
+    const noFillMaintBlocks = noFillMaintItems.map(({ v, maintRows, cleanRows }) => {
       const capacityL = v.capacity_litres != null ? parseFloat(String(v.capacity_litres)) : null;
       const metaItems = [
         v.cooperage ? `Cooperage: <strong>${escHtml(String(v.cooperage))}</strong>` : null,
@@ -852,6 +885,32 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
         </tr>`;
       }).join("");
 
+      const noFillCleanTableHtml = cleanRows.length > 0 ? `
+        <div style="margin-top:8px;border-top:1px solid #bae6fd;padding-top:6px">
+          <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#0369a1;margin-bottom:4px">Cleaning History (${cleanRows.length})</p>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:rgba(0,0,0,0.04)">
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Date</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Method</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Product</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Operator</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Rinse</th>
+              <th style="padding:4px 7px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid #bae6fd;text-align:left">Notes</th>
+            </tr>
+            ${cleanRows.map(c => {
+              const rinseCompleted = c.rinse_completed === true || c.rinse_completed === "true" || c.rinse_completed === 1;
+              return `<tr>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.clean_date ? fmtDate(c.clean_date) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;font-weight:600">${c.clean_type ? escHtml(String(c.clean_type)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.cleaning_product ? escHtml(String(c.cleaning_product)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${c.operator_name ? escHtml(String(c.operator_name)) : "—"}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px">${rinseCompleted ? '<span style="color:#166534;font-weight:600">✓ Yes</span>' : '<span style="color:#b91c1c">✗ No</span>'}</td>
+                <td style="padding:4px 7px;border-bottom:1px solid #f3f4f6;font-size:10px;color:#6b7280">${c.notes ? escHtml(String(c.notes)) : ""}</td>
+              </tr>`;
+            }).join("")}
+          </table>
+        </div>` : "";
+
       return `<div style="background:#fff8ed;border:2px solid #f59e0b;border-radius:6px;padding:10px 12px;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
           <span style="font-size:12px;font-weight:700;color:#374151">🪵 ${escHtml(String(v.vessel_ref ?? ""))}</span>
@@ -859,9 +918,9 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
           <span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#92400e;white-space:nowrap">⚠ No fill history recorded</span>
         </div>
         <div style="background:#fef3c7;border:1px solid #fed7aa;border-radius:4px;padding:6px 10px;margin-bottom:8px">
-          <p style="font-size:10px;color:#92400e;margin:0">This barrel has cooperage work recorded but no fill history has been logged. Fill records may simply be missing. Auditors should verify the Vessel Register before signing off this report.</p>
+          <p style="font-size:10px;color:#92400e;margin:0">This barrel has cooperage or cleaning records but no fill history has been logged. Fill records may simply be missing. Auditors should verify the Vessel Register before signing off this report.</p>
         </div>
-        <div style="border-top:1px solid #fed7aa;padding-top:6px">
+        ${maintRows.length > 0 ? `<div style="border-top:1px solid #fed7aa;padding-top:6px">
           <p style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#92400e;margin-bottom:4px">Cooperage Work (${maintRows.length})</p>
           <table style="width:100%;border-collapse:collapse">
             <tr style="background:rgba(0,0,0,0.04)">
@@ -873,12 +932,13 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
             </tr>
             ${maintTableRows}
           </table>
-        </div>
+        </div>` : ""}
+        ${noFillCleanTableHtml}
       </div>`;
     }).join("");
 
-    // Vessels with no fills AND no maintenance records — shown as a plain amber
-    // reference list (no maintenance table to render, so a card would be empty).
+    // Vessels with no fills AND no maintenance AND no cleaning records — shown as a plain
+    // amber reference list (nothing to render in a card).
     const noFillNoMaintVessels = barrelVesselsWithoutFills.filter(
       v => !noFillMaintItems.some(item => Number(item.v.id) === Number(v.id))
     );
