@@ -1854,6 +1854,10 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
   await db.insert(platformConfigTable)
     .values({ key, value: value.trim(), label: def.label, description: def.description, updatedAt: new Date() })
     .onConflictDoUpdate({ target: platformConfigTable.key, set: { value: value.trim(), updatedAt: new Date() } });
+  // Bust brand-asset cache so the next render picks up the new value immediately
+  if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
+    _brandAssetCache = null;
+  }
   res.json({ success: true, key, value: value.trim() });
 });
 
@@ -1862,6 +1866,10 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
   const { key } = req.params as { key: string };
   if (!PLATFORM_CONFIG_DEFAULTS[key]) { res.status(400).json({ error: "Unknown config key" }); return; }
   await db.delete(platformConfigTable).where(eq(platformConfigTable.key, key));
+  // Bust brand-asset cache so the next render re-fetches from the DB (or on-disk fallback)
+  if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
+    _brandAssetCache = null;
+  }
   res.json({ success: true });
 });
 
