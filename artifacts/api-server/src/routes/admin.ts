@@ -2210,6 +2210,21 @@ router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, re
   res.json({ success: true });
 });
 
+// ─── Ad brand-asset resolvability status ─────────────────────────────────────
+// Returns whether logo and QR can be resolved from DB config or legacy on-disk
+// fallback files, so the frontend can warn before a render produces a blank PDF.
+
+router.get("/admin/ad-brand-assets/status", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  try {
+    const { logoUri, qrUri } = await loadAdBrandAssets();
+    res.json({ logoResolvable: !!logoUri, qrResolvable: !!qrUri });
+  } catch (err) {
+    console.error("[ad-brand-assets/status]", err);
+    res.json({ logoResolvable: false, qrResolvable: false });
+  }
+});
+
 // ─── Ad PDF Generator — Node-native renderer ──────────────────────────────────
 
 const AD_FONT_URLS: Array<[string, string, string, string]> = [

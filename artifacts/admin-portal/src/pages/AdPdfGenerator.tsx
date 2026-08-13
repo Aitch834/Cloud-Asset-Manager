@@ -152,6 +152,12 @@ async function fetchBrandAssets(): Promise<{ logo: string; qr: string }> {
   return { logo: byKey["brand.adLogoDataUrl"] ?? "", qr: byKey["brand.adQrDataUrl"] ?? "" };
 }
 
+async function fetchBrandAssetStatus(): Promise<{ logoResolvable: boolean; qrResolvable: boolean }> {
+  const res = await fetch("/api/admin/ad-brand-assets/status", { headers: adminHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 async function saveBrandAsset(key: string, value: string): Promise<void> {
   const res = await fetch(`/api/admin/platform-config/${key}`, {
     method: "PUT",
@@ -574,6 +580,12 @@ export default function AdPdfGenerator() {
     queryFn: fetchBrandAssets,
   });
 
+  // Resolvability status — checked separately so the warning reflects the server-side fallback logic
+  const { data: brandAssetStatus, refetch: refetchBrandAssetStatus } = useQuery<{ logoResolvable: boolean; qrResolvable: boolean }>({
+    queryKey: ["brand-assets-status"],
+    queryFn: fetchBrandAssetStatus,
+  });
+
   // Selected template for rendering (only from active templates)
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const effectiveId = selectedId ?? (activeTemplates.find((t) => t.isDefault)?.id ?? activeTemplates[0]?.id ?? null);
@@ -709,6 +721,29 @@ export default function AdPdfGenerator() {
           </p>
         </div>
       </div>
+
+      {/* Brand-asset missing warning */}
+      {brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable) && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
+                ? "Logo and QR code cannot be found"
+                : !brandAssetStatus.logoResolvable
+                ? "Logo cannot be found"
+                : "QR code cannot be found"}
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+              The generated PDF will render {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "these placeholders" : "this placeholder"} blank.
+              Neither the database nor the legacy on-disk template files contain a resolvable asset.{" "}
+              <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                Upload {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "them" : "it"} in Brand Assets ↓
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Generator section ── */}
       <div className="space-y-6">
@@ -1043,7 +1078,7 @@ export default function AdPdfGenerator() {
       </div>
 
       {/* ── Brand assets section ── */}
-      <div className="border-t border-border pt-8 space-y-5">
+      <div id="brand-assets" className="border-t border-border pt-8 space-y-5">
         <div>
           <h2 className="text-base font-semibold">Brand assets</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -1059,7 +1094,7 @@ export default function AdPdfGenerator() {
             hint="PNG, SVG or WebP — shown top-right in the ad. Recommended: transparent background, max 500 KB."
             assetKey="brand.adLogoDataUrl"
             currentDataUrl={brandAssets?.logo ?? ""}
-            onSaved={() => refetchBrandAssets()}
+            onSaved={() => { refetchBrandAssets(); refetchBrandAssetStatus(); }}
           />
           <div className="pt-6">
             <AssetUploader
@@ -1067,7 +1102,7 @@ export default function AdPdfGenerator() {
               hint="PNG pointing to bdefarmtrac.co.uk — shown bottom-right in the ad. Recommended: square, max 500 KB."
               assetKey="brand.adQrDataUrl"
               currentDataUrl={brandAssets?.qr ?? ""}
-              onSaved={() => refetchBrandAssets()}
+              onSaved={() => { refetchBrandAssets(); refetchBrandAssetStatus(); }}
             />
           </div>
         </div>
