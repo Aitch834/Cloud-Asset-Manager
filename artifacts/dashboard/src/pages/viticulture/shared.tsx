@@ -1443,7 +1443,8 @@ export async function printHarvest(
     }
 
     const vintageColHeaders = crossVintages.map(vy =>
-      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
+      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)} (kg)</th>` +
+      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)} (t/ha)</th>`
     ).join("");
 
     const crossBodyRows = uniqueBlockIdsForCross.map(bid => {
@@ -1451,13 +1452,17 @@ export async function printHarvest(
       const bidNum = Number(bidStr);
       const label = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.blockName ?? bidStr) : "—";
       const variety = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.variety ?? "—") : "—";
+      const areaHa = !isNaN(bidNum) && bidNum > 0 ? (parseFloat(String(blockLookup2[bidNum]?.areaHa ?? "0")) || 0) : 0;
       const vintageCells = crossVintages.map(vy => {
         const grp = crossLookup[bidStr]?.[vy] ?? [];
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>`;
+        const tha = total > 0 && areaHa > 0 ? (total / 1000 / areaHa) : null;
+        return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
+               `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace;color:#555">${tha != null ? tha.toFixed(2) : "\u2014"}</td>`;
       }).join("");
       const allForBlock = Object.values(crossLookup[bidStr] ?? {}).flat();
       const rowTotal = allForBlock.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      const rowTha = rowTotal > 0 && areaHa > 0 ? (rowTotal / 1000 / areaHa) : null;
       const brixAll = allForBlock.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
       const avgBrixRow = brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null;
       const phAll = allForBlock.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
@@ -1471,6 +1476,7 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
         ${vintageCells}
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace;color:#555">${rowTha != null ? rowTha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPhRow != null ? avgPhRow.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTaRow != null ? avgTaRow.toFixed(1) : "\u2014"}</td>
@@ -1478,13 +1484,47 @@ export async function printHarvest(
       </tr>`;
     }).join("");
 
+    // Restrict footer/grand-total calculations to records whose blockId appears in the cross-tab.
+    // Unlinked records (blockId null/empty) are excluded so the kg numerator and the area
+    // denominator always describe exactly the same set of harvest rows.
+    const crossTabBidSet = new Set(uniqueBlockIdsForCross.map(bid => String(bid)));
+    const crossTabRecords = records.filter(r => crossTabBidSet.has(String(r.blockId ?? "")));
+
     const footerVintageCells = crossVintages.map(vy => {
-      const total = records
-        .filter(r => String(r.vintageYear ?? "") === vy)
-        .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-      return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>`;
+      // kg from cross-tab records only (same population as the area denominator)
+      const crossTabRecordsForVintage = crossTabRecords.filter(r => String(r.vintageYear ?? "") === vy);
+      const total = crossTabRecordsForVintage.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      // t/ha is only shown when every cross-tab block that contributed kg in this vintage has a known area.
+      const vintageBlocksWithRecords = uniqueBlockIdsForCross.filter(bid => (crossLookup[String(bid)]?.[vy] ?? []).length > 0);
+      const allHaveArea = vintageBlocksWithRecords.every(bid => {
+        const bidNum = Number(String(bid));
+        return !isNaN(bidNum) && bidNum > 0 && (parseFloat(String(blockLookup2[bidNum]?.areaHa ?? "0")) || 0) > 0;
+      });
+      const vintageAreaSum = allHaveArea
+        ? vintageBlocksWithRecords.reduce<number>((s, bid) => {
+            const bidNum = Number(String(bid));
+            return s + (parseFloat(String(blockLookup2[bidNum]?.areaHa ?? "0")) || 0);
+          }, 0)
+        : 0;
+      const vintageTha = allHaveArea && total > 0 && vintageAreaSum > 0 ? (total / 1000 / vintageAreaSum) : null;
+      return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
+             `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vintageTha != null ? vintageTha.toFixed(2) : "\u2014"}</td>`;
     }).join("");
-    const grandTotal = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+
+    // Grand total kg also from cross-tab records only, matching the per-vintage footer logic.
+    const grandTotal = crossTabRecords.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+    // Grand t/ha: only valid when every cross-tab block has a known area (same-population guarantee).
+    const allCrossBlocksHaveArea = uniqueBlockIdsForCross.every(bid => {
+      const bidNum = Number(String(bid));
+      return !isNaN(bidNum) && bidNum > 0 && (parseFloat(String(blockLookup2[bidNum]?.areaHa ?? "0")) || 0) > 0;
+    });
+    const grandAreaSum = allCrossBlocksHaveArea
+      ? uniqueBlockIdsForCross.reduce<number>((s, bid) => {
+          const bidNum = Number(String(bid));
+          return s + (parseFloat(String(blockLookup2[bidNum]?.areaHa ?? "0")) || 0);
+        }, 0)
+      : 0;
+    const grandTha = allCrossBlocksHaveArea && grandTotal > 0 && grandAreaSum > 0 ? (grandTotal / 1000 / grandAreaSum) : null;
     const allBrix = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
     const grandAvgBrix = allBrix.length > 0 ? allBrix.reduce((a, b) => a + b, 0) / allBrix.length : null;
     const allPh = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
@@ -1495,13 +1535,14 @@ export async function printHarvest(
     const grandAvgPa = allPa.length > 0 ? allPa.reduce((a, b) => a + b, 0) / allPa.length : null;
 
     crossTabHtml = `
-  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Block &times; Vintage &mdash; Total Yield (kg)</h2>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Block &times; Vintage &mdash; Total Yield</h2>
   <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
     <thead><tr>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
       ${vintageColHeaders}
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total (t/ha)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
@@ -1513,6 +1554,7 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTha != null ? grandTha.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPh != null ? grandAvgPh.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgTa != null ? grandAvgTa.toFixed(1) : "\u2014"}</td>
