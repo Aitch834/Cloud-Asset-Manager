@@ -24,29 +24,40 @@
  * Policy (both):              B2C_1_ROPC_Auth
  */
 
-// Auth uses the standard AAD v2 endpoint (login.microsoftonline.com), NOT b2clogin.com / B2C_1A_SIGNIN.
-// B2C_1A_SIGNIN is interactive-only; ROPC (grant_type=password) returns AADB2C90057 against it.
-// Do NOT include "openid" in scope — it triggers implicit-flow errors on B2C policies.
-const LIS_B2C_TOKEN_URL_PROD =
-  "https://login.microsoftonline.com/livestockinformation.onmicrosoft.com/oauth2/v2.0/token";
-const LIS_B2C_SCOPE_PROD =
-  "https://livestockinformation.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
+// LIS uses a single Azure B2C tenant (livestockinformationb2cprod) for both sandbox and
+// production. The distinction between environments is made by:
+//   1. The APIM subscription key (LIS_SUBSCRIPTION_KEY) — absent = sandbox simulation
+//   2. The API base URL (ext-cla = sandbox, cla = production)
+//   3. The OAuth scope resource — apim-cla (production) vs apim-cla-ext (sandbox)
+//
+// Confirmed from LIS DeveloperHub production credentials (August 2026):
+//   b2c-tenant:    Livestockinformationb2cprod (same as sandbox)
+//   b2c-authority: https://livestockinformationb2cprod.b2clogin.com/tfp/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/v2.0
+//   api-scopes:    https://livestockinformationb2cprod.onmicrosoft.com/apim-cla/user_impersonation
+//
+// Auth uses the standard AAD v2 endpoint (login.microsoftonline.com) for ROPC/refresh,
+// NOT b2clogin.com / B2C_1A_SIGNIN. B2C_1A_SIGNIN is interactive-only; ROPC returns
+// AADB2C90057 against it. Do NOT include "openid" in scope.
 
-// Sandbox/Beta B2C tenant
+// Production — same B2C tenant, but scope resource is apim-cla (not apim-cla-ext)
+const LIS_B2C_TOKEN_URL_PROD =
+  "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token";
+const LIS_B2C_SCOPE_PROD =
+  "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla/user_impersonation offline_access";
+
+// Sandbox/Beta — same tenant, scope resource is apim-cla-ext
 const LIS_B2C_TOKEN_URL_SANDBOX =
   "https://login.microsoftonline.com/livestockinformationb2cprod.onmicrosoft.com/oauth2/v2.0/token";
 const LIS_B2C_SCOPE_SANDBOX =
   "https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation offline_access";
 
 // ── Authorization Code Flow endpoints (B2C interactive sign-in policy) ────────
-// These are the b2clogin.com policy-specific URLs — used for authorization code
-// exchange, NOT for ROPC (ROPC goes via login.microsoftonline.com above).
-// B2C_1A_SIGNIN is the interactive sign-in policy; confirmed as returning
-// AADB2C90057 for ROPC which proves it IS the correct interactive policy name.
+// Both environments share the same B2C tenant and B2C_1A_SIGNIN policy.
+// Production and sandbox differ only in their OAuth scope resource (apim-cla vs apim-cla-ext).
 const LIS_B2C_AUTHORIZE_URL_PROD =
-  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize";
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize";
 const LIS_B2C_TOKEN_URL_POLICY_PROD =
-  "https://livestockinformation.b2clogin.com/livestockinformation.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
+  "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/token";
 
 const LIS_B2C_AUTHORIZE_URL_SANDBOX =
   "https://livestockinformationb2cprod.b2clogin.com/livestockinformationb2cprod.onmicrosoft.com/B2C_1A_SIGNIN/oauth2/v2.0/authorize";

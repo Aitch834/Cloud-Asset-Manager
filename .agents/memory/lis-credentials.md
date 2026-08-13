@@ -3,29 +3,30 @@ name: LIS credentials & integration status
 description: LIS CLA API secrets, confirmed working auth endpoint, OAuth flow status, endpoint test matrix, confirmed TransferRequest schema
 ---
 
-## Configured secrets (Replit)
-- `LIS_SUBSCRIPTION_KEY` — BDE vendor platform key (Ocp-Apim-Subscription-Key header)
-- `LIS_B2C_CLIENT_ID` — `91afad18-e537-48bb-840b-06f4fa943ac6` (Beta Sandbox environment)
+## Configured secrets (Replit) — PRODUCTION SET August 2026
+- `LIS_SUBSCRIPTION_KEY` — production APIM key (set 13 Aug 2026); absence = sandbox simulation mode
+- `LIS_B2C_CLIENT_ID` — production CLA OAuth client ID (set 13 Aug 2026)
+- `LIS_B2C_PRIMARY_SECRET` / `LIS_B2C_SECONDARY_SECRET` — regenerated production client secrets (13 Aug 2026)
+- `LIS_LIP_CLIENT_ID` — LIP cattle OAuth client ID (set 13 Aug 2026)
 - `CREDENTIAL_ENCRYPTION_KEY` — AES-256-GCM key for encrypting stored LIS/BCMS passwords
 - `LIS_PROXY_URL` — URL of the UK VPS proxy (e.g. http://<IP>:3001)
 - `LIS_PROXY_SECRET` — shared secret sent in X-Proxy-Secret header to the proxy
-- `LIS_B2C_PRIMARY_SECRET` / `LIS_B2C_SECONDARY_SECRET` — client secrets for CLA app registration
 - `LIS_CLA_REDIRECT_URI` — (optional) OAuth callback URI; if not set, constructed from request host
 
-## Production Registration Status (August 2026)
-- BDE Farm Trac registered in CLA **Production** area — `cla-public` subscription **APPROVED** 12 Aug 2026
-- LIS DeveloperHub email confirmed: "retrieve your API credentials" from DeveloperHub portal
-- LIS support (INC0208722, Aquil Asif, 12 Aug 2026): approved, next step = **submit 1 test sample** for LIS to validate, then full development unlocked
-- **Action needed:** retrieve production subscription key + production B2C client ID from DeveloperHub; set as Replit secrets; make one real production TransferRequests submission for LIS to validate
-- Still using sandbox B2C client ID (`91afad18-…`) until production client ID retrieved from DeveloperHub
+## CRITICAL: Production B2C tenant is SAME as sandbox (confirmed 13 Aug 2026)
+LIS confirmed via DeveloperHub production credentials that both sandbox and production use:
+- **B2C tenant:** `livestockinformationb2cprod` (NOT a separate `livestockinformation` tenant)
+- **Authorize URL:** `https://livestockinformationb2cprod.b2clogin.com/…/B2C_1A_SIGNIN/…` (same as sandbox)
+- **Scope difference — production:** `https://livestockinformationb2cprod.onmicrosoft.com/apim-cla/user_impersonation`
+- **Scope difference — sandbox:** `https://livestockinformationb2cprod.onmicrosoft.com/apim-cla-ext/user_impersonation`
+- `lis.ts` prod URL constants corrected 13 Aug 2026 to reflect this.
+- The CLA API base URL still differs: prod = `cla.api.livestockinformation.org.uk`, sandbox = `ext-cla.api…`
+- Redirect URI confirmed in production app registration: `https://api.bdefarmtrac.co.uk/api/lis/callback` ✓
 
-**Go-live checklist (when LIS responds):**
-1. Set `LIS_B2C_CLIENT_ID` to production client ID
-2. Set `LIS_SUBSCRIPTION_KEY` to production subscription key (if different from current)
-3. Confirm `LIS_CLA_REDIRECT_URI` = `https://api.bdefarmtrac.co.uk/api/lis/callback` in Replit secrets
-4. Update B2C authorize/token URLs from sandbox to production tenant (if different)
-5. Flip `isLisSandboxMode()` check — currently relies on `LIS_SUBSCRIPTION_KEY` being set; will auto-resolve
-6. Ask farms to re-authorise (Farm 1 token 5 days expired; Farm 2 ~39 days expired as of 20 Jul 2026)
+## Production Registration Status (August 2026) — CREDENTIALS LIVE
+- CLA `cla-public` subscription **APPROVED** 12 Aug 2026; production credentials set 13 Aug 2026
+- Next step: **proxy server update** (VPS env vars) + **farm re-authorisation** + **1 test TransferRequest** for LIS to validate
+- Redirect URL stored in LIS production app registration: `https://api.bdefarmtrac.co.uk/api/lis/callback` ✓
 
 ## OAuth Authorization Code Flow — IMPLEMENTED (June 2026)
 
