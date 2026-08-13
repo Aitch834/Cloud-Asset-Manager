@@ -780,6 +780,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   // Is-full filter: null = show all, true = full only, false = empty only
   const [isFullFilter, setIsFullFilter] = useState<boolean | null>(null);
 
+  // Barrel health CSV export loading state
+  const [csvExporting, setCsvExporting] = useState(false);
+
   // Helper: days since a date string
   function daysSince(dateStr: unknown): number | null {
     if (!dateStr) return null;
@@ -1016,22 +1019,49 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   size="sm"
                   variant="outline"
                   className="h-6 text-xs"
-                  disabled={exportBarrels.length === 0}
-                  onClick={() => {
-                    const noFillsCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
-                    exportCSV(
-                      exportBarrels,
-                      "barrel-health-summary.csv",
-                      barrelHealthCols,
-                      [
-                        csvComment(`Barrel Health Summary — ${farmNameVessels}`),
-                        csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
-                        ...(noFillsCount > 0 ? [csvComment(`Warning: ${noFillsCount} barrel${noFillsCount !== 1 ? "s" : ""} with no fill history logged — Fill Tier shows "No fills logged"`)] : []),
-                      ],
-                    );
+                  disabled={exportBarrels.length === 0 || csvExporting}
+                  onClick={async () => {
+                    setCsvExporting(true);
+                    try {
+                      // Single aggregate query — one row per vessel with clean_count + last_clean_date
+                      const summaryRes = await fetch(api(`farms/${farmId}/winery-vessels-clean-summary`), { credentials: "include" });
+                      if (!summaryRes.ok) {
+                        toast({ title: "Export failed", description: "Could not load cleaning history. Please try again.", variant: "destructive" });
+                        return;
+                      }
+                      const summaryBody = await summaryRes.json();
+                      // Build lookup: vesselId → { lastCleanDate, cleanCount }
+                      const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number }>();
+                      for (const row of (summaryBody.records ?? []) as Record<string, unknown>[]) {
+                        cleanMap.set(Number(row.vessel_id), {
+                          lastCleanDate: row.last_clean_date ? fmtDate(row.last_clean_date) : "",
+                          cleanCount: Number(row.clean_count ?? 0),
+                        });
+                      }
+                      const colsWithCleans: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
+                        ...barrelHealthCols,
+                        { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
+                        { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
+                      ];
+                      const noFillsCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
+                      exportCSV(
+                        exportBarrels,
+                        "barrel-health-summary.csv",
+                        colsWithCleans,
+                        [
+                          csvComment(`Barrel Health Summary — ${farmNameVessels}`),
+                          csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
+                          ...(noFillsCount > 0 ? [csvComment(`Warning: ${noFillsCount} barrel${noFillsCount !== 1 ? "s" : ""} with no fill history logged — Fill Tier shows "No fills logged"`)] : []),
+                        ],
+                      );
+                    } catch {
+                      toast({ title: "Export failed", description: "An unexpected error occurred loading cleaning history. Please try again.", variant: "destructive" });
+                    } finally {
+                      setCsvExporting(false);
+                    }
                   }}
                 >
-                  <FileDown className="w-3 h-3 mr-1" />Export CSV
+                  {csvExporting ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <FileDown className="w-3 h-3 mr-1" />}Export CSV
                 </Button>
               </div>
             );
