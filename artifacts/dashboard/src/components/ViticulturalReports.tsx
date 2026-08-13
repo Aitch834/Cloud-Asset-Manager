@@ -4,7 +4,7 @@ import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persis
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { useQuery } from "@tanstack/react-query";
 import {
-  TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle,
+  TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle, Search,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line,
@@ -652,6 +652,10 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
   const [chartInTha, setChartInTha] = useState(false);
 
+  // Block filter strip — search and group-by-variety state
+  const [blockSearch, setBlockSearch] = useState("");
+  const [groupByVariety, setGroupByVariety] = useState(false);
+
   const toggleBlock = (name: string) => {
     // When null, all blocks are shown — clicking one deselects all others
     const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
@@ -669,7 +673,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
   // Per-block yield trend across all vintages (all-vintages mode only)
   const blockYieldTrendData = useMemo(() => {
-    if (year != null) return { chartData: [], blockLines: [] as { key: string; color: string }[] };
+    if (year != null) return { chartData: [], blockLines: [] as { key: string; variety: string; color: string }[] };
     const allVintages = [...new Set(
       harvests.map(h => String(h.vintageYear)).filter(yr => yr && yr !== "null" && yr !== "undefined"),
     )].sort();
@@ -677,7 +681,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       b => b.isActive !== false && harvests.some(h => h.blockId === b.id),
     );
     if (blocksWithData.length === 0 || allVintages.length === 0) {
-      return { chartData: [], blockLines: [] as { key: string; color: string }[] };
+      return { chartData: [], blockLines: [] as { key: string; variety: string; color: string }[] };
     }
     const chartData = allVintages.map(yr => {
       const row: Record<string, number | string | null> = { vintage: yr };
@@ -692,6 +696,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     });
     const blockLines = blocksWithData.map((bl, i) => ({
       key: bl.blockName,
+      variety: bl.variety ?? "",
       color: BLOCK_COLORS[i % BLOCK_COLORS.length],
     }));
     return { chartData, blockLines };
@@ -913,39 +918,185 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             <p className="text-xs text-foreground/40">Yield (t/ha) per vintage for each block — spot which blocks are improving or declining</p>
           </div>
           {/* Block filter toggles — shown when there are 2+ blocks, hidden on print */}
-          {blockYieldTrendData.blockLines.length >= 2 && (
-            <div className="px-4 py-2.5 border-b border-border bg-muted/10 flex flex-wrap items-center gap-1.5 no-print">
-              <span className="text-xs text-foreground/50 shrink-0 mr-0.5">Show blocks:</span>
-              {blockYieldTrendData.blockLines.map(bl => {
-                const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
-                return (
-                  <button
-                    key={bl.key}
-                    type="button"
-                    onClick={() => toggleBlock(bl.key)}
-                    className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
-                      active
-                        ? "border-transparent text-white"
-                        : "border-border bg-background text-foreground/40 hover:text-foreground/70"
-                    }`}
-                    style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
-                    title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
-                  >
-                    {bl.key}
-                  </button>
-                );
-              })}
-              {selectedBlockNames != null && (
-                <button
-                  type="button"
-                  onClick={() => _persistBlockNames(null)}
-                  className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 ml-1"
-                >
-                  Show all
-                </button>
-              )}
-            </div>
-          )}
+          {blockYieldTrendData.blockLines.length >= 2 && (() => {
+            const lines = blockYieldTrendData.blockLines;
+            const showSearch = lines.length >= 8;
+            const searchLower = blockSearch.trim().toLowerCase();
+            const filtered = searchLower
+              ? lines.filter(bl =>
+                  bl.key.toLowerCase().includes(searchLower) ||
+                  bl.variety.toLowerCase().includes(searchLower),
+                )
+              : lines;
+
+            // Helper: toggle all blocks of a given variety
+            const toggleVariety = (variety: string) => {
+              const varietyKeys = lines.filter(bl => bl.variety === variety).map(bl => bl.key);
+              const allKeys = lines.map(b => b.key);
+              const current = selectedBlockNames ?? new Set(allKeys);
+              const allActive = varietyKeys.every(k => current.has(k));
+              const next = new Set(current);
+              if (allActive) {
+                // deselect all in variety (but prevent empty selection)
+                varietyKeys.forEach(k => next.delete(k));
+                if (next.size === 0) { _persistBlockNames(null); return; }
+              } else {
+                varietyKeys.forEach(k => next.add(k));
+                if (next.size === allKeys.length) { _persistBlockNames(null); return; }
+              }
+              _persistBlockNames(next);
+            };
+
+            // Group by variety
+            const varietyGroups: { variety: string; blocks: typeof lines }[] = [];
+            if (groupByVariety) {
+              const seen = new Map<string, typeof lines>();
+              filtered.forEach(bl => {
+                const v = bl.variety || "Unknown variety";
+                if (!seen.has(v)) seen.set(v, []);
+                seen.get(v)!.push(bl);
+              });
+              seen.forEach((blocks, variety) => varietyGroups.push({ variety, blocks }));
+              varietyGroups.sort((a, b) => a.variety.localeCompare(b.variety));
+            }
+
+            return (
+              <div className="border-b border-border bg-muted/10 no-print">
+                {/* Toolbar row */}
+                <div className="px-4 py-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-foreground/50 shrink-0">Show blocks:</span>
+
+                  {/* Search input — only when 8+ blocks */}
+                  {showSearch && (
+                    <div className="relative shrink-0">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={blockSearch}
+                        onChange={e => setBlockSearch(e.target.value)}
+                        placeholder="Search blocks or varieties…"
+                        className="h-6 pl-6 pr-2 rounded-full border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 w-48"
+                      />
+                      {blockSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setBlockSearch("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/70 text-xs leading-none"
+                          aria-label="Clear search"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Group by variety toggle — only when 8+ blocks and multiple varieties exist */}
+                  {showSearch && new Set(lines.map(bl => bl.variety)).size > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupByVariety(v => !v)}
+                      className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
+                        groupByVariety
+                          ? "bg-purple-600 border-purple-600 text-white"
+                          : "border-border bg-background text-foreground/60 hover:text-foreground"
+                      }`}
+                    >
+                      By variety
+                    </button>
+                  )}
+
+                  {/* Show all link */}
+                  {selectedBlockNames != null && (
+                    <button
+                      type="button"
+                      onClick={() => _persistBlockNames(null)}
+                      className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
+                    >
+                      Show all
+                    </button>
+                  )}
+                </div>
+
+                {/* Pills row */}
+                <div className="px-4 pb-2.5 flex flex-wrap gap-1.5">
+                  {groupByVariety ? (
+                    varietyGroups.map(({ variety, blocks: vBlocks }) => {
+                      const allActive = vBlocks.every(
+                        bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
+                      );
+                      const someActive = !allActive && vBlocks.some(
+                        bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
+                      );
+                      return (
+                        <div key={variety} className="flex flex-wrap items-center gap-1.5">
+                          {/* Variety header pill */}
+                          <button
+                            type="button"
+                            onClick={() => toggleVariety(variety)}
+                            className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-xs font-semibold border transition-colors ${
+                              allActive
+                                ? "bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200"
+                                : someActive
+                                ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                                : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                            }`}
+                            title={allActive ? `Hide all ${variety}` : `Show all ${variety}`}
+                          >
+                            <Grape className="w-3 h-3" />
+                            {variety}
+                          </button>
+                          {/* Individual block pills */}
+                          {vBlocks.map(bl => {
+                            const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
+                            return (
+                              <button
+                                key={bl.key}
+                                type="button"
+                                onClick={() => toggleBlock(bl.key)}
+                                className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
+                                  active
+                                    ? "border-transparent text-white"
+                                    : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                                }`}
+                                style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
+                                title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
+                              >
+                                {bl.key}
+                              </button>
+                            );
+                          })}
+                          <span className="w-px h-4 bg-border mx-0.5 self-center" />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    filtered.map(bl => {
+                      const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
+                      return (
+                        <button
+                          key={bl.key}
+                          type="button"
+                          onClick={() => toggleBlock(bl.key)}
+                          className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
+                            active
+                              ? "border-transparent text-white"
+                              : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                          }`}
+                          style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
+                          title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
+                        >
+                          {bl.key}
+                        </button>
+                      );
+                    })
+                  )}
+                  {filtered.length === 0 && (
+                    <p className="text-xs text-foreground/40 italic">No blocks match "{blockSearch}"</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           <div className="p-4 print-block-chart-cap">
             {blockYieldTrendData.chartData.length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">
