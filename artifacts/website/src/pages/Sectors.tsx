@@ -336,6 +336,71 @@ export default function Sectors() {
             );
           })()}
 
+            {/* Organic Viticulture Bundle Callout — derived from BUNDLE_INCLUSIONS["organic-viticulture"] in pricing-data.ts */}
+            {sector.id === "viticulture" && (() => {
+              const ORG_VIT_BUNDLE_DESCS: Record<string, string> = {
+                "sprays-inputs": "Spray records, LERAP assessments, IPM plan, beekeeper notifications",
+                "safety-risk-audits": "H&S register, accident book, COSHH, PAT testing, fire extinguishers",
+                "staff-training": "Training records, PPE compliance, timesheets, right-to-work checks",
+                "equipment-workshop": "PUWER inspections, service history, workshop job cards, fuel records",
+                "organic-compliance": "Organic certification status, field conversion tracker, certifier inspection log",
+              };
+              const bundledIds = BUNDLE_INCLUSIONS["organic-viticulture"] ?? [];
+              const bundledModules = bundledIds.map(id => ({
+                id,
+                name: MODULES.find(m => m.id === id)?.name ?? id,
+                price: modulePrice(id),
+                desc: ORG_VIT_BUNDLE_DESCS[id] ?? "",
+              }));
+              const bundleTotal = bundledModules.reduce((sum, m) => sum + m.price, 0);
+              return (
+                <div className="mb-12 rounded-2xl border-2 border-green-200 bg-green-50 p-6 md:p-8">
+                  <div className="flex flex-col md:flex-row md:items-start gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                          <Gift className="w-5 h-5 text-green-700" />
+                        </div>
+                        <p className="text-green-900 font-bold text-lg leading-snug">
+                          Organic Viticulture — £{bundleTotal}/month of modules bundled free
+                        </p>
+                      </div>
+                      <p className="text-green-800 text-sm leading-relaxed mb-5">
+                        Holdings pursuing or holding organic certification get even more included. The Organic Viticulture module bundles the same {bundledModules.length} modules as the standard Viticulture subscription — so you pay for certification tracking without losing any of the operational modules. That's £{bundleTotal}/month of additional value at no extra charge.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {bundledModules.map((m) => (
+                          <div key={m.id} className="flex gap-3 p-3.5 rounded-xl bg-white border border-green-100">
+                            <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-semibold text-foreground text-sm">{m.name}</p>
+                                <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">£{m.price}/mo</span>
+                              </div>
+                              <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">{m.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-green-700 text-xs mt-4 leading-relaxed">
+                        <strong>Producing both certified-organic and conventional wines?</strong> Holdings subscribing to both Viticulture and Organic Viticulture receive one module at half price — an additional discount applied automatically in the pricing tool.
+                      </p>
+                    </div>
+                    <div className="md:w-52 shrink-0 flex flex-col items-center text-center bg-white border border-green-200 rounded-xl p-5 gap-3">
+                      <p className="text-4xl font-extrabold text-green-700">£{bundleTotal}</p>
+                      <p className="text-sm text-green-900 font-medium leading-snug">per month bundled free with Organic Viticulture</p>
+                      <div className="w-full border-t border-green-100 pt-3">
+                        <p className="text-xs text-muted-foreground leading-relaxed">Select <strong>Organic Viticulture</strong> in the pricing tool to see the full breakdown.</p>
+                      </div>
+                      <Link href="/pricing?sector=Viticulture" className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:text-green-900 transition-colors">
+                        See full pricing <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Pricing CTA */}
             <div className="rounded-2xl bg-gradient-to-br from-brand-forest to-brand-sage p-8 text-white flex flex-col md:flex-row md:items-center gap-6">
               <div className="flex-1">
