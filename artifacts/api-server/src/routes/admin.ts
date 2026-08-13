@@ -2554,6 +2554,10 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
   const [template] = await db.select().from(adTemplatesTable)
     .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
+  if (template.archivedAt) { res.status(410).json({ error: "Template has been archived and cannot be rendered." }); return; }
+
+  // Snapshot the HTML body at request time — no mid-flight re-fetch during the render
+  const snapshotHtmlBody = template.htmlBody;
 
   const tmpId  = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), `ad-pdf-prev-${tmpId}`);
@@ -2564,8 +2568,8 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    // Step 1: Render HTML via Node-native renderer
-    const html = await renderAdTemplate(template.htmlBody, bgUrl ?? "", {
+    // Step 1: Render HTML via Node-native renderer (uses snapshot taken at request time)
+    const html = await renderAdTemplate(snapshotHtmlBody, bgUrl ?? "", {
       headline, body, accentColor,
       widthMm: template.widthMm, heightMm: template.heightMm,
     });
@@ -2617,7 +2621,7 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   const [template] = await db.select().from(adTemplatesTable)
     .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
-  if (template.archivedAt) { res.status(422).json({ error: "Template has been archived and cannot be rendered." }); return; }
+  if (template.archivedAt) { res.status(410).json({ error: "Template has been archived and cannot be rendered." }); return; }
 
   // Snapshot the HTML body immediately so a mid-flight archive cannot affect this render
   const snapshotHtmlBody = template.htmlBody;
