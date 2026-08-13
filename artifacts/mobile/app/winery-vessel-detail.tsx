@@ -72,6 +72,7 @@ interface BarrelMaintenance {
   maintenance_date: string | null;
   work_type: string | null;
   cooperage_name: string | null;
+  operator_name: string | null;
   cost_pence: number | null;
   notes: string | null;
 }
@@ -424,6 +425,7 @@ interface MaintenanceFormState {
   maintenanceDate: string;
   workType: string;
   cooperageName: string;
+  operatorName: string;
   costPounds: string; // user enters £, we convert to pence
   notes: string;
 }
@@ -441,13 +443,14 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
     maintenanceDate: todayIso(),
     workType: "",
     cooperageName: "",
+    operatorName: "",
     costPounds: "",
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset the form synchronously when the modal opens, then patch in the stored cooperage name
+  // Reset the form synchronously when the modal opens, then patch in the stored cooperage and operator names
   useEffect(() => {
     if (!visible) return;
     // Synchronous reset so the form is clean before the user can type anything
@@ -455,18 +458,24 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
       maintenanceDate: todayIso(),
       workType: "",
       cooperageName: "",
+      operatorName: "",
       costPounds: "",
       notes: "",
     });
     setError(null);
-    // Asynchronously prefill cooperage name; only apply if the user hasn't typed yet
+    // Asynchronously prefill cooperage name and operator name; only apply if the user hasn't typed yet
     let cancelled = false;
     void (async () => {
-      const stored = await kvGet("last_cooperage_name");
-      if (!cancelled && stored) {
-        // Only patch cooperageName — never touch other fields — and only if the
-        // user hasn't already started typing their own value
-        setForm(prev => prev.cooperageName === "" ? { ...prev, cooperageName: stored } : prev);
+      const [storedCooperage, storedOperator] = await Promise.all([
+        kvGet("last_cooperage_name"),
+        kvGet("last_operator_name"),
+      ]);
+      if (!cancelled) {
+        setForm(prev => ({
+          ...prev,
+          ...(storedCooperage && prev.cooperageName === "" ? { cooperageName: storedCooperage } : {}),
+          ...(storedOperator && prev.operatorName === "" ? { operatorName: storedOperator } : {}),
+        }));
       }
     })();
     return () => { cancelled = true; };
@@ -499,6 +508,7 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
           maintenanceDate: form.maintenanceDate.trim(),
           workType: form.workType.trim(),
           cooperageName: form.cooperageName.trim() || null,
+          operatorName: form.operatorName.trim() || null,
           costPence,
           notes: form.notes.trim() || null,
         }),
@@ -507,10 +517,13 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
-      setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", costPounds: "", notes: "" });
-      // Persist cooperage name best-effort after a successful save; storage failure must not affect the success flow
+      setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", operatorName: "", costPounds: "", notes: "" });
+      // Persist cooperage and operator names best-effort after a successful save; storage failure must not affect the success flow
       if (form.cooperageName.trim()) {
         kvSet("last_cooperage_name", form.cooperageName.trim()).catch(() => undefined);
+      }
+      if (form.operatorName.trim()) {
+        kvSet("last_operator_name", form.operatorName.trim()).catch(() => undefined);
       }
       onSuccess();
     } catch (err) {
@@ -523,7 +536,7 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
   function handleClose() {
     if (submitting) return;
     setError(null);
-    setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", costPounds: "", notes: "" });
+    setForm({ maintenanceDate: todayIso(), workType: "", cooperageName: "", operatorName: "", costPounds: "", notes: "" });
     onClose();
   }
 
@@ -582,6 +595,19 @@ function LogMaintenanceModal({ visible, farmId, vesselId, onClose, onSuccess }: 
                 value={form.cooperageName}
                 onChangeText={v => set("cooperageName", v)}
                 placeholder="e.g. Radoux, François Frères"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Operator name */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Operator name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.operatorName}
+                onChangeText={v => set("operatorName", v)}
+                placeholder="Name of person performing maintenance"
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="next"
               />
@@ -652,6 +678,7 @@ function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSu
     maintenanceDate: "",
     workType: "",
     cooperageName: "",
+    operatorName: "",
     costPounds: "",
     notes: "",
   });
@@ -665,6 +692,7 @@ function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSu
         maintenanceDate: record.maintenance_date ?? "",
         workType: record.work_type ?? "",
         cooperageName: record.cooperage_name ?? "",
+        operatorName: record.operator_name ?? "",
         costPounds: record.cost_pence != null ? (record.cost_pence / 100).toFixed(2) : "",
         notes: record.notes ?? "",
       });
@@ -700,6 +728,7 @@ function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSu
           maintenanceDate: form.maintenanceDate.trim(),
           workType: form.workType.trim(),
           cooperageName: form.cooperageName.trim() || null,
+          operatorName: form.operatorName.trim() || null,
           costPence,
           notes: form.notes.trim() || null,
         }),
@@ -773,6 +802,18 @@ function EditMaintenanceModal({ visible, farmId, vesselId, record, onClose, onSu
                 value={form.cooperageName}
                 onChangeText={v => set("cooperageName", v)}
                 placeholder="e.g. Radoux, François Frères"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Operator name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.operatorName}
+                onChangeText={v => set("operatorName", v)}
+                placeholder="Name of person performing maintenance"
                 placeholderTextColor={colors.textTertiary}
                 returnKeyType="next"
               />

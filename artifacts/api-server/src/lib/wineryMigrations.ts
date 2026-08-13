@@ -275,6 +275,7 @@ export async function runWineryMigrations(): Promise<void> {
     )
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_maintenance_vessel_idx ON winery_barrel_maintenance (vessel_id)`);
+  await db.execute(sql`ALTER TABLE winery_barrel_maintenance ADD COLUMN IF NOT EXISTS operator_name TEXT`);
 
   // ─── Harvest Reception — extended intake fields ────────────────────────────
   // Gate testing provenance: who tested, what device, whether a lab report is

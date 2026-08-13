@@ -38115,8 +38115,8 @@ router.post("/farms/:farmId/winery-vessels/:vesselId/maintenance", requireAuth, 
   // INSERT…SELECT ensures the vessel actually belongs to this farm — if the vessel
   // does not exist under farm_id the SELECT returns 0 rows and nothing is inserted.
   const r = await db.execute(sql`
-    INSERT INTO winery_barrel_maintenance (farm_id,vessel_id,maintenance_date,work_type,cooperage_name,cost_pence,notes)
-    SELECT ${farmId},${vesselId},${nd(b.maintenanceDate)},${n(b.workType)},${n(b.cooperageName)},${ni(b.costPence)},${n(b.notes)}
+    INSERT INTO winery_barrel_maintenance (farm_id,vessel_id,maintenance_date,work_type,cooperage_name,operator_name,cost_pence,notes)
+    SELECT ${farmId},${vesselId},${nd(b.maintenanceDate)},${n(b.workType)},${n(b.cooperageName)},${n(b.operatorName)},${ni(b.costPence)},${n(b.notes)}
     FROM winery_vessels
     WHERE id=${vesselId} AND farm_id=${farmId}
     RETURNING *`);
@@ -38133,7 +38133,8 @@ router.put("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId",
   const r = await db.execute(sql`
     UPDATE winery_barrel_maintenance SET
       maintenance_date=${nd(b.maintenanceDate)}, work_type=${n(b.workType)},
-      cooperage_name=${n(b.cooperageName)}, cost_pence=${ni(b.costPence)}, notes=${n(b.notes)}
+      cooperage_name=${n(b.cooperageName)}, operator_name=${n(b.operatorName)},
+      cost_pence=${ni(b.costPence)}, notes=${n(b.notes)}
     WHERE id=${maintenanceId} AND vessel_id=${vesselId} AND farm_id=${farmId} RETURNING *`);
   if (!r.rows.length) { res.status(404).json({ error: "Record not found" }); return; }
   res.json({ record: r.rows[0] });
