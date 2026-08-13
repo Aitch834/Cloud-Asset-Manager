@@ -76,6 +76,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
+  const [varietySummaryOpen, setVarietySummaryOpen] = useState(true);
   const [summarySort, setSummarySort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -307,6 +308,70 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     return { uniqueVintages, tables };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
+
+  // ── Yield by Variety summary (both views, requires ≥2 distinct linked+named varieties) ──
+  const varietySummaryData = useMemo(() => {
+    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    // Separate bucket for records with no usable variety (unlinked or blank variety on block)
+    const UNKNOWN_KEY = "Unknown / Not linked";
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+    for (const r of filteredHarvest) {
+      const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
+      const variety = block ? String(block.variety ?? "").trim() : "";
+      // Use the variety name if available; fall back to the unknown bucket
+      const key = variety || UNKNOWN_KEY;
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+      const entry = varietyMap[key];
+      entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+      if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
+        entry.blockIds.add(r.blockId);
+        const ha = parseFloat(String((block.areaHa ?? block.area ?? "")));
+        if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
+      }
+      const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
+      const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
+      const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
+      const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
+    }
+    // Eligibility: count only real, named variety keys (not the unknown bucket)
+    const namedVarietyKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
+    if (namedVarietyKeys.length < 2) return null;
+
+    const rows = Object.entries(varietyMap)
+      .sort(([a], [b]) => {
+        // Unknown bucket always sorts last
+        if (a === UNKNOWN_KEY) return 1;
+        if (b === UNKNOWN_KEY) return -1;
+        return a.localeCompare(b);
+      })
+      .map(([variety, e]) => {
+        const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+        return {
+          variety,
+          areaHa: e.totalHa > 0 ? e.totalHa : null,
+          totalKg: e.totalKg,
+          kgPerHa,
+          avgBrix: avg(e.brixVals),
+          avgPh: avg(e.phVals),
+          avgTa: avg(e.taVals),
+          avgPa: avg(e.paVals),
+        };
+      });
+
+    // Grand kg/ha: only from rows with known positive area (same-population, matching block summary)
+    const rowsWithArea = rows.filter(r => r.areaHa != null && r.areaHa > 0);
+    const grandHa = rowsWithArea.reduce((s, r) => s + (r.areaHa ?? 0), 0);
+    const grandKgForArea = rowsWithArea.reduce((s, r) => s + r.totalKg, 0);
+    const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+
+    const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
+    const grandAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
+    const grandAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
+    const grandAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
+    const grandAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
+    return { rows, grandKg, grandHa, grandKgPerHa, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredHarvest, blocks]);
 
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
@@ -1265,6 +1330,66 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           </div>
         );
       })()}
+
+      {/* Yield by Variety summary — shown whenever ≥2 distinct varieties exist */}
+      {varietySummaryData && (
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <button
+            type="button"
+            className="w-full px-4 py-2.5 border-b bg-muted/30 flex items-center gap-1.5 hover:bg-muted/50 transition-colors text-left"
+            onClick={() => setVarietySummaryOpen(o => !o)}
+            aria-expanded={varietySummaryOpen}
+          >
+            <Wine className="w-4 h-4 text-muted-foreground shrink-0" />
+            <p className="text-sm font-semibold flex-1">Yield by Variety</p>
+            <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${varietySummaryOpen ? "rotate-90" : ""}`} />
+          </button>
+          {varietySummaryOpen && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                    <th className="text-left px-4 py-2 font-medium">Variety</th>
+                    <th className="text-right px-3 py-2 font-medium">Area (ha)</th>
+                    <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
+                    <th className="text-right px-3 py-2 font-medium">Yield (kg/ha)</th>
+                    <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
+                    <th className="text-right px-3 py-2 font-medium">Avg pH</th>
+                    <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
+                    <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {varietySummaryData.rows.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                      <td className="px-4 py-2 font-medium">{row.variety}</td>
+                      <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 bg-muted/40 font-semibold">
+                    <td className="px-4 py-2">Total / Average</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKgPerHa != null ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB") : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh != null ? varietySummaryData.grandAvgPh.toFixed(2) : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa != null ? varietySummaryData.grandAvgTa.toFixed(2) : "—"}</td>
+                    <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPa != null ? varietySummaryData.grandAvgPa.toFixed(2) : "—"}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <DataTable
         cols={[
