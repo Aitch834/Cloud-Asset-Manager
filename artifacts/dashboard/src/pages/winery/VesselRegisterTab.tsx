@@ -1180,8 +1180,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <div className="flex flex-wrap gap-1.5">
                 {cellarZones.map(zone => {
                   const zoneBarrels = barrels.filter(r => String(r.cellar_zone || "Unassigned") === zone);
-                  const full = zoneBarrels.filter(r => r.is_full).length;
-                  const empty = zoneBarrels.length - full;
+                  // Apply the active alert-flag and fill-status filters so counts match what the table will show
+                  const zoneFiltered = zoneBarrels.filter(r => {
+                    if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
+                    if (isFullFilter !== null && !!r.is_full !== isFullFilter) return false;
+                    return true;
+                  });
+                  const full = zoneFiltered.filter(r => r.is_full).length;
+                  const empty = zoneFiltered.length - full;
                   const isSelected = zoneFilter === zone;
                   return (
                     <button
@@ -1190,8 +1196,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"}`}
                     >
                       <span className="font-semibold">{zone}</span>
-                      <span className="text-green-700 font-medium">● {full}</span>
-                      <span className="text-slate-400">○ {empty}</span>
+                      {isFullFilter === false
+                        ? <span className="text-slate-500">○ {empty}</span>
+                        : isFullFilter === true
+                        ? <span className="text-green-700 font-medium">● {full}</span>
+                        : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
                     </button>
                   );
                 })}
@@ -1204,8 +1213,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             <p className="text-xs text-muted-foreground mb-1.5">Filter by fill status</p>
             <div className="flex flex-wrap gap-1.5">
               {(() => {
-                const fullCount = barrels.filter(r => r.is_full).length;
-                const emptyCount = barrels.length - fullCount;
+                // Respect the active zone and alert-flag filters so counts match what the table will show
+                const scopedBarrels = barrels.filter(r => {
+                  if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
+                  if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
+                  return true;
+                });
+                const fullCount = scopedBarrels.filter(r => r.is_full).length;
+                const emptyCount = scopedBarrels.length - fullCount;
                 return (
                   <>
                     <button
@@ -1230,13 +1245,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
 
           {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== null) && (
             <p className="text-xs text-muted-foreground">
-              Showing filtered barrels
+              {/* Build a readable sentence: "Showing [full] barrels [in Zone] [on 2nd fill] [flagged as …]" */}
+              Showing{isFullFilter === true && <> <span className="font-medium">full</span></>}{isFullFilter === false && <> <span className="font-medium">empty</span></>} barrels
               {zoneFilter && <> in <span className="font-medium">{zoneFilter}</span></>}
               {fillTierFilter && <>{(zoneFilter) && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
               {alertFlagFilter && <>{(zoneFilter || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;90 days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
-              {isFullFilter !== null && (zoneFilter || fillTierFilter || alertFlagFilter) && <> · </>}
-              {isFullFilter === true && <> showing <span className="font-medium">full barrels only</span></>}
-              {isFullFilter === false && <> showing <span className="font-medium">empty barrels only</span></>}
               {" "}— click "Show all" to clear.
             </p>
           )}
