@@ -214,6 +214,12 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
   const [form, setForm] = useState<Record<string, string>>({ maintenanceDate: today });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  const openAddForm = () => {
+    const savedCooperage = localStorage.getItem("last_cooperage_name") ?? "";
+    setForm({ maintenanceDate: today, ...(savedCooperage ? { cooperageName: savedCooperage } : {}) });
+    setShowAdd(true);
+  };
+
   const addMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = { ...form };
@@ -225,6 +231,9 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string,string>).error || "Save failed"); }
     },
     onSuccess: () => {
+      if (form.cooperageName?.trim()) {
+        localStorage.setItem("last_cooperage_name", form.cooperageName.trim());
+      }
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       setShowAdd(false);
@@ -261,7 +270,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
           )}
         </div>
         {!readOnly && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAddForm}>
             <Plus className="w-3 h-3 mr-1" />Log Work
           </Button>
         )}
