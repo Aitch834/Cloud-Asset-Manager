@@ -1525,6 +1525,69 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
 
   const { blocks, harvests, ops, sprays, loading } = useVitData(farmId);
 
+  // Financial transactions for this farm — filtered to Viticulture enterprise + selected year
+  const { data: allTransactions } = useQuery<any[]>({
+    queryKey: ["financial-transactions", farmId],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/financial-transactions`), { credentials: "include" })
+        .then(r => r.json())
+        .then(j => j.records ?? []),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  const vitTx = useMemo(() => {
+    if (!allTransactions) return [];
+    return allTransactions.filter((t: any) => {
+      if ((t.enterprise ?? "") !== "Viticulture") return false;
+      const txYear = t.transactionDate ? new Date(t.transactionDate).getFullYear() : null;
+      return txYear === year;
+    });
+  }, [allTransactions, year]);
+
+  // ── Explicit category sets for each Gross Margin row ────────────────────
+  // Revenue rows (each tracked separately; all contribute to GM output total)
+  const VIT_GRAPE_WINE_CATS = new Set(["Grape Sales", "Wine Sales — Sparkling", "Wine Sales — Still", "Wine Sales — Rosé"]);
+  const VIT_CONTRACT_CATS   = new Set(["Winery Contract Processing Income"]);
+  const VIT_SCHEME_CATS     = new Set(["Vineyard Agri-Environment Scheme", "Other Viticulture Income"]);
+
+  // Expense rows — explicit variable / direct cost categories only
+  const VIT_SPRAY_CATS   = new Set(["Pesticides & Herbicides", "Fungicides", "Insecticides"]);
+  const VIT_VINEMGMT_CATS = new Set(["Vine Management"]);
+  const VIT_LABOUR_CATS  = new Set(["Labour"]);
+  const VIT_WINERY_CATS  = new Set(["Winery Processing Costs"]);
+  // Other variable direct costs — haulage, packaging, certification etc.
+  const VIT_OTHER_VARIABLE_CATS = new Set([
+    "Seeds & Seed Treatments", "Fertiliser", "Haulage", "Electricity",
+    "Contracting & Machinery Hire", "Feed & Forage", "Feed & Bedding", "Veterinary & Medicine",
+  ]);
+  // Capital / establishment items — shown separately, excluded from GM
+  const VIT_CAPITAL_CATS = new Set(["Vineyard Establishment Costs", "Vine Purchases & Replacements"]);
+
+  const sumTx = (cats: Set<string>, type: "income" | "expense") =>
+    vitTx.filter((t: any) => t.transactionType === type && cats.has(t.category ?? ""))
+         .reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+
+  const vitGrapeWinePence   = useMemo(() => sumTx(VIT_GRAPE_WINE_CATS, "income"), [vitTx]);
+  const vitContractPence    = useMemo(() => sumTx(VIT_CONTRACT_CATS, "income"),   [vitTx]);
+  const vitSchemePence      = useMemo(() => sumTx(VIT_SCHEME_CATS, "income"),     [vitTx]);
+  const vitTotalRevPence    = vitGrapeWinePence + vitContractPence + vitSchemePence;
+
+  const vitSprayCostPence   = useMemo(() => sumTx(VIT_SPRAY_CATS, "expense"),       [vitTx]);
+  const vitVineMgmtPence    = useMemo(() => sumTx(VIT_VINEMGMT_CATS, "expense"),    [vitTx]);
+  const vitLabourCostPence  = useMemo(() => sumTx(VIT_LABOUR_CATS, "expense"),      [vitTx]);
+  const vitWineryCostPence  = useMemo(() => sumTx(VIT_WINERY_CATS, "expense"),      [vitTx]);
+  const vitOtherVarPence    = useMemo(() => sumTx(VIT_OTHER_VARIABLE_CATS, "expense"), [vitTx]);
+  const vitCapitalPence     = useMemo(() => sumTx(VIT_CAPITAL_CATS, "expense"),     [vitTx]);
+
+  // Gross Margin = sales + contract + scheme income minus all direct variable costs
+  const vitTotalDirectCostPence = vitSprayCostPence + vitVineMgmtPence + vitLabourCostPence + vitWineryCostPence + vitOtherVarPence;
+  const vitGrossMarginPence     = vitTotalRevPence - vitTotalDirectCostPence;
+
+  const fmtGbp = (pence: number) => `£${(Math.abs(pence) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtPerHa = (pence: number, ha: number) => ha > 0 ? `£${(Math.abs(pence) / 100 / ha).toFixed(2)}` : "—";
+  const fmtPerKg = (pence: number, kg: number) => kg > 0 ? `${(Math.abs(pence) / kg).toFixed(1)}p` : "—";
+
   // Farm Settings completeness check — warn before printing if key header fields are missing
   const { data: farmMeta } = useQuery<Record<string, unknown> | null>({
     queryKey: ["farm-meta", farmId],
@@ -1767,80 +1830,262 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
           </div>
 
           {/* Gross margin framework */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h3 className="text-sm font-semibold">Gross Margin Framework — {year}</h3>
+          {(() => {
+            const hasVitTx = vitTx.length > 0;
+            const gmColor = vitGrossMarginPence >= 0 ? "#166534" : "#991b1b";
+            return (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-semibold">Gross Margin Framework — {year}</h3>
+                {!hasVitTx && (
+                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                    No Viticulture transactions recorded for {year}
+                  </span>
+                )}
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left">Item</th>
+                    <th className="px-4 py-2 text-right">Total</th>
+                    <th className="px-4 py-2 text-right">Per ha</th>
+                    <th className="px-4 py-2 text-right">Per kg</th>
+                    <th className="px-4 py-2 text-left">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* ── Revenue section header ── */}
+                  <tr className="bg-emerald-50/50">
+                    <td className="px-4 py-1.5 text-xs font-semibold text-emerald-800 uppercase tracking-wide" colSpan={5}>Output</td>
+                  </tr>
+                  {/* Grape & wine sales */}
+                  <tr className="border-t border-border/40 bg-emerald-50/20">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Grape &amp; Wine Sales</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitGrapeWinePence)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitGrapeWinePence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitGrapeWinePence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Grape Sales · Wine Sales (Sparkling / Still / Rosé)</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Record grape/wine sales tagged Viticulture enterprise</td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Contract processing income */}
+                  <tr className="border-t border-border/40 bg-emerald-50/20">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Contract Processing Income</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitContractPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitContractPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitContractPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Winery Contract Processing Income</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Winery Contract Processing Income category</td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Scheme / grant income */}
+                  <tr className="border-t border-border/40 bg-emerald-50/20">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Scheme &amp; Other Income</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitSchemePence)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitSchemePence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitSchemePence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Vineyard Agri-Environment Scheme · Other Viticulture Income</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Vineyard Agri-Environment Scheme · Other Viticulture Income categories</td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Total output subtotal — show whenever transactions exist */}
+                  {hasVitTx && (
+                    <tr className="border-t border-emerald-200/60 bg-emerald-50/40 font-semibold">
+                      <td className="px-4 py-2 text-sm text-emerald-800 pl-6">Total Output</td>
+                      <td className="px-4 py-2 text-right text-emerald-800">{fmtGbp(vitTotalRevPence)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitTotalRevPence, totalHarvestHa)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitTotalRevPence, totalYieldKg)}</td>
+                      <td className="px-4 py-2" />
+                    </tr>
+                  )}
+
+                  {/* ── Variable costs section header ── */}
+                  <tr className="bg-muted/30">
+                    <td className="px-4 py-1.5 text-xs font-semibold text-foreground/60 uppercase tracking-wide" colSpan={5}>Direct Variable Costs</td>
+                  </tr>
+                  {/* Spray & agrochemical */}
+                  <tr className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Spray &amp; Agrochemical</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitSprayCostPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitSprayCostPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitSprayCostPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">
+                          Pesticides &amp; Herbicides · Fungicides · Insecticides
+                          {totalSprayApplications > 0 ? ` · ${totalSprayApplications} applications recorded` : ""}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">
+                          Pesticides &amp; Herbicides · Fungicides · Insecticides
+                          {totalSprayApplications > 0 ? ` · ${totalSprayApplications} spray applications recorded` : ""}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Vine management */}
+                  <tr className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Vine Management</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitVineMgmtPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitVineMgmtPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitVineMgmtPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Pruning, training, canopy work — Vine Management category</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Pruning, training, canopy work — Vine Management category</td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Labour */}
+                  <tr className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Labour</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitLabourCostPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitLabourCostPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitLabourCostPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">
+                          Labour category{totalOpsHours > 0 ? ` · ${totalOpsHours.toFixed(1)} canopy hours recorded` : ""}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">
+                          Labour category{totalOpsHours > 0 ? ` · ${totalOpsHours.toFixed(1)} canopy hours recorded` : ""}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Winery processing */}
+                  <tr className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Winery Processing</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitWineryCostPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitWineryCostPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitWineryCostPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Winery Processing Costs category</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Winery Processing Costs category</td>
+                      </>
+                    )}
+                  </tr>
+                  {/* Other variable costs (explicit list only) */}
+                  <tr className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Other Direct Costs</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitOtherVarPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitOtherVarPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitOtherVarPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Haulage · Fertiliser · Contracting · Electricity &amp; other variable inputs</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Haulage · Fertiliser · Contracting · Electricity &amp; other variable inputs</td>
+                      </>
+                    )}
+                  </tr>
+
+                  {/* ── Gross Margin — always show when any viticulture transactions exist ── */}
+                  <tr className="border-t-2 border-border bg-muted/10 font-semibold">
+                    <td className="px-4 py-2">Gross Margin</td>
+                    {hasVitTx ? (
+                      <>
+                        <td className="px-4 py-2 text-right" style={{ color: gmColor }}>
+                          {vitGrossMarginPence < 0 ? "−" : ""}{fmtGbp(vitGrossMarginPence)}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono" style={{ color: gmColor }}>{fmtPerHa(vitGrossMarginPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono" style={{ color: gmColor }}>{fmtPerKg(vitGrossMarginPence, totalYieldKg)}</td>
+                        <td className="px-4 py-2 text-xs text-foreground/50">Total output minus direct variable costs</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add revenue &amp; costs via Financial</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
+                        <td className="px-4 py-2" />
+                      </>
+                    )}
+                  </tr>
+
+                  {/* ── Capital items (below GM line) ── */}
+                  {vitCapitalPence > 0 && (
+                    <>
+                      <tr className="bg-muted/20">
+                        <td className="px-4 py-1.5 text-xs font-semibold text-foreground/50 uppercase tracking-wide" colSpan={5}>Capital &amp; Establishment (not in Gross Margin)</td>
+                      </tr>
+                      <tr className="border-t border-border/40">
+                        <td className="px-4 py-2 text-sm text-foreground/70 pl-6">Vine Establishment &amp; Replacements</td>
+                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitCapitalPence)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitCapitalPence, totalHarvestHa)}</td>
+                        <td className="px-4 py-2 text-right font-mono">—</td>
+                        <td className="px-4 py-2 text-xs text-foreground/40">Vineyard Establishment Costs · Vine Purchases &amp; Replacements — capital items excluded from GM</td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+              <div className="px-4 py-3 bg-amber-50/60 border-t border-amber-200/60">
+                <p className="text-xs text-amber-800">
+                  <span className="font-semibold">To complete this report:</span> record grape and wine sales revenue,
+                  spray product costs, labour costs, and winery processing costs in the Financial module,
+                  tagged to the <span className="font-semibold">Viticulture</span> enterprise. Yield and operational input data above are drawn
+                  directly from your Harvest, Pruning &amp; Canopy, and Spray Diary records.
+                </p>
+              </div>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/20 text-foreground/60 text-xs">
-                  <th className="px-4 py-2 text-left">Item</th>
-                  <th className="px-4 py-2 text-right">Total</th>
-                  <th className="px-4 py-2 text-right">Per ha</th>
-                  <th className="px-4 py-2 text-right">Per kg</th>
-                  <th className="px-4 py-2 text-left">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Revenue */}
-                <tr className="border-t border-border/40 bg-emerald-50/30">
-                  <td className="px-4 py-2 font-semibold text-emerald-700">Grape / Wine Revenue</td>
-                  <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-xs text-foreground/40">Record grape/wine sales in the Financial module to complete this line</td>
-                </tr>
-                {/* Spray costs */}
-                <tr className="border-t border-border/40">
-                  <td className="px-4 py-2 text-foreground/70">Spray &amp; Agrochemical Cost</td>
-                  <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-xs text-foreground/40">
-                    {totalSprayApplications > 0
-                      ? `${totalSprayApplications} applications · ${totalSprayArea.toFixed(1)} ha treated recorded`
-                      : "No spray records"}
-                  </td>
-                </tr>
-                {/* Labour */}
-                <tr className="border-t border-border/40">
-                  <td className="px-4 py-2 text-foreground/70">Labour Cost</td>
-                  <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-xs text-foreground/40">
-                    {totalOpsHours > 0
-                      ? `${totalOpsHours.toFixed(1)} canopy hours recorded`
-                      : "No operation hours recorded"}
-                  </td>
-                </tr>
-                {/* Other variable costs */}
-                <tr className="border-t border-border/40">
-                  <td className="px-4 py-2 text-foreground/70">Other Variable Costs</td>
-                  <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-xs text-foreground/40">Haulage, winery processing, packaging, certification</td>
-                </tr>
-                {/* Gross margin */}
-                <tr className="border-t-2 border-border bg-muted/10 font-semibold">
-                  <td className="px-4 py-2">Gross Margin</td>
-                  <td className="px-4 py-2 text-right text-foreground/40 italic">Add costs &amp; revenue via Financial</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                  <td className="px-4 py-2" />
-                </tr>
-              </tbody>
-            </table>
-            <div className="px-4 py-3 bg-amber-50/60 border-t border-amber-200/60">
-              <p className="text-xs text-amber-800">
-                <span className="font-semibold">To complete this report:</span> record grape and wine sales revenue,
-                spray product costs, labour costs, and winery processing costs in the Financial module,
-                tagged to the Viticulture enterprise. Yield and operational input data above are drawn
-                directly from your Harvest, Pruning &amp; Canopy, and Spray Diary records.
-              </p>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Print-only per-block yield summary — always visible in @media print, outside the collapsible */}
           {vintageHarvest.length > 0 && entBlockSummary.rows.length > 0 && (

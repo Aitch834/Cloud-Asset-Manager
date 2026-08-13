@@ -18,6 +18,7 @@ export const financialTransactionsTable = pgTable("financial_transactions", {
   vatAmountPence: integer("vat_amount_pence"),
   vatRate: text("vat_rate"),
   notes: text("notes"),
+  enterprise: text("enterprise"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

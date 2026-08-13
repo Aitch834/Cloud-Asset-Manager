@@ -29,6 +29,14 @@ const INCOME_CATEGORIES = [
   "Wool Sales",
   "Straw & Crop By-Product Sales",
   "Timber & Woodland Sales",
+  // Viticulture
+  "Grape Sales",
+  "Wine Sales — Sparkling",
+  "Wine Sales — Still",
+  "Wine Sales — Rosé",
+  "Winery Contract Processing Income",
+  "Vineyard Agri-Environment Scheme",
+  "Other Viticulture Income",
   // Subsidies & grants
   "Agri-Environment Scheme",
   "Grant / Subsidy",
@@ -59,6 +67,11 @@ const EXPENSE_CATEGORIES = [
   "Haulage",
   "Electricity",
   "Contracting & Machinery Hire",
+  // Viticulture
+  "Vine Management",
+  "Winery Processing Costs",
+  "Vineyard Establishment Costs",
+  "Vine Purchases & Replacements",
   // Fixed overheads — property & occupancy
   "Rent & Land Charges",
   "Buildings Repairs & Maintenance",
@@ -240,7 +253,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
   const [exporting, setExporting] = useState(false);
-  const emptyForm = { transactionDate: "", transactionType: "expense", category: "", description: "", amountPence: "", vatAmountPence: "", vatRate: "", vendorCustomer: "", paymentMethod: "", reference: "", notes: "" };
+  const emptyForm = { transactionDate: "", transactionType: "expense", category: "", description: "", amountPence: "", vatAmountPence: "", vatRate: "", vendorCustomer: "", paymentMethod: "", reference: "", notes: "", enterprise: "" };
   const [form, setForm] = useState<any>(emptyForm);
   const calcVat = (amount: string, rate: string) => { const a = parseFloat(amount); const r = parseFloat(rate); if (isNaN(a) || isNaN(r) || !rate) return ""; return (a * r / 100).toFixed(2); };
   useEffect(() => { if (form.vatRate) { setForm((f: any) => ({ ...f, vatAmountPence: calcVat(f.amountPence, f.vatRate) })); } }, [form.amountPence, form.vatRate]);
@@ -387,7 +400,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Date", "Description", "Category", "Type", "Amount", "VAT", "Supplier / Customer", "Reference", ""].map(h => (
+                {["Date", "Description", "Category", "Enterprise", "Type", "Amount", "VAT", "Supplier / Customer", "Reference", ""].map(h => (
                   <th key={h} style={{ padding: "0.625rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -408,6 +421,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                     )}
                   </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.category || "—"}</td>
+                  <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.enterprise || "—"}</td>
                   <td style={{ padding: "0.625rem 0.875rem" }}><TypeBadge type={r.transactionType} /></td>
                   <td style={{ padding: "0.625rem 0.875rem", fontWeight: 600, whiteSpace: "nowrap", color: r.transactionType === "income" ? "#166534" : "#111827" }}>{fmtAmt(r.amountPence)}</td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.vatAmountPence ? fmtAmt(r.vatAmountPence) : "—"}</td>
@@ -460,6 +474,10 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                           {["Crop Sales","Livestock Sales","Milk Sales","Wool Sales","Straw & Crop By-Product Sales","Timber & Woodland Sales"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectGroup>
                         <SelectGroup>
+                          <SelectLabel>Viticulture</SelectLabel>
+                          {["Grape Sales","Wine Sales — Sparkling","Wine Sales — Still","Wine Sales — Rosé","Winery Contract Processing Income","Vineyard Agri-Environment Scheme","Other Viticulture Income"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
                           <SelectLabel>Subsidies & Grants</SelectLabel>
                           {["Agri-Environment Scheme","Grant / Subsidy"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectGroup>
@@ -477,6 +495,10 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                         <SelectGroup>
                           <SelectLabel>Variable / Production Inputs</SelectLabel>
                           {["Seeds & Seed Treatments","Fertiliser","Pesticides & Herbicides","Fungicides","Insecticides","Veterinary & Medicine","Feed & Forage","Feed & Bedding","Haulage","Electricity","Contracting & Machinery Hire"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Viticulture</SelectLabel>
+                          {["Vine Management","Winery Processing Costs","Vineyard Establishment Costs","Vine Purchases & Replacements"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectGroup>
                         <SelectGroup>
                           <SelectLabel>Property & Occupancy</SelectLabel>
@@ -513,6 +535,21 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                   <SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+            </div>
+            <div><Label>Enterprise Tag</Label>
+              <Select value={form.enterprise ?? ""} onValueChange={v => setForm((f: any) => ({ ...f, enterprise: v }))}>
+                <SelectTrigger><SelectValue placeholder="None (general)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None (general)</SelectItem>
+                  <SelectItem value="Viticulture">Viticulture</SelectItem>
+                  <SelectItem value="Arable">Arable</SelectItem>
+                  <SelectItem value="Livestock">Livestock</SelectItem>
+                  <SelectItem value="Dairy">Dairy</SelectItem>
+                  <SelectItem value="Horticulture">Horticulture</SelectItem>
+                  <SelectItem value="Diversification">Diversification</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Amount (£) <span style={{ color: "#ef4444" }}>*</span></Label><Input type="number" step="0.01" min="0" placeholder="0.00" value={form.amountPence} onChange={e => setForm((f: any) => ({ ...f, amountPence: e.target.value }))} /></div>

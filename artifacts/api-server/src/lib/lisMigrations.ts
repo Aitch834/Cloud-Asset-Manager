@@ -504,4 +504,8 @@ export async function runLisMigrations(): Promise<void> {
       updated_at       timestamptz not null default now()
     )
   `);
+
+  // Enterprise tag column on financial_transactions — added for viticulture enterprise reporting
+  await db.execute(sql`ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS enterprise text`);
 }
+
