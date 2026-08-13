@@ -1416,9 +1416,13 @@ export async function printHarvest(
   const bsPhotoFooterCell = hasPhotos ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>` : "";
 
   // ── 3c. Build block × vintage cross-tab (shown after block summary, multi-vintage + multi-block only) ──
+  // Linked records: only those with a valid blockId (used by both yield and chemistry cross-tabs)
+  const chemLinkedRecords = records.filter(r => r.blockId != null && r.blockId !== "");
+
   const uniqueBlockIdsForCross = [...new Set(records.map(r => r.blockId).filter(id => id != null && id !== ""))];
   const showCrossTab = uniqueVintages.length > 1 && uniqueBlockIdsForCross.length > 1;
   let crossTabHtml = "";
+  let chemCrossTabHtml = "";
   if (showCrossTab) {
     // vintages in ascending order (uniqueVintages is desc)
     const crossVintages = [...uniqueVintages].reverse();
@@ -1510,9 +1514,104 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
     </tr></tfoot>
   </table>`;
+
   }
 
-  // ── 3d. Build yield-by-block × vintage chart SVG ─────────────────────────
+  // ── 3d. Chemistry cross-tab: independently gated on linked-record vintages ────
+  // Eligibility mirrors the on-screen chemCrossTabData: ≥2 linked vintages AND ≥2 linked blocks.
+  // All lookup, body rows, footer, and grand averages use chemLinkedRecords only.
+  {
+    const chemLinkedVintages = [...new Set(chemLinkedRecords.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    const chemLinkedBlockIds = [...new Set(chemLinkedRecords.map(r => r.blockId))];
+    const showChemCrossTab = chemLinkedVintages.length >= 2 && chemLinkedBlockIds.length >= 2;
+
+    if (showChemCrossTab) {
+      // Build lookup: blockId → vintageYear → linked rows only
+      const chemCrossLookup: Record<string, Record<string, Record<string, unknown>[]>> = {};
+      for (const r of chemLinkedRecords) {
+        const bid = String(r.blockId ?? "");
+        const vy = String(r.vintageYear ?? "");
+        if (!chemCrossLookup[bid]) chemCrossLookup[bid] = {};
+        if (!chemCrossLookup[bid][vy]) chemCrossLookup[bid][vy] = [];
+        chemCrossLookup[bid][vy].push(r);
+      }
+
+      const chemPrintMetrics: Array<{
+        label: string;
+        precision: number;
+        extractor: (r: Record<string, unknown>) => number | null;
+      }> = [
+        { label: "Avg Brix \u00b0", precision: 1, extractor: r => { const v = parseFloat(String(r.brix ?? "")); return isNaN(v) ? null : v; } },
+        { label: "Avg pH", precision: 2, extractor: r => { const v = parseFloat(String(r.ph ?? "")); return isNaN(v) ? null : v; } },
+        { label: "Avg TA (g/L)", precision: 2, extractor: r => { const v = parseFloat(String(r.titratableAcidityGl ?? "")); return isNaN(v) ? null : v; } },
+        { label: "Avg Pot. Alc %", precision: 2, extractor: r => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; } },
+      ];
+
+      const chemSubTablesHtml = chemPrintMetrics.map(metric => {
+        const vintageHeaders = chemLinkedVintages.map(vy =>
+          `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
+        ).join("");
+
+        const chemBodyRows = chemLinkedBlockIds.map(bid => {
+          const bidStr = String(bid);
+          const bidNum = Number(bidStr);
+          const label = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.blockName ?? bidStr) : "—";
+          const variety = !isNaN(bidNum) && bidNum > 0 ? String(blockLookup2[bidNum]?.variety ?? "—") : "—";
+          const vintageCells = chemLinkedVintages.map(vy => {
+            const grp = chemCrossLookup[bidStr]?.[vy] ?? [];
+            const vals = grp.map(metric.extractor).filter((v): v is number => v !== null);
+            const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+            return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
+          }).join("");
+          const allForBlock = Object.values(chemCrossLookup[bidStr] ?? {}).flat();
+          const allValsForBlock = allForBlock.map(metric.extractor).filter((v): v is number => v !== null);
+          const rowAvg = allValsForBlock.length > 0 ? allValsForBlock.reduce((a, b) => a + b, 0) / allValsForBlock.length : null;
+          return `<tr>
+            <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+            <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
+            ${vintageCells}
+            <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowAvg != null ? rowAvg.toFixed(metric.precision) : "\u2014"}</td>
+          </tr>`;
+        }).join("");
+
+        const footerVintageCells = chemLinkedVintages.map(vy => {
+          const vals = chemLinkedRecords
+            .filter(r => String(r.vintageYear ?? "") === vy)
+            .map(metric.extractor)
+            .filter((v): v is number => v !== null);
+          const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+          return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
+        }).join("");
+        const allValsGrand = chemLinkedRecords.map(metric.extractor).filter((v): v is number => v !== null);
+        const grandAvgMetric = allValsGrand.length > 0 ? allValsGrand.reduce((a, b) => a + b, 0) / allValsGrand.length : null;
+
+        return `
+  <h3 style="font-size:11px;font-weight:700;margin:0 0 4px;color:#7c3d12">${escHtml(metric.label)} &mdash; Block &times; Vintage</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:14px">
+    <thead><tr>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
+      ${vintageHeaders}
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg All Vintages</th>
+    </tr></thead>
+    <tbody>${chemBodyRows}</tbody>
+    <tfoot><tr>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      ${footerVintageCells}
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgMetric != null ? grandAvgMetric.toFixed(metric.precision) : "\u2014"}</td>
+    </tr></tfoot>
+  </table>`;
+      }).join("");
+
+      chemCrossTabHtml = `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
+  <p style="font-size:10px;color:#666;margin:0 0 8px">Average chemistry values per block per vintage. Footer row shows the record-weighted average across all linked blocks for that vintage.</p>
+  ${chemSubTablesHtml}`;
+    }
+  }
+
+  // ── 3e. Build yield-by-block × vintage chart SVG ─────────────────────────
   const yieldChartSvgHtml = showCrossTab
     ? buildYieldTrendChartSvg(records, blockLookup2)
     : "";
@@ -1633,6 +1732,7 @@ export async function printHarvest(
     </tfoot>
   </table>
   ${crossTabHtml}
+  ${chemCrossTabHtml}
   ${yieldChartSvgHtml ? `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:always">Yield by Block &times; Vintage</h2>
   <p style="font-size:10px;color:#666;margin:0 0 6px">Bars show total yield per block per vintage; dashed trend lines connect each block's performance across vintages.</p>
