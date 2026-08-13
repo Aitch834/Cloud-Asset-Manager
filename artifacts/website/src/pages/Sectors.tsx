@@ -2,6 +2,7 @@ import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { modulePrice, BASE_FEE, BUNDLE_INCLUSIONS, MODULES } from "@/lib/pricing-data";
 import {
   Beef, Wheat, Grape, Tractor, LayoutGrid, Wrench,
   CheckCircle2, ArrowRight, ChevronRight, AlertTriangle,
@@ -32,7 +33,7 @@ const SECTORS = [
       { name: "Red Tractor Compliance", desc: "Core compliance platform covering certificates, insurance, COSHH, contractor H&S, and the Week Ahead farm planner." },
       { name: "Equipment Register & Workshop", desc: "PUWER inspection records, service history, sprayer calibration, MOT tracking, and workshop job cards." },
     ],
-    cta: "Start with the Livestock & Feed Management module at £35/month. Add Vet Ledger, Dairy, and Equipment modules as you need them.",
+    cta: `Start with the Livestock & Feed Management module at £${modulePrice("livestock-management")}/month. Add Vet Ledger, Dairy, and Equipment modules as you need them.`,
   },
   {
     id: "sheep-goat",
@@ -55,7 +56,7 @@ const SECTORS = [
       { name: "Red Tractor Compliance", desc: "Core compliance including certificates, COSHH, contractor H&S, and the Week Ahead farm planner." },
       { name: "Resource Planner", desc: "Labour and equipment planning for peak lambing and shearing periods — with pinch point analysis and Plan vs Actual tracking." },
     ],
-    cta: "Start with the Livestock & Feed Management module at £35/month. Add Vet Ledger and IPM for a complete flock compliance setup.",
+    cta: `Start with the Livestock & Feed Management module at £${modulePrice("livestock-management")}/month. Add Vet Ledger and IPM for a complete flock compliance setup.`,
   },
   {
     id: "arable",
@@ -78,7 +79,7 @@ const SECTORS = [
       { name: "Grain & Crop Storage", desc: "Storage location register, stock movements, merchant storage charges, and periodic stocktake records." },
       { name: "Equipment Register & Workshop", desc: "PUWER inspections, sprayer calibration (NSTS), service history, and workshop job cards for all arable machinery." },
     ],
-    cta: "A typical arable setup (Field & Crop, Spray Records, Grain Storage) starts at around £50/month for a single farm holding.",
+    cta: `A typical arable setup (Field & Crop, Spray Records, Grain Storage) starts at around £${BASE_FEE + modulePrice("field-crop-management") + modulePrice("sprays-inputs") + modulePrice("grain-crop-storage")}/month for a single farm holding.`,
   },
   {
     id: "viticulture",
@@ -101,7 +102,7 @@ const SECTORS = [
       { name: "Spray Records", desc: "Full pesticide and fungicide application records linked to vineyard blocks, with LERAP and COSHH documentation." },
       { name: "Equipment Register & Workshop", desc: "PUWER compliance, service records for vineyard machinery, and workshop job cards." },
     ],
-    cta: "Viticulture module at £45/month — includes Sprays & Inputs, Safety Risk & Audits, Staff & Training, and Equipment, Workshop & Fuel bundled free (£75/month of modules included at no extra charge). Add Organic Viticulture at £45/month if you hold or are pursuing organic certification. Holdings producing both organic and conventional wines receive one module at half price.",
+    cta: `Viticulture module at £${modulePrice("viticulture")}/month — includes Sprays & Inputs, Safety Risk & Audits, Staff & Training, and Equipment, Workshop & Fuel bundled free (£${modulePrice("sprays-inputs") + modulePrice("safety-risk-audits") + modulePrice("staff-training") + modulePrice("equipment-workshop")}/month of modules included at no extra charge). Add Organic Viticulture at £${modulePrice("organic-viticulture")}/month if you hold or are pursuing organic certification. Holdings producing both organic and conventional wines receive one module at half price.`,
   },
   {
     id: "mixed",
@@ -124,7 +125,7 @@ const SECTORS = [
       { name: "Field & Crop Management + Spray Records", desc: "Field histories, GPS boundaries, and full spray records for the arable side of the business." },
       { name: "Equipment Register & Workshop", desc: "Single equipment register shared across all enterprises — PUWER compliance, service records, and workshop job cards for all machinery." },
     ],
-    cta: "A typical mixed beef-and-arable setup starts at around £70–90/month depending on modules. Every module shares the same farm calendar and staff directory — no double entry.",
+    cta: `A typical mixed beef-and-arable setup starts at around £${BASE_FEE + modulePrice("livestock-management") + modulePrice("field-crop-management")}–£${BASE_FEE + modulePrice("livestock-management") + modulePrice("field-crop-management") + modulePrice("sprays-inputs")}/month depending on modules. Every module shares the same farm calendar and staff directory — no double entry.`,
   },
   {
     id: "contracting",
@@ -146,7 +147,7 @@ const SECTORS = [
       { name: "Red Tractor Compliance", desc: "Core platform with COSHH register, contractor H&S review records, and the Week Ahead farm planner." },
       { name: "Resource Planner (optional)", desc: "Cross-customer job scheduling on a Gantt chart — plan which machines and operators are needed for which customer on which day, with conflict detection." },
     ],
-    cta: "Farm Services & Contracting module at £15/month, combined with the Equipment & Workshop module at £30/month — a complete contracting compliance and invoicing platform at £45/month.",
+    cta: `Farm Services & Contracting module at £${modulePrice("farm-services-contracting")}/month, combined with the Equipment & Workshop module at £${modulePrice("equipment-workshop")}/month — a complete contracting compliance and invoicing platform at £${modulePrice("farm-services-contracting") + modulePrice("equipment-workshop")}/month.`,
   },
 ];
 
@@ -261,8 +262,26 @@ export default function Sectors() {
               </div>
             </div>
 
-            {/* Viticulture Bundle Callout */}
-            {sector.id === "viticulture" && (
+            {/* Viticulture Bundle Callout — derived from BUNDLE_INCLUSIONS["viticulture"] in pricing-data.ts */}
+            {sector.id === "viticulture" && (() => {
+              // Short marketing descriptions for each bundled module (keyed by module ID).
+              // Prices, names, and membership are all derived from pricing-data.ts.
+              const VIT_BUNDLE_DESCS: Record<string, string> = {
+                "sprays-inputs": "Spray records, LERAP assessments, IPM plan, beekeeper notifications",
+                "safety-risk-audits": "H&S register, accident book, COSHH, PAT testing, fire extinguishers",
+                "staff-training": "Training records, PPE compliance, timesheets, right-to-work checks",
+                "equipment-workshop": "PUWER inspections, service history, workshop job cards, fuel records",
+                "organic-compliance": "Organic certification status, field conversion tracker, certifier inspection log",
+              };
+              const bundledIds = BUNDLE_INCLUSIONS["viticulture"] ?? [];
+              const bundledModules = bundledIds.map(id => ({
+                id,
+                name: MODULES.find(m => m.id === id)?.name ?? id,
+                price: modulePrice(id),
+                desc: VIT_BUNDLE_DESCS[id] ?? "",
+              }));
+              const bundleTotal = bundledModules.reduce((sum, m) => sum + m.price, 0);
+              return (
               <div className="mb-12 rounded-2xl border-2 border-purple-200 bg-purple-50 p-6 md:p-8">
                 <div className="flex flex-col md:flex-row md:items-start gap-6">
                   <div className="flex-1">
@@ -271,20 +290,15 @@ export default function Sectors() {
                         <Gift className="w-5 h-5 text-purple-700" />
                       </div>
                       <p className="text-purple-900 font-bold text-lg leading-snug">
-                        £75/month of modules bundled free
+                        £{bundleTotal}/month of modules bundled free
                       </p>
                     </div>
                     <p className="text-purple-800 text-sm leading-relaxed mb-5">
-                      Every Viticulture subscription automatically includes four additional modules at no extra charge — modules that other sectors pay for separately. That's over £900/year of additional value included in the £45/month Viticulture price.
+                      Every Viticulture subscription automatically includes {bundledModules.length} additional modules at no extra charge — modules that other sectors pay for separately. That's over £{bundleTotal * 12}/year of additional value included in the £{modulePrice("viticulture")}/month Viticulture price.
                     </p>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {[
-                        { name: "Sprays & Inputs", price: 15, desc: "Spray records, LERAP assessments, IPM plan, beekeeper notifications" },
-                        { name: "Safety, Risk & Audits", price: 20, desc: "H&S register, accident book, COSHH, PAT testing, fire extinguishers" },
-                        { name: "Staff & Training", price: 10, desc: "Training records, PPE compliance, timesheets, right-to-work checks" },
-                        { name: "Equipment, Workshop & Fuel", price: 30, desc: "PUWER inspections, service history, workshop job cards, fuel records" },
-                      ].map((m) => (
-                        <div key={m.name} className="flex gap-3 p-3.5 rounded-xl bg-white border border-purple-100">
+                      {bundledModules.map((m) => (
+                        <div key={m.id} className="flex gap-3 p-3.5 rounded-xl bg-white border border-purple-100">
                           <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -298,7 +312,7 @@ export default function Sectors() {
                     </div>
                   </div>
                   <div className="md:w-52 shrink-0 flex flex-col items-center text-center bg-white border border-purple-200 rounded-xl p-5 gap-3">
-                    <p className="text-4xl font-extrabold text-purple-700">£75</p>
+                    <p className="text-4xl font-extrabold text-purple-700">£{bundleTotal}</p>
                     <p className="text-sm text-purple-900 font-medium leading-snug">per month bundled free with Viticulture</p>
                     <div className="w-full border-t border-purple-100 pt-3">
                       <p className="text-xs text-muted-foreground leading-relaxed">Select <strong>Viticulture</strong> in the pricing tool to see the full breakdown.</p>
@@ -309,7 +323,8 @@ export default function Sectors() {
                   </div>
                 </div>
               </div>
-            )}
+            );
+          })()}
 
             {/* Pricing CTA */}
             <div className="rounded-2xl bg-gradient-to-br from-brand-forest to-brand-sage p-8 text-white flex flex-col md:flex-row md:items-center gap-6">
