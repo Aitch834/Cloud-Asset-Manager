@@ -1958,7 +1958,7 @@ export async function printHarvest(
   ${crossTabHtml}
   ${chemCrossTabHtml}
   ${(yieldChartSvgHtml || yieldTHaChartSvgHtml || (groupByVintage && tHaEligibleBlockCount < 2)) ? `
-  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:always">Yield by Block &times; Vintage</h2>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Yield by Block &times; Vintage</h2>
   ${yieldChartSvgHtml ? `
   <p style="font-size:10px;color:#666;margin:0 0 6px">Bars show total yield (kg) per block per vintage; dashed trend lines connect each block's performance across vintages.</p>
   <div style="margin-bottom:14px">${yieldChartSvgHtml}</div>` : ""}
