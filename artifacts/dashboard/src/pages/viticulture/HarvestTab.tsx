@@ -288,8 +288,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           const vals = grp.map(m.extractor).filter((v): v is number => v !== null);
           return avg(vals);
         });
+        const vintageCounts = uniqueVintages.map(vy => (lookup[bidStr]?.[vy] ?? []).length);
         const allVals = Object.values(lookup[bidStr] ?? {}).flat().map(m.extractor).filter((v): v is number => v !== null);
-        return { bname, vintageCells, rowAvg: avg(allVals) };
+        return { bname, vintageCells, vintageCounts, rowAvg: avg(allVals) };
       });
 
       // Compute footer averages directly from all records for that vintage (record-weighted, not block-weighted)
@@ -1069,6 +1070,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 ? uniqueVintages.indexOf(chemSort.col)
                 : -1;
               const sortedRows = sortRows(tbl.rows, vintageIndex);
+              const hasLowPick = tbl.rows.some(row => row.vintageCounts.some((c, vi) => c === 1 && row.vintageCells[vi] != null));
               return (
                 <div key={tbl.label} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
@@ -1105,11 +1107,30 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         {sortedRows.map((row, ri) => (
                           <tr key={ri} className="border-b last:border-0 hover:bg-muted/20">
                             <td className="px-3 py-1.5 font-medium">{row.bname}</td>
-                            {row.vintageCells.map((val, vi) => (
-                              <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
-                                {val != null ? val.toFixed(tbl.precision) : <span className="text-muted-foreground/40">—</span>}
-                              </td>
-                            ))}
+                            {row.vintageCells.map((val, vi) => {
+                              const pickCount = row.vintageCounts[vi] ?? 0;
+                              const lowPick = val != null && pickCount === 1;
+                              return (
+                                <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
+                                  {val != null ? (
+                                    <span className="inline-flex items-center justify-end gap-0.5">
+                                      {val.toFixed(tbl.precision)}
+                                      {lowPick && (
+                                        <span
+                                          className="text-amber-500 font-bold leading-none"
+                                          title="Based on 1 pick — treat with caution"
+                                          aria-label="Based on 1 pick"
+                                        >
+                                          *
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/40">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
                             <td className={`text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground ${chemSort?.col === "avg" ? "bg-muted/30" : ""}`}>
                               {row.rowAvg != null ? row.rowAvg.toFixed(tbl.precision) : "—"}
                             </td>
@@ -1131,6 +1152,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       </tfoot>
                     </table>
                   </div>
+                  {hasLowPick && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                      <span className="font-bold">*</span> Based on 1 pick — treat with caution
+                    </p>
+                  )}
                 </div>
               );
             })}
