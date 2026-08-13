@@ -712,6 +712,171 @@ function buildYieldTrendChartSvg(
   </svg>`;
 }
 
+// ─── Yield-by-Block × Vintage chart SVG builder — t/ha unit (for print) ─────
+
+/**
+ * Like buildYieldTrendChartSvg but plots t/ha instead of raw kg.
+ * Blocks with no recorded area are excluded and returned in `excludedBlocks`.
+ * Returns an empty svg string when fewer than 2 blocks with area exist, or
+ * fewer than 2 vintages.
+ */
+function buildYieldTrendChartTHaSvg(
+  records: Record<string, unknown>[],
+  blockLookup: Record<number, Record<string, unknown>>,
+): { svg: string; excludedBlocks: string[]; eligibleBlockCount: number } {
+  const linkedRows = records.filter(r => r.blockId != null && r.blockId !== "");
+  const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+  const allBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
+
+  const bname = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.blockName ?? id) : String(id);
+  };
+
+  // Split blocks into those with and without a recorded area
+  const blockAreaHa: Record<string, number> = {};
+  const excludedBlocks: string[] = [];
+  const blockIdsWithArea: unknown[] = [];
+
+  for (const bid of allBlockIds) {
+    const bidNum = Number(bid);
+    const block = !isNaN(bidNum) && bidNum > 0 ? blockLookup[bidNum] : undefined;
+    const ha = block ? parseFloat(String(block.areaHa ?? "")) : NaN;
+    if (!isNaN(ha) && ha > 0) {
+      blockAreaHa[String(bid)] = ha;
+      blockIdsWithArea.push(bid);
+    } else {
+      excludedBlocks.push(bname(bid));
+    }
+  }
+
+  if (uniqueVintages.length < 2 || blockIdsWithArea.length < 2) return { svg: "", excludedBlocks, eligibleBlockCount: blockIdsWithArea.length };
+
+  // Build kg matrix then convert to t/ha
+  const kgMatrix: Record<string, Record<string, number>> = {};
+  for (const r of linkedRows) {
+    const bid = String(r.blockId);
+    if (!(bid in blockAreaHa)) continue;
+    const vy = String(r.vintageYear ?? "");
+    if (!kgMatrix[bid]) kgMatrix[bid] = {};
+    kgMatrix[bid][vy] = (kgMatrix[bid][vy] ?? 0) + (parseFloat(String(r.yieldKg ?? 0)) || 0);
+  }
+
+  const thaMatrix: Record<string, Record<string, number>> = {};
+  for (const bid of blockIdsWithArea) {
+    const bidStr = String(bid);
+    const areaHa = blockAreaHa[bidStr];
+    thaMatrix[bidStr] = {};
+    for (const vy of uniqueVintages) {
+      const kg = kgMatrix[bidStr]?.[vy] ?? 0;
+      thaMatrix[bidStr][vy] = kg > 0 && areaHa > 0 ? parseFloat((kg / 1000 / areaHa).toFixed(3)) : 0;
+    }
+  }
+
+  const allVals = Object.values(thaMatrix).flatMap(v => Object.values(v));
+  const maxVal = Math.max(...allVals, 0.1);
+
+  const blockCount = blockIdsWithArea.length;
+  const vintageCount = uniqueVintages.length;
+
+  const legendCols = 4;
+  const legendRows = Math.ceil(blockCount / legendCols);
+  const legendH = legendRows * 14 + 10;
+
+  const W = 700; const plotH = 200;
+  const ML = 68; const MR = 16; const MT = 18; const MB = legendH + 22;
+  const H = plotH + MT + MB;
+  const plotW = W - ML - MR;
+
+  const groupW = plotW / vintageCount;
+  const barW = Math.max(2, Math.min((groupW - 6) / blockCount, 28));
+  const totalBarsW = barW * blockCount;
+
+  const magnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+  const yMax = Math.ceil(maxVal / magnitude) * magnitude;
+  const yTicks = 5;
+  const sy = (v: number) => plotH - (v / yMax) * plotH;
+
+  const gridLines: string[] = [];
+  const yLabels: string[] = [];
+  for (let i = 0; i <= yTicks; i++) {
+    const val = (yMax / yTicks) * i;
+    const y = sy(val);
+    gridLines.push(`<line x1="0" y1="${y.toFixed(1)}" x2="${plotW}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="0.5"/>`);
+    yLabels.push(`<text x="-5" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#555" font-family="Arial,sans-serif">${val.toFixed(2)}</text>`);
+  }
+
+  const xLabels = uniqueVintages.map((vy, i) => {
+    const x = i * groupW + groupW / 2;
+    return `<text x="${x.toFixed(1)}" y="${(plotH + 13).toFixed(1)}" text-anchor="middle" font-size="9" fill="#333" font-family="Arial,sans-serif">${escHtml(vy)}</text>`;
+  });
+
+  const bars: string[] = [];
+  const trendCenters: Array<Array<[number, number]>> = Array.from({ length: blockCount }, () => []);
+
+  for (let vi = 0; vi < vintageCount; vi++) {
+    const vy = uniqueVintages[vi];
+    const groupLeft = vi * groupW + (groupW - totalBarsW) / 2;
+    for (let bi = 0; bi < blockCount; bi++) {
+      const bid = String(blockIdsWithArea[bi]);
+      const val = thaMatrix[bid]?.[vy] ?? 0;
+      const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+      const bx = groupLeft + bi * barW;
+      const bh = val > 0 ? (val / yMax) * plotH : 0;
+      const by = plotH - bh;
+      const cx = bx + barW / 2;
+      const cy = val > 0 ? by : plotH;
+      trendCenters[bi].push([cx, cy]);
+      if (val > 0) {
+        const rx = barW >= 3 ? "1.5" : "0";
+        const w = Math.max(barW - (barW >= 3 ? 1 : 0), 1).toFixed(1);
+        bars.push(`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${w}" height="${bh.toFixed(1)}" fill="${color}" fill-opacity="0.72" rx="${rx}"/>`);
+      }
+    }
+  }
+
+  const trendLines: string[] = [];
+  for (let bi = 0; bi < blockCount; bi++) {
+    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const pts = trendCenters[bi];
+    if (pts.length < 2) continue;
+    const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+    trendLines.push(`<path d="${d}" stroke="${color}" stroke-width="2" fill="none" stroke-dasharray="4,2" opacity="0.9"/>`);
+    pts.forEach(([cx, cy]) => {
+      trendLines.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.8" fill="${color}" stroke="white" stroke-width="1.2"/>`);
+    });
+  }
+
+  const legendColW = Math.floor(plotW / legendCols);
+  const legendItems: string[] = [];
+  for (let bi = 0; bi < blockCount; bi++) {
+    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const label = bname(blockIdsWithArea[bi]);
+    const col = bi % legendCols;
+    const row = Math.floor(bi / legendCols);
+    const lx = col * legendColW;
+    const ly = plotH + 28 + row * 14;
+    legendItems.push(`<rect x="${lx}" y="${(ly - 7).toFixed(1)}" width="10" height="10" fill="${color}" fill-opacity="0.72" rx="1.5"/>
+      <text x="${lx + 13}" y="${ly}" font-size="8.5" fill="#333" font-family="Arial,sans-serif">${escHtml(label)}</text>`);
+  }
+
+  const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;border:1px solid #d1d5db;border-radius:4px;background:#fafaf9">
+    <g transform="translate(${ML},${MT})">
+      ${gridLines.join("")}
+      ${bars.join("")}
+      ${trendLines.join("")}
+      <line x1="0" y1="0" x2="0" y2="${plotH}" stroke="#374151" stroke-width="1"/>
+      <line x1="0" y1="${plotH}" x2="${plotW}" y2="${plotH}" stroke="#374151" stroke-width="1"/>
+      ${yLabels.join("")}
+      ${xLabels.join("")}
+      <text transform="translate(-52,${(plotH / 2).toFixed(0)}) rotate(-90)" text-anchor="middle" font-size="9" fill="#666" font-family="Arial,sans-serif">Yield (t/ha)</text>
+      ${legendItems.join("")}
+    </g>
+  </svg>`;
+
+  return { svg, excludedBlocks, eligibleBlockCount: blockIdsWithArea.length };
+}
+
 // ─── Block-map SVG builder (for print) ───────────────────────────────────────
 
 type LatLng = { lat: number; lng: number };
@@ -1663,6 +1828,12 @@ export async function printHarvest(
     ? buildYieldTrendChartSvg(records, blockLookup2)
     : "";
 
+  // t/ha chart — computed for any multi-vintage report so the suppression notice
+  // can fire even when there is only one linked block (showCrossTab would miss that case)
+  const { svg: yieldTHaChartSvgHtml, excludedBlocks: tHaExcludedBlocks, eligibleBlockCount: tHaEligibleBlockCount } = groupByVintage
+    ? buildYieldTrendChartTHaSvg(records, blockLookup2)
+    : { svg: "", excludedBlocks: [], eligibleBlockCount: 0 };
+
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
   let vintageSummaryHtml = "";
   if (groupByVintage) {
@@ -1786,10 +1957,15 @@ export async function printHarvest(
   </table>
   ${crossTabHtml}
   ${chemCrossTabHtml}
-  ${yieldChartSvgHtml ? `
+  ${(yieldChartSvgHtml || yieldTHaChartSvgHtml || (groupByVintage && tHaEligibleBlockCount < 2)) ? `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:always">Yield by Block &times; Vintage</h2>
-  <p style="font-size:10px;color:#666;margin:0 0 6px">Bars show total yield per block per vintage; dashed trend lines connect each block's performance across vintages.</p>
-  <div style="margin-bottom:18px">${yieldChartSvgHtml}</div>` : ""}
+  ${yieldChartSvgHtml ? `
+  <p style="font-size:10px;color:#666;margin:0 0 6px">Bars show total yield (kg) per block per vintage; dashed trend lines connect each block's performance across vintages.</p>
+  <div style="margin-bottom:14px">${yieldChartSvgHtml}</div>` : ""}
+  ${yieldTHaChartSvgHtml ? `
+  <p style="font-size:10px;color:#666;margin:0 0 6px">Yield per hectare (t/ha) &mdash; normalised by block area so blocks of different sizes can be compared fairly. Bars show t/ha per block per vintage; dashed trend lines track each block across vintages.${tHaExcludedBlocks.length > 0 ? ` <em>Excluded (no area recorded): ${tHaExcludedBlocks.map(b => escHtml(b)).join(", ")}.</em>` : ""}</p>
+  <div style="margin-bottom:18px">${yieldTHaChartSvgHtml}</div>` : ""}
+  ${groupByVintage && !yieldTHaChartSvgHtml ? `<p style="font-size:10px;color:#92400e;background:#fef3c7;border:1px solid #fbbf24;border-radius:3px;padding:5px 8px;margin:0 0 12px">&#9888; t/ha chart not shown &mdash; fewer than 2 blocks have a recorded area (${tHaEligibleBlockCount} of ${[...new Set(records.filter(r => r.blockId != null && r.blockId !== "").map(r => r.blockId))].length} linked blocks). Add areas in the Vineyard Block settings to enable fair per-hectare comparison.${tHaExcludedBlocks.length > 0 ? ` Blocks without an area: ${tHaExcludedBlocks.map(b => escHtml(b)).join(", ")}.` : ""}</p>` : ""}` : ""}
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
     Detailed Records
   </h2>
