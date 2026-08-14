@@ -428,6 +428,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
                   {unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.
                 </DialogDescription>
               </DialogHeader>
+              <FsaCompletenessBar farmId={farmId} />
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
