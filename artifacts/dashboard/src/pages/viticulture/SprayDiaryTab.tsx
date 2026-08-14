@@ -145,7 +145,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
-  const [printBlockFilter, setPrintBlockFilter] = useState("__all__");
+  const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-spray-diary", filter: "print-block", farmId, defaultValue: "__all__" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { uploadFile } = useUpload();

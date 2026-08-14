@@ -75,7 +75,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [changingBlockRecordId, setChangingBlockRecordId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
-  const [printBlockFilter, setPrintBlockFilter] = useState("__all__");
+  const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "print-block", farmId, defaultValue: "__all__" });
   const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
