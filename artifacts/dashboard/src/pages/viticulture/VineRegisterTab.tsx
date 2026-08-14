@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -92,6 +92,15 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   // Whether the picker was open when the view dialog was opened — used to show
   // a reminder toast so the grower knows their pending selection is still waiting.
   const [pickerWasActive, setPickerWasActive] = useState(false);
+  // Set to true in the View dialog's Edit button handler so the view-close
+  // onOpenChange skips its toast; openEdit then sets pickerWasActive correctly
+  // for the edit dialog's own close handler.
+  const skipViewCloseToastRef = useRef(false);
+  // Reset the suppression flag as soon as the edit dialog is confirmed open,
+  // so it cannot linger and block a future View → Dismiss picker reminder.
+  useEffect(() => {
+    if (open) skipViewCloseToastRef.current = false;
+  }, [open]);
 
   // Open the view dialog without disturbing the picker state. If the picker is
   // active, record that fact so the close handler can remind the grower.
@@ -648,13 +657,14 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       <Dialog open={!!viewing} onOpenChange={o => {
         if (!o) {
           setViewing(null);
-          if (pickerWasActive) {
+          if (pickerWasActive && !skipViewCloseToastRef.current) {
             setPickerWasActive(false);
             toast({
               title: "Block selection still pending",
               description: "Your block change is waiting — save or cancel it in the table.",
             });
           }
+          skipViewCloseToastRef.current = false;
         }
       }}>
         <DialogContent className="max-w-lg">
@@ -736,7 +746,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                 </Button>
               </>
             )}
-            <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
+            <Button onClick={() => { skipViewCloseToastRef.current = true; openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
