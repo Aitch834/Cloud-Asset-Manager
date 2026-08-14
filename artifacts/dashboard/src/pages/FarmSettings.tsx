@@ -62,6 +62,7 @@ type Farm = any;
 
 interface FarmFormData {
   name: string;
+  phone: string;
   cphNumber: string;
   sbiNumber: string;
   address: string;
@@ -118,6 +119,7 @@ function farmToFormData(farm: Farm & {
 }): FarmFormData {
   return {
     name: farm.name || "",
+    phone: (farm as any).contactPhone || "",
     cphNumber: farm.cphNumber || "",
     sbiNumber: (farm as any).sbiNumber || "",
     address: farm.address || "",
@@ -2413,6 +2415,7 @@ export default function FarmSettings() {
 
     updateFarm({
       name: formData.name.trim(),
+      phone: formData.phone.trim() || null,
       cphNumber: formData.cphNumber.trim() || undefined,
       address: formData.address.trim() || undefined,
       postcode: normalisedPostcode || undefined,
@@ -2474,7 +2477,7 @@ export default function FarmSettings() {
               description="Core identifiers used on compliance reports and correspondence."
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
+              <div>
                 <Label htmlFor="settings-name">Farm Name *</Label>
                 <Input
                   id="settings-name"
@@ -2482,6 +2485,18 @@ export default function FarmSettings() {
                   value={formData.name}
                   onChange={e => updateField("name", e.target.value)}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="settings-phone">Contact Phone</Label>
+                <Input
+                  id="settings-phone"
+                  type="tel"
+                  placeholder="e.g. 01234 567890"
+                  value={formData.phone}
+                  onChange={e => updateField("phone", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Main farm contact number</p>
               </div>
 
               <div>
