@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Map as MapIcon, AlertCircle, Camera, ClipboardList, Leaf, Bug, Wrench, Grape } from "lucide-react";
+import { Map as MapIcon, AlertCircle, AlertTriangle, Camera, ClipboardList, Leaf, Bug, Wrench, Grape } from "lucide-react";
 import { VineyardBlockBoundaryMapDialog } from "./VineyardBlockBoundaryMapDialog";
+import { useFarmMeta } from "@/pages/viticulture/shared";
 
 import { apiUrl as api } from "@/lib/api";
 
@@ -43,6 +45,8 @@ export function VineyardBlockMapTab({
   const [leafletReady, setLeafletReady] = useState(false);
   const [boundaryDialogBlock, setBoundaryDialogBlock] = useState<{ id: number; name: string } | null>(null);
   const qc = useQueryClient();
+  const [, setLocation] = useLocation();
+  const { farmRecord } = useFarmMeta(farmId);
 
   const { data: boundaryData, isLoading } = useQuery<{ boundaries: BlockBoundary[] }>({
     queryKey: ["vineyard-block-boundaries-all", farmId],
@@ -165,6 +169,30 @@ export function VineyardBlockMapTab({
           ))}
         </div>
       </div>
+
+      {/* RPA missing-fields warning */}
+      {farmRecord && (!farmRecord.sbiNumber || !farmRecord.sectorViticulture) && (
+        <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+          <span>
+            <span className="font-medium">RPA Reference Print unavailable:</span>{" "}
+            The Print RPA Reference button requires{" "}
+            {!farmRecord.sbiNumber && !farmRecord.sectorViticulture
+              ? "an SBI number and a Viticulture sector"
+              : !farmRecord.sbiNumber
+              ? "an SBI number"
+              : "a Viticulture sector"}{" "}
+            to be set.{" "}
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+              onClick={() => setLocation("/settings/farm")}
+            >
+              Add in Farm Settings
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className="flex gap-4">
         <div
