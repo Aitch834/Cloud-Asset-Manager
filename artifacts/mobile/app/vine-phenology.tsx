@@ -1,7 +1,7 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -187,7 +187,7 @@ export default function VinePhenologyScreen() {
                 WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
                 <Text
                   style={styles.winegbBannerLink}
-                  onPress={() => void Linking.openURL(WINEGB_SURVEY_URL)}
+                  onPress={() => void WebBrowser.openBrowserAsync(WINEGB_SURVEY_URL)}
                 >
                   Vineyard Survey →
                 </Text>
