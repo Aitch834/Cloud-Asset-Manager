@@ -51,7 +51,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Phenology = Record<string, unknown>;
 
@@ -362,6 +362,9 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
       {/* WineGB Submissions Panel */}
       <WinegbSubmissionsPanel farmId={farmId} seasonYear={winegbSeasonYear} />
+
+      {/* FSA / APPA registration pre-flight check */}
+      <FsaCompletenessBar farmId={farmId} />
 
       <div className="flex items-center justify-between">
         <div>
