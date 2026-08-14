@@ -1094,7 +1094,10 @@ export async function printVineRegister(
   const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
 
   const safeFarmName = escHtml(farmName);
-  const safeAddress = farmMeta?.address ? escHtml(farmMeta.address) : "";
+  const addressRaw = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const addressHtml = addressRaw
+    ? escHtml(addressRaw)
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
 
   // Prefer farmMeta refs over the legacy fsaVineRef argument
   const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
@@ -1116,11 +1119,16 @@ export async function printVineRegister(
     ? `WineGB: <strong>${escHtml(winegbMembershipNumber)}</strong><br>`
     : "";
 
-  const anyMissingRef = !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
+  const anyMissingRef = !addressRaw || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
   const missingRefWarningBlock = anyMissingRef
     ? `<div class="missing-refs-notice">
-        <strong>&#9888; Missing registration references</strong> &mdash;
-        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        <strong>&#9888; Missing header information</strong> &mdash;
+        the field(s) marked below (${[
+          !addressRaw ? "Farm Address" : "",
+          !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
+          !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
+          !appaRef ? "APPA Ref" : "",
+        ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
         Add them before submitting this register to the FSA.
       </div>`
     : "";
@@ -1167,7 +1175,7 @@ export async function printVineRegister(
         ${fsaVineRefHtml}<br>
         ${fsaWineRefHtml}<br>
         ${appaRefHtml}<br>
-        ${winegbHtml}${safeAddress ? `${safeAddress}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
+        ${winegbHtml}${addressHtml}<br>Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} entr${records.length === 1 ? "y" : "ies"}
       </div>
       <div class="badges">
         <span class="badge badge-green">Active: ${activeCount}</span>
