@@ -894,10 +894,12 @@ function SprayDiaryRow({
   item,
   blocks,
   onEdit,
+  onDelete,
 }: {
   item: SprayDiaryRecord;
   blocks: VineBlock[];
   onEdit: (record: SprayDiaryRecord) => void;
+  onDelete: (id: number) => void;
 }) {
   const linkedBlockName = useBlockName(item.blockId, blocks);
   const linked = !!item.blockId;
@@ -905,6 +907,18 @@ function SprayDiaryRow({
   const handlePress = () => {
     Haptics.selectionAsync();
     onEdit(item);
+  };
+
+  const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Delete Spray Entry",
+      `Delete the spray entry for "${item.productName ?? "this record"}" on ${formatDate(item.applicationDate)}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(item.id) },
+      ],
+    );
   };
 
   return (
@@ -939,6 +953,9 @@ function SprayDiaryRow({
           </View>
         ) : null}
         <Feather name="edit-2" size={14} color={colors.textSecondary} />
+        <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
+          <Feather name="trash-2" size={15} color={colors.error} />
+        </Pressable>
         <Feather name="chevron-right" size={16} color={colors.textSecondary} />
       </View>
     </Pressable>
@@ -968,15 +985,18 @@ export default function VineSprayDiaryHistoryScreen() {
   const [search, setSearch] = useState("");
   const [editingRecord, setEditingRecord] = useState<SprayDiaryRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<SprayDiaryRecord>>>({});
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
 
   const displayRecords = useMemo(() => {
-    return records.map(r => {
-      const update = localUpdates[r.id];
-      if (update !== undefined) return { ...r, ...update };
-      return r;
-    });
-  }, [records, localUpdates]);
+    return records
+      .filter(r => !deletedIds.has(r.id))
+      .map(r => {
+        const update = localUpdates[r.id];
+        if (update !== undefined) return { ...r, ...update };
+        return r;
+      });
+  }, [records, localUpdates, deletedIds]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return displayRecords;
@@ -999,6 +1019,26 @@ export default function VineSprayDiaryHistoryScreen() {
       [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
     setEditingRecord(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    // Optimistically remove from the list
+    setDeletedIds(prev => new Set(prev).add(id));
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm?.id}/vineyard-spray-diary/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        // Restore on failure
+        setDeletedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+        Alert.alert("Delete Failed", "Could not delete the record. Please try again.");
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      setDeletedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      Alert.alert("Delete Failed", "Could not reach the server. Please try again.");
+    }
   };
 
   const handleExport = async () => {
@@ -1107,6 +1147,7 @@ export default function VineSprayDiaryHistoryScreen() {
               item={item}
               blocks={blocks}
               onEdit={setEditingRecord}
+              onDelete={handleDelete}
             />
           )}
           ListEmptyComponent={
@@ -1347,6 +1388,7 @@ const styles = StyleSheet.create({
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
+  deleteBtn: { padding: 4 },
   addressWarning: {
     flexDirection: "row",
     alignItems: "flex-start",

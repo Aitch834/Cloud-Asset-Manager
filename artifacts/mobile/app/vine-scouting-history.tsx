@@ -349,9 +349,11 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
 function ScoutingRow({
   item,
   onEdit,
+  onDelete,
 }: {
   item: ScoutingRecord;
   onEdit: (record: ScoutingRecord) => void;
+  onDelete: (id: number) => void;
 }) {
   const linked = !!item.blockId;
   const pressure = highestPressure(item);
@@ -360,6 +362,18 @@ function ScoutingRow({
   const handlePress = () => {
     Haptics.selectionAsync();
     onEdit(item);
+  };
+
+  const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Delete Scouting Record",
+      `Delete the scouting record from ${formatDate(item.scoutDate)}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(item.id) },
+      ],
+    );
   };
 
   return (
@@ -395,6 +409,9 @@ function ScoutingRow({
           </View>
         )}
         <Feather name="edit-2" size={14} color={colors.textSecondary} />
+        <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
+          <Feather name="trash-2" size={15} color={colors.error} />
+        </Pressable>
         <Feather name="chevron-right" size={16} color={colors.textSecondary} />
       </View>
     </Pressable>
@@ -423,14 +440,17 @@ export default function VineScoutingHistoryScreen() {
   const [search, setSearch] = useState("");
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
 
   const displayRecords = useMemo(() => {
-    return records.map(r => {
-      const update = localUpdates[r.id];
-      if (update !== undefined) return { ...r, ...update };
-      return r;
-    });
-  }, [records, localUpdates]);
+    return records
+      .filter(r => !deletedIds.has(r.id))
+      .map(r => {
+        const update = localUpdates[r.id];
+        if (update !== undefined) return { ...r, ...update };
+        return r;
+      });
+  }, [records, localUpdates, deletedIds]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return displayRecords;
@@ -448,6 +468,26 @@ export default function VineScoutingHistoryScreen() {
       [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
     setEditingRecord(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    // Optimistically remove from the list
+    setDeletedIds(prev => new Set(prev).add(id));
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm?.id}/vineyard-scouting/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        // Restore on failure
+        setDeletedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+        Alert.alert("Delete Failed", "Could not delete the record. Please try again.");
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      setDeletedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      Alert.alert("Delete Failed", "Could not reach the server. Please try again.");
+    }
   };
 
   return (
@@ -501,7 +541,7 @@ export default function VineScoutingHistoryScreen() {
           contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <ScoutingRow item={item} onEdit={setEditingRecord} />
+            <ScoutingRow item={item} onEdit={setEditingRecord} onDelete={handleDelete} />
           )}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -668,6 +708,7 @@ const styles = StyleSheet.create({
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
+  deleteBtn: { padding: 4 },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
   blockTag: {
     flexDirection: "row",
