@@ -27,7 +27,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell } from "@/lib/csv";
+import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -389,9 +389,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => {
-            const unlinkedCount = filteredPhenology.filter(r => !r.blockId).length;
-            const warningRow = unlinkedCount > 0 ? `"WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined;
-            exportCSV(filteredPhenology, "phenology.csv", csvCols, warningRow);
+            exportCSV(filteredPhenology, "phenology.csv", csvCols, buildViticultureUnlinkedWarning(filteredPhenology));
           }} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>

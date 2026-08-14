@@ -28,7 +28,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell } from "@/lib/csv";
+import { sanitiseCsvCell, buildViticultureCsvContent } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -186,16 +186,8 @@ export const today = new Date().toISOString().split("T")[0];
 
 export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], warningRow?: string) {
   if (!rows.length) return;
-  const header = cols.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
-  const body = rows.map(r =>
-    cols.map(c => {
-      const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
-      const safe = sanitiseCsvCell(raw);
-      return `"${safe.replace(/"/g, '""')}"`;
-    }).join(",")
-  ).join("\n");
-  const prefix = warningRow ? warningRow + "\n" : "";
-  const blob = new Blob(["\uFEFF" + prefix + header + "\n" + body], { type: "text/csv;charset=utf-8;" });
+  const content = buildViticultureCsvContent(rows, cols, warningRow);
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }

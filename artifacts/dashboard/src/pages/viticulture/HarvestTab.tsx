@@ -28,7 +28,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell } from "@/lib/csv";
+import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -589,10 +589,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ];
     }
 
-    const unlinkedCount = rows.filter(r => !r.blockId).length;
-    const warningLine = unlinkedCount > 0
-      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
-      : "";
+    const _w0 = buildViticultureUnlinkedWarning(rows);
+    const warningLine = _w0 ? _w0 + "\n" : "";
 
     let csv: string;
     let filename: string;
@@ -695,10 +693,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ].join(",");
     });
 
-    const unlinkedCount = rows.filter(r => !r.blockId).length;
-    const warningLine = unlinkedCount > 0
-      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
-      : "";
+    const _w1 = buildViticultureUnlinkedWarning(rows);
+    const warningLine = _w1 ? _w1 + "\n" : "";
 
     const csv = warningLine + [
       cell(`Per-Block Yield Summary — Vintage ${vintageLabel} — ${farmName ?? ""}`),
@@ -785,10 +781,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       cell(""), cell(""), cell(""), cell(""),
     ].join(",");
 
-    const unlinkedCount = rows.filter(r => !r.blockId).length;
-    const warningLine = unlinkedCount > 0
-      ? cell(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`) + "\n"
-      : "";
+    const _w2 = buildViticultureUnlinkedWarning(rows);
+    const warningLine = _w2 ? _w2 + "\n" : "";
 
     const csv = warningLine + [
       cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),

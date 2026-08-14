@@ -29,7 +29,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell } from "@/lib/csv";
+import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -496,7 +496,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               {sprayYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { const uc = filteredSpray.filter(r => !r.blockId).length; exportCSV(filteredSpray, "spray-diary.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => { exportCSV(filteredSpray, "spray-diary.csv", csvCols, buildViticultureUnlinkedWarning(filteredSpray)); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
             <SelectContent>

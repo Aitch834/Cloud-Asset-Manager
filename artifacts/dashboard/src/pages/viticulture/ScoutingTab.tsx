@@ -28,7 +28,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell } from "@/lib/csv";
+import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -342,7 +342,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               {scoutingYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { const uc = filteredScouting.filter(r => !r.blockId).length; exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => { exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols, buildViticultureUnlinkedWarning(filteredScouting)); }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
             <SelectContent>
