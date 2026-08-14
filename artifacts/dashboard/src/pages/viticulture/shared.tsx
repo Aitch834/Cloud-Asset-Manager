@@ -2562,6 +2562,10 @@ export async function printSprayRecords(
   </h2>
   ` : "";
 
+  // Always show block column; photo column is additional when hasPhotos (notes appear as a spanning sub-row, not a column)
+  // Columns: [Photo?] Date Block Product MAPP ActiveIngredient Type Rate Area HI Wind Temp Operator CertNo = 13 (or 14 with photo)
+  const colCount = hasPhotos ? 14 : 13;
+
   // ── 4. Build table rows ───────────────────────────────────────────────────
   const rows = records.map(r => {
     const bid = Number(r.blockId);
@@ -2591,14 +2595,12 @@ export async function printSprayRecords(
       <td style="text-align:right">${r.temperatureCelsius ? `${n(r.temperatureCelsius)} °C` : "—"}</td>
       <td>${escHtml(r.operatorName)}</td>
       <td>${escHtml(r.operatorCertificateNo)}</td>
-      <td style="max-width:100px;white-space:normal">${escHtml(r.notes)}</td>
-    </tr>`;
+    </tr>
+    ${r.notes ? `<tr><td colspan="${colCount}" style="padding:3px 6px 5px;border:1px solid #d1d5db;border-top:none;background:#f8faff;font-style:italic;font-size:9.5px;color:#374151"><strong style="font-style:normal;color:#0e4f8a">Notes:</strong> ${escHtml(r.notes)}</td></tr>` : ""}`;
   }).join("");
 
   const safeFarmName = escHtml(farmName);
   const sprayAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
-  // Always show block column; photo column is additional when hasPhotos
-  const colCount = hasPhotos ? 16 : 15;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>Spray Diary &mdash; ${safeFarmName}</title>
@@ -2653,7 +2655,6 @@ export async function printSprayRecords(
         <th style="text-align:right">Temp</th>
         <th>Operator</th>
         <th>Cert. No.</th>
-        <th>Notes</th>
       </tr>
     </thead>
     <tbody>
