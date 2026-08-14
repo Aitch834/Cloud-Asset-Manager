@@ -1885,6 +1885,7 @@ export async function printHarvest(
         : "";
       return `<tr>
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}${vPickBadgeHtml}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.picks}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${v.totalKg > 0 ? v.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.brixCount > 0 ? (v.brixSum / v.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
@@ -1893,11 +1894,13 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.paCount > 0 ? (v.paSum / v.paCount).toFixed(1) : "\u2014"}</td>
       </tr>`;
     }).join("");
+    const vsTotalPicks = records.length;
     vintageSummaryHtml = `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Yield Summary &mdash; by Vintage Year</h2>
   <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
     <thead><tr>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left">Vintage</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Picks</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Total Yield (kg)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Yield (t/ha)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right">Avg Brix &deg;</th>
@@ -1908,6 +1911,7 @@ export async function printHarvest(
     <tbody>${vintageRows}</tbody>
     <tfoot><tr>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Vintages</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsTotalPicks}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(0)} kg</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTha != null ? grandTha.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
