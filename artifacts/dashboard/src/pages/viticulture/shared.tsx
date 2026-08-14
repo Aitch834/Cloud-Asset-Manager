@@ -457,16 +457,29 @@ export function printRpaReference(
 
   const totalHa = blocks.reduce((sum, b) => sum + (parseFloat(String(b.areaHa ?? 0)) || 0), 0);
 
-  const rows = blocks.map(b => `
-    <tr>
+  const missingRefBlocks = blocks.filter(b => !b.fieldParcelRef || String(b.fieldParcelRef).trim() === "");
+
+  const rows = blocks.map(b => {
+    const missing = !b.fieldParcelRef || String(b.fieldParcelRef).trim() === "";
+    return `
+    <tr${missing ? ' class="missing-ref-row"' : ""}>
       <td>${esc(b.blockName)}</td>
-      <td>${esc(b.fieldParcelRef ?? "")}</td>
+      <td>${missing ? `<span class="missing-ref-cell">&#9888; Not set</span>` : esc(b.fieldParcelRef)}</td>
       <td>${esc(b.variety ?? "")}</td>
       <td style="text-align:right">${n(b.areaHa)} ha</td>
       <td>${esc(b.plantingYear ?? "")}</td>
       <td>${esc(b.rootstock ?? "")}</td>
       <td>${esc(sbi)}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
+
+  const missingRefWarning = missingRefBlocks.length > 0
+    ? `<div class="missing-ref-notice">
+        <strong>&#9888; ${missingRefBlocks.length} block${missingRefBlocks.length === 1 ? "" : "s"} missing Parcel / Field Ref:</strong>
+        ${missingRefBlocks.map(b => esc(b.blockName)).join(", ")} &mdash;
+        add these in the Vineyard Blocks section before submitting to the Rural Payments portal.
+      </div>`
+    : "";
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>RPA Rural Payments — Vineyard Block Reference &mdash; ${esc(farmName)}</title>
@@ -485,12 +498,18 @@ export function printRpaReference(
     tr:nth-child(even) td { background: #f0fdf4; }
     .totals-row td { font-weight: 700; background: #dcfce7; border-color: #86efac; }
     .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-ref-row td { background: #fffbeb !important; }
+    .missing-ref-cell { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-ref-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 8px 12px; font-size: 12px; margin-bottom: 14px; }
     .footer { margin-top: 24px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
     @media print {
       body { margin: 20px; }
       .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .notice { background: #fffbeb !important; border-color: #f59e0b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-ref-cell { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-ref-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       tr:nth-child(even) td { background: #f0fdf4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr.missing-ref-row td { background: #fffbeb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .totals-row td { background: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       th { background: #166534 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
@@ -515,6 +534,8 @@ export function printRpaReference(
     Use this sheet when entering data into the Rural Payments portal at
     ruralpayments.service.gov.uk
   </div>
+
+  ${missingRefWarning}
 
   <table>
     <thead>

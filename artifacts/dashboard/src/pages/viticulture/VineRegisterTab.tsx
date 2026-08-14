@@ -413,13 +413,30 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => exportCSV(displayRows, "vine-register.csv", csvCols)} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
-          {!!farmRecord?.sbiNumber && !!farmRecord?.sectorViticulture && (
-            <>
-              <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
-              <Button size="sm" variant="outline" onClick={() => printRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Print a formatted PDF reference sheet for the Rural Payments portal"><Printer className="w-4 h-4 mr-1" />Print RPA Reference</Button>
-              <Button size="sm" variant="outline" onClick={() => emailRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Open your email client with a pre-filled RPA block summary ready to send to an advisor or agronomist"><Mail className="w-4 h-4 mr-1" />Email RPA Reference</Button>
-            </>
-          )}
+          {!!farmRecord?.sbiNumber && !!farmRecord?.sectorViticulture && (() => {
+            const missingRefBlocks = blocks.filter(b => !b.fieldParcelRef || String(b.fieldParcelRef).trim() === "");
+            const missingTooltip = missingRefBlocks.length > 0
+              ? `${missingRefBlocks.length} block${missingRefBlocks.length === 1 ? "" : "s"} missing Parcel / Field Ref:\n${missingRefBlocks.map(b => String(b.blockName ?? "Unnamed")).join("\n")}`
+              : undefined;
+            return (
+              <>
+                <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
+                <span className="inline-flex items-center gap-1">
+                  <Button size="sm" variant="outline" onClick={() => printRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Print a formatted PDF reference sheet for the Rural Payments portal"><Printer className="w-4 h-4 mr-1" />Print RPA Reference</Button>
+                  {missingRefBlocks.length > 0 && (
+                    <span
+                      title={missingTooltip}
+                      className="cursor-help inline-flex items-center gap-0.5 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                    >
+                      <AlertTriangle className="w-3 h-3 shrink-0 text-amber-500" />
+                      {missingRefBlocks.length} missing
+                    </span>
+                  )}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => emailRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Open your email client with a pre-filled RPA block summary ready to send to an advisor or agronomist"><Mail className="w-4 h-4 mr-1" />Email RPA Reference</Button>
+              </>
+            );
+          })()}
           <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
