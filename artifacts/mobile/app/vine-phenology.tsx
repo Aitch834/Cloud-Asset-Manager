@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,7 +24,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
-import { appendToList, generateId } from "@/lib/storage";
+import { appendToList, generateId, getItem, setItem } from "@/lib/storage";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
@@ -84,9 +84,10 @@ const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> =
 
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
 
-// Module-level session store — persists across screen remounts within the same JS runtime session.
-// Resets only when the app process is killed. Not persisted to disk (as per spec).
-const _sessionDismissedSurveys = new Set<string>();
+// Returns the AsyncStorage key used to persist dismissed WineGB surveys for a given farm and season year.
+function winegbDismissedKey(farmId: string, year: number): string {
+  return `bde_winegb_dismissed_${farmId}_${year}`;
+}
 
 export default function VinePhenologyScreen() {
   const insets = useSafeAreaInsets();
@@ -109,14 +110,40 @@ export default function VinePhenologyScreen() {
   const [temperatureC, setTemperatureC] = useState("");
   const [notes, setNotes] = useState("");
 
-  // WineGB survey banner state — per-stage per-session dismissal (session store is module-level)
+  // WineGB survey banner state — dismissed surveys persisted to AsyncStorage per farm per season year.
   const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
+  const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
+  const [dismissalsLoaded, setDismissalsLoaded] = useState(false);
+  const currentSeasonYear = new Date().getFullYear();
+  const farmId = currentFarm?.id ?? "";
+
+  // Tracks the storage key for the most-recently-initiated load so stale completions
+  // (e.g. from a farm switch mid-flight) are silently dropped.
+  const activeLoadKeyRef = useRef<string>("");
+
+  // Load persisted dismissed surveys for this farm + season on mount (or when farm changes).
+  useEffect(() => {
+    if (!farmId) return;
+    const key = winegbDismissedKey(farmId, currentSeasonYear);
+    activeLoadKeyRef.current = key;
+    setDismissalsLoaded(false);
+    void getItem<string[]>(key).then(stored => {
+      // Ignore completions that belong to a superseded farm or year.
+      if (activeLoadKeyRef.current !== key) return;
+      setDismissedSurveys(new Set(stored ?? []));
+      setDismissalsLoaded(true);
+    });
+  }, [farmId, currentSeasonYear]);
 
   const filteredStages = seasonFilter ? BBCH_STAGES.filter(s => s.season === seasonFilter) : BBCH_STAGES;
 
-  const dismissBanner = () => {
+  const dismissBanner = async () => {
     if (winegbSurveyBanner) {
-      _sessionDismissedSurveys.add(winegbSurveyBanner.surveyName);
+      const updated = new Set(dismissedSurveys);
+      updated.add(winegbSurveyBanner.surveyName);
+      setDismissedSurveys(updated);
+      // Await the write so an immediate background/termination cannot lose the dismissal.
+      await setItem(winegbDismissedKey(farmId, currentSeasonYear), Array.from(updated));
     }
     setWinegbSurveyBanner(null);
     router.back();
@@ -154,7 +181,7 @@ export default function VinePhenologyScreen() {
     // Show WineGB survey nudge for viticulture farms when a relevant BBCH stage is saved
     if (currentFarm?.sectorViticulture) {
       const survey = WINEGB_SURVEY_MAP[selectedStage.code];
-      if (survey && !_sessionDismissedSurveys.has(survey.surveyName)) {
+      if (survey && dismissalsLoaded && !dismissedSurveys.has(survey.surveyName)) {
         setWinegbSurveyBanner(survey);
         return; // stay on screen to show banner
       }
