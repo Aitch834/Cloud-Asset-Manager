@@ -394,12 +394,21 @@ function MastitisTab({ farmId }: { farmId: number }) {
   const allRecords: OrgDairyMastitisRecord[] = data?.records ?? [];
   const uncertifiedCount = allRecords.filter(r => r.treatmentProduct && !r.certifierNotified).length;
 
-  const [filterPreset, setFilterPreset] = usePersistedFilter({ page: "organic-dairy-mastitis", filter: "preset", farmId, defaultValue: "12m" });
-  const presetFrom = React.useMemo(() => {
-    if (filterPreset === "all") return null;
-    const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10);
-  }, [filterPreset]);
-  const filtered = React.useMemo(() => presetFrom ? allRecords.filter(r => (r.onsetDate || "") >= presetFrom) : allRecords, [allRecords, presetFrom]);
+  const nowM = new Date();
+  const [filterYear, setFilterYear] = usePersistedNumberFilter({ page: "organic-dairy-mastitis", filter: "year", farmId, defaultValue: nowM.getFullYear() });
+  const [filterMonth, setFilterMonth] = usePersistedNumberFilter({ page: "organic-dairy-mastitis", filter: "month", farmId, defaultValue: nowM.getMonth(), isValid: (v) => v >= 0 && v <= 11 });
+  function stepMonthM(dir: 1 | -1) {
+    const next = filterMonth + dir;
+    if (next < 0) { setFilterYear(filterYear - 1); setFilterMonth(11); }
+    else if (next > 11) { setFilterYear(filterYear + 1); setFilterMonth(0); }
+    else { setFilterMonth(next); }
+  }
+  const monthLabelM = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const filtered = allRecords.filter(r => {
+    if (!r.onsetDate) return false;
+    const d = new Date(r.onsetDate);
+    return d.getFullYear() === filterYear && d.getMonth() === filterMonth;
+  });
 
   const save = useMutation({
     mutationFn: (body: Partial<OrgDairyMastitisRecord>) => fetch(editing ? `/api/farms/${farmId}/dairy/mastitis-records/${editing.id}` : `/api/farms/${farmId}/dairy/mastitis-records`, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
@@ -426,10 +435,11 @@ function MastitisTab({ farmId }: { farmId: number }) {
       <div className="flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-gray-800">Mastitis Records</h2>
-          <Select value={filterPreset} onValueChange={v => setFilterPreset(v as "12m" | "all")}>
-            <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="12m">Last 12 months</SelectItem><SelectItem value="all">All records</SelectItem></SelectContent>
-          </Select>
+          <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md">
+            <button onClick={() => stepMonthM(-1)} className="p-1 rounded-l hover:bg-gray-200 transition-colors" aria-label="Previous month"><ChevronLeft className="h-4 w-4 text-gray-600" /></button>
+            <span className="text-sm font-medium text-gray-700 px-2">{monthLabelM}</span>
+            <button onClick={() => stepMonthM(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
+          </div>
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
       </div>
@@ -567,8 +577,16 @@ function CalvingTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<OrgCalvingRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<OrgCalvingRecord | null>(null);
   const [form, setForm] = useState<Partial<OrgCalvingRecord>>({});
-  const CURRENT_YEAR = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-dairy-calving", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
+  const nowC = new Date();
+  const [calvFilterYear, setCalvFilterYear] = usePersistedNumberFilter({ page: "organic-dairy-calving", filter: "year", farmId, defaultValue: nowC.getFullYear() });
+  const [calvFilterMonth, setCalvFilterMonth] = usePersistedNumberFilter({ page: "organic-dairy-calving", filter: "month", farmId, defaultValue: nowC.getMonth(), isValid: (v) => v >= 0 && v <= 11 });
+  function stepMonthC(dir: 1 | -1) {
+    const next = calvFilterMonth + dir;
+    if (next < 0) { setCalvFilterYear(calvFilterYear - 1); setCalvFilterMonth(11); }
+    else if (next > 11) { setCalvFilterYear(calvFilterYear + 1); setCalvFilterMonth(0); }
+    else { setCalvFilterMonth(next); }
+  }
+  const monthLabelC = new Date(calvFilterYear, calvFilterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const setF = (k: keyof OrgCalvingRecord, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   const { data, isLoading } = useQuery<{ records: OrgCalvingRecord[] }>({
@@ -594,9 +612,11 @@ function CalvingTab({ farmId }: { farmId: number }) {
   function openEdit(r: OrgCalvingRecord) { setEditing(r); setForm({ ...r, calvingDate: r.calvingDate.slice(0, 10) }); setOpen(true); }
 
   const allRecords = data?.records ?? [];
-  const calvingRecords = yearFilter === "all" ? allRecords : allRecords.filter(r => r.calvingDate?.startsWith(yearFilter));
-  const calvingYears = [...new Set(allRecords.map(r => r.calvingDate?.slice(0, 4)).filter(Boolean))].sort((a, b) => Number(b) - Number(a)) as string[];
-  if (!calvingYears.includes(String(CURRENT_YEAR))) calvingYears.unshift(String(CURRENT_YEAR));
+  const calvingRecords = allRecords.filter(r => {
+    if (!r.calvingDate) return false;
+    const d = new Date(r.calvingDate);
+    return d.getFullYear() === calvFilterYear && d.getMonth() === calvFilterMonth;
+  });
 
   const totalCalves = calvingRecords.reduce((s, r) => s + (r.numberOfCalves ?? 1), 0);
   const stillborns = calvingRecords.reduce((s, r) => s + (r.calfOutcome === "stillborn" ? 1 : 0) + (r.calfOutcome2 === "stillborn" ? 1 : 0), 0);
@@ -620,15 +640,16 @@ function CalvingTab({ farmId }: { farmId: number }) {
       <div className="flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-gray-800">Calving Records</h2>
-          <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>{calvingYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}<SelectItem value="all">All years</SelectItem></SelectContent>
-          </Select>
+          <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md">
+            <button onClick={() => stepMonthC(-1)} className="p-1 rounded-l hover:bg-gray-200 transition-colors" aria-label="Previous month"><ChevronLeft className="h-4 w-4 text-gray-600" /></button>
+            <span className="text-sm font-medium text-gray-700 px-2">{monthLabelC}</span>
+            <button onClick={() => stepMonthC(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
+          </div>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Calving</Button>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : calvingRecords.length === 0 ? (
-        <div className="text-center py-12 text-gray-400"><p>No calving records for {yearFilter === "all" ? "any year" : yearFilter}.</p></div>
+        <div className="text-center py-12 text-gray-400"><p>No calving records for {monthLabelC}.</p></div>
       ) : (
         <div className="space-y-2">
           {calvingRecords.map(r => (
