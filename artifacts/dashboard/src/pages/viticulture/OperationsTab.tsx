@@ -74,6 +74,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "print-block", farmId, defaultValue: "__all__" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -175,6 +176,9 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const operationYears = Array.from(new Set(data.map(r => new Date(r.operationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!operationYears.includes(new Date().getFullYear())) operationYears.unshift(new Date().getFullYear());
 
+  const yearFiltered = useMemo(() => yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter)), [data, yearFilter]);
+  const printRows = useMemo(() => printBlockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === printBlockFilter), [yearFiltered, printBlockFilter]);
+
   const filteredOperations = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.operationDate as string).getFullYear() === Number(yearFilter));
     if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
@@ -251,7 +255,14 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => { const uc = filteredOperations.filter(r => !r.blockId).length; exportCSV(filteredOperations, "vineyard-operations.csv", csvCols, uc > 0 ? `"WARNING: ${uc} record${uc === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined); }} disabled={!filteredOperations.length}><FileDown className="w-4 h-4 mr-1" />Export CSV{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (filteredOperations.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printOperations(filteredOperations, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredOperations.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredOperations.length})` : ""}</Button>
+          <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Print: all blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printOperations(printRows, farmName, farmId, blocks, farmMeta); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Operation</Button>
         </div>
       </div>
@@ -404,7 +415,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
 
       {/* Print pre-flight confirm */}
       {(() => {
-        const unlinkedInView = filteredOperations.filter(r => !r.blockId);
+        const unlinkedInView = printRows.filter(r => !r.blockId);
         return (
           <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
             <DialogContent className="max-w-sm">
@@ -421,7 +432,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printOperations(filteredOperations, farmName, farmId, blocks, farmMeta); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printOperations(printRows, farmName, farmId, blocks, farmMeta); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>

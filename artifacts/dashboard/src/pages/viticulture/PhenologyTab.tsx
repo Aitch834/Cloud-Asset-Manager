@@ -226,6 +226,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
+  const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "print-block", farmId, defaultValue: "__all__" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
 
@@ -304,6 +305,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   if (!phenologyYears.includes(new Date().getFullYear())) phenologyYears.unshift(new Date().getFullYear());
   const yearFiltered = yearFilter === "all" ? data : data.filter(r => new Date(r.observationDate as string).getFullYear() === Number(yearFilter));
   const filteredPhenology = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
+  const printRows = printBlockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === printBlockFilter);
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
   // Derive the season year for the WineGB panel from the year filter
@@ -391,7 +393,14 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
             const warningRow = unlinkedCount > 0 ? `"WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"` : undefined;
             exportCSV(filteredPhenology, "phenology.csv", csvCols, warningRow);
           }} disabled={!filteredPhenology.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (filteredPhenology.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(filteredPhenology, farmName ?? "", blocks); } }} disabled={!filteredPhenology.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Print: all blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(printRows, farmName ?? "", blocks); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
       </div>
@@ -516,7 +525,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
       {/* Print pre-flight confirm */}
       {(() => {
-        const unlinkedInView = filteredPhenology.filter(r => !r.blockId);
+        const unlinkedInView = printRows.filter(r => !r.blockId);
         return (
           <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
             <DialogContent className="max-w-sm">
@@ -533,7 +542,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printPhenology(filteredPhenology, farmName ?? "", blocks); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printPhenology(printRows, farmName ?? "", blocks); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>
