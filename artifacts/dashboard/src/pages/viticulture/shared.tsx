@@ -589,6 +589,23 @@ function buildYieldTrendChartSvg(
     const bid = Number(id);
     return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.blockName ?? id) : String(id);
   };
+  const bvariety = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.variety ?? "") : "";
+  };
+
+  // Assign colours by variety so same-variety blocks share a hue
+  const varietyList = [...new Set(allBlockIds.map(id => bvariety(id)))].filter(Boolean);
+  const varietyColorMap: Record<string, string> = {};
+  varietyList.forEach((v, i) => { varietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+  // Fallback palette for blocks with no variety — cycle from the end of the array
+  const fallbackColors = [...YIELD_CHART_COLORS].reverse();
+  let fallbackIdx = 0;
+  const blockColorMap: Record<string, string> = {};
+  for (const id of allBlockIds) {
+    const v = bvariety(id);
+    blockColorMap[String(id)] = varietyColorMap[v] ?? fallbackColors[fallbackIdx++ % fallbackColors.length];
+  }
 
   // Build data matrix: bidStr → vintageYear → total kg
   const matrix: Record<string, Record<string, number>> = {};
@@ -654,7 +671,7 @@ function buildYieldTrendChartSvg(
     for (let bi = 0; bi < blockCount; bi++) {
       const bid = String(allBlockIds[bi]);
       const val = matrix[bid]?.[vy] ?? 0;
-      const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+      const color = blockColorMap[bid];
       const bx = groupLeft + bi * barW;
       const bh = val > 0 ? (val / yMax) * plotH : 0;
       const by = plotH - bh;
@@ -673,7 +690,7 @@ function buildYieldTrendChartSvg(
   // Trend lines + dots (always drawn over bars)
   const trendLines: string[] = [];
   for (let bi = 0; bi < blockCount; bi++) {
-    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const color = blockColorMap[String(allBlockIds[bi])];
     const pts = trendCenters[bi];
     if (pts.length < 2) continue;
     const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
@@ -684,11 +701,15 @@ function buildYieldTrendChartSvg(
   }
 
   // Legend — all blocks, 4 columns, rows expand downward
+  // Label shows "Block Name — Variety" so variety grouping is readable from the legend
   const legendColW = Math.floor(plotW / legendCols);
   const legendItems: string[] = [];
   for (let bi = 0; bi < blockCount; bi++) {
-    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
-    const label = bname(allBlockIds[bi]);
+    const id = allBlockIds[bi];
+    const color = blockColorMap[String(id)];
+    const blockLabel = bname(id);
+    const varLabel = bvariety(id);
+    const label = varLabel ? `${blockLabel} \u2014 ${varLabel}` : blockLabel;
     const col = bi % legendCols;
     const row = Math.floor(bi / legendCols);
     const lx = col * legendColW;
@@ -732,6 +753,10 @@ function buildYieldTrendChartTHaSvg(
     const bid = Number(id);
     return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.blockName ?? id) : String(id);
   };
+  const bvarietyTha = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.variety ?? "") : "";
+  };
 
   // Split blocks into those with and without a recorded area
   const blockAreaHa: Record<string, number> = {};
@@ -751,6 +776,18 @@ function buildYieldTrendChartTHaSvg(
   }
 
   if (uniqueVintages.length < 2 || blockIdsWithArea.length < 2) return { svg: "", excludedBlocks, eligibleBlockCount: blockIdsWithArea.length };
+
+  // Assign colours by variety so same-variety blocks share a hue
+  const thaVarietyList = [...new Set(blockIdsWithArea.map(id => bvarietyTha(id)))].filter(Boolean);
+  const thaVarietyColorMap: Record<string, string> = {};
+  thaVarietyList.forEach((v, i) => { thaVarietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+  const thaFallbackColors = [...YIELD_CHART_COLORS].reverse();
+  let thaFallbackIdx = 0;
+  const thaBlockColorMap: Record<string, string> = {};
+  for (const id of blockIdsWithArea) {
+    const v = bvarietyTha(id);
+    thaBlockColorMap[String(id)] = thaVarietyColorMap[v] ?? thaFallbackColors[thaFallbackIdx++ % thaFallbackColors.length];
+  }
 
   // Build kg matrix then convert to t/ha
   const kgMatrix: Record<string, Record<string, number>> = {};
@@ -820,7 +857,7 @@ function buildYieldTrendChartTHaSvg(
     for (let bi = 0; bi < blockCount; bi++) {
       const bid = String(blockIdsWithArea[bi]);
       const val = thaMatrix[bid]?.[vy] ?? 0;
-      const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+      const color = thaBlockColorMap[bid];
       const bx = groupLeft + bi * barW;
       const bh = val > 0 ? (val / yMax) * plotH : 0;
       const by = plotH - bh;
@@ -837,7 +874,7 @@ function buildYieldTrendChartTHaSvg(
 
   const trendLines: string[] = [];
   for (let bi = 0; bi < blockCount; bi++) {
-    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
+    const color = thaBlockColorMap[String(blockIdsWithArea[bi])];
     const pts = trendCenters[bi];
     if (pts.length < 2) continue;
     const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
@@ -847,11 +884,15 @@ function buildYieldTrendChartTHaSvg(
     });
   }
 
+  // Legend — label shows "Block Name — Variety" so variety grouping is readable
   const legendColW = Math.floor(plotW / legendCols);
   const legendItems: string[] = [];
   for (let bi = 0; bi < blockCount; bi++) {
-    const color = YIELD_CHART_COLORS[bi % YIELD_CHART_COLORS.length];
-    const label = bname(blockIdsWithArea[bi]);
+    const id = blockIdsWithArea[bi];
+    const color = thaBlockColorMap[String(id)];
+    const blockLabel = bname(id);
+    const varLabel = bvarietyTha(id);
+    const label = varLabel ? `${blockLabel} \u2014 ${varLabel}` : blockLabel;
     const col = bi % legendCols;
     const row = Math.floor(bi / legendCols);
     const lx = col * legendColW;
