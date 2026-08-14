@@ -23481,6 +23481,16 @@ router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTen
 // ─── Irrigation Advisor ──────────────────────────────────────────────────────
 // Returns field metadata + current-year crop assignment + 60-day sensor readings
 // so the dashboard can compute SMD and break-even scenarios client-side.
+
+// Simple in-memory cache for Open-Meteo forecasts.
+// Key: "lat,lng" (4 dp precision). TTL: 90 minutes.
+const _openMeteoCacheTtlMs = 90 * 60 * 1000;
+const _openMeteoCache = new Map<string, {
+  fetchedAt: number;
+  forecastRainfall7dMm: number;
+  forecastDailyMm: Array<{ date: string; mm: number }>;
+}>();
+
 router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -23591,6 +23601,8 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
 
     // ── 4. Open-Meteo 7-day forecast rainfall (free, no API key required) ────
     // Use the farm's lat/lng if available; gracefully falls back to null.
+    // Results are cached in memory for 90 minutes per lat/lng pair to avoid
+    // hammering the external API on busy farms.
     let forecastRainfall7dMm: number | null = null;
     let forecastDailyMm: Array<{ date: string; mm: number }> | null = null;
     try {
@@ -23602,26 +23614,42 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
       const lat = farmRow?.latitude ? parseFloat(farmRow.latitude) : null;
       const lng = farmRow?.longitude ? parseFloat(farmRow.longitude) : null;
       if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&forecast_days=7&timezone=Europe%2FLondon`;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        try {
-          const resp = await fetch(url, { signal: controller.signal });
-          if (resp.ok) {
-            const json = await resp.json() as {
-              daily?: { time?: string[]; precipitation_sum?: (number | null)[] };
-            };
-            const sums = json.daily?.precipitation_sum ?? [];
-            const times = json.daily?.time ?? [];
-            const total = sums.reduce<number>((acc, v) => acc + (v ?? 0), 0);
-            forecastRainfall7dMm = Math.round(total * 10) / 10;
-            forecastDailyMm = sums.map((v, i) => ({
-              date: times[i] ?? "",
-              mm: Math.round((v ?? 0) * 10) / 10,
-            }));
+        // Round to 4 decimal places (~11 m precision) for the cache key
+        const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const cached = _openMeteoCache.get(cacheKey);
+        if (cached && Date.now() - cached.fetchedAt < _openMeteoCacheTtlMs) {
+          // Cache hit — return stored values without an outbound call
+          forecastRainfall7dMm = cached.forecastRainfall7dMm;
+          forecastDailyMm = cached.forecastDailyMm;
+        } else {
+          // Cache miss or expired — fetch from Open-Meteo
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&forecast_days=7&timezone=Europe%2FLondon`;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          try {
+            const resp = await fetch(url, { signal: controller.signal });
+            if (resp.ok) {
+              const json = await resp.json() as {
+                daily?: { time?: string[]; precipitation_sum?: (number | null)[] };
+              };
+              const sums = json.daily?.precipitation_sum ?? [];
+              const times = json.daily?.time ?? [];
+              const total = sums.reduce<number>((acc, v) => acc + (v ?? 0), 0);
+              forecastRainfall7dMm = Math.round(total * 10) / 10;
+              forecastDailyMm = sums.map((v, i) => ({
+                date: times[i] ?? "",
+                mm: Math.round((v ?? 0) * 10) / 10,
+              }));
+              // Store in cache
+              _openMeteoCache.set(cacheKey, {
+                fetchedAt: Date.now(),
+                forecastRainfall7dMm,
+                forecastDailyMm,
+              });
+            }
+          } finally {
+            clearTimeout(timeout);
           }
-        } finally {
-          clearTimeout(timeout);
         }
       }
     } catch {
