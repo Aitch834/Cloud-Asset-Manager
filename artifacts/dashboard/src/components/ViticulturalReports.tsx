@@ -542,6 +542,11 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     ? [
         !farmMeta.name || String(farmMeta.name).trim() === "" ? "Farm name" : "",
         !farmMeta.address || String(farmMeta.address).trim() === "" ? "Farm address" : "",
+        !farmMeta.sbiNumber || String(farmMeta.sbiNumber).trim() === ""
+          ? "SBI Number (missing)"
+          : !/^\d{9}$/.test(String(farmMeta.sbiNumber).trim())
+            ? "SBI Number (invalid — must be exactly 9 digits)"
+            : "",
       ].filter(Boolean)
     : [];
 
