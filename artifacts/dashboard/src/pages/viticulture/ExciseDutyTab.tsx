@@ -85,6 +85,9 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
         !farmMeta.vatNumber && "VAT number",
       ].filter(Boolean) as string[]
     : [];
+  const appaRefMissingFields = farmMeta
+    ? (!farmMeta.appaRef || String(farmMeta.appaRef).trim() === "" ? ["APPA Ref"] : [])
+    : [];
   const { data: licencesData } = useQuery<{ records?: Record<string, unknown>[] }>({
     queryKey: ["winery-licences", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/winery-licences`), { credentials: "include" }).then(r => r.json()),
@@ -204,6 +207,11 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
         settingsSection="Basic Details"
         onNavigate={() => setLocation("/settings/farm")}
       />
+      <FarmSettingsWarning
+        missingFields={appaRefMissingFields}
+        settingsSection="Viticulture & Wine"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
@@ -214,6 +222,14 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
             { key: "totalLitresTastings", label: "Tastings (L)", render: r => fmtNum(r.totalLitresTastings) },
             { key: "totalDutyPayable", label: "Duty (£)", render: r => r.totalDutyPayable ? `£${fmtNum(r.totalDutyPayable, 2)}` : "—" },
             { key: "paidDate", label: "Paid", render: r => fmtDate(r.paidDate) },
+            {
+              key: "appaRef", label: "APPA Ref", render: _r => {
+                const ref = farmMeta?.appaRef ? String(farmMeta.appaRef).trim() : "";
+                return ref
+                  ? <span className="text-xs text-muted-foreground">{ref}</span>
+                  : <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5"><AlertTriangle className="w-3 h-3 shrink-0" />Missing</span>;
+              }
+            },
           ]}
           rows={crud.data}
           onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
