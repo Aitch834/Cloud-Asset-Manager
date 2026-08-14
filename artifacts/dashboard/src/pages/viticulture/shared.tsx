@@ -205,7 +205,10 @@ export function printExciseReturn(
   const dutiableL = (parseFloat(String(record.totalLitresRemovedUK ?? 0)) || 0)
     + (parseFloat(String(record.totalLitresDomesticConsumption ?? 0)) || 0)
     + (parseFloat(String(record.totalLitresTastings ?? 0)) || 0);
-  const address = farmMeta?.address ? esc(farmMeta.address) : "";
+  const addressRaw = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const addressHtml = addressRaw
+    ? esc(addressRaw)
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const vatNumber = farmMeta?.vatNumber ? esc(farmMeta.vatNumber) : "";
 
   // FSA / APPA refs — amber warning when missing (consistent with other print functions)
@@ -249,7 +252,7 @@ export function printExciseReturn(
       <h1>HMRC Alcohol Duty Return</h1>
       <div class="meta">
         <strong>${esc(farmName)}</strong>${licenceNo ? ` &nbsp;&middot;&nbsp; Winery Licence: ${esc(licenceNo)}` : ""}<br>
-        ${address ? `${address}<br>` : ""}
+        ${addressHtml}<br>
         ${vatNumber ? `VAT Reg No: ${vatNumber}<br>` : ""}
         ${appaRefHtml}<br>
         ${fsaWineRefHtml}<br>
