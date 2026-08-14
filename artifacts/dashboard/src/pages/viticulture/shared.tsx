@@ -346,7 +346,7 @@ export function printOrganicWineRecords(
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
   const winegbHtml = winegbMembershipNumber
     ? `WineGB Membership No: <strong>${esc(winegbMembershipNumber)}</strong><br>`
-    : `<span class="fsa-missing">&#9888; WineGB Membership No not set</span><br>`;
+    : ``;
 
   const anyMissingRef = !address || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef || !winegbMembershipNumber;
   const missingRefWarningBlock = anyMissingRef
