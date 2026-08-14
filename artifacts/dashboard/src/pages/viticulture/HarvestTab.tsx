@@ -77,7 +77,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
   const [varietySummaryOpen, setVarietySummaryOpen] = useState(true);
-  const [summarySort, setSummarySort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
+  const [summarySortCol, setSummarySortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "summarySortCol", farmId, defaultValue: "name" });
+  const [summarySortDir, setSummarySortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "summarySortDir", farmId, defaultValue: "asc", validValues: ["asc", "desc"] as const });
+  const summarySort = { col: summarySortCol, dir: summarySortDir as "asc" | "desc" };
+  const setSummarySort = (v: { col: string; dir: "asc" | "desc" }) => { setSummarySortCol(v.col); setSummarySortDir(v.dir); };
   const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -1351,9 +1354,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             default: return 0;
           }
         });
-        const toggleSort = (col: string) => setSummarySort(prev =>
-          prev.col === col
-            ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+        const toggleSort = (col: string) => setSummarySort(
+          summarySort.col === col
+            ? { col, dir: summarySort.dir === "asc" ? "desc" : "asc" }
             : { col, dir: col === "name" || col === "variety" ? "asc" : "desc" }
         );
         const SortIcon = ({ col }: { col: string }) => {
