@@ -57,22 +57,30 @@ export default function HomeScreen() {
     soilSamples: 0,
   });
 
-  const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0 });
+  const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0 });
 
   const fetchUnlinkedCounts = useCallback(async () => {
     if (!currentFarm?.id) return;
     try {
-      const [scoutRes, sprayRes] = await Promise.all([
+      const [scoutRes, sprayRes, phenologyRes, harvestRes] = await Promise.all([
         apiFetch(`/api/farms/${currentFarm.id}/vineyard-scouting`),
         apiFetch(`/api/farms/${currentFarm.id}/vineyard-spray-diary`),
+        apiFetch(`/api/farms/${currentFarm.id}/vineyard-phenology`),
+        apiFetch(`/api/farms/${currentFarm.id}/vineyard-harvest`),
       ]);
       const scoutData = scoutRes.ok ? await scoutRes.json() : { records: [] };
       const sprayData = sprayRes.ok ? await sprayRes.json() : { records: [] };
+      const phenologyData = phenologyRes.ok ? await phenologyRes.json() : { records: [] };
+      const harvestData = harvestRes.ok ? await harvestRes.json() : { records: [] };
       const scoutRecords: { blockId: number | null }[] = scoutData.records ?? [];
       const sprayRecords: { blockId: number | null }[] = sprayData.records ?? [];
+      const phenologyRecords: { blockId: number | null }[] = phenologyData.records ?? [];
+      const harvestRecords: { blockId: number | null }[] = harvestData.records ?? [];
       setUnlinkedCounts({
         scouting: scoutRecords.filter(r => r.blockId == null).length,
         sprayDiary: sprayRecords.filter(r => r.blockId == null).length,
+        phenology: phenologyRecords.filter(r => r.blockId == null).length,
+        harvest: harvestRecords.filter(r => r.blockId == null).length,
       });
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
@@ -362,7 +370,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {(unlinkedCounts.scouting > 0 || unlinkedCounts.sprayDiary > 0) && (
+        {(unlinkedCounts.scouting > 0 || unlinkedCounts.sprayDiary > 0 || unlinkedCounts.phenology > 0 || unlinkedCounts.harvest > 0) && (
           <>
             <SectionHeader title="Compliance Gaps" />
             {unlinkedCounts.scouting > 0 && (
@@ -395,6 +403,42 @@ export default function HomeScreen() {
                   <Text style={styles.unlinkedTitle}>
                     {unlinkedCounts.sprayDiary} unlinked spray diary{" "}
                     {unlinkedCounts.sprayDiary === 1 ? "record" : "records"}
+                  </Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to link to a vineyard block</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            )}
+            {unlinkedCounts.phenology > 0 && (
+              <Pressable
+                style={styles.unlinkedBanner}
+                onPress={() => router.push("/vine-phenology-history")}
+              >
+                <View style={styles.unlinkedIconWrap}>
+                  <Feather name="alert-triangle" size={18} color={colors.warning} />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>
+                    {unlinkedCounts.phenology} unlinked phenology{" "}
+                    {unlinkedCounts.phenology === 1 ? "record" : "records"}
+                  </Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to link to a vineyard block</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            )}
+            {unlinkedCounts.harvest > 0 && (
+              <Pressable
+                style={styles.unlinkedBanner}
+                onPress={() => router.push("/vine-harvest-history")}
+              >
+                <View style={styles.unlinkedIconWrap}>
+                  <Feather name="alert-triangle" size={18} color={colors.warning} />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>
+                    {unlinkedCounts.harvest} unlinked harvest{" "}
+                    {unlinkedCounts.harvest === 1 ? "record" : "records"}
                   </Text>
                   <Text style={styles.unlinkedSubtitle}>Tap to link to a vineyard block</Text>
                 </View>
