@@ -124,6 +124,7 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
     { label: "FSA Vine Register Ref", value: farmRecord?.fsaVineRegisterRef },
     { label: "FSA Wine Production Ref", value: farmRecord?.fsaWineProductionRef },
     { label: "APPA Ref", value: farmRecord?.appaRef },
+    { label: "WineGB Membership No", value: farmRecord?.winegbMembershipNumber },
   ];
 
   const allComplete = fields.every(f => !!f.value && String(f.value).trim() !== "");
@@ -345,9 +346,9 @@ export function printOrganicWineRecords(
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
   const winegbHtml = winegbMembershipNumber
     ? `WineGB Membership No: <strong>${esc(winegbMembershipNumber)}</strong><br>`
-    : "";
+    : `<span class="fsa-missing">&#9888; WineGB Membership No not set</span><br>`;
 
-  const anyMissingRef = !address || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
+  const anyMissingRef = !address || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef || !winegbMembershipNumber;
   const missingRefWarningBlock = anyMissingRef
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing header information</strong> &mdash;
@@ -356,6 +357,7 @@ export function printOrganicWineRecords(
           !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
           !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
           !appaRef ? "APPA Ref" : "",
+          !winegbMembershipNumber ? "WineGB Membership No" : "",
         ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
         Add them before submitting this register to your certifying body.
       </div>`

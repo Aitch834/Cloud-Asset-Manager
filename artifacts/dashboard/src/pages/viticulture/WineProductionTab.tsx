@@ -120,6 +120,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
     ? [
         !farmMeta.name && "Company / farm name",
         !farmMeta.address && "Farm address",
+        !(farmMeta.winegbMembershipNumber && String(farmMeta.winegbMembershipNumber).trim()) && "WineGB Membership No",
       ].filter(Boolean) as string[]
     : [];
 
@@ -231,7 +232,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
       </div>
       <FarmSettingsWarning
         missingFields={organicMissingFields}
-        settingsSection="Basic Details"
+        settingsSection="Basic Details / Viticulture &amp; Wine"
         onNavigate={() => setLocation("/settings/farm")}
       />
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
