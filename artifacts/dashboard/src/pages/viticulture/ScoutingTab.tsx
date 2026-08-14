@@ -285,7 +285,11 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     return rows;
   }, [data, yearFilter, blockFilter, searchText, blocks]);
 
-  const printRows = useMemo(() => printBlockFilter === "__all__" ? data : data.filter(r => String(r.blockId) === printBlockFilter), [data, printBlockFilter]);
+  const printRows = useMemo(() => {
+    let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
+    if (printBlockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === printBlockFilter);
+    return rows;
+  }, [data, printBlockFilter, yearFilter]);
 
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
@@ -346,7 +350,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined, yearFilter !== "all" ? yearFilter : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Scouting Record</Button>
         </div>
       </div>
@@ -702,7 +706,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printDiseaseScouting(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined, yearFilter !== "all" ? yearFilter : undefined); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>

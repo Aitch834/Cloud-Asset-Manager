@@ -455,7 +455,11 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     return rows;
   }, [crud.data, yearFilter, blockFilter, searchText, blocks]);
 
-  const printRows = useMemo(() => printBlockFilter === "__all__" ? crud.data : crud.data.filter(r => String(r.blockId) === printBlockFilter), [crud.data, printBlockFilter]);
+  const printRows = useMemo(() => {
+    let rows = yearFilter === "all" ? crud.data : crud.data.filter(r => new Date(r.applicationDate as string).getFullYear() === Number(yearFilter));
+    if (printBlockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === printBlockFilter);
+    return rows;
+  }, [crud.data, printBlockFilter, yearFilter]);
 
   const maxApps = selectedProduct?.maxApplicationsPerSeason;
   const seasonLimitReached = maxApps != null && seasonApplicationCount >= maxApps;
@@ -500,7 +504,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printSprayRecords(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printSprayRecords(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined, yearFilter !== "all" ? yearFilter : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Application</Button>
         </div>
       </div>
@@ -935,7 +939,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printSprayRecords(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printSprayRecords(printRows, farmName, farmId, blocks, farmMeta, printBlockFilter !== "__all__" ? (blocks.find(b => String(b.id) === printBlockFilter)?.blockName as string | undefined) : undefined, yearFilter !== "all" ? yearFilter : undefined); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>
