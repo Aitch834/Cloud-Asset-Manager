@@ -23432,7 +23432,11 @@ router.delete("/farms/:farmId/borehole-tests/:id", requireAuth, requireTenant, r
 
 router.get("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.select().from(irrigationRecordsTable).where(eq(irrigationRecordsTable.farmId, farmId)).orderBy(desc(irrigationRecordsTable.irrigationDate));
+  const fieldIdParam = req.query.fieldId ? parseInt(req.query.fieldId as string) : null;
+  const whereClause = fieldIdParam && !isNaN(fieldIdParam)
+    ? and(eq(irrigationRecordsTable.farmId, farmId), eq(irrigationRecordsTable.fieldId, fieldIdParam))
+    : eq(irrigationRecordsTable.farmId, farmId);
+  const rows = await db.select().from(irrigationRecordsTable).where(whereClause).orderBy(desc(irrigationRecordsTable.irrigationDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {

@@ -249,6 +249,20 @@ interface LogAppPrefill {
   scenarioLabel: string;
 }
 
+interface WaterAbstractionLicence {
+  id: number;
+  licenceNumber: string;
+  waterSource: string;
+  sourceType?: string | null;
+}
+
+interface IrrigationRecord {
+  id: number;
+  licenceId?: number | null;
+  fieldId?: number | null;
+  irrigationDate: string;
+}
+
 function LogApplicationDialog({
   farmId,
   prefill,
@@ -260,14 +274,62 @@ function LogApplicationDialog({
 }) {
   const qc = useQueryClient();
   const today = new Date().toISOString().slice(0, 10);
+
+  // ── Fetch abstraction licences for this farm ──────────────────────────────
+  const { data: licences = [] } = useQuery<WaterAbstractionLicence[]>({
+    queryKey: ["water-abstraction-licences", farmId],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); }),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // ── Fetch most-recent irrigation record for this specific field ───────────
+  const fieldIdNum = prefill.fieldId ? parseInt(prefill.fieldId) : null;
+  const { data: fieldRecords = [] } = useQuery<IrrigationRecord[]>({
+    queryKey: ["irrig-records-field", farmId, fieldIdNum],
+    queryFn: () => {
+      const params = fieldIdNum ? `?fieldId=${fieldIdNum}` : "";
+      return fetch(api(`farms/${farmId}/irrigation-records${params}`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed"); return r.json(); });
+    },
+    enabled: !!fieldIdNum,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // ── Derive the best licence pre-fill ─────────────────────────────────────
+  // Priority: (1) MRU licence for this field, (2) only licence on the farm, (3) none
+  const derivedLicenceId = useMemo((): string => {
+    // Check MRU: find most-recent record that has a licenceId
+    const mru = fieldRecords.find(r => r.licenceId != null);
+    if (mru?.licenceId != null) {
+      // Verify the licence still exists on this farm
+      if (licences.some(l => l.id === mru.licenceId)) return String(mru.licenceId);
+    }
+    // Fall back to single-licence auto-select
+    if (licences.length === 1) return String(licences[0].id);
+    return "";
+  }, [fieldRecords, licences]);
+
   const [form, setForm] = useState({
     irrigationDate: today,
     cropType: prefill.cropName,
     applicationDepthMm: String(prefill.applicationDepthMm),
     irrigationMethod: "Overhead sprinkler",
     status: "closed",
+    licenceId: "",
     notes: "",
   });
+
+  // Apply derived licence pre-fill once licences + records are loaded
+  const licencePrefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (licencePrefillAppliedRef.current) return;
+    if (derivedLicenceId) {
+      licencePrefillAppliedRef.current = true;
+      setForm(f => ({ ...f, licenceId: derivedLicenceId }));
+    }
+  }, [derivedLicenceId]);
 
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) =>
@@ -282,6 +344,7 @@ function LogApplicationDialog({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["irrig-records", farmId] });
+      qc.invalidateQueries({ queryKey: ["irrig-records-field", farmId, fieldIdNum] });
       onClose();
     },
   });
@@ -296,8 +359,18 @@ function LogApplicationDialog({
       notes: form.notes || undefined,
     };
     if (prefill.fieldId) payload.fieldId = parseInt(prefill.fieldId);
+    if (form.licenceId) payload.licenceId = parseInt(form.licenceId);
     save.mutate(payload);
   }
+
+  // ── Resolve display label for pre-fill source ─────────────────────────────
+  const prefillSource = useMemo((): string | null => {
+    if (!form.licenceId || !derivedLicenceId || form.licenceId !== derivedLicenceId) return null;
+    const mru = fieldRecords.find(r => r.licenceId != null && String(r.licenceId) === form.licenceId);
+    if (mru) return "previously used for this field";
+    if (licences.length === 1) return "only licence on this farm";
+    return null;
+  }, [form.licenceId, derivedLicenceId, fieldRecords, licences]);
 
   return (
     <Dialog open onOpenChange={v => { if (!v) { save.reset(); onClose(); } }}>
@@ -338,6 +411,44 @@ function LogApplicationDialog({
               value={form.applicationDepthMm}
               onChange={e => setForm(f => ({ ...f, applicationDepthMm: e.target.value }))}
             />
+          </div>
+          <div className="col-span-2">
+            <Label>Water Source / Licence</Label>
+            {licences.length === 0 ? (
+              <Input
+                value=""
+                readOnly
+                disabled
+                className="bg-muted/50 text-muted-foreground"
+                placeholder="No abstraction licences set up"
+              />
+            ) : (
+              <>
+                <Select
+                  value={form.licenceId || "__none__"}
+                  onValueChange={v => setForm(f => ({ ...f, licenceId: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a licence…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— None —</SelectItem>
+                    {licences.map(l => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        {l.licenceNumber}
+                        {l.waterSource ? ` — ${l.waterSource}` : ""}
+                        {l.sourceType ? ` (${l.sourceType})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {prefillSource && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Auto-selected: {prefillSource}.
+                  </p>
+                )}
+              </>
+            )}
           </div>
           <div>
             <Label>Method *</Label>
