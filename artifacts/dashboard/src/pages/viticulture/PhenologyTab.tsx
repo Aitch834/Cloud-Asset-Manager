@@ -55,33 +55,34 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Phenology = Record<string, unknown>;
 
-// Maps BBCH stage codes to WineGB's five seasonal vineyard surveys
-const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> = {
-  "05": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "07": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "09": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "11": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "13": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "15": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "53": { surveyName: "Flowering Survey", label: "flowering" },
-  "55": { surveyName: "Flowering Survey", label: "flowering" },
-  "57": { surveyName: "Flowering Survey", label: "flowering" },
-  "60": { surveyName: "Flowering Survey", label: "flowering" },
-  "65": { surveyName: "Flowering Survey", label: "flowering" },
-  "68": { surveyName: "Flowering Survey", label: "flowering" },
-  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "77": { surveyName: "Véraison Survey", label: "véraison" },
-  "81": { surveyName: "Véraison Survey", label: "véraison" },
-  "83": { surveyName: "Véraison Survey", label: "véraison" },
-  "85": { surveyName: "Véraison Survey", label: "véraison" },
-  "89": { surveyName: "Harvest Survey", label: "harvest" },
+type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
+
+// Maps BBCH stage codes to WineGB's five seasonal vineyard surveys.
+// surveyKey matches the WinegbSurveyKey union (null = no matching checklist entry).
+const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string; surveyKey: WinegbSurveyKey | null }> = {
+  "05": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "07": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "09": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "11": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "13": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "15": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "53": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "55": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "57": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "60": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "65": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "68": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "77": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "81": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "83": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "85": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "89": { surveyName: "Harvest Survey", label: "harvest", surveyKey: "harvest" },
 };
 
 // ─── WineGB Submissions Panel ──────────────────────────────────────────────────
-
-type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
 
 interface WinegbSurvey {
   key: WinegbSurveyKey;
@@ -220,7 +221,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [current, setCurrent] = useState<Phenology | null>(null);
   const [form, setForm] = useState<Phenology>({});
   const [viewing, setViewing] = useState<Phenology | null>(null);
-  const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
+  const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string; surveyKey: WinegbSurveyKey | null; year: number } | null>(null);
   const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -280,6 +281,27 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   });
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
+
+  // ── WineGB toggle mutation (year comes from the saved observation's date) ─────
+  const winegbToggleMutation = useMutation({
+    mutationFn: async ({ key, year }: { key: WinegbSurveyKey; year: number }) => {
+      const r = await fetch(api(`farms/${farmId}/winegb-submissions/${key}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submitted: true, year }),
+      });
+      if (!r.ok) throw new Error("Failed to save");
+      return r.json();
+    },
+    onSuccess: (_, { key, year }) => {
+      void queryClient.invalidateQueries({ queryKey: ["winegb-submissions", farmId, year] });
+      const survey = WINEGB_SURVEYS.find(s => s.key === key);
+      toast({ title: `${survey?.label ?? "Survey"} marked as submitted`, description: "WineGB survey checklist updated." });
+      setWinegbSurveyBanner(null);
+    },
+  });
+
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
@@ -297,7 +319,22 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
     else await add.mutateAsync(form);
     const stage = String(form.bbchStage ?? "");
     const survey = WINEGB_SURVEY_MAP[stage];
-    if (survey && !dismissedSurveys.has(survey.surveyName)) setWinegbSurveyBanner(survey);
+    if (survey && !dismissedSurveys.has(survey.surveyName)) {
+      // Derive the survey year from the observation's own date, not the table filter
+      const obsYear = form.observationDate
+        ? new Date(form.observationDate as string).getFullYear()
+        : new Date().getFullYear();
+      if (survey.surveyKey) {
+        // Survey has a checklist entry — offer to tick it, unless already submitted for this year
+        type SubmissionsPayload = { submissions: Record<string, { submitted: boolean; submittedAt: string | null }> };
+        const cached = queryClient.getQueryData<SubmissionsPayload>(["winegb-submissions", farmId, obsYear]);
+        const alreadySubmitted = cached?.submissions?.[survey.surveyKey]?.submitted ?? false;
+        if (!alreadySubmitted) setWinegbSurveyBanner({ ...survey, year: obsYear });
+      } else {
+        // No checklist key (e.g. Fruit Set) — show the external-link prompt instead
+        setWinegbSurveyBanner({ ...survey, year: obsYear });
+      }
+    }
     setOpen(false);
   };
 
@@ -307,9 +344,6 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const filteredPhenology = blockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === blockFilter);
   const printRows = printBlockFilter === "__all__" ? yearFiltered : yearFiltered.filter(r => String(r.blockId) === printBlockFilter);
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
-
-  // Derive the season year for the WineGB panel from the year filter
-  const winegbSeasonYear = yearFilter === "all" ? new Date().getFullYear() : Number(yearFilter);
 
   const csvCols = [
     { key: "observationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.observationDate) },
@@ -331,15 +365,49 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       {winegbSurveyBanner && (
         <div className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <Globe className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
-          <span>
-            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span> — WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
-            <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
-              Vineyard Survey →
-            </a>
-          </span>
+          <div className="flex-1 min-w-0">
+            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span>
+            {winegbSurveyBanner.surveyKey ? (
+              <span>
+                {" "}— Have you submitted your {winegbSurveyBanner.label} data to WineGB? Mark it as done to keep your checklist up to date.
+              </span>
+            ) : (
+              <span>
+                {" "}— WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
+                <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
+                  Vineyard Survey →
+                </a>
+              </span>
+            )}
+            {winegbSurveyBanner.surveyKey && (
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  disabled={winegbToggleMutation.isPending}
+                  onClick={() => winegbToggleMutation.mutate({ key: winegbSurveyBanner.surveyKey!, year: winegbSurveyBanner.year })}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                >
+                  {winegbToggleMutation.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3 h-3" />
+                  )}
+                  Mark {winegbSurveyBanner.label} survey as submitted
+                </button>
+                <a
+                  href="https://winegb.co.uk/production/vineyards-wineries/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+                >
+                  Submit to WineGB first →
+                </a>
+              </div>
+            )}
+          </div>
           <button
             type="button"
-            className="ml-auto shrink-0 text-emerald-500 hover:text-emerald-800"
+            className="shrink-0 text-emerald-500 hover:text-emerald-800"
             onClick={() => {
               setDismissedSurveys(prev => new Set(prev).add(winegbSurveyBanner.surveyName));
               setWinegbSurveyBanner(null);
@@ -360,8 +428,8 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         </div>
       )}
 
-      {/* WineGB Submissions Panel */}
-      <WinegbSubmissionsPanel farmId={farmId} seasonYear={winegbSeasonYear} />
+      {/* WineGB Submissions Panel — year follows the table year filter for display */}
+      <WinegbSubmissionsPanel farmId={farmId} seasonYear={yearFilter === "all" ? new Date().getFullYear() : Number(yearFilter)} />
 
       {/* FSA / APPA registration pre-flight check */}
       <FsaCompletenessBar farmId={farmId} />
