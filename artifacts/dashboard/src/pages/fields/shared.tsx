@@ -633,7 +633,7 @@ export function FieldCardMenu({
     }
   };
 
-  const { register, handleSubmit, reset } = useForm<FieldFormData>({
+  const { register, handleSubmit, reset, watch: watchField } = useForm<FieldFormData>({
     defaultValues: { name: field.name ?? "", areaHectares: parseFloat(String(field.areaHectares ?? 0)), soilType: field.soilType ?? "", fieldReference: (field as any).fieldReference ?? "" },
   });
 
@@ -747,6 +747,15 @@ export function FieldCardMenu({
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+                {(() => {
+                  const sv = watchField("soilType");
+                  const opt = SOIL_TYPE_OPTIONS.find(o => o.value === sv);
+                  return opt ? (
+                    <p className="text-xs text-blue-600/80 mt-1">
+                      💧 Holds ~{opt.awcMm} mm available water
+                    </p>
+                  ) : null;
+                })()}
               </div>
             </div>
             <div>

@@ -636,6 +636,15 @@ export default function FieldsPage() {
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>
+                      {(() => {
+                        const sv = fieldForm.watch("soilType");
+                        const opt = SOIL_TYPE_OPTIONS.find(o => o.value === sv);
+                        return opt ? (
+                          <p className="text-xs text-blue-600/80 mt-1">
+                            💧 Holds ~{opt.awcMm} mm available water
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                   <div>
