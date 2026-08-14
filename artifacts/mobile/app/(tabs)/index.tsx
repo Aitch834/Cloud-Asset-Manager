@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Pressable,
@@ -85,9 +85,11 @@ export default function HomeScreen() {
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
 
-  useEffect(() => {
-    fetchUnlinkedCounts();
-  }, [fetchUnlinkedCounts]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnlinkedCounts();
+    }, [fetchUnlinkedCounts])
+  );
 
   const [liveWeather, setLiveWeather] = useState<{
     temperature: string;
