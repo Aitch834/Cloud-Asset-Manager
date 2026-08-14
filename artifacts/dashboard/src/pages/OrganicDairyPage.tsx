@@ -845,9 +845,21 @@ function DctTab({ farmId }: { farmId: number }) {
   function openEdit(r: OrgDctRecord) { setEditing(r); setForm({ ...r, dryOffDate: r.dryOffDate.slice(0, 10), expectedCalvingDate: r.expectedCalvingDate?.slice(0, 10) }); setOpen(true); }
 
   const allRecords = data?.records ?? [];
-  const [dctListYear, setDctListYear] = usePersistedFilter({ page: "organic-dairy-dct", filter: "year", farmId, defaultValue: "all" });
-  const dctListYears = React.useMemo(() => Array.from(new Set(allRecords.map(r => String(r.dryOffDate ?? "").slice(0, 4)).filter(Boolean))).sort().reverse(), [allRecords]);
-  const filteredList = dctListYear === "all" ? allRecords : allRecords.filter(r => String(r.dryOffDate ?? "").startsWith(dctListYear));
+  const nowD = new Date();
+  const [filterYear, setFilterYear] = usePersistedNumberFilter({ page: "organic-dairy-dct", filter: "year", farmId, defaultValue: nowD.getFullYear() });
+  const [filterMonth, setFilterMonth] = usePersistedNumberFilter({ page: "organic-dairy-dct", filter: "month", farmId, defaultValue: nowD.getMonth(), isValid: (v) => v >= 0 && v <= 11 });
+  function stepMonth(dir: 1 | -1) {
+    const next = filterMonth + dir;
+    if (next < 0) { setFilterYear(filterYear - 1); setFilterMonth(11); }
+    else if (next > 11) { setFilterYear(filterYear + 1); setFilterMonth(0); }
+    else { setFilterMonth(next); }
+  }
+  const monthLabel = new Date(filterYear, filterMonth, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const filteredList = allRecords.filter(r => {
+    if (!r.dryOffDate) return false;
+    const d = new Date(r.dryOffDate);
+    return d.getFullYear() === filterYear && d.getMonth() === filterMonth;
+  });
 
   const uncertifiedCount = allRecords.filter(r => r.antibioticTubeProduct && !r.certifierNotified).length;
   const blanketCount = allRecords.filter(r => r.protocol === "blanket" || r.protocol === "blanket-sealant").length;
@@ -878,10 +890,11 @@ function DctTab({ farmId }: { farmId: number }) {
       <div className="flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-gray-800">Dry Cow Therapy Records</h2>
-          <Select value={dctListYear} onValueChange={setDctListYear}>
-            <SelectTrigger className="w-28 h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All years</SelectItem>{dctListYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-          </Select>
+          <div className="flex items-center bg-gray-50 border border-gray-200 rounded-md">
+            <button onClick={() => stepMonth(-1)} className="p-1 rounded-l hover:bg-gray-200 transition-colors" aria-label="Previous month"><ChevronLeft className="h-4 w-4 text-gray-600" /></button>
+            <span className="text-sm font-medium text-gray-700 px-2">{monthLabel}</span>
+            <button onClick={() => stepMonth(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
+          </div>
         </div>
         <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add DCT Record</Button>
       </div>
