@@ -53,6 +53,72 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FsaCompletenessBar } from "./shared";
 
+// ─── WineGB Nudge ──────────────────────────────────────────────────────────────
+
+const WINEGB_SURVEYS_LIST = [
+  { key: "bud_burst",    label: "Bud Burst"  },
+  { key: "frost_damage", label: "Frost Damage" },
+  { key: "flowering",    label: "Flowering"  },
+  { key: "veraison",     label: "Véraison"   },
+  { key: "harvest",      label: "Harvest"    },
+] as const;
+
+function WinegbOverviewNudge({
+  farmId,
+  onNavigateToPhenology,
+}: {
+  farmId: number;
+  onNavigateToPhenology: () => void;
+}) {
+  const year = new Date().getFullYear();
+  const { data, isLoading } = useQuery<{
+    submissions: Record<string, { submitted: boolean; submittedAt: string | null }>;
+  }>({
+    queryKey: ["winegb-submissions", farmId, year],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/winegb-submissions?year=${year}`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  if (isLoading || !data) return null;
+
+  const submissions = data.submissions ?? {};
+  const pending = WINEGB_SURVEYS_LIST.filter(s => !submissions[s.key]?.submitted);
+
+  // All done — no nudge needed
+  if (pending.length === 0) return null;
+
+  const doneCount = WINEGB_SURVEYS_LIST.length - pending.length;
+
+  return (
+    <button
+      type="button"
+      onClick={onNavigateToPhenology}
+      className="w-full text-left rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 py-3 hover:bg-emerald-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+    >
+      <div className="flex items-center gap-2.5">
+        <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-emerald-900">
+            WineGB Seasonal Surveys — {pending.length} of {WINEGB_SURVEYS_LIST.length} pending
+          </span>
+          <span className="ml-2 text-xs text-emerald-700">
+            {pending.map(s => s.label).join(", ")}
+          </span>
+        </div>
+        {doneCount > 0 && (
+          <span className="shrink-0 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
+            {doneCount}/{WINEGB_SURVEYS_LIST.length} done
+          </span>
+        )}
+        <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0" />
+      </div>
+    </button>
+  );
+}
+
 // ─── Unlinked Records Warning Bar ─────────────────────────────────────────────
 
 type UnlinkedItem = {
@@ -142,6 +208,10 @@ export function OverviewTab({
   return (
     <div className="space-y-6">
       <FsaCompletenessBar farmId={farmId} />
+      <WinegbOverviewNudge
+        farmId={farmId}
+        onNavigateToPhenology={() => onNavigate?.("phenology")}
+      />
       <UnlinkedRecordsBar
         items={unlinkedItems}
         onNavigate={(tabId) => onNavigateWithBulkLink ? onNavigateWithBulkLink(tabId) : onNavigate?.(tabId)}
