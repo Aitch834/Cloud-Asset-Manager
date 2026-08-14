@@ -428,6 +428,8 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_straw_moisture_checks: `/farms/${farmId}/straw-moisture-checks`,
     bde_straw_sale_records: `/farms/${farmId}/straw-sales`,
     bde_silage_haylage_stock: `/farms/${farmId}/silage-haylage-stock`,
+    bde_pig_inventory_records: `/farms/${farmId}/pig-inventory`,
+    bde_pig_death_records: `/farms/${farmId}/pig-deaths`,
   };
   return typeMap[recordType] || null;
 }

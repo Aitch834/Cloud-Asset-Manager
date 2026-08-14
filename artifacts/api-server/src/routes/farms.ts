@@ -416,6 +416,8 @@ import {
   salmMonitoringTable,
   pigVaccinationRecordsTable,
   pigDiseaseMonitoringTable,
+  pigInventoryRecordsTable,
+  pigDeathRecordsTable,
   poultryVaccinationRecordsTable,
   poultryDiseaseMonitoringTable,
   ipmPlansTable,
@@ -20935,6 +20937,106 @@ router.delete("/farms/:farmId/pig-tail-biting-risks/:id", requireAuth, requireTe
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   await db.delete(pigTailBitingRisksTable).where(and(eq(pigTailBitingRisksTable.id, id), eq(pigTailBitingRisksTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-inventory", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigInventoryRecordsTable).where(eq(pigInventoryRecordsTable.farmId, farmId)).orderBy(desc(pigInventoryRecordsTable.countDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-inventory", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(pigInventoryRecordsTable).values({
+    farmId,
+    flockId: b.flockId ? Number(b.flockId) : null,
+    groupName: b.groupName ? String(b.groupName) : null,
+    countDate: String(b.countDate ?? ""),
+    sowCount: b.sowCount ? Number(b.sowCount) : 0,
+    boarCount: b.boarCount ? Number(b.boarCount) : 0,
+    pigletCount: b.pigletCount ? Number(b.pigletCount) : 0,
+    weanerCount: b.weanerCount ? Number(b.weanerCount) : 0,
+    growerCount: b.growerCount ? Number(b.growerCount) : 0,
+    finisherCount: b.finisherCount ? Number(b.finisherCount) : 0,
+    totalCount: b.totalCount ? Number(b.totalCount) : 0,
+    countedBy: b.countedBy ? String(b.countedBy) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/pig-inventory/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(pigInventoryRecordsTable).set({
+    flockId: b.flockId ? Number(b.flockId) : null,
+    groupName: b.groupName ? String(b.groupName) : null,
+    countDate: b.countDate ? String(b.countDate) : undefined,
+    sowCount: b.sowCount !== undefined ? Number(b.sowCount) : undefined,
+    boarCount: b.boarCount !== undefined ? Number(b.boarCount) : undefined,
+    pigletCount: b.pigletCount !== undefined ? Number(b.pigletCount) : undefined,
+    weanerCount: b.weanerCount !== undefined ? Number(b.weanerCount) : undefined,
+    growerCount: b.growerCount !== undefined ? Number(b.growerCount) : undefined,
+    finisherCount: b.finisherCount !== undefined ? Number(b.finisherCount) : undefined,
+    totalCount: b.totalCount !== undefined ? Number(b.totalCount) : undefined,
+    countedBy: b.countedBy ? String(b.countedBy) : null,
+    notes: b.notes ? String(b.notes) : null,
+  }).where(and(eq(pigInventoryRecordsTable.id, id), eq(pigInventoryRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-inventory/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigInventoryRecordsTable).where(and(eq(pigInventoryRecordsTable.id, id), eq(pigInventoryRecordsTable.farmId, farmId)));
+  res.json({ success: true });
+});
+
+router.get("/farms/:farmId/pig-deaths", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.select().from(pigDeathRecordsTable).where(eq(pigDeathRecordsTable.farmId, farmId)).orderBy(desc(pigDeathRecordsTable.deathDate));
+  res.json(rows);
+});
+router.post("/farms/:farmId/pig-deaths", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.insert(pigDeathRecordsTable).values({
+    farmId,
+    flockId: b.flockId ? Number(b.flockId) : null,
+    groupName: b.groupName ? String(b.groupName) : null,
+    deathDate: String(b.deathDate ?? ""),
+    numberOfAnimals: b.numberOfAnimals ? Number(b.numberOfAnimals) : 1,
+    earTagOrId: b.earTagOrId ? String(b.earTagOrId) : null,
+    causeOfDeath: String(b.causeOfDeath ?? ""),
+    disposalMethod: String(b.disposalMethod ?? ""),
+    vetAttended: b.vetAttended === true || b.vetAttended === "true",
+    aphaNotified: b.aphaNotified === true || b.aphaNotified === "true",
+    notes: b.notes ? String(b.notes) : null,
+  }).returning();
+  res.status(201).json(row);
+});
+router.put("/farms/:farmId/pig-deaths/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const b = req.body as Record<string, unknown>;
+  const [row] = await db.update(pigDeathRecordsTable).set({
+    flockId: b.flockId ? Number(b.flockId) : null,
+    groupName: b.groupName ? String(b.groupName) : null,
+    deathDate: b.deathDate ? String(b.deathDate) : undefined,
+    numberOfAnimals: b.numberOfAnimals !== undefined ? Number(b.numberOfAnimals) : undefined,
+    earTagOrId: b.earTagOrId ? String(b.earTagOrId) : null,
+    causeOfDeath: b.causeOfDeath ? String(b.causeOfDeath) : undefined,
+    disposalMethod: b.disposalMethod ? String(b.disposalMethod) : undefined,
+    vetAttended: b.vetAttended !== undefined ? (b.vetAttended === true || b.vetAttended === "true") : undefined,
+    aphaNotified: b.aphaNotified !== undefined ? (b.aphaNotified === true || b.aphaNotified === "true") : undefined,
+    notes: b.notes ? String(b.notes) : null,
+  }).where(and(eq(pigDeathRecordsTable.id, id), eq(pigDeathRecordsTable.farmId, farmId))).returning();
+  res.json(row);
+});
+router.delete("/farms/:farmId/pig-deaths/:id", requireAuth, requireTenant, requireModuleByKey("pig-production", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  await db.delete(pigDeathRecordsTable).where(and(eq(pigDeathRecordsTable.id, id), eq(pigDeathRecordsTable.farmId, farmId)));
   res.json({ success: true });
 });
 

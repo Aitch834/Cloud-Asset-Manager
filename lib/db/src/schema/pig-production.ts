@@ -263,3 +263,45 @@ export const salmMonitoringTable = pgTable("pig_salmonella_monitoring", {
 
 export type SalmMonitoringRecord = typeof salmMonitoringTable.$inferSelect;
 export type NewSalmMonitoringRecord = typeof salmMonitoringTable.$inferInsert;
+
+// ─── Pig Inventory Records ────────────────────────────────────────────────────
+export const pigInventoryRecordsTable = pgTable("pig_inventory_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  groupName: text("group_name"),
+  countDate: date("count_date").notNull(),
+  sowCount: integer("sow_count").notNull().default(0),
+  boarCount: integer("boar_count").notNull().default(0),
+  pigletCount: integer("piglet_count").notNull().default(0),
+  weanerCount: integer("weaner_count").notNull().default(0),
+  growerCount: integer("grower_count").notNull().default(0),
+  finisherCount: integer("finisher_count").notNull().default(0),
+  totalCount: integer("total_count").notNull().default(0),
+  countedBy: text("counted_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PigInventoryRecord = typeof pigInventoryRecordsTable.$inferSelect;
+export type NewPigInventoryRecord = typeof pigInventoryRecordsTable.$inferInsert;
+
+// ─── Pig Death Records ────────────────────────────────────────────────────────
+export const pigDeathRecordsTable = pgTable("pig_death_records", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  flockId: integer("flock_id").references(() => herdFlockRegisterTable.id),
+  groupName: text("group_name"),
+  deathDate: date("death_date").notNull(),
+  numberOfAnimals: integer("number_of_animals").notNull().default(1),
+  earTagOrId: text("ear_tag_or_id"),
+  causeOfDeath: text("cause_of_death").notNull(),
+  disposalMethod: text("disposal_method").notNull(),
+  vetAttended: boolean("vet_attended").notNull().default(false),
+  aphaNotified: boolean("apha_notified").notNull().default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PigDeathRecord = typeof pigDeathRecordsTable.$inferSelect;
+export type NewPigDeathRecord = typeof pigDeathRecordsTable.$inferInsert;
