@@ -2267,6 +2267,7 @@ export default function FarmSettings() {
 
   const [formData, setFormData] = useState<FarmFormData | null>(null);
   const [loadedFarmId, setLoadedFarmId] = useState<number | null>(null);
+  const [postcodeBlurred, setPostcodeBlurred] = useState(false);
   const [locatingPostcode, setLocatingPostcode] = useState(false);
   const [convertingW3W, setConvertingW3W] = useState(false);
   const [w3wNoKey, setW3wNoKey] = useState(false);
@@ -2304,6 +2305,13 @@ export default function FarmSettings() {
       </AppLayout>
     );
   }
+
+  const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+  const postcodeVal = formData?.postcode?.trim() ?? "";
+  const postcodeWarn =
+    postcodeBlurred &&
+    postcodeVal.length > 0 &&
+    !UK_POSTCODE_RE.test(postcodeVal);
 
   const updateField = (field: keyof Omit<FarmFormData, "sectors" | "isNvzDesignated" | "harvestStrictStorage">, value: string) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : prev);
@@ -2380,6 +2388,9 @@ export default function FarmSettings() {
       toast({ title: "Farm name is required", variant: "destructive" });
       return;
     }
+
+    // Reveal postcode warning if the grower hasn't blurred the field yet
+    setPostcodeBlurred(true);
 
     const sbiTrimmed = formData.sbiNumber.trim();
     if (sbiTrimmed && !/^\d{9}$/.test(sbiTrimmed)) {
@@ -2574,7 +2585,13 @@ export default function FarmSettings() {
                   placeholder="e.g. YO1 7HJ"
                   value={formData.postcode}
                   onChange={e => updateField("postcode", e.target.value)}
+                  onBlur={() => setPostcodeBlurred(true)}
                 />
+                {postcodeWarn && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
+                  </p>
+                )}
               </div>
 
               <div>
