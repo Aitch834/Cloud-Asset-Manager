@@ -53,6 +53,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printOperations, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { CaneWeightsSection } from "./CaneWeightsSection";
 
 type Operation = Record<string, unknown>;
 
@@ -505,6 +506,9 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cane Weights — vine vigour metric */}
+      <CaneWeightsSection farmId={farmId} blocks={blocks} />
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>

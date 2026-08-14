@@ -27,6 +27,7 @@ import { runUserUiPrefsMigrations } from "./lib/userUiPrefsMigrations";
 import { runWinegbSubmissionsMigrations } from "./lib/winegbSubmissionsMigrations";
 import { runFarmCoreMigrations } from "./lib/farmCoreMigrations";
 import { runPigInventoryDeathMigrations } from "./lib/pigInventoryDeathMigrations";
+import { runViticultureMigrations } from "./lib/viticultureMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -171,6 +172,9 @@ app.listen(port, () => {
   });
   runPigInventoryDeathMigrations().catch((err) => {
     console.error("[PIG-INVENTORY-DEATH-MIGRATE] Failed:", err);
+  });
+  runViticultureMigrations().catch((err) => {
+    console.error("[VITICULTURE-MIGRATE] Failed:", err);
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);

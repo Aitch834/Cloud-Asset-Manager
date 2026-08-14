@@ -52,6 +52,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { FrostEventsSection } from "./FrostEventsSection";
 
 type Phenology = Record<string, unknown>;
 
@@ -619,6 +620,9 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
           </Dialog>
         );
       })()}
+
+      {/* Frost Events — seasonal risk log */}
+      <FrostEventsSection farmId={farmId} blocks={blocks} />
 
       {/* Edit Dialog */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); add.reset(); edit.reset(); } }}>

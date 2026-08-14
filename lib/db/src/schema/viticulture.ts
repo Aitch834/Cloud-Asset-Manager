@@ -404,6 +404,45 @@ export const vineyardSprayDiaryPhotosTable = pgTable("vineyard_spray_diary_photo
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Vineyard Frost Events ────────────────────────────────────────────────────
+export const vineyardFrostEventsTable = pgTable("vineyard_frost_events", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => vineyardBlocksTable.id), // nullable — farm-wide frosts affect all blocks
+  frostDate: date("frost_date").notNull(),
+  // light | moderate | severe | catastrophic
+  severity: text("severity").notNull().default("moderate"),
+  minTempC: numeric("min_temp_c", { precision: 5, scale: 2 }),
+  durationHours: numeric("duration_hours", { precision: 5, scale: 1 }),
+  bbchStageAtFrost: text("bbch_stage_at_frost"),
+  estimatedDamagePercent: integer("estimated_damage_percent"),
+  damagedVinesCount: integer("damaged_vines_count"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Vineyard Cane Weights ─────────────────────────────────────────────────────
+// Records cane/pruning weights per block — a key vine vigour metric.
+// averageCaneWeightG = mean weight of one individual cane (useful for assessing vigour per shoot).
+// totalCaneWeightKgPerVine = total weight of all prunings from one vine (used in the Ravaz Index).
+// Ravaz Index = yield (kg/vine) ÷ total pruning weight (kg/vine); 5–10 is balanced.
+export const vineyardCaneWeightsTable = pgTable("vineyard_cane_weights", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  blockId: integer("block_id").references(() => vineyardBlocksTable.id),
+  measuredDate: date("measured_date").notNull(),
+  vinesSampled: integer("vines_sampled"),
+  averageCaneWeightG: numeric("average_cane_weight_g", { precision: 8, scale: 2 }),
+  totalCaneWeightKgPerVine: numeric("total_cane_weight_kg_per_vine", { precision: 8, scale: 3 }),
+  shootsPerVine: numeric("shoots_per_vine", { precision: 6, scale: 1 }),
+  budsPerCane: numeric("buds_per_cane", { precision: 5, scale: 1 }),
+  // Derived: yield kg/vine from previous harvest ÷ totalCaneWeightKgPerVine — stored for reference
+  ravazIndex: numeric("ravaz_index", { precision: 6, scale: 3 }),
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── AI Pest Trap Captures (SWD & flying pest monitoring) ─────────────────────
 // Photo of a trap card captured in the field (mobile), analysed by AI vision to
 // count Spotted Wing Drosophila (male/female) and identify other flying pests.
