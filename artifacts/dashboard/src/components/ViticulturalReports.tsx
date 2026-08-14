@@ -2559,6 +2559,47 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             </div>
           )}
 
+          {/* Print-only spray diary per-record detail — always visible in @media print, outside the collapsible */}
+          {yearSprays.length > 0 && (
+            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-sm font-semibold">Spray Diary — Application Records — {year}</p>
+                <p className="text-xs text-gray-500">{totalSprayApplications} application{totalSprayApplications !== 1 ? "s" : ""} · {totalSprayArea.toFixed(1)} ha treated</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left">Date</th>
+                    <th className="px-3 py-2 text-left">Block</th>
+                    <th className="px-3 py-2 text-left">Product</th>
+                    <th className="px-3 py-2 text-right">Area (ha)</th>
+                    <th className="px-3 py-2 text-right">Rate (per ha)</th>
+                    <th className="px-3 py-2 text-right">Qty Used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearSprays.map(sp => (
+                    <tr key={sp.id} className="border-t border-gray-200">
+                      <td className="px-3 py-1.5">{fmtDate(sp.applicationDate)}</td>
+                      <td className="px-3 py-1.5">{blockName(sp.blockId)}</td>
+                      <td className="px-3 py-1.5 font-medium">{fmt(sp.productName)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
+                    <td className="px-3 py-1.5" colSpan={3}>Total</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalSprayArea.toFixed(2)}</td>
+                    <td className="px-3 py-1.5" colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
           {/* Spray diary detail */}
           {yearSprays.length > 0 && (
             <Collapsible
