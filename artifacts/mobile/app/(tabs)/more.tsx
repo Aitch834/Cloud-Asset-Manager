@@ -72,6 +72,14 @@ export default function MoreScreen() {
 
   // UK postcode: one or two alpha chars, one digit, optional alpha/digit, optional space, one digit, two alpha chars
   const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+
+  /** Uppercase and insert the missing space before the 3-char inward code. */
+  function normalisePostcode(raw: string): string {
+    const v = raw.trim().toUpperCase().replace(/\s+/g, "");
+    if (v.length >= 4) return v.slice(0, -3) + " " + v.slice(-3);
+    return raw.trim().toUpperCase();
+  }
+
   const postcodeVal = postcodeDraft.trim();
   const showPostcodeWarning =
     postcodeBlurred &&
@@ -99,6 +107,11 @@ export default function MoreScreen() {
       setProfileError("SBI Number must be exactly 9 digits (e.g. 123456789).");
       return;
     }
+    // Normalise postcode before saving so the server always receives a correctly
+    // formatted value even when the grower submits via the keyboard Done key
+    // without blurring the field first.
+    const normalisedPostcode = normalisePostcode(postcodeDraft);
+    setPostcodeDraft(normalisedPostcode);
     // Reveal any postcode warning if the grower taps Save without having blurred the field
     setPostcodeBlurred(true);
     setProfileSaving(true);
@@ -114,7 +127,7 @@ export default function MoreScreen() {
           cphNumber: cphDraft.trim() || null,
           sbiNumber: sbiDraft.trim() || null,
           address: addressDraft.trim() || null,
-          postcode: postcodeDraft.trim() || null,
+          postcode: normalisedPostcode || null,
         }),
       });
       if (!res.ok) {
@@ -366,7 +379,11 @@ export default function MoreScreen() {
             placeholder="e.g. DT1 1AA"
             value={postcodeDraft}
             onChangeText={t => { setPostcodeDraft(t); setProfileSaved(false); }}
-            onBlur={() => setPostcodeBlurred(true)}
+            onBlur={() => {
+              const normalised = normalisePostcode(postcodeDraft);
+              setPostcodeDraft(normalised);
+              setPostcodeBlurred(true);
+            }}
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="done"

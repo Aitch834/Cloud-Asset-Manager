@@ -2307,6 +2307,14 @@ export default function FarmSettings() {
   }
 
   const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+
+  /** Uppercase and insert the missing space before the 3-char inward code. */
+  function normalisePostcode(raw: string): string {
+    const v = raw.trim().toUpperCase().replace(/\s+/g, "");
+    if (v.length >= 4) return v.slice(0, -3) + " " + v.slice(-3);
+    return raw.trim().toUpperCase();
+  }
+
   const postcodeVal = formData?.postcode?.trim() ?? "";
   const postcodeWarn =
     postcodeBlurred &&
@@ -2389,6 +2397,11 @@ export default function FarmSettings() {
       return;
     }
 
+    // Normalise postcode before saving so the server always receives a correctly
+    // formatted value regardless of whether the grower blurred the field first.
+    const normalisedPostcode = normalisePostcode(formData.postcode ?? "");
+    updateField("postcode", normalisedPostcode);
+
     // Reveal postcode warning if the grower hasn't blurred the field yet
     setPostcodeBlurred(true);
 
@@ -2402,7 +2415,7 @@ export default function FarmSettings() {
       name: formData.name.trim(),
       cphNumber: formData.cphNumber.trim() || undefined,
       address: formData.address.trim() || undefined,
-      postcode: formData.postcode.trim() || undefined,
+      postcode: normalisedPostcode || undefined,
       gridReference: formData.gridReference.trim() || undefined,
       latitude: formData.latitude.trim() || undefined,
       longitude: formData.longitude.trim() || undefined,
@@ -2585,7 +2598,10 @@ export default function FarmSettings() {
                   placeholder="e.g. YO1 7HJ"
                   value={formData.postcode}
                   onChange={e => updateField("postcode", e.target.value)}
-                  onBlur={() => setPostcodeBlurred(true)}
+                  onBlur={() => {
+                    updateField("postcode", normalisePostcode(formData.postcode ?? ""));
+                    setPostcodeBlurred(true);
+                  }}
                 />
                 {postcodeWarn && (
                   <p className="text-xs text-amber-600 mt-1">
