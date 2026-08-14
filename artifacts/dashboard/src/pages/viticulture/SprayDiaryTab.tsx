@@ -392,8 +392,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       if (!r.ok) throw new Error("Failed to unlink record");
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       setUnlinkRecordId(null);
       toast({ title: "Block link removed", description: "The spray record is no longer linked to a block." });
     },
@@ -411,8 +411,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       if (!r.ok) throw new Error("Failed to change block link");
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       setChangingBlockRecordId(null);
       setPendingBlockId(null);
       toast({ title: "Block updated", description: "The spray record is now linked to the selected block." });

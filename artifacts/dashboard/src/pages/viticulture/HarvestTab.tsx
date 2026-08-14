@@ -173,8 +173,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       if (!r.ok) throw new Error("Failed to unlink harvest record");
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-harvest", farmId] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-harvest", farmId] });
       setUnlinkRecordId(null);
       toast({ title: "Block link removed", description: "The harvest record is no longer linked to a block." });
     },

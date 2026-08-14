@@ -163,8 +163,8 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
       if (!r.ok) throw new Error("Failed to unlink operation");
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-operations", farmId] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-operations", farmId] });
       setUnlinkRecordId(null);
       toast({ title: "Block link removed", description: "The operation is no longer linked to a block." });
     },
