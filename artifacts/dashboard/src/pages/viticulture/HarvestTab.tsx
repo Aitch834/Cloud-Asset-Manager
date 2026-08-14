@@ -1032,9 +1032,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         };
 
         const sortRows = (rows: typeof tables[0]["rows"], vintageIndex: number) => {
-          if (!chemSort) return rows;
+          // Default (no explicit sort): alphabetical by block name
+          if (!chemSort) return [...rows].sort((a, b) => a.bname.localeCompare(b.bname));
           const d = chemSort.dir === "asc" ? 1 : -1;
           return [...rows].sort((a, b) => {
+            if (chemSort.col === "name") return a.bname.localeCompare(b.bname) * d;
             let av: number | null, bv: number | null;
             if (chemSort.col === "avg") {
               av = a.rowAvg; bv = b.rowAvg;
@@ -1078,7 +1080,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                          <th className="text-left px-3 py-1.5 font-medium">Block</th>
+                          <th className="text-left px-3 py-1.5 font-medium">
+                            <button
+                              type="button"
+                              className={`inline-flex items-center justify-start hover:text-foreground transition-colors ${chemSort?.col === "name" ? "text-foreground" : ""}`}
+                              onClick={() => handleChemSortCol("name")}
+                              title="Sort by block name"
+                            >
+                              Block<ChemSortIcon col="name" />
+                            </button>
+                          </th>
                           {uniqueVintages.map(vy => (
                             <th key={vy} className="text-right px-3 py-1.5 font-medium">
                               <button
