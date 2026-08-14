@@ -2704,7 +2704,12 @@ export async function printSprayRecords(
   }).join("");
 
   const safeFarmName = escHtml(farmName);
-  const sprayAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const addressValue = String(farmMeta?.address ?? "").trim();
+  const postcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const addressDisplayParts = [addressValue, postcodeValue].filter(Boolean).map(escHtml);
+  const addressHtml = addressValue
+    ? addressDisplayParts.join(", ")
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>Spray Diary &mdash; ${safeFarmName}</title>
@@ -2722,13 +2727,14 @@ export async function printSprayRecords(
     td { padding: 4px 4px; border: 1px solid #d1d5db; vertical-align: top; }
     tr:nth-child(even) td { background: #eff6ff; }
     .footer { margin-top: 14px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    @media print { body { margin: 0; } button { display: none !important; } .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style></head><body>
   <div class="header">
     <div>
       <h1>Spray Diary</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${sprayAddress ? `<br>${sprayAddress}` : ""}<br>
+        <strong>${safeFarmName}</strong><br>${addressHtml}<br>
         ${blockLabel ? `Block: <strong>${escHtml(blockLabel)}</strong><br>` : ""}${yearLabel ? `Year: <strong>${escHtml(yearLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} application${records.length === 1 ? "" : "s"}
       </div>
     </div>
