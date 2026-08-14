@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,6 +9,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -28,6 +30,17 @@ import type { FieldBoundary } from "@/lib/types";
 
 type RecordingMode = "field" | "block" | "vineyard";
 interface GrowingBlock { id: number; blockName: string; blockCode?: string | null; }
+
+/** Seven MAFF/AHDB texture classes shown in the field soil type picker */
+const SOIL_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "light_sandy", label: "Light Sandy" },
+  { value: "sandy_loam",  label: "Sandy Loam" },
+  { value: "medium_loam", label: "Medium Loam" },
+  { value: "silty_loam",  label: "Silty Loam" },
+  { value: "clay_loam",   label: "Clay Loam" },
+  { value: "heavy_clay",  label: "Heavy Clay" },
+  { value: "peat",        label: "Peat" },
+];
 
 function calculateAreaHectares(points: { latitude: number; longitude: number }[]): number {
   if (points.length < 3) return 0;
@@ -86,6 +99,7 @@ export default function MapScreen() {
   const [syncing, setSyncing] = useState(false);
   const [showNvzLayer, setShowNvzLayer] = useState(false);
   const [nvzTileUrl, setNvzTileUrl] = useState<string | undefined>(undefined);
+  const [selectedSoilType, setSelectedSoilType] = useState("");
   const [recordingMode, setRecordingMode] = useState<RecordingMode>("field");
   const [availableBlocks, setAvailableBlocks] = useState<GrowingBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
@@ -187,11 +201,12 @@ export default function MapScreen() {
       setSelectedVineyardBlockId(availableVineyardBlocks[0]?.id ?? null);
     } else {
       setFieldNameInput("");
+      setSelectedSoilType("");
     }
     setNameModalVisible(true);
   };
 
-  const saveField = async (name: string) => {
+  const saveField = async (name: string, soilType: string) => {
     const area = calculateAreaHectares(recordedPoints);
     const newField: FieldBoundary = {
       id: generateId(),
@@ -199,7 +214,7 @@ export default function MapScreen() {
       fieldName: name,
       coordinates: recordedPoints,
       areaHectares: area > 0 ? area.toFixed(4) : "",
-      soilType: "",
+      soilType: soilType,
       currentCrop: "",
       notes: `${recordedPoints.length} GPS boundary points`,
       createdAt: new Date().toISOString(),
@@ -219,7 +234,11 @@ export default function MapScreen() {
         const fieldRes = await fetch(`https://${apiDomain}/api/farms/${currentFarm.id}/fields`, {
           method: "POST",
           headers,
-          body: JSON.stringify({ name, areaHectares: area > 0 ? String(area.toFixed(4)) : null }),
+          body: JSON.stringify({
+            name,
+            areaHectares: area > 0 ? String(area.toFixed(4)) : null,
+            soilType: soilType || null,
+          }),
         });
         if (!fieldRes.ok) {
           const t = await fieldRes.text().catch(() => "");
@@ -460,6 +479,13 @@ export default function MapScreen() {
                 {fields.length} field{fields.length === 1 ? "" : "s"} mapped
               </Text>
             )}
+            {recordingMode === "field" && (
+              <Pressable style={styles.fieldRegisterLink} onPress={() => router.push("/field-edit")}>
+                <Feather name="list" size={14} color={colors.primary} />
+                <Text style={styles.fieldRegisterLinkText}>Edit field soil types</Text>
+                <Feather name="chevron-right" size={14} color={colors.primary} />
+              </Pressable>
+            )}
           </>
         )}
       </View>
@@ -548,6 +574,20 @@ export default function MapScreen() {
                   placeholderTextColor={colors.textTertiary}
                   autoFocus
                 />
+                <Text style={styles.soilPickerLabel}>Soil Type (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.soilScrollRow} contentContainerStyle={styles.soilScrollContent}>
+                  {SOIL_TYPE_OPTIONS.map(opt => (
+                    <Pressable
+                      key={opt.value}
+                      style={[styles.soilChip, selectedSoilType === opt.value && styles.soilChipSelected]}
+                      onPress={() => setSelectedSoilType(v => v === opt.value ? "" : opt.value)}
+                    >
+                      <Text style={[styles.soilChipText, selectedSoilType === opt.value && styles.soilChipTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
                 <View style={styles.modalActions}>
                   <Button title="Cancel" variant="outline" onPress={() => setNameModalVisible(false)} style={{ flex: 1 }} />
                   <Button
@@ -555,7 +595,7 @@ export default function MapScreen() {
                     icon="check"
                     onPress={() => {
                       const name = fieldNameInput.trim() || `Field ${fields.length + 1}`;
-                      saveField(name);
+                      saveField(name, selectedSoilType);
                     }}
                     style={{ flex: 1 }}
                   />
@@ -796,6 +836,53 @@ const styles = StyleSheet.create({
   },
   blockPickerItemTextActive: {
     fontFamily: fonts.semiBold,
+    color: colors.primary,
+  },
+  soilPickerLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  soilScrollRow: {
+    marginBottom: spacing.lg,
+  },
+  soilScrollContent: {
+    gap: spacing.xs,
+    paddingRight: spacing.xs,
+  },
+  soilChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  soilChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "15",
+  },
+  soilChipText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  soilChipTextSelected: {
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
+  },
+  fieldRegisterLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  fieldRegisterLinkText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
     color: colors.primary,
   },
 });
