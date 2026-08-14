@@ -1527,6 +1527,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["water-irrigation"],
   },
   {
+    id: "irrigation-advisor",
+    title: "Irrigation Advisor",
+    description: "SMD water-balance advisor — view soil moisture status and log irrigation applications from each scenario",
+    icon: "thermometer",
+    color: "#0369a1",
+    bgColor: "#e0f2fe",
+    route: "/irrigation-advisor",
+    moduleKeys: ["water-irrigation"],
+  },
+  {
     id: "fuel-drawdown",
     title: "Fuel Draw-Down",
     description: "Record fuel drawn from a tank — log the vehicle or machine, quantity and qualifying activity for HMRC red diesel compliance",
