@@ -2,7 +2,7 @@ import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/compone
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -31,6 +31,9 @@ import { useApiFields, type ApiField } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { useApiSprayProducts, type ApiSprayProduct } from "@/lib/hooks/useApiSprayProducts";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
@@ -69,6 +72,12 @@ export default function SprayRecordScreen() {
   const { products, loading: productsLoading } = useApiSprayProducts(currentFarm?.id);
   const bbchStages = useMobileLookup("spray_bbch_stages", []);
   const [saving, setSaving] = useState(false);
+
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("spray-record", currentFarm?.id, user?.id);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
   const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
@@ -353,6 +362,17 @@ export default function SprayRecordScreen() {
         <Text style={styles.title}>Spray Record</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="spray records"
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}

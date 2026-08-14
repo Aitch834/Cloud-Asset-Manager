@@ -25,6 +25,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiPigFlocks } from "@/lib/hooks/useApiPigFlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 export default function PigInventoryScreen() {
@@ -128,38 +129,16 @@ export default function PigInventoryScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {justSaved && !missingIdentifiers && !identifiersLoading && (
-        <Pressable onPress={clearJustSaved} style={[styles.identifierBanner, styles.identifierBannerSaved]}>
-          <Feather name="check-circle" size={15} color="#166534" />
-          <Text style={[styles.identifierBannerText, styles.identifierBannerSavedText]}>
-            Identifiers saved successfully. Tap to dismiss.
-          </Text>
-        </Pressable>
-      )}
-
-      {missingIdentifiers && !bannerDismissed && (
-        <Pressable
-          onPress={() => router.push("/(tabs)/more")}
-          style={styles.identifierBanner}
-        >
-          <Feather name="alert-triangle" size={15} color="#92400e" />
-          <Text style={styles.identifierBannerText}>
-            {!cphNumber && !sbiNumber
-              ? "CPH and SBI are missing from your farm profile — pig inventory records cannot be submitted without them."
-              : !cphNumber
-              ? "CPH number is missing from your farm profile — required for pig inventory submissions."
-              : "SBI number is missing from your farm profile — required for pig inventory submissions."}
-            {" "}Tap to go to Settings.
-          </Text>
-          <Pressable
-            onPress={(e) => { e.stopPropagation(); dismissBanner(); }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Dismiss warning"
-          >
-            <Feather name="x" size={15} color="#92400e" />
-          </Pressable>
-        </Pressable>
-      )}
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="pig inventory submissions"
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
@@ -245,30 +224,4 @@ const styles = StyleSheet.create({
   totalBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.successBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: "#86EFAC" },
   totalText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#166534" },
   totalNumber: { fontFamily: fonts.semiBold },
-  identifierBanner: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: "#F59E0B",
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  identifierBannerText: {
-    flex: 1,
-    fontFamily: fonts.regular,
-    fontSize: fontSize.xs,
-    color: "#92400e",
-    lineHeight: 18,
-  },
-  identifierBannerSaved: {
-    backgroundColor: colors.successBg,
-    borderColor: "#86EFAC",
-  },
-  identifierBannerSavedText: {
-    color: "#166534",
-  },
 });
