@@ -555,6 +555,84 @@ export function printRpaReference(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export function emailRpaReference(
+  blocks: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+  const totalHa = blocks.reduce((sum, b) => sum + (parseFloat(String(b.areaHa ?? 0)) || 0), 0);
+
+  const col = (v: unknown, width: number) => {
+    const s = v == null || v === "" ? "—" : String(v);
+    return s.padEnd(width);
+  };
+
+  // Plain-text table
+  const headerLine = [
+    col("Block Name", 20),
+    col("Parcel / Field Ref", 20),
+    col("Variety", 22),
+    col("Area (ha)", 10),
+    col("Year", 6),
+    col("Rootstock", 18),
+    col("SBI", 14),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const dataLines = blocks.map(b => [
+    col(b.blockName, 20),
+    col(b.fieldParcelRef ?? "", 20),
+    col(b.variety ?? "", 22),
+    col(parseFloat(String(b.areaHa ?? 0)).toFixed(2), 10),
+    col(b.plantingYear ?? "", 6),
+    col(b.rootstock ?? "", 18),
+    col(sbi, 14),
+  ].join("  "));
+
+  const totalLine = [
+    col("TOTAL", 20),
+    col("", 20),
+    col("", 22),
+    col(totalHa.toFixed(2) + " ha", 10),
+    col("", 6),
+    col("", 18),
+    col("", 14),
+  ].join("  ");
+
+  const body = [
+    `RPA Rural Payments — Vineyard Block Reference`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : []),
+    ...(sbi ? [`SBI Number: ${sbi}`] : [`SBI Number: (not set — add in Farm Settings)`]),
+    `Date: ${printed}`,
+    `Blocks: ${blocks.length}   Total area: ${totalHa.toFixed(2)} ha`,
+    ``,
+    `NOTE: For manual reference only — not a direct RPA submission.`,
+    `Use this data when entering information into the Rural Payments portal at`,
+    `ruralpayments.service.gov.uk`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...dataLines,
+    separator,
+    totalLine,
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac. Always verify against your official Rural Payments records.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `RPA Vineyard Block Reference — ${farmName}${sbi ? ` (SBI: ${sbi})` : ""}`,
+  );
+  const encodedBody = encodeURIComponent(body);
+  window.location.href = `mailto:?subject=${subject}&body=${encodedBody}`;
+}
+
 /** Escape a plain-text value for safe insertion into an HTML document. */
 function escHtml(v: unknown): string {
   if (v == null || v === "") return "—";
