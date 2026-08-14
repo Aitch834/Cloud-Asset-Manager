@@ -51,7 +51,7 @@ async function lisApiFetch(path: string, method = "GET"): Promise<Response> {
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm, farms, setCurrentFarm, user } = useFarm();
+  const { currentFarm, farms, setCurrentFarm, updateFarm, user } = useFarm();
   const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
@@ -135,6 +135,8 @@ export default function MoreScreen() {
         throw new Error(data.error ?? `Request failed (${res.status})`);
       }
       refetchIdentifiers();
+      // Reflect the new name immediately in FarmContext (top nav + farm picker)
+      await updateFarm(currentFarm.id, { name: farmNameDraft.trim() });
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
       // Signal other livestock screens so they can show the confirmation nudge

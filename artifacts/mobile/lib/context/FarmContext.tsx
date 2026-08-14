@@ -214,7 +214,21 @@ const [FarmProviderInner, useFarm] = createContextHook(
       await setItem(STORAGE_KEYS.CURRENT_FARM, farm);
     }, []);
 
-    return { farms, currentFarm, setCurrentFarm, user, isLoading };
+    const updateFarm = useCallback(async (id: string, patch: Partial<Farm>) => {
+      setFarms(prev => {
+        const next = prev.map(f => f.id === id ? { ...f, ...patch } : f);
+        setItem(STORAGE_KEYS.FARM_LIST, next).catch(() => {});
+        return next;
+      });
+      setCurrentFarmState(prev => {
+        if (!prev || prev.id !== id) return prev;
+        const next = { ...prev, ...patch };
+        setItem(STORAGE_KEYS.CURRENT_FARM, next).catch(() => {});
+        return next;
+      });
+    }, []);
+
+    return { farms, currentFarm, setCurrentFarm, updateFarm, user, isLoading };
   },
 );
 
