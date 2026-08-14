@@ -2481,8 +2481,52 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             </div>
           )}
 
-          {/* Operations detail */}
+          {/* Print-only canopy operations per-record table — always visible in @media print, outside the collapsible */}
           {yearOps.length > 0 && (
+            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
+              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
+                <p className="text-sm font-semibold">Canopy Operations — Full Log — {year}</p>
+                <p className="text-xs text-gray-500">{yearOps.length} operation{yearOps.length !== 1 ? "s" : ""} · {totalOpsHours.toFixed(1)} hours total</p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left">Date</th>
+                    <th className="px-3 py-2 text-left">Block</th>
+                    <th className="px-3 py-2 text-left">Operation</th>
+                    <th className="px-3 py-2 text-right">Pruning Wt (kg/vine)</th>
+                    <th className="px-3 py-2 text-right">Bud Count/vine</th>
+                    <th className="px-3 py-2 text-right">Hours</th>
+                    <th className="px-3 py-2 text-left">Operator</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearOps.map(o => (
+                    <tr key={o.id} className="border-t border-gray-200">
+                      <td className="px-3 py-1.5">{fmtDate(o.operationDate)}</td>
+                      <td className="px-3 py-1.5">{blockName(o.blockId)}</td>
+                      <td className="px-3 py-1.5">{fmt(o.operationType)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
+                      <td className="px-3 py-1.5 text-gray-600">{fmt(o.operatorName)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
+                    <td className="px-3 py-1.5" colSpan={5}>Total</td>
+                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
+                    <td className="px-3 py-1.5"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {/* Operations detail (screen only — print uses the standalone table above) */}
+          {yearOps.length > 0 && (
+            <div className="print:hidden">
             <Collapsible
               title={`Canopy Operations — ${yearOps.length} operation${yearOps.length !== 1 ? "s" : ""} · ${totalOpsHours.toFixed(1)} hours`}
               open={forcePrint || openSection === "ops"}
@@ -2527,6 +2571,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                 </table>
               </div>
             </Collapsible>
+            </div>
           )}
 
           {/* Print-only spray product summary — always visible in @media print, outside the collapsible */}
