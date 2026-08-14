@@ -73,6 +73,9 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkEntryId, setUnlinkEntryId] = useState<number | null>(null);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+
+  const isSbiInvalid = !!farmRecord && !!String(farmRecord.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmRecord.sbiNumber ?? "").trim());
   const [changingBlockEntryId, setChangingBlockEntryId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const queryClient = useQueryClient();
@@ -437,7 +440,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               </>
             );
           })()}
-          <Button size="sm" variant="outline" onClick={() => void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord)} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>
@@ -780,6 +783,28 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         onCancel={() => { setUnlinkEntryId(null); unlinkMutation.reset(); }}
         mutation={unlinkMutation}
       />
+
+      {/* Print — SBI invalid blocking dialog */}
+      <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+              SBI Number is invalid
+            </DialogTitle>
+            <DialogDescription>
+              The SBI Number saved in Farm Settings must be exactly 9 digits before printing. Correct it in Farm Settings, then try again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>SBI <span className="font-mono font-semibold">{String(farmRecord?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); }}>Fix in Farm Settings</button></span>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintConfirmOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {raiseTaskFor && (
         <RaiseTaskDialog

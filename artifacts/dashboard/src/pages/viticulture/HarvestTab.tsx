@@ -87,6 +87,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const isSbiInvalid = !!farmMeta && !!String(farmMeta.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmMeta.sbiNumber ?? "").trim());
+
   // Sync block filter when navigating from a block card
   useEffect(() => {
     if (highlightBlockId) setBlockFilter(String(highlightBlockId));
@@ -871,7 +873,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="outline" onClick={() => { if (filteredHarvest.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || filteredHarvest.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
@@ -1655,22 +1657,44 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                  {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
-                </DialogTitle>
+                {isSbiInvalid ? (
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                    SBI Number is invalid
+                  </DialogTitle>
+                ) : (
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                    {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
+                  </DialogTitle>
+                )}
                 <DialogDescription>
-                  {unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.
+                  {isSbiInvalid
+                    ? "The SBI Number saved in Farm Settings must be exactly 9 digits before printing. Correct it in Farm Settings, then try again."
+                    : `${unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link ${unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.`}
                 </DialogDescription>
               </DialogHeader>
-              <FsaCompletenessBar farmId={farmId} />
+              {isSbiInvalid && (
+                <div className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>SBI <span className="font-mono font-semibold">{String(farmMeta?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); }}>Fix in Farm Settings</button></span>
+                </div>
+              )}
+              {!isSbiInvalid && <FsaCompletenessBar farmId={farmId} />}
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
-                  <Link className="w-4 h-4 mr-1" />Link first
+                {!isSbiInvalid && (
+                  <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
+                    <Link className="w-4 h-4 mr-1" />Link first
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setPrintConfirmOpen(false)}>
+                  {isSbiInvalid ? "Close" : "Cancel"}
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); }}>
-                  <Printer className="w-4 h-4 mr-1" />Print anyway
-                </Button>
+                {!isSbiInvalid && (
+                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); }}>
+                    <Printer className="w-4 h-4 mr-1" />Print anyway
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
