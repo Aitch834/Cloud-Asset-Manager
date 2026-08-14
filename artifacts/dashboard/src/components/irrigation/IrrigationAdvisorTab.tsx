@@ -20,7 +20,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import {
@@ -88,6 +88,8 @@ interface AdvisorPayload {
   hasWeatherStation: boolean;
   /** 7-day rainfall forecast from Open-Meteo (null when farm has no location set). */
   forecastRainfall7dMm: number | null;
+  /** Day-by-day breakdown of the 7-day forecast (null when no location set). */
+  forecastDailyMm: Array<{ date: string; mm: number }> | null;
   year: number;
 }
 
@@ -937,6 +939,50 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
               </div>
             </div>
           </div>
+
+          {/* ── 7-day rainfall forecast chart ── */}
+          {data?.forecastDailyMm && data.forecastDailyMm.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <CloudRain className="w-4 h-4 text-blue-500" />
+                7-Day Rainfall Forecast
+                <span className="text-xs text-muted-foreground font-normal">(Open-Meteo)</span>
+              </p>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart
+                  data={data.forecastDailyMm.map(d => ({
+                    day: new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" }),
+                    mm: d.mm,
+                  }))}
+                  margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} unit=" mm" width={42} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 11 }}
+                    formatter={(val: number) => [`${val.toFixed(1)} mm`, "Rainfall"]}
+                  />
+                  <Bar dataKey="mm" radius={[3, 3, 0, 0]} maxBarSize={40}>
+                    {data.forecastDailyMm.map((d, i) => (
+                      <Cell
+                        key={i}
+                        fill={d.mm >= 5 ? "#3b82f6" : d.mm >= 1 ? "#93c5fd" : "#e5e7eb"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-muted-foreground">
+                Bars shaded darker blue for ≥ 5 mm days. Total: <strong>{data.forecastRainfall7dMm ?? 0} mm</strong> over 7 days.
+              </p>
+            </div>
+          ) : data && data.forecastDailyMm === null && (
+            <div className="rounded-lg border border-muted bg-muted/20 p-3 text-xs text-muted-foreground flex items-center gap-2">
+              <CloudRain className="w-3.5 h-3.5 shrink-0" />
+              No rainfall forecast available — set a farm location to enable the 7-day forecast chart.
+            </div>
+          )}
 
           {/* ── Three-scenario comparison ── */}
           {cropProfile && scenarios ? (

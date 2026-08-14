@@ -23592,6 +23592,7 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
     // ── 4. Open-Meteo 7-day forecast rainfall (free, no API key required) ────
     // Use the farm's lat/lng if available; gracefully falls back to null.
     let forecastRainfall7dMm: number | null = null;
+    let forecastDailyMm: Array<{ date: string; mm: number }> | null = null;
     try {
       const [farmRow] = await db
         .select({ latitude: farmsTable.latitude, longitude: farmsTable.longitude })
@@ -23608,11 +23609,16 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
           const resp = await fetch(url, { signal: controller.signal });
           if (resp.ok) {
             const json = await resp.json() as {
-              daily?: { precipitation_sum?: (number | null)[] };
+              daily?: { time?: string[]; precipitation_sum?: (number | null)[] };
             };
             const sums = json.daily?.precipitation_sum ?? [];
+            const times = json.daily?.time ?? [];
             const total = sums.reduce<number>((acc, v) => acc + (v ?? 0), 0);
             forecastRainfall7dMm = Math.round(total * 10) / 10;
+            forecastDailyMm = sums.map((v, i) => ({
+              date: times[i] ?? "",
+              mm: Math.round((v ?? 0) * 10) / 10,
+            }));
           }
         } finally {
           clearTimeout(timeout);
@@ -23622,7 +23628,7 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
       // Non-fatal — forecast is optional
     }
 
-    res.json({ fields, assignment, dailyWeather, hasWeatherStation, forecastRainfall7dMm, year });
+    res.json({ fields, assignment, dailyWeather, hasWeatherStation, forecastRainfall7dMm, forecastDailyMm, year });
   } catch (err) {
     console.error("[IRRIGATION-ADVISOR] GET:", err);
     res.status(500).json({ error: "Failed to fetch irrigation advisor data" });
