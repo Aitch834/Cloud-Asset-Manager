@@ -1788,6 +1788,29 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Base64-encoded QR code pointing to bdefarmtrac.co.uk used in ad PDF templates. Upload a PNG via the Ad PDF Generator page. Falls back to extracting the QR from legacy on-disk template files if blank.",
     value: "",
   },
+  // ─── HMRC Alcohol Duty rates (August 2023 reform) ───────────────────────────
+  // Update these here whenever HMRC revises rates — no redeployment needed.
+  // Source: gov.uk/government/publications/alcohol-duty-rates
+  "hmrc.duty.low_abv_rate_per_lpa": {
+    label: "HMRC Duty — Low ABV Rate (£/LPA)",
+    description: "Alcohol duty rate per litre of pure alcohol for still wine at 3.5–8.4% ABV (August 2023 reform). Update immediately when HMRC publishes a new rate. Current: £9.27/LPA.",
+    value: "9.27",
+  },
+  "hmrc.duty.high_abv_rate_per_lpa": {
+    label: "HMRC Duty — High ABV Rate (£/LPA)",
+    description: "Alcohol duty rate per litre of pure alcohol for still wine at 8.5–22% ABV (August 2023 reform). Update immediately when HMRC publishes a new rate. Current: £28.50/LPA.",
+    value: "28.50",
+  },
+  "hmrc.duty.abv_band_threshold_pct": {
+    label: "HMRC Duty — ABV Band Threshold (%)",
+    description: "ABV percentage at which the rate switches from the low band to the high band. Currently 8.5% under the August 2023 reform. Only change this if HMRC restructures the bands.",
+    value: "8.5",
+  },
+  "hmrc.duty.spr_threshold_hl": {
+    label: "HMRC Duty — SPR Threshold (hl/year)",
+    description: "Annual production ceiling (in hectolitres) below which Small Producer Relief may be claimed. Currently 4,500 hl. Update if HMRC revises the eligibility threshold.",
+    value: "4500",
+  },
 };
 
 router.get("/version", async (_req: Request, res: Response): Promise<void> => {
@@ -1808,6 +1831,21 @@ router.get("/hpai-alert", async (_req: Request, res: Response): Promise<void> =>
     level: byKey["hpai.alert_level"] ?? "",
     message: byKey["hpai.alert_message"] ?? "",
     date: byKey["hpai.alert_date"] ?? "",
+  });
+});
+
+router.get("/hmrc-duty-rates", async (_req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const get = (key: string) => byKey[key] ?? PLATFORM_CONFIG_DEFAULTS[key]?.value ?? "";
+  res.json({
+    lowAbvRatePerLpa:    parseFloat(get("hmrc.duty.low_abv_rate_per_lpa"))   || 9.27,
+    highAbvRatePerLpa:   parseFloat(get("hmrc.duty.high_abv_rate_per_lpa"))  || 28.50,
+    abvBandThresholdPct: parseFloat(get("hmrc.duty.abv_band_threshold_pct")) || 8.5,
+    sprThresholdHl:      parseFloat(get("hmrc.duty.spr_threshold_hl"))       || 4500,
+    // Informational — effective date of the current rates (not editable via config)
+    source: "HMRC Alcohol Duty (August 2023 reform) — gov.uk/government/publications/alcohol-duty-rates",
   });
 });
 

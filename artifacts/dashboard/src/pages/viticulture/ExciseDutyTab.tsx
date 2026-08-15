@@ -129,21 +129,39 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
     return historicalL + (parseFloat(String(form.totalLitresProduced ?? 0)) || 0);
   }, [crud.data, editing, form.periodEnd, form.totalLitresProduced]);
 
-  // 3. HMRC duty rate per 100 L (August 2023 reform — per litre of pure alcohol)
-  //    Still wine 3.5–8.4% ABV: £9.27/LPA; 8.5–22%: £28.50/LPA
-  //    Rate per 100 L at ABV% = standardPerLPA × ABV
-  //    SPR: standard rate × min(1, annualProduction_hl / 4500)
+  // 3. HMRC duty rates — fetched from platform config so they can be updated without redeployment
+  const { data: hmrcRates } = useQuery<{
+    lowAbvRatePerLpa: number;
+    highAbvRatePerLpa: number;
+    abvBandThresholdPct: number;
+    sprThresholdHl: number;
+  }>({
+    queryKey: ["hmrc-duty-rates"],
+    queryFn: async () => {
+      const r = await fetch(api("hmrc-duty-rates"), { credentials: "include" });
+      return r.json();
+    },
+    staleTime: 15 * 60 * 1000, // 15 min — rates rarely change
+  });
+  const lowAbvRate    = hmrcRates?.lowAbvRatePerLpa    ?? 9.27;
+  const highAbvRate   = hmrcRates?.highAbvRatePerLpa   ?? 28.50;
+  const abvThreshold  = hmrcRates?.abvBandThresholdPct ?? 8.5;
+  const sprThresholdHl = hmrcRates?.sprThresholdHl     ?? 4500;
+
+  // Rate per 100 L at ABV% = standardPerLPA × ABV
+  // SPR: standard rate × min(1, annualProduction_hl / sprThreshold)
   const computedDutyRatePer100L = useMemo(() => {
     const abv = parseFloat(String(form.nominalAbvPct ?? 0));
     if (!abv || abv < 3.5) return null;
-    const stdPerLPA = abv < 8.5 ? 9.27 : 28.50;
+    const stdPerLPA = abv < abvThreshold ? lowAbvRate : highAbvRate;
     const stdPer100L = stdPerLPA * abv;
     if (!form.smallProducerRelief) return stdPer100L;
     const annualL = computedAnnualProductionL ?? (parseFloat(String(form.annualProductionL ?? 0)) || 0);
     const annualHl = annualL / 100;
     if (!annualHl) return stdPer100L;
-    return stdPer100L * Math.min(1, annualHl / 4500);
-  }, [form.nominalAbvPct, form.smallProducerRelief, form.annualProductionL, computedAnnualProductionL]);
+    return stdPer100L * Math.min(1, annualHl / sprThresholdHl);
+  }, [form.nominalAbvPct, form.smallProducerRelief, form.annualProductionL, computedAnnualProductionL,
+      lowAbvRate, highAbvRate, abvThreshold, sprThresholdHl]);
 
   // 4. Dutiable litres: UK removals + domestic consumption + tastings (exports are duty-suspended)
   const dutiableLitres = useMemo(() => {
@@ -193,13 +211,13 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
-        <div><h3 className="font-semibold text-sm">Excise Duty Returns</h3><p className="text-xs text-muted-foreground mt-0.5">HMRC wine duty log (Excise Notice 163). All wine produced — including tasting volumes — is dutiable. Small Producer Relief (SPR) applies under 4,500 hl/year.</p></div>
+        <div><h3 className="font-semibold text-sm">Excise Duty Returns</h3><p className="text-xs text-muted-foreground mt-0.5">HMRC wine duty log (Excise Notice 163). All wine produced — including tasting volumes — is dutiable. Small Producer Relief (SPR) applies under {sprThresholdHl.toLocaleString()} hl/year.</p></div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Return</Button>
       </div>
       {rollingHl > 0 && (
         <div className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${rollingHl >= 4500 ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
           <ShieldAlert className="w-4 h-4 shrink-0" />
-          <p>Rolling 12-month production: <strong>{rollingHl.toFixed(1)} hl</strong> of 4,500 hl SPR threshold.{rollingHl >= 4500 ? " Standard duty rates apply." : " Small Producer Relief may apply."}</p>
+          <p>Rolling 12-month production: <strong>{rollingHl.toFixed(1)} hl</strong> of {sprThresholdHl.toLocaleString()} hl SPR threshold.{rollingHl >= sprThresholdHl ? " Standard duty rates apply." : " Small Producer Relief may apply."}</p>
         </div>
       )}
       <FarmSettingsWarning
