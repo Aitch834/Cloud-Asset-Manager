@@ -1,5 +1,6 @@
 import { fetchWineryJson, today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
@@ -820,18 +821,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   // Cellar stock summary — barrels only, grouped by cellar_zone
   const barrels = crud.data.filter(r => isBarrelVessel(r.vessel_type));
   const cellarZones = Array.from(new Set(barrels.map(r => String(r.cellar_zone || "Unassigned")))).sort();
-  const [zoneFilter, setZoneFilter] = useState<string | null>(null);
+  // Persisted barrel filters — "" = show all; restored when the winemaker returns to this tab
+  const FILL_TIER_VALUES = ["fill-1", "fill-2", "fill-3", "fill-4", "fill-5plus"] as const;
+  const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills"] as const;
+  const IS_FULL_VALUES = ["true", "false"] as const;
 
-  // Fill-tier filter (oak age chips) — independent of alert flags
-  type FillTierFilter = "fill-1" | "fill-2" | "fill-3" | "fill-4" | "fill-5plus" | null;
-  const [fillTierFilter, setFillTierFilter] = useState<FillTierFilter>(null);
-
-  // Alert-flag filter (approaching-neutral / idle / no-fills) — combinable with fill tier
-  type AlertFlagFilter = "approaching-neutral" | "idle" | "no-fills" | null;
-  const [alertFlagFilter, setAlertFlagFilter] = useState<AlertFlagFilter>(null);
-
-  // Is-full filter: null = show all, true = full only, false = empty only
-  const [isFullFilter, setIsFullFilter] = useState<boolean | null>(null);
+  const [zoneFilter, setZoneFilter] = usePersistedFilter({ page: "vessel-register", filter: "zone", farmId, defaultValue: "" });
+  const [fillTierFilter, setFillTierFilter] = usePersistedFilter({ page: "vessel-register", filter: "fill-tier", farmId, defaultValue: "", validValues: FILL_TIER_VALUES });
+  const [alertFlagFilter, setAlertFlagFilter] = usePersistedFilter({ page: "vessel-register", filter: "alert-flag", farmId, defaultValue: "", validValues: ALERT_FLAG_VALUES });
+  // isFullFilter: "" = show all, "true" = full only, "false" = empty only
+  const [isFullFilter, setIsFullFilter] = usePersistedFilter({ page: "vessel-register", filter: "is-full", farmId, defaultValue: "", validValues: IS_FULL_VALUES });
 
   // Barrel health CSV export loading state
   const [csvExporting, setCsvExporting] = useState(false);
@@ -908,9 +907,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       if (!isBarrelType) return false;
       if (!matchesAlertFlagFilter(r)) return false;
     }
-    if (isFullFilter !== null) {
+    if (isFullFilter !== "") {
       if (!isBarrelType) return false;
-      if (!!r.is_full !== isFullFilter) return false;
+      if (!!r.is_full !== (isFullFilter === "true")) return false;
     }
     return true;
   });
@@ -936,8 +935,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cellar Stock — Barrels</p>
-            {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== null) && (
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter(null); setFillTierFilter(null); setAlertFlagFilter(null); setIsFullFilter(null); }}>
+            {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter(""); setFillTierFilter(""); setAlertFlagFilter(""); setIsFullFilter(""); }}>
                 Show all
               </Button>
             )}
@@ -950,7 +949,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
               if (fillTierFilter && !matchesFillTierFilter(r)) return false;
               if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
-              if (isFullFilter !== null && !!r.is_full !== isFullFilter) return false;
+              if (isFullFilter !== "" && !!r.is_full !== (isFullFilter === "true")) return false;
               return true;
             });
             const scopeParts: string[] = [];
@@ -959,8 +958,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             if (alertFlagFilter === "approaching-neutral") scopeParts.push("Flag: approaching neutral (fill 4+)");
             else if (alertFlagFilter === "idle") scopeParts.push("Flag: idle >90 days");
             else if (alertFlagFilter === "no-fills") scopeParts.push("Flag: no fills logged");
-            if (isFullFilter === true) scopeParts.push("Is Full: Yes");
-            else if (isFullFilter === false) scopeParts.push("Is Full: No (empty)");
+            if (isFullFilter === "true") scopeParts.push("Is Full: Yes");
+            else if (isFullFilter === "false") scopeParts.push("Is Full: No (empty)");
             const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
               { key: "vessel_ref", label: "Vessel Ref", fmt: r => String(r.vessel_ref ?? "") },
               { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
@@ -1125,15 +1124,15 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             <p className="text-xs text-muted-foreground mb-1.5">Oak age — active barrels by fill number (click to filter)</p>
             <div className="flex flex-wrap gap-1.5">
               {([
-                { key: "fill-1" as FillTierFilter, label: "New oak", count: barrelStats.tier["1"], cls: "bg-amber-100 text-amber-800 border-amber-200" },
-                { key: "fill-2" as FillTierFilter, label: "2nd fill", count: barrelStats.tier["2"], cls: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-                { key: "fill-3" as FillTierFilter, label: "3rd fill", count: barrelStats.tier["3"], cls: "bg-lime-100 text-lime-700 border-lime-200" },
-                { key: "fill-4" as FillTierFilter, label: "4th fill", count: barrelStats.tier["4"], cls: "bg-blue-100 text-blue-700 border-blue-200" },
-                { key: "fill-5plus" as FillTierFilter, label: "Neutral (5th+)", count: barrelStats.tier["5plus"], cls: "bg-gray-100 text-gray-600 border-gray-200" },
+                { key: "fill-1", label: "New oak", count: barrelStats.tier["1"], cls: "bg-amber-100 text-amber-800 border-amber-200" },
+                { key: "fill-2", label: "2nd fill", count: barrelStats.tier["2"], cls: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+                { key: "fill-3", label: "3rd fill", count: barrelStats.tier["3"], cls: "bg-lime-100 text-lime-700 border-lime-200" },
+                { key: "fill-4", label: "4th fill", count: barrelStats.tier["4"], cls: "bg-blue-100 text-blue-700 border-blue-200" },
+                { key: "fill-5plus", label: "Neutral (5th+)", count: barrelStats.tier["5plus"], cls: "bg-gray-100 text-gray-600 border-gray-200" },
               ]).map(({ key, label, count, cls }) => (
                 <button
-                  key={key!}
-                  onClick={() => setFillTierFilter(fillTierFilter === key ? null : key)}
+                  key={key}
+                  onClick={() => setFillTierFilter(fillTierFilter === key ? "" : key)}
                   className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all ${cls} ${fillTierFilter === key ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
                 >
                   <span>{label}</span>
@@ -1150,7 +1149,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <div className="flex flex-wrap gap-1.5">
                 {barrelStats.noFills > 0 && (
                   <button
-                    onClick={() => setAlertFlagFilter(alertFlagFilter === "no-fills" ? null : "no-fills")}
+                    onClick={() => setAlertFlagFilter(alertFlagFilter === "no-fills" ? "" : "no-fills")}
                     className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-purple-50 text-purple-700 border-purple-200 ${alertFlagFilter === "no-fills" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-purple-100"}`}
                   >
                     <AlertTriangle className="h-3 w-3" />
@@ -1160,7 +1159,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                 )}
                 {barrelStats.approaching > 0 && (
                   <button
-                    onClick={() => setAlertFlagFilter(alertFlagFilter === "approaching-neutral" ? null : "approaching-neutral")}
+                    onClick={() => setAlertFlagFilter(alertFlagFilter === "approaching-neutral" ? "" : "approaching-neutral")}
                     className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-orange-50 text-orange-700 border-orange-200 ${alertFlagFilter === "approaching-neutral" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-orange-100"}`}
                   >
                     <AlertTriangle className="h-3 w-3" />
@@ -1170,7 +1169,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                 )}
                 {barrelStats.idle > 0 && (
                   <button
-                    onClick={() => setAlertFlagFilter(alertFlagFilter === "idle" ? null : "idle")}
+                    onClick={() => setAlertFlagFilter(alertFlagFilter === "idle" ? "" : "idle")}
                     className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-red-50 text-red-700 border-red-200 ${alertFlagFilter === "idle" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-red-100"}`}
                   >
                     <AlertTriangle className="h-3 w-3" />
@@ -1192,7 +1191,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   // Apply the active alert-flag and fill-status filters so counts match what the table will show
                   const zoneFiltered = zoneBarrels.filter(r => {
                     if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
-                    if (isFullFilter !== null && !!r.is_full !== isFullFilter) return false;
+                    if (isFullFilter !== "" && !!r.is_full !== (isFullFilter === "true")) return false;
                     return true;
                   });
                   const full = zoneFiltered.filter(r => r.is_full).length;
@@ -1201,13 +1200,13 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   return (
                     <button
                       key={zone}
-                      onClick={() => setZoneFilter(isSelected ? null : zone)}
+                      onClick={() => setZoneFilter(isSelected ? "" : zone)}
                       className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"}`}
                     >
                       <span className="font-semibold">{zone}</span>
-                      {isFullFilter === false
+                      {isFullFilter === "false"
                         ? <span className="text-slate-500">○ {empty}</span>
-                        : isFullFilter === true
+                        : isFullFilter === "true"
                         ? <span className="text-green-700 font-medium">● {full}</span>
                         : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
                     </button>
@@ -1233,15 +1232,15 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                 return (
                   <>
                     <button
-                      onClick={() => setIsFullFilter(isFullFilter === true ? null : true)}
-                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-green-50 text-green-700 border-green-200 ${isFullFilter === true ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
+                      onClick={() => setIsFullFilter(isFullFilter === "true" ? "" : "true")}
+                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-green-50 text-green-700 border-green-200 ${isFullFilter === "true" ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
                     >
                       <span>● Full</span>
                       <span className="font-bold">{fullCount}</span>
                     </button>
                     <button
-                      onClick={() => setIsFullFilter(isFullFilter === false ? null : false)}
-                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-slate-50 text-slate-600 border-slate-200 ${isFullFilter === false ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
+                      onClick={() => setIsFullFilter(isFullFilter === "false" ? "" : "false")}
+                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-slate-50 text-slate-600 border-slate-200 ${isFullFilter === "false" ? "ring-2 ring-primary ring-offset-1" : "opacity-80 hover:opacity-100"}`}
                     >
                       <span>○ Empty</span>
                       <span className="font-bold">{emptyCount}</span>
@@ -1252,10 +1251,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             </div>
           </div>
 
-          {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== null) && (
+          {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
             <p className="text-xs text-muted-foreground">
               {/* Build a readable sentence: "Showing [full] barrels [in Zone] [on 2nd fill] [flagged as …]" */}
-              Showing{isFullFilter === true && <> <span className="font-medium">full</span></>}{isFullFilter === false && <> <span className="font-medium">empty</span></>} barrels
+              Showing{isFullFilter === "true" && <> <span className="font-medium">full</span></>}{isFullFilter === "false" && <> <span className="font-medium">empty</span></>} barrels
               {zoneFilter && <> in <span className="font-medium">{zoneFilter}</span></>}
               {fillTierFilter && <>{(zoneFilter) && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
               {alertFlagFilter && <>{(zoneFilter || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;90 days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
