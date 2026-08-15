@@ -106,6 +106,8 @@ interface FarmFormData {
   fsaVineRegisterRef: string;
   winegbMembershipNumber: string;
   harvestStrictStorage: boolean;
+  irrigationCostPerMmHa: string;
+  irrigationAbstractionSource: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -177,6 +179,8 @@ function farmToFormData(farm: Farm & {
     fsaVineRegisterRef: (farm as any).fsaVineRegisterRef || "",
     winegbMembershipNumber: (farm as any).winegbMembershipNumber || "",
     harvestStrictStorage: !!(farm as any).harvestStrictStorage,
+    irrigationCostPerMmHa: (farm as any).irrigationCostPerMmHa?.toString() || "",
+    irrigationAbstractionSource: (farm as any).irrigationAbstractionSource || "",
   };
 }
 
@@ -2459,6 +2463,8 @@ export default function FarmSettings() {
       paymentTermsDays: formData.paymentTermsDays ? parseInt(formData.paymentTermsDays, 10) : undefined,
       invoiceFooterText: formData.invoiceFooterText.trim() || undefined,
       invoiceLogoPath: formData.invoiceLogoPath.trim() || undefined,
+      irrigationCostPerMmHa: formData.irrigationCostPerMmHa.trim() || null,
+      irrigationAbstractionSource: formData.irrigationAbstractionSource.trim() || null,
     });
   };
 
@@ -3131,6 +3137,45 @@ export default function FarmSettings() {
           updateField={updateField}
           onLogoPathChange={(path) => setFormData(prev => prev ? { ...prev, invoiceLogoPath: path } : prev)}
         />
+
+        {/* ── Water & Irrigation ── */}
+        <Card>
+          <CardContent className="p-6 md:p-8 space-y-5">
+            <SectionHeader
+              title="Water & Irrigation"
+              description="Default irrigation economics for this holding. Used by the Irrigation Advisor to calculate the cost and return of each irrigation decision. Platform-wide defaults apply where these are left blank."
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label htmlFor="settings-irrig-cost">Irrigation Cost (£ per mm per ha)</Label>
+                <Input
+                  id="settings-irrig-cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 3.50"
+                  value={formData.irrigationCostPerMmHa}
+                  onChange={e => updateField("irrigationCostPerMmHa", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Combined pump + abstraction cost per mm applied per hectare. Leave blank to use the platform default.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="settings-irrig-source">Default Abstraction Source</Label>
+                <Input
+                  id="settings-irrig-source"
+                  placeholder="e.g. Borehole, River Wye, Reservoir"
+                  value={formData.irrigationAbstractionSource}
+                  onChange={e => updateField("irrigationAbstractionSource", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Shown alongside field summary cards in the Irrigation Advisor. Leave blank to use the platform default.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ── Emergency Contact ── */}
         <Card>

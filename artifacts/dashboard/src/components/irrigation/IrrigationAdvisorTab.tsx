@@ -532,7 +532,15 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Cost defaults — seeded from localStorage, fallback to platform config ──
+  // ── Farm-level irrigation settings (DB-persisted, preferred over platform config) ──
+  const { data: farmRecord } = useQuery<Record<string, unknown>>({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record ?? d),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!farmId,
+  });
+
+  // ── Cost defaults — seeded from farm DB, then platform config, then localStorage ──
   const [defaults, setDefaultsState] = useState<IrrigDefaults>(() => loadDefaults(farmId));
 
   // ── Reset all per-farm UI state when the active farm changes ─────────────
@@ -550,18 +558,28 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     forecastSeededForFarmRef.current = null; // eslint-disable-line no-use-before-define
   }, [farmId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Seed from platform config if this farm has no localStorage overrides.
-  // Keyed by farmId so switching farms re-triggers seeding for the new farm.
+  // Seed costPerMmHa from farm DB first, then platform config, then leave at
+  // localStorage value. Re-runs when farmId changes or either data source loads.
   const configSeededForFarmRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!platformConfig || configSeededForFarmRef.current === farmId) return;
+    if (configSeededForFarmRef.current === farmId) return;
+    // Wait until at least one source has loaded
+    if (!farmRecord && !platformConfig) return;
     configSeededForFarmRef.current = farmId;
-    if (localStorage.getItem(LS_KEY(farmId))) return; // already have farm overrides
-    const serverCost = platformConfig["irrigation.costPerMmHa"];
+
+    // 1. Farm-level DB setting (strongest preference)
+    const farmCost = farmRecord?.irrigationCostPerMmHa as string | undefined;
+    if (farmCost) {
+      setDefaultsState(prev => ({ ...prev, costPerMmHa: farmCost }));
+      return;
+    }
+    // 2. Platform config fallback (only if no farm override and no localStorage override)
+    if (localStorage.getItem(LS_KEY(farmId))) return;
+    const serverCost = platformConfig?.["irrigation.costPerMmHa"];
     if (serverCost) {
       setDefaultsState(prev => ({ ...prev, costPerMmHa: serverCost }));
     }
-  }, [platformConfig, farmId]);
+  }, [farmRecord, platformConfig, farmId]);
 
   function updateDefault(key: keyof IrrigDefaults, value: string) {
     const next = { ...defaults, [key]: value };
@@ -820,10 +838,12 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
               <p className="text-xs text-muted-foreground">Growth Stage</p>
               <p className="font-medium">{growthStage}</p>
             </div>
-            {platformConfig?.["irrigation.abstractionSource"] && (
+            {(farmRecord?.irrigationAbstractionSource || platformConfig?.["irrigation.abstractionSource"]) && (
               <div>
                 <p className="text-xs text-muted-foreground">Abstraction Source</p>
-                <p className="font-medium">{platformConfig["irrigation.abstractionSource"]}</p>
+                <p className="font-medium">
+                  {(farmRecord?.irrigationAbstractionSource as string | undefined) || platformConfig?.["irrigation.abstractionSource"]}
+                </p>
               </div>
             )}
             {cropProfile && (
