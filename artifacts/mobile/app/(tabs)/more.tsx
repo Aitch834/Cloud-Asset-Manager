@@ -793,6 +793,15 @@ export default function MoreScreen() {
                 iconBgColor="#f3e8ff"
                 onPress={() => router.push("/bng-record")}
               />
+              <View style={styles.divider} />
+              <ListItem
+                title="Agri-Environment Grants"
+                subtitle="View grant agreements and track drawdown progress per project"
+                icon="trending-up"
+                iconColor="#059669"
+                iconBgColor="#d1fae5"
+                onPress={() => router.push("/agri-env-projects")}
+              />
             </View>
           </>
         )}
