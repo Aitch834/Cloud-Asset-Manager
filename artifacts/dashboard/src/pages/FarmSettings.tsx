@@ -67,6 +67,7 @@ interface FarmFormData {
   sbiNumber: string;
   address: string;
   postcode: string;
+  county: string;
   gridReference: string;
   latitude: string;
   longitude: string;
@@ -126,6 +127,7 @@ function farmToFormData(farm: Farm & {
     sbiNumber: (farm as any).sbiNumber || "",
     address: farm.address || "",
     postcode: farm.postcode || "",
+    county: (farm as any).county || "",
     gridReference: farm.gridReference || "",
     latitude: (farm as any).latitude || "",
     longitude: (farm as any).longitude || "",
@@ -2423,6 +2425,7 @@ export default function FarmSettings() {
       cphNumber: formData.cphNumber.trim() || undefined,
       address: formData.address.trim() || undefined,
       postcode: normalisedPostcode || undefined,
+      county: formData.county.trim() || undefined,
       gridReference: formData.gridReference.trim() || undefined,
       latitude: formData.latitude.trim() || undefined,
       longitude: formData.longitude.trim() || undefined,
@@ -2629,6 +2632,19 @@ export default function FarmSettings() {
                     This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
                   </p>
                 )}
+              </div>
+
+              <div>
+                <Label htmlFor="settings-county">County</Label>
+                <Input
+                  id="settings-county"
+                  placeholder="e.g. Norfolk"
+                  value={formData.county}
+                  onChange={e => updateField("county", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used to filter regional disease and plant health alerts to the correct farms.
+                </p>
               </div>
 
               <div>

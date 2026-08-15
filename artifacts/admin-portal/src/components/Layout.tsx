@@ -18,7 +18,7 @@ const nav = [
   { href: "/version", label: "Version Management", icon: Tag },
   { href: "/ad-pdf", label: "Ad PDF Generator", icon: Megaphone },
   { href: "/platform-config", label: "Platform Config", icon: Settings2 },
-  { href: "/hpai-alert-log", label: "HPAI Alert Log", icon: Bird },
+  { href: "/hpai-alert-log", label: "Sector Alert Log", icon: Bird },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

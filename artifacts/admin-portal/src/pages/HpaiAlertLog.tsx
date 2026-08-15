@@ -1,15 +1,42 @@
 import { useEffect, useState } from "react";
-import { api, type HpaiAlertHistoryEntry } from "@/lib/api";
+import { api, type SectorAlertHistoryEntry } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import { Bird, AlertTriangle, CheckCircle2, MinusCircle, AlertCircle, Clock } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const SECTOR_META: Record<string, { label: string; colour: string; emptyIcon?: string }> = {
+  hpai:          { label: "HPAI (Avian Influenza)", colour: "bg-red-100 text-red-700 border-red-200" },
+  arable:        { label: "Arable / Crop Health",   colour: "bg-amber-100 text-amber-700 border-amber-200" },
+  horticulture:  { label: "Horticulture / Plant Health", colour: "bg-green-100 text-green-700 border-green-200" },
+  viticulture:   { label: "Viticulture / Vine Disease",  colour: "bg-purple-100 text-purple-700 border-purple-200" },
+};
+
 const KEY_LABELS: Record<string, string> = {
-  "hpai.alert_active": "Alert active",
-  "hpai.alert_level":  "Alert level",
-  "hpai.alert_message": "Alert message",
-  "hpai.alert_date":   "Alert date",
+  // HPAI
+  "hpai.alert_active":   "Alert active",
+  "hpai.alert_level":    "Alert level",
+  "hpai.alert_message":  "Alert message",
+  "hpai.alert_date":     "Alert date",
+  "hpai.alert_counties": "Alert counties",
+  // Arable
+  "arable.alert_active":   "Alert active",
+  "arable.alert_level":    "Alert level",
+  "arable.alert_message":  "Alert message",
+  "arable.alert_date":     "Alert date",
+  "arable.alert_counties": "Alert counties",
+  // Horticulture
+  "horticulture.alert_active":   "Alert active",
+  "horticulture.alert_level":    "Alert level",
+  "horticulture.alert_message":  "Alert message",
+  "horticulture.alert_date":     "Alert date",
+  "horticulture.alert_counties": "Alert counties",
+  // Viticulture
+  "viticulture.alert_active":   "Alert active",
+  "viticulture.alert_level":    "Alert level",
+  "viticulture.alert_message":  "Alert message",
+  "viticulture.alert_date":     "Alert date",
+  "viticulture.alert_counties": "Alert counties",
 };
 
 const LEVEL_LABELS: Record<string, { label: string; colour: string }> = {
@@ -17,6 +44,14 @@ const LEVEL_LABELS: Record<string, { label: string; colour: string }> = {
   regional:      { label: "Regional",       colour: "bg-orange-100 text-orange-800 border-orange-200" },
   national:      { label: "National",       colour: "bg-red-100 text-red-800 border-red-200" },
 };
+
+const SECTORS = [
+  { value: "",             label: "All sectors" },
+  { value: "hpai",        label: "HPAI (Avian Influenza)" },
+  { value: "arable",      label: "Arable / Crop Health" },
+  { value: "horticulture", label: "Horticulture / Plant Health" },
+  { value: "viticulture", label: "Viticulture / Vine Disease" },
+];
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-GB", {
@@ -32,16 +67,31 @@ function formatDateGroup(iso: string) {
   });
 }
 
+function resolveSector(entry: SectorAlertHistoryEntry): string {
+  if (entry.action === "hpai_config_change") return "hpai";
+  return entry.metadata?.sector ?? "hpai";
+}
+
+function SectorBadge({ sector }: { sector: string }) {
+  const meta = SECTOR_META[sector];
+  if (!meta) return null;
+  return (
+    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${meta.colour}`}>
+      {meta.label}
+    </span>
+  );
+}
+
 function ValuePill({ k, v }: { k: string; v: string | null }) {
   if (v === null) return <span className="italic text-muted-foreground text-xs">cleared</span>;
 
-  if (k === "hpai.alert_active") {
+  if (k.endsWith(".alert_active")) {
     return v === "true"
       ? <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200"><AlertTriangle className="w-3 h-3" />Active</span>
       : <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200"><CheckCircle2 className="w-3 h-3" />Inactive</span>;
   }
 
-  if (k === "hpai.alert_level") {
+  if (k.endsWith(".alert_level")) {
     const lvl = LEVEL_LABELS[v];
     return lvl
       ? <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${lvl.colour}`}>{lvl.label}</span>
@@ -51,12 +101,13 @@ function ValuePill({ k, v }: { k: string; v: string | null }) {
   return <span className="text-xs font-mono text-foreground break-all">{v}</span>;
 }
 
-function ChangeRow({ entry }: { entry: HpaiAlertHistoryEntry }) {
+function ChangeRow({ entry }: { entry: SectorAlertHistoryEntry }) {
   const meta = entry.metadata;
   if (!meta) return null;
   const keyLabel = KEY_LABELS[meta.key] ?? meta.key;
   const isCleared = meta.newValue === null;
   const isSet = meta.oldValue === null;
+  const sector = resolveSector(entry);
 
   return (
     <div className="flex items-start gap-3 py-3 border-b border-border last:border-0">
@@ -72,6 +123,7 @@ function ChangeRow({ entry }: { entry: HpaiAlertHistoryEntry }) {
       {/* Content */}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
+          <SectorBadge sector={sector} />
           <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{keyLabel}</span>
           <span className="text-xs text-muted-foreground">
             {isCleared ? "reset to default" : isSet ? "set for the first time" : "updated"}
@@ -100,8 +152,8 @@ function ChangeRow({ entry }: { entry: HpaiAlertHistoryEntry }) {
 
 // ─── Group entries by calendar day ───────────────────────────────────────────
 
-function groupByDay(entries: HpaiAlertHistoryEntry[]) {
-  const groups: { day: string; items: HpaiAlertHistoryEntry[] }[] = [];
+function groupByDay(entries: SectorAlertHistoryEntry[]) {
+  const groups: { day: string; items: SectorAlertHistoryEntry[] }[] = [];
   for (const entry of entries) {
     const day = new Date(entry.createdAt).toISOString().slice(0, 10);
     const last = groups[groups.length - 1];
@@ -117,17 +169,20 @@ function groupByDay(entries: HpaiAlertHistoryEntry[]) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HpaiAlertLog() {
-  const [entries, setEntries] = useState<HpaiAlertHistoryEntry[]>([]);
+  const [entries, setEntries] = useState<SectorAlertHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sector, setSector] = useState<string>("");
   const secret = getSecret()!;
 
   useEffect(() => {
-    api.getHpaiAlertHistory(secret)
+    setLoading(true);
+    setError(null);
+    api.getSectorAlertHistory(sector || undefined, secret)
       .then(d => setEntries(d.entries))
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [secret]);
+  }, [secret, sector]);
 
   const groups = groupByDay(entries);
 
@@ -139,14 +194,33 @@ export default function HpaiAlertLog() {
           <Bird className="w-5 h-5 text-red-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground">HPAI Alert Log</h1>
+          <h1 className="text-xl font-bold text-foreground">Sector Alert Log</h1>
           <p className="text-sm text-muted-foreground">
-            Permanent record of every change to the HPAI platform alert settings.
+            Permanent record of every change to platform alert settings across all sectors.
           </p>
         </div>
       </div>
 
-      <div className="mt-2 mb-6 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
+      {/* Sector filter */}
+      <div className="mt-4 mb-4">
+        <div className="flex flex-wrap gap-2">
+          {SECTORS.map(s => (
+            <button
+              key={s.value}
+              onClick={() => setSector(s.value)}
+              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                sector === s.value
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:border-foreground/40"
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-6 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">
         <strong>Note:</strong> This log only captures changes made <em>from this date forward</em> — 
         changes made before this feature was added are not recorded.
       </div>
@@ -168,8 +242,8 @@ export default function HpaiAlertLog() {
       {!loading && !error && entries.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">
           <Bird className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">No HPAI alert changes recorded yet.</p>
-          <p className="text-xs mt-1">The log will populate the first time an HPAI config key is saved or cleared.</p>
+          <p className="text-sm font-medium">No alert changes recorded yet{sector ? ` for this sector` : ""}.</p>
+          <p className="text-xs mt-1">The log will populate the first time an alert config key is saved or cleared.</p>
         </div>
       )}
 

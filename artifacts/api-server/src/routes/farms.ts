@@ -604,7 +604,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const {
-    name, phone, cphNumber, address, postcode, gridReference, totalAcreage, totalHectares,
+    name, phone, cphNumber, address, postcode, county, gridReference, totalAcreage, totalHectares,
     latitude, longitude, what3words,
     emergencyContactName, emergencyContactRelationship, emergencyContactPhone, emergencyContactEmail,
     sectorArable, sectorBeef, sectorSheep, sectorDairy, sectorPigs, sectorPoultry,
@@ -626,6 +626,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     cphNumber: cphNumber ?? null,
     address: address ?? null,
     postcode: postcode ?? null,
+    county: county ?? null,
     gridReference: gridReference ?? null,
     totalAcreage: totalAcreage ?? null,
     totalHectares: totalHectares ?? null,

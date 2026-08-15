@@ -224,8 +224,8 @@ function HpaiBanner({ farmId }: { farmId: number }) {
   const [zoneForm, setZoneForm] = useState<any>({});
 
   const { data: platformAlert } = useQuery({
-    queryKey: ["hpai-platform-alert"],
-    queryFn: () => fetch("/api/hpai-alert").then(r => r.json()).catch(() => ({ active: false })),
+    queryKey: ["hpai-platform-alert", farmId],
+    queryFn: () => fetch(`/api/hpai-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
     refetchInterval: 5 * 60 * 1000,
   });
 

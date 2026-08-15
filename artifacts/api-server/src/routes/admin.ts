@@ -1768,6 +1768,86 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Date the current HPAI national alert was declared (ISO format: YYYY-MM-DD).",
     value: "",
   },
+  "hpai.alert_counties": {
+    label: "HPAI Alert Counties",
+    description: "Comma-separated counties where this HPAI alert applies (e.g. Norfolk,Suffolk,Cambridgeshire). Leave blank to apply nationally to all poultry farms.",
+    value: "",
+  },
+  "arable.alert_active": {
+    label: "Arable / Crop Health Alert Active",
+    description: "Toggle to 'true' to display a crop health alert banner on arable farm dashboards. Use for APHA phytosanitary notices, AHDB BYDV warnings, or national pest alerts.",
+    value: "false",
+  },
+  "arable.alert_level": {
+    label: "Arable Alert Level",
+    description: "Severity of the arable/crop health alert. Values: precautionary | regional | national",
+    value: "",
+  },
+  "arable.alert_message": {
+    label: "Arable Alert Message",
+    description: "Message shown on arable dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "arable.alert_date": {
+    label: "Arable Alert Date",
+    description: "Date the current arable alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "arable.alert_counties": {
+    label: "Arable Alert Counties",
+    description: "Comma-separated counties where this arable alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  "horticulture.alert_active": {
+    label: "Horticulture / Plant Health Alert Active",
+    description: "Toggle to 'true' to display a plant health alert banner on horticulture farm dashboards. Use for APHA Xylella/Phytophthora alerts, Asian hornet notices, or quarantine pest warnings.",
+    value: "false",
+  },
+  "horticulture.alert_level": {
+    label: "Horticulture Alert Level",
+    description: "Severity of the horticulture/plant health alert. Values: precautionary | regional | national",
+    value: "",
+  },
+  "horticulture.alert_message": {
+    label: "Horticulture Alert Message",
+    description: "Message shown on horticulture dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "horticulture.alert_date": {
+    label: "Horticulture Alert Date",
+    description: "Date the current horticulture/plant health alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "horticulture.alert_counties": {
+    label: "Horticulture Alert Counties",
+    description: "Comma-separated counties where this horticulture alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  "viticulture.alert_active": {
+    label: "Viticulture / Vine Disease Alert Active",
+    description: "Toggle to 'true' to display a vine disease alert banner on viticulture dashboards. Use for Xylella fastidiosa, Flavescence dorée, or vine moth statutory notices.",
+    value: "false",
+  },
+  "viticulture.alert_level": {
+    label: "Viticulture Alert Level",
+    description: "Severity of the viticulture/vine disease alert. Values: precautionary | regional | national",
+    value: "",
+  },
+  "viticulture.alert_message": {
+    label: "Viticulture Alert Message",
+    description: "Message shown on viticulture dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "viticulture.alert_date": {
+    label: "Viticulture Alert Date",
+    description: "Date the current viticulture/vine disease alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "viticulture.alert_counties": {
+    label: "Viticulture Alert Counties",
+    description: "Comma-separated counties where this viticulture/vine alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
   "irrigation.costPerMmHa": {
     label: "Irrigation Cost per mm/ha (£)",
     description: "Default pump + abstraction cost (£) per mm applied per hectare, used as the platform-level fallback in the Irrigation Advisor. Farms can override this locally in the Advisor panel.",
@@ -1822,15 +1902,83 @@ router.get("/version", async (_req: Request, res: Response): Promise<void> => {
   res.json({ version, build, full: `${version} Build ${build}` });
 });
 
-router.get("/hpai-alert", async (_req: Request, res: Response): Promise<void> => {
+// County filter: empty list = national (show to all); farm with no county = fail-open (show alert)
+function alertAppliesForCounty(alertCounties: string, farmCounty: string): boolean {
+  const list = alertCounties.split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
+  if (list.length === 0) return true;
+  if (!farmCounty.trim()) return true;
+  return list.includes(farmCounty.trim().toLowerCase());
+}
+
+async function resolveFarmCounty(farmId: string | undefined): Promise<string> {
+  if (!farmId) return "";
+  const id = parseInt(farmId, 10);
+  if (isNaN(id)) return "";
+  const rows = await db.select({ county: farmsTable.county }).from(farmsTable).where(eq(farmsTable.id, id));
+  return rows[0]?.county ?? "";
+}
+
+router.get("/hpai-alert", async (req: Request, res: Response): Promise<void> => {
   const rows = await db.select().from(platformConfigTable);
   const byKey: Record<string, string> = {};
   for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["hpai.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["hpai.alert_counties"] ?? "";
   res.json({
-    active: (byKey["hpai.alert_active"] ?? "false") === "true",
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
     level: byKey["hpai.alert_level"] ?? "",
     message: byKey["hpai.alert_message"] ?? "",
     date: byKey["hpai.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/arable-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["arable.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["arable.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["arable.alert_level"] ?? "",
+    message: byKey["arable.alert_message"] ?? "",
+    date: byKey["arable.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/horticulture-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["horticulture.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["horticulture.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["horticulture.alert_level"] ?? "",
+    message: byKey["horticulture.alert_message"] ?? "",
+    date: byKey["horticulture.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/viticulture-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["viticulture.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["viticulture.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["viticulture.alert_level"] ?? "",
+    message: byKey["viticulture.alert_message"] ?? "",
+    date: byKey["viticulture.alert_date"] ?? "",
+    counties: alertCounties,
   });
 });
 
@@ -1899,9 +2047,11 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
   if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
     _brandAssetCache = null;
   }
-  // Audit HPAI config changes so we have a permanent history
-  if (key.startsWith("hpai.") && req.userId) {
-    await writeAuditLog(req.userId, "hpai_config_change", { key, oldValue, newValue: value.trim() });
+  // Audit sector alert config changes so we have a permanent history
+  const SECTOR_PREFIXES: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture" };
+  const sectorEntry = Object.entries(SECTOR_PREFIXES).find(([p]) => key.startsWith(p));
+  if (sectorEntry && req.userId) {
+    await writeAuditLog(req.userId, "sector_alert_change", { sector: sectorEntry[1], key, oldValue, newValue: value.trim() });
   }
   res.json({ success: true, key, value: value.trim() });
 });
@@ -1918,23 +2068,50 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
   if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
     _brandAssetCache = null;
   }
-  // Audit HPAI config changes so we have a permanent history
-  if (key.startsWith("hpai.") && req.userId) {
-    await writeAuditLog(req.userId, "hpai_config_change", { key, oldValue, newValue: null });
+  // Audit sector alert config changes so we have a permanent history
+  const SECTOR_PREFIXES_DEL: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture" };
+  const sectorEntryDel = Object.entries(SECTOR_PREFIXES_DEL).find(([p]) => key.startsWith(p));
+  if (sectorEntryDel && req.userId) {
+    await writeAuditLog(req.userId, "sector_alert_change", { sector: sectorEntryDel[1], key, oldValue, newValue: null });
   }
   res.json({ success: true });
 });
 
-// ─── HPAI Alert History ───────────────────────────────────────────────────────
+// ─── HPAI Alert History (legacy — kept for backward compatibility) ─────────────
 router.get("/admin/hpai-alert-history", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const rows = await db
     .select()
     .from(platformAuditLogTable)
-    .where(eq(platformAuditLogTable.action, "hpai_config_change"))
+    .where(inArray(platformAuditLogTable.action, ["hpai_config_change", "sector_alert_change"]))
     .orderBy(desc(platformAuditLogTable.createdAt))
     .limit(500);
-  res.json({ entries: rows });
+  const filtered = rows.filter(r => {
+    if (r.action === "hpai_config_change") return true;
+    const m = r.metadata as { sector?: string } | null;
+    return m?.sector === "hpai";
+  });
+  res.json({ entries: filtered });
+});
+
+// ─── Sector Alert History (all sectors) ──────────────────────────────────────
+router.get("/admin/sector-alert-history", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const sectorFilter = req.query.sector as string | undefined;
+  const rows = await db
+    .select()
+    .from(platformAuditLogTable)
+    .where(inArray(platformAuditLogTable.action, ["sector_alert_change", "hpai_config_change"]))
+    .orderBy(desc(platformAuditLogTable.createdAt))
+    .limit(500);
+  const filtered = sectorFilter
+    ? rows.filter(r => {
+        const m = r.metadata as { sector?: string } | null;
+        if (r.action === "hpai_config_change") return sectorFilter === "hpai";
+        return m?.sector === sectorFilter;
+      })
+    : rows;
+  res.json({ entries: filtered });
 });
 
 router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, async (req: Request, res: Response): Promise<void> => {

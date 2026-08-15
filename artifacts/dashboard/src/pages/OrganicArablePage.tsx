@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle, Wheat,
-  ShieldCheck, FileText, Sprout, Package, CheckCircle2,
+  ShieldCheck, ShieldAlert, FileText, Sprout, Package, CheckCircle2,
   Eye, Printer, Download, ArrowDownToLine, ArrowUpFromLine,
   BarChart3, BookOpen,
 } from "lucide-react";
@@ -460,6 +460,13 @@ export default function OrganicArablePage() {
     enabled: !!farmId,
   });
   const allDeliveries: any[] = deliveriesQ.data ?? [];
+
+  // ── Arable platform alert ──
+  const { data: arableAlert } = useQuery({
+    queryKey: ["arable-platform-alert", farmId],
+    queryFn: () => fetch(`/api/arable-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // ── Tab ──
   const [activeTab, setActiveTab] = usePersistedTab<Tab>({ page: "organic-arable", farmId, validIds: ["certification", "field-conversion", "seed-sourcing", "input-log", "harvest-declarations"], defaultTab: "certification" });
@@ -936,6 +943,20 @@ export default function OrganicArablePage() {
         </div>
 
         {farmId && <ArableFarmSettingsChecklist farmId={farmId} />}
+
+        {arableAlert?.active && (
+          <div className={`flex items-start gap-3 p-3 rounded-lg text-white ${
+            arableAlert.level === "national" ? "bg-red-600" :
+            arableAlert.level === "regional" ? "bg-orange-500" : "bg-amber-500"
+          }`}>
+            <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Crop Health Alert{arableAlert.level ? ` — ${arableAlert.level.charAt(0).toUpperCase() + arableAlert.level.slice(1)}` : ""}</p>
+              {arableAlert.message && <p className="text-xs mt-0.5 opacity-90">{arableAlert.message}</p>}
+              {arableAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(arableAlert.date).toLocaleDateString("en-GB")}</p>}
+            </div>
+          </div>
+        )}
 
         <TabBar>
           <TabButton active={activeTab === "certification"} onClick={() => setActiveTab("certification")}>

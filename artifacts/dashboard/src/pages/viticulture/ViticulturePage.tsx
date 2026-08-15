@@ -136,6 +136,13 @@ export default function ViticulturePage() {
   const activeSubs = (dashData?.activeSubscriptions ?? []).map(s => s.moduleKey);
   const hasViticulture = activeSubs.includes("viticulture") || activeSubs.includes("organic-viticulture");
 
+  const { data: viticultureAlert } = useQuery({
+    queryKey: ["viticulture-platform-alert", selectedFarmId],
+    queryFn: () => fetch(`/api/viticulture-alert${selectedFarmId ? `?farmId=${selectedFarmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!selectedFarmId,
+  });
+
   const handleNavigate = (toTab: string, blockId?: number) => {
     setHighlightBlockId(blockId);
     setTab(toTab);
@@ -190,6 +197,19 @@ export default function ViticulturePage() {
             Raise Task
           </Button>
         </div>
+        {viticultureAlert?.active && (
+          <div className={`flex items-start gap-3 p-3 rounded-lg text-white ${
+            viticultureAlert.level === "national" ? "bg-red-600" :
+            viticultureAlert.level === "regional" ? "bg-orange-500" : "bg-amber-500"
+          }`}>
+            <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Vine Disease Alert{viticultureAlert.level ? ` — ${viticultureAlert.level.charAt(0).toUpperCase() + viticultureAlert.level.slice(1)}` : ""}</p>
+              {viticultureAlert.message && <p className="text-xs mt-0.5 opacity-90">{viticultureAlert.message}</p>}
+              {viticultureAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(viticultureAlert.date).toLocaleDateString("en-GB")}</p>}
+            </div>
+          </div>
+        )}
         <TabBar>
           {TABS.map(t => (
             <TabButton key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>

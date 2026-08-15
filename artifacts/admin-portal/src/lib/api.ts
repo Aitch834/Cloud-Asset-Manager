@@ -630,6 +630,9 @@ export const api = {
 
   getHpaiAlertHistory: (secret: string) =>
     get<{ entries: HpaiAlertHistoryEntry[] }>("/admin/hpai-alert-history", secret),
+
+  getSectorAlertHistory: (sector: string | undefined, secret: string) =>
+    get<{ entries: SectorAlertHistoryEntry[] }>(`/admin/sector-alert-history${sector ? `?sector=${sector}` : ""}`, secret),
 };
 
 export interface HpaiAlertHistoryEntry {
@@ -637,6 +640,19 @@ export interface HpaiAlertHistoryEntry {
   actorUserId: string;
   action: string;
   metadata: {
+    key: string;
+    oldValue: string | null;
+    newValue: string | null;
+  } | null;
+  createdAt: string;
+}
+
+export interface SectorAlertHistoryEntry {
+  id: number;
+  actorUserId: string;
+  action: string;
+  metadata: {
+    sector?: string;
     key: string;
     oldValue: string | null;
     newValue: string | null;

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { BlockBoundaryMapDialog } from "@/components/fields/BlockBoundaryMapDialog";
 import { FreshProduceReports } from "@/components/FreshProduceReports";
-import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, Thermometer, Map, Archive, RotateCcw, XCircle, TrendingUp, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, LayoutGrid, Leaf, Droplets, Package, Eye, Warehouse, AlertTriangle, ShieldAlert, Thermometer, Map, Archive, RotateCcw, XCircle, TrendingUp, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -1487,10 +1487,29 @@ export default function FreshProducePage() {
     defaultTab: "blocks",
     urlOverride: new URLSearchParams(window.location.search).get("tab"),
   });
+  const { data: hortiAlert } = useQuery({
+    queryKey: ["horticulture-platform-alert", farmId],
+    queryFn: () => fetch(`/api/horticulture-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!farmId,
+  });
   if (!farmId) return <Redirect to="/" />;
   return (
     <AppLayout title="Fresh Produce">
       <div className="space-y-4">
+        {hortiAlert?.active && (
+          <div className={`flex items-start gap-3 p-3 rounded-lg text-white ${
+            hortiAlert.level === "national" ? "bg-red-600" :
+            hortiAlert.level === "regional" ? "bg-orange-500" : "bg-amber-500"
+          }`}>
+            <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Plant Health Alert{hortiAlert.level ? ` — ${hortiAlert.level.charAt(0).toUpperCase() + hortiAlert.level.slice(1)}` : ""}</p>
+              {hortiAlert.message && <p className="text-xs mt-0.5 opacity-90">{hortiAlert.message}</p>}
+              {hortiAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(hortiAlert.date).toLocaleDateString("en-GB")}</p>}
+            </div>
+          </div>
+        )}
         <TabBar>
           <TabButton active={tab === "blocks"} onClick={() => setTab("blocks")}><LayoutGrid className="w-3.5 h-3.5 mr-1" />Blocks</TabButton>
           <TabButton active={tab === "crops"} onClick={() => setTab("crops")}><Leaf className="w-3.5 h-3.5 mr-1" />Crops</TabButton>

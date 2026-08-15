@@ -26,6 +26,7 @@ export const farmsTable = pgTable("farms", {
   name: text("name").notNull(),
   address: text("address"),
   postcode: text("postcode"),
+  county: text("county"),
   cphNumber: text("cph_number"),
   gridReference: text("grid_reference"),
   latitude: text("latitude"),
