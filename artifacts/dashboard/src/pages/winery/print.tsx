@@ -504,7 +504,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   const fermRows = data.fermentation.map(r => `<tr>
     <td>${escHtml(r.start_date ? fmtDate(r.start_date) : "—")}${r.end_date ? ` → ${escHtml(fmtDate(r.end_date))}` : ""}</td>
     <td>${escHtml(r.wine_colour)}</td>
-    <td>${escHtml(r.vessel_ref)}</td>
+    <td>${vesselRefWithCapacity(r.vessel_ref)}</td>
     <td>${escHtml(r.fermentation_type)}</td>
     <td>${escHtml(r.yeast_strain)}</td>
     <td style="text-align:right">${r.volume_litres != null ? parseFloat(String(r.volume_litres)).toFixed(0) : "—"}</td>
@@ -597,7 +597,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     return `<tr${unverifiedLimit ? ' style="background:#fffbeb"' : ""}>
     <td>${escHtml(fmtDate(r.test_date))}</td>
     <td>${escHtml(SO2_TEST_STAGE_LABELS[String(r.test_stage)] ?? r.test_stage)}</td>
-    <td>${escHtml(r.vessel_ref)}</td>
+    <td>${vesselRefWithCapacity(r.vessel_ref)}</td>
     <td style="text-align:right;font-family:monospace">${r.free_so2_mg_l != null ? parseFloat(String(r.free_so2_mg_l)).toFixed(1) : "—"}</td>
     <td style="text-align:right;font-family:monospace">${r.total_so2_mg_l != null ? parseFloat(String(r.total_so2_mg_l)).toFixed(1) : "—"}</td>
     <td style="text-align:right">${maxVal != null ? maxVal.toFixed(0) : "—"}${unverifiedLimit ? '<br/><span style="color:#b45309;font-size:9px;white-space:nowrap">⚠ Limit unverified — no batch ref</span>' : ""}</td>
