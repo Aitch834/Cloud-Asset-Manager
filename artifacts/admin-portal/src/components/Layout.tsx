@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
-import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2, FileSignature, Tag, Megaphone } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2, FileSignature, Tag, Megaphone, Bird } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -18,6 +18,7 @@ const nav = [
   { href: "/version", label: "Version Management", icon: Tag },
   { href: "/ad-pdf", label: "Ad PDF Generator", icon: Megaphone },
   { href: "/platform-config", label: "Platform Config", icon: Settings2 },
+  { href: "/hpai-alert-log", label: "HPAI Alert Log", icon: Bird },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

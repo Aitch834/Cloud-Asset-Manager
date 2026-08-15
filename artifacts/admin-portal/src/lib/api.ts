@@ -627,7 +627,22 @@ export const api = {
 
   seedDefaultHelpArticles: (secret: string) =>
     post<{ success: boolean; inserted: number; skipped: number }>("/admin/help-articles/seed-defaults", {}, secret),
+
+  getHpaiAlertHistory: (secret: string) =>
+    get<{ entries: HpaiAlertHistoryEntry[] }>("/admin/hpai-alert-history", secret),
 };
+
+export interface HpaiAlertHistoryEntry {
+  id: number;
+  actorUserId: string;
+  action: string;
+  metadata: {
+    key: string;
+    oldValue: string | null;
+    newValue: string | null;
+  } | null;
+  createdAt: string;
+}
 
 export interface HelpArticle {
   id: number;

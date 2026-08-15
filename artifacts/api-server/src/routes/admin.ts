@@ -1888,6 +1888,9 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
     res.status(400).json({ error: "value is required" });
     return;
   }
+  // Read existing value before overwriting (needed for audit trail)
+  const existingRows = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, key));
+  const oldValue = existingRows[0]?.value ?? null;
   const def = PLATFORM_CONFIG_DEFAULTS[key];
   await db.insert(platformConfigTable)
     .values({ key, value: value.trim(), label: def.label, description: def.description, updatedAt: new Date() })
@@ -1896,6 +1899,10 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
   if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
     _brandAssetCache = null;
   }
+  // Audit HPAI config changes so we have a permanent history
+  if (key.startsWith("hpai.") && req.userId) {
+    await writeAuditLog(req.userId, "hpai_config_change", { key, oldValue, newValue: value.trim() });
+  }
   res.json({ success: true, key, value: value.trim() });
 });
 
@@ -1903,12 +1910,31 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
   if (!(await checkPlatformAdmin(req, res))) return;
   const { key } = req.params as { key: string };
   if (!PLATFORM_CONFIG_DEFAULTS[key]) { res.status(400).json({ error: "Unknown config key" }); return; }
+  // Read existing value before deleting (needed for audit trail)
+  const existingRows = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, key));
+  const oldValue = existingRows[0]?.value ?? null;
   await db.delete(platformConfigTable).where(eq(platformConfigTable.key, key));
   // Bust brand-asset cache so the next render re-fetches from the DB (or on-disk fallback)
   if (key === "brand.adLogoDataUrl" || key === "brand.adQrDataUrl") {
     _brandAssetCache = null;
   }
+  // Audit HPAI config changes so we have a permanent history
+  if (key.startsWith("hpai.") && req.userId) {
+    await writeAuditLog(req.userId, "hpai_config_change", { key, oldValue, newValue: null });
+  }
   res.json({ success: true });
+});
+
+// ─── HPAI Alert History ───────────────────────────────────────────────────────
+router.get("/admin/hpai-alert-history", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const rows = await db
+    .select()
+    .from(platformAuditLogTable)
+    .where(eq(platformAuditLogTable.action, "hpai_config_change"))
+    .orderBy(desc(platformAuditLogTable.createdAt))
+    .limit(500);
+  res.json({ entries: rows });
 });
 
 router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, async (req: Request, res: Response): Promise<void> => {
