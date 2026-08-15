@@ -633,7 +633,15 @@ export const api = {
 
   getSectorAlertHistory: (sector: string | undefined, secret: string) =>
     get<{ entries: SectorAlertHistoryEntry[] }>(`/admin/sector-alert-history${sector ? `?sector=${sector}` : ""}`, secret),
+
+  getAlertSubscriptions: (secret: string) =>
+    get<{ subscriptions: AlertSubscriptionsState }>("/admin/alert-subscriptions", secret),
+
+  putAlertSubscriptions: (subscriptions: AlertSubscriptionsState, secret: string) =>
+    put<{ ok: boolean }>("/admin/alert-subscriptions", { subscriptions }, secret),
 };
+
+export type AlertSubscriptionsState = Record<string, { enrolled: boolean; date: string }>;
 
 export interface HpaiAlertHistoryEntry {
   id: number;

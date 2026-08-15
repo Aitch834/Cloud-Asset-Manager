@@ -21,6 +21,7 @@ import NDA from "@/pages/NDA";
 import VersionManagement from "@/pages/VersionManagement";
 import AdPdfGenerator from "@/pages/AdPdfGenerator";
 import HpaiAlertLog from "@/pages/HpaiAlertLog";
+import AlertSubscriptions from "@/pages/AlertSubscriptions";
 import NotFound from "@/pages/not-found";
 import { getSecret } from "@/lib/auth";
 
@@ -47,6 +48,7 @@ function PortalRouter() {
         <Route path="/version" component={VersionManagement} />
         <Route path="/ad-pdf" component={AdPdfGenerator} />
         <Route path="/hpai-alert-log" component={HpaiAlertLog} />
+        <Route path="/alert-subscriptions" component={AlertSubscriptions} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

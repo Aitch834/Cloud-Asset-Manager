@@ -2324,6 +2324,32 @@ router.get("/admin/sector-alert-history", requireAuth, async (req: Request, res:
   res.json({ entries: filtered });
 });
 
+router.get("/admin/alert-subscriptions", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const rows = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, "alert.subscriptions"));
+  let data: Record<string, { enrolled: boolean; date: string }> = {};
+  if (rows[0]?.value) {
+    try { data = JSON.parse(rows[0].value); } catch { data = {}; }
+  }
+  res.json({ subscriptions: data });
+});
+
+router.put("/admin/alert-subscriptions", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { subscriptions } = req.body as { subscriptions: Record<string, { enrolled: boolean; date: string }> };
+  if (!subscriptions || typeof subscriptions !== "object") { res.status(400).json({ error: "subscriptions must be an object" }); return; }
+  const value = JSON.stringify(subscriptions);
+  await db
+    .insert(platformConfigTable)
+    .values({ key: "alert.subscriptions", value, label: "Alert subscription enrolment records (JSON)", updatedAt: new Date() })
+    .onConflictDoUpdate({ target: platformConfigTable.key, set: { value, updatedAt: new Date() } });
+  void writeAuditLog(req.userId!, "alert_subscriptions_update", {
+    enrolledCount: Object.values(subscriptions).filter(v => v.enrolled).length,
+    totalCount: Object.keys(subscriptions).length,
+  });
+  res.json({ ok: true });
+});
+
 router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
