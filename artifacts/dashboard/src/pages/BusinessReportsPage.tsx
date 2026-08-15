@@ -674,19 +674,26 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);
   const [milestoneError, setMilestoneError] = useState<string | null>(null);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [pendingCompletion, setPendingCompletion] = useState<{
+    milestoneId: number; projectId: number; newStatus: string; date: string;
+  } | null>(null);
 
   const updateMilestoneStatus = useMutation({
-    mutationFn: async ({ milestoneId, projectId, status }: { milestoneId: number; projectId: number; status: string }) => {
+    mutationFn: async ({ milestoneId, projectId, status, completionDate }: { milestoneId: number; projectId: number; status: string; completionDate?: string }) => {
+      const body: Record<string, string> = { status };
+      if (completionDate) body.completionDate = completionDate;
       const res = await fetch(apiUrl(`farms/${farmId}/agri-env-projects/${projectId}/milestones/${milestoneId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to update milestone status");
       return res.json();
     },
     onSuccess: () => {
       setMilestoneError(null);
+      setPendingCompletion(null);
       queryClient.invalidateQueries({ queryKey: ["report-subsidies", farmId, year] });
       queryClient.invalidateQueries({ queryKey: ["report-gross-margin", farmId, year] });
     },
@@ -917,40 +924,86 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                 <tbody>
                                   {pMilestones.map((ms: any, mi: number) => {
                                     const isUpdating = updatingMilestone === ms.id;
+                                    const isPending = pendingCompletion?.milestoneId === ms.id;
+                                    const needsDate = (s: string) => (s === "submitted" || s === "paid") && !ms.completionDate;
                                     return (
                                     <tr key={ms.id} style={{ borderBottom: mi < pMilestones.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                                       <td style={{ padding: "0.45rem 0.875rem", paddingLeft: "1.25rem", color: "#374151" }}>{ms.milestoneName}</td>
                                       <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{ms.dueDate ? new Date(ms.dueDate).toLocaleDateString("en-GB") : "—"}</td>
-                                      <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{ms.completionDate ? new Date(ms.completionDate).toLocaleDateString("en-GB") : "—"}</td>
+                                      <td style={{ padding: "0.45rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>
+                                        {isPending ? (
+                                          <input
+                                            type="date"
+                                            value={pendingCompletion!.date}
+                                            max={todayIso}
+                                            onChange={e => setPendingCompletion(prev => prev ? { ...prev, date: e.target.value } : prev)}
+                                            style={{ fontSize: "0.75rem", padding: "2px 4px", border: "1px solid #93c5fd", borderRadius: 4, background: "#eff6ff", color: "#1e40af", width: 120 }}
+                                          />
+                                        ) : (
+                                          ms.completionDate ? new Date(ms.completionDate).toLocaleDateString("en-GB") : "—"
+                                        )}
+                                      </td>
                                       <td style={{ padding: "0.45rem 0.875rem", fontWeight: ms.claimAmountPence != null ? 600 : undefined, color: ms.claimAmountPence != null ? "#166534" : "#9ca3af" }}>
                                         {ms.claimAmountPence != null ? fmt(ms.claimAmountPence) : "—"}
                                       </td>
                                       <td style={{ padding: "0.45rem 0.875rem" }} onClick={e => e.stopPropagation()}>
-                                        <select
-                                          disabled={isUpdating}
-                                          value={ms.status ?? "pending"}
-                                          onChange={e => {
-                                            const newStatus = e.target.value as MilestoneStatus;
-                                            setUpdatingMilestone(ms.id);
-                                            updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus });
-                                          }}
-                                          style={{
-                                            fontSize: "0.7rem",
-                                            fontWeight: 600,
-                                            padding: "2px 22px 2px 7px",
-                                            borderRadius: 20,
-                                            textTransform: "capitalize",
-                                            border: "1px solid transparent",
-                                            cursor: isUpdating ? "wait" : "pointer",
-                                            appearance: "auto",
-                                            opacity: isUpdating ? 0.6 : 1,
-                                            ...msStatusStyle(ms.status ?? "pending"),
-                                          }}
-                                        >
-                                          {MILESTONE_STATUSES.map(s => (
-                                            <option key={s} value={s} style={{ textTransform: "capitalize" }}>{s}</option>
-                                          ))}
-                                        </select>
+                                        {isPending ? (
+                                          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                            <button
+                                              onClick={() => {
+                                                if (!pendingCompletion?.date) return;
+                                                setUpdatingMilestone(ms.id);
+                                                updateMilestoneStatus.mutate({
+                                                  milestoneId: ms.id,
+                                                  projectId: p.id,
+                                                  status: pendingCompletion.newStatus,
+                                                  completionDate: pendingCompletion.date,
+                                                });
+                                              }}
+                                              disabled={isUpdating || !pendingCompletion?.date}
+                                              style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 20, background: "#1e40af", color: "#fff", border: "none", cursor: isUpdating ? "wait" : "pointer", fontWeight: 600, opacity: isUpdating ? 0.6 : 1 }}
+                                            >
+                                              {isUpdating ? "Saving…" : "Save"}
+                                            </button>
+                                            <button
+                                              onClick={() => setPendingCompletion(null)}
+                                              disabled={isUpdating}
+                                              style={{ fontSize: "0.7rem", padding: "2px 7px", borderRadius: 20, background: "#f3f4f6", color: "#374151", border: "none", cursor: "pointer", fontWeight: 600 }}
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <select
+                                            disabled={isUpdating}
+                                            value={ms.status ?? "pending"}
+                                            onChange={e => {
+                                              const newStatus = e.target.value as MilestoneStatus;
+                                              if (needsDate(newStatus)) {
+                                                setPendingCompletion({ milestoneId: ms.id, projectId: p.id, newStatus, date: todayIso });
+                                              } else {
+                                                setUpdatingMilestone(ms.id);
+                                                updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus });
+                                              }
+                                            }}
+                                            style={{
+                                              fontSize: "0.7rem",
+                                              fontWeight: 600,
+                                              padding: "2px 22px 2px 7px",
+                                              borderRadius: 20,
+                                              textTransform: "capitalize",
+                                              border: "1px solid transparent",
+                                              cursor: isUpdating ? "wait" : "pointer",
+                                              appearance: "auto",
+                                              opacity: isUpdating ? 0.6 : 1,
+                                              ...msStatusStyle(ms.status ?? "pending"),
+                                            }}
+                                          >
+                                            {MILESTONE_STATUSES.map(s => (
+                                              <option key={s} value={s} style={{ textTransform: "capitalize" }}>{s}</option>
+                                            ))}
+                                          </select>
+                                        )}
                                       </td>
                                     </tr>
                                     );
