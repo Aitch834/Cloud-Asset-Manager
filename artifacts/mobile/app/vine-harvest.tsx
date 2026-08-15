@@ -1,8 +1,8 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -105,6 +105,7 @@ export default function VineHarvestScreen() {
   const { members } = useApiFarmMembers(currentFarm?.id);
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+  const { blockId } = useLocalSearchParams<{ blockId?: string }>();
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
   const [manualOperator, setManualOperator] = useState(user?.name || "");
@@ -113,6 +114,14 @@ export default function VineHarvestScreen() {
   const [harvestDate, setHarvestDate] = useState(today);
   const [vintageYear, setVintageYear] = useState(String(new Date().getFullYear()));
   const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+
+  // Pre-select block when navigated from a linked spray diary entry
+  useEffect(() => {
+    if (blockId && blocks.length > 0 && !blocksLoading) {
+      const match = blocks.find(b => String(b.id) === String(blockId));
+      if (match) setSelectedBlock(match);
+    }
+  }, [blockId, blocks, blocksLoading]);
   const [manualBlockName, setManualBlockName] = useState("");
   const [harvestMethod, setHarvestMethod] = useState("");
   const [yieldKg, setYieldKg] = useState("");
