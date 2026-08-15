@@ -14,6 +14,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -64,23 +65,73 @@ interface ScoutingPhoto {
 // ---------------------------------------------------------------------------
 
 interface ScoutingLightboxProps {
-  photo: ScoutingPhoto | null;
+  photos: ScoutingPhoto[];
+  initialIndex: number;
   visible: boolean;
   onClose: () => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: number) => Promise<void>;
 }
 
-function ScoutingPhotoLightbox({ photo, visible, onClose, onDelete }: ScoutingLightboxProps) {
+const SWIPE_THRESHOLD = 50;
+
+function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelete }: ScoutingLightboxProps) {
   const insets = useSafeAreaInsets();
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Reset in-flight flags whenever a different photo is opened so the Delete
-  // and Share buttons are never permanently disabled after a prior action.
+  // Sync index when lightbox opens; also reset in-flight flags on open/close
+  useEffect(() => {
+    if (visible) {
+      setCurrentIndex(Math.min(initialIndex, Math.max(0, photos.length - 1)));
+    }
+    setSharing(false);
+    setDeleting(false);
+  }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clamp if photos array shrinks (e.g. a delete from outside)
+  useEffect(() => {
+    if (photos.length === 0) {
+      onClose();
+      return;
+    }
+    setCurrentIndex((prev) => Math.min(prev, photos.length - 1));
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset in-flight flags when the displayed photo changes
   useEffect(() => {
     setSharing(false);
     setDeleting(false);
-  }, [photo?.id]);
+  }, [currentIndex]);
+
+  const goNext = useCallback(() => {
+    setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
+  }, [photos.length]);
+
+  const goPrev = useCallback(() => {
+    setCurrentIndex((i) => Math.max(i - 1, 0));
+  }, []);
+
+  // Keep a ref to photos.length so the PanResponder closure stays current
+  const photosLenRef = useRef(photos.length);
+  photosLenRef.current = photos.length;
+
+  // Horizontal swipe via PanResponder (no extra deps)
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_evt, gs) => {
+        if (gs.dx < -SWIPE_THRESHOLD) {
+          setCurrentIndex((i) => Math.min(i + 1, photosLenRef.current - 1));
+        } else if (gs.dx > SWIPE_THRESHOLD) {
+          setCurrentIndex((i) => Math.max(i - 1, 0));
+        }
+      },
+    }),
+  ).current;
+
+  const photo = photos[currentIndex] ?? null;
 
   const handleShare = useCallback(async () => {
     if (!photo?.downloadUrl || sharing) return;
@@ -112,19 +163,26 @@ function ScoutingPhotoLightbox({ photo, visible, onClose, onDelete }: ScoutingLi
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             setDeleting(true);
-            onDelete(photo.id);
-            onClose();
+            try {
+              await onDelete(photo.id);
+            } finally {
+              // Reset so the button is re-enabled for a retry if the call failed.
+              // (If it succeeded the lightbox will already be closing or the photos
+              // array will have shrunk, so this is a no-op in the happy path.)
+              setDeleting(false);
+            }
           },
         },
       ],
     );
-  }, [photo, deleting, onDelete, onClose]);
+  }, [photo, deleting, onDelete]);
 
-  if (!photo) return null;
+  if (!visible) return null;
 
-  const uri = photo.downloadUrl;
+  const uri = photo?.downloadUrl ?? null;
+  const hasMultiple = photos.length > 1;
 
   return (
     <Modal
@@ -145,8 +203,17 @@ function ScoutingPhotoLightbox({ photo, visible, onClose, onDelete }: ScoutingLi
           <Feather name="x" size={24} color="#fff" />
         </Pressable>
 
-        {/* Photo */}
-        <View style={lbStyles.imageWrapper}>
+        {/* Photo count indicator */}
+        {hasMultiple ? (
+          <View style={[lbStyles.counter, { top: insets.top + 18 }]}>
+            <Text style={lbStyles.counterText}>
+              {currentIndex + 1} / {photos.length}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Swipeable photo area */}
+        <View style={lbStyles.imageWrapper} {...panResponder.panHandlers}>
           {uri ? (
             <Image
               source={{ uri }}
@@ -158,10 +225,24 @@ function ScoutingPhotoLightbox({ photo, visible, onClose, onDelete }: ScoutingLi
               <Feather name="image" size={48} color="rgba(255,255,255,0.3)" />
             </View>
           )}
+
+          {/* Left chevron */}
+          {hasMultiple && currentIndex > 0 ? (
+            <Pressable style={[lbStyles.chevron, lbStyles.chevronLeft]} onPress={goPrev} hitSlop={12}>
+              <Feather name="chevron-left" size={32} color="#fff" />
+            </Pressable>
+          ) : null}
+
+          {/* Right chevron */}
+          {hasMultiple && currentIndex < photos.length - 1 ? (
+            <Pressable style={[lbStyles.chevron, lbStyles.chevronRight]} onPress={goNext} hitSlop={12}>
+              <Feather name="chevron-right" size={32} color="#fff" />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Caption */}
-        {photo.caption ? (
+        {photo?.caption ? (
           <View style={lbStyles.captionBar}>
             <Text style={lbStyles.captionText} numberOfLines={3}>
               {photo.caption}
@@ -215,6 +296,20 @@ const lbStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 20,
   },
+  counter: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  counterText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   imageWrapper: {
     width: SCREEN.width,
     height: SCREEN.height * 0.62,
@@ -230,6 +325,17 @@ const lbStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  chevron: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -24,
+    zIndex: 5,
+    padding: 10,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 24,
+  },
+  chevronLeft: { left: 8 },
+  chevronRight: { right: 8 },
   captionBar: {
     marginTop: 12,
     marginHorizontal: 24,
@@ -399,7 +505,7 @@ function ScoutingPhotoSection({
   const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [lightboxPhoto, setLightboxPhoto] = useState<ScoutingPhoto | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
@@ -468,7 +574,7 @@ function ScoutingPhotoSection({
     }
   };
 
-  const handleDeletePhoto = async (photoId: number) => {
+  const handleDeletePhoto = async (photoId: number): Promise<boolean> => {
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
         method: "DELETE",
@@ -476,16 +582,20 @@ function ScoutingPhotoSection({
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+        return true;
       } else {
         Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
+        return false;
       }
     } catch {
       Alert.alert("Delete Failed", "An error occurred. Please try again.");
+      return false;
     }
   };
 
   const handlePressPhoto = (photo: ScoutingPhoto) => {
-    setLightboxPhoto(photo);
+    const idx = photos.findIndex((p) => p.id === photo.id);
+    setLightboxIndex(idx >= 0 ? idx : 0);
   };
 
   return (
@@ -540,12 +650,15 @@ function ScoutingPhotoSection({
       </Pressable>
 
       <ScoutingPhotoLightbox
-        photo={lightboxPhoto}
-        visible={lightboxPhoto !== null}
-        onClose={() => setLightboxPhoto(null)}
-        onDelete={(id) => {
-          handleDeletePhoto(id);
-          setLightboxPhoto(null);
+        photos={photos}
+        initialIndex={lightboxIndex ?? 0}
+        visible={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        onDelete={async (id) => {
+          const ok = await handleDeletePhoto(id);
+          // Close only after a confirmed successful delete of the last photo;
+          // on failure keep the lightbox open so the grower can retry.
+          if (ok && photos.length <= 1) setLightboxIndex(null);
         }}
       />
     </View>
