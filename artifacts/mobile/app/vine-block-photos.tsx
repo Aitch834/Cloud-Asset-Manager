@@ -1074,6 +1074,7 @@ function PhotoThumbnail({
   onEditCaption,
   onShowTooltip,
   onHideTooltip,
+  onReload,
 }: {
   photo: BlockPhoto;
   photosCount: number;
@@ -1082,8 +1083,16 @@ function PhotoThumbnail({
   onEditCaption: (photo: BlockPhoto) => void;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
+  onReload: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
+
   // Set to true when a long-press fires so onPressOut can show the Alert; cleared
   // there immediately.  RN 0.81 Pressability does NOT emit onPress after a
   // recognised long press, so no suppression of onPress is needed.
@@ -1130,8 +1139,18 @@ function PhotoThumbnail({
       onPress={() => onPress(uri, photo)}
     >
       <View style={styles.thumbImgBox}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={styles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <Pressable style={styles.thumbPlaceholder} onPress={onReload}>
+            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+          </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Feather name="image" size={24} color={colors.textSecondary} />
@@ -1457,6 +1476,7 @@ export default function VineBlockPhotosScreen() {
               onEditCaption={handleEditCaption}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
+              onReload={() => loadPhotos({ silent: true })}
             />
           )}
           ListFooterComponent={
@@ -1579,6 +1599,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#f1f5f9",
     height: THUMB_SIZE,
+  },
+  thumbReloadLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   thumbImage: {
     width: "100%",
