@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
@@ -456,6 +456,15 @@ function SprayDiaryPhotoSection({
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
   }, [loadPhotos]);
+
+  // Re-fetch photos whenever the screen comes back into focus so that
+  // short-lived presigned URLs are always fresh after the grower returns from
+  // another app (matching vine-scouting.tsx pattern).
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos({ silent: true });
+    }, [loadPhotos]),
+  );
 
   const handleAddPhoto = async () => {
     const uri = await pickPhoto("Attach Spray Diary Photo");

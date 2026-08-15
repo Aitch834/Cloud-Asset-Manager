@@ -1208,10 +1208,11 @@ export default function VineBlockPhotosScreen() {
   }, [selectedBlock?.id, loadPhotos]);
 
   // Re-fetch photos whenever the screen comes back into focus so that
-  // short-lived presigned URLs are always fresh (they expire after ~5 min).
+  // short-lived presigned URLs are always fresh after the grower returns from
+  // another app (matching vine-scouting.tsx pattern).
   useFocusEffect(
     useCallback(() => {
-      loadPhotos();
+      loadPhotos({ silent: true });
     }, [loadPhotos]),
   );
 
