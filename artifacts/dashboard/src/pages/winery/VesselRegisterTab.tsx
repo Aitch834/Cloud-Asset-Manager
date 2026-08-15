@@ -852,7 +852,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     for (const r of barrels) {
       if (String(r.status ?? "active") !== "active") continue;
       const fill = Number(r.fill_number ?? 0);
-      if (r.fill_number == null || fill === 0) { noFills++; }
+      if (Number(r.fill_count ?? 0) === 0) { noFills++; }
       else if (fill === 1) tier["1"]++;
       else if (fill === 2) tier["2"]++;
       else if (fill === 3) tier["3"]++;
@@ -889,7 +889,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     const since = daysSince(r.empty_since);
     if (alertFlagFilter === "approaching-neutral") return fill >= 4;
     if (alertFlagFilter === "idle") return isEmpty && since !== null && since > 90;
-    if (alertFlagFilter === "no-fills") return r.fill_number == null || fill === 0;
+    if (alertFlagFilter === "no-fills") return Number(r.fill_count ?? 0) === 0;
     return true;
   }
 
@@ -1291,8 +1291,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <td className="p-3 font-mono font-semibold">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span>{fmt(r.vessel_ref)}</span>
-                        {isBarrelRow && (r.fill_number == null || Number(r.fill_number) === 0) && (
-                          <span className="text-xs rounded border px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 font-medium normal-case tracking-normal">No fills logged</span>
+                        {isBarrelRow && Number(r.fill_count ?? 0) === 0 && (
+                          <span className="text-xs rounded border px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200 font-medium normal-case tracking-normal">No fills logged</span>
                         )}
                       </div>
                     </td>

@@ -38173,7 +38173,8 @@ router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireM
         SELECT MAX(f.rack_out_date) FROM winery_barrel_fills f
         WHERE f.vessel_id = v.id
       ) ELSE NULL END AS empty_since,
-      (SELECT COUNT(*) FROM winery_barrel_maintenance m WHERE m.vessel_id = v.id) AS maintenance_count
+      (SELECT COUNT(*) FROM winery_barrel_maintenance m WHERE m.vessel_id = v.id) AS maintenance_count,
+      (SELECT COUNT(*)::int FROM winery_barrel_fills f WHERE f.vessel_id = v.id) AS fill_count
     FROM winery_vessels v
     WHERE v.farm_id = ${farmId}
     ORDER BY v.vessel_ref ASC
