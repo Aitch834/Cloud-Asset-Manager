@@ -722,7 +722,8 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
             {(["all", ...AE_PROJECT_STATUSES] as const).map(s => {
               const cfg = s === "all" ? null : AE_PROJECT_STATUS_CFG[s];
               const label = s === "all" ? "All" : (cfg?.label ?? s);
-              const count = s === "all" ? projects.length : projects.filter(p => p.status === s).length;
+              const schemeProjects = aeScreenScheme === "all" ? projects : projects.filter(p => p.schemeName === aeScreenScheme);
+              const count = s === "all" ? schemeProjects.length : schemeProjects.filter(p => p.status === s).length;
               const isActive = aeScreenStatus === s;
               return (
                 <button
