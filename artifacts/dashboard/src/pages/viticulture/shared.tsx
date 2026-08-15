@@ -2361,7 +2361,7 @@ export async function printDiseaseScouting(
   type ScoutBlockEntry = {
     label: string; visits: number; minDate: string; maxDate: string;
     maxDowny: number; maxPowdery: number; maxBotrytis: number; maxPhomopsis: number;
-    vineWeevil: boolean; eutypa: boolean; xylella: boolean;
+    vineWeevil: boolean; eutypa: boolean; xylella: boolean; totalPhotos: number;
   };
   const blockScoutMap: Record<string, ScoutBlockEntry> = {};
   const blockScoutKeys: string[] = [];
@@ -2371,11 +2371,12 @@ export async function printDiseaseScouting(
     if (!blockScoutMap[key]) {
       const bl = bid != null && !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
       const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
-      blockScoutMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false };
+      blockScoutMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false, totalPhotos: 0 };
       blockScoutKeys.push(key);
     }
     const entry = blockScoutMap[key];
     entry.visits++;
+    entry.totalPhotos += Number(r.photoCount) || 0;
     const sd = String(r.scoutDate ?? "");
     if (sd && (!entry.minDate || sd < entry.minDate)) entry.minDate = sd;
     if (sd && (!entry.maxDate || sd > entry.maxDate)) entry.maxDate = sd;
@@ -2409,6 +2410,7 @@ export async function printDiseaseScouting(
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxPowdery)}">${pLabel(e.maxPowdery)}</span></td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxBotrytis)}">${pLabel(e.maxBotrytis)}</span></td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center"><span style="color:${pColor(e.maxPhomopsis)}">${pLabel(e.maxPhomopsis)}</span></td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:center">${e.totalPhotos > 0 ? e.totalPhotos : `<span style="color:#9ca3af">0</span>`}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db">${alerts.length > 0 ? alerts.join(", ") : `<span style="color:#9ca3af">None</span>`}</td>
       </tr>`;
     }).join("");
@@ -2426,9 +2428,10 @@ export async function printDiseaseScouting(
       <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Powdery</th>
       <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Botrytis</th>
       <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Max Phomopsis</th>
+      <th style="background:#166534;color:white;padding:6px 5px;text-align:center;white-space:nowrap">Photos</th>
       <th style="background:#166534;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Alerts</th>
     </tr></thead>
-    <tbody>${blockSummaryRows || `<tr><td colspan='8' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
+    <tbody>${blockSummaryRows || `<tr><td colspan='9' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
   </table>
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #166534;padding-bottom:4px;margin:0 0 8px;color:#166534;text-transform:uppercase;letter-spacing:0.04em">
     Detailed Scouting Records
