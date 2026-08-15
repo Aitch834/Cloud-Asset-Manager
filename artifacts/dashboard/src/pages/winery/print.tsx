@@ -1002,6 +1002,32 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   const numBlock = (block: string, bareTitle: string) =>
     block.replace(`<h2>${bareTitle}</h2>`, `<h2>${sn(bareTitle)}</h2>`);
 
+  // ── Table of contents — dry-run through the same section conditions to
+  // collect (number, title) pairs, then reset _sn so the real h2 calls below
+  // produce identical numbers. The TOC is omitted when there is only one section.
+  const _tocEntries: { num: number; title: string }[] = [];
+  {
+    let _tn = 0;
+    const te = (title: string) => { _tocEntries.push({ num: ++_tn, title }); };
+    if (vintageComparisonHtml) te("Vintage pH & TA Comparison");
+    if (so2SummaryHtml)        te("SO\u2082 Compliance Summary");
+    if (phTaHistoryHtml)       te("pH & TA Analytical History");
+    te("Pressing Record");
+    if (fermRows)              te("Fermentation");
+    if (cellarRows)            te("Cellar operations");
+    if (so2Rows)               te("SO\u2082 tests");
+    if (bottlingRows)          te("Bottling runs");
+    if (barrelProvenanceHtml)  te("Barrel Provenance");
+  }
+  _sn = 0; // reset so the actual sn() calls below produce the same numbers
+  const tocHtml = _tocEntries.length > 1 ? `
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:14px">
+  <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;margin-bottom:5px">Contents</p>
+  <div style="display:flex;flex-wrap:wrap;gap:3px 18px">
+    ${_tocEntries.map(e => `<span style="font-size:10px;color:#374151;white-space:nowrap"><span style="font-weight:700;font-family:monospace;color:#6b7280">\u00a7${e.num}</span>\u2002${escHtml(e.title)}</span>`).join("")}
+  </div>
+</div>` : "";
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1041,6 +1067,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 </p>
 ${attachmentWarningHtml}
 ${vintageScopeNote}
+${tocHtml}
 ${vintageComparisonHtml ? numBlock(vintageComparisonHtml, "Vintage pH &amp; TA Comparison") : ""}
 ${so2SummaryHtml ? numBlock(so2SummaryHtml, "SO₂ Compliance Summary") : ""}
 ${phTaHistoryHtml ? numBlock(phTaHistoryHtml, "pH &amp; TA Analytical History") : ""}
