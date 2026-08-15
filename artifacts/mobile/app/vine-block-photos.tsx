@@ -44,6 +44,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
+import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
 
 interface BlockPhoto {
   id: number;
@@ -62,6 +63,7 @@ interface BlockPhoto {
 // survives device changes.  AsyncStorage is used as a read-through cache by
 // useUiPrefs; the server is the source of truth.
 const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
+
 
 // ---------------------------------------------------------------------------
 // Lightbox
@@ -899,12 +901,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
             hitSlop={16}
             onPress={() => {
               const photoId = photo.id;
-              const message =
-                photos.length === 1
-                  ? "This is the only photo for this block — deleting it will leave the block with no images. This cannot be undone."
-                  : photo.isCover
-                  ? "Are you sure you want to delete this photo? This cannot be undone.\n\nThis is the cover photo for this block. The next photo will become the new cover."
-                  : "Are you sure you want to delete this photo? This cannot be undone.";
+              const message = buildLightboxDeleteMessage(photos.length, photo.isCover);
               Alert.alert(
                 "Delete Photo",
                 message,
@@ -1111,13 +1108,9 @@ function PhotoThumbnail({
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          const deleteMessage =
-            photosCount === 1
-              ? "This is the only photo for this block — deleting it will leave the block with no images. This cannot be undone."
-              : "Are you sure you want to delete this photo? This cannot be undone.";
           Alert.alert(
             "Delete Photo",
-            deleteMessage,
+            buildGridDeleteMessage(photosCount),
             [
               { text: "Cancel", style: "cancel" },
               { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
