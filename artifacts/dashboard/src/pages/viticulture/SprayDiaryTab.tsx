@@ -162,6 +162,9 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [photoOnlyRecordId, setPhotoOnlyRecordId] = useState<number | null>(null);
   // Photo id awaiting delete-confirm in the standalone lightbox
   const [confirmDeleteLightboxPhotoId, setConfirmDeleteLightboxPhotoId] = useState<number | null>(null);
+  // Caption editing state (view dialog thumbnails + lightbox)
+  const [editingCaptionPhotoId, setEditingCaptionPhotoId] = useState<number | null>(null);
+  const [editingCaptionValue, setEditingCaptionValue] = useState("");
 
   // Clear any pending upload when the viewed record changes or the dialog closes
   useEffect(() => {
@@ -420,6 +423,30 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     },
     onError: () => {
       toast({ title: "Failed to delete photo", variant: "destructive" });
+    },
+  });
+
+  // ── Edit caption mutation ─────────────────────────────────────────────────────
+  const editCaptionMutation = useMutation({
+    mutationFn: async ({ photoId, caption }: { photoId: number; caption: string | null }) => {
+      if (activePhotoRecordId === null) throw new Error("No record");
+      const r = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${activePhotoRecordId}/photos/${photoId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption }),
+      });
+      if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Error ${r.status}`); }
+      return r.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, activePhotoRecordId] });
+      setEditingCaptionPhotoId(null);
+      setEditingCaptionValue("");
+      toast({ title: "Caption updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update caption", variant: "destructive" });
     },
   });
 
@@ -796,34 +823,92 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                     <p className="text-xs text-muted-foreground italic py-1">No photos attached yet.</p>
                   )}
                   {!sprayPhotosLoading && sprayPhotos.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {sprayPhotos.map((ph, idx) => (
-                        <div key={String(ph.id)} className="relative group w-20 h-20 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => { setPhotoLightboxIndex(idx); setPhotoLightboxOpen(true); }}
-                            className="w-full h-full rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
-                          >
-                            <img
-                              src={String(ph.downloadUrl ?? "")}
-                              alt={String(ph.fileName ?? "Photo")}
-                              className="w-full h-full object-cover"
-                              onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
-                            />
-                          </button>
-                          <button
-                            type="button"
-                            title="Remove photo"
-                            disabled={deletingPhotoId === (ph.id as number)}
-                            onClick={() => void handlePhotoDelete(ph.id as number)}
-                            className="absolute top-0.5 right-0.5 rounded-full bg-black/60 hover:bg-black/80 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                          >
-                            {deletingPhotoId === (ph.id as number)
-                              ? <Loader2 className="w-3 h-3 animate-spin" />
-                              : <X className="w-3 h-3" />}
-                          </button>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {sprayPhotos.map((ph, idx) => (
+                          <div key={String(ph.id)} className="relative group w-20 h-20 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => { setPhotoLightboxIndex(idx); setPhotoLightboxOpen(true); }}
+                              className="w-full h-full rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
+                            >
+                              <img
+                                src={String(ph.downloadUrl ?? "")}
+                                alt={String(ph.fileName ?? "Photo")}
+                                className="w-full h-full object-cover"
+                                onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                              />
+                            </button>
+                            {/* Edit caption icon */}
+                            <button
+                              type="button"
+                              title="Edit caption"
+                              onClick={() => {
+                                setEditingCaptionPhotoId(ph.id as number);
+                                setEditingCaptionValue(String(ph.caption ?? ""));
+                              }}
+                              className="absolute top-0.5 left-0.5 rounded-full bg-black/60 hover:bg-black/80 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            {/* Delete icon */}
+                            <button
+                              type="button"
+                              title="Remove photo"
+                              disabled={deletingPhotoId === (ph.id as number)}
+                              onClick={() => void handlePhotoDelete(ph.id as number)}
+                              className="absolute top-0.5 right-0.5 rounded-full bg-black/60 hover:bg-black/80 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                            >
+                              {deletingPhotoId === (ph.id as number)
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <X className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Inline caption editor */}
+                      {editingCaptionPhotoId !== null && sprayPhotos.some(p => p.id === editingCaptionPhotoId) && (
+                        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Edit caption
+                          </p>
+                          <Input
+                            value={editingCaptionValue}
+                            onChange={e => setEditingCaptionValue(e.target.value)}
+                            placeholder="e.g. before spray, canopy coverage, batch label…"
+                            className="h-8 text-xs"
+                            autoFocus
+                            disabled={editCaptionMutation.isPending}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                editCaptionMutation.mutate({ photoId: editingCaptionPhotoId, caption: editingCaptionValue.trim() || null });
+                              }
+                              if (e.key === "Escape") { setEditingCaptionPhotoId(null); setEditingCaptionValue(""); }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="h-7 px-3 text-xs gap-1"
+                              onClick={() => editCaptionMutation.mutate({ photoId: editingCaptionPhotoId, caption: editingCaptionValue.trim() || null })}
+                              disabled={editCaptionMutation.isPending}
+                            >
+                              {editCaptionMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-3 text-xs"
+                              onClick={() => { setEditingCaptionPhotoId(null); setEditingCaptionValue(""); editCaptionMutation.reset(); }}
+                              disabled={editCaptionMutation.isPending}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>
@@ -894,7 +979,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                     <>
                       <button
                         type="button"
-                        onClick={() => setPhotoLightboxIndex(i => (i - 1 + sprayPhotos.length) % sprayPhotos.length)}
+                        onClick={() => { setPhotoLightboxIndex(i => (i - 1 + sprayPhotos.length) % sprayPhotos.length); setEditingCaptionPhotoId(null); setEditingCaptionValue(""); }}
                         className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
                         aria-label="Previous photo"
                       >
@@ -902,7 +987,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPhotoLightboxIndex(i => (i + 1) % sprayPhotos.length)}
+                        onClick={() => { setPhotoLightboxIndex(i => (i + 1) % sprayPhotos.length); setEditingCaptionPhotoId(null); setEditingCaptionValue(""); }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
                         aria-label="Next photo"
                       >
@@ -910,10 +995,68 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                       </button>
                     </>
                   )}
-                  {!!currentPhoto.caption && (
-                    <p className="text-xs text-center text-muted-foreground mt-2 italic px-4">
-                      {String(currentPhoto.caption)}
-                    </p>
+                  {/* Caption display / edit in lightbox */}
+                  {editingCaptionPhotoId === (currentPhoto.id as number) ? (
+                    <div className="mt-2 px-4 space-y-1.5">
+                      <Input
+                        value={editingCaptionValue}
+                        onChange={e => setEditingCaptionValue(e.target.value)}
+                        placeholder="e.g. before spray, canopy coverage, batch label…"
+                        className="h-8 text-xs"
+                        autoFocus
+                        disabled={editCaptionMutation.isPending}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            editCaptionMutation.mutate({ photoId: currentPhoto.id as number, caption: editingCaptionValue.trim() || null });
+                          }
+                          if (e.key === "Escape") { setEditingCaptionPhotoId(null); setEditingCaptionValue(""); }
+                        }}
+                      />
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          size="sm"
+                          className="h-7 px-3 text-xs gap-1"
+                          onClick={() => editCaptionMutation.mutate({ photoId: currentPhoto.id as number, caption: editingCaptionValue.trim() || null })}
+                          disabled={editCaptionMutation.isPending}
+                        >
+                          {editCaptionMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-3 text-xs"
+                          onClick={() => { setEditingCaptionPhotoId(null); setEditingCaptionValue(""); editCaptionMutation.reset(); }}
+                          disabled={editCaptionMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center justify-center gap-1.5 px-4 group/caption">
+                      {!!currentPhoto.caption && (
+                        <p className="text-xs text-muted-foreground italic">
+                          {String(currentPhoto.caption)}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        title="Edit caption"
+                        onClick={() => {
+                          setEditingCaptionPhotoId(currentPhoto.id as number);
+                          setEditingCaptionValue(String(currentPhoto.caption ?? ""));
+                        }}
+                        className={`rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${currentPhoto.caption ? "opacity-0 group-hover/caption:opacity-100" : "opacity-60 hover:opacity-100"}`}
+                        aria-label="Edit caption"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      {!currentPhoto.caption && (
+                        <span className="text-xs text-muted-foreground/50 italic">Add caption</span>
+                      )}
+                    </div>
                   )}
                   {sprayPhotos.length > 1 && (
                     <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">

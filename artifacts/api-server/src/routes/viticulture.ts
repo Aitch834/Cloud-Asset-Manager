@@ -1133,6 +1133,36 @@ router.delete("/farms/:farmId/vineyard-spray-diary/:id/photos/:photoId", require
   res.json({ success: true });
 });
 
+// ── Update a spray diary photo's caption ──────────────────────────────────────
+router.patch("/farms/:farmId/vineyard-spray-diary/:id/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const sprayDiaryId = Number(req.params.id);
+  const photoId = Number(req.params.photoId);
+  const { caption } = req.body as { caption?: string | null };
+
+  if (typeof caption !== "string" && caption !== null) {
+    res.status(400).json({ error: "caption must be a string or null" });
+    return;
+  }
+
+  const [photo] = await db.select({ id: vineyardSprayDiaryPhotosTable.id })
+    .from(vineyardSprayDiaryPhotosTable)
+    .where(and(
+      eq(vineyardSprayDiaryPhotosTable.id, photoId),
+      eq(vineyardSprayDiaryPhotosTable.sprayDiaryId, sprayDiaryId),
+      eq(vineyardSprayDiaryPhotosTable.farmId, farmId),
+    ))
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  const [updated] = await db.update(vineyardSprayDiaryPhotosTable)
+    .set({ caption: caption === null || caption.trim() === "" ? null : caption.trim() })
+    .where(eq(vineyardSprayDiaryPhotosTable.id, photoId))
+    .returning();
+
+  res.json({ photo: updated });
+});
+
 // ─── Vineyard Soil & Leaf Analysis ────────────────────────────────────────────
 
 // External advisors (agronomists, consultants) for "Requested By" lookup
