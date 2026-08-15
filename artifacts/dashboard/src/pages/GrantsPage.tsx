@@ -229,6 +229,238 @@ function AeMilestoneBadge({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-0.5 rounded border font-medium ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>;
 }
 
+// ─── Scheme Name Combobox ─────────────────────────────────────────────────────
+// A type-to-filter combobox for selecting a scheme name (or "All schemes").
+// `value` is either "all" or a scheme name string.
+// Implements ARIA combobox pattern with full keyboard navigation.
+interface SchemeNameComboboxProps {
+  value: string;
+  onChange: (value: string) => void;
+  schemeNames: string[];
+  compact?: boolean; // smaller width for the export/print bar
+}
+
+function SchemeNameCombobox({ value, onChange, schemeNames, compact = false }: SchemeNameComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // -1 = "All schemes" entry; 0..n-1 = index in filteredNames
+  const [activeIdx, setActiveIdx] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listboxId = useRef(`snc-listbox-${Math.random().toString(36).slice(2)}`).current;
+
+  // Options filtered by the current query
+  const filteredNames = useMemo(() => {
+    if (!query.trim()) return schemeNames;
+    const q = query.toLowerCase();
+    return schemeNames.filter(n => n.toLowerCase().includes(q));
+  }, [schemeNames, query]);
+
+  // All options including the "all" sentinel at index -1
+  // activeIdx -1 → "All schemes", 0..n-1 → filteredNames[i]
+  const totalOptions = filteredNames.length + 1; // +1 for "All schemes"
+
+  // Keep activeIdx in bounds when filtered list shrinks
+  useEffect(() => {
+    setActiveIdx(-1);
+  }, [query]);
+
+  // Scroll the active option into view
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>("[data-active='true']");
+    el?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, open]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        closeDropdown();
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function closeDropdown() {
+    setOpen(false);
+    setQuery("");
+    setActiveIdx(-1);
+  }
+
+  function select(v: string) {
+    onChange(v);
+    closeDropdown();
+    inputRef.current?.blur();
+  }
+
+  function handleFocus() {
+    setQuery("");
+    setActiveIdx(-1);
+    setOpen(true);
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    setOpen(true);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      // -1 is "All schemes", then 0..filteredNames.length-1
+      setActiveIdx(i => (i + 1 < filteredNames.length ? i + 1 : filteredNames.length === 0 ? -1 : filteredNames.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx(i => (i > -1 ? i - 1 : -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIdx === -1) {
+        select("all");
+      } else if (activeIdx >= 0 && activeIdx < filteredNames.length) {
+        select(filteredNames[activeIdx]);
+      } else if (filteredNames.length === 1) {
+        select(filteredNames[0]);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeDropdown();
+      inputRef.current?.blur();
+    } else if (e.key === "Tab") {
+      closeDropdown();
+    }
+  }
+
+  const isActive = value !== "all";
+  // While the dropdown is open, show the typed query; when closed, show the selected label
+  const inputVal = open ? query : (value === "all" ? "" : value);
+
+  // Active descendant id
+  function optionId(idx: number) {
+    return idx === -1 ? `${listboxId}-all` : `${listboxId}-opt-${idx}`;
+  }
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: "0.8rem",
+    padding: "4px 28px 4px 8px",
+    borderRadius: 6,
+    border: isActive ? "1.5px solid #374151" : "1px solid #d1d5db",
+    background: isActive ? "#111827" : "#fff",
+    color: isActive ? "#fff" : "#111827",
+    cursor: "text",
+    outline: "none",
+    width: compact ? 180 : 220,
+    boxSizing: "border-box" as const,
+  };
+
+  function optionStyle(selected: boolean, active: boolean): React.CSSProperties {
+    return {
+      padding: "8px 12px",
+      fontSize: "0.8rem",
+      cursor: "pointer",
+      background: active ? "#e0f2fe" : selected ? "#f0fdf4" : "#fff",
+      color: active ? "#0369a1" : selected ? "#166534" : "#111827",
+      fontWeight: selected || active ? 600 : 400,
+      borderBottom: "1px solid #f3f4f6",
+      outline: "none",
+    };
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-activedescendant={open ? optionId(activeIdx) : undefined}
+          aria-label="Filter by scheme name"
+          autoComplete="off"
+          value={inputVal}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          onKeyDown={handleKeyDown}
+          placeholder={open ? "Type to filter schemes…" : "All schemes"}
+          style={inputStyle}
+        />
+        {/* Chevron indicator */}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+            pointerEvents: "none", color: isActive ? "rgba(255,255,255,0.7)" : "#9ca3af",
+            fontSize: "0.65rem",
+          }}
+        >
+          ▾
+        </span>
+      </div>
+
+      {open && (
+        <div
+          ref={listRef}
+          id={listboxId}
+          role="listbox"
+          aria-label="Scheme names"
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 100,
+            background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.10)", minWidth: compact ? 200 : 240,
+            maxHeight: 260, overflowY: "auto",
+          }}
+        >
+          {/* "All schemes" option */}
+          <div
+            id={optionId(-1)}
+            role="option"
+            aria-selected={value === "all"}
+            data-active={activeIdx === -1 ? "true" : undefined}
+            onMouseDown={e => { e.preventDefault(); select("all"); }}
+            onMouseEnter={() => setActiveIdx(-1)}
+            style={optionStyle(value === "all", activeIdx === -1)}
+          >
+            All schemes
+          </div>
+
+          {filteredNames.length === 0 ? (
+            <div role="status" style={{ padding: "10px 12px", fontSize: "0.8rem", color: "#9ca3af" }}>
+              No matching schemes
+            </div>
+          ) : (
+            filteredNames.map((n, i) => (
+              <div
+                key={n}
+                id={optionId(i)}
+                role="option"
+                aria-selected={value === n}
+                data-active={activeIdx === i ? "true" : undefined}
+                onMouseDown={e => { e.preventDefault(); select(n); }}
+                onMouseEnter={() => setActiveIdx(i)}
+                style={optionStyle(value === n, activeIdx === i)}
+              >
+                {n}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -656,14 +888,12 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", flexShrink: 0 }}>
             Export &amp; Print filter:
           </span>
-          <select
+          <SchemeNameCombobox
             value={aeExportScheme}
-            onChange={e => setAeExportScheme(e.target.value)}
-            style={{ fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", color: "#111827" }}
-          >
-            <option value="all">All schemes</option>
-            {uniqueSchemeNames.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+            onChange={setAeExportScheme}
+            schemeNames={uniqueSchemeNames}
+            compact
+          />
           <select
             value={aeExportStatus}
             onChange={e => setAeExportStatus(e.target.value)}
@@ -693,20 +923,11 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           {/* Scheme name filter */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" as const }}>
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#6b7280", flexShrink: 0 }}>Scheme:</span>
-            <select
+            <SchemeNameCombobox
               value={aeScreenScheme}
-              onChange={e => setAeScreenScheme(e.target.value)}
-              style={{
-                fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6,
-                border: aeScreenScheme !== "all" ? "1.5px solid #374151" : "1px solid #d1d5db",
-                background: aeScreenScheme !== "all" ? "#111827" : "#fff",
-                color: aeScreenScheme !== "all" ? "#fff" : "#111827",
-                cursor: "pointer",
-              }}
-            >
-              <option value="all">All schemes</option>
-              {uniqueSchemeNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+              onChange={setAeScreenScheme}
+              schemeNames={uniqueSchemeNames}
+            />
             {aeScreenScheme !== "all" && (
               <button
                 onClick={() => setAeScreenScheme("all")}
