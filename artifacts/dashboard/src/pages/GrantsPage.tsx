@@ -233,12 +233,45 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Project state — initialise expandedId from ?project=<id> URL param if present
-  const _initProjectId = (() => { const n = Number(new URLSearchParams(window.location.search).get("project")); return n > 0 ? n : null; })();
+  // expandedId — persisted per farm via direct localStorage access.
+  // We manage this ourselves (not via usePersistedFilter) to avoid the hook's
+  // async rehydration lag: on a farm switch both effects run in the same flush,
+  // so a usePersistedFilter-derived value would still reflect the prior farm's
+  // ID and could overwrite the new farm's key with an empty string.
+  const [expandedId, _setExpandedIdRaw] = useState<number | null>(null);
+
+  // Write helper — updates React state and localStorage in lockstep.
+  const setExpandedId = (id: number | null) => {
+    _setExpandedIdRaw(id);
+    if (farmId === null) return;
+    try {
+      const key = `grants-agri-env-expanded-project-filter-${farmId}`;
+      if (id !== null) { localStorage.setItem(key, String(id)); }
+      else             { localStorage.removeItem(key); }
+    } catch { /* localStorage unavailable */ }
+  };
+
+  // Initialise from localStorage (or the ?project= URL param) once per unique
+  // farmId, so we always read from the correct farm's storage key.
+  const _initFarmIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (farmId === null || _initFarmIdRef.current === farmId) return;
+    _initFarmIdRef.current = farmId;
+    // URL param takes precedence over stored value
+    const urlId = Number(new URLSearchParams(window.location.search).get("project"));
+    if (urlId > 0) { setExpandedId(urlId); return; }
+    // Otherwise restore the farm's stored value
+    try {
+      const v = localStorage.getItem(`grants-agri-env-expanded-project-filter-${farmId}`);
+      const n = v ? Number(v) : 0;
+      _setExpandedIdRaw(n > 0 ? n : null);
+    } catch { _setExpandedIdRaw(null); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId]);
+
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<AgriEnvProject | null>(null);
   const [deletingProject, setDeletingProject] = useState<AgriEnvProject | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(_initProjectId);
   const [projectForm, setProjectForm] = useState({ ...AE_BLANK_PROJECT });
 
   // Milestone state
@@ -247,7 +280,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const [deletingMilestone, setDeletingMilestone] = useState<AgriEnvMilestone | null>(null);
   const [milestoneForm, setMilestoneForm] = useState({ ...AE_BLANK_MILESTONE });
 
-  const { data: projData, isLoading } = useQuery({
+  const { data: projData, isLoading, isSuccess: projIsSuccess } = useQuery({
     queryKey: ["agri-env-projects", farmId],
     queryFn: async () => {
       const r = await fetch(`/api/farms/${farmId}/agri-env-projects`);
@@ -281,6 +314,25 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const projects = projData?.projects ?? [];
   const milestones = msData?.milestones ?? [];
   const allMilestones = allMsData?.milestones ?? [];
+
+  // If the persisted project has been deleted, collapse gracefully.
+  // Read from localStorage directly (keyed on the current farmId) rather than
+  // from the derived expandedId state.  This prevents a prior-farm ID from
+  // being validated against the new farm's project list during a farm switch,
+  // and also handles an empty project list (projIsSuccess, not length > 0).
+  useEffect(() => {
+    if (!projIsSuccess || farmId === null) return;
+    const key = `grants-agri-env-expanded-project-filter-${farmId}`;
+    try {
+      const stored = localStorage.getItem(key);
+      const storedId = stored ? Number(stored) : 0;
+      if (storedId > 0 && !projects.some(p => p.id === storedId)) {
+        localStorage.removeItem(key);
+        _setExpandedIdRaw(null);
+      }
+    } catch { /* localStorage unavailable */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projIsSuccess, farmId, projects]);
 
   // ── On-screen status filter (persisted per farm) ─────────────────────────
   const [aeScreenStatus, setAeScreenStatus] = usePersistedFilter({
