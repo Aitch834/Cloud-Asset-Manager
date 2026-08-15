@@ -422,14 +422,21 @@ function ScoutingPhotoThumbnail({
   onDelete,
   onPress,
   onReload,
+  onShowTooltip,
+  onHideTooltip,
 }: {
   photo: ScoutingPhoto;
   onDelete: (id: number) => void;
   onPress: (photo: ScoutingPhoto) => void;
   onReload?: () => void;
+  onShowTooltip: (caption: string) => void;
+  onHideTooltip: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
+  // Set to true when a long-press fires so onPressOut can show the Alert; cleared
+  // there immediately. RN does NOT emit onPress after a recognised long press.
+  const longPressJustFiredRef = useRef(false);
 
   // Reset error state whenever the URL is refreshed so the image retries
   const prevUri = useRef(uri);
@@ -440,6 +447,17 @@ function ScoutingPhotoThumbnail({
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    longPressJustFiredRef.current = true;
+    // Show caption tooltip while the finger is held (captioned photos only)
+    if (photo.caption) {
+      onShowTooltip(photo.caption);
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!longPressJustFiredRef.current) return;
+    longPressJustFiredRef.current = false;
+    onHideTooltip();
     Alert.alert("Photo Options", undefined, [
       {
         text: "Delete",
@@ -460,7 +478,7 @@ function ScoutingPhotoThumbnail({
   };
 
   return (
-    <Pressable style={styles.thumbnail} onLongPress={handleLongPress} onPress={() => onPress(photo)}>
+    <Pressable style={styles.thumbnail} onLongPress={handleLongPress} onPressOut={handlePressOut} onPress={() => onPress(photo)}>
       <View style={styles.thumbImgBox}>
         {uri && !imgError ? (
           <Image
@@ -507,6 +525,8 @@ function ScoutingPhotoSection({
   const [uploading, setUploading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
+  const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -605,7 +625,7 @@ function ScoutingPhotoSection({
         <Text style={styles.photoHint}>{photos.length} attached</Text>
       </View>
       <Text style={styles.helperText}>
-        Tap a photo to view, share or delete. Long-press a thumbnail to delete quickly.
+        Tap a photo to view, share or delete. Long-press a captioned thumbnail to peek at the full caption.
       </Text>
 
       {loading ? (
@@ -625,6 +645,8 @@ function ScoutingPhotoSection({
               onDelete={handleDeletePhoto}
               onPress={handlePressPhoto}
               onReload={() => loadPhotos({ silent: true })}
+              onShowTooltip={setGridTooltipCaption}
+              onHideTooltip={() => setGridTooltipCaption(null)}
             />
           )}
           ListEmptyComponent={
@@ -661,6 +683,15 @@ function ScoutingPhotoSection({
           if (ok && photos.length <= 1) setLightboxIndex(null);
         }}
       />
+
+      {/* Grid caption tooltip — shown while a captioned thumbnail is long-pressed */}
+      {gridTooltipCaption != null ? (
+        <View style={styles.gridCaptionTooltip} pointerEvents="none">
+          <Text style={styles.gridCaptionTooltipText} numberOfLines={4}>
+            {gridTooltipCaption}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -941,6 +972,23 @@ const styles = StyleSheet.create({
   thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
   thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
   captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
+  gridCaptionTooltip: {
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.88)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+  },
+  gridCaptionTooltipText: {
+    color: "#fff",
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   emptyPhotos: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
   emptyPhotosText: { fontSize: fontSize.sm, color: colors.textSecondary },
   addPhotoBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary ?? colors.success, alignSelf: "flex-start", marginTop: spacing.xs },
