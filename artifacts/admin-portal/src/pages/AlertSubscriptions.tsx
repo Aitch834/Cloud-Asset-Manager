@@ -51,10 +51,10 @@ const SECTORS: Sector[] = [
     items: [
       {
         id: "arable-apha",
-        name: "APHA Plant Health Alerts (GovDelivery)",
-        url: GOVDELIVERY_APHA,
+        name: "UK Plant Health Information Portal — Pest & Disease Alerts",
+        url: PLANT_PORTAL,
         priority: true,
-        signupNote: "Same GovDelivery page — select plant health topics (Phytosanitary, Xylella, etc.) alongside any animal topics.",
+        signupNote: "No email subscription exists. APHA publishes alerts as PDFs here. Bookmark and check periodically, or email plantpestsrisks@defra.gov.uk to ask about notifications.",
       },
       {
         id: "arable-ahdb-crop",
@@ -87,10 +87,10 @@ const SECTORS: Sector[] = [
     items: [
       {
         id: "horti-apha",
-        name: "APHA Plant Health Alerts (GovDelivery)",
-        url: GOVDELIVERY_APHA,
+        name: "UK Plant Health Information Portal — Pest & Disease Alerts",
+        url: PLANT_PORTAL,
         priority: true,
-        signupNote: "Select plant health topics on the GovDelivery sign-up page.",
+        signupNote: "No email subscription exists. APHA publishes alerts as PDFs here. Bookmark and check periodically, or email plantpestsrisks@defra.gov.uk to ask about notifications.",
       },
       {
         id: "horti-portal",
@@ -123,10 +123,10 @@ const SECTORS: Sector[] = [
       },
       {
         id: "viti-apha",
-        name: "APHA Plant Health Alerts (GovDelivery)",
-        url: GOVDELIVERY_APHA,
+        name: "UK Plant Health Information Portal — Pest & Disease Alerts",
+        url: PLANT_PORTAL,
         priority: true,
-        signupNote: "Select Xylella / Flavescence dorée topics on GovDelivery sign-up page.",
+        signupNote: "No email subscription exists. APHA publishes Xylella and Flavescence dorée alerts as PDFs here. Bookmark and check periodically, or email plantpestsrisks@defra.gov.uk to ask about notifications.",
       },
       {
         id: "viti-portal",
