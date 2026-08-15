@@ -826,11 +826,11 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                     <div className="space-y-2">
                       <div className="flex flex-wrap gap-2">
                         {sprayPhotos.map((ph, idx) => (
-                          <div key={String(ph.id)} className="relative group w-20 h-20 shrink-0">
+                          <div key={String(ph.id)} className="relative group shrink-0 flex flex-col items-center" style={{ width: "5rem" }}>
                             <button
                               type="button"
                               onClick={() => { setPhotoLightboxIndex(idx); setPhotoLightboxOpen(true); }}
-                              className="w-full h-full rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
+                              className="w-20 h-20 rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
                             >
                               <img
                                 src={String(ph.downloadUrl ?? "")}
@@ -839,6 +839,14 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                                 onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
                               />
                             </button>
+                            {!!ph.caption && (
+                              <p
+                                title={String(ph.caption)}
+                                className="w-full text-center text-[10px] leading-tight text-muted-foreground mt-0.5 truncate px-0.5"
+                              >
+                                {String(ph.caption)}
+                              </p>
+                            )}
                             {/* Edit caption icon */}
                             <button
                               type="button"
