@@ -835,7 +835,7 @@ export const additiveCsvCol = (field: PressAdditiveField) => ({
 export const STYLED_ADDITIVE_FIELDS: PressAdditiveField[] = ["additive_name", "category", "dose", "unit", "notes"];
 export const EXTRA_ADDITIVE_COLUMNS = PRESS_ADDITIVE_COLUMNS.filter(c => !STYLED_ADDITIVE_FIELDS.includes(c.field));
 // Batch-trail CSV header — the additive columns above map into these slots by name.
-export const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "Operator", "Notes", "Running SO₂ Total (mg/L)"];
+export const BATCH_TRAIL_CSV_HEADER = ["Stage", "Batch Ref", "Date", "Type / Additive", "Detail", "SO₂ / Dose", "Unit", "SO₂ Ceiling (mg/L)", "SO₂ Compliance", "pH", "TA (g/L)", "Vessel", "From vessel capacity (L)", "To vessel capacity (L)", "Operator", "Notes", "Running SO₂ Total (mg/L)"];
 
 // ─── Harvest Reception columns — single source of truth ───────────────────────
 // The export CSV (harvestCsvCols), the import template headers

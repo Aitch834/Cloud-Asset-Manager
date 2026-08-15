@@ -2131,7 +2131,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
         <DialogFooter className="flex-wrap gap-2">
           {data && (
             <>
-              <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName); }}>
+              <Button variant="outline" size="sm" onClick={() => { void exportBatchTrailCsv(farmId, pressing, data, farmName, trailVessels ?? undefined); }}>
                 <FileDown className="w-3.5 h-3.5 mr-1" />Export CSV
               </Button>
               <Button variant="outline" size="sm" onClick={() => { void printBatchTrail(farmId, pressing, data, farmName, batchTrailEmbed.sig, batchTrailEmbed.signerInfo, trailVessels ?? undefined); }} title={batchTrailEmbed.willEmbed ? "Signed — signature will be embedded" : undefined}>
@@ -2308,7 +2308,7 @@ export async function fetchStageAttachments(farmId: number, recordType: string, 
   return (await fetchStageAttachmentsWithStatus(farmId, recordType, records)).map;
 }
 
-export async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string) {
+export async function exportBatchTrailCsv(farmId: number, pressing: Record<string, unknown>, data: BatchTrailData, farmName: string, vessels?: Record<string, unknown>[]) {
   // Fetch attachments for the pressing record(s) (best-effort — CSV still exports if this fails).
   // Mirrors the attachments block in the printed PDF (printBatchTrail).
   // In vintage scope the trail spans every pressing session in data.pressings,
@@ -2339,6 +2339,40 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
   const pressAttachments: TrailAttachment[] = pressId != null ? (pressingAttachmentsById.get(pressId) ?? []) : [];
   const batchRef = String(pressing.batch_ref ?? "");
   const vintageYear = data.vintageYear ? String(data.vintageYear) : (pressing.vintage_year ? String(pressing.vintage_year) : null);
+
+  // Build a ref → capacity_litres lookup for the cellar-op vessel columns.
+  // Mirrors printBatchTrail: use the caller-supplied list when available, otherwise
+  // fetch it now (best-effort — capacity columns will be blank on failure, but the
+  // rest of the CSV still exports). This ensures a cold-load / immediate export
+  // always includes capacity data, not only when trailVessels has resolved.
+  let resolvedVessels: Record<string, unknown>[] = vessels ?? [];
+  if (!vessels) {
+    try {
+      const vr = await fetch(api(`farms/${farmId}/winery-vessels`), { credentials: "include" });
+      if (vr.ok) {
+        const body = await vr.json() as unknown;
+        const records = body != null && typeof body === "object" && Array.isArray((body as Record<string, unknown>).records)
+          ? (body as Record<string, unknown>).records as Record<string, unknown>[]
+          : Array.isArray(body) ? body as Record<string, unknown>[] : [];
+        resolvedVessels = records;
+      }
+    } catch {
+      // Non-fatal — CSV still exports with blank capacity columns
+    }
+  }
+  const csvVesselByRef = new Map<string, Record<string, unknown>>();
+  for (const v of resolvedVessels) {
+    const ref = v.vessel_ref != null ? String(v.vessel_ref).trim() : "";
+    if (ref) csvVesselByRef.set(ref.toLowerCase(), v);
+  }
+  const vesselCapacityStr = (ref: unknown): string => {
+    if (ref == null || ref === "") return "";
+    const v = csvVesselByRef.get(String(ref).trim().toLowerCase());
+    if (!v || v.capacity_litres == null || v.capacity_litres === "") return "";
+    const cap = parseFloat(String(v.capacity_litres));
+    return isNaN(cap) ? "" : cap.toFixed(0);
+  };
+
   const rows: string[][] = [];
 
   // Every data row is built as a named-cell record and mapped through
@@ -2487,6 +2521,8 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "SO₂ / Dose": soDetails,
       "Unit": soUnit,
       "Vessel": [r.from_vessel_ref, r.to_vessel_ref].filter(Boolean).join(" → "),
+      "From vessel capacity (L)": vesselCapacityStr(r.from_vessel_ref),
+      "To vessel capacity (L)": vesselCapacityStr(r.to_vessel_ref),
       "Operator": String(r.operator_name ?? ""),
       "Notes": String(r.notes ?? ""),
       "Running SO₂ Total (mg/L)": runningCell,
