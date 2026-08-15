@@ -439,6 +439,7 @@ function ScoutingPhotoThumbnail({
   onDelete,
   onPress,
   onReload,
+  reloading,
   onShowTooltip,
   onHideTooltip,
 }: {
@@ -446,6 +447,7 @@ function ScoutingPhotoThumbnail({
   onDelete: (id: number) => void;
   onPress: (photo: ScoutingPhoto) => void;
   onReload?: () => void;
+  reloading?: boolean;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
 }) {
@@ -507,11 +509,18 @@ function ScoutingPhotoThumbnail({
         ) : imgError ? (
           <Pressable
             style={styles.thumbPlaceholder}
-            onPress={() => { onReload?.(); }}
+            onPress={(e) => { e.stopPropagation(); if (!reloading) onReload?.(); }}
             hitSlop={8}
+            disabled={reloading}
           >
-            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+              </>
+            )}
           </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
@@ -540,6 +549,7 @@ function ScoutingPhotoSection({
   const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reloading, setReloading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
@@ -557,6 +567,25 @@ function ScoutingPhotoSection({
       // no-op on silent refresh
     } finally {
       if (!opts?.silent) setLoading(false);
+    }
+  }, [farmId, scoutingId]);
+
+  // Explicit grower-triggered reload — shows spinner on broken thumbnails and
+  // surfaces a failure alert if the network request doesn't succeed.
+  const handleReload = useCallback(async () => {
+    setReloading(true);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`);
+      if (res.ok) {
+        const data: { photos: ScoutingPhoto[] } = await res.json();
+        setPhotos(data.photos ?? []);
+      } else {
+        Alert.alert("Reload Failed", "Could not refresh the photos. Please check your connection and try again.");
+      }
+    } catch {
+      Alert.alert("Reload Failed", "Could not refresh the photos. Please check your connection and try again.");
+    } finally {
+      setReloading(false);
     }
   }, [farmId, scoutingId]);
 
@@ -661,7 +690,8 @@ function ScoutingPhotoSection({
               photo={item}
               onDelete={handleDeletePhoto}
               onPress={handlePressPhoto}
-              onReload={() => loadPhotos({ silent: true })}
+              onReload={handleReload}
+              reloading={reloading}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
             />
