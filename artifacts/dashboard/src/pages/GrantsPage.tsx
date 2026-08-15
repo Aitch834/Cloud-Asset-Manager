@@ -1441,7 +1441,18 @@ export default function GrantsPage() {
     validValues: ["", "approved", "active", "deadlines"] as const,
   });
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "grants", filter: "year", farmId, defaultValue: "all" });
-  const [hideArchived, setHideArchived] = useState(true);
+  const [_hideArchivedStr, _setHideArchivedStr] = usePersistedFilter({
+    page: "grants",
+    filter: "hide-archived",
+    farmId,
+    defaultValue: "true",
+    validValues: ["true", "false"] as const,
+  });
+  const hideArchived = _hideArchivedStr !== "false";
+  const setHideArchived = (v: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof v === "function" ? v(hideArchived) : v;
+    _setHideArchivedStr(next ? "true" : "false");
+  };
   const { uploadFile } = useUpload();
 
   const { data, isLoading } = useQuery({
