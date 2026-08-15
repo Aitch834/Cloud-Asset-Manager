@@ -3274,6 +3274,18 @@ export default function Movements() {
             </div>
           )}
 
+          {/* Stale sandbox token — platform moved to production, farm must re-authorise.
+              Condition mirrors the server-side enforcement: token.sandboxMode=true && !isLisOAuthSandbox(). */}
+          {lisConfigured && (lisCredsData as any)?.tokenSandboxMode === true && (lisCredsData as any)?.platformOAuthSandbox === false && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <AlertTriangle size={16} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>LIS re-authorisation required</p>
+                <p style={{ fontSize: "0.8rem", color: "#78350f", lineHeight: 1.5 }}>Your LIS account was connected under the sandbox environment. BDE Farm Trac now submits to the <strong>production</strong> Livestock Information Service — please go to <strong>Farm Settings → LIS Integration</strong> and click <em>Re-sign in with LIS</em> to refresh your sign-in. Submissions will remain queued until you re-connect.</p>
+              </div>
+            </div>
+          )}
+
           {lisUnreported.length > 0 && (
             <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>

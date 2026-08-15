@@ -747,6 +747,31 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
           </div>
         </div>
 
+        {/* Stale sandbox token warning — shown when the farm's stored token was obtained
+            via the sandbox OAuth scope but the platform has since moved to production.
+            Uses platformOAuthSandbox (not subscriptionKeyConfigured) to match the exact
+            condition the server enforces: token.sandboxMode=true && !isLisOAuthSandbox(). */}
+        {creds?.configured && (creds as any)?.tokenSandboxMode === true && (creds as any)?.platformOAuthSandbox === false && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ marginTop: 2, flexShrink: 0 }}><AlertTriangle size={15} color="#92400e" /></div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
+                Re-authorisation required — LIS production is now live
+              </p>
+              <p style={{ fontSize: "0.78rem", color: "#78350f", lineHeight: 1.5, marginBottom: 8 }}>
+                Your LIS account was connected under the sandbox environment. BDE Farm Trac now submits to the <strong>production</strong> Livestock Information Service and your existing sign-in needs to be refreshed. Click <strong>Re-sign in with LIS</strong> below to complete the one-click re-authorisation — it only takes a few seconds and no movements will be lost.
+              </p>
+              <button
+                onClick={handleSignIn}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f59e0b", border: "none", borderRadius: 7, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, color: "#fff", cursor: "pointer" }}
+              >
+                <ExternalLink size={13} />
+                Re-sign in with LIS
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Connection status + sign-in */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

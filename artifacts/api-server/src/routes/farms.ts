@@ -501,7 +501,7 @@ import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
-import { submitLisMovement, submitLisBirth, submitLisDeath, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest, type LisResult } from "../lib/lis";
+import { submitLisMovement, submitLisBirth, submitLisDeath, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, isLisOAuthSandbox, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest, type LisResult } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
 import { submitEidcymruMovement, testEidcymruConnection, isEidcymruSandbox } from "../lib/eidcymru";
 import { submitScoteidMovement, testScoteidConnection, isScoteidSandbox } from "../lib/scoteid";
@@ -27871,6 +27871,12 @@ router.get("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
     configured: token.isConfigured,
     sandboxMode: isLisSandboxMode(),
     subscriptionKeyConfigured: !isLisSandboxMode(),
+    // platformOAuthSandbox: whether the platform is currently using the sandbox OAuth scope.
+    // tokenSandboxMode: the scope that was active when the stored token was obtained.
+    // When platformOAuthSandbox=false (production scope) but tokenSandboxMode=true the
+    // farm connected under the old sandbox OAuth scope and must re-authorise.
+    platformOAuthSandbox: isLisOAuthSandbox(),
+    tokenSandboxMode: token.sandboxMode,
     lisUsername: token.lisUsername,
     lastTestedAt: token.lastTestedAt,
     testStatus: token.testStatus,
@@ -27893,7 +27899,9 @@ router.put("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
     lisUsername: lisUsername ?? existing?.lisUsername,
     lisPasswordEncrypted: passwordToStore,
     isConfigured: !!(lisUsername || existing?.lisUsername) && !!passwordToStore,
-    sandboxMode: isLisSandboxMode(),
+    // Store the OAuth scope mode (not subscription-key presence) so stale-token
+    // detection works correctly regardless of whether a subscription key is present.
+    sandboxMode: isLisOAuthSandbox(),
     updatedAt: new Date(),
   };
   let record;
@@ -28030,6 +28038,17 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
   const lisSpecies = species.includes("goat") ? "GOAT" : species.includes("deer") ? "DEER" : "SHEEP";
 
   const [creds] = await db.select().from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
+
+  // Reject if the stored token was obtained with sandbox OAuth scope but the platform
+  // is now configured for production.  The token would be refused by the production
+  // CLA API; tell the farm to re-authorise rather than letting the request fail silently.
+  if (creds?.sandboxMode === true && !isLisOAuthSandbox()) {
+    res.status(409).json({
+      error: "LIS re-authorisation required — your account was connected under the sandbox environment. Go to Farm Settings → LIS Integration and click 'Sign in with LIS' to reconnect for live production submissions.",
+      requiresReauth: true,
+    });
+    return;
+  }
 
   const typeMap: Record<string, "movement_on" | "movement_off" | "birth" | "death"> = {
     on: "movement_on", off: "movement_off", birth: "birth", death: "death",
@@ -28798,6 +28817,17 @@ router.post("/farms/:farmId/lis/sync-herds", requireAuth, requireTenant, async (
     return;
   }
 
+  // Reject if the stored token was obtained with sandbox OAuth scope but the platform
+  // is now configured for production.
+  if (creds.sandboxMode === true && !isLisOAuthSandbox()) {
+    res.status(409).json({
+      success: false,
+      message: "LIS re-authorisation required — your account was connected under the sandbox environment. Go to Farm Settings → LIS Integration and click 'Sign in with LIS' to reconnect for live production submissions.",
+      requiresReauth: true,
+    });
+    return;
+  }
+
   // Internal sandbox mode (no LIS_SUBSCRIPTION_KEY) — return simulated empty result
   if (isLisSandboxMode()) {
     res.json({
@@ -29123,6 +29153,17 @@ router.post("/farms/:farmId/lis-review-movement", requireAuth, requireTenant, as
     return;
   }
 
+  // Reject if the stored token was obtained with sandbox OAuth scope but the platform
+  // is now configured for production.
+  if (creds?.sandboxMode === true && !isLisOAuthSandbox()) {
+    res.status(409).json({
+      success: false,
+      error: "LIS re-authorisation required — your account was connected under the sandbox environment. Go to Farm Settings → LIS Integration and click 'Sign in with LIS' to reconnect for live production submissions.",
+      requiresReauth: true,
+    });
+    return;
+  }
+
   if (!creds?.isConfigured) {
     res.status(400).json({ success: false, error: "LIS not configured for this farm." });
     return;
@@ -29203,6 +29244,17 @@ router.post("/farms/:farmId/lis-undo-movement", requireAuth, requireTenant, asyn
   if (isLisSandboxMode()) {
     await db.update(livestockMovementsTable).set({ lisSource: "undone" }).where(eq(livestockMovementsTable.id, movId));
     res.json({ success: true, sandbox: true });
+    return;
+  }
+
+  // Reject if the stored token was obtained with sandbox OAuth scope but the platform
+  // is now configured for production.
+  if (creds?.sandboxMode === true && !isLisOAuthSandbox()) {
+    res.status(409).json({
+      success: false,
+      error: "LIS re-authorisation required — your account was connected under the sandbox environment. Go to Farm Settings → LIS Integration and click 'Sign in with LIS' to reconnect for live production submissions.",
+      requiresReauth: true,
+    });
     return;
   }
 
@@ -29310,7 +29362,7 @@ router.get("/lis/authorize", requireAuth, async (req: Request, res: Response): P
   // Ensure a token row exists for this farm (needed later to store access_token etc.)
   const [existing] = await db.select({ id: lisFarmTokensTable.id }).from(lisFarmTokensTable).where(eq(lisFarmTokensTable.farmId, farmId));
   if (!existing) {
-    await db.insert(lisFarmTokensTable).values({ farmId, isConfigured: false, sandboxMode: isLisSandboxMode() });
+    await db.insert(lisFarmTokensTable).values({ farmId, isConfigured: false, sandboxMode: isLisOAuthSandbox() });
   }
 
   const redirectUri = getLisClaCbUrl(req);
@@ -29372,7 +29424,9 @@ router.get("/lis/callback", async (req: Request, res: Response): Promise<void> =
     refreshToken: tokenResult.refreshToken ?? undefined,
     tokenExpiresAt: tokenResult.expiresIn ? new Date(Date.now() + tokenResult.expiresIn * 1000) : undefined,
     isConfigured: true,
-    sandboxMode: isLisSandboxMode(),
+    // Use tokenResult.sandbox (which equals isLisOAuthSandbox() at exchange time) so
+    // the stored sandboxMode accurately reflects the OAuth scope the token was issued under.
+    sandboxMode: tokenResult.sandbox ?? isLisOAuthSandbox(),
     testStatus: "ok" as const,
     testMessage: tokenResult.sandbox ? "Connected via LIS sign-in (sandbox)" : "Connected via LIS sign-in",
     lastTestedAt: new Date(),

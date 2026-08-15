@@ -104,6 +104,20 @@ export function isLisSandboxMode(): boolean {
   return !process.env.LIS_SUBSCRIPTION_KEY;
 }
 
+/**
+ * Returns true when the platform is configured to use the **sandbox** OAuth scope
+ * (LIS_USE_SANDBOX_API=true), meaning tokens are acquired against the ext-cla
+ * resource rather than the production apim-cla resource.
+ *
+ * This is independent of isLisSandboxMode() (which only checks for the
+ * subscription key).  Use this value when persisting lisFarmTokensTable.sandboxMode
+ * so that the column accurately reflects the OAuth scope the token was issued under,
+ * not merely whether a subscription key is present.
+ */
+export function isLisOAuthSandbox(): boolean {
+  return isSandboxApi();
+}
+
 export type LisSpecies = "SHEEP" | "GOAT" | "DEER";
 export type LisMovementType = "movement_off" | "movement_on" | "birth" | "death";
 
