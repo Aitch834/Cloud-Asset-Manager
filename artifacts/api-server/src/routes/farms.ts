@@ -626,7 +626,6 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     cphNumber: cphNumber ?? null,
     address: address ?? null,
     postcode: postcode ?? null,
-    county: county ?? null,
     gridReference: gridReference ?? null,
     totalAcreage: totalAcreage ?? null,
     totalHectares: totalHectares ?? null,

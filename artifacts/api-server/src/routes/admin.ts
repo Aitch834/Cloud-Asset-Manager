@@ -2044,8 +2044,8 @@ async function resolveFarmCounty(farmId: string | undefined): Promise<string> {
   if (!farmId) return "";
   const id = parseInt(farmId, 10);
   if (isNaN(id)) return "";
-  const rows = await db.select({ county: farmsTable.county }).from(farmsTable).where(eq(farmsTable.id, id));
-  return rows[0]?.county ?? "";
+  const rows = await db.select({ country: farmsTable.country }).from(farmsTable).where(eq(farmsTable.id, id));
+  return rows[0]?.country ?? "";
 }
 
 router.get("/hpai-alert", async (req: Request, res: Response): Promise<void> => {
