@@ -160,6 +160,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
   // When the lightbox is opened directly from the table badge (no view dialog), store the record id here
   const [photoOnlyRecordId, setPhotoOnlyRecordId] = useState<number | null>(null);
+  // Photo id awaiting delete-confirm in the standalone lightbox
+  const [confirmDeleteLightboxPhotoId, setConfirmDeleteLightboxPhotoId] = useState<number | null>(null);
 
   // Clear any pending upload when the viewed record changes or the dialog closes
   useEffect(() => {
@@ -396,6 +398,28 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       await queryClient.refetchQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       setUnlinkRecordId(null);
       toast({ title: "Block link removed", description: "The spray record is no longer linked to a block." });
+    },
+  });
+
+  // ── Delete spray diary photo (lightbox) ──────────────────────────────────────
+  const lightboxDeletePhotoMutation = useMutation({
+    mutationFn: async ({ recordId, photoId }: { recordId: number; photoId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${recordId}/photos/${photoId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed to delete photo");
+      return r.json();
+    },
+    onSuccess: () => {
+      setPhotoLightboxIndex(prev => Math.max(0, Math.min(prev, sprayPhotos.length - 2)));
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, activePhotoRecordId] });
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+      setConfirmDeleteLightboxPhotoId(null);
+      toast({ title: "Photo deleted", description: "The photo has been removed from this spray diary record." });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete photo", variant: "destructive" });
     },
   });
 
@@ -850,13 +874,22 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                 </DialogTitle>
               </DialogHeader>
               {currentPhoto && (
-                <div className="relative">
+                <div className="relative group">
                   <img
                     src={String(currentPhoto.downloadUrl ?? "")}
                     alt={String(currentPhoto.fileName ?? "Spray diary photo")}
                     className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
                     onError={e => { (e.target as HTMLImageElement).src = ""; }}
                   />
+                  <button
+                    type="button"
+                    title="Delete photo"
+                    onClick={() => setConfirmDeleteLightboxPhotoId(currentPhoto.id as number)}
+                    className="absolute top-2 right-2 rounded-full bg-black/60 hover:bg-destructive text-white p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Delete photo"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   {sprayPhotos.length > 1 && (
                     <>
                       <button
@@ -907,6 +940,22 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
           </Dialog>
         );
       })()}
+
+      {/* Lightbox delete confirm */}
+      <ConfirmDialog
+        open={confirmDeleteLightboxPhotoId !== null}
+        title="Delete photo?"
+        message="This photo will be permanently removed from the spray diary record. This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (confirmDeleteLightboxPhotoId !== null && activePhotoRecordId !== null) {
+            lightboxDeletePhotoMutation.mutate({ recordId: activePhotoRecordId, photoId: confirmDeleteLightboxPhotoId });
+          }
+        }}
+        onCancel={() => { setConfirmDeleteLightboxPhotoId(null); lightboxDeletePhotoMutation.reset(); }}
+        mutation={lightboxDeletePhotoMutation}
+      />
 
       {/* Unlink confirm */}
       <ConfirmDialog
