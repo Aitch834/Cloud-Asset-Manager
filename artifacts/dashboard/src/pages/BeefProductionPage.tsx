@@ -4,7 +4,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { openPrintWindow } from "@/lib/print-report";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList, Printer, BarChart3 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, TrendingUp, CheckCircle2, ClipboardList, Printer, BarChart3, ShieldAlert } from "lucide-react";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BeefEnterpriseReport } from "@/components/BeefEnterpriseReport";
@@ -702,6 +702,12 @@ export default function BeefProductionPage() {
   const [tabsReady, setTabsReady] = useState(false);
   useEffect(() => { if (farmId) setTabsReady(true); else setTabsReady(false); }, [farmId]);
 
+  const { data: beefAlert } = useQuery({
+    queryKey: ["beef-platform-alert", farmId],
+    queryFn: () => fetch(`/api/beef-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   if (!farmId) {
     return (
       <AppLayout>
@@ -720,6 +726,25 @@ export default function BeefProductionPage() {
             <p className="text-sm text-muted-foreground">Weigh-in & DLWG, finishing records, deadweight settlements and Red Tractor cattle checklist</p>
           </div>
         </div>
+
+        {beefAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            beefAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            beefAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {beefAlert.level === "national" ? "National Cattle Disease Alert" :
+                 beefAlert.level === "regional" ? "Regional Cattle Disease Alert" :
+                 "Cattle Disease Notice"}
+              </span>
+              {beefAlert.message && <span className="ml-2">{beefAlert.message}</span>}
+              {beefAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {beefAlert.date}</span>}
+            </div>
+          </div>
+        )}
 
         <TabBar className="mb-6">
           <TabButton active={tab === "weigh"} onClick={() => setTab("weigh")}>Weigh-in & DLWG</TabButton>

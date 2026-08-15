@@ -9,7 +9,7 @@ import { DocAttach } from "@/components/DocAttach";
 import { PigEnterpriseReport } from "@/components/PigEnterpriseReport";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, ClipboardList, AlertTriangle, Baby, ShieldCheck, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer, Syringe, Activity } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, PiggyBank, Truck, FileText, UtensilsCrossed, Stethoscope, ClipboardCheck, ClipboardList, AlertTriangle, Baby, ShieldCheck, ShieldAlert, Pill, CheckCircle2, Clock, MapPin, LayoutDashboard, XCircle, TrendingUp, Scale, FileDown, Eye, Paperclip, Printer, Syringe, Activity } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2735,6 +2735,11 @@ export default function PigProductionPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "pig-production", farmId, validIds: PIG_PRODUCTION_TAB_IDS, defaultTab: "overview", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const [generating, setGenerating] = useState(false);
+  const { data: pigAlert } = useQuery({
+    queryKey: ["pig-platform-alert", farmId],
+    queryFn: () => fetch(`/api/pig-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
   if (!farmId) return <Redirect to="/" />;
 
   async function handleGeneratePdf() {
@@ -2745,6 +2750,24 @@ export default function PigProductionPage() {
   return (
     <AppLayout title="Pig Production">
       <div className="space-y-4">
+        {pigAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            pigAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            pigAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {pigAlert.level === "national" ? "National Pig Disease Alert" :
+                 pigAlert.level === "regional" ? "Regional Pig Disease Alert" :
+                 "Pig Disease Notice"}
+              </span>
+              {pigAlert.message && <span className="ml-2">{pigAlert.message}</span>}
+              {pigAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {pigAlert.date}</span>}
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3">
           <TabBar>
             <TabButton active={tab === "overview"} onClick={() => setTab("overview")}><LayoutDashboard className="w-3.5 h-3.5 mr-1" />Overview</TabButton>

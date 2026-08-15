@@ -1848,6 +1848,136 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Comma-separated counties where this viticulture/vine alert applies. Leave blank to apply nationally.",
     value: "",
   },
+  // ─── Beef / Cattle alerts ────────────────────────────────────────────────────
+  "beef.alert_active": {
+    label: "Beef / Cattle Alert — Active",
+    description: "Toggle to 'true' to display a livestock disease alert banner on beef and cattle dashboards. Use for FMD, BVD, Schmallenberg, or APHA statutory notices affecting cattle.",
+    value: "false",
+  },
+  "beef.alert_level": {
+    label: "Beef / Cattle Alert — Level",
+    description: "Severity of the beef/cattle disease alert. Values: precautionary | regional | national",
+    value: "precautionary",
+  },
+  "beef.alert_message": {
+    label: "Beef / Cattle Alert — Message",
+    description: "Message shown on beef dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "beef.alert_date": {
+    label: "Beef / Cattle Alert — Date",
+    description: "Date the current beef/cattle alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "beef.alert_counties": {
+    label: "Beef / Cattle Alert — Counties",
+    description: "Comma-separated counties where this beef/cattle alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  // ─── Dairy alerts ────────────────────────────────────────────────────────────
+  "dairy.alert_active": {
+    label: "Dairy Alert — Active",
+    description: "Toggle to 'true' to display a livestock disease alert banner on dairy dashboards. Use for FMD, BVD, Johne's, or APHA statutory notices affecting dairy herds.",
+    value: "false",
+  },
+  "dairy.alert_level": {
+    label: "Dairy Alert — Level",
+    description: "Severity of the dairy herd disease alert. Values: precautionary | regional | national",
+    value: "precautionary",
+  },
+  "dairy.alert_message": {
+    label: "Dairy Alert — Message",
+    description: "Message shown on dairy dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "dairy.alert_date": {
+    label: "Dairy Alert — Date",
+    description: "Date the current dairy alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "dairy.alert_counties": {
+    label: "Dairy Alert — Counties",
+    description: "Comma-separated counties where this dairy alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  // ─── Pig alerts ──────────────────────────────────────────────────────────────
+  "pig.alert_active": {
+    label: "Pig Alert — Active",
+    description: "Toggle to 'true' to display a disease alert banner on pig dashboards. Use for ASF, PRRS, swine influenza, or APHA statutory notices affecting pigs.",
+    value: "false",
+  },
+  "pig.alert_level": {
+    label: "Pig Alert — Level",
+    description: "Severity of the pig disease alert. Values: precautionary | regional | national",
+    value: "precautionary",
+  },
+  "pig.alert_message": {
+    label: "Pig Alert — Message",
+    description: "Message shown on pig dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "pig.alert_date": {
+    label: "Pig Alert — Date",
+    description: "Date the current pig alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "pig.alert_counties": {
+    label: "Pig Alert — Counties",
+    description: "Comma-separated counties where this pig alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  // ─── Sheep alerts ────────────────────────────────────────────────────────────
+  "sheep.alert_active": {
+    label: "Sheep Alert — Active",
+    description: "Toggle to 'true' to display a disease alert banner on sheep dashboards. Use for Blue Tongue, FMD, Schmallenberg, Scrapie restriction zones, or APHA statutory notices.",
+    value: "false",
+  },
+  "sheep.alert_level": {
+    label: "Sheep Alert — Level",
+    description: "Severity of the sheep disease alert. Values: precautionary | regional | national",
+    value: "precautionary",
+  },
+  "sheep.alert_message": {
+    label: "Sheep Alert — Message",
+    description: "Message shown on sheep dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "sheep.alert_date": {
+    label: "Sheep Alert — Date",
+    description: "Date the current sheep alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "sheep.alert_counties": {
+    label: "Sheep Alert — Counties",
+    description: "Comma-separated counties where this sheep alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
+  // ─── Goat alerts ─────────────────────────────────────────────────────────────
+  "goat.alert_active": {
+    label: "Goat Alert — Active",
+    description: "Toggle to 'true' to display a disease alert banner on goat dashboards. Use for Blue Tongue, Schmallenberg, FMD, or APHA statutory notices affecting goats.",
+    value: "false",
+  },
+  "goat.alert_level": {
+    label: "Goat Alert — Level",
+    description: "Severity of the goat disease alert. Values: precautionary | regional | national",
+    value: "precautionary",
+  },
+  "goat.alert_message": {
+    label: "Goat Alert — Message",
+    description: "Message shown on goat dashboards when the alert is active. Keep concise — it appears as a banner.",
+    value: "",
+  },
+  "goat.alert_date": {
+    label: "Goat Alert — Date",
+    description: "Date the current goat alert was declared (ISO format: YYYY-MM-DD).",
+    value: "",
+  },
+  "goat.alert_counties": {
+    label: "Goat Alert — Counties",
+    description: "Comma-separated counties where this goat alert applies. Leave blank to apply nationally.",
+    value: "",
+  },
   "irrigation.costPerMmHa": {
     label: "Irrigation Cost per mm/ha (£)",
     description: "Default pump + abstraction cost (£) per mm applied per hectare, used as the platform-level fallback in the Irrigation Advisor. Farms can override this locally in the Advisor panel.",
@@ -1982,6 +2112,86 @@ router.get("/viticulture-alert", async (req: Request, res: Response): Promise<vo
   });
 });
 
+router.get("/beef-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["beef.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["beef.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["beef.alert_level"] ?? "",
+    message: byKey["beef.alert_message"] ?? "",
+    date: byKey["beef.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/dairy-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["dairy.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["dairy.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["dairy.alert_level"] ?? "",
+    message: byKey["dairy.alert_message"] ?? "",
+    date: byKey["dairy.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/pig-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["pig.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["pig.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["pig.alert_level"] ?? "",
+    message: byKey["pig.alert_message"] ?? "",
+    date: byKey["pig.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/sheep-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["sheep.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["sheep.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["sheep.alert_level"] ?? "",
+    message: byKey["sheep.alert_message"] ?? "",
+    date: byKey["sheep.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
+router.get("/goat-alert", async (req: Request, res: Response): Promise<void> => {
+  const rows = await db.select().from(platformConfigTable);
+  const byKey: Record<string, string> = {};
+  for (const row of rows) byKey[row.key] = row.value;
+  const farmCounty = await resolveFarmCounty(req.query.farmId as string | undefined);
+  const isActive = (byKey["goat.alert_active"] ?? "false") === "true";
+  const alertCounties = byKey["goat.alert_counties"] ?? "";
+  res.json({
+    active: isActive && alertAppliesForCounty(alertCounties, farmCounty),
+    level: byKey["goat.alert_level"] ?? "",
+    message: byKey["goat.alert_message"] ?? "",
+    date: byKey["goat.alert_date"] ?? "",
+    counties: alertCounties,
+  });
+});
+
 router.get("/hmrc-duty-rates", async (_req: Request, res: Response): Promise<void> => {
   const rows = await db.select().from(platformConfigTable);
   const byKey: Record<string, string> = {};
@@ -2048,7 +2258,7 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
     _brandAssetCache = null;
   }
   // Audit sector alert config changes so we have a permanent history
-  const SECTOR_PREFIXES: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture" };
+  const SECTOR_PREFIXES: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture", "beef.": "beef", "dairy.": "dairy", "pig.": "pig", "sheep.": "sheep", "goat.": "goat" };
   const sectorEntry = Object.entries(SECTOR_PREFIXES).find(([p]) => key.startsWith(p));
   if (sectorEntry && req.userId) {
     await writeAuditLog(req.userId, "sector_alert_change", { sector: sectorEntry[1], key, oldValue, newValue: value.trim() });
@@ -2069,7 +2279,7 @@ router.delete("/admin/platform-config/:key", requireAuth, async (req: Request, r
     _brandAssetCache = null;
   }
   // Audit sector alert config changes so we have a permanent history
-  const SECTOR_PREFIXES_DEL: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture" };
+  const SECTOR_PREFIXES_DEL: Record<string, string> = { "hpai.": "hpai", "arable.": "arable", "horticulture.": "horticulture", "viticulture.": "viticulture", "beef.": "beef", "dairy.": "dairy", "pig.": "pig", "sheep.": "sheep", "goat.": "goat" };
   const sectorEntryDel = Object.entries(SECTOR_PREFIXES_DEL).find(([p]) => key.startsWith(p));
   if (sectorEntryDel && req.userId) {
     await writeAuditLog(req.userId, "sector_alert_change", { sector: sectorEntryDel[1], key, oldValue, newValue: null });

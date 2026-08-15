@@ -24,6 +24,13 @@ Each sector page passes `?farmId=${farmId}` to its alert endpoint. queryKey incl
 - OrganicArablePage → `/api/arable-alert?farmId=X`
 - FreshProducePage → `/api/horticulture-alert?farmId=X`
 - viticulture/ViticulturePage → `/api/viticulture-alert?farmId=X`
+- BeefProductionPage → `/api/beef-alert?farmId=X`
+- dairy/DairyPage → `/api/dairy-alert?farmId=X`
+- PigProductionPage → `/api/pig-alert?farmId=X`
+- SheepProductionPage → `/api/sheep-alert?farmId=X`
+- GoatProductionPage + GoatDairyPage → `/api/goat-alert?farmId=X`
+
+**Hook placement gotcha:** PigProductionPage, GoatDairyPage have early returns (`if (!farmId) return`) after hook calls — the alert useQuery must go BEFORE those early returns with `enabled: !!farmId`.
 
 ## Farm county field
 `county text` column on `farmsTable`, added via `farmCoreMigrations.ts` (ADD COLUMN IF NOT EXISTS). Editable in FarmSettings address card with a hint about its purpose.

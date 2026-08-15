@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect, useLocation } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, Droplets, Printer, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
@@ -78,6 +78,12 @@ export default function GoatDairyPage() {
     validIds: ["milk", "mastitis", "kidding", "bcs", "tank", "cae", "assurance", "abr-kit", "scc-equipment", "enterprise", "supplies"],
     defaultTab: "milk",
   });
+  const { data: goatAlert } = useQuery({
+    queryKey: ["goat-platform-alert", farmId],
+    queryFn: () => fetch(`/api/goat-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   if (!farmId) return <Redirect to="/select" />;
 
   return (
@@ -89,6 +95,24 @@ export default function GoatDairyPage() {
             British Goat Society compliance — milk recording with SCC monitoring (1,000,000 cells/mL regulatory limit), mastitis, kidding records with LIS tagging, body condition scoring, bulk tank hygiene, and CAE (Caprine Arthritis Encephalitis) monitoring.
           </p>
         </div>
+        {goatAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm mb-4 ${
+            goatAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            goatAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {goatAlert.level === "national" ? "National Goat Disease Alert" :
+                 goatAlert.level === "regional" ? "Regional Goat Disease Alert" :
+                 "Goat Disease Notice"}
+              </span>
+              {goatAlert.message && <span className="ml-2">{goatAlert.message}</span>}
+              {goatAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {goatAlert.date}</span>}
+            </div>
+          </div>
+        )}
         <TabBar>
           <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Collections</TabButton>
           <TabButton active={tab === "mastitis"} onClick={() => setTab("mastitis")}>Mastitis</TabButton>

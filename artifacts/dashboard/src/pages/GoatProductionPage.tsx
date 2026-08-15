@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ShieldAlert, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
@@ -1007,6 +1007,12 @@ export default function GoatProductionPage() {
     defaultTab: "herds",
   });
 
+  const { data: goatAlert } = useQuery({
+    queryKey: ["goat-platform-alert", farmId],
+    queryFn: () => fetch(`/api/goat-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   if (!farmId) {
     return (
       <AppLayout>
@@ -1029,6 +1035,25 @@ export default function GoatProductionPage() {
             <p className="text-muted-foreground text-sm mt-1">Mating records, pregnancy scanning, weigh-in &amp; DLWG, market records, health &amp; vaccination</p>
           </div>
         </div>
+
+        {goatAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            goatAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            goatAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {goatAlert.level === "national" ? "National Goat Disease Alert" :
+                 goatAlert.level === "regional" ? "Regional Goat Disease Alert" :
+                 "Goat Disease Notice"}
+              </span>
+              {goatAlert.message && <span className="ml-2">{goatAlert.message}</span>}
+              {goatAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {goatAlert.date}</span>}
+            </div>
+          </div>
+        )}
 
         <TabBar>
           <TabButton active={tab === "herds"} onClick={() => setTab("herds")}>Herds</TabButton>

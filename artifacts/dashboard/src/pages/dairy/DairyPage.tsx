@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { ShieldAlert } from "lucide-react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -40,6 +42,12 @@ export default function DairyPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "dairy", farmId, validIds: ["milk", "mastitis", "calving", "bcs", "mobility", "tank", "dct", "johnes", "recording", "enterprise", "abr-kit", "scc-equipment", "supplies"], defaultTab: "milk" });
 
+  const { data: dairyAlert } = useQuery({
+    queryKey: ["dairy-platform-alert", farmId],
+    queryFn: () => fetch(`/api/dairy-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   if (!farmId) return <Redirect to="/select" />;
 
   return (
@@ -49,6 +57,25 @@ export default function DairyPage() {
           <h1 className="text-2xl font-bold text-gray-900">Dairy Records</h1>
           <p className="text-gray-500 text-sm mt-1">Red Tractor Dairy scheme compliance — milk recording, mastitis, calving, body condition, mobility, bulk tank, and dry cow therapy. Supports dairy cattle and water buffalo herds (both regulated as bovines under BCMS).</p>
         </div>
+
+        {dairyAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm mb-4 ${
+            dairyAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            dairyAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {dairyAlert.level === "national" ? "National Dairy Herd Disease Alert" :
+                 dairyAlert.level === "regional" ? "Regional Dairy Herd Disease Alert" :
+                 "Dairy Herd Disease Notice"}
+              </span>
+              {dairyAlert.message && <span className="ml-2">{dairyAlert.message}</span>}
+              {dairyAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {dairyAlert.date}</span>}
+            </div>
+          </div>
+        )}
 
         <TabBar>
           <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Records</TabButton>

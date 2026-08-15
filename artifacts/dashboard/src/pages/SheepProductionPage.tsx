@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ShieldAlert, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { openPrintWindow } from "@/lib/print-report";
@@ -1668,6 +1668,12 @@ export default function SheepProductionPage() {
   const farmId = useAppStore(s => s.farmId);
   const [tab, setTab] = usePersistedTab<Tab>({ page: "sheep-production", farmId, validIds: SHEEP_TAB_IDS, defaultTab: "tupping" });
 
+  const { data: sheepAlert } = useQuery({
+    queryKey: ["sheep-platform-alert", farmId],
+    queryFn: () => fetch(`/api/sheep-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   if (!farmId) {
     return (
       <AppLayout>
@@ -1686,6 +1692,25 @@ export default function SheepProductionPage() {
             <p className="text-sm text-muted-foreground">Flock management, tupping, scanning, performance, shearing, health plans and Red Tractor compliance</p>
           </div>
         </div>
+
+        {sheepAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            sheepAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            sheepAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {sheepAlert.level === "national" ? "National Sheep Disease Alert" :
+                 sheepAlert.level === "regional" ? "Regional Sheep Disease Alert" :
+                 "Sheep Disease Notice"}
+              </span>
+              {sheepAlert.message && <span className="ml-2">{sheepAlert.message}</span>}
+              {sheepAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {sheepAlert.date}</span>}
+            </div>
+          </div>
+        )}
 
         <TabBar className="mb-6">
           <TabButton active={tab === "flocks"} onClick={() => setTab("flocks")}>Flocks</TabButton>

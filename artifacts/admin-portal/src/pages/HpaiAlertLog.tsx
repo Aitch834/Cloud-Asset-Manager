@@ -10,6 +10,11 @@ const SECTOR_META: Record<string, { label: string; colour: string; emptyIcon?: s
   arable:        { label: "Arable / Crop Health",   colour: "bg-amber-100 text-amber-700 border-amber-200" },
   horticulture:  { label: "Horticulture / Plant Health", colour: "bg-green-100 text-green-700 border-green-200" },
   viticulture:   { label: "Viticulture / Vine Disease",  colour: "bg-purple-100 text-purple-700 border-purple-200" },
+  beef:          { label: "Beef / Cattle Disease",       colour: "bg-orange-100 text-orange-700 border-orange-200" },
+  dairy:         { label: "Dairy Herd Disease",          colour: "bg-blue-100 text-blue-700 border-blue-200" },
+  pig:           { label: "Pig Disease",                 colour: "bg-pink-100 text-pink-700 border-pink-200" },
+  sheep:         { label: "Sheep Disease",               colour: "bg-lime-100 text-lime-700 border-lime-200" },
+  goat:          { label: "Goat Disease",                colour: "bg-teal-100 text-teal-700 border-teal-200" },
 };
 
 const KEY_LABELS: Record<string, string> = {
@@ -37,6 +42,36 @@ const KEY_LABELS: Record<string, string> = {
   "viticulture.alert_message":  "Alert message",
   "viticulture.alert_date":     "Alert date",
   "viticulture.alert_counties": "Alert counties",
+  // Beef / Cattle
+  "beef.alert_active":   "Alert active",
+  "beef.alert_level":    "Alert level",
+  "beef.alert_message":  "Alert message",
+  "beef.alert_date":     "Alert date",
+  "beef.alert_counties": "Alert counties",
+  // Dairy
+  "dairy.alert_active":   "Alert active",
+  "dairy.alert_level":    "Alert level",
+  "dairy.alert_message":  "Alert message",
+  "dairy.alert_date":     "Alert date",
+  "dairy.alert_counties": "Alert counties",
+  // Pig
+  "pig.alert_active":   "Alert active",
+  "pig.alert_level":    "Alert level",
+  "pig.alert_message":  "Alert message",
+  "pig.alert_date":     "Alert date",
+  "pig.alert_counties": "Alert counties",
+  // Sheep
+  "sheep.alert_active":   "Alert active",
+  "sheep.alert_level":    "Alert level",
+  "sheep.alert_message":  "Alert message",
+  "sheep.alert_date":     "Alert date",
+  "sheep.alert_counties": "Alert counties",
+  // Goat
+  "goat.alert_active":   "Alert active",
+  "goat.alert_level":    "Alert level",
+  "goat.alert_message":  "Alert message",
+  "goat.alert_date":     "Alert date",
+  "goat.alert_counties": "Alert counties",
 };
 
 const LEVEL_LABELS: Record<string, { label: string; colour: string }> = {
@@ -51,6 +86,11 @@ const SECTORS = [
   { value: "arable",      label: "Arable / Crop Health" },
   { value: "horticulture", label: "Horticulture / Plant Health" },
   { value: "viticulture", label: "Viticulture / Vine Disease" },
+  { value: "beef",        label: "Beef / Cattle Disease" },
+  { value: "dairy",       label: "Dairy Herd Disease" },
+  { value: "pig",         label: "Pig Disease" },
+  { value: "sheep",       label: "Sheep Disease" },
+  { value: "goat",        label: "Goat Disease" },
 ];
 
 function formatDateTime(iso: string) {
