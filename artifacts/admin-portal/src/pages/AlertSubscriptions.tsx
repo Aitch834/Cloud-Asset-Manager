@@ -5,8 +5,20 @@ import { CheckSquare, Square, ExternalLink, Star, AlertCircle, CheckCircle2, Clo
 
 // ─── Subscription catalogue ──────────────────────────────────────────────────
 
-interface SubItem { id: string; name: string; url: string; priority: boolean; }
+interface SubItem {
+  id: string;
+  name: string;
+  url: string;
+  priority: boolean;
+  /** How BDE actually signs up — shown as a sub-note under the service name */
+  signupNote: string;
+}
 interface Sector { id: string; label: string; diseases: string; headerBg: string; items: SubItem[]; }
+
+// Sign-up URLs verified August 2026
+const GOVDELIVERY_APHA = "https://public.govdelivery.com/accounts/UKAPHA/subscriber/topics?qsp=CODE_RED";
+const AHDB_PREF        = "https://preferencecentre.ahdb.org.uk/";
+const PLANT_PORTAL     = "https://planthealthportal.defra.gov.uk/pests-and-diseases/pest-and-disease-alerts";
 
 const SECTORS: Sector[] = [
   {
@@ -15,9 +27,20 @@ const SECTORS: Sector[] = [
     diseases: "H5N1 / H5N8 avian influenza, housing orders, protection zones",
     headerBg: "bg-red-600",
     items: [
-      { id: "hpai-apha",  name: "APHA Alert Service",                  url: "https://www.gov.uk/guidance/avian-influenza-bird-flu", priority: true  },
-      { id: "hpai-defra", name: "DEFRA News & Alerts (gov.uk sign-up)", url: "https://www.gov.uk/email-signup",                    priority: false },
-      { id: "hpai-bpc",   name: "British Poultry Council",              url: "https://www.britishpoultry.org.uk",                  priority: false },
+      {
+        id: "hpai-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on the GovDelivery page → select 'Notifiable Disease Alerts' topics. Also supports SMS.",
+      },
+      {
+        id: "hpai-bpc",
+        name: "British Poultry Council — News",
+        url: "https://britishpoultry.org.uk/news-publications/",
+        priority: false,
+        signupNote: "No public mailing list. Bookmark the news page and check periodically.",
+      },
     ],
   },
   {
@@ -26,10 +49,34 @@ const SECTORS: Sector[] = [
     diseases: "BYDV, phytosanitary pests, crop disease outbreaks",
     headerBg: "bg-amber-600",
     items: [
-      { id: "arable-apha",      name: "APHA Plant Health Alert Service", url: "https://www.gov.uk/guidance/plant-health-alert-service", priority: true  },
-      { id: "arable-ahdb-crop", name: "AHDB Crop Monitor",               url: "https://ahdb.org.uk/crop-monitor",                      priority: true  },
-      { id: "arable-ahdb-pest", name: "AHDB Pest Bulletin",               url: "https://ahdb.org.uk",                                   priority: false },
-      { id: "arable-basis",     name: "BASIS",                             url: "https://www.basis.org.uk",                              priority: false },
+      {
+        id: "arable-apha",
+        name: "APHA Plant Health Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Same GovDelivery page — select plant health topics (Phytosanitary, Xylella, etc.) alongside any animal topics.",
+      },
+      {
+        id: "arable-ahdb-crop",
+        name: "AHDB Cereals & Oilseeds — Arable Focus newsletter",
+        url: AHDB_PREF,
+        priority: true,
+        signupNote: "Create a free AHDB Preference Centre account → tick Cereals & Oilseeds / Arable Focus updates.",
+      },
+      {
+        id: "arable-ahdb-pest",
+        name: "AHDB Pest Bulletin",
+        url: AHDB_PREF,
+        priority: false,
+        signupNote: "Via AHDB Preference Centre (same account) — tick the Pest Bulletin preference.",
+      },
+      {
+        id: "arable-basis",
+        name: "BASIS Registration — News",
+        url: "https://basis-reg.co.uk/news",
+        priority: false,
+        signupNote: "Industry news for BASIS-qualified advisers. No public subscription; monitor via website.",
+      },
     ],
   },
   {
@@ -38,10 +85,27 @@ const SECTORS: Sector[] = [
     diseases: "Xylella, Phytophthora, Asian hornet, quarantine pests",
     headerBg: "bg-green-600",
     items: [
-      { id: "horti-apha",  name: "APHA Plant Health Alert Service", url: "https://www.gov.uk/guidance/plant-health-alert-service",                 priority: true  },
-      { id: "horti-defra", name: "DEFRA Plant Health Portal",        url: "https://www.gov.uk/topic/farming-food-grants-payments/plant-health",    priority: false },
-      { id: "horti-adas",  name: "ADAS Advisories",                  url: "https://www.adas.co.uk/news",                                          priority: false },
-      { id: "horti-nfu",   name: "NFU Horticulture",                  url: "https://www.nfuonline.com",                                           priority: false },
+      {
+        id: "horti-apha",
+        name: "APHA Plant Health Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Select plant health topics on the GovDelivery sign-up page.",
+      },
+      {
+        id: "horti-portal",
+        name: "UK Plant Health Information Portal — Pest & Disease Alerts",
+        url: PLANT_PORTAL,
+        priority: false,
+        signupNote: "View current statutory pest alerts; individual alert pages link to GovDelivery sign-up.",
+      },
+      {
+        id: "horti-adas",
+        name: "ADAS Technical Advisories",
+        url: "https://www.adas.co.uk/news",
+        priority: false,
+        signupNote: "News and technical updates on the ADAS website; no public email list.",
+      },
     ],
   },
   {
@@ -50,9 +114,27 @@ const SECTORS: Sector[] = [
     diseases: "Xylella fastidiosa, Flavescence dorée, vine moth statutory notices",
     headerBg: "bg-purple-600",
     items: [
-      { id: "viti-winegb", name: "WineGB",                            url: "https://www.winegb.co.uk",                                            priority: true  },
-      { id: "viti-apha",   name: "APHA Plant Health Alert Service",   url: "https://www.gov.uk/guidance/plant-health-alert-service",               priority: true  },
-      { id: "viti-defra",  name: "DEFRA Plant Health Portal",         url: "https://www.gov.uk/topic/farming-food-grants-payments/plant-health",   priority: false },
+      {
+        id: "viti-winegb",
+        name: "WineGB Trade Newsletter",
+        url: "https://mms.winegb.co.uk/newsletter/signup",
+        priority: true,
+        signupNote: "Fill in name, email and organisation on the sign-up page. Monthly trade newsletter.",
+      },
+      {
+        id: "viti-apha",
+        name: "APHA Plant Health Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Select Xylella / Flavescence dorée topics on GovDelivery sign-up page.",
+      },
+      {
+        id: "viti-portal",
+        name: "UK Plant Health Information Portal — Pest & Disease Alerts",
+        url: PLANT_PORTAL,
+        priority: false,
+        signupNote: "Statutory alerts for vine pests; individual alert pages link to GovDelivery sign-up.",
+      },
     ],
   },
   {
@@ -61,10 +143,27 @@ const SECTORS: Sector[] = [
     diseases: "FMD, BVD, Schmallenberg, TB movement restrictions",
     headerBg: "bg-orange-600",
     items: [
-      { id: "beef-apha", name: "APHA Alert Service",                       url: "https://www.gov.uk/guidance/apha-alert-service", priority: true  },
-      { id: "beef-ahdb", name: "AHDB Beef & Lamb",                         url: "https://ahdb.org.uk/beef-and-lamb",             priority: true  },
-      { id: "beef-bcva", name: "BCVA (British Cattle Veterinary Assoc.)", url: "https://www.bcva.org.uk",                       priority: false },
-      { id: "beef-nfu",  name: "NFU Cattle",                               url: "https://www.nfuonline.com",                     priority: false },
+      {
+        id: "beef-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on GovDelivery → select notifiable animal disease topics.",
+      },
+      {
+        id: "beef-ahdb",
+        name: "AHDB Beef & Lamb — Market Intelligence & Alerts",
+        url: AHDB_PREF,
+        priority: true,
+        signupNote: "Create a free AHDB Preference Centre account → select Beef & Lamb sector updates.",
+      },
+      {
+        id: "beef-nfu",
+        name: "NFU Cattle — Breaking News Alerts",
+        url: "https://www.nfuonline.com/news/make-sure-youre-signed-up-to-all-nfu-breaking-news-channels/",
+        priority: false,
+        signupNote: "NFU alerts are primarily for NFU members. Non-members can follow news at nfuonline.com.",
+      },
     ],
   },
   {
@@ -73,10 +172,27 @@ const SECTORS: Sector[] = [
     diseases: "FMD, BVD, Johne's disease, TB movement restrictions",
     headerBg: "bg-blue-600",
     items: [
-      { id: "dairy-apha", name: "APHA Alert Service",   url: "https://www.gov.uk/guidance/apha-alert-service", priority: true  },
-      { id: "dairy-ahdb", name: "AHDB Dairy",           url: "https://ahdb.org.uk/dairy",                     priority: true  },
-      { id: "dairy-bcva", name: "BCVA / DairyCo",       url: "https://www.bcva.org.uk",                       priority: false },
-      { id: "dairy-nfu",  name: "NFU Dairy",            url: "https://www.nfuonline.com",                     priority: false },
+      {
+        id: "dairy-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on GovDelivery → select notifiable animal disease topics.",
+      },
+      {
+        id: "dairy-ahdb",
+        name: "AHDB Dairy — Market Intelligence & Alerts",
+        url: AHDB_PREF,
+        priority: true,
+        signupNote: "Create a free AHDB Preference Centre account → select Dairy sector updates.",
+      },
+      {
+        id: "dairy-nfu",
+        name: "NFU Dairy — Breaking News Alerts",
+        url: "https://www.nfuonline.com/news/make-sure-youre-signed-up-to-all-nfu-breaking-news-channels/",
+        priority: false,
+        signupNote: "NFU alerts are primarily for NFU members. Non-members can follow news at nfuonline.com.",
+      },
     ],
   },
   {
@@ -85,9 +201,27 @@ const SECTORS: Sector[] = [
     diseases: "African Swine Fever (ASF), PRRS, swine influenza",
     headerBg: "bg-pink-600",
     items: [
-      { id: "pig-apha", name: "APHA Alert Service",               url: "https://www.gov.uk/guidance/apha-alert-service", priority: true  },
-      { id: "pig-ahdb", name: "AHDB Pork",                        url: "https://ahdb.org.uk/pork",                      priority: true  },
-      { id: "pig-npa",  name: "National Pig Association (NPA)",   url: "https://www.npa-uk.org.uk",                     priority: false },
+      {
+        id: "pig-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on GovDelivery → select notifiable animal disease topics including ASF.",
+      },
+      {
+        id: "pig-ahdb",
+        name: "AHDB Pork — Market Intelligence & Alerts",
+        url: AHDB_PREF,
+        priority: true,
+        signupNote: "Create a free AHDB Preference Centre account → select Pork sector updates.",
+      },
+      {
+        id: "pig-npa",
+        name: "National Pig Association — Media Mailing List",
+        url: "https://nationalpigassociation.co.uk/media/media-mailing-list-signup/",
+        priority: false,
+        signupNote: "NPA press/media release mailing list — sign up directly on their website.",
+      },
     ],
   },
   {
@@ -96,10 +230,27 @@ const SECTORS: Sector[] = [
     diseases: "Blue Tongue, FMD, Schmallenberg, Scrapie restriction zones",
     headerBg: "bg-lime-600",
     items: [
-      { id: "sheep-apha", name: "APHA Alert Service",                    url: "https://www.gov.uk/guidance/apha-alert-service", priority: true  },
-      { id: "sheep-ahdb", name: "AHDB Beef & Lamb (Sheep)",              url: "https://ahdb.org.uk/beef-and-lamb",             priority: true  },
-      { id: "sheep-nsa",  name: "National Sheep Association (NSA)",      url: "https://www.nationalsheep.org.uk",              priority: false },
-      { id: "sheep-nfu",  name: "NFU Sheep",                             url: "https://www.nfuonline.com",                     priority: false },
+      {
+        id: "sheep-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on GovDelivery → select notifiable animal disease topics.",
+      },
+      {
+        id: "sheep-ahdb",
+        name: "AHDB Beef & Lamb (Sheep) — Market Intelligence & Alerts",
+        url: AHDB_PREF,
+        priority: true,
+        signupNote: "Create a free AHDB Preference Centre account → select Beef & Lamb / Sheep updates.",
+      },
+      {
+        id: "sheep-nsa",
+        name: "National Sheep Association — News",
+        url: "https://nationalsheep.org.uk/our-work/news/",
+        priority: false,
+        signupNote: "NSA alerts are primarily for NSA members. Monitor their news page or contact NSA directly.",
+      },
     ],
   },
   {
@@ -108,10 +259,27 @@ const SECTORS: Sector[] = [
     diseases: "Blue Tongue, FMD, Schmallenberg",
     headerBg: "bg-teal-600",
     items: [
-      { id: "goat-apha", name: "APHA Alert Service",                      url: "https://www.gov.uk/guidance/apha-alert-service", priority: true  },
-      { id: "goat-bgs",  name: "British Goat Society (BGS)",              url: "https://www.britishgoatsociety.com",             priority: true  },
-      { id: "goat-gvs",  name: "Goat Veterinary Society (GVS)",          url: "https://www.goatvetsoc.co.uk",                  priority: false },
-      { id: "goat-ahdb", name: "AHDB Beef & Lamb (Small Ruminants)",     url: "https://ahdb.org.uk/beef-and-lamb",             priority: false },
+      {
+        id: "goat-apha",
+        name: "APHA Notifiable Disease Alerts (GovDelivery)",
+        url: GOVDELIVERY_APHA,
+        priority: true,
+        signupNote: "Enter email on GovDelivery → select notifiable animal disease topics.",
+      },
+      {
+        id: "goat-bgs",
+        name: "British Goat Society (BGS)",
+        url: "https://www.britishgoatsociety.com",
+        priority: false,
+        signupNote: "BGS health alerts distributed to members. Contact BGS to enquire about advisory mailing list.",
+      },
+      {
+        id: "goat-gvs",
+        name: "Goat Veterinary Society (GVS)",
+        url: "https://www.goatvetsoc.co.uk",
+        priority: false,
+        signupNote: "GVS is a professional vet organisation. Monitor their news page for disease guidance.",
+      },
     ],
   },
 ];
@@ -301,20 +469,23 @@ export default function AlertSubscriptions() {
                           }
                         </button>
 
-                        {/* Name + link */}
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {item.priority && (
-                            <Star className="w-3 h-3 text-amber-500 shrink-0 fill-amber-400" aria-label="Priority service" />
-                          )}
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`text-sm hover:underline flex items-center gap-1 truncate ${enrolled ? "text-foreground font-medium" : "text-muted-foreground"}`}
-                          >
-                            <span className="truncate">{item.name}</span>
-                            <ExternalLink className="w-3 h-3 shrink-0 opacity-40" />
-                          </a>
+                        {/* Name + link + signup note */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {item.priority && (
+                              <Star className="w-3 h-3 text-amber-500 shrink-0 fill-amber-400" aria-label="Priority service" />
+                            )}
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-sm hover:underline flex items-center gap-1 min-w-0 ${enrolled ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                            >
+                              <span className="truncate">{item.name}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0 opacity-40" />
+                            </a>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-snug pr-2">{item.signupNote}</p>
                         </div>
 
                         {/* Date input */}
