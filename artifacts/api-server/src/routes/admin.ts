@@ -2324,6 +2324,120 @@ router.get("/admin/sector-alert-history", requireAuth, async (req: Request, res:
   res.json({ entries: filtered });
 });
 
+// ─── Sector Alert Episodes ────────────────────────────────────────────────────
+
+interface SectorAlertEpisodeRow {
+  id: number;
+  sector: string;
+  level: string;
+  message: string;
+  counties: string;
+  issued_at: string;
+  issued_by: string;
+  ended_at: string | null;
+  ended_by: string | null;
+  ended_reason: string | null;
+  end_notified: boolean;
+  created_at: string;
+}
+
+const VALID_EPISODE_SECTORS = new Set(["hpai","beef","dairy","sheep","goat","pig","arable","horticulture","viticulture"]);
+const VALID_EPISODE_LEVELS  = new Set(["precautionary","regional","national"]);
+
+router.get("/admin/sector-alert-episodes", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const sectorFilter = req.query.sector as string | undefined;
+  const activeOnly   = req.query.active === "true";
+  const rows = sectorFilter
+    ? await db.execute(sql`SELECT id, sector, level, message, counties, issued_at, issued_by, ended_at, ended_by, ended_reason, end_notified, created_at FROM sector_alert_episodes WHERE sector = ${sectorFilter} ORDER BY issued_at DESC LIMIT 200`)
+    : await db.execute(sql`SELECT id, sector, level, message, counties, issued_at, issued_by, ended_at, ended_by, ended_reason, end_notified, created_at FROM sector_alert_episodes ORDER BY issued_at DESC LIMIT 200`);
+  let episodes = rows.rows as unknown as SectorAlertEpisodeRow[];
+  if (activeOnly) episodes = episodes.filter(e => !e.ended_at);
+  res.json({ episodes });
+});
+
+router.post("/admin/sector-alert-episodes", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { sector, level, message, date, counties } = req.body as {
+    sector?: string; level?: string; message?: string; date?: string; counties?: string;
+  };
+  if (!sector || !VALID_EPISODE_SECTORS.has(sector)) { res.status(400).json({ error: "Invalid sector" }); return; }
+  if (!level  || !VALID_EPISODE_LEVELS.has(level))   { res.status(400).json({ error: "Invalid level" });  return; }
+
+  // Close any existing open episode for this sector first (shouldn't normally happen, but guard)
+  await db.execute(sql`
+    UPDATE sector_alert_episodes
+    SET ended_at = now(), ended_by = ${req.userId ?? "admin"}, ended_reason = 'Superseded by new alert'
+    WHERE sector = ${sector} AND ended_at IS NULL
+  `);
+
+  // Create the new episode
+  const inserted = await db.execute(sql`
+    INSERT INTO sector_alert_episodes (sector, level, message, counties, issued_by)
+    VALUES (${sector}, ${level}, ${message ?? ""}, ${counties ?? ""}, ${req.userId ?? "admin"})
+    RETURNING id, sector, level, message, counties, issued_at, issued_by, ended_at, ended_by, ended_reason, end_notified, created_at
+  `);
+  const episode = inserted.rows[0] as unknown as SectorAlertEpisodeRow;
+
+  // Mirror into platform config so the dashboard banner fires immediately
+  const alertDate = date ?? new Date().toISOString().slice(0, 10);
+  const configWrites: [string, string][] = [
+    [`${sector}.alert_active`,   "true"],
+    [`${sector}.alert_level`,    level],
+    [`${sector}.alert_message`,  message ?? ""],
+    [`${sector}.alert_date`,     alertDate],
+    [`${sector}.alert_counties`, counties ?? ""],
+  ];
+  for (const [key, value] of configWrites) {
+    const def = PLATFORM_CONFIG_DEFAULTS[key];
+    if (!def) continue;
+    const existing = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, key));
+    const oldValue = existing[0]?.value ?? null;
+    await db.insert(platformConfigTable)
+      .values({ key, value, label: def.label, description: def.description, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: platformConfigTable.key, set: { value, updatedAt: new Date() } });
+    if (req.userId) {
+      await writeAuditLog(req.userId, "sector_alert_change", { sector, key, oldValue, newValue: value });
+    }
+  }
+  res.status(201).json({ episode });
+});
+
+router.put("/admin/sector-alert-episodes/:id/end", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const episodeId = parseInt(req.params.id as string, 10);
+  if (isNaN(episodeId)) { res.status(400).json({ error: "Invalid episode id" }); return; }
+  const { endedReason } = req.body as { endedReason?: string };
+
+  const existing = await db.execute(sql`SELECT * FROM sector_alert_episodes WHERE id = ${episodeId}`);
+  const ep = existing.rows[0] as unknown as SectorAlertEpisodeRow | undefined;
+  if (!ep)          { res.status(404).json({ error: "Episode not found" });    return; }
+  if (ep.ended_at)  { res.status(400).json({ error: "Episode already ended" }); return; }
+
+  const updated = await db.execute(sql`
+    UPDATE sector_alert_episodes
+    SET ended_at = now(), ended_by = ${req.userId ?? "admin"}, ended_reason = ${endedReason ?? null}
+    WHERE id = ${episodeId}
+    RETURNING id, sector, level, message, counties, issued_at, issued_by, ended_at, ended_by, ended_reason, end_notified, created_at
+  `);
+  const episode = updated.rows[0] as unknown as SectorAlertEpisodeRow;
+
+  // Clear the platform config banner keys
+  const configKeys = [
+    `${ep.sector}.alert_active`, `${ep.sector}.alert_level`,
+    `${ep.sector}.alert_message`, `${ep.sector}.alert_date`, `${ep.sector}.alert_counties`,
+  ];
+  for (const key of configKeys) {
+    const existing2 = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, key));
+    const oldValue = existing2[0]?.value ?? null;
+    await db.delete(platformConfigTable).where(eq(platformConfigTable.key, key));
+    if (req.userId && oldValue !== null) {
+      await writeAuditLog(req.userId, "sector_alert_change", { sector: ep.sector, key, oldValue, newValue: null });
+    }
+  }
+  res.json({ episode });
+});
+
 router.get("/admin/alert-subscriptions", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const rows = await db.select().from(platformConfigTable).where(eq(platformConfigTable.key, "alert.subscriptions"));

@@ -639,9 +639,38 @@ export const api = {
 
   putAlertSubscriptions: (subscriptions: AlertSubscriptionsState, secret: string) =>
     put<{ ok: boolean }>("/admin/alert-subscriptions", { subscriptions }, secret),
+
+  getSectorAlertEpisodes: (sector: string | undefined, activeOnly: boolean, secret: string) =>
+    get<{ episodes: SectorAlertEpisode[] }>(
+      `/admin/sector-alert-episodes${sector ? `?sector=${sector}` : ""}${activeOnly ? `${sector ? "&" : "?"}active=true` : ""}`,
+      secret,
+    ),
+
+  createSectorAlertEpisode: (
+    data: { sector: string; level: string; message: string; date: string; counties: string },
+    secret: string,
+  ) => post<{ episode: SectorAlertEpisode }>("/admin/sector-alert-episodes", data, secret),
+
+  endSectorAlertEpisode: (id: number, endedReason: string, secret: string) =>
+    put<{ episode: SectorAlertEpisode }>(`/admin/sector-alert-episodes/${id}/end`, { endedReason }, secret),
 };
 
 export type AlertSubscriptionsState = Record<string, { enrolled: boolean; date: string }>;
+
+export interface SectorAlertEpisode {
+  id: number;
+  sector: string;
+  level: string;
+  message: string;
+  counties: string;
+  issued_at: string;
+  issued_by: string;
+  ended_at: string | null;
+  ended_by: string | null;
+  ended_reason: string | null;
+  end_notified: boolean;
+  created_at: string;
+}
 
 export interface HpaiAlertHistoryEntry {
   id: number;

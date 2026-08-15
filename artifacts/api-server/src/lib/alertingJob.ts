@@ -1827,6 +1827,60 @@ async function checkAgriEnvMilestoneDeadlines() {
   }
 }
 
+const SECTOR_ALERT_LABELS: Record<string, string> = {
+  hpai:         "HPAI (Avian Influenza)",
+  beef:         "Beef / Cattle Disease",
+  dairy:        "Dairy Herd Disease",
+  sheep:        "Sheep Disease",
+  goat:         "Goat Disease",
+  pig:          "Pig Disease",
+  arable:       "Arable / Crop Health",
+  horticulture: "Horticulture / Plant Health",
+  viticulture:  "Viticulture / Vine Disease",
+};
+
+async function runSectorAlertAllClearNotifications() {
+  // Find ended episodes not yet notified
+  const pending = await db.execute(sql`
+    SELECT id, sector, level, message, counties, ended_at, ended_reason
+    FROM sector_alert_episodes
+    WHERE ended_at IS NOT NULL AND end_notified = false
+  `);
+  if (pending.rows.length === 0) return;
+
+  // All farms (county column used for county-scoped filtering)
+  const allFarms = await db.execute(sql`SELECT id, tenant_id, county FROM farms`);
+  const farmRows = allFarms.rows as { id: number; tenant_id: number; county: string | null }[];
+
+  for (const ep of pending.rows as { id: number; sector: string; level: string; message: string; counties: string; ended_reason: string | null }[]) {
+    const counties = ep.counties
+      ? ep.counties.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean)
+      : [];
+
+    const relevantFarms = counties.length === 0
+      ? farmRows
+      : farmRows.filter(f => f.county && counties.includes(f.county.toLowerCase()));
+
+    const tenantIds = [...new Set(relevantFarms.map(f => f.tenant_id))];
+    const sectorLabel = SECTOR_ALERT_LABELS[ep.sector] ?? ep.sector;
+    const title = `${sectorLabel} — Alert Lifted`;
+    const reasonPart = ep.ended_reason ? ` Reason: ${ep.ended_reason}.` : "";
+    const smsMessage = `The ${sectorLabel} alert has now been resolved.${reasonPart} Normal operations may resume. Thank you for your vigilance.`;
+
+    for (const tenantId of tenantIds) {
+      try {
+        await dispatchSmsForCriticalAlert(tenantId, title, smsMessage);
+      } catch (err) {
+        console.error(`[ALERTS] All-clear SMS failed for tenant ${tenantId}, sector ${ep.sector}:`, err);
+      }
+    }
+
+    // Mark notified regardless of partial failures to avoid repeated sends
+    await db.execute(sql`UPDATE sector_alert_episodes SET end_notified = true WHERE id = ${ep.id}`);
+    console.log(`[ALERTS] All-clear dispatched for ${ep.sector} episode ${ep.id} (${tenantIds.length} tenant(s))`);
+  }
+}
+
 export async function runAlertingJob() {
   try {
     await checkEscalations();
@@ -1849,6 +1903,7 @@ export async function runAlertingJob() {
     await checkPigTailBitingOutbreaks();
     await checkLivestockMedicineWithdrawal();
     await checkAgriEnvMilestoneDeadlines();
+    await runSectorAlertAllClearNotifications();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {
     console.error("[ALERTS] Alerting job error:", err);

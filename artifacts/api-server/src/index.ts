@@ -28,6 +28,7 @@ import { runWinegbSubmissionsMigrations } from "./lib/winegbSubmissionsMigration
 import { runFarmCoreMigrations } from "./lib/farmCoreMigrations";
 import { runPigInventoryDeathMigrations } from "./lib/pigInventoryDeathMigrations";
 import { runViticultureMigrations } from "./lib/viticultureMigrations";
+import { runSectorAlertMigrations } from "./lib/sectorAlertMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -178,5 +179,8 @@ app.listen(port, () => {
   });
   seedViticultureDemo().catch((err) => {
     console.error("[VITICULTURE-SEED] Failed:", err);
+  });
+  runSectorAlertMigrations().catch((err) => {
+    console.error("[SECTOR-ALERT-MIGRATE] Failed:", err);
   });
 });
