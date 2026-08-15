@@ -29,4 +29,22 @@ config.resolver.blockList = [
   /node_modules\/@[^/]+\/[^/]+_tmp_\d+/,
 ];
 
+// Stub out native-only packages when bundling for web so Metro can compile
+// without crashing on codegenNativeCommands / native-only imports.
+const WEB_STUBS = {
+  "react-native-maps": path.join(projectRoot, "mocks/react-native-maps.web.js"),
+  "expo-media-library": path.join(projectRoot, "mocks/expo-media-library.web.js"),
+  "expo-file-system/legacy": path.join(projectRoot, "mocks/expo-file-system-legacy.web.js"),
+  "expo-haptics": path.join(projectRoot, "mocks/expo-haptics.web.js"),
+  "expo-sharing": path.join(projectRoot, "mocks/expo-sharing.web.js"),
+  "expo-image-picker": path.join(projectRoot, "mocks/expo-image-picker.web.js"),
+  "expo-camera": path.join(projectRoot, "mocks/expo-camera.web.js"),
+};
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === "web" && WEB_STUBS[moduleName]) {
+    return { filePath: WEB_STUBS[moduleName], type: "sourceFile" };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;
