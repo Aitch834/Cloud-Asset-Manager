@@ -855,6 +855,39 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
         </div>
       )}
 
+      {agriEnvProjects.length > 0 && totalAgriEnvGrantValue > 0 && (() => {
+        const drawdownPct = Math.min(100, (totalMilestonesDrawnDown / totalAgriEnvGrantValue) * 100);
+        return (
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem 1.25rem" }}>
+            <p style={{ fontSize: "0.72rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10, fontWeight: 600 }}>Farm-wide Drawdown Summary</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+              <div>
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginBottom: 2 }}>Total Grant Value</p>
+                <p style={{ fontSize: "1.2rem", fontWeight: 700, color: "#166534" }}>{fmt(totalAgriEnvGrantValue)}</p>
+                <p style={{ fontSize: "0.72rem", color: "#9ca3af" }}>{agriEnvProjects.filter((p: any) => p.totalGrantValuePence > 0).length} project{agriEnvProjects.filter((p: any) => p.totalGrantValuePence > 0).length !== 1 ? "s" : ""}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginBottom: 2 }}>Total Claimed</p>
+                <p style={{ fontSize: "1.2rem", fontWeight: 700, color: "#166534" }}>{fmt(totalMilestonesDrawnDown)}</p>
+                <p style={{ fontSize: "0.72rem", color: "#9ca3af" }}>Submitted &amp; paid milestones</p>
+              </div>
+              <div>
+                <p style={{ fontSize: "0.72rem", color: "#6b7280", marginBottom: 2 }}>Overall Drawdown</p>
+                <p style={{ fontSize: "1.2rem", fontWeight: 700, color: drawdownPct >= 75 ? "#166534" : drawdownPct >= 40 ? "#92400e" : "#374151" }}>{drawdownPct.toFixed(1)}%</p>
+                <p style={{ fontSize: "0.72rem", color: "#9ca3af" }}>{fmt(totalAgriEnvGrantValue - totalMilestonesDrawnDown)} remaining</p>
+              </div>
+            </div>
+            <div style={{ background: "#dcfce7", borderRadius: 6, height: 10, width: "100%" }}>
+              <div style={{ background: "#166534", borderRadius: 6, height: 10, width: `${drawdownPct}%`, transition: "width 0.3s ease", opacity: 0.9 }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+              <span style={{ fontSize: "0.68rem", color: "#6b7280" }}>£0</span>
+              <span style={{ fontSize: "0.68rem", color: "#6b7280" }}>{fmt(totalAgriEnvGrantValue)}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {agriEnvProjects.length > 0 && (
         <div>
           <h3 style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: 8, color: "#374151" }}>Agri-environment Schemes</h3>
