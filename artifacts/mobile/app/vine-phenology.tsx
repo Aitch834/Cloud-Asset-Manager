@@ -24,7 +24,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
-import { appendToList, generateId, getItem, setItem } from "@/lib/storage";
+import { appendToList, generateId } from "@/lib/storage";
+import { useUiPrefs, runUiPrefBatchMigration, dismissHintDurable } from "@/lib/hooks/useUiPrefs";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 
@@ -84,9 +85,9 @@ const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> =
 
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
 
-// Returns the AsyncStorage key used to persist dismissed WineGB surveys for a given farm and season year.
-function winegbDismissedKey(farmId: string, year: number): string {
-  return `bde_winegb_dismissed_${farmId}_${year}`;
+// Returns the useUiPrefs key for a WineGB survey dismissal, scoped by survey name and season year.
+function winegbPrefKey(surveyName: string, year: number): string {
+  return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
 }
 
 export default function VinePhenologyScreen() {
@@ -110,40 +111,65 @@ export default function VinePhenologyScreen() {
   const [temperatureC, setTemperatureC] = useState("");
   const [notes, setNotes] = useState("");
 
-  // WineGB survey banner state — dismissed surveys persisted to AsyncStorage per farm per season year.
+  // WineGB survey banner state — dismissed surveys persisted via useUiPrefs (server-synced, account-wide).
   const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string } | null>(null);
-  const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
-  const [dismissalsLoaded, setDismissalsLoaded] = useState(false);
   const currentSeasonYear = new Date().getFullYear();
+  const { prefsReady, isHintDismissed } = useUiPrefs(user?.id);
+
+  // One-time migration: read the old per-farm AsyncStorage dismissal array and promote each
+  // survey name into the useUiPrefs system, then remove the legacy key.  migrationDone stays
+  // false until the read + promotion attempt completes so we never flash the banner to a grower
+  // who had already dismissed it under the old scheme.
+  const [migrationDone, setMigrationDone] = useState(false);
+  const migrationKeyRef = useRef<string>("");
+
   const farmId = currentFarm?.id ?? "";
+  const userId = user?.id;
 
-  // Tracks the storage key for the most-recently-initiated load so stale completions
-  // (e.g. from a farm switch mid-flight) are silently dropped.
-  const activeLoadKeyRef = useRef<string>("");
-
-  // Load persisted dismissed surveys for this farm + season on mount (or when farm changes).
   useEffect(() => {
-    if (!farmId) return;
-    const key = winegbDismissedKey(farmId, currentSeasonYear);
-    activeLoadKeyRef.current = key;
-    setDismissalsLoaded(false);
-    void getItem<string[]>(key).then(stored => {
-      // Ignore completions that belong to a superseded farm or year.
-      if (activeLoadKeyRef.current !== key) return;
-      setDismissedSurveys(new Set(stored ?? []));
-      setDismissalsLoaded(true);
+    if (!farmId || !userId) {
+      setMigrationDone(true);
+      return;
+    }
+    const legacyKey = `bde_winegb_dismissed_${farmId}_${currentSeasonYear}`;
+    migrationKeyRef.current = legacyKey;
+    setMigrationDone(false);
+
+    // runUiPrefBatchMigration atomically writes all new pref keys to cache +
+    // pending queue before removing the legacy key, so an app crash or
+    // AsyncStorage failure cannot leave the grower without any record.
+    // On "retry" the legacy key is retained and will be re-attempted next mount.
+    void runUiPrefBatchMigration(
+      userId,
+      legacyKey,
+      (raw) => {
+        const dismissed: string[] = JSON.parse(raw);
+        return dismissed.map(surveyName => winegbPrefKey(surveyName, currentSeasonYear));
+      },
+    ).then((result) => {
+      if (migrationKeyRef.current !== legacyKey) return;
+      // On "retry" the durable write failed and the legacy key was retained so
+      // the migration can be re-attempted next mount.  Keep migrationDone false
+      // so the banner stays hidden for any surveys still in the legacy record —
+      // an identical strategy to the identifier-warning migration guard.
+      if (result !== "retry") setMigrationDone(true);
+    }).catch(() => {
+      // Unexpected error — unblock the UI; legacy key is retained for next attempt.
+      if (migrationKeyRef.current === legacyKey) setMigrationDone(true);
     });
-  }, [farmId, currentSeasonYear]);
+  // currentSeasonYear never changes within a session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId, userId]);
 
   const filteredStages = seasonFilter ? BBCH_STAGES.filter(s => s.season === seasonFilter) : BBCH_STAGES;
 
   const dismissBanner = async () => {
-    if (winegbSurveyBanner) {
-      const updated = new Set(dismissedSurveys);
-      updated.add(winegbSurveyBanner.surveyName);
-      setDismissedSurveys(updated);
-      // Await the write so an immediate background/termination cannot lose the dismissal.
-      await setItem(winegbDismissedKey(farmId, currentSeasonYear), Array.from(updated));
+    if (winegbSurveyBanner && userId) {
+      // Await the durable cache + pending-queue write before navigating away so
+      // an immediate app background/termination after dismissal cannot lose the choice.
+      try {
+        await dismissHintDurable(userId, winegbPrefKey(winegbSurveyBanner.surveyName, currentSeasonYear));
+      } catch { /* best-effort — navigate regardless */ }
     }
     setWinegbSurveyBanner(null);
     router.back();
@@ -181,7 +207,7 @@ export default function VinePhenologyScreen() {
     // Show WineGB survey nudge for viticulture farms when a relevant BBCH stage is saved
     if (currentFarm?.sectorViticulture) {
       const survey = WINEGB_SURVEY_MAP[selectedStage.code];
-      if (survey && dismissalsLoaded && !dismissedSurveys.has(survey.surveyName)) {
+      if (survey && prefsReady && migrationDone && !isHintDismissed(winegbPrefKey(survey.surveyName, currentSeasonYear))) {
         setWinegbSurveyBanner(survey);
         return; // stay on screen to show banner
       }

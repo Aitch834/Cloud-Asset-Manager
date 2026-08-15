@@ -517,3 +517,162 @@ export async function runUiPrefMigration(
     return "retry";
   }
 }
+
+/**
+ * Durable, awaitable variant of `dismissHint` for use-cases where the caller
+ * must know the dismissal is persisted before proceeding (e.g. navigating away).
+ *
+ * Semantics:
+ *  • Optimistically updates the in-memory singleton immediately (same as
+ *    `dismissHint`).
+ *  • Awaits the cache + pending-queue writes through the per-user write queue
+ *    so the promise resolves only after both writes settle.
+ *  • Server PATCH fires asynchronously after the function resolves (same
+ *    write-first, reconnect-flush pattern used by `dismissHint`).
+ *  • Throws if the caller passes an empty uid.
+ *
+ * The function is intentionally exported as a standalone (not a hook return)
+ * so it can be used in `async` event handlers that run outside the render cycle.
+ */
+export async function dismissHintDurable(uid: string, key: string): Promise<void> {
+  if (!uid) return;
+
+  // Optimistic update — reflect the dismissal immediately.
+  const next = { ...getSingleton(uid).prefs, [key]: true };
+  setUserState(uid, next, /* ready */ true);
+
+  // Await the durable writes through the write queue.
+  await enqueueWrite(uid, async () => {
+    const current = { ...getSingleton(uid).prefs, [key]: true };
+    // Use durable helpers that throw on failure so the caller can detect
+    // whether the write actually settled.
+    await saveCacheDurable(uid, current);
+    const pending = await loadPending(uid);
+    await savePendingDurable(uid, { ...pending, [key]: true });
+  });
+
+  // Server PATCH is best-effort and runs outside the write queue.
+  void (async () => {
+    const toFlush = await loadPending(uid);
+    if (Object.keys(toFlush).length === 0) return;
+    const ok = await patchServerPrefs(toFlush);
+    if (ok) {
+      await enqueueWrite(uid, async () => {
+        const afterFlush = await loadPending(uid);
+        const remaining: PrefsMap = {};
+        for (const [k, v] of Object.entries(afterFlush)) {
+          if (!(k in toFlush)) remaining[k] = v;
+        }
+        await savePending(uid, remaining);
+      });
+    }
+  })();
+}
+
+/**
+ * Batch variant of `runUiPrefMigration` for legacy keys whose stored value
+ * encodes multiple dismissals (e.g. a JSON array of strings).
+ *
+ * The supplied `parseKeys` function receives the raw stored string and must
+ * return the new useUiPrefs keys to set.  It may throw on malformed input —
+ * the error is caught and treated as "absent".
+ *
+ * All new keys are written atomically (within a single write-queue slot) to
+ * both the cache and the pending queue before the legacy key is removed.
+ * The legacy key is retained on any durable-write failure so the migration
+ * can be retried on the next mount ("retry").
+ *
+ * Returns "promoted" / "absent" / "retry" with the same semantics as
+ * `runUiPrefMigration`.
+ */
+export async function runUiPrefBatchMigration(
+  uid: string,
+  legacyStorageKey: string,
+  parseKeys: (raw: string) => string[],
+): Promise<UiPrefMigrationResult> {
+  // Step 1 — wait for any active bootstrap so our singleton write can't be
+  // overwritten by a concurrent reconcile.
+  const s = getSingleton(uid);
+  if (s.fetchPromise) {
+    await s.fetchPromise;
+  }
+
+  // Step 2 — read the legacy key (read-only; no serialization needed).
+  let raw: string | null;
+  try {
+    raw = await AsyncStorage.getItem(legacyStorageKey);
+  } catch {
+    return "retry";
+  }
+
+  if (raw === null) {
+    return "absent";
+  }
+
+  // Step 3 — parse the raw value into new pref keys.
+  let newKeys: string[];
+  try {
+    newKeys = parseKeys(raw);
+  } catch {
+    // Malformed — clean up and treat as absent.
+    try { await AsyncStorage.removeItem(legacyStorageKey); } catch { /* best-effort */ }
+    return "absent";
+  }
+
+  if (newKeys.length === 0) {
+    try { await AsyncStorage.removeItem(legacyStorageKey); } catch { /* best-effort */ }
+    return "absent";
+  }
+
+  // Step 4 — durable writes, serialized through the per-user write queue.
+  let toFlush: PrefsMap | null = null;
+
+  try {
+    const result = await enqueueWrite<UiPrefMigrationResult>(uid, async () => {
+      // 4a — re-read singleton at write time so we merge, never clobber.
+      const next = { ...getSingleton(uid).prefs };
+      for (const k of newKeys) next[k] = true;
+
+      // 4b — update in-memory singleton (optimistic; triggers listeners).
+      setUserState(uid, next, /* ready */ true);
+
+      // 4c — durable cache write; throws on failure → caught below → "retry".
+      await saveCacheDurable(uid, next);
+
+      // 4d–e — durable pending-queue write; throws on failure → "retry".
+      const pending = await loadPending(uid);
+      toFlush = { ...pending };
+      for (const k of newKeys) toFlush[k] = true;
+      await savePendingDurable(uid, toFlush);
+
+      // 4f — remove legacy key only after both durable writes confirmed.
+      try { await AsyncStorage.removeItem(legacyStorageKey); } catch { /* best-effort */ }
+
+      return "promoted" as const;
+    });
+
+    // 4g — best-effort server PATCH, outside the write queue.
+    if (result === "promoted" && toFlush !== null) {
+      const flushed = toFlush;
+      void (async () => {
+        const ok = await patchServerPrefs(flushed);
+        if (ok) {
+          await enqueueWrite(uid, async () => {
+            const afterFlush = await loadPending(uid);
+            const remaining: PrefsMap = {};
+            for (const [k, v] of Object.entries(afterFlush)) {
+              if (!(k in flushed)) remaining[k] = v;
+            }
+            await savePending(uid, remaining);
+          });
+        }
+      })();
+    }
+
+    return result;
+  } catch {
+    // A durable write inside the queue threw — the legacy key was NOT removed
+    // so the migration will retry on the next mount.
+    return "retry";
+  }
+}
