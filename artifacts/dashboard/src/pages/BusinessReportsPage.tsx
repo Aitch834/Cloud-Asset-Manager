@@ -678,6 +678,11 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
   const [pendingCompletion, setPendingCompletion] = useState<{
     milestoneId: number; projectId: number; newStatus: string; date: string;
   } | null>(null);
+  const [pendingPnlWarning, setPendingPnlWarning] = useState<{
+    milestoneId: number; projectId: number; newStatus: string; completionDate?: string; claimAmountPence: number; direction: "add" | "remove";
+  } | null>(null);
+
+  const dateIsInYear = (dateStr: string) => new Date(dateStr).getFullYear() === year;
 
   const updateMilestoneStatus = useMutation({
     mutationFn: async ({ milestoneId, projectId, status, completionDate }: { milestoneId: number; projectId: number; status: string; completionDate?: string }) => {
@@ -925,7 +930,25 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                   {pMilestones.map((ms: any, mi: number) => {
                                     const isUpdating = updatingMilestone === ms.id;
                                     const isPending = pendingCompletion?.milestoneId === ms.id;
+                                    const isPendingWarning = pendingPnlWarning?.milestoneId === ms.id;
                                     const needsDate = (s: string) => (s === "submitted" || s === "paid") && !ms.completionDate;
+                                    // A milestone is counted in the P&L if: status is submitted/paid,
+                                    // completionDate falls in the report year, and the project overlaps
+                                    // the year (same filter as the gross-margin API endpoint).
+                                    const projectOverlapsYear =
+                                      p.status !== "withdrawn" &&
+                                      (!p.startDate || p.startDate <= `${year}-12-31`) &&
+                                      (!p.endDate || p.endDate >= `${year}-01-01`);
+                                    const msIsIncluded = (status: string, completionDate?: string) =>
+                                      (status === "submitted" || status === "paid") &&
+                                      !!completionDate && dateIsInYear(completionDate) &&
+                                      projectOverlapsYear;
+                                    // Warn only when P&L inclusion actually changes and there is a claim amount
+                                    const pnlChanges = (newStatus: string, completionDate?: string) =>
+                                      ms.claimAmountPence != null &&
+                                      msIsIncluded(ms.status ?? "pending", ms.completionDate) !== msIsIncluded(newStatus, completionDate);
+                                    const pnlChangeDir = (newStatus: string, completionDate?: string): "add" | "remove" =>
+                                      msIsIncluded(newStatus, completionDate) ? "add" : "remove";
                                     return (
                                     <tr key={ms.id} style={{ borderBottom: mi < pMilestones.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                                       <td style={{ padding: "0.45rem 0.875rem", paddingLeft: "1.25rem", color: "#374151" }}>{ms.milestoneName}</td>
@@ -947,18 +970,62 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                         {ms.claimAmountPence != null ? fmt(ms.claimAmountPence) : "—"}
                                       </td>
                                       <td style={{ padding: "0.45rem 0.875rem" }} onClick={e => e.stopPropagation()}>
-                                        {isPending ? (
+                                        {isPendingWarning ? (
+                                          <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "6px 8px", minWidth: 220 }}>
+                                            <div style={{ fontSize: "0.7rem", color: "#92400e", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                              <span>⚠</span>
+                                              <span>
+                                                {pendingPnlWarning!.direction === "add"
+                                                  ? `This will add ${fmt(pendingPnlWarning!.claimAmountPence)} to the ${year} P&L income total.`
+                                                  : `This will remove ${fmt(pendingPnlWarning!.claimAmountPence)} from the ${year} P&L income total.`}
+                                              </span>
+                                            </div>
+                                            <div style={{ display: "flex", gap: 4 }}>
+                                              <button
+                                                onClick={() => {
+                                                  const w = pendingPnlWarning!;
+                                                  setPendingPnlWarning(null);
+                                                  setPendingCompletion(null);
+                                                  setUpdatingMilestone(w.milestoneId);
+                                                  updateMilestoneStatus.mutate({ milestoneId: w.milestoneId, projectId: w.projectId, status: w.newStatus, completionDate: w.completionDate });
+                                                }}
+                                                disabled={isUpdating}
+                                                style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 20, background: "#d97706", color: "#fff", border: "none", cursor: isUpdating ? "wait" : "pointer", fontWeight: 600, opacity: isUpdating ? 0.6 : 1 }}
+                                              >
+                                                {isUpdating ? "Saving…" : "Confirm"}
+                                              </button>
+                                              <button
+                                                onClick={() => { setPendingPnlWarning(null); setPendingCompletion(null); }}
+                                                disabled={isUpdating}
+                                                style={{ fontSize: "0.7rem", padding: "2px 7px", borderRadius: 20, background: "#f3f4f6", color: "#374151", border: "none", cursor: "pointer", fontWeight: 600 }}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : isPending ? (
                                           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                                             <button
                                               onClick={() => {
                                                 if (!pendingCompletion?.date) return;
-                                                setUpdatingMilestone(ms.id);
-                                                updateMilestoneStatus.mutate({
-                                                  milestoneId: ms.id,
-                                                  projectId: p.id,
-                                                  status: pendingCompletion.newStatus,
-                                                  completionDate: pendingCompletion.date,
-                                                });
+                                                if (pnlChanges(pendingCompletion.newStatus, pendingCompletion.date)) {
+                                                  setPendingPnlWarning({
+                                                    milestoneId: ms.id,
+                                                    projectId: p.id,
+                                                    newStatus: pendingCompletion.newStatus,
+                                                    completionDate: pendingCompletion.date,
+                                                    claimAmountPence: ms.claimAmountPence,
+                                                    direction: pnlChangeDir(pendingCompletion.newStatus, pendingCompletion.date),
+                                                  });
+                                                } else {
+                                                  setUpdatingMilestone(ms.id);
+                                                  updateMilestoneStatus.mutate({
+                                                    milestoneId: ms.id,
+                                                    projectId: p.id,
+                                                    status: pendingCompletion.newStatus,
+                                                    completionDate: pendingCompletion.date,
+                                                  });
+                                                }
                                               }}
                                               disabled={isUpdating || !pendingCompletion?.date}
                                               style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 20, background: "#1e40af", color: "#fff", border: "none", cursor: isUpdating ? "wait" : "pointer", fontWeight: 600, opacity: isUpdating ? 0.6 : 1 }}
@@ -981,6 +1048,8 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                               const newStatus = e.target.value as MilestoneStatus;
                                               if (needsDate(newStatus)) {
                                                 setPendingCompletion({ milestoneId: ms.id, projectId: p.id, newStatus, date: todayIso });
+                                              } else if (pnlChanges(newStatus, ms.completionDate)) {
+                                                setPendingPnlWarning({ milestoneId: ms.id, projectId: p.id, newStatus, completionDate: ms.completionDate, claimAmountPence: ms.claimAmountPence, direction: pnlChangeDir(newStatus, ms.completionDate) });
                                               } else {
                                                 setUpdatingMilestone(ms.id);
                                                 updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus });
