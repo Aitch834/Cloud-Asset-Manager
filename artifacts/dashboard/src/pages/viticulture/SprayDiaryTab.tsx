@@ -203,6 +203,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       });
       if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
       void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, view.id] });
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       toast({ title: "Photo added" });
     } catch {
       toast({ title: "Failed to upload photo", variant: "destructive" });
@@ -223,6 +224,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       });
       if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
       void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, view.id] });
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
       toast({ title: "Photo removed" });
       setPhotoLightboxIndex(i => Math.min(i, Math.max(0, sprayPhotos.length - 2)));
     } catch {
