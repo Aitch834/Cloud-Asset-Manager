@@ -1,5 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
+import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
 import { router, useFocusEffect } from "expo-router";
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
@@ -174,6 +177,56 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLig
     slideX.value = 0;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Save to camera roll + share
+  const [saving, setSaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
+  const handleSaveToRoll = useCallback(async () => {
+    const currentPhoto = photosRef.current[indexSv.value];
+    if (!currentPhoto?.downloadUrl || saving) return;
+    setSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library in Settings to save photos.",
+        );
+        return;
+      }
+      const ext = currentPhoto.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}spray_photo_${currentPhoto.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(currentPhoto.downloadUrl, tmpUri);
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Save Failed", "Could not save the photo. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [saving]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleShare = useCallback(async () => {
+    const currentPhoto = photosRef.current[indexSv.value];
+    if (!currentPhoto?.downloadUrl || sharing) return;
+    setSharing(true);
+    try {
+      const ext = currentPhoto.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}spray_photo_share_${currentPhoto.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(currentPhoto.downloadUrl, tmpUri);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing Not Available", "Sharing is not supported on this device.");
+        return;
+      }
+      await Sharing.shareAsync(dl.uri, { mimeType: `image/${ext === "jpg" ? "jpeg" : ext}` });
+    } catch {
+      Alert.alert("Share Failed", "Could not share the photo. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }, [sharing]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pinch-to-zoom
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
@@ -309,6 +362,38 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLig
           >
             <Feather name="x" size={24} color="#fff" />
           </Pressable>
+
+          {/* Save to camera roll button */}
+          {photo ? (
+            <Pressable
+              style={[lbStyles.saveBtn, { top: insets.top + 12 }]}
+              hitSlop={16}
+              onPress={handleSaveToRoll}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="download" size={22} color="#fff" />
+              )}
+            </Pressable>
+          ) : null}
+
+          {/* Share button */}
+          {photo ? (
+            <Pressable
+              style={[lbStyles.shareBtn, { top: insets.top + 12 }]}
+              hitSlop={16}
+              onPress={handleShare}
+              disabled={sharing}
+            >
+              {sharing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="share-2" size={22} color="#fff" />
+              )}
+            </Pressable>
+          ) : null}
 
           {/* Photo counter */}
           {hasMultiple ? (
@@ -1574,5 +1659,27 @@ const lbStyles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "rgba(255,255,255,0.4)",
     textAlign: "center",
+  },
+  saveBtn: {
+    position: "absolute",
+    left: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareBtn: {
+    position: "absolute",
+    left: 64,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
