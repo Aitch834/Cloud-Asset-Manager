@@ -70,15 +70,17 @@ interface ScoutingLightboxProps {
   visible: boolean;
   onClose: () => void;
   onDelete: (id: number) => Promise<void>;
+  onReload: () => void;
 }
 
 const SWIPE_THRESHOLD = 50;
 
-function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelete }: ScoutingLightboxProps) {
+function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReload }: ScoutingLightboxProps) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   // Sync index when lightbox opens; also reset in-flight flags on open/close
   useEffect(() => {
@@ -98,11 +100,20 @@ function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelet
     setCurrentIndex((prev) => Math.min(prev, photos.length - 1));
   }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset in-flight flags when the displayed photo changes
+  // Reset in-flight flags and image error state when the displayed photo changes
   useEffect(() => {
     setSharing(false);
     setDeleting(false);
+    setImgError(false);
   }, [currentIndex]);
+
+  // Also clear the error whenever the photo's URL is refreshed (e.g. after onReload)
+  const photo = photos[currentIndex] ?? null;
+  const prevDownloadUrl = useRef(photo?.downloadUrl);
+  if (prevDownloadUrl.current !== photo?.downloadUrl) {
+    prevDownloadUrl.current = photo?.downloadUrl;
+    if (imgError) setImgError(false);
+  }
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
@@ -130,8 +141,6 @@ function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelet
       },
     }),
   ).current;
-
-  const photo = photos[currentIndex] ?? null;
 
   const handleShare = useCallback(async () => {
     if (!photo?.downloadUrl || sharing) return;
@@ -214,16 +223,18 @@ function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelet
 
         {/* Swipeable photo area */}
         <View style={lbStyles.imageWrapper} {...panResponder.panHandlers}>
-          {uri ? (
+          {uri && !imgError ? (
             <Image
               source={{ uri }}
               style={lbStyles.image}
               resizeMode="contain"
+              onError={() => setImgError(true)}
             />
           ) : (
-            <View style={lbStyles.imagePlaceholder}>
-              <Feather name="image" size={48} color="rgba(255,255,255,0.3)" />
-            </View>
+            <Pressable style={lbStyles.imagePlaceholder} onPress={onReload} hitSlop={12}>
+              <Feather name="refresh-cw" size={40} color="rgba(255,255,255,0.55)" />
+              <Text style={lbStyles.reloadLabel}>Tap to reload</Text>
+            </Pressable>
           )}
 
           {/* Left chevron */}
@@ -324,6 +335,12 @@ const lbStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  reloadLabel: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "600",
   },
   chevron: {
     position: "absolute",
@@ -676,6 +693,7 @@ function ScoutingPhotoSection({
         initialIndex={lightboxIndex ?? 0}
         visible={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}
+        onReload={() => loadPhotos({ silent: true })}
         onDelete={async (id) => {
           const ok = await handleDeletePhoto(id);
           // Close only after a confirmed successful delete of the last photo;
