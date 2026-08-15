@@ -1137,6 +1137,9 @@ function PhotoThumbnail({
             <Feather name="image" size={24} color={colors.textSecondary} />
           </View>
         )}
+        {photo.caption ? (
+          <View style={stripStyles.captionDot} />
+        ) : null}
       </View>
       {photo.caption ? (
         <Text style={styles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
