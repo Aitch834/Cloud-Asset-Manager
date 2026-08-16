@@ -311,6 +311,7 @@ function LogModal({
         id: generateId(),
         farmId: String(farmId),
         fieldId: prefill.fieldId,
+        fieldOrBlockDescription: prefill.fieldName,
         irrigationDate,
         waterSource: "",
         fieldOrBlockDescription: prefill.fieldName,

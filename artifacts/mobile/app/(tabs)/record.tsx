@@ -1557,6 +1557,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["water-irrigation"],
   },
   {
+    id: "irrigation-history",
+    title: "Irrigation History",
+    description: "View all logged irrigation applications — date, field, depth and method — including records added via the Advisor",
+    icon: "clock",
+    color: "#0891b2",
+    bgColor: "#cffafe",
+    route: "/irrigation-history",
+    moduleKeys: ["water-irrigation"],
+  },
+  {
     id: "fuel-drawdown",
     title: "Fuel Draw-Down",
     description: "Record fuel drawn from a tank — log the vehicle or machine, quantity and qualifying activity for HMRC red diesel compliance",
