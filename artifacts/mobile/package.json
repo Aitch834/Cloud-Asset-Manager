@@ -82,6 +82,10 @@
       "**/__tests__/**/*.test.ts",
       "**/__tests__/**/*.test.tsx"
     ],
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base))",
+      "/node_modules/react-native-reanimated/plugin/"
+    ],
     "projects": [
       {
         "displayName": "unit",
@@ -97,6 +101,38 @@
               ]
             }
           ]
+        },
+        "transformIgnorePatterns": [
+          "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base))",
+          "/node_modules/react-native-reanimated/plugin/"
+        ],
+        "moduleNameMapper": {
+          "^@/(.*)$": "<rootDir>/$1",
+          "^expo/virtual/env(\\.js)?$": "<rootDir>/__mocks__/expo-env-stub.js"
+        },
+        "testEnvironment": "node"
+      },
+      {
+        "displayName": "hooks",
+        "testMatch": [
+          "<rootDir>/__tests__/**/*.test.tsx"
+        ],
+        "transform": {
+          "^.+\\.tsx?$": [
+            "babel-jest",
+            {
+              "presets": [
+                "babel-preset-expo"
+              ]
+            }
+          ]
+        },
+        "transformIgnorePatterns": [
+          "/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base))",
+          "/node_modules/react-native-reanimated/plugin/"
+        ],
+        "moduleNameMapper": {
+          "^@/(.*)$": "<rootDir>/$1"
         },
         "testEnvironment": "node"
       }
