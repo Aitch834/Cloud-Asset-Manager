@@ -7097,10 +7097,20 @@ router.get("/farms/:farmId/financial-transactions", requireAuth, requireTenant, 
   res.json({ records: all });
 });
 
+// Strip HTML metacharacters from a free-text enterprise tag so it can never
+// introduce stored XSS via the print-pack template.
+function sanitiseEnterpriseTag(raw: unknown): string | null {
+  if (raw == null || raw === "") return null;
+  if (typeof raw !== "string") return null;
+  return raw.replace(/[<>"'&]/g, "").trim().slice(0, 100) || null;
+}
+
 router.post("/farms/:farmId/financial-transactions", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const [record] = await db.insert(financialTransactionsTable).values({ ...sanitiseBody(req.body as Record<string, unknown>), farmId }).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if ("enterprise" in body) body.enterprise = sanitiseEnterpriseTag((req.body as Record<string, unknown>).enterprise);
+  const [record] = await db.insert(financialTransactionsTable).values({ ...body, farmId }).returning();
   res.status(201).json({ record });
 });
 
@@ -7109,7 +7119,9 @@ router.put("/farms/:farmId/financial-transactions/:recordId", requireAuth, requi
   if (!farmId) return;
   const recordId = getRecordId(req);
   if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const [record] = await db.update(financialTransactionsTable).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(financialTransactionsTable.id, recordId), eq(financialTransactionsTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  if ("enterprise" in body) body.enterprise = sanitiseEnterpriseTag((req.body as Record<string, unknown>).enterprise);
+  const [record] = await db.update(financialTransactionsTable).set(body).where(and(eq(financialTransactionsTable.id, recordId), eq(financialTransactionsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 

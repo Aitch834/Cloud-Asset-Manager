@@ -112,6 +112,15 @@ const SOURCE_CONFIG: Record<string, { label: string; bg: string; color: string; 
   seed_delivery:         { label: "Seed Delivery",      bg: "#ecfdf5", color: "#047857", border: "#a7f3d0" },
 };
 
+const SPRAY_CATEGORIES = [
+  "Pesticides & Herbicides",
+  "Fungicides",
+  "Insecticides",
+  "Vine Management",
+  "Winery Processing Costs",
+  "Vineyard Establishment Costs",
+  "Vine Purchases & Replacements",
+];
 const PAYMENT_METHODS = ["Bank Transfer", "Direct Debit", "Cheque", "Cash", "Card", "BACS", "Other"];
 
 const SPECIES_LIST = ["Cattle", "Sheep", "Pigs", "Goats", "Horses", "Deer", "Poultry", "Other"];
@@ -1758,6 +1767,30 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   const periodLabel = yearFilter === "all" ? "All Years" : yearFilter;
 
+  // ── By-enterprise gross margin summary ──────────────────────────────────────
+  const enterpriseMap = new Map<string, { income: number; sprayCost: number; labourCost: number; otherCost: number }>();
+  yearTx.forEach(r => {
+    if (!r.enterprise) return;
+    if (!enterpriseMap.has(r.enterprise)) {
+      enterpriseMap.set(r.enterprise, { income: 0, sprayCost: 0, labourCost: 0, otherCost: 0 });
+    }
+    const ent = enterpriseMap.get(r.enterprise)!;
+    if (r.transactionType === "income") {
+      ent.income += r.amountPence ?? 0;
+    } else {
+      const cat = r.category ?? "";
+      if (SPRAY_CATEGORIES.includes(cat)) ent.sprayCost += r.amountPence ?? 0;
+      else if (LABOUR_CATEGORIES.includes(cat)) ent.labourCost += r.amountPence ?? 0;
+      else ent.otherCost += r.amountPence ?? 0;
+    }
+  });
+  const enterpriseSummaries = Array.from(enterpriseMap.entries()).map(([name, v]) => ({
+    name,
+    ...v,
+    totalCost: v.sprayCost + v.labourCost + v.otherCost,
+    grossMargin: v.income - v.sprayCost - v.labourCost - v.otherCost,
+  }));
+
   function handlePrint() {
     const farmName = farm?.name ?? "Farm";
     const address = [farm?.addressLine1, farm?.addressTown, farm?.addressCounty, farm?.addressPostcode].filter(Boolean).join(", ");
@@ -1765,11 +1798,27 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     const generated = new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short" });
 
     const f = (pence: number) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
     const incomeRows = incomeByCategory.map(r =>
-      `<tr><td>${r.cat}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+      `<tr><td>${esc(r.cat)}</td><td class="num">${f(r.total)}</td></tr>`).join("");
     const expenseRows = expenseByCategory.map(r =>
-      `<tr><td>${r.cat}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+      `<tr><td>${esc(r.cat)}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+
+    const enterpriseSection = enterpriseSummaries.length === 0 ? "" : `
+  <p class="section-title" style="margin-top:24px">By Enterprise</p>
+  ${enterpriseSummaries.map(ent => `
+  <p style="font-size:10.5pt;font-weight:700;color:#374151;margin:14px 0 4px">${esc(ent.name)}</p>
+  <table>
+    <thead><tr><th>Line</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <tr><td>Revenue</td><td class="num">${f(ent.income)}</td></tr>
+      <tr><td>Spray &amp; Crop Protection Costs</td><td class="num">${f(ent.sprayCost)}</td></tr>
+      <tr><td>Labour Costs</td><td class="num">${f(ent.labourCost)}</td></tr>
+      <tr><td>Other Costs</td><td class="num">${f(ent.otherCost)}</td></tr>
+      <tr class="total-row"><td>Gross Margin</td><td class="num" style="color:${ent.grossMargin >= 0 ? "#15803d" : "#dc2626"}">${ent.grossMargin < 0 ? "(" : ""}${f(Math.abs(ent.grossMargin))}${ent.grossMargin < 0 ? ")" : ""}</td></tr>
+    </tbody>
+  </table>`).join("")}`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1814,12 +1863,12 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
   <div class="header">
     <div>
       <h1>BDE Farm Trac</h1>
-      <h2>${farmName}</h2>
-      <p>${address}${vatReg ? " &nbsp;·&nbsp; " + vatReg : ""}</p>
+      <h2>${esc(farmName)}</h2>
+      <p>${esc(address)}${vatReg ? " &nbsp;·&nbsp; " + esc(vatReg) : ""}</p>
     </div>
     <div class="header-right">
       <strong>Accountant's Financial Pack</strong>
-      Period: ${periodLabel}<br>
+      Period: ${esc(periodLabel)}<br>
       Produced: ${generated}<br>
       <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:8pt;font-weight:700;">Barnett Davies Enterprises Ltd</span>
     </div>
@@ -1857,6 +1906,8 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
       <tr class="total-row"><td>Total Expenditure</td><td class="num">${f(totalExpense)}</td></tr>
     </tbody>
   </table>
+
+  ${enterpriseSection}
 
   ${totalVat > 0 ? `<div class="vat-box"><strong>VAT Note:</strong> Total VAT recorded across all transactions and livestock purchases for ${periodLabel}: <strong>${f(totalVat)}</strong>. This figure is for reference only — please reconcile against your VAT returns.</div>` : ""}
 
@@ -1995,6 +2046,47 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
             </div>
           </div>
 
+          {/* By Enterprise gross margin */}
+          {enterpriseSummaries.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: "0.875rem", fontWeight: 700, color: "#374151", marginBottom: 12, borderBottom: "1px solid #e5e7eb", paddingBottom: 6 }}>By Enterprise</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+                {enterpriseSummaries.map(ent => (
+                  <div key={ent.name} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "8px 12px" }}>
+                      <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827" }}>{ent.name}</span>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                      <tbody>
+                        {[
+                          { label: "Revenue", value: ent.income, color: "#166534" },
+                          { label: "Spray & Crop Protection", value: -ent.sprayCost, color: "#374151" },
+                          { label: "Labour Costs", value: -ent.labourCost, color: "#374151" },
+                          { label: "Other Costs", value: -ent.otherCost, color: "#374151" },
+                        ].map(row => (
+                          <tr key={row.label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "6px 12px", color: "#6b7280" }}>{row.label}</td>
+                            <td style={{ padding: "6px 12px", textAlign: "right", fontWeight: 500, color: row.color }}>
+                              {row.value === 0 ? "—" : fmtAmt(Math.abs(row.value))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: `2px solid ${ent.grossMargin >= 0 ? "#d1fae5" : "#fecaca"}`, background: ent.grossMargin >= 0 ? "#f0fdf4" : "#fff1f2" }}>
+                          <td style={{ padding: "8px 12px", fontWeight: 700, color: "#111827" }}>Gross Margin</td>
+                          <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: ent.grossMargin >= 0 ? "#166534" : "#dc2626", fontSize: "0.95rem" }}>
+                            {ent.grossMargin < 0 ? "(" : ""}{fmtAmt(Math.abs(ent.grossMargin))}{ent.grossMargin < 0 ? ")" : ""}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Net result + VAT note */}
           <div style={{ marginTop: 20, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 260, background: netProfit >= 0 ? "#f0fdf4" : "#fff1f2", border: `2px solid ${netProfit >= 0 ? "#16a34a" : "#dc2626"}`, borderRadius: 10, padding: "1rem 1.25rem" }}>
@@ -2061,3 +2153,9 @@ export default function FinancialPage() {
     </AppLayout>
   );
 }
+
+const LABOUR_CATEGORIES = [
+  "Labour",
+  "Training & Development",
+  "Contracting & Machinery Hire",
+];
