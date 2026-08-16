@@ -244,7 +244,23 @@ export default function Sectors() {
                   {sector.label}
                 </div>
                 {sector.leaflet && (
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-end gap-2">
+                    <a
+                      href={sector.leaflet}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-lg overflow-hidden border border-border shadow-md hover:shadow-lg transition-shadow w-28"
+                      aria-label={`Preview leaflet cover for ${sector.label}`}
+                      tabIndex={-1}
+                    >
+                      <img
+                        src={`/leaflets/img/${sector.id}.jpg`}
+                        alt={`${sector.label} leaflet cover`}
+                        className="w-full h-auto block"
+                        width={112}
+                        loading="lazy"
+                      />
+                    </a>
                     <a
                       href={sector.leaflet}
                       target="_blank"
