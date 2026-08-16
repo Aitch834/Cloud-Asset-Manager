@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -94,6 +94,26 @@ function winegbPrefKey(surveyName: string, year: number): string {
   return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
 }
 
+// ---------------------------------------------------------------------------
+// Module-level migration tracking — mirrors the pattern in useIdentifierBannerDismiss.
+//
+// A module-level Set persists for the entire app session and is synchronously
+// readable at render time, avoiding the one-render lag that arises from useState
+// on context switches (userId / farmId change).
+//
+// Key format: `${userId}:${farmId}`
+//
+// A sig is added only when runUiPrefBatchMigration returns "promoted" or
+// "absent".  A "retry" result leaves the sig absent so the effect re-runs on
+// the next mount and attempts the migration again.
+// ---------------------------------------------------------------------------
+
+const winegbMigratedSigs = new Set<string>();
+
+function winegbMigSig(userId: string, farmId: string): string {
+  return `${userId}:${farmId}`;
+}
+
 export default function VinePhenologyScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
@@ -120,24 +140,31 @@ export default function VinePhenologyScreen() {
   const currentSeasonYear = new Date().getFullYear();
   const { prefsReady, isHintDismissed } = useUiPrefs(user?.id);
 
-  // One-time migration: read the old per-farm AsyncStorage dismissal array and promote each
-  // survey name into the useUiPrefs system, then remove the legacy key.  migrationDone stays
-  // false until the read + promotion attempt completes so we never flash the banner to a grower
-  // who had already dismissed it under the old scheme.
-  const [migrationDone, setMigrationDone] = useState(false);
-  const migrationKeyRef = useRef<string>("");
-
   const farmId = currentFarm?.id ?? "";
   const userId = user?.id;
 
+  // Used only to trigger re-renders when the module-level Set is updated after
+  // a migration completes.  The actual readiness is read from the Set.
+  const [, setMigrationEpoch] = useState(0);
+
+  // Compute migration readiness synchronously from the module-level Set so it
+  // is always correct at render time, even across context switches.
+  // When userId or farmId is absent there is nothing to migrate; treat as done.
+  const sig = userId && farmId ? winegbMigSig(userId, farmId) : null;
+  const migrationChecked = sig === null || winegbMigratedSigs.has(sig);
+
   useEffect(() => {
-    if (!farmId || !userId) {
-      setMigrationDone(true);
-      return;
-    }
+    // Without both identifiers there is no legacy key to check.
+    if (!userId || !farmId) return;
+
+    const currentSig = winegbMigSig(userId, farmId);
+
+    // Already successfully migrated this combination in this session.
+    if (winegbMigratedSigs.has(currentSig)) return;
+
+    let uiActive = true;
+
     const legacyKey = `bde_winegb_dismissed_${farmId}_${currentSeasonYear}`;
-    migrationKeyRef.current = legacyKey;
-    setMigrationDone(false);
 
     // runUiPrefBatchMigration atomically writes all new pref keys to cache +
     // pending queue before removing the legacy key, so an app crash or
@@ -151,16 +178,16 @@ export default function VinePhenologyScreen() {
         return dismissed.map(surveyName => winegbPrefKey(surveyName, currentSeasonYear));
       },
     ).then((result) => {
-      if (migrationKeyRef.current !== legacyKey) return;
-      // On "retry" the durable write failed and the legacy key was retained so
-      // the migration can be re-attempted next mount.  Keep migrationDone false
-      // so the banner stays hidden for any surveys still in the legacy record —
-      // an identical strategy to the identifier-warning migration guard.
-      if (result !== "retry") setMigrationDone(true);
-    }).catch(() => {
-      // Unexpected error — unblock the UI; legacy key is retained for next attempt.
-      if (migrationKeyRef.current === legacyKey) setMigrationDone(true);
+      // Add to Set only when migration completed (promoted or absent).
+      // A "retry" means a storage write failed and the legacy key was retained —
+      // do NOT add to the Set so the migration re-runs on the next mount.
+      if (result !== "retry") {
+        winegbMigratedSigs.add(currentSig);
+        if (uiActive) setMigrationEpoch((e) => e + 1);
+      }
     });
+
+    return () => { uiActive = false; };
   // currentSeasonYear never changes within a session.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farmId, userId]);
@@ -211,7 +238,7 @@ export default function VinePhenologyScreen() {
     // Show WineGB survey nudge for viticulture farms when a relevant BBCH stage is saved
     if (currentFarm?.sectorViticulture) {
       const survey = WINEGB_SURVEY_MAP[selectedStage.code];
-      if (survey && prefsReady && migrationDone && !isHintDismissed(winegbPrefKey(survey.surveyName, currentSeasonYear))) {
+      if (survey && prefsReady && migrationChecked && !isHintDismissed(winegbPrefKey(survey.surveyName, currentSeasonYear))) {
         if (survey.surveyKey) {
           // This survey has a checklist entry — check if already ticked for the year,
           // then offer to mark it submitted via an Alert.
