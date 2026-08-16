@@ -227,22 +227,44 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
   });
 
   const [showAdd, setShowAdd] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ maintenanceDate: today });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const openAddForm = () => {
     const savedCooperage = localStorage.getItem("last_cooperage_name") ?? "";
+    setEditingRecord(null);
     setForm({ maintenanceDate: today, ...(savedCooperage ? { cooperageName: savedCooperage } : {}) });
     setShowAdd(true);
   };
 
-  const addMut = useMutation({
+  const openEdit = (m: Record<string, unknown>) => {
+    setEditingRecord(m);
+    setForm({
+      maintenanceDate: m.maintenance_date != null ? String(m.maintenance_date).slice(0, 10) : today,
+      workType:        m.work_type        != null ? String(m.work_type)        : "",
+      cooperageName:   m.cooperage_name   != null ? String(m.cooperage_name)   : "",
+      operatorName:    m.operator_name    != null ? String(m.operator_name)    : "",
+      costGbp:         m.cost_pence       != null ? (Number(m.cost_pence) / 100).toFixed(2) : "",
+      notes:           m.notes            != null ? String(m.notes)            : "",
+    });
+    setShowAdd(true);
+  };
+
+  const saveMut = useMutation({
     mutationFn: async () => {
+      const isEdit = !!editingRecord;
       const payload: Record<string, unknown> = { ...form };
       if (form.costGbp) payload.costPence = String(Math.round(parseFloat(form.costGbp) * 100));
       delete payload.costGbp;
-      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance`), {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload),
+      const url = isEdit
+        ? api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance/${editingRecord!.id}`)
+        : api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance`);
+      const r = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string,string>).error || "Save failed"); }
     },
@@ -253,8 +275,9 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       setShowAdd(false);
+      setEditingRecord(null);
       setForm({ maintenanceDate: today });
-      toast({ title: "Maintenance record added" });
+      toast({ title: editingRecord ? "Maintenance record updated" : "Maintenance record added" });
     },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
   });
@@ -293,6 +316,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
       </div>
       {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{editingRecord ? "Edit maintenance record" : "Log new work"}</p>
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.maintenanceDate ?? ""} onChange={e => sf("maintenanceDate", e.target.value)} className="h-8 text-xs" /></div>
             <div>
@@ -304,14 +328,15 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
             </div>
             <div><Label className="text-xs">Cooperage Name</Label><Input value={form.cooperageName ?? ""} onChange={e => sf("cooperageName", e.target.value)} className="h-8 text-xs" placeholder="e.g. Demptos, local cooper" /></div>
             <div><Label className="text-xs">Cost (£)</Label><Input type="number" step="0.01" min="0" value={form.costGbp ?? ""} onChange={e => sf("costGbp", e.target.value)} className="h-8 text-xs" placeholder="e.g. 45.00" /></div>
+            <div><Label className="text-xs">Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
           </div>
           <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
-          <DialogMutationError mutation={addMut} />
+          <DialogMutationError mutation={saveMut} />
           <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.maintenanceDate || !form.workType || addMut.isPending}>
-              {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
+            <Button size="sm" className="h-7 text-xs" onClick={() => saveMut.mutate()} disabled={!form.maintenanceDate || !form.workType || saveMut.isPending}>
+              {saveMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(false); setEditingRecord(null); saveMut.reset(); }}>Cancel</Button>
           </div>
         </div>
       )}
@@ -328,9 +353,15 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
                   {!!m.cooperage_name && <span className="text-muted-foreground">— {String(m.cooperage_name)}</span>}
                 </div>
                 {m.cost_pence != null && <div className="text-muted-foreground">Cost: £{(Number(m.cost_pence) / 100).toFixed(2)}</div>}
+                {!!m.operator_name && <div className="text-muted-foreground">By: {String(m.operator_name)}</div>}
                 {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
               </div>
-              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>}
+              {!readOnly && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
