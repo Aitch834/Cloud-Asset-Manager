@@ -2636,6 +2636,9 @@ export async function printDiseaseScouting(
   ` : "";
 
   // ── 4. Build table rows ───────────────────────────────────────────────────
+  // Photo column is additional when hasPhotos; 15 data cols without, 16 with.
+  // colCount must be declared before rows so the notes sub-row colspan is resolved.
+  const colCount = hasPhotos ? 16 : 15;
   const rows = records.map(r => {
     const bid = Number(r.blockId);
     const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
@@ -2672,14 +2675,13 @@ export async function printDiseaseScouting(
       <td style="text-align:center">${r.xylellaFastidiosa ? `<span style="color:#dc2626;font-weight:700">⚠ ALERT</span>` : `<span style="color:#9ca3af">No</span>`}</td>
       <td>${d(r.nextScoutDate)}</td>
       <td style="max-width:120px;white-space:normal">${escHtml(r.actionTaken)}</td>
-      <td style="max-width:120px;white-space:normal">${escHtml(r.notes)}${Number(r.photoCount) > 0 ? `${r.notes ? "<br>" : ""}<span style="font-size:9px;border:1px solid #888;border-radius:2px;padding:0 3px;white-space:nowrap;display:inline-block;margin-top:2px">&#128247; ${Number(r.photoCount)} photo${Number(r.photoCount) === 1 ? "" : "s"}</span>` : ""}</td>
-    </tr>`;
+      <td style="text-align:center">${Number(r.photoCount) > 0 ? `<span style="font-size:9px;border:1px solid #888;border-radius:2px;padding:0 3px;white-space:nowrap;display:inline-block">&#128247; ${Number(r.photoCount)} photo${Number(r.photoCount) === 1 ? "" : "s"}</span>` : `<span style="color:#9ca3af">—</span>`}</td>
+    </tr>
+    ${r.notes ? `<tr><td colspan="${colCount}" style="padding:3px 6px 5px;border:1px solid #d1d5db;border-top:none;background:#f0fdf4;font-style:italic;font-size:9.5px;color:#374151"><strong style="font-style:normal;color:#166534">Notes:</strong> ${escHtml(r.notes)}</td></tr>` : ""}`;
   }).join("");
 
   const safeFarmName = escHtml(farmName);
   const scoutAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
-  // Always show block column; photo column is additional when hasPhotos
-  const colCount = hasPhotos ? 17 : 16;
   const xylellaCount = records.filter(r => r.xylellaFastidiosa).length;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -2735,7 +2737,7 @@ export async function printDiseaseScouting(
         <th class="center">Xylella</th>
         <th>Next Scout</th>
         <th>Action Taken</th>
-        <th>Notes</th>
+        <th class="center">Photos</th>
       </tr>
     </thead>
     <tbody>
