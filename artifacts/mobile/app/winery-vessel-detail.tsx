@@ -904,20 +904,52 @@ function EmptySection({ label }: { label: string }) {
   );
 }
 
-function FillCard({ fill }: { fill: BarrelFill }) {
+function FillCard({
+  fill,
+  onEdit,
+  onDelete,
+}: {
+  fill: BarrelFill;
+  onEdit?: (fill: BarrelFill) => void;
+  onDelete?: (fill: BarrelFill) => void;
+}) {
   const title = [fill.wine_name, fill.variety].filter(Boolean).join(" · ") || "Unnamed fill";
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={[styles.fillBadge]}>
-          <Text style={styles.fillBadgeText}>Fill {fill.fill_number ?? "?"}</Text>
+      <View style={[styles.cardHeader, { justifyContent: "space-between" }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flex: 1, flexWrap: "wrap" }}>
+          <View style={[styles.fillBadge]}>
+            <Text style={styles.fillBadgeText}>Fill {fill.fill_number ?? "?"}</Text>
+          </View>
+          {fill.vintage_year ? (
+            <Text style={styles.cardMeta}>{fill.vintage_year}</Text>
+          ) : null}
+          {fill.batch_ref ? (
+            <Text style={styles.cardMeta}>{fill.batch_ref}</Text>
+          ) : null}
         </View>
-        {fill.vintage_year ? (
-          <Text style={styles.cardMeta}>{fill.vintage_year}</Text>
-        ) : null}
-        {fill.batch_ref ? (
-          <Text style={styles.cardMeta}>{fill.batch_ref}</Text>
-        ) : null}
+        {(onEdit || onDelete) && (
+          <View style={{ flexDirection: "row", gap: 4, marginLeft: 8 }}>
+            {onEdit && (
+              <TouchableOpacity
+                onPress={() => onEdit(fill)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.cardActionBtn}
+              >
+                <Feather name="edit-2" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                onPress={() => onDelete(fill)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.cardActionBtn}
+              >
+                <Feather name="trash-2" size={14} color="#ef4444" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       <Text style={styles.cardTitle}>{title}</Text>
@@ -949,6 +981,18 @@ function FillCard({ fill }: { fill: BarrelFill }) {
   );
 }
 
+interface FillFormState {
+  fillNumber: string;
+  wineName: string;
+  vintageYear: string;
+  variety: string;
+  volumeLitres: string;
+  fillDate: string;
+  rackOutDate: string;
+  batchRef: string;
+  operatorName: string;
+  notes: string;
+}
 function MaintenanceCard({
   record,
   onEdit,
@@ -1211,6 +1255,7 @@ export default function WineryVesselDetailScreen() {
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
   const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
+  const [editingFill, setEditingFill] = useState<BarrelFill | null>(null);
 
   // Track current vessel location so sequential movements pre-fill the right origin
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
@@ -1226,6 +1271,40 @@ export default function WineryVesselDetailScreen() {
     setCurrentZone(latest.to_zone ?? "");
     setCurrentPosition(latest.to_position ?? "");
   }, [data.movements]);
+
+  function handleDeleteFill(fill: BarrelFill) {
+    const label = [fill.wine_name, fill.variety].filter(Boolean).join(" · ") || `Fill ${fill.fill_number ?? "?"}`;
+    Alert.alert(
+      "Delete fill record?",
+      `This will permanently remove the fill record for "${label}" (Fill ${fill.fill_number ?? "?"}).`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const apiBase = getApiBase();
+              if (!apiBase) throw new Error("No API domain configured.");
+              const headers = await getAuthHeaders();
+              const res = await fetch(
+                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/fills/${fill.id}`,
+                { method: "DELETE", headers },
+              );
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({})) as { error?: string };
+                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+                return;
+              }
+              refresh();
+            } catch (err) {
+              Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete fill record.");
+            }
+          },
+        },
+      ],
+    );
+  }
 
   function handleDeleteMovement(record: BarrelMovement) {
     Alert.alert(
@@ -1355,7 +1434,14 @@ export default function WineryVesselDetailScreen() {
               <Text style={styles.noFillsHint}>No fill history has been recorded for this vessel.</Text>
             </View>
           ) : (
-            data.fills.map(f => <FillCard key={f.id} fill={f} />)
+            data.fills.map(f => (
+              <FillCard
+                key={f.id}
+                fill={f}
+                onEdit={r => setEditingFill(r)}
+                onDelete={handleDeleteFill}
+              />
+            ))
           )}
 
           {/* Cooperage / maintenance log */}
@@ -1424,6 +1510,14 @@ export default function WineryVesselDetailScreen() {
             vesselId={params.vesselId}
             onClose={() => setMaintenanceModalOpen(false)}
             onSuccess={() => { setMaintenanceModalOpen(false); refresh(); }}
+          />
+          <EditFillModal
+            visible={editingFill !== null}
+            farmId={currentFarm.id}
+            vesselId={params.vesselId}
+            record={editingFill}
+            onClose={() => setEditingFill(null)}
+            onSuccess={() => { setEditingFill(null); refresh(); }}
           />
           <EditMaintenanceModal
             visible={editingMaintenance !== null}
@@ -1823,3 +1917,286 @@ const formStyles = StyleSheet.create({
     color: "#fff",
   },
 });
+
+function EditFillModal({ visible, farmId, vesselId, record, onClose, onSuccess }: EditFillModalProps) {
+  const [form, setForm] = useState<FillFormState>({
+    fillNumber: "",
+    wineName: "",
+    vintageYear: "",
+    variety: "",
+    volumeLitres: "",
+    fillDate: "",
+    rackOutDate: "",
+    batchRef: "",
+    operatorName: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible && record) {
+      setForm({
+        fillNumber: record.fill_number != null ? String(record.fill_number) : "",
+        wineName: record.wine_name ?? "",
+        vintageYear: record.vintage_year != null ? String(record.vintage_year) : "",
+        variety: record.variety ?? "",
+        volumeLitres: record.volume_litres != null ? String(record.volume_litres) : "",
+        fillDate: record.fill_date ?? "",
+        rackOutDate: record.rack_out_date ?? "",
+        batchRef: record.batch_ref ?? "",
+        operatorName: record.operator_name ?? "",
+        notes: record.notes ?? "",
+      });
+      setError(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, record]);
+
+  function set(field: keyof FillFormState, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.fillDate.trim()) { setError("Rack-in date is required."); return; }
+    const fillNumber = parseInt(form.fillNumber.trim());
+    if (!form.fillNumber.trim() || isNaN(fillNumber) || fillNumber < 1) {
+      setError("Fill number must be a positive integer.");
+      return;
+    }
+    let vintageYear: number | null = null;
+    if (form.vintageYear.trim()) {
+      const parsed = parseInt(form.vintageYear.trim());
+      if (isNaN(parsed)) { setError("Vintage year must be a valid year."); return; }
+      vintageYear = parsed;
+    }
+    let volumeLitres: number | null = null;
+    if (form.volumeLitres.trim()) {
+      const parsed = parseFloat(form.volumeLitres.trim());
+      if (isNaN(parsed) || parsed < 0) { setError("Volume must be a valid positive number."); return; }
+      volumeLitres = parsed;
+    }
+    if (!record) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/fills/${record.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          fillNumber,
+          wineName: form.wineName.trim() || null,
+          vintageYear,
+          variety: form.variety.trim() || null,
+          volumeLitres,
+          fillDate: form.fillDate.trim(),
+          rackOutDate: form.rackOutDate.trim() || null,
+          batchRef: form.batchRef.trim() || null,
+          operatorName: form.operatorName.trim() || null,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save changes.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={formStyles.sheet}>
+          <View style={formStyles.sheetHeader}>
+            <Text style={formStyles.sheetTitle}>Edit Fill Record</Text>
+            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={formStyles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={colors.error} />
+                <Text style={formStyles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Fill number */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Fill number <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.fillNumber}
+                onChangeText={v => set("fillNumber", v)}
+                placeholder="e.g. 3"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="number-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Wine name */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Wine name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.wineName}
+                onChangeText={v => set("wineName", v)}
+                placeholder="e.g. Estate Pinot Noir"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Vintage year / variety */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Vintage</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.vintageYear}
+                  onChangeText={v => set("vintageYear", v)}
+                  placeholder="e.g. 2023"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Variety</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.variety}
+                  onChangeText={v => set("variety", v)}
+                  placeholder="e.g. Pinot Noir"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Volume */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Volume (litres)</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.volumeLitres}
+                onChangeText={v => set("volumeLitres", v)}
+                placeholder="e.g. 225"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Rack in / rack out dates */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Rack-in date <Text style={formStyles.required}>*</Text></Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.fillDate}
+                  onChangeText={v => set("fillDate", v)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Rack-out date</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.rackOutDate}
+                  onChangeText={v => set("rackOutDate", v)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Batch ref */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Batch reference</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.batchRef}
+                onChangeText={v => set("batchRef", v)}
+                placeholder="e.g. LOT-2023-07"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Operator */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Operator name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.operatorName}
+                onChangeText={v => set("operatorName", v)}
+                placeholder="Name of person logging fill"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Notes */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Notes</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.multiline]}
+                value={form.notes}
+                onChangeText={v => set("notes", v)}
+                placeholder="Any additional notes…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                returnKeyType="default"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[formStyles.submitBtn, submitting && formStyles.submitBtnDisabled]}
+              onPress={() => { void handleSubmit(); }}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={formStyles.submitBtnText}>Save changes</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+interface EditFillModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  record: BarrelFill | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
