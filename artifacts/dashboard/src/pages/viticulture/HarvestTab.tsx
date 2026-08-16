@@ -271,7 +271,29 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     for (const bid of uniqueBlockIds) {
       blockAreaByName[String(blockName(bid))] = blockAreaHa[String(bid)] ?? 0;
     }
-    return { kgData, thaData, blockNames, blockAreaByName };
+
+    // Build variety → colour map so same-variety blocks share a hue
+    const blockVarietyByName: Record<string, string> = {};
+    for (const bid of uniqueBlockIds) {
+      const block = blocks.find(b => b.id === bid);
+      const variety = block ? String((block as Record<string, unknown>).variety ?? "").trim() : "";
+      blockVarietyByName[String(blockName(bid))] = variety;
+    }
+    const uniqueVarieties = [...new Set(Object.values(blockVarietyByName).filter(Boolean))];
+    const varietyColorMap: Record<string, string> = {};
+    uniqueVarieties.forEach((v, i) => { varietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+    const usedColors = new Set(Object.values(varietyColorMap));
+    const fallbackPalette = YIELD_CHART_COLORS.filter(c => !usedColors.has(c));
+    let fbIdx = 0;
+    const blockColorByName: Record<string, string> = {};
+    for (const bname of blockNames) {
+      const v = blockVarietyByName[bname] ?? "";
+      blockColorByName[bname] = v
+        ? (varietyColorMap[v] ?? YIELD_CHART_COLORS[0])
+        : (fallbackPalette[fbIdx++ % (fallbackPalette.length || YIELD_CHART_COLORS.length)] ?? YIELD_CHART_COLORS[fbIdx % YIELD_CHART_COLORS.length]);
+    }
+
+    return { kgData, thaData, blockNames, blockAreaByName, varietyColorMap, blockVarietyByName, blockColorByName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
 
@@ -1162,7 +1184,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {yieldChartData.blockNames.map((bname, i) => {
-                const color = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length];
+                const color = yieldChartData.blockColorByName[bname] ?? YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length];
                 return [
                   <Bar
                     key={`bar-${bname}`}
@@ -1187,6 +1209,18 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               })}
             </ComposedChart>
           </ResponsiveContainer>
+          {/* Variety colour key — shown when ≥2 distinct named varieties are present */}
+          {Object.keys(yieldChartData.varietyColorMap).length >= 2 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 pb-0.5 border-t mt-1">
+              <span className="text-xs text-muted-foreground font-medium self-center shrink-0">Variety:</span>
+              {Object.entries(yieldChartData.varietyColorMap).map(([variety, color]) => (
+                <span key={variety} className="flex items-center gap-1.5 text-xs text-foreground">
+                  <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ background: color }} />
+                  {variety}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
