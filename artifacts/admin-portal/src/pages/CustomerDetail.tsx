@@ -384,52 +384,6 @@ export default function CustomerDetail() {
   const [removingSubId, setRemovingSubId] = useState<number | null>(null);
   const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
 
-  // Farm inline edit state
-  const [editingFarmId, setEditingFarmId] = useState<number | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editAddress, setEditAddress] = useState("");
-  const [editPostcode, setEditPostcode] = useState("");
-  const [editPostcodeBlurred, setEditPostcodeBlurred] = useState(false);
-  const [editSaving, setEditSaving] = useState(false);
-
-  const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
-
-  function normalisePostcode(raw: string): string {
-    const v = raw.trim().toUpperCase().replace(/\s+/g, "");
-    if (v.length >= 4) return v.slice(0, -3) + " " + v.slice(-3);
-    return raw.trim().toUpperCase();
-  }
-
-  function startEditFarm(farm: Farm) {
-    setEditingFarmId(farm.id);
-    setEditName(farm.name);
-    setEditAddress(farm.address ?? "");
-    setEditPostcode(farm.postcode ?? "");
-    setEditPostcodeBlurred(false);
-  }
-
-  function cancelEditFarm() {
-    setEditingFarmId(null);
-  }
-
-  async function handleSaveFarm(farm: Farm) {
-    setEditSaving(true);
-    try {
-      const normPostcode = normalisePostcode(editPostcode);
-      const result = await api.updateFarm(tenantId, farm.id, {
-        name: editName.trim() || farm.name,
-        address: editAddress,
-        postcode: normPostcode,
-      }, secret);
-      setFarms(prev => prev.map(f => f.id === farm.id ? { ...f, ...result.farm } : f));
-      setEditingFarmId(null);
-    } catch {
-      // keep form open so the user can retry
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
   const activeModules = subscriptions.filter((s) => s.status === "active" || s.status === "trial");
 
   async function handleStartTrial(farm: Farm) {
@@ -847,9 +801,6 @@ export default function CustomerDetail() {
               const farmSubs = subscriptions.filter((s) => s.farmId === farm.id && (s.status === "active" || s.status === "trial"));
               const hasTrial = farmSubs.some((s) => s.status === "trial");
               const isDownloading = downloadingFarmId === farm.id;
-              const isEditing = editingFarmId === farm.id;
-              const postcodeVal = editPostcode.trim();
-              const postcodeWarn = isEditing && editPostcodeBlurred && postcodeVal.length > 0 && !UK_POSTCODE_RE.test(postcodeVal);
               return (
                 <div
                   key={farm.id}
@@ -857,101 +808,33 @@ export default function CustomerDetail() {
                 >
                   <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div className="flex-1">
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-xs font-medium text-muted-foreground">Farm name</label>
-                          <input
-                            className="mt-0.5 w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-muted-foreground">Address</label>
-                          <input
-                            className="mt-0.5 w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                            value={editAddress}
-                            onChange={e => setEditAddress(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-muted-foreground">Postcode</label>
-                          <input
-                            className="mt-0.5 w-40 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm font-mono uppercase focus:outline-none focus:ring-1 focus:ring-ring"
-                            value={editPostcode}
-                            onChange={e => { setEditPostcode(e.target.value); setEditPostcodeBlurred(false); }}
-                            onBlur={() => {
-                              const normed = normalisePostcode(editPostcode);
-                              setEditPostcode(normed);
-                              setEditPostcodeBlurred(true);
-                            }}
-                          />
-                          {postcodeWarn && (
-                            <p className="text-xs text-amber-600 mt-0.5">
-                              This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={() => handleSaveFarm(farm)}
-                            disabled={editSaving || !editName.trim()}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-green-700 rounded-lg px-3 py-1.5 hover:bg-green-800 disabled:opacity-50 transition-colors"
-                          >
-                            {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEditFarm}
-                            disabled={editSaving}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-accent transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold text-sm">{farm.name}</p>
-                          {!farm.isActive && <Badge variant="destructive">Inactive</Badge>}
-                          {farm.redTractorId && (
-                            <Badge variant="success">RT: {farm.redTractorId}</Badge>
-                          )}
-                        </div>
-                        {(farm.address || farm.postcode) && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3" />
-                            {[farm.address, farm.postcode].filter(Boolean).join(", ")}
-                          </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{farm.name}</p>
+                      {!farm.isActive && <Badge variant="destructive">Inactive</Badge>}
+                      {farm.redTractorId && (
+                        <Badge variant="success">RT: {farm.redTractorId}</Badge>
+                      )}
+                    </div>
+                    {(farm.address || farm.postcode) && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3" />
+                        {[farm.address, farm.postcode].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+                    {farmSubs.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {farmSubs.filter(s => s.status === "active").length > 0 && (
+                          <>{farmSubs.filter(s => s.status === "active").length} active module{farmSubs.filter(s => s.status === "active").length !== 1 ? "s" : ""}</>
                         )}
-                        {farmSubs.length > 0 && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {farmSubs.filter(s => s.status === "active").length > 0 && (
-                              <>{farmSubs.filter(s => s.status === "active").length} active module{farmSubs.filter(s => s.status === "active").length !== 1 ? "s" : ""}</>
-                            )}
-                            {hasTrial && (
-                              <span className="ml-1 inline-flex items-center gap-1 text-amber-600 font-medium">
-                                <Zap className="w-3 h-3" />trial active
-                              </span>
-                            )}
-                          </p>
+                        {hasTrial && (
+                          <span className="ml-1 inline-flex items-center gap-1 text-amber-600 font-medium">
+                            <Zap className="w-3 h-3" />trial active
+                          </span>
                         )}
-                      </>
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                    {!isEditing && (
-                      <button
-                        onClick={() => startEditFarm(farm)}
-                        title="Edit farm name, address and postcode"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                     <button
                       onClick={() => setEditingFarm(farm)}
                       title="Edit farm name, address, and postcode"

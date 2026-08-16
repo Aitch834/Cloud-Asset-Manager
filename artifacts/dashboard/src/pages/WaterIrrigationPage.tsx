@@ -418,12 +418,41 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [equipmentIds, setEquipmentIds] = useState<number[]>([]);
   const [confirmClose, setConfirmClose] = useState<Record<string, unknown> | null>(null);
+  const [licenceManuallySelected, setLicenceManuallySelected] = useState(false);
 
   const { data: licences = [] } = useQuery({ queryKey: ["water-licences", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-abstraction-licences`), { credentials: "include" }).then(r => r.json()) });
   const { data: fieldsData } = useQuery({ queryKey: ["fields", farmId], queryFn: () => fetch(api(`farms/${farmId}/fields`), { credentials: "include" }).then(r => r.json()) });
   const { data: contactsData } = useQuery({ queryKey: ["contacts", farmId], queryFn: () => fetch(api(`farms/${farmId}/contacts`), { credentials: "include" }).then(r => r.json()).then(d => d.contacts ?? []) });
   const { data: equipmentData = [] } = useQuery({ queryKey: ["irrig-equip", farmId], queryFn: () => fetch(api(`farms/${farmId}/irrigation-equipment`), { credentials: "include" }).then(r => r.json()) });
   const { data: records = [], isLoading } = useQuery({ queryKey: ["irrig-records", farmId], queryFn: () => fetch(api(`farms/${farmId}/irrigation-records`), { credentials: "include" }).then(r => r.json()) });
+
+  // MRU licence lookup — enabled only when adding a new record with a field selected
+  const mruFieldIdNum = !editing && open && form.fieldId && form.fieldId !== "__none__" ? parseInt(String(form.fieldId)) : null;
+  const { data: fieldIrrigRecords = [] } = useQuery({
+    queryKey: ["irrig-records-field", farmId, mruFieldIdNum],
+    queryFn: () => fetch(api(`farms/${farmId}/irrigation-records?fieldId=${mruFieldIdNum}`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!mruFieldIdNum,
+  });
+
+  // Priority: (1) MRU licence for this field, (2) single licence on the farm, (3) none
+  const derivedLicenceId = useMemo(() => {
+    if (editing) return null;
+    const licArr = licences as Record<string, unknown>[];
+    if (mruFieldIdNum) {
+      const fieldRecs = fieldIrrigRecords as Record<string, unknown>[];
+      const mru = fieldRecs.find(r => r.licenceId != null);
+      if (mru?.licenceId != null && licArr.some(l => String(l.id) === String(mru.licenceId))) return String(mru.licenceId);
+    }
+    if (licArr.length === 1) return String(licArr[0].id);
+    return null;
+  }, [editing, mruFieldIdNum, fieldIrrigRecords, licences]);
+
+  // Auto-fill the licence when opening a new record or when the field changes,
+  // but never overwrite a licence the grower has already selected manually.
+  useEffect(() => {
+    if (!open || editing || licenceManuallySelected) return;
+    if (derivedLicenceId) setForm(f => ({ ...f, licenceId: derivedLicenceId }));
+  }, [derivedLicenceId, open, editing, licenceManuallySelected]);
 
   const fields: Record<string, unknown>[] = Array.isArray(fieldsData?.records) ? fieldsData.records : [];
   const contacts: Record<string, unknown>[] = Array.isArray(contactsData) ? contactsData : [];
@@ -455,17 +484,20 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   });
 
   function handleFieldSelect(fieldId: string) {
-    if (!fieldId || fieldId === "__none__") { setForm(f => ({ ...f, fieldId: "", areaIrrigatedHa: "", cropType: "" })); return; }
+    // Reset manual-selection flag so MRU can re-derive for the new field
+    setLicenceManuallySelected(false);
+    if (!fieldId || fieldId === "__none__") { setForm(f => ({ ...f, fieldId: "", areaIrrigatedHa: "", cropType: "", licenceId: "__none__" })); return; }
     const field = fields.find(f => String(f.id) === fieldId);
     if (field) {
-      setForm(f => ({ ...f, fieldId, areaIrrigatedHa: field.areaHectares ? String(field.areaHectares) : String(f.areaIrrigatedHa ?? ""), cropType: field.currentUse ? String(field.currentUse) : String(f.cropType ?? "") }));
+      setForm(f => ({ ...f, fieldId, areaIrrigatedHa: field.areaHectares ? String(field.areaHectares) : String(f.areaIrrigatedHa ?? ""), cropType: field.currentUse ? String(field.currentUse) : String(f.cropType ?? ""), licenceId: "__none__" }));
     } else {
-      setForm(f => ({ ...f, fieldId }));
+      setForm(f => ({ ...f, fieldId, licenceId: "__none__" }));
     }
   }
 
   function openAdd() {
     setEditing(null);
+    setLicenceManuallySelected(false);
     setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open" });
     setEquipmentIds([]);
     setOpen(true);
@@ -520,6 +552,12 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
 
   const selectedLicence = form.licenceId && form.licenceId !== "__none__"
     ? (licences as Record<string, unknown>[]).find(l => String(l.id) === String(form.licenceId)) : null;
+  const licenceHint = useMemo(() => {
+    if (editing || !derivedLicenceId || !form.licenceId || form.licenceId !== derivedLicenceId) return null;
+    const fieldRecs = fieldIrrigRecords as Record<string, unknown>[];
+    const mru = fieldRecs.find(r => r.licenceId != null && String(r.licenceId) === form.licenceId);
+    return mru ? "pre-filled from last use on this field" : "pre-filled — only licence on farm";
+  }, [editing, derivedLicenceId, form.licenceId, fieldIrrigRecords]);
   const meterVolume = form.meterStartReading && form.meterEndReading
     ? Math.max(0, parseFloat(String(form.meterEndReading)) - parseFloat(String(form.meterStartReading))) : null;
   const effectiveVolume = meterVolume ?? (form.volumeAppliedM3 ? parseFloat(String(form.volumeAppliedM3)) : null);
@@ -763,13 +801,14 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
                 )}
                 <div>
                   <Label>Water Source / Licence</Label>
-                  <Select value={String(form.licenceId ?? "__none__")} onValueChange={v => setForm(f => ({ ...f, licenceId: v }))}>
+                  <Select value={String(form.licenceId ?? "__none__")} onValueChange={v => { setLicenceManuallySelected(true); setForm(f => ({ ...f, licenceId: v })); }}>
                     <SelectTrigger><SelectValue placeholder="Select licence…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">— not linked —</SelectItem>
                       {(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}{l.sourceType ? ` (${String(l.sourceType)})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {licenceHint && <p className="text-[11px] text-blue-600 mt-1">{licenceHint}</p>}
                 </div>
                 <div><Label>Crop Type</Label><Input value={String(form.cropType ?? "")} onChange={e => setForm(f => ({ ...f, cropType: e.target.value }))} placeholder="Auto-filled from field" /></div>
                 <div>

@@ -2554,7 +2554,7 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
   const [updated] = await db
     .update(farmsTable)
     .set(updates)
-    .where(eq(farmsTable.id, farmId))
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
     .returning({ id: farmsTable.id, name: farmsTable.name, address: farmsTable.address, postcode: farmsTable.postcode });
 
   await writeAuditLog(req.userId!, "admin_update_farm", { tenantId, farmId, updates }, tenantId, farmId);
