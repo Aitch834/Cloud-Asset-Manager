@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { createHmac, timingSafeEqual, randomBytes, createHash } from "crypto";
 import { db, pool, dbSchema, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable, supportTicketsTable, supportTicketMessagesTable, dataApiKeysTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
+import { tenantSmsRecipients } from "../lib/smsRecipients";
 import { sendAdminEmail, sendCustomerReplyAlert } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
@@ -8123,18 +8124,9 @@ router.post("/farms/:farmId/fly-tipping", requireAuth, requireTenant, async (req
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const location = String(req.body.locationDescription ?? "location not specified");
         const msg = `BDE Farm Trac [HAZARDOUS FLY-TIPPING]: Hazardous waste discovered at ${farm.name} — ${location}. Do NOT touch or move. Contact Environment Agency: 0800 80 70 60. Log in to Land Management → Fly-Tipping.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "regulatory")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Fly-tipping SMS]", err); }
     })();
   }
@@ -23820,19 +23812,10 @@ router.post("/farms/:farmId/equipment-defect-reports", requireAuth, requireTenan
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const reporter = String(req.body.reportedBy ?? "A team member");
         const sevLabel = sev === "critical" ? "CRITICAL" : "High";
         const msg = `BDE Farm Trac [${sevLabel} DEFECT]: ${reporter} has reported a ${sevLabel.toLowerCase()} severity defect on ${equipmentName} at ${farm.name}. Ref: ${defectRef}. Review in Equipment → Defect Reports.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "regulatory")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Equipment Defect SMS]", err); }
     })();
   }
@@ -24181,20 +24164,11 @@ router.post("/farms/:farmId/slurry-store-inspections", requireAuth, requireTenan
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const storeName = String(req.body.storeName ?? storeId ?? "a slurry store");
         const defects = deficiencies ? ` Deficiencies: ${String(deficiencies).substring(0, 100)}.` : "";
         const leakNote = (leaksOrDamageFound === true || leaksOrDamageFound === "true") ? " LEAKS OR STRUCTURAL DAMAGE FOUND." : "";
         const msg = `BDE Farm Trac [SLURRY STORE FAIL]: ${storeName} at ${farm.name} has FAILED its SSAFO inspection.${leakNote}${defects} Urgent action required — review in Environmental → Slurry Stores.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "regulatory")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Slurry Inspection SMS]", err); }
     })();
   }
@@ -25600,20 +25574,11 @@ router.post("/farms/:farmId/accident-book", requireAuth, requireTenant, requireM
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const personName = String(req.body.personName ?? "A person");
         const location = String(req.body.incidentLocation ?? "location not specified");
         const riddorCat = req.body.riddorCategory ? ` Category: ${String(req.body.riddorCategory).substring(0, 80)}.` : "";
         const msg = `BDE Farm Trac [RIDDOR ACCIDENT]: A RIDDOR-reportable incident involving ${personName} has been logged at ${farm.name} (${location}).${riddorCat} Report to HSE at riddor.hse.gov.uk. Review in H&S → Accident Book.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "regulatory")) { await sendSms(phone, msg); }
         await createRiddorNotification({ tenantId: farm.tenantId, farmId, recordId: record.id, personName, incidentLocation: location, riddorCategory: req.body.riddorCategory ? String(req.body.riddorCategory) : null });
       } catch { /* fire-and-forget */ }
     })();
@@ -27672,19 +27637,10 @@ router.post("/farms/:farmId/disease-incidents", requireAuth, requireTenant, requ
         try {
           const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
           if (!farm) return;
-          const { userTenantsTable } = await import("@workspace/db");
-          const managers = await db
-            .select({ phone: usersTable.phoneNumber })
-            .from(userTenantsTable)
-            .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-            .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
           const disease = String(req.body.notifiableDisease ?? req.body.suspectedDiagnosis ?? "Suspected notifiable disease");
           const species = String(req.body.species ?? "unknown species");
           const msg = `BDE Farm Trac [NOTIFIABLE DISEASE]: Suspected ${disease} reported in ${species} at ${farm.name}. APHA MUST be notified immediately on 03000 200 301. Do not move any animals. Log in to Biosecurity → Disease Incidents.`;
-          const seen = new Set<string>();
-          for (const m of managers) {
-            if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-          }
+          for (const phone of await tenantSmsRecipients(farm.tenantId, "livestock")) { await sendSms(phone, msg); }
         } catch (err) { console.error("[Notifiable Disease SMS]", err); }
       })();
     }
@@ -32404,19 +32360,10 @@ router.post("/farms/:farmId/labour/timesheets", requireAuth, requireTenant, asyn
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const staffName = String(b.staffName ?? "A staff member");
         const hours = parseFloat(String(b.hoursRegular ?? "0")).toFixed(1);
         const msg = `BDE Farm Trac: ${staffName} submitted a timesheet (${hours}h) on ${farm.name} — awaiting your approval. Log in to Labour > Timesheets.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "tasks")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Timesheet SMS]", err); }
     })();
   }
@@ -32488,22 +32435,13 @@ router.post("/farms/:farmId/labour/absences", requireAuth, requireTenant, async 
       try {
         const [farm] = await db.select({ tenantId: farmsTable.tenantId, name: farmsTable.name }).from(farmsTable).where(eq(farmsTable.id, farmId)).limit(1);
         if (!farm) return;
-        const { userTenantsTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: usersTable.phoneNumber })
-          .from(userTenantsTable)
-          .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))
-          .where(and(eq(userTenantsTable.tenantId, farm.tenantId), isNotNull(usersTable.phoneNumber), ne(usersTable.smsOptIn, "none")));
         const staffName = String(b.staffName ?? "A staff member");
         const absType = String(b.absenceType ?? "Leave");
         const start = String(b.startDate ?? ""); const end = String(b.endDate ?? "");
         const days = b.daysCount ? `${b.daysCount} day${String(b.daysCount) === "1" ? "" : "s"}, ` : "";
         const dateRange = start === end ? start : `${start} to ${end}`;
         const msg = `BDE Farm Trac: ${staffName} has requested ${absType} (${days}${dateRange}) on ${farm.name}. Review it in Labour > Holiday & Absence.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "tasks")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Leave Request SMS]", err); }
     })();
   }
@@ -34627,20 +34565,11 @@ router.post("/farms/:farmId/straw-moisture-checks", requireAuth, requireTenant, 
       try {
         const [farm] = await db.select({ name: farmsTable.name, tenantId: farmsTable.tenantId }).from(farmsTable).where(eq(farmsTable.id, farmId));
         if (!farm) return;
-        const { userTenantsTable: utTable, usersTable: uTable } = await import("@workspace/db");
-        const managers = await db
-          .select({ phone: uTable.phoneNumber })
-          .from(utTable)
-          .innerJoin(uTable, eq(utTable.userId, uTable.id))
-          .where(and(eq(utTable.tenantId, farm.tenantId), isNotNull(uTable.phoneNumber), ne(uTable.smsOptIn, "none")));
         const batchInfo = row.batchRef ? ` (Batch: ${row.batchRef})` : "";
         const msg = row.odourObserved
           ? `BDE Farm Trac FIRE RISK: Odour observed during straw monitoring check at ${farm.name}${batchInfo}. Caramel/musty odour indicates heating. Immediate inspection required.`
           : `BDE Farm Trac FIRE RISK: High moisture (${row.moisturePercent}%) recorded for straw at ${farm.name}${batchInfo}. Check storage and monitor daily — risk of spontaneous combustion.`;
-        const seen = new Set<string>();
-        for (const m of managers) {
-          if (m.phone && !seen.has(m.phone)) { seen.add(m.phone); await sendSms(m.phone, msg); }
-        }
+        for (const phone of await tenantSmsRecipients(farm.tenantId, "regulatory")) { await sendSms(phone, msg); }
       } catch (err) { console.error("[Straw Moisture SMS]", err); }
     })();
   }
@@ -41955,6 +41884,7 @@ router.get("/account/profile", async (req, res) => {
     phoneNumber: usersTable.phoneNumber,
     smsOptIn: usersTable.smsOptIn,
     smsConsentAt: usersTable.smsConsentAt,
+    smsCategories: usersTable.smsCategories,
   }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(user);
@@ -41963,7 +41893,7 @@ router.get("/account/profile", async (req, res) => {
 router.put("/account/profile", async (req, res) => {
   const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
-  const { phoneNumber, smsOptIn } = req.body as { phoneNumber?: string; smsOptIn?: string };
+  const { phoneNumber, smsOptIn, smsCategories } = req.body as { phoneNumber?: string; smsOptIn?: string; smsCategories?: Record<string, boolean> | null };
   const validOptIn = ["all", "critical", "none"];
   if (smsOptIn && !validOptIn.includes(smsOptIn)) {
     res.status(400).json({ error: "Invalid smsOptIn value" }); return;
@@ -41974,6 +41904,7 @@ router.put("/account/profile", async (req, res) => {
     updates.smsOptIn = smsOptIn;
     if (smsOptIn !== "none") updates.smsConsentAt = new Date();
   }
+  if (smsCategories !== undefined) updates.smsCategories = smsCategories;
   await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
   const [updated] = await db.select({
     id: usersTable.id,
@@ -41983,6 +41914,7 @@ router.put("/account/profile", async (req, res) => {
     phoneNumber: usersTable.phoneNumber,
     smsOptIn: usersTable.smsOptIn,
     smsConsentAt: usersTable.smsConsentAt,
+    smsCategories: usersTable.smsCategories,
   }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   res.json(updated);
 });

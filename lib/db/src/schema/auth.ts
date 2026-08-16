@@ -7,6 +7,11 @@ export interface UiPrefs {
   [hintKey: string]: boolean | undefined;
 }
 
+/** The eight alert categories a user can independently opt in/out of. */
+export type SmsCategory = "livestock" | "dairy" | "arable" | "viticulture" | "tasks" | "regulatory" | "quality" | "stock";
+/** Per-category SMS preferences stored in sms_categories JSONB. null = all categories enabled (legacy/default). */
+export type SmsCategories = Partial<Record<SmsCategory, boolean>>;
+
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
   "sessions",
@@ -30,6 +35,8 @@ export const usersTable = pgTable("users", {
   smsConsentAt: timestamp("sms_consent_at", { withTimezone: true }),
   /** Per-user UI hint dismissal flags, keyed by hint ID. Added via startup migration. */
   uiPrefs: jsonb("ui_prefs").$type<UiPrefs>().notNull().default({}),
+  /** Per-category SMS opt-in. null = all categories enabled (legacy). Added via startup migration. */
+  smsCategories: jsonb("sms_categories").$type<SmsCategories>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

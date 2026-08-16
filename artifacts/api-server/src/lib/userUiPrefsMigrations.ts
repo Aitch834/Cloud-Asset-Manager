@@ -10,4 +10,8 @@ export async function runUserUiPrefsMigrations(): Promise<void> {
     ALTER TABLE users
       ADD COLUMN IF NOT EXISTS ui_prefs jsonb NOT NULL DEFAULT '{}'::jsonb
   `);
+  await db.execute(sql`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS sms_categories jsonb
+  `);
 }

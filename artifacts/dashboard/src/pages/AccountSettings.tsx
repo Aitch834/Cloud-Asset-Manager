@@ -3,14 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api";
 import { useState, useEffect } from "react";
-import { Smartphone, BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, Lock } from "lucide-react";
+import { Smartphone, Loader2, Lock, Info } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery } from "@tanstack/react-query";
-
-type SmsOptIn = "all" | "critical" | "none";
 
 interface AccountProfile {
   id: string;
@@ -20,40 +19,64 @@ interface AccountProfile {
   phoneNumber: string | null;
   smsOptIn: string;
   smsConsentAt: string | null;
+  smsCategories: Record<string, boolean> | null;
 }
 
-function SmsLevelButton({ value, current, icon: Icon, label, description, onChange, disabled }: {
-  value: SmsOptIn;
-  current: SmsOptIn;
-  icon: React.ComponentType<{ className?: string }>;
+const SMS_CATEGORIES: ReadonlyArray<{
+  key: string;
   label: string;
   description: string;
-  onChange: (v: SmsOptIn) => void;
-  disabled?: boolean;
-}) {
-  const isSelected = current === value;
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(value)}
-      disabled={disabled}
-      className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all ${
-        disabled
-          ? "border-border opacity-50 cursor-not-allowed"
-          : isSelected
-          ? "border-primary bg-primary/5 ring-1 ring-primary"
-          : "border-border hover:border-primary/40 hover:bg-black/[0.02]"
-      }`}
-    >
-      <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${isSelected && !disabled ? "text-primary" : "text-muted-foreground"}`} />
-      <div>
-        <p className={`text-sm font-medium ${isSelected && !disabled ? "text-primary" : "text-foreground"}`}>{label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
-      </div>
-      {isSelected && !disabled && <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0 mt-0.5" />}
-    </button>
-  );
-}
+  moduleGates: ReadonlyArray<string>;
+}> = [
+  {
+    key: "livestock",
+    label: "Livestock & Animals",
+    description: "Welfare alerts, withdrawal breaches, notifiable disease, herd health follow-ups.",
+    moduleGates: ["livestock", "poultry", "pigs", "deer"],
+  },
+  {
+    key: "dairy",
+    label: "Dairy",
+    description: "ABR test results, mastitis records, mobility scoring alerts.",
+    moduleGates: ["dairy"],
+  },
+  {
+    key: "arable",
+    label: "Arable & Crops",
+    description: "IPM pest/disease threshold alerts, irrigation advisories, field scouting flags.",
+    moduleGates: ["arable", "horticulture", "ipm", "irrigation", "crops"],
+  },
+  {
+    key: "viticulture",
+    label: "Viticulture & Winery",
+    description: "Vineyard and winery compliance alerts.",
+    moduleGates: ["viticulture"],
+  },
+  {
+    key: "tasks",
+    label: "Task Assignments & Reminders",
+    description: "Notifications when tasks are assigned to you, and timesheet submission reminders.",
+    moduleGates: [],
+  },
+  {
+    key: "regulatory",
+    label: "Regulatory Compliance",
+    description: "Withdrawal period breaches, biosecurity declarations, SSAFO inspections, RIDDOR incidents.",
+    moduleGates: [],
+  },
+  {
+    key: "quality",
+    label: "Quality & Non-conformances",
+    description: "Non-conformance records, corrective actions, feed intake rejections.",
+    moduleGates: [],
+  },
+  {
+    key: "stock",
+    label: "Stock & Supplies",
+    description: "Stock-low and stock-out alerts across feed, medicines, and supplies.",
+    moduleGates: [],
+  },
+];
 
 export default function AccountSettings() {
   const { toast } = useToast();
@@ -71,11 +94,17 @@ export default function AccountSettings() {
   const [saving, setSaving] = useState(false);
 
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [smsOptIn, setSmsOptIn] = useState<SmsOptIn>("none");
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [categoryStates, setCategoryStates] = useState<Record<string, boolean>>({});
   const [consentChecked, setConsentChecked] = useState(false);
 
-  const activeModules = (dashboardData?.activeSubscriptions ?? []) as unknown as Array<Record<string, unknown>>;
+  const activeModules = (dashboardData?.activeSubscriptions ?? []) as Array<Record<string, unknown>>;
   const hasSmsModule = activeModules.some((m) => m.moduleKey === "sms-alerts");
+  const activeModuleKeys = new Set(activeModules.map((m) => String(m.moduleKey)));
+
+  const visibleCategories = SMS_CATEGORIES.filter(cat =>
+    cat.moduleGates.length === 0 || cat.moduleGates.some(g => activeModuleKeys.has(g))
+  );
 
   useEffect(() => {
     async function fetchProfile() {
@@ -85,29 +114,40 @@ export default function AccountSettings() {
         const data = await res.json() as AccountProfile;
         setProfile(data);
         setPhoneNumber(data.phoneNumber ?? "");
-        setSmsOptIn((data.smsOptIn as SmsOptIn) ?? "none");
+        setSmsEnabled(data.smsOptIn !== "none");
         if (data.smsConsentAt) setConsentChecked(true);
+        // null = legacy (all categories on); otherwise use saved values, defaulting absent keys to true
+        const saved = data.smsCategories;
+        const initial: Record<string, boolean> = {};
+        for (const cat of SMS_CATEGORIES) {
+          initial[cat.key] = saved == null ? true : (saved[cat.key] ?? true);
+        }
+        setCategoryStates(initial);
       } catch {
         toast({ title: "Could not load account profile", variant: "destructive" });
       } finally {
         setLoading(false);
       }
     }
-    fetchProfile();
-  }, []);
+    void fetchProfile();
+  }, [toast]);
 
   async function handleSave() {
-    if (smsOptIn !== "none" && !consentChecked) {
+    if (smsEnabled && !consentChecked) {
       toast({ title: "Please tick the consent box before enabling SMS alerts.", variant: "destructive" });
       return;
     }
-
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        phoneNumber: phoneNumber.trim(),
+        smsOptIn: smsEnabled ? "all" : "none",
+        smsCategories: smsEnabled ? categoryStates : null,
+      };
       const res = await fetch(apiUrl("account/profile"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: phoneNumber.trim(), smsOptIn }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json() as { error?: string };
@@ -130,8 +170,6 @@ export default function AccountSettings() {
       </AppLayout>
     );
   }
-
-  const smsEnabled = smsOptIn !== "none";
 
   return (
     <AppLayout title="Account & Notifications">
@@ -171,7 +209,7 @@ export default function AccountSettings() {
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Receive critical compliance alerts by text message. UK mobile numbers only.
+              Each team member independently controls which alert categories they receive — so dairy managers only get dairy alerts, cereals managers only get arable alerts.
             </p>
           </CardHeader>
 
@@ -184,7 +222,7 @@ export default function AccountSettings() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">SMS Alerts add-on not active</p>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xs mx-auto">
-                    SMS Text Alerts is available as an add-on for £4/month per farm. Once activated, each user on your account can choose their own alert level.
+                    SMS Text Alerts is available as an add-on for £4/month per farm. Once activated, each team member chooses which alert categories they receive.
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -193,7 +231,7 @@ export default function AccountSettings() {
               </div>
             </CardContent>
           ) : (
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
 
               {/* Phone number */}
               <div className="space-y-1.5">
@@ -207,45 +245,65 @@ export default function AccountSettings() {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter your UK number in international format, e.g. +447911123456
+                  UK number in international format, e.g. +447911123456
                 </p>
               </div>
 
-              {/* Alert level */}
-              <div className="space-y-2">
-                <Label className="text-sm">Alert level</Label>
-                <div className="space-y-2">
-                  <SmsLevelButton
-                    value="none"
-                    current={smsOptIn}
-                    icon={BellOff}
-                    label="No SMS alerts"
-                    description="You will only receive in-app notifications."
-                    onChange={setSmsOptIn}
-                  />
-                  <SmsLevelButton
-                    value="critical"
-                    current={smsOptIn}
-                    icon={AlertTriangle}
-                    label="Critical alerts only"
-                    description="Text only for the most urgent issues: unnotified livestock movements, water quality failures, expired certificates, and overdue non-conformances."
-                    onChange={setSmsOptIn}
-                  />
-                  <SmsLevelButton
-                    value="all"
-                    current={smsOptIn}
-                    icon={BellRing}
-                    label="All alerts"
-                    description="Text for every compliance notification including warnings and reminders."
-                    onChange={setSmsOptIn}
-                  />
+              {/* Master toggle */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">Enable SMS text notifications</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Turn off to stop all SMS alerts regardless of category settings below.
+                  </p>
                 </div>
+                <Switch
+                  checked={smsEnabled}
+                  onCheckedChange={(v) => {
+                    setSmsEnabled(v);
+                    if (!v) setConsentChecked(false);
+                  }}
+                  disabled={!phoneNumber.trim()}
+                />
               </div>
 
-              {/* Manager designation note */}
+              {/* Per-category toggles */}
+              {smsEnabled && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">Alert categories</p>
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      Only categories relevant to your farm are shown
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-border divide-y divide-border">
+                    {visibleCategories.map((cat) => (
+                      <div key={cat.key} className="flex items-start justify-between gap-3 px-3.5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{cat.label}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{cat.description}</p>
+                        </div>
+                        <Switch
+                          checked={categoryStates[cat.key] ?? true}
+                          onCheckedChange={(v) =>
+                            setCategoryStates(prev => ({ ...prev, [cat.key]: v }))
+                          }
+                          className="mt-0.5 flex-shrink-0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-0.5">
+                    Disable categories you're not responsible for. A dairy manager can silence livestock alerts; a cereals manager can silence dairy and livestock alerts.
+                  </p>
+                </div>
+              )}
+
+              {/* Farm Manager note */}
               <div className="rounded-lg border border-border bg-muted/40 px-3.5 py-3">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  <strong className="font-medium text-foreground">Farm Managers</strong> are automatically included in critical alerts when a mobile number is saved — even if no alert level is selected above. Setting "No SMS alerts" will always override this. Your BDE Farm Trac account administrator can update your alert designation.
+                  <strong className="font-medium text-foreground">Farm Managers</strong> are automatically included in critical alerts when a mobile number is saved. Disabling SMS entirely always overrides this designation. Your BDE Farm Trac account administrator can update your alert designation.
                 </p>
               </div>
 
@@ -260,7 +318,7 @@ export default function AccountSettings() {
                   />
                   <span className="text-xs text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
                     I consent to BDE Farm Trac sending me compliance alert text messages to the number above.
-                    I understand I can withdraw consent at any time by setting the alert level to "No SMS alerts".
+                    I understand I can withdraw consent at any time by disabling SMS notifications above.
                   </span>
                 </label>
               )}

@@ -36,16 +36,47 @@ async function tenantHasSmsModule(tenantId: number): Promise<boolean> {
   return Boolean(sub);
 }
 
-async function dispatchSmsForCriticalAlert(tenantId: number, title: string, message: string) {
+/** Maps notification type strings to their SMS alert category. */
+const TYPE_TO_CATEGORY: Record<string, string> = {
+  movement_unnotified: "livestock",
+  livestock_withdrawal_active: "livestock",
+  certificate_expired: "regulatory",
+  nonconformance_escalated: "quality",
+  water_quality_fail: "regulatory",
+  pest_control_overdue: "regulatory",
+  cleaning_overdue: "regulatory",
+  shop_stock_out: "stock",
+  dairy_lab_concern: "dairy",
+  dairy_abr_positive: "dairy",
+  dairy_mobility_lameness: "dairy",
+  scouting_xylella: "arable",
+  scouting_phytophthora: "arable",
+  scouting_vine_weevil: "viticulture",
+  scouting_high_disease: "arable",
+  scouting_high_pest: "arable",
+  bng_compliance_breach: "regulatory",
+  fp_intake_rejected: "quality",
+  field_action_urgent: "arable",
+  risk_assessment_critical: "regulatory",
+  poultry_scheme_overdue: "regulatory",
+  poultry_bwi_fail: "regulatory",
+  pig_red_tractor_overdue: "regulatory",
+  pig_tail_biting_outbreak: "livestock",
+  sector_alert_cleared: "regulatory",
+};
+
+async function dispatchSmsForCriticalAlert(tenantId: number, notifType: string, title: string, message: string) {
   const hasModule = await tenantHasSmsModule(tenantId);
   if (!hasModule) return;
+
+  const category = TYPE_TO_CATEGORY[notifType] ?? "regulatory";
 
   // Send to:
   //   (a) users designated as alert recipients (Farm Managers / receiveAlerts = true), OR
   //   (b) users who have explicitly opted in via their personal preference
-  // In both cases: must have a phone number and must not have explicitly opted out.
+  // In both cases: must have a phone number, must not have opted out, and must have the alert category enabled.
   const smsUsers = await db
-    .select({ phoneNumber: usersTable.phoneNumber, smsOptIn: usersTable.smsOptIn })
+    .select({ phoneNumber: usersTable.phoneNumber })
     .from(usersTable)
     .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
     .where(
@@ -59,6 +90,7 @@ async function dispatchSmsForCriticalAlert(tenantId: number, title: string, mess
           eq(usersTable.smsOptIn, "all"),
           eq(usersTable.smsOptIn, "critical"),
         ),
+        sql`(${usersTable.smsCategories} IS NULL OR COALESCE((${usersTable.smsCategories}->>${category})::boolean, true))`,
       )
     );
 
@@ -91,7 +123,7 @@ async function upsertNotification(data: {
   if (existing.length === 0) {
     await db.insert(notificationsTable).values(data);
     if (CRITICAL_TYPES.has(data.type)) {
-      await dispatchSmsForCriticalAlert(data.tenantId, data.title, data.message);
+      await dispatchSmsForCriticalAlert(data.tenantId, data.type, data.title, data.message);
     }
   }
 }
@@ -141,7 +173,7 @@ export async function createBngComplianceNotification(params: {
   });
 
   if (isBreach) {
-    await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+    await dispatchSmsForCriticalAlert(params.tenantId, "bng_compliance_breach", title, message);
   }
 }
 
@@ -173,7 +205,7 @@ export async function createFieldActionNotification(params: {
   });
 
   if (params.action === "urgent") {
-    await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+    await dispatchSmsForCriticalAlert(params.tenantId, "field_action_urgent", title, message);
   }
 }
 
@@ -206,7 +238,7 @@ export async function createCriticalRiskNotification(params: {
   });
 
   if (isCritical) {
-    await dispatchSmsForCriticalAlert(params.tenantId, notifTitle, message);
+    await dispatchSmsForCriticalAlert(params.tenantId, "risk_assessment_critical", notifTitle, message);
   }
 }
 
@@ -252,7 +284,7 @@ export async function createWaterFailureNotification(params: {
     dedupeKey: `water-fail-${params.recordId}`,
   });
 
-  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  await dispatchSmsForCriticalAlert(params.tenantId, "water_quality_fail", title, message);
 }
 
 export async function createDairyLabConcernNotification(params: {
@@ -283,7 +315,7 @@ export async function createDairyLabConcernNotification(params: {
     dedupeKey: `dairy-lab-concern-${params.recordId}`,
   });
 
-  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  await dispatchSmsForCriticalAlert(params.tenantId, "dairy_lab_concern", title, message);
 }
 
 export async function createDairyAbrPositiveNotification(params: {
@@ -312,7 +344,7 @@ export async function createDairyAbrPositiveNotification(params: {
     dedupeKey: `dairy-abr-positive-${params.recordId}`,
   });
 
-  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  await dispatchSmsForCriticalAlert(params.tenantId, "dairy_abr_positive", title, message);
 }
 
 export async function createDairyAbrBorderlineNotification(params: {
@@ -409,7 +441,7 @@ export async function createMobilityLamenessAlert(params: {
     dedupeKey: `dairy-mobility-lameness-${params.recordId}`,
   });
 
-  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  await dispatchSmsForCriticalAlert(params.tenantId, "dairy_mobility_lameness", title, message);
 }
 
 export async function createMobilityScore2Advisory(params: {
@@ -931,7 +963,7 @@ export async function createStockOutNotification(params: {
     relatedId: params.productId,
     dedupeKey: `shop-stock-out-${params.productId}-${today}`,
   });
-  await dispatchSmsForCriticalAlert(params.tenantId, title, message);
+  await dispatchSmsForCriticalAlert(params.tenantId, "shop_stock_out", title, message);
 }
 
 async function runWeeklyDigest() {
@@ -1340,7 +1372,7 @@ async function checkPoultrySchemeExpiry() {
         relatedId: scheme.id,
         dedupeKey: `poultry-scheme-overdue-${scheme.id}-week${Math.floor(Math.abs(daysUntil) / 7)}`,
       });
-      await dispatchSmsForCriticalAlert(farm.tenantId, `${schemeName} Assessment Overdue`, `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
+      await dispatchSmsForCriticalAlert(farm.tenantId, "poultry_scheme_overdue", `${schemeName} Assessment Overdue`, `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
     } else {
       await upsertNotification({
         tenantId: farm.tenantId,
@@ -1402,7 +1434,7 @@ async function checkPoultryBwiAlerts() {
       dedupeKey: `poultry-bwi-fail-${assessment.id}`,
     });
 
-    await dispatchSmsForCriticalAlert(farm.tenantId, "BWI Assessment Failed", `BWI assessment on ${dateStr} failed. Corrective action required before next Red Tractor audit.`);
+    await dispatchSmsForCriticalAlert(farm.tenantId, "poultry_bwi_fail", "BWI Assessment Failed", `BWI assessment on ${dateStr} failed. Corrective action required before next Red Tractor audit.`);
   }
 }
 
@@ -1496,7 +1528,7 @@ async function checkPigRedTractorExpiry() {
         relatedId: checklist.id,
         dedupeKey: `pig-rt-overdue-${checklist.id}-week${Math.floor(Math.abs(daysUntil) / 7)}`,
       });
-      await dispatchSmsForCriticalAlert(farm.tenantId, "Pig Red Tractor Assessment Overdue", `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
+      await dispatchSmsForCriticalAlert(farm.tenantId, "pig_red_tractor_overdue", "Pig Red Tractor Assessment Overdue", `Assessment was due ${dueDateStr}. Arrange inspection immediately to maintain scheme certification.`);
     } else {
       await upsertNotification({
         tenantId: farm.tenantId,
@@ -1560,7 +1592,7 @@ async function checkPigTailBitingOutbreaks() {
     });
 
     if (isActive) {
-      await dispatchSmsForCriticalAlert(farm.tenantId, "Active Tail Biting Outbreak", `Tail biting outbreak recorded on ${dateStr}. Remove biters, treat wounds, add enrichment. Notify vet if injuries are severe.`);
+      await dispatchSmsForCriticalAlert(farm.tenantId, "pig_tail_biting_outbreak", "Active Tail Biting Outbreak", `Tail biting outbreak recorded on ${dateStr}. Remove biters, treat wounds, add enrichment. Notify vet if injuries are severe.`);
     }
   }
 }
@@ -1740,6 +1772,7 @@ async function checkLivestockMedicineWithdrawal() {
     if (daysRemaining <= 3) {
       await dispatchSmsForCriticalAlert(
         farm.tenantId,
+        "livestock_withdrawal_active",
         `Withdrawal Period Ending Soon — ${tx.medicineName}`,
         `${tx.medicineName} withdrawal ends ${clearDateStr} (${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining). Do NOT sell treated animals or supply milk/eggs until then.`
       );
@@ -1869,7 +1902,7 @@ async function runSectorAlertAllClearNotifications() {
 
     for (const tenantId of tenantIds) {
       try {
-        await dispatchSmsForCriticalAlert(tenantId, title, smsMessage);
+        await dispatchSmsForCriticalAlert(tenantId, "sector_alert_cleared", title, smsMessage);
       } catch (err) {
         console.error(`[ALERTS] All-clear SMS failed for tenant ${tenantId}, sector ${ep.sector}:`, err);
       }
