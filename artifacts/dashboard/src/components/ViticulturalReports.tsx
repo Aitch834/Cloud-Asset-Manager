@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
@@ -1905,6 +1905,20 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
       avgPotAlc: potAlcAll.length > 0 ? potAlcAll.reduce((a, b) => a + b, 0) / potAlcAll.length : null,
     };
   }, [vintageHarvest, blockMap]);
+
+  // Auto-jump to the most recent vintage year that has data when the current
+  // selection (defaulting to today's year) yields nothing — e.g. first visit
+  // after demo seeding or after a new year rolls over with no records yet.
+  const hasAutoJumpedYear = useRef(false);
+  useEffect(() => {
+    if (loading || hasData || hasAutoJumpedYear.current) return;
+    hasAutoJumpedYear.current = true;
+    const best = vintageYears.find(y => y !== currentYear);
+    if (best !== undefined && best !== year) setYear(best);
+  // Only re-run when loading or hasData change — intentionally omit year/setYear/vintageYears
+  // to avoid re-triggering after the user manually picks a year with no data.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, hasData]);
 
   if (loading) {
     return (
