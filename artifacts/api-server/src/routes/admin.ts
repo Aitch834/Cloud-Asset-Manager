@@ -2859,7 +2859,12 @@ router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, re
 router.get("/admin/ad-brand-assets/status", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   try {
-    const { logoUri, qrUri } = await loadAdBrandAssets();
+    // Use the cache-free resolver so this probe does not re-prime _brandAssetCache.
+    // If we called loadAdBrandAssets() here it would re-fill the cache after a DELETE,
+    // causing the next PDF render to see the stale (pre-delete) value for up to 5 minutes.
+    // resolveAdBrandAssets() performs the same DB + legacy on-disk fallback lookup as
+    // loadAdBrandAssets() but never writes to _brandAssetCache.
+    const { logoUri, qrUri } = await resolveAdBrandAssets();
     res.json({ logoResolvable: !!logoUri, qrResolvable: !!qrUri });
   } catch (err) {
     console.error("[ad-brand-assets/status]", err);
@@ -2918,17 +2923,12 @@ function extractB64Src(html: string, value: string, matchBy: "alt" | "class" = "
 /**
  * Read the BDE logo and QR code data-URIs from platform config, falling back
  * to scanning the legacy on-disk ad-templates/ HTML files when the DB rows are blank.
+ *
+ * This function performs the full resolution WITHOUT touching _brandAssetCache so it
+ * can be called from the status endpoint (read-only probe) without side-effects on the
+ * cache. loadAdBrandAssets() wraps it and applies the 5-minute cache layer.
  */
-// Simple in-memory cache so rapid successive renders reuse the already-fetched URIs
-let _brandAssetCache: { logoUri: string; qrUri: string; cachedAt: number } | null = null;
-const BRAND_ASSET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
-  // Return cached result if still fresh
-  if (_brandAssetCache && Date.now() - _brandAssetCache.cachedAt < BRAND_ASSET_CACHE_TTL_MS) {
-    return { logoUri: _brandAssetCache.logoUri, qrUri: _brandAssetCache.qrUri };
-  }
-
+async function resolveAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
   // Prefer DB-stored values
   const rows = await db.select().from(platformConfigTable)
     .where(inArray(platformConfigTable.key, ["brand.adLogoDataUrl", "brand.adQrDataUrl"]));
@@ -2962,6 +2962,26 @@ async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> 
     }
   }
 
+  return { logoUri, qrUri };
+}
+
+// Simple in-memory cache so rapid successive renders reuse the already-fetched URIs
+let _brandAssetCache: { logoUri: string; qrUri: string; cachedAt: number } | null = null;
+const BRAND_ASSET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Cached wrapper around resolveAdBrandAssets(). Use this for PDF renders.
+ * Use resolveAdBrandAssets() directly for status/probe endpoints that must not
+ * re-prime the cache (e.g. after a DELETE the status check should not re-fill
+ * _brandAssetCache with stale data before the next render clears it).
+ */
+async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
+  // Return cached result if still fresh
+  if (_brandAssetCache && Date.now() - _brandAssetCache.cachedAt < BRAND_ASSET_CACHE_TTL_MS) {
+    return { logoUri: _brandAssetCache.logoUri, qrUri: _brandAssetCache.qrUri };
+  }
+
+  const { logoUri, qrUri } = await resolveAdBrandAssets();
   _brandAssetCache = { logoUri, qrUri, cachedAt: Date.now() };
   return { logoUri, qrUri };
 }
