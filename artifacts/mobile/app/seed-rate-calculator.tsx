@@ -29,6 +29,20 @@ import {
 
 const SOIL_TYPES = ["Clay", "Chalk/Limestone", "Silt", "Peat", "Sand", "Medium Loam", "Not sure"];
 
+/**
+ * Available water capacity (AWC, mm) hint per soil-type chip label.
+ * Values aligned with SOIL_TYPE_OPTIONS in irrigationData.ts; chalk/limestone
+ * uses a typical UK chalk soil value (~120 mm) from the same AHDB source.
+ */
+const SOIL_TYPE_AWC_MM: Record<string, number> = {
+  "Clay":             175,
+  "Chalk/Limestone":  120,
+  "Silt":             155,
+  "Peat":             200,
+  "Sand":              90,
+  "Medium Loam":      150,
+};
+
 // Maps a free-text or underscore soil type value (as stored on a field record)
 // to the nearest calculator chip label, using the same regex priority order as
 // seedRateCalculator's SOIL_ESTABLISHMENT_RULES (first match wins).
@@ -145,6 +159,11 @@ export default function SeedRateCalculatorScreen() {
                 ))}
               </View>
               <Text style={styles.hint}>{establishment.soilLabel}</Text>
+              {soilType && SOIL_TYPE_AWC_MM[soilType] !== undefined && (
+                <Text style={styles.hint}>
+                  Holds ~{SOIL_TYPE_AWC_MM[soilType]} mm available water
+                </Text>
+              )}
             </View>
 
             <View style={styles.field}>
