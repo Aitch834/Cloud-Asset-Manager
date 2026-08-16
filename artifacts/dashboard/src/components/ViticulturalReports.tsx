@@ -837,6 +837,43 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* All-vintages KPI cards */}
+      {year == null && allVintagesSummary.length > 0 && (() => {
+        const grandKg = allVintagesSummary.reduce((s, r) => s + r.totalKg, 0);
+        const grandArea = allVintagesSummary.reduce((s, r) => s + r.totalAreaHa, 0);
+        const grandTha = grandArea > 0 ? grandKg / 1000 / grandArea : null;
+        const grandBrixSum = allVintagesSummary.reduce((s, r) => s + r.brixSum, 0);
+        const grandBrixCount = allVintagesSummary.reduce((s, r) => s + r.brixCount, 0);
+        const grandPhSum = allVintagesSummary.reduce((s, r) => s + r.phSum, 0);
+        const grandPhCount = allVintagesSummary.reduce((s, r) => s + r.phCount, 0);
+        const grandTaSum = allVintagesSummary.reduce((s, r) => s + r.taSum, 0);
+        const grandTaCount = allVintagesSummary.reduce((s, r) => s + r.taCount, 0);
+        const grandPotAlcSum = allVintagesSummary.reduce((s, r) => s + r.potAlcSum, 0);
+        const grandPotAlcCount = allVintagesSummary.reduce((s, r) => s + r.potAlcCount, 0);
+        const grandBrix = grandBrixCount > 0 ? grandBrixSum / grandBrixCount : null;
+        const grandPh = grandPhCount > 0 ? grandPhSum / grandPhCount : null;
+        const grandTa = grandTaCount > 0 ? grandTaSum / grandTaCount : null;
+        const grandPotAlc = grandPotAlcCount > 0 ? grandPotAlcSum / grandPotAlcCount : null;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {[
+              { label: "Total Yield", value: grandKg > 0 ? `${(grandKg / 1000).toFixed(2)} t` : "—" },
+              { label: "Total Area", value: grandArea > 0 ? `${grandArea.toFixed(2)} ha` : "—" },
+              { label: "Avg t/ha", value: grandTha != null ? grandTha.toFixed(2) : "—" },
+              { label: "Avg Brix °", value: grandBrix != null ? grandBrix.toFixed(1) : "—" },
+              { label: "Avg pH", value: grandPh != null ? grandPh.toFixed(2) : "—" },
+              { label: "Avg TA (g/L)", value: grandTa != null ? grandTa.toFixed(2) : "—" },
+              { label: "Avg Pot. Alc %", value: grandPotAlc != null ? grandPotAlc.toFixed(1) : "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl border border-border bg-card p-3">
+                <p className="text-xs text-foreground/50">{label}</p>
+                <p className="text-lg font-bold text-purple-700">{value}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* All-vintages yield chart */}
       {year == null && (() => {
         const chartData = [...allVintagesSummary]
