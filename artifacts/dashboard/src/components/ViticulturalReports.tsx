@@ -1830,7 +1830,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = usePersistedNumberFilter({ page: "viticultural-enterprise-report", filter: "year", farmId, defaultValue: currentYear });
   // All three sections open by default; each toggles independently
-  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(["harvest", "ops", "sprays"]));
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(["harvest", "ops", "sprays", "scouting"]));
   const toggleSection = (s: string) => setOpenSections(prev => {
     const next = new Set(prev);
     next.has(s) ? next.delete(s) : next.add(s);
@@ -1849,7 +1849,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   }, []);
   const [, setLocation] = useLocation();
 
-  const { blocks, harvests, ops, sprays, loading } = useVitData(farmId);
+  const { blocks, harvests, scouts, ops, sprays, loading } = useVitData(farmId);
 
   // Financial transactions for this farm — filtered to Viticulture enterprise + selected year
   const { data: allTransactions } = useQuery<any[]>({
@@ -1953,6 +1953,24 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     () => sprays.filter(s => new Date(s.applicationDate).getFullYear() === year),
     [sprays, year],
   );
+  const yearScouts = useMemo(
+    () => scouts.filter(s => new Date(s.scoutDate).getFullYear() === year)
+      .sort((a, b) => a.scoutDate.localeCompare(b.scoutDate)),
+    [scouts, year],
+  );
+
+  // Disease peak pressure per disease across the enterprise year
+  const entDiseasePeak = useMemo(() => {
+    const peak: Record<string, number> = {};
+    DISEASE_SERIES.forEach(d => { peak[d.key] = 0; });
+    yearScouts.forEach(s => {
+      DISEASE_SERIES.forEach(d => {
+        const v = n((s as Record<string, unknown>)[d.key]);
+        if (v > (peak[d.key] ?? 0)) peak[d.key] = v;
+      });
+    });
+    return peak;
+  }, [yearScouts]);
 
   // Harvest totals
   const totalYieldKg = vintageHarvest.reduce((s, h) => s + n(h.yieldKg), 0);
@@ -2509,6 +2527,90 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                 </div>
               </div>
             </Collapsible>
+          )}
+
+          {/* ── Disease Scouting ── */}
+          {yearScouts.length > 0 && (
+            <>
+              {/* Peak pressure summary — placed outside the Collapsible so it always appears in print */}
+              <div className="hidden print:block rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border bg-muted/30">
+                  <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {year} Season Peak</h3>
+                  <p className="text-xs text-foreground/40">{yearScouts.length} scouting round{yearScouts.length !== 1 ? "s" : ""} · 0 = None · 1 = Low · 2 = Medium · 3 = High</p>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    {DISEASE_SERIES.map(d => {
+                      const peak = entDiseasePeak[d.key] ?? 0;
+                      return (
+                        <div key={d.key} className="rounded-lg border border-border bg-background p-2.5">
+                          <p className="text-xs text-foreground/50 leading-tight">{d.label}</p>
+                          <p className={`text-sm font-bold mt-0.5 ${PRESSURE_COLOR[peak]}`}>
+                            {PRESSURE_LABEL[peak] ?? "—"}
+                          </p>
+                          <p className="text-xs text-foreground/30">peak this season</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Collapsible per-record log (screen) — content also appears in print when collapsed via print:block */}
+              <Collapsible
+                title={`Disease Scouting — ${yearScouts.length} round${yearScouts.length !== 1 ? "s" : ""}`}
+                open={forcePrint || openSections.has("scouting")}
+                setOpen={() => toggleSection("scouting")}
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted/20 text-foreground/60">
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-left">Block</th>
+                        <th className="px-3 py-2 text-left">Downy</th>
+                        <th className="px-3 py-2 text-left">Powdery</th>
+                        <th className="px-3 py-2 text-left">Botrytis</th>
+                        <th className="px-3 py-2 text-left">Phomopsis</th>
+                        <th className="px-3 py-2 text-left">Leafhopper</th>
+                        <th className="px-3 py-2 text-left">Spider Mite</th>
+                        <th className="px-3 py-2 text-left">Alerts</th>
+                        <th className="px-3 py-2 text-left">Action Taken</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearScouts.map(s => {
+                        const alerts = [
+                          s.vineWeevilSighted && "Vine Weevil",
+                          s.eutypaDiebackSighted && "Eutypa",
+                          s.xylellaFastidiosa && "⚠ Xylella",
+                          s.phytophthoraViticola && "Phytophthora",
+                        ].filter(Boolean).join(", ");
+                        const pl = (v: unknown) => {
+                          const p = PRESSURE_LABEL[n(v)];
+                          const c = PRESSURE_COLOR[n(v)];
+                          return <span className={c}>{p}</span>;
+                        };
+                        return (
+                          <tr key={s.id} className="border-t border-border/40 hover:bg-muted/20">
+                            <td className="px-3 py-1.5">{fmtDate(s.scoutDate)}</td>
+                            <td className="px-3 py-1.5">{blockName(s.blockId)}</td>
+                            <td className="px-3 py-1.5">{pl(s.downyMildewPressure)}</td>
+                            <td className="px-3 py-1.5">{pl(s.powderyMildewPressure)}</td>
+                            <td className="px-3 py-1.5">{pl(s.botrytisPressure)}</td>
+                            <td className="px-3 py-1.5">{pl(s.phomopsisPressure)}</td>
+                            <td className="px-3 py-1.5">{pl(s.leafhopperPressure)}</td>
+                            <td className="px-3 py-1.5">{pl(s.spiderMitePressure)}</td>
+                            <td className="px-3 py-1.5 text-red-700 font-medium">{alerts || "—"}</td>
+                            <td className="px-3 py-1.5 max-w-[200px] truncate">{fmt(s.actionTaken)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Collapsible>
+            </>
           )}
         </>
       )}
