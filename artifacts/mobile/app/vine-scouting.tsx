@@ -65,6 +65,110 @@ function BooleanToggle({ label, value, onChange, urgent }: { label: string; valu
   );
 }
 
+function ScoutingPhotoThumbnail({
+  photo,
+  onDelete,
+  onPress,
+  onReload,
+  reloading,
+  onShowTooltip,
+  onHideTooltip,
+}: {
+  photo: ScoutingPhoto;
+  onDelete: (id: number) => void;
+  onPress: (photo: ScoutingPhoto) => void;
+  onReload?: () => void;
+  reloading?: boolean;
+  onShowTooltip: (caption: string) => void;
+  onHideTooltip: () => void;
+}) {
+  const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
+  // Set to true when a long-press fires so onPressOut can show the Alert; cleared
+  // there immediately. RN does NOT emit onPress after a recognised long press.
+  const longPressJustFiredRef = useRef(false);
+
+  // Reset error state whenever the URL is refreshed so the image retries
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
+
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    longPressJustFiredRef.current = true;
+    // Show caption tooltip while the finger is held (captioned photos only)
+    if (photo.caption) {
+      onShowTooltip(photo.caption);
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!longPressJustFiredRef.current) return;
+    longPressJustFiredRef.current = false;
+    onHideTooltip();
+    Alert.alert("Photo Options", undefined, [
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "Delete Photo",
+            "Are you sure you want to delete this photo? This cannot be undone.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+            ],
+          );
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  return (
+    <Pressable style={styles.thumbnail} onLongPress={handleLongPress} onPressOut={handlePressOut} onPress={() => onPress(photo)}>
+      <View style={styles.thumbImgBox}>
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={styles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <Pressable
+            style={styles.thumbPlaceholder}
+            onPress={(e) => { e.stopPropagation(); if (!reloading) onReload?.(); }}
+            hitSlop={8}
+            disabled={reloading}
+          >
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+              </>
+            )}
+          </Pressable>
+        ) : (
+          <View style={styles.thumbPlaceholder}>
+            <Feather name="image" size={24} color={colors.textSecondary} />
+          </View>
+        )}
+        {photo.caption ? (
+          <View style={styles.captionDot} />
+        ) : null}
+      </View>
+      {photo.caption ? (
+        <Text style={styles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
@@ -328,6 +432,50 @@ const styles = StyleSheet.create({
   // Saved state
   savedBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#f0fdf4", borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.success },
   savedBannerText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.success, flex: 1 },
+
+  // Photo section
+  photoSection: { gap: spacing.sm },
+  photoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  photoHint: { fontSize: fontSize.xs, color: colors.textSecondary },
+  thumbnail: { width: 88, gap: spacing.xs },
+  thumbImgBox: { width: 88, height: 88, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.border },
+  thumbImage: { width: "100%", height: "100%" },
+  captionDot: {
+    position: "absolute",
+    bottom: 3,
+    left: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#4ade80",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.4)",
+  },
+  thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
+  captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
+  gridCaptionTooltip: {
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.88)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+  },
+  gridCaptionTooltipText: {
+    color: "#fff",
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  emptyPhotos: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
+  emptyPhotosText: { fontSize: fontSize.sm, color: colors.textSecondary },
+  addPhotoBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary ?? colors.success, alignSelf: "flex-start", marginTop: spacing.xs },
+  addPhotoBtnDisabled: { opacity: 0.5 },
+  addPhotoBtnText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.primary ?? colors.success },
 });
 
 function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReload }: ScoutingLightboxProps) {

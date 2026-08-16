@@ -116,6 +116,596 @@ function BooleanToggle({ label, value, onChange, urgent }: { label: string; valu
     </Pressable>
   );
 }
+
+
+// ─── Scouting Photo Lightbox ──────────────────────────────────────────────────
+
+const lbStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeBtn: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+  },
+  imageWrapper: {
+    width: SCREEN.width,
+    height: SCREEN.height * 0.62,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  image: {
+    width: SCREEN.width,
+    height: SCREEN.height * 0.62,
+  },
+  imagePlaceholder: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  captionBar: {
+    marginTop: 12,
+    marginHorizontal: 24,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    padding: 12,
+    alignSelf: "stretch",
+  },
+  captionText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  actionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 24,
+    paddingTop: 16,
+    paddingHorizontal: 32,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  actionBtn: {
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    flex: 1,
+  },
+  actionBtnDisabled: { opacity: 0.5 },
+  actionBtnDanger: { backgroundColor: "rgba(220,38,38,0.15)" },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
+
+// ─── Caption Edit Modal ───────────────────────────────────────────────────────
+
+function CaptionEditModal({
+  visible,
+  initialCaption,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  initialCaption: string;
+  onSave: (caption: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(initialCaption);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (visible) setText(initialCaption);
+  }, [visible, initialCaption]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Pressable style={captionModalStyles.backdrop} onPress={onClose}>
+          <Pressable style={[captionModalStyles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
+            <Text style={captionModalStyles.title}>Edit Caption</Text>
+            <TextInput
+              style={captionModalStyles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder="Describe what this photo shows…"
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              multiline
+              numberOfLines={3}
+              maxLength={300}
+              autoFocus
+            />
+            <View style={captionModalStyles.actions}>
+              <Pressable style={captionModalStyles.cancelBtn} onPress={onClose}>
+                <Text style={captionModalStyles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={captionModalStyles.saveBtn} onPress={() => { onSave(text); onClose(); }}>
+                <Text style={captionModalStyles.saveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const captionModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#1c1c1e",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    gap: 16,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    padding: 12,
+    color: "#fff",
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+  },
+  cancelBtnText: { color: "#fff", fontSize: 15, fontWeight: "500" },
+  saveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#6d28d9",
+    alignItems: "center",
+  },
+  saveBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+});
+
+// ─── Scouting Photo Lightbox ──────────────────────────────────────────────────
+
+function ScoutingPhotoLightbox({
+  photo,
+  visible,
+  onClose,
+  onDelete,
+  onEditCaption,
+}: {
+  photo: ScoutingPhoto | null;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: (id: number) => void;
+  onEditCaption: (photo: ScoutingPhoto) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [sharing, setSharing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setSharing(false);
+    setDeleting(false);
+  }, [photo?.id]);
+
+  const handleShare = useCallback(async () => {
+    if (!photo?.downloadUrl || sharing) return;
+    setSharing(true);
+    try {
+      const ext = photo.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}scouting_share_${photo.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(photo.downloadUrl, tmpUri);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing Not Available", "Sharing is not supported on this device.");
+        return;
+      }
+      await Sharing.shareAsync(dl.uri, { mimeType: `image/${ext === "jpg" ? "jpeg" : ext}` });
+    } catch {
+      Alert.alert("Share Failed", "Could not share the photo. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }, [photo, sharing]);
+
+  const handleDelete = useCallback(() => {
+    if (!photo || deleting) return;
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to delete this photo? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setDeleting(true);
+            onDelete(photo.id);
+            onClose();
+          },
+        },
+      ],
+    );
+  }, [photo, deleting, onDelete, onClose]);
+
+  if (!photo) return null;
+  const uri = photo.downloadUrl;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
+      <View style={lbStyles.backdrop}>
+        <Pressable style={[lbStyles.closeBtn, { top: insets.top + 12 }]} onPress={onClose} hitSlop={12}>
+          <Feather name="x" size={24} color="#fff" />
+        </Pressable>
+        <View style={lbStyles.imageWrapper}>
+          {uri ? (
+            <Image source={{ uri }} style={lbStyles.image} resizeMode="contain" />
+          ) : (
+            <View style={lbStyles.imagePlaceholder}>
+              <Feather name="image" size={48} color="rgba(255,255,255,0.3)" />
+            </View>
+          )}
+        </View>
+        {photo.caption ? (
+          <View style={lbStyles.captionBar}>
+            <Text style={lbStyles.captionText} numberOfLines={3}>{photo.caption}</Text>
+          </View>
+        ) : null}
+        <View style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+          <Pressable
+            style={[lbStyles.actionBtn, sharing && lbStyles.actionBtnDisabled]}
+            onPress={handleShare}
+            disabled={sharing || !uri}
+          >
+            {sharing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="share-2" size={22} color="#fff" />
+            )}
+            <Text style={lbStyles.actionBtnText}>{sharing ? "Sharing…" : "Share"}</Text>
+          </Pressable>
+          <Pressable
+            style={lbStyles.actionBtn}
+            onPress={() => onEditCaption(photo)}
+          >
+            <Feather name="edit-2" size={22} color="#fff" />
+            <Text style={lbStyles.actionBtnText}>Caption</Text>
+          </Pressable>
+          <Pressable style={[lbStyles.actionBtn, lbStyles.actionBtnDanger]} onPress={handleDelete} disabled={deleting}>
+            <Feather name="trash-2" size={22} color="#fca5a5" />
+            <Text style={[lbStyles.actionBtnText, { color: "#fca5a5" }]}>Delete</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Scouting Photo Thumbnail ─────────────────────────────────────────────────
+
+function ScoutingPhotoThumbnail({
+  photo,
+  onDelete,
+  onPress,
+  onReload,
+  onEditCaption,
+}: {
+  photo: ScoutingPhoto;
+  onDelete: (id: number) => void;
+  onPress: (photo: ScoutingPhoto) => void;
+  onReload?: () => void;
+  onEditCaption: (photo: ScoutingPhoto) => void;
+}) {
+  const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
+
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
+
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert("Photo Options", undefined, [
+      {
+        text: "Edit Caption",
+        onPress: () => onEditCaption(photo),
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "Delete Photo",
+            "Are you sure you want to delete this photo? This cannot be undone.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+            ],
+          );
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  return (
+    <Pressable style={photoStyles.thumbnail} onLongPress={handleLongPress} onPress={() => onPress(photo)}>
+      <View style={photoStyles.thumbImgBox}>
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={photoStyles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <Pressable style={photoStyles.thumbPlaceholder} onPress={() => onReload?.()} hitSlop={8}>
+            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+            <Text style={photoStyles.thumbReloadLabel}>Tap to reload</Text>
+          </Pressable>
+        ) : (
+          <View style={photoStyles.thumbPlaceholder}>
+            <Feather name="image" size={24} color={colors.textSecondary} />
+          </View>
+        )}
+        {photo.caption ? (
+          <View style={photoStyles.captionDot} />
+        ) : null}
+      </View>
+      {photo.caption ? (
+        <Text style={photoStyles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ─── Scouting Photo Section ───────────────────────────────────────────────────
+
+function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scoutingId: number }) {
+  const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<ScoutingPhoto | null>(null);
+  const [captionEditPhoto, setCaptionEditPhoto] = useState<ScoutingPhoto | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`);
+      if (res.ok) {
+        const data: { photos: ScoutingPhoto[] } = await res.json();
+        setPhotos(data.photos ?? []);
+      }
+    } catch {
+      // no-op on silent refresh
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, [farmId, scoutingId]);
+
+  useEffect(() => {
+    loadPhotos();
+    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
+  }, [loadPhotos]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos({ silent: true });
+    }, [loadPhotos]),
+  );
+
+  const handleAddPhoto = async () => {
+    const uri = await pickPhoto("Attach Scouting Photo");
+    if (!uri) return;
+    setUploading(true);
+    try {
+      const apiBase = getApiBase();
+      const fileName = `scouting-${scoutingId}-${Date.now()}.jpg`;
+      const objectPath = await uploadPhotoToStorage(uri, apiBase, fileName);
+      if (!objectPath) {
+        Alert.alert("Upload Failed", "Could not upload the photo. Please try again.");
+        return;
+      }
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath, fileName }),
+      });
+      if (!res.ok) {
+        Alert.alert("Upload Failed", "Photo was uploaded but could not be saved. Please try again.");
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadPhotos();
+    } catch {
+      Alert.alert("Upload Failed", "An error occurred. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: number) => {
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      } else {
+        Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Delete Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  const handleSaveCaption = async (photoId: number, caption: string) => {
+    const trimmed = caption.trim();
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: trimmed || null }),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, caption: trimmed || null } : p));
+        // Keep lightbox in sync if it's open
+        setLightboxPhoto((prev) => prev?.id === photoId ? { ...prev, caption: trimmed || null } : prev);
+      } else {
+        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+      }
+    } catch {
+      Alert.alert("Save Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  const handleOpenCaptionEdit = (photo: ScoutingPhoto) => {
+    setLightboxPhoto(null);
+    // small delay so lightbox closes before caption modal opens
+    setTimeout(() => setCaptionEditPhoto(photo), 150);
+  };
+
+  return (
+    <View style={editStyles.card}>
+      <View style={photoStyles.photoHeader}>
+        <Text style={editStyles.sectionTitle}>Photos</Text>
+        <Text style={photoStyles.photoHint}>{photos.length} attached</Text>
+      </View>
+      <Text style={editStyles.helperText}>
+        Tap a photo to view or edit its caption. Long-press a thumbnail for quick options.
+      </Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
+      ) : (
+        <FlatList
+          data={photos}
+          keyExtractor={(item) => String(item.id)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled
+          style={{ marginTop: spacing.sm }}
+          contentContainerStyle={{ gap: spacing.sm }}
+          renderItem={({ item }) => (
+            <ScoutingPhotoThumbnail
+              photo={item}
+              onDelete={handleDeletePhoto}
+              onPress={setLightboxPhoto}
+              onReload={() => loadPhotos({ silent: true })}
+              onEditCaption={handleOpenCaptionEdit}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={photoStyles.emptyPhotos}>
+              <Feather name="image" size={20} color={colors.textSecondary} />
+              <Text style={photoStyles.emptyPhotosText}>No photos yet</Text>
+            </View>
+          }
+        />
+      )}
+      <Pressable
+        style={[photoStyles.addPhotoBtn, uploading && photoStyles.addPhotoBtnDisabled]}
+        onPress={handleAddPhoto}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color={colors.primary ?? colors.success} />
+        ) : (
+          <Feather name="camera" size={16} color={colors.primary ?? colors.success} />
+        )}
+        <Text style={photoStyles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
+      </Pressable>
+      <ScoutingPhotoLightbox
+        photo={lightboxPhoto}
+        visible={lightboxPhoto !== null}
+        onClose={() => setLightboxPhoto(null)}
+        onDelete={(id) => {
+          handleDeletePhoto(id);
+          setLightboxPhoto(null);
+        }}
+        onEditCaption={handleOpenCaptionEdit}
+      />
+      <CaptionEditModal
+        visible={captionEditPhoto !== null}
+        initialCaption={captionEditPhoto?.caption ?? ""}
+        onSave={(caption) => {
+          if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
+        }}
+        onClose={() => setCaptionEditPhoto(null)}
+      />
+    </View>
+  );
+}
+
+const photoStyles = StyleSheet.create({
+  photoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  photoHint: { fontSize: fontSize.xs, color: colors.textSecondary },
+  thumbnail: { width: 88, gap: spacing.xs },
+  thumbImgBox: { width: 88, height: 88, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.border },
+  thumbImage: { width: 88, height: 88 },
+  captionDot: {
+    position: "absolute",
+    bottom: 3,
+    left: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#4ade80",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.4)",
+  },
+  thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
+  captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
+  emptyPhotos: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
+  emptyPhotosText: { fontSize: fontSize.sm, color: colors.textSecondary },
+  addPhotoBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary ?? colors.success, alignSelf: "flex-start", marginTop: spacing.sm },
+  addPhotoBtnDisabled: { opacity: 0.5 },
+  addPhotoBtnText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.primary ?? colors.success },
+});
+
+// ─── Edit Scouting Modal ──────────────────────────────────────────────────────
+
 interface EditScoutingModalProps {
   visible: boolean;
   record: ScoutingRecord | null;
