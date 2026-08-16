@@ -130,6 +130,7 @@ const TABLE_MAP: Record<string, string> = {
   bde_poultry_transport_welfare: "poultry_transport_welfare",
   bde_pig_inventory_records: "pig_inventory_records",
   bde_pig_death_records: "pig_death_records",
+  bde_vine_operation: "vine_operation",
 };
 
 export function getTableForKey(key: string): string | null {
@@ -276,6 +277,24 @@ export async function getRecordById<T>(table: string, id: string): Promise<T | n
   }
   const raw = await AsyncStorage.getItem(`bde_record_${table}_${id}`);
   return raw ? (JSON.parse(raw) as T) : null;
+}
+
+export async function hasPendingSyncItem(
+  recordType: string,
+  recordId: string,
+): Promise<boolean> {
+  await ensureInit();
+  if (usingSQLite) {
+    const row = await db().getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+      [recordType, recordId],
+    );
+    return (row?.count ?? 0) > 0;
+  }
+  const raw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!raw) return false;
+  const queue: SyncQueueRow[] = JSON.parse(raw);
+  return queue.some((i) => i.record_type === recordType && i.record_id === recordId && i.status === "pending");
 }
 
 export async function enqueueSyncItem(

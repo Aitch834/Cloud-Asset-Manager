@@ -1187,6 +1187,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-operation-history",
+    title: "Operations History",
+    description: "View, edit and delete past vineyard operation records — update block links or remove entries logged in error",
+    icon: "clock",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-operation-history",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-harvest",
     title: "Vine Harvest Record",
     description: "Capture per-block vintage data: yield, must chemistry (Brix, pH, TA, potential alcohol), grape condition, botrytis presence and destination winery",

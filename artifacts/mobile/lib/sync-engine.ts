@@ -5,10 +5,15 @@ import {
   getPendingSyncCount,
   getPendingSyncItems,
   kvGet,
+  kvSet,
+  kvDelete,
+  hasPendingSyncItem,
   markRecordSynced,
   markSyncItemCompleted,
   markSyncItemFailed,
   getTableForKey,
+  insertRecord,
+  enqueueSyncItem,
 } from "./database";
 
 type SyncListener = (state: SyncState) => void;
@@ -64,10 +69,68 @@ export async function refreshPendingCount(): Promise<number> {
   return count;
 }
 
+// One-time migration: move any entries stored under the old plural KV key
+// (bde_vine_operations) into the correct TABLE_MAP-backed key (bde_vine_operation).
+//
+// Safety guarantees:
+//   At-least-once  — the OLD_KEY is kept intact until every entry is confirmed
+//                    migrated, so a crash never loses a record.
+//   No duplicates  — a durable MARKER_KEY records which IDs have already been
+//                    inserted + enqueued; hasPendingSyncItem guards the queue.
+//                    On restart we skip already-marked IDs, so no double-POST.
+async function migrateVineOperationsKey(): Promise<void> {
+  const OLD_KEY = "bde_vine_operations";
+  const MARKER_KEY = "bde_vine_op_migration_v1";
+  try {
+    const raw = await kvGet(OLD_KEY);
+    if (!raw) return;
+    const entries: Array<Record<string, unknown>> = JSON.parse(raw);
+    if (!Array.isArray(entries) || entries.length === 0) {
+      await kvDelete(OLD_KEY);
+      return;
+    }
+
+    // Load the set of already-migrated IDs from a durable marker key.
+    const markerRaw = await kvGet(MARKER_KEY);
+    const migratedIds: Set<string> = markerRaw
+      ? new Set(JSON.parse(markerRaw) as string[])
+      : new Set();
+
+    for (const entry of entries) {
+      const id = String(entry.id ?? "");
+      const farmId = String(entry.farmId ?? "");
+      const createdAt = String(entry.createdAt ?? new Date().toISOString());
+      if (!id || migratedIds.has(id)) continue;
+
+      // INSERT OR REPLACE is idempotent; safe to re-run on retry.
+      await insertRecord("vine_operation", id, farmId, entry, createdAt);
+
+      // Only enqueue if not already pending — prevents duplicate server POSTs.
+      const alreadyQueued = await hasPendingSyncItem("bde_vine_operation", id);
+      if (!alreadyQueued) {
+        await enqueueSyncItem("bde_vine_operation", id, entry);
+      }
+
+      // Persist progress before moving to the next entry. A crash here means
+      // the next startup re-inserts this entry (INSERT OR REPLACE) and re-checks
+      // the queue (hasPendingSyncItem) — still safe, still no duplicates.
+      migratedIds.add(id);
+      await kvSet(MARKER_KEY, JSON.stringify(Array.from(migratedIds)));
+    }
+
+    // All entries processed — clean up both keys.
+    await kvDelete(OLD_KEY);
+    await kvDelete(MARKER_KEY);
+  } catch (err) {
+    console.warn("migrateVineOperationsKey:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function initialize(): Promise<void> {
   if (isInitialized) return;
   isInitialized = true;
 
+  await migrateVineOperationsKey();
   await refreshPendingCount();
 
   try {

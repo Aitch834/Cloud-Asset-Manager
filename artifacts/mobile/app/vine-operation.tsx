@@ -99,6 +99,7 @@ export default function VineOperationScreen() {
       id: generateId(),
       farmId: currentFarm?.id || "",
       operationDate,
+      blockId: selectedBlock?.id ?? null,
       blockName: (selectedBlock?.blockName ?? manualBlockName.trim()) || undefined,
       operationType,
       pruningSystem: isPruning && pruningSystem ? pruningSystem : undefined,
@@ -116,7 +117,7 @@ export default function VineOperationScreen() {
       _pendingSync: true,
     };
 
-    await appendToList("bde_vine_operations", entry);
+    await appendToList("bde_vine_operation", entry);
     await refreshPendingCount();
 
     setSaving(false);
