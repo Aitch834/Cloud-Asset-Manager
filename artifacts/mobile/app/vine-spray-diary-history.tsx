@@ -467,26 +467,41 @@ function SprayPhotoThumbnail({
   photo,
   onPress,
   onDelete,
+  onShowTooltip,
+  onHideTooltip,
 }: {
   photo: SprayDiaryPhoto;
   onPress: () => void;
   onDelete: (id: number) => void;
+  onShowTooltip: (caption: string) => void;
+  onHideTooltip: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
-  // Prevent onPress from firing when the gesture was a long-press
-  const wasLongPress = useRef(false);
+  // Set to true when a long-press fires so onPressOut can show the Alert; cleared
+  // there immediately. RN does NOT emit onPress after a recognised long press.
+  const longPressJustFiredRef = useRef(false);
 
   const handlePress = () => {
-    if (wasLongPress.current) {
-      wasLongPress.current = false;
+    if (longPressJustFiredRef.current) {
+      longPressJustFiredRef.current = false;
       return;
     }
     onPress();
   };
 
   const handleLongPress = () => {
-    wasLongPress.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    longPressJustFiredRef.current = true;
+    // Show caption tooltip while the finger is held (captioned photos only)
+    if (photo.caption) {
+      onShowTooltip(photo.caption);
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!longPressJustFiredRef.current) return;
+    longPressJustFiredRef.current = false;
+    onHideTooltip();
     Alert.alert("Photo Options", undefined, [
       {
         text: "Delete",
@@ -507,7 +522,7 @@ function SprayPhotoThumbnail({
   };
 
   return (
-    <Pressable style={styles.thumbnail} onPress={handlePress} onLongPress={handleLongPress}>
+    <Pressable style={styles.thumbnail} onPress={handlePress} onLongPress={handleLongPress} onPressOut={handlePressOut}>
       <View style={styles.thumbImgBox}>
         {uri ? (
           <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
@@ -538,6 +553,8 @@ function SprayDiaryPhotoSection({
   const [uploading, setUploading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
+  const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -647,6 +664,8 @@ function SprayDiaryPhotoSection({
                 photo={item}
                 onPress={() => setLightboxIndex(index)}
                 onDelete={handleDeletePhoto}
+                onShowTooltip={setGridTooltipCaption}
+                onHideTooltip={() => setGridTooltipCaption(null)}
               />
             )}
             ListEmptyComponent={
@@ -677,6 +696,15 @@ function SprayDiaryPhotoSection({
         )}
         <Text style={editStyles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
       </Pressable>
+
+      {/* Grid caption tooltip — shown while a captioned thumbnail is long-pressed */}
+      {gridTooltipCaption != null ? (
+        <View style={editStyles.gridCaptionTooltip} pointerEvents="none">
+          <Text style={editStyles.gridCaptionTooltipText} numberOfLines={4}>
+            {gridTooltipCaption}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1553,6 +1581,23 @@ const editStyles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.primary,
+  },
+  gridCaptionTooltip: {
+    position: "absolute",
+    bottom: 80,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.88)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 100,
+  },
+  gridCaptionTooltipText: {
+    color: "#fff",
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 
