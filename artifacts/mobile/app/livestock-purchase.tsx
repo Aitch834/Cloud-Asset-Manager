@@ -259,7 +259,8 @@ export default function LivestockPurchaseScreen() {
       </View>
 
       <IdentifierBanner
-        justSaved={justSaved && !identifiersLoading}
+        justSaved={justSaved}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}

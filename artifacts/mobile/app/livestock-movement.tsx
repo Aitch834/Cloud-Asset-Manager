@@ -151,7 +151,8 @@ export default function LivestockMovementScreen() {
       </View>
 
       <IdentifierBanner
-        justSaved={justSaved && !identifiersLoading}
+        justSaved={justSaved}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}

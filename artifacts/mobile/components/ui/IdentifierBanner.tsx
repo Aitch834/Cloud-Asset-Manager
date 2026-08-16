@@ -32,6 +32,12 @@ interface IdentifierBannerProps {
    * `cphMissing`, `sbiMissing`, and `context` are ignored.
    */
   warningMessage?: string;
+  /**
+   * When true, identifiers are still being fetched. Neither the warning nor
+   * the success nudge will render while loading, preventing a flash of the
+   * 'Saved' nudge before the refetch has confirmed identifiers are present.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -68,7 +74,10 @@ export function IdentifierBanner({
   sbiMissing,
   context = "submissions",
   warningMessage,
+  loading,
 }: IdentifierBannerProps) {
+  if (loading) return null;
+
   if (justSaved && !missingIdentifiers) {
     return (
       <Pressable onPress={onClearJustSaved} style={[styles.banner, styles.bannerSaved]}>

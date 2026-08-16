@@ -130,7 +130,8 @@ export default function PigInventoryScreen() {
       </View>
 
       <IdentifierBanner
-        justSaved={justSaved && !identifiersLoading}
+        justSaved={justSaved}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}
