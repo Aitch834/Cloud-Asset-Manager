@@ -225,6 +225,31 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [viewing, setViewing] = useState<Phenology | null>(null);
   const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string; surveyKey: WinegbSurveyKey | null; year: number } | null>(null);
   const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
+
+  // ── localStorage helpers for persisted survey offer ────────────────────────
+  type StoredOffer = { surveyName: string; label: string; surveyKey: WinegbSurveyKey; year: number };
+  const lsOfferKey = (surveyKey: WinegbSurveyKey, year: number) => `winegb-offer:${farmId}:${surveyKey}:${year}`;
+
+  const writeStoredOffer = (offer: StoredOffer) => {
+    try { localStorage.setItem(lsOfferKey(offer.surveyKey, offer.year), JSON.stringify(offer)); } catch { /* storage full */ }
+  };
+  const clearStoredOffer = (surveyKey: WinegbSurveyKey, year: number) => {
+    try { localStorage.removeItem(lsOfferKey(surveyKey, year)); } catch { /* ignore */ }
+  };
+  const readStoredOffers = (): StoredOffer[] => {
+    const prefix = `winegb-offer:${farmId}:`;
+    const results: StoredOffer[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) {
+          const raw = localStorage.getItem(k);
+          if (raw) { try { results.push(JSON.parse(raw) as StoredOffer); } catch { localStorage.removeItem(k ?? ""); } }
+        }
+      }
+    } catch { /* ignore */ }
+    return results;
+  };
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
@@ -284,6 +309,43 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
 
+  // ── Restore persisted survey offer on mount ───────────────────────────────
+  // Track the year of a stored offer so we can query submissions to verify it
+  const [storedOfferYear, setStoredOfferYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    const offers = readStoredOffers();
+    if (!offers.length) return;
+    // Pick the offer with the most recent year
+    const offer = offers.sort((a, b) => b.year - a.year)[0];
+    setStoredOfferYear(offer.year);
+    // Show the banner immediately; the submission-check effect below will suppress it if already done
+    setWinegbSurveyBanner(offer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId]);
+
+  // Query submissions for the stored offer's year so we can clear the banner if already submitted
+  const { data: storedOfferSubmissions } = useQuery<{ submissions: Record<string, { submitted: boolean; submittedAt: string | null }> }>({
+    queryKey: ["winegb-submissions", farmId, storedOfferYear ?? 0],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/winegb-submissions?year=${storedOfferYear}`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json(); }),
+    enabled: !!farmId && storedOfferYear !== null,
+    staleTime: 60_000,
+  });
+
+  // Once submissions load, clear the banner (and localStorage) if already submitted
+  useEffect(() => {
+    if (!storedOfferSubmissions || !winegbSurveyBanner?.surveyKey) return;
+    const alreadySubmitted = storedOfferSubmissions.submissions?.[winegbSurveyBanner.surveyKey]?.submitted ?? false;
+    if (alreadySubmitted) {
+      clearStoredOffer(winegbSurveyBanner.surveyKey, winegbSurveyBanner.year);
+      setWinegbSurveyBanner(null);
+      setStoredOfferYear(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedOfferSubmissions]);
+
   // ── WineGB toggle mutation (year comes from the saved observation's date) ─────
   const winegbToggleMutation = useMutation({
     mutationFn: async ({ key, year }: { key: WinegbSurveyKey; year: number }) => {
@@ -300,6 +362,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       void queryClient.invalidateQueries({ queryKey: ["winegb-submissions", farmId, year] });
       const survey = WINEGB_SURVEYS.find(s => s.key === key);
       toast({ title: `${survey?.label ?? "Survey"} marked as submitted`, description: "WineGB survey checklist updated." });
+      clearStoredOffer(key, year);
       setWinegbSurveyBanner(null);
     },
   });
@@ -331,7 +394,11 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         type SubmissionsPayload = { submissions: Record<string, { submitted: boolean; submittedAt: string | null }> };
         const cached = queryClient.getQueryData<SubmissionsPayload>(["winegb-submissions", farmId, obsYear]);
         const alreadySubmitted = cached?.submissions?.[survey.surveyKey]?.submitted ?? false;
-        if (!alreadySubmitted) setWinegbSurveyBanner({ ...survey, year: obsYear });
+        if (!alreadySubmitted) {
+          const offer = { ...survey, year: obsYear } as StoredOffer;
+          writeStoredOffer(offer);
+          setWinegbSurveyBanner(offer);
+        }
       } else {
         // No checklist key (e.g. Fruit Set) — show the external-link prompt instead
         setWinegbSurveyBanner({ ...survey, year: obsYear });
@@ -411,6 +478,8 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
             type="button"
             className="shrink-0 text-emerald-500 hover:text-emerald-800"
             onClick={() => {
+              // Add to session-only dismissed set so the banner doesn't re-show within this visit.
+              // The localStorage entry is intentionally kept so the offer reappears on the next page load.
               setDismissedSurveys(prev => new Set(prev).add(winegbSurveyBanner.surveyName));
               setWinegbSurveyBanner(null);
             }}
