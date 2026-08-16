@@ -3128,6 +3128,17 @@ router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res
     return;
   }
 
+  // Guard: brand assets must be present before starting any render job
+  const { logoUri: draftLogoUri, qrUri: draftQrUri } = await loadAdBrandAssets();
+  const draftMissing = [...(!draftLogoUri ? ["logo"] : []), ...(!draftQrUri ? ["QR code"] : [])];
+  if (draftMissing.length > 0) {
+    res.status(422).json({
+      error: `Cannot render PDF: the following brand asset(s) are missing — ${draftMissing.join(", ")}. Upload them via Platform Config before generating.`,
+      missingAssets: draftMissing,
+    });
+    return;
+  }
+
   const tmpId  = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), `ad-pdf-draft-${tmpId}`);
   const htmlOut = path.join(tmpDir, "print.html");
@@ -3187,6 +3198,17 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
     .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
   if (template.archivedAt) { res.status(410).json({ error: "Template has been archived and cannot be rendered." }); return; }
+
+  // Guard: brand assets must be present before starting any render job
+  const { logoUri: prevLogoUri, qrUri: prevQrUri } = await loadAdBrandAssets();
+  const prevMissing = [...(!prevLogoUri ? ["logo"] : []), ...(!prevQrUri ? ["QR code"] : [])];
+  if (prevMissing.length > 0) {
+    res.status(422).json({
+      error: `Cannot render PDF: the following brand asset(s) are missing — ${prevMissing.join(", ")}. Upload them via Platform Config before generating.`,
+      missingAssets: prevMissing,
+    });
+    return;
+  }
 
   // Snapshot the HTML body at request time — no mid-flight re-fetch during the render
   const snapshotHtmlBody = template.htmlBody;
@@ -3254,6 +3276,17 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
     .where(eq(adTemplatesTable.id, Number(templateId))).limit(1);
   if (!template) { res.status(404).json({ error: "Template not found" }); return; }
   if (template.archivedAt) { res.status(410).json({ error: "Template has been archived and cannot be rendered." }); return; }
+
+  // Guard: brand assets must be present before starting any render job
+  const { logoUri: pdfLogoUri, qrUri: pdfQrUri } = await loadAdBrandAssets();
+  const pdfMissing = [...(!pdfLogoUri ? ["logo"] : []), ...(!pdfQrUri ? ["QR code"] : [])];
+  if (pdfMissing.length > 0) {
+    res.status(422).json({
+      error: `Cannot render PDF: the following brand asset(s) are missing — ${pdfMissing.join(", ")}. Upload them via Platform Config before generating.`,
+      missingAssets: pdfMissing,
+    });
+    return;
+  }
 
   // Snapshot the HTML body immediately so a mid-flight archive cannot affect this render
   const snapshotHtmlBody = template.htmlBody;
