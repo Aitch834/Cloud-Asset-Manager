@@ -1670,24 +1670,18 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 // ─── Enterprise Report ────────────────────────────────────────────────────────
 const ENT_PRINT_ID = "viticulture-enterprise-report-print";
 function ensureEntPrintStyle() {
-  // v2 — fixed→absolute so content flows across multiple pages
-  if (document.getElementById(ENT_PRINT_ID + "-css-v2")) return;
-  const old = document.getElementById(ENT_PRINT_ID + "-css");
-  if (old) old.remove();
+  // v3 — display:none siblings (not visibility:hidden) so no blank second page
+  if (document.getElementById(ENT_PRINT_ID + "-css-v3")) return;
+  ["-css", "-css-v2"].forEach(sfx => document.getElementById(ENT_PRINT_ID + sfx)?.remove());
   const s = document.createElement("style");
-  s.id = ENT_PRINT_ID + "-css-v2";
+  s.id = ENT_PRINT_ID + "-css-v3";
   s.textContent = [
     `@page{size:A4 portrait;margin:1.5cm}`,
     `@media print{`,
-    `html,body{overflow:visible!important;height:auto!important;margin:0!important}`,
-    `body>*{visibility:hidden!important}`,
-    `#${ENT_PRINT_ID}{`,
-    `visibility:visible!important;display:block!important;`,
-    `position:absolute!important;top:0!important;left:0!important;width:100%!important;`,
-    `overflow:visible!important;background:#fff!important;`,
-    `z-index:99999!important;padding:24px!important;box-sizing:border-box!important}`,
-    `#${ENT_PRINT_ID} *{visibility:visible!important}`,
-    `.no-print{display:none!important;visibility:hidden!important}`,
+    `html,body{margin:0!important;padding:0!important;height:auto!important;overflow:visible!important}`,
+    `body>*{display:none!important}`,
+    `#${ENT_PRINT_ID}{display:block!important;background:#fff!important;padding:24px!important;box-sizing:border-box!important}`,
+    `.no-print{display:none!important}`,
     `table{page-break-inside:auto;border-collapse:collapse}`,
     `tr{page-break-inside:avoid;break-inside:avoid}`,
     `}`,
@@ -1698,9 +1692,13 @@ function ensureEntPrintStyle() {
 export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = usePersistedNumberFilter({ page: "viticultural-enterprise-report", filter: "year", farmId, defaultValue: currentYear });
-  const [openSection, setOpenSection] = useState<string | null>(null);
-  const toggle = (s: string) => setOpenSection(v => (v === s ? null : s));
-  // Force all sections open before browser renders print layout; restore after.
+  // All three sections open by default; each toggles independently
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(["harvest", "ops", "sprays"]));
+  const toggleSection = (s: string) => setOpenSections(prev => {
+    const next = new Set(prev);
+    next.has(s) ? next.delete(s) : next.add(s);
+    return next;
+  });
   const [forcePrint, setForcePrint] = useState(false);
   useEffect(() => {
     const before = () => setForcePrint(true);
@@ -1916,14 +1914,17 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     );
   }
 
+  const hasVitTx = vitTx.length > 0;
+  const gmColor = vitGrossMarginPence >= 0 ? "#166534" : "#991b1b";
+
   return (
     <div id={ENT_PRINT_ID} className="space-y-5">
-      {/* Controls */}
+      {/* ── Controls ── */}
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h2 className="text-lg font-semibold">Viticulture Enterprise Report</h2>
           <p className="text-sm text-foreground/50">
-            Yield summary · Operational inputs · Gross margin framework
+            Yield summary · Gross margin framework · Operational inputs
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -2020,366 +2021,128 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             </div>
           </div>
 
-          {/* Gross margin framework */}
-          {(() => {
-            const hasVitTx = vitTx.length > 0;
-            const gmColor = vitGrossMarginPence >= 0 ? "#166534" : "#991b1b";
-            return (
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between flex-wrap gap-2">
-                <h3 className="text-sm font-semibold">Gross Margin Framework — {year}</h3>
-                {!hasVitTx && (
-                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                    No Viticulture transactions recorded for {year}
-                  </span>
-                )}
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/20 text-foreground/60 text-xs">
-                    <th className="px-4 py-2 text-left">Item</th>
-                    <th className="px-4 py-2 text-right">Total</th>
-                    <th className="px-4 py-2 text-right">Per ha</th>
-                    <th className="px-4 py-2 text-right">Per kg</th>
-                    <th className="px-4 py-2 text-left">Notes</th>
+          {/* ── Gross Margin Framework — 4-column, no Notes column ── */}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-semibold">Gross Margin Framework — {year}</h3>
+              {!hasVitTx && (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                  No Viticulture transactions recorded for {year}
+                </span>
+              )}
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/20 text-foreground/60 text-xs">
+                  <th className="px-4 py-2 text-left">Item</th>
+                  <th className="px-4 py-2 text-right">Total</th>
+                  <th className="px-4 py-2 text-right">Per ha</th>
+                  <th className="px-4 py-2 text-right">Per kg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Output */}
+                <tr className="bg-emerald-50/50">
+                  <td className="px-4 py-1.5 text-xs font-semibold text-emerald-800 uppercase tracking-wide" colSpan={4}>Output</td>
+                </tr>
+                {([
+                  { label: "Grape & Wine Sales", value: vitGrapeWinePence },
+                  { label: "Contract Processing Income", value: vitContractPence },
+                  { label: "Scheme & Other Income", value: vitSchemePence },
+                ] as { label: string; value: number }[]).map(row => (
+                  <tr key={row.label} className="border-t border-border/40 bg-emerald-50/20">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">{row.label}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-emerald-700">
+                      {hasVitTx ? fmtGbp(row.value) : <span className="text-foreground/30 italic text-xs">Add via Financial</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono text-emerald-700">{hasVitTx ? fmtPerHa(row.value, totalHarvestHa) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono text-emerald-700">{hasVitTx ? fmtPerKg(row.value, totalYieldKg) : "—"}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {/* ── Revenue section header ── */}
-                  <tr className="bg-emerald-50/50">
-                    <td className="px-4 py-1.5 text-xs font-semibold text-emerald-800 uppercase tracking-wide" colSpan={5}>Output</td>
+                ))}
+                <tr className="border-t border-emerald-200/60 bg-emerald-50/40 font-semibold">
+                  <td className="px-4 py-2 text-sm text-emerald-800 pl-6">Total Output</td>
+                  <td className="px-4 py-2 text-right text-emerald-800">{hasVitTx ? fmtGbp(vitTotalRevPence) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono text-emerald-700">{hasVitTx ? fmtPerHa(vitTotalRevPence, totalHarvestHa) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono text-emerald-700">{hasVitTx ? fmtPerKg(vitTotalRevPence, totalYieldKg) : "—"}</td>
+                </tr>
+
+                {/* Direct variable costs */}
+                <tr className="bg-muted/30">
+                  <td className="px-4 py-1.5 text-xs font-semibold text-foreground/60 uppercase tracking-wide" colSpan={4}>Direct Variable Costs</td>
+                </tr>
+                {([
+                  { label: "Spray & Agrochemical", value: vitSprayCostPence, hint: totalSprayApplications > 0 ? `${totalSprayApplications} applications recorded` : "" },
+                  { label: "Vine Management", value: vitVineMgmtPence, hint: "" },
+                  { label: "Labour", value: vitLabourCostPence, hint: totalOpsHours > 0 ? `${totalOpsHours.toFixed(1)} canopy hours recorded` : "" },
+                  { label: "Winery Processing", value: vitWineryCostPence, hint: "" },
+                  { label: "Other Direct Costs", value: vitOtherVarPence, hint: "Haulage · Fertiliser · Contracting · Electricity" },
+                ] as { label: string; value: number; hint: string }[]).map(row => (
+                  <tr key={row.label} className="border-t border-border/40">
+                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">
+                      {row.label}
+                      {row.hint ? <span className="text-xs text-foreground/40 ml-1.5">· {row.hint}</span> : null}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold">
+                      {hasVitTx ? fmtGbp(row.value) : <span className="text-foreground/30 italic text-xs">Add via Financial</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">{hasVitTx ? fmtPerHa(row.value, totalHarvestHa) : "—"}</td>
+                    <td className="px-4 py-2 text-right font-mono">{hasVitTx ? fmtPerKg(row.value, totalYieldKg) : "—"}</td>
                   </tr>
-                  {/* Grape & wine sales */}
-                  <tr className="border-t border-border/40 bg-emerald-50/20">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Grape &amp; Wine Sales</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitGrapeWinePence)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitGrapeWinePence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitGrapeWinePence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Grape Sales · Wine Sales (Sparkling / Still / Rosé)</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Record grape/wine sales tagged Viticulture enterprise</td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Contract processing income */}
-                  <tr className="border-t border-border/40 bg-emerald-50/20">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Contract Processing Income</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitContractPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitContractPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitContractPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Winery Contract Processing Income</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Winery Contract Processing Income category</td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Scheme / grant income */}
-                  <tr className="border-t border-border/40 bg-emerald-50/20">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Scheme &amp; Other Income</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold text-emerald-700">{fmtGbp(vitSchemePence)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitSchemePence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitSchemePence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Vineyard Agri-Environment Scheme · Other Viticulture Income</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Vineyard Agri-Environment Scheme · Other Viticulture Income categories</td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Total output subtotal — show whenever transactions exist */}
-                  {hasVitTx && (
-                    <tr className="border-t border-emerald-200/60 bg-emerald-50/40 font-semibold">
-                      <td className="px-4 py-2 text-sm text-emerald-800 pl-6">Total Output</td>
-                      <td className="px-4 py-2 text-right text-emerald-800">{fmtGbp(vitTotalRevPence)}</td>
-                      <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerHa(vitTotalRevPence, totalHarvestHa)}</td>
-                      <td className="px-4 py-2 text-right font-mono text-emerald-700">{fmtPerKg(vitTotalRevPence, totalYieldKg)}</td>
-                      <td className="px-4 py-2" />
+                ))}
+                <tr className="border-t-2 border-border bg-muted/10 font-semibold">
+                  <td className="px-4 py-2 text-sm pl-6">Total Direct Costs</td>
+                  <td className="px-4 py-2 text-right">{hasVitTx ? fmtGbp(vitTotalDirectCostPence) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono">{hasVitTx ? fmtPerHa(vitTotalDirectCostPence, totalHarvestHa) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono">{hasVitTx ? fmtPerKg(vitTotalDirectCostPence, totalYieldKg) : "—"}</td>
+                </tr>
+
+                {/* Gross Margin */}
+                <tr className={`border-t border-border font-bold ${vitGrossMarginPence >= 0 ? "bg-emerald-50/30" : "bg-red-50/30"}`}>
+                  <td className="px-4 py-2.5">Gross Margin</td>
+                  <td className="px-4 py-2.5 text-right" style={{ color: gmColor }}>
+                    {hasVitTx
+                      ? (vitGrossMarginPence < 0 ? "−" : "") + fmtGbp(vitGrossMarginPence)
+                      : <span className="text-foreground/40 italic font-normal text-sm">Add revenue &amp; costs via Financial</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono" style={{ color: gmColor }}>{hasVitTx ? fmtPerHa(vitGrossMarginPence, totalHarvestHa) : "—"}</td>
+                  <td className="px-4 py-2.5 text-right font-mono" style={{ color: gmColor }}>{hasVitTx ? fmtPerKg(vitGrossMarginPence, totalYieldKg) : "—"}</td>
+                </tr>
+
+                {/* Capital items below GM line */}
+                {vitCapitalPence > 0 && (
+                  <>
+                    <tr className="bg-muted/20">
+                      <td className="px-4 py-1.5 text-xs font-semibold text-foreground/50 uppercase tracking-wide" colSpan={4}>Capital &amp; Establishment (not in Gross Margin)</td>
                     </tr>
-                  )}
-
-                  {/* ── Variable costs section header ── */}
-                  <tr className="bg-muted/30">
-                    <td className="px-4 py-1.5 text-xs font-semibold text-foreground/60 uppercase tracking-wide" colSpan={5}>Direct Variable Costs</td>
-                  </tr>
-                  {/* Spray & agrochemical */}
-                  <tr className="border-t border-border/40">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Spray &amp; Agrochemical</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitSprayCostPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitSprayCostPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitSprayCostPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">
-                          Pesticides &amp; Herbicides · Fungicides · Insecticides
-                          {totalSprayApplications > 0 ? ` · ${totalSprayApplications} applications recorded` : ""}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">
-                          Pesticides &amp; Herbicides · Fungicides · Insecticides
-                          {totalSprayApplications > 0 ? ` · ${totalSprayApplications} spray applications recorded` : ""}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Vine management */}
-                  <tr className="border-t border-border/40">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Vine Management</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitVineMgmtPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitVineMgmtPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitVineMgmtPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Pruning, training, canopy work — Vine Management category</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Pruning, training, canopy work — Vine Management category</td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Labour */}
-                  <tr className="border-t border-border/40">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Labour</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitLabourCostPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitLabourCostPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitLabourCostPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">
-                          Labour category{totalOpsHours > 0 ? ` · ${totalOpsHours.toFixed(1)} canopy hours recorded` : ""}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">
-                          Labour category{totalOpsHours > 0 ? ` · ${totalOpsHours.toFixed(1)} canopy hours recorded` : ""}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Winery processing */}
-                  <tr className="border-t border-border/40">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Winery Processing</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitWineryCostPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitWineryCostPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitWineryCostPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Winery Processing Costs category</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Winery Processing Costs category</td>
-                      </>
-                    )}
-                  </tr>
-                  {/* Other variable costs (explicit list only) */}
-                  <tr className="border-t border-border/40">
-                    <td className="px-4 py-2 text-sm text-foreground/80 pl-6">Other Direct Costs</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitOtherVarPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitOtherVarPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerKg(vitOtherVarPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Haulage · Fertiliser · Contracting · Electricity &amp; other variable inputs</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Haulage · Fertiliser · Contracting · Electricity &amp; other variable inputs</td>
-                      </>
-                    )}
-                  </tr>
-
-                  {/* ── Gross Margin — always show when any viticulture transactions exist ── */}
-                  <tr className="border-t-2 border-border bg-muted/10 font-semibold">
-                    <td className="px-4 py-2">Gross Margin</td>
-                    {hasVitTx ? (
-                      <>
-                        <td className="px-4 py-2 text-right" style={{ color: gmColor }}>
-                          {vitGrossMarginPence < 0 ? "−" : ""}{fmtGbp(vitGrossMarginPence)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono" style={{ color: gmColor }}>{fmtPerHa(vitGrossMarginPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono" style={{ color: gmColor }}>{fmtPerKg(vitGrossMarginPence, totalYieldKg)}</td>
-                        <td className="px-4 py-2 text-xs text-foreground/50">Total output minus direct variable costs</td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-foreground/40 italic">Add revenue &amp; costs via Financial</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2 text-right text-foreground/40">—</td>
-                        <td className="px-4 py-2" />
-                      </>
-                    )}
-                  </tr>
-
-                  {/* ── Capital items (below GM line) ── */}
-                  {vitCapitalPence > 0 && (
-                    <>
-                      <tr className="bg-muted/20">
-                        <td className="px-4 py-1.5 text-xs font-semibold text-foreground/50 uppercase tracking-wide" colSpan={5}>Capital &amp; Establishment (not in Gross Margin)</td>
-                      </tr>
-                      <tr className="border-t border-border/40">
-                        <td className="px-4 py-2 text-sm text-foreground/70 pl-6">Vine Establishment &amp; Replacements</td>
-                        <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitCapitalPence)}</td>
-                        <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitCapitalPence, totalHarvestHa)}</td>
-                        <td className="px-4 py-2 text-right font-mono">—</td>
-                        <td className="px-4 py-2 text-xs text-foreground/40">Vineyard Establishment Costs · Vine Purchases &amp; Replacements — capital items excluded from GM</td>
-                      </tr>
-                    </>
-                  )}
-                </tbody>
-              </table>
-              <div className="px-4 py-3 bg-amber-50/60 border-t border-amber-200/60">
-                <p className="text-xs text-amber-800">
-                  <span className="font-semibold">To complete this report:</span> record grape and wine sales revenue,
-                  spray product costs, labour costs, and winery processing costs in the Financial module,
-                  tagged to the <span className="font-semibold">Viticulture</span> enterprise. Yield and operational input data above are drawn
-                  directly from your Harvest, Pruning &amp; Canopy, and Spray Diary records.
-                </p>
-              </div>
+                    <tr className="border-t border-border/40">
+                      <td className="px-4 py-2 text-sm text-foreground/70 pl-6">Vine Establishment &amp; Replacements</td>
+                      <td className="px-4 py-2 text-right font-semibold">{fmtGbp(vitCapitalPence)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmtPerHa(vitCapitalPence, totalHarvestHa)}</td>
+                      <td className="px-4 py-2 text-right font-mono">—</td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+            <div className="px-4 py-2.5 bg-amber-50/60 border-t border-amber-200/60">
+              <p className="text-xs text-amber-800">
+                <span className="font-semibold">Financial module categories used:</span>{" "}
+                Grape Sales · Wine Sales (Sparkling / Still / Rosé) · Winery Contract Processing Income · Vineyard Agri-Environment Scheme · Other Viticulture Income ·
+                Pesticides &amp; Herbicides · Fungicides · Insecticides · Vine Management · Labour · Winery Processing Costs · Haulage · Fertiliser · Contracting &amp; Machinery Hire · Electricity.
+                Tag each transaction to the <span className="font-semibold">Viticulture</span> enterprise.
+              </p>
             </div>
-            );
-          })()}
+          </div>
 
-          {/* Print-only per-block yield summary — always visible in @media print, outside the collapsible */}
-          {vintageHarvest.length > 0 && entBlockSummary.rows.length > 0 && (
-            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
-              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
-                <p className="text-sm font-semibold">Yield Summary by Block — {year}</p>
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600">
-                    <th className="px-3 py-2 text-left">Block</th>
-                    <th className="px-3 py-2 text-left">Variety</th>
-                    <th className="px-3 py-2 text-right">Area (ha)</th>
-                    <th className="px-3 py-2 text-right">Total Yield (kg)</th>
-                    <th className="px-3 py-2 text-right">Yield (t/ha)</th>
-                    <th className="px-3 py-2 text-right">Avg Brix °</th>
-                    <th className="px-3 py-2 text-right">Avg pH</th>
-                    <th className="px-3 py-2 text-right">Avg TA (g/L)</th>
-                    <th className="px-3 py-2 text-right">Avg Pot. Alc %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entBlockSummary.rows.map((row, i) => {
-                    const tha = row.areaHa > 0 ? row.totalKg / 1000 / row.areaHa : null;
-                    return (
-                      <tr key={i} className="border-t border-gray-200">
-                        <td className="px-3 py-1.5 font-medium">{row.blockName}</td>
-                        <td className="px-3 py-1.5 text-gray-600">{row.variety}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.areaHa > 0 ? row.areaHa.toFixed(2) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.totalKg > 0 ? row.totalKg.toFixed(0) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{tha != null ? tha.toFixed(2) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-                    <td className="px-3 py-1.5" colSpan={2}>Season Totals / Averages</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalArea > 0 ? entBlockSummary.totalArea.toFixed(2) : "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalKg > 0 ? entBlockSummary.totalKg.toFixed(0) : "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgTha > 0 ? entBlockSummary.avgTha.toFixed(2) : "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgBrix != null ? entBlockSummary.avgBrix.toFixed(1) : "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPh != null ? entBlockSummary.avgPh.toFixed(2) : "—"}</td>
-                    <td className="px-3 py-1.5" />
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPotAlc != null ? entBlockSummary.avgPotAlc.toFixed(1) : "—"}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {/* Harvest by block detail */}
-          {vintageHarvest.length > 0 && (() => {
-            // Aggregate harvest records per block for the summary table
-            const entBlockSummaryMap: Record<number | string, {
-              blockId: number | null; blockName: string; variety: string; areaHa: number;
-              totalKg: number; brixSum: number; brixCount: number;
-              phSum: number; phCount: number; taSum: number; taCount: number;
-              potAlcSum: number; potAlcCount: number;
-            }> = {};
-            vintageHarvest.forEach(h => {
-              const key = h.blockId ?? "unknown";
-              if (!entBlockSummaryMap[key]) {
-                const bl = h.blockId != null ? blockMap[h.blockId] : undefined;
-                entBlockSummaryMap[key] = {
-                  blockId: h.blockId,
-                  blockName: bl?.blockName ?? fmt(h.blockId),
-                  variety: bl?.variety ?? "—",
-                  areaHa: bl != null ? n(bl.areaHa) : 0,
-                  totalKg: 0, brixSum: 0, brixCount: 0,
-                  phSum: 0, phCount: 0, taSum: 0, taCount: 0,
-                  potAlcSum: 0, potAlcCount: 0,
-                };
-              }
-              const row = entBlockSummaryMap[key];
-              row.totalKg += n(h.yieldKg);
-              if (h.brix != null && h.brix !== "") { row.brixSum += n(h.brix); row.brixCount++; }
-              if (h.ph != null && h.ph !== "") { row.phSum += n(h.ph); row.phCount++; }
-              if (h.titratableAcidityGl != null && h.titratableAcidityGl !== "") { row.taSum += n(h.titratableAcidityGl); row.taCount++; }
-              if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { row.potAlcSum += n(h.potentialAlcohol); row.potAlcCount++; }
-            });
-            const entSummaryRows = Object.values(entBlockSummaryMap).sort((a, b) => a.blockName.localeCompare(b.blockName));
-            const entSummTotalKg = entSummaryRows.reduce((s, r) => s + r.totalKg, 0);
-            const entSummTotalArea = entSummaryRows.reduce((s, r) => s + r.areaHa, 0);
-            const entSummAvgTha = entSummTotalArea > 0 ? entSummTotalKg / 1000 / entSummTotalArea : 0;
-            const entSummBrixAll = entSummaryRows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
-            const entSummPhAll = entSummaryRows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
-            const entSummPotAlcAll = entSummaryRows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
-            const entSummAvgBrix = entSummBrixAll.length > 0 ? entSummBrixAll.reduce((a, b) => a + b, 0) / entSummBrixAll.length : null;
-            const entSummAvgPh = entSummPhAll.length > 0 ? entSummPhAll.reduce((a, b) => a + b, 0) / entSummPhAll.length : null;
-            const entSummAvgPotAlc = entSummPotAlcAll.length > 0 ? entSummPotAlcAll.reduce((a, b) => a + b, 0) / entSummPotAlcAll.length : null;
-
-            return (
-              <Collapsible
-                title={`Harvest Detail — ${vintageHarvest.length} record${vintageHarvest.length !== 1 ? "s" : ""} · ${(totalYieldKg / 1000).toFixed(2)} t total`}
-                open={forcePrint || openSection === "harvest"}
-                setOpen={v => toggle(v ? "harvest" : "")}
-              >
-                {/* Per-block yield summary */}
+          {/* ── Harvest Detail — open by default ── */}
+          {vintageHarvest.length > 0 && (
+            <Collapsible
+              title={`Harvest Detail — ${vintageHarvest.length} record${vintageHarvest.length !== 1 ? "s" : ""} · ${(totalYieldKg / 1000).toFixed(2)} t total`}
+              open={forcePrint || openSections.has("harvest")}
+              setOpen={() => toggleSection("harvest")}
+            >
+              {/* Yield summary by block */}
+              {entBlockSummary.rows.length > 0 && (
                 <div className="px-4 py-3 border-b border-border bg-muted/10">
                   <p className="text-xs font-semibold text-foreground/60 mb-2">Yield Summary by Block</p>
                   <div className="overflow-x-auto">
@@ -2389,7 +2152,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                           <th className="px-3 py-2 text-left">Block</th>
                           <th className="px-3 py-2 text-left">Variety</th>
                           <th className="px-3 py-2 text-right">Area (ha)</th>
-                          <th className="px-3 py-2 text-right">Total Yield (kg)</th>
+                          <th className="px-3 py-2 text-right">Yield (kg)</th>
                           <th className="px-3 py-2 text-right">Yield (t/ha)</th>
                           <th className="px-3 py-2 text-right">Avg Brix °</th>
                           <th className="px-3 py-2 text-right">Avg pH</th>
@@ -2398,7 +2161,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {entSummaryRows.map((row, i) => {
+                        {entBlockSummary.rows.map((row, i) => {
                           const tha = row.areaHa > 0 ? row.totalKg / 1000 / row.areaHa : null;
                           return (
                             <tr key={i} className="border-t border-border/40 hover:bg-muted/20">
@@ -2418,20 +2181,21 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                       <tfoot>
                         <tr className="border-t-2 border-border bg-muted/20 font-semibold">
                           <td className="px-3 py-1.5" colSpan={2}>Season Totals / Averages</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummTotalArea > 0 ? entSummTotalArea.toFixed(2) : "—"}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummTotalKg > 0 ? entSummTotalKg.toFixed(0) : "—"}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummAvgTha > 0 ? entSummAvgTha.toFixed(2) : "—"}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummAvgBrix != null ? entSummAvgBrix.toFixed(1) : "—"}</td>
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummAvgPh != null ? entSummAvgPh.toFixed(2) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalArea > 0 ? entBlockSummary.totalArea.toFixed(2) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.totalKg > 0 ? entBlockSummary.totalKg.toFixed(0) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgTha > 0 ? entBlockSummary.avgTha.toFixed(2) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgBrix != null ? entBlockSummary.avgBrix.toFixed(1) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPh != null ? entBlockSummary.avgPh.toFixed(2) : "—"}</td>
                           <td className="px-3 py-1.5" />
-                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entSummAvgPotAlc != null ? entSummAvgPotAlc.toFixed(1) : "—"}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPotAlc != null ? entBlockSummary.avgPotAlc.toFixed(1) : "—"}</td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
                 </div>
-
-                {/* Per-record harvest detail */}
+              )}
+              {/* Per-record harvest detail */}
+              <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted/20 text-foreground/60">
@@ -2468,95 +2232,18 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                     ))}
                   </tbody>
                 </table>
-              </Collapsible>
-            );
-          })()}
-
-          {/* Print-only canopy operations hours-by-type summary — always visible in @media print, outside the collapsible */}
-          {yearOps.length > 0 && opsByType.length > 0 && (
-            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
-              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
-                <p className="text-sm font-semibold">Canopy Operations — Hours by Type — {year}</p>
-                <p className="text-xs text-gray-500">{yearOps.length} operation{yearOps.length !== 1 ? "s" : ""} · {totalOpsHours.toFixed(1)} hours total</p>
               </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600">
-                    <th className="px-3 py-2 text-left">Operation Type</th>
-                    <th className="px-3 py-2 text-right">Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {opsByType.map(([type, hours]) => (
-                    <tr key={type} className="border-t border-gray-200">
-                      <td className="px-3 py-1.5 font-medium">{type}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{(hours as number).toFixed(1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-                    <td className="px-3 py-1.5">Total</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            </Collapsible>
           )}
 
-          {/* Print-only canopy operations per-record table — always visible in @media print, outside the collapsible */}
+          {/* ── Canopy Operations — open by default ── */}
           {yearOps.length > 0 && (
-            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
-              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
-                <p className="text-sm font-semibold">Canopy Operations — Full Log — {year}</p>
-                <p className="text-xs text-gray-500">{yearOps.length} operation{yearOps.length !== 1 ? "s" : ""} · {totalOpsHours.toFixed(1)} hours total</p>
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600">
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">Block</th>
-                    <th className="px-3 py-2 text-left">Operation</th>
-                    <th className="px-3 py-2 text-right">Pruning Wt (kg/vine)</th>
-                    <th className="px-3 py-2 text-right">Bud Count/vine</th>
-                    <th className="px-3 py-2 text-right">Hours</th>
-                    <th className="px-3 py-2 text-left">Operator</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {yearOps.map(o => (
-                    <tr key={o.id} className="border-t border-gray-200">
-                      <td className="px-3 py-1.5">{fmtDate(o.operationDate)}</td>
-                      <td className="px-3 py-1.5">{blockName(o.blockId)}</td>
-                      <td className="px-3 py-1.5">{fmt(o.operationType)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
-                      <td className="px-3 py-1.5 text-gray-600">{fmt(o.operatorName)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-                    <td className="px-3 py-1.5" colSpan={5}>Total</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
-                    <td className="px-3 py-1.5"></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {/* Operations detail (screen only — print uses the standalone table above) */}
-          {yearOps.length > 0 && (
-            <div className="print:hidden">
             <Collapsible
               title={`Canopy Operations — ${yearOps.length} operation${yearOps.length !== 1 ? "s" : ""} · ${totalOpsHours.toFixed(1)} hours`}
-              open={forcePrint || openSection === "ops"}
-              setOpen={v => toggle(v ? "ops" : "")}
+              open={forcePrint || openSections.has("ops")}
+              setOpen={() => toggleSection("ops")}
             >
               <div className="p-4 space-y-3">
-                {/* Hours by type summary */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {opsByType.map(([type, hours]) => (
                     <div key={type} className="rounded-lg border border-border bg-background p-2.5">
@@ -2565,115 +2252,51 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                     </div>
                   ))}
                 </div>
-                {/* Operations table */}
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-muted/20 text-foreground/60">
-                      <th className="px-3 py-2 text-left">Date</th>
-                      <th className="px-3 py-2 text-left">Block</th>
-                      <th className="px-3 py-2 text-left">Operation</th>
-                      <th className="px-3 py-2 text-right">Pruning Wt (kg/vine)</th>
-                      <th className="px-3 py-2 text-right">Bud Count/vine</th>
-                      <th className="px-3 py-2 text-right">Hours</th>
-                      <th className="px-3 py-2 text-left">Operator</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {yearOps.map(o => (
-                      <tr key={o.id} className="border-t border-border/40 hover:bg-muted/20">
-                        <td className="px-3 py-1.5">{fmtDate(o.operationDate)}</td>
-                        <td className="px-3 py-1.5">{blockName(o.blockId)}</td>
-                        <td className="px-3 py-1.5">{fmt(o.operationType)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
-                        <td className="px-3 py-1.5 text-foreground/60">{fmt(o.operatorName)}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted/20 text-foreground/60">
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-left">Block</th>
+                        <th className="px-3 py-2 text-left">Operation</th>
+                        <th className="px-3 py-2 text-right">Pruning Wt (kg/vine)</th>
+                        <th className="px-3 py-2 text-right">Bud Count/vine</th>
+                        <th className="px-3 py-2 text-right">Hours</th>
+                        <th className="px-3 py-2 text-left">Operator</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {yearOps.map(o => (
+                        <tr key={o.id} className="border-t border-border/40 hover:bg-muted/20">
+                          <td className="px-3 py-1.5">{fmtDate(o.operationDate)}</td>
+                          <td className="px-3 py-1.5">{blockName(o.blockId)}</td>
+                          <td className="px-3 py-1.5">{fmt(o.operationType)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
+                          <td className="px-3 py-1.5 text-foreground/60">{fmt(o.operatorName)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-border bg-muted/20 font-semibold">
+                        <td className="px-3 py-1.5" colSpan={5}>Total</td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
+                        <td className="px-3 py-1.5" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </Collapsible>
-            </div>
           )}
 
-          {/* Print-only spray product summary — always visible in @media print, outside the collapsible */}
-          {yearSprays.length > 0 && sprayByProduct.length > 0 && (
-            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
-              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
-                <p className="text-sm font-semibold">Spray Diary — Product Summary — {year}</p>
-                <p className="text-xs text-gray-500">{totalSprayApplications} application{totalSprayApplications !== 1 ? "s" : ""} · {totalSprayArea.toFixed(1)} ha treated</p>
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600">
-                    <th className="px-3 py-2 text-left">Product</th>
-                    <th className="px-3 py-2 text-right">Applications</th>
-                    <th className="px-3 py-2 text-right">Total Area (ha)</th>
-                    <th className="px-3 py-2 text-right">Total Qty Used</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sprayByProduct.map(([product, stats]) => (
-                    <tr key={product} className="border-t border-gray-200">
-                      <td className="px-3 py-1.5 font-medium">{product}</td>
-                      <td className="px-3 py-1.5 text-right">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).applications}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).totalAreaHa.toFixed(2)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{(stats as { applications: number; totalAreaHa: number; totalQty: number }).totalQty.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Print-only spray diary per-record detail — always visible in @media print, outside the collapsible */}
-          {yearSprays.length > 0 && (
-            <div className="hidden print:block border border-gray-300 rounded overflow-hidden">
-              <div className="px-4 py-2 bg-gray-100 border-b border-gray-300">
-                <p className="text-sm font-semibold">Spray Diary — Application Records — {year}</p>
-                <p className="text-xs text-gray-500">{totalSprayApplications} application{totalSprayApplications !== 1 ? "s" : ""} · {totalSprayArea.toFixed(1)} ha treated</p>
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600">
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">Block</th>
-                    <th className="px-3 py-2 text-left">Product</th>
-                    <th className="px-3 py-2 text-right">Area (ha)</th>
-                    <th className="px-3 py-2 text-right">Rate (per ha)</th>
-                    <th className="px-3 py-2 text-right">Qty Used</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {yearSprays.map(sp => (
-                    <tr key={sp.id} className="border-t border-gray-200">
-                      <td className="px-3 py-1.5">{fmtDate(sp.applicationDate)}</td>
-                      <td className="px-3 py-1.5">{blockName(sp.blockId)}</td>
-                      <td className="px-3 py-1.5 font-medium">{fmt(sp.productName)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 bg-gray-100 font-semibold">
-                    <td className="px-3 py-1.5" colSpan={3}>Total</td>
-                    <td className="px-3 py-1.5 text-right font-mono font-bold">{totalSprayArea.toFixed(2)}</td>
-                    <td className="px-3 py-1.5" colSpan={2} />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {/* Spray diary detail */}
+          {/* ── Spray Diary — open by default ── */}
           {yearSprays.length > 0 && (
             <Collapsible
               title={`Spray Diary — ${totalSprayApplications} application${totalSprayApplications !== 1 ? "s" : ""} · ${totalSprayArea.toFixed(1)} ha treated`}
-              open={forcePrint || openSection === "sprays"}
-              setOpen={v => toggle(v ? "sprays" : "")}
+              open={forcePrint || openSections.has("sprays")}
+              setOpen={() => toggleSection("sprays")}
             >
               <div className="p-4 space-y-3">
                 {/* Product summary */}
@@ -2697,6 +2320,40 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                         </tr>
                       ))}
                     </tbody>
+                  </table>
+                </div>
+                {/* Full application log */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted/20 text-foreground/60">
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-left">Block</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-right">Area (ha)</th>
+                        <th className="px-3 py-2 text-right">Rate (per ha)</th>
+                        <th className="px-3 py-2 text-right">Qty Used</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearSprays.map(sp => (
+                        <tr key={sp.id} className="border-t border-border/40 hover:bg-muted/20">
+                          <td className="px-3 py-1.5">{fmtDate(sp.applicationDate)}</td>
+                          <td className="px-3 py-1.5">{blockName(sp.blockId)}</td>
+                          <td className="px-3 py-1.5 font-medium">{fmt(sp.productName)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-border bg-muted/20 font-semibold">
+                        <td className="px-3 py-1.5" colSpan={3}>Total</td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold">{totalSprayArea.toFixed(2)}</td>
+                        <td className="px-3 py-1.5" colSpan={2} />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
