@@ -360,6 +360,7 @@ export default function VineHarvestHistoryScreen() {
     let totalAreaHa = 0;
     let brixSum = 0;
     let brixCount = 0;
+    const seenBlockIds = new Set<number>();
 
     for (const r of vintageRecords) {
       if (r.yieldKg != null) {
@@ -368,7 +369,11 @@ export default function VineHarvestHistoryScreen() {
           const area = blockAreaMap.get(r.blockId);
           if (area != null && area > 0) {
             yieldKgForArea += Number(r.yieldKg);
-            totalAreaHa += area;
+            // Only count each block's area once regardless of how many picks it has
+            if (!seenBlockIds.has(r.blockId)) {
+              seenBlockIds.add(r.blockId);
+              totalAreaHa += area;
+            }
           }
         }
       }

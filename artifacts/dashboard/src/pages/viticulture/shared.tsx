@@ -2814,7 +2814,7 @@ export async function printSprayRecords(
         ${caption ? `<span style="font-size:9px;color:#666;font-style:italic;display:block;max-width:72px;word-wrap:break-word;line-height:1.3">${escHtml(caption)}</span>` : ""}
       </td>`;
     }
-    const rateStr = r.ratePerHectare ? `${n(r.ratePerHectare)} ${String(r.rateUnit ?? "")}`.trim() : "—";
+    const rateStr = r.ratePerHectare ? `${n(r.ratePerHectare)} ${escHtml(r.rateUnit)}`.trim() : "—";
     return `<tr>
       ${photoCell}
       <td>${d(r.applicationDate)}</td>
@@ -2825,7 +2825,7 @@ export async function printSprayRecords(
       <td>${escHtml(r.productType)}</td>
       <td style="text-align:right">${rateStr}</td>
       <td style="text-align:right">${r.areaTreatedHa ? `${n(r.areaTreatedHa, 4)} ha` : "—"}</td>
-      <td style="text-align:right">${r.harvestIntervalDays ? `${r.harvestIntervalDays} days` : "—"}</td>
+      <td style="text-align:right">${r.harvestIntervalDays ? `${n(r.harvestIntervalDays, 0)} days` : "—"}</td>
       <td style="text-align:right">${r.windSpeedMph ? `${n(r.windSpeedMph)} mph` : "—"}</td>
       <td style="text-align:right">${r.temperatureCelsius ? `${n(r.temperatureCelsius)} °C` : "—"}</td>
       <td>${escHtml(r.operatorName)}</td>
@@ -2948,12 +2948,13 @@ export function printVineSprayDiaryReport(
     : "";
 
   const tableRows = records.map(r => {
+    const nv = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
     const rate = r.ratePerHectare != null
-      ? `${r.ratePerHectare} ${escHtml(r.rateUnit ?? "")}`.trim()
+      ? `${nv(r.ratePerHectare)} ${escHtml(r.rateUnit ?? "")}`.trim()
       : "—";
     const weatherParts: string[] = [];
-    if (r.windSpeedMph != null && r.windSpeedMph !== "") weatherParts.push(`${r.windSpeedMph} mph`);
-    if (r.temperatureCelsius != null && r.temperatureCelsius !== "") weatherParts.push(`${r.temperatureCelsius} \u00b0C`);
+    if (r.windSpeedMph != null && r.windSpeedMph !== "") weatherParts.push(`${nv(r.windSpeedMph)} mph`);
+    if (r.temperatureCelsius != null && r.temperatureCelsius !== "") weatherParts.push(`${nv(r.temperatureCelsius)} \u00b0C`);
     if (r.weatherConditions) weatherParts.push(escHtml(r.weatherConditions as string));
     const weather = weatherParts.length > 0 ? weatherParts.join(" &middot; ") : "—";
     const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
