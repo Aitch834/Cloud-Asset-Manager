@@ -227,8 +227,13 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
       />
       <FarmSettingsWarning
         missingFields={appaRefMissingFields}
-        settingsSection="Viticulture & Wine"
-        onNavigate={() => setLocation("/settings/farm")}
+        settingsSection="Viticulture Registrations"
+        onNavigate={() => {
+          setLocation("/settings/farm");
+          setTimeout(() => {
+            document.getElementById("settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 400);
+        }}
       />
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable

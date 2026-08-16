@@ -120,6 +120,13 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
 
   if (isLoading) return null;
 
+  const FIELD_TARGET_IDS: Record<string, string> = {
+    "FSA Vine Register Ref": "settings-fsa-vine-ref",
+    "FSA Wine Production Ref": "settings-fsa-wine-ref",
+    "APPA Ref": "settings-appa-ref",
+    "WineGB Membership No": "settings-winegb-number",
+  };
+
   const fields: FsaField[] = [
     { label: "FSA Vine Register Ref", value: farmRecord?.fsaVineRegisterRef },
     { label: "FSA Wine Production Ref", value: farmRecord?.fsaWineProductionRef },
@@ -143,9 +150,14 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
             <button
               type="button"
               className="underline underline-offset-2 hover:text-amber-900 font-medium"
-              onClick={() => navigate("/settings/farm")}
+              onClick={() => {
+                navigate("/settings/farm");
+                setTimeout(() => {
+                  document.getElementById("settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 400);
+              }}
             >
-              Farm Settings → Viticulture &amp; Wine
+              Farm Settings → Viticulture Registrations
             </button>
             .
           </p>
@@ -163,7 +175,14 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
                   ? "inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-800 cursor-default"
                   : "inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 transition-colors"
               }
-              onClick={() => { if (!filled) navigate("/settings/farm"); }}
+              onClick={() => {
+                if (!filled) {
+                  navigate("/settings/farm");
+                  setTimeout(() => {
+                    document.getElementById(FIELD_TARGET_IDS[f.label] ?? "settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 400);
+                }
+              }}
               disabled={filled}
             >
               {filled
