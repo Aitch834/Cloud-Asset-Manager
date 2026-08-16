@@ -2546,8 +2546,9 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
     if (typeof name !== "string" || name.trim().length === 0) { res.status(400).json({ error: "Farm name cannot be empty" }); return; }
     updates.name = name.trim();
   }
-  if (address !== undefined) updates.address = typeof address === "string" ? (address.trim() || null) : null;
-  if (postcode !== undefined) updates.postcode = typeof postcode === "string" ? (postcode.trim() || null) : null;
+  // Accept null (field cleared) or string (trimmed; empty string becomes null)
+  if (address !== undefined) updates.address = typeof address === "string" ? address.trim() || null : null;
+  if (postcode !== undefined) updates.postcode = typeof postcode === "string" ? postcode.trim() || null : null;
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
 
@@ -2556,6 +2557,8 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
     .set(updates)
     .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
     .returning({ id: farmsTable.id, name: farmsTable.name, address: farmsTable.address, postcode: farmsTable.postcode });
+
+  if (!updated) { res.status(404).json({ error: "Farm not found" }); return; }
 
   await writeAuditLog(req.userId!, "admin_update_farm", { tenantId, farmId, updates }, tenantId, farmId);
 

@@ -23530,12 +23530,25 @@ router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTen
 
 // Simple in-memory cache for Open-Meteo forecasts.
 // Key: "lat,lng" (4 dp precision). TTL: 90 minutes.
+// The cache is bounded: expired entries are pruned on every write so that a
+// server handling thousands of distinct farm locations never accumulates
+// unbounded memory over time.
 const _openMeteoCacheTtlMs = 90 * 60 * 1000;
 const _openMeteoCache = new Map<string, {
   fetchedAt: number;
   forecastRainfall7dMm: number;
   forecastDailyMm: Array<{ date: string; mm: number }>;
 }>();
+
+/** Remove all entries whose TTL has elapsed. Called on every cache write. */
+function _pruneOpenMeteoCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of _openMeteoCache) {
+    if (now - entry.fetchedAt >= _openMeteoCacheTtlMs) {
+      _openMeteoCache.delete(key);
+    }
+  }
+}
 
 router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -23686,12 +23699,13 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
                 date: times[i] ?? "",
                 mm: Math.round((v ?? 0) * 10) / 10,
               }));
-              // Store in cache
+              // Store in cache and evict any expired entries
               _openMeteoCache.set(cacheKey, {
                 fetchedAt: Date.now(),
                 forecastRainfall7dMm,
                 forecastDailyMm,
               });
+              _pruneOpenMeteoCache();
             }
           } finally {
             clearTimeout(timeout);
