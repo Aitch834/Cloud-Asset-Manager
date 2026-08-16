@@ -352,9 +352,137 @@ interface TemplateFormProps {
   onCancel: () => void;
   isSaving: boolean;
   saveError?: string;
+  /** Current Customise-section values — passed in so the preview reflects what's already filled in above */
+  previewHeadline?: string;
+  previewBody?: string;
+  previewAccentColor?: string;
 }
 
-function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: TemplateFormProps) {
+const DEFAULT_ACCENT = "#C49A6C";
+const SAMPLE_HEADLINE = "Your vineyard.<br><em>Audit-ready.</em>";
+const SAMPLE_BODY = "Vine register, phenology, harvest chemistry, spray logs, PDO&nbsp;/&nbsp;PGI records — all in one place.";
+
+/**
+ * Strips all HTML except the two inline tags documented as supported:
+ *   <em>   — italic accent text (no attributes allowed)
+ *   <br>   — line break
+ * Everything else is text-escaped or recursed into.
+ * Uses DOMParser so the browser handles entity decoding; safe to pass to
+ * dangerouslySetInnerHTML because the output can only contain <em> and <br>.
+ */
+function sanitizeInlineHtml(html: string): string {
+  if (typeof window === "undefined") return "";
+  const doc = new DOMParser().parseFromString(`<span>${html}</span>`, "text/html");
+
+  function walk(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) {
+      // Escape any text so it's safe when re-inserted as HTML
+      return (node.textContent ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = (node as Element).tagName.toLowerCase();
+      if (tag === "br") return "<br>";
+      // Wrap <em> children; strip attributes
+      if (tag === "em") {
+        const inner = Array.from(node.childNodes).map(walk).join("");
+        return `<em>${inner}</em>`;
+      }
+      // All other elements: recurse into children but drop the tag itself
+      return Array.from(node.childNodes).map(walk).join("");
+    }
+    return "";
+  }
+
+  const wrapper = doc.body.firstChild;
+  if (!wrapper) return "";
+  return Array.from(wrapper.childNodes).map(walk).join("");
+}
+
+function TemplatePlaceholderPreview({
+  htmlBody,
+  headline,
+  body,
+  accentColor,
+}: {
+  htmlBody: string;
+  headline: string;
+  body: string;
+  accentColor: string;
+}) {
+  const hasHeadline    = htmlBody.includes("{{headline}}");
+  const hasBody        = htmlBody.includes("{{body}}");
+  const hasAccentColor = htmlBody.includes("{{accent_color}}");
+
+  if (!hasHeadline && !hasBody && !hasAccentColor) return null;
+
+  const resolvedAccent   = accentColor.trim()  || DEFAULT_ACCENT;
+  const resolvedHeadline = headline.trim()      || SAMPLE_HEADLINE;
+  const resolvedBody     = body.trim()          || SAMPLE_BODY;
+
+  return (
+    <div className="mt-3 rounded-lg border border-border overflow-hidden text-sm">
+      {/* Mini accent bar */}
+      <div className="h-1.5" style={{ background: resolvedAccent }} />
+      <div className="px-4 py-3 space-y-2 bg-background">
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <Eye className="w-3.5 h-3.5" />
+          Placeholder preview
+          <span className="font-normal">
+            — {[hasHeadline && "{{headline}}", hasBody && "{{body}}", hasAccentColor && "{{accent_color}}"].filter(Boolean).join(", ")} detected in template
+          </span>
+        </p>
+
+        {hasHeadline && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">
+              <code className="bg-muted px-1 rounded">{"{{headline}}"}</code>
+              {!headline.trim() && <span className="ml-1 italic">(using sample text)</span>}
+            </p>
+            <p
+              className="font-semibold leading-snug"
+              style={{ color: resolvedAccent }}
+              dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(resolvedHeadline) }}
+            />
+          </div>
+        )}
+
+        {hasBody && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">
+              <code className="bg-muted px-1 rounded">{"{{body}}"}</code>
+              {!body.trim() && <span className="ml-1 italic">(using sample text)</span>}
+            </p>
+            <p
+              className="text-muted-foreground leading-snug"
+              dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(resolvedBody) }}
+            />
+          </div>
+        )}
+
+        {hasAccentColor && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">
+              <code className="bg-muted px-1 rounded">{"{{accent_color}}"}</code>
+              {!accentColor.trim() && <span className="ml-1 italic">(using default gold)</span>}
+            </p>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded border border-border shrink-0"
+                style={{ background: resolvedAccent }}
+              />
+              <code className="text-xs">{resolvedAccent}</code>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewHeadline = "", previewBody = "", previewAccentColor = "" }: TemplateFormProps) {
   const [name,     setName]     = useState(initial?.name     ?? "");
   const [slug,     setSlug]     = useState(initial?.slug     ?? "");
   const [widthMm,  setWidthMm]  = useState(String(initial?.widthMm  ?? "190"));
@@ -504,6 +632,13 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError }: Templa
           <code className="bg-muted px-1 rounded">{"{{accent_color}}"}</code> are filled from the{" "}
           <strong>Customise</strong> fields on this page; they fall back to built-in defaults when those fields are left blank.
         </p>
+
+        <TemplatePlaceholderPreview
+          htmlBody={htmlBody}
+          headline={previewHeadline}
+          body={previewBody}
+          accentColor={previewAccentColor}
+        />
 
         {draftPreviewError && (
           <div className="flex items-start gap-2 text-sm text-destructive mt-2">
@@ -1290,6 +1425,9 @@ export default function AdPdfGenerator() {
                 onCancel={() => setPanel("none")}
                 isSaving={createMutation.isPending}
                 saveError={createMutation.error instanceof Error ? createMutation.error.message : undefined}
+                previewHeadline={headline}
+                previewBody={body}
+                previewAccentColor={accentColor}
               />
             ) : (
               <TemplateForm
@@ -1298,6 +1436,9 @@ export default function AdPdfGenerator() {
                 onCancel={() => setPanel("none")}
                 isSaving={updateMutation.isPending}
                 saveError={updateMutation.error instanceof Error ? updateMutation.error.message : undefined}
+                previewHeadline={headline}
+                previewBody={body}
+                previewAccentColor={accentColor}
               />
             )}
           </div>
