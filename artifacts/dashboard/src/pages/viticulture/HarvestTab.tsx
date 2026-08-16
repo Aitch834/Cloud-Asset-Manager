@@ -380,6 +380,27 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, blocks]);
 
+  // ── KPI stat cards ────────────────────────────────────────────────────────
+  const kpiStats = useMemo(() => {
+    const totalKg = filteredHarvest.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+    const picksCount = filteredHarvest.length;
+    // Derive t/ha from total yield ÷ total unique-linked-block area
+    const seenBlockIds = new Set<unknown>();
+    let totalAreaHa = 0;
+    for (const r of filteredHarvest) {
+      if (r.blockId != null && r.blockId !== "" && !seenBlockIds.has(r.blockId)) {
+        seenBlockIds.add(r.blockId);
+        const block = blocks.find(b => b.id === r.blockId);
+        if (block) {
+          const ha = parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? ""));
+          if (!isNaN(ha) && ha > 0) totalAreaHa += ha;
+        }
+      }
+    }
+    const derivedTha = totalAreaHa > 0 && totalKg > 0 ? totalKg / 1000 / totalAreaHa : null;
+    return { totalKg, picksCount, derivedTha };
+  }, [filteredHarvest, blocks]);
+
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
     { key: "vintageYear", label: "Vintage Year" },
@@ -920,6 +941,32 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         )}
       </div>
 
+
+      {/* KPI stat cards */}
+      {filteredHarvest.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard
+            label="Total Picks"
+            value={kpiStats.picksCount}
+            sub={yearFilter === "all" ? "all vintages" : `vintage ${yearFilter}`}
+          />
+          <StatCard
+            label="Total Yield"
+            value={kpiStats.totalKg > 0 ? `${kpiStats.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 })} kg` : "—"}
+            sub={kpiStats.derivedTha != null ? `${kpiStats.derivedTha.toFixed(2)} t/ha` : "area needed for t/ha"}
+            color="green"
+          />
+          <StatCard
+            label="Avg Brix °"
+            value={(() => {
+              const vals = filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+              if (!vals.length) return "—";
+              return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+            })()}
+            sub="must chemistry at harvest"
+          />
+        </div>
+      )}
 
       {/* Yield by Block × Vintage chart */}
       {yieldChartData && (
