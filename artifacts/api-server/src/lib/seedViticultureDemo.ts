@@ -403,6 +403,35 @@ export async function seedViticultureDemo(): Promise<void> {
     `);
     console.log("[VITICULTURE-SEED] ✓ 1 winery licence created");
 
+    // ── 21. Bottling Machines ─────────────────────────────────────────────────
+    const machinesRes = await db.execute(sql`
+      INSERT INTO winery_bottling_machines (farm_id, machine_ref, machine_type, manufacturer, model, serial_number, commissioned_date, notes)
+      VALUES
+        (${FARM_ID}, 'FILLER-01', 'filler',   'Enos',         'Monobloc 8-8-1', 'EN-2019-00481', '2019-09-01', 'Gravity-fill monobloc: 8-head filler, 8-head rinser, 1-head corker. Rated to 1,200 bph at 750 ml. Used for all still wine runs.'),
+        (${FARM_ID}, 'LABEL-01',  'labeller', 'PE Labellers', 'Alpha 8 WS',     'PE-2021-10291', '2021-03-15', 'Wrap-around labeller. Handles 330 ml–1.5 L. Dedicated to front + back + neck foil application.')
+      RETURNING id, machine_ref
+    `);
+    const mMap: Record<string, number> = {};
+    (machinesRes.rows as Array<{ id: number; machine_ref: string }>).forEach(m => { mMap[m.machine_ref] = m.id; });
+
+    // CIP records for FILLER-01
+    await db.execute(sql`
+      INSERT INTO winery_bottling_machine_cleans (farm_id, machine_id, clean_date, timing, chemical_used, concentration_pct, contact_time_mins, temperature_c, rinse_confirmed, operator_name, notes)
+      VALUES
+        (${FARM_ID}, ${mMap['FILLER-01']}, '2024-09-25', 'pre-run',  'Diversol BX', 2.00, 20, 40.0, true,  'J. Hartley', 'Pre-bottling CIP before Pinot Noir rosé run (HF-24-001). Full circuit rinse confirmed.'),
+        (${FARM_ID}, ${mMap['FILLER-01']}, '2024-09-27', 'pre-run',  'Diversol BX', 2.00, 20, 40.0, true,  'J. Hartley', 'Pre-bottling CIP before Chardonnay run (HF-24-002). Flushed with RO water post-sanitise.'),
+        (${FARM_ID}, ${mMap['FILLER-01']}, '2024-10-07', 'post-run', 'Steri-7 Xtra', 1.50, 15, 25.0, true,  'S. Hartley', 'Post-run clean after Seyval Blanc bottling. All heads disassembled and soaked overnight.')
+    `);
+
+    // CIP records for LABEL-01
+    await db.execute(sql`
+      INSERT INTO winery_bottling_machine_cleans (farm_id, machine_id, clean_date, timing, chemical_used, concentration_pct, contact_time_mins, temperature_c, rinse_confirmed, operator_name, notes)
+      VALUES
+        (${FARM_ID}, ${mMap['LABEL-01']}, '2024-09-25', 'pre-run', 'IPA 70%',     70.00, 5,  20.0, true, 'J. Hartley', 'Wipe-down of label applicator rollers and glue heads before rosé run.'),
+        (${FARM_ID}, ${mMap['LABEL-01']}, '2024-09-27', 'pre-run', 'IPA 70%',     70.00, 5,  20.0, true, 'J. Hartley', 'Pre-run wipe-down before Chardonnay labelling run.')
+    `);
+    console.log("[VITICULTURE-SEED] ✓ 2 bottling machines + 5 CIP records created");
+
     await db.execute(sql`COMMIT`);
     console.log("[VITICULTURE-SEED] ✅ Viticulture demo data seeded successfully for Highfield Farm.");
     console.log("[VITICULTURE-SEED]    4 blocks · 4 plantings · 4 vine register entries · 10 phenology records");

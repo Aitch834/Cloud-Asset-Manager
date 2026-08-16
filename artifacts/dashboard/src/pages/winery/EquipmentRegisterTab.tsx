@@ -6,7 +6,7 @@ import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottli
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown, Factory, Droplets } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,6 +96,307 @@ export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equip
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+const BOTTLING_MACHINE_TYPES = ["filler", "capper", "labeller", "bag-in-box", "sparkling-line", "other"];
+const CIP_TIMING_OPTIONS = ["pre-run", "post-run", "routine"];
+
+function CipForm({ form, sf, machineId, isEdit = false }: { form: Record<string, string | boolean>; sf: (k: string, v: string | boolean) => void; machineId: number; isEdit?: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div><Label className="text-xs">Clean Date *</Label><Input type="date" max={today} value={String(form.cleanDate ?? "")} onChange={e => sf("cleanDate", e.target.value)} className="h-8 text-xs" /></div>
+        <div><Label className="text-xs">Timing</Label>
+          <Select value={String(form.timing ?? "pre-run")} onValueChange={v => sf("timing", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{CIP_TIMING_OPTIONS.map(o => <SelectItem key={o} value={o} className="text-xs">{o.charAt(0).toUpperCase() + o.slice(1)}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div><Label className="text-xs">Chemical Used</Label><Input value={String(form.chemicalUsed ?? "")} onChange={e => sf("chemicalUsed", e.target.value)} className="h-8 text-xs" placeholder="e.g. Diversol BX, IPA 70%" /></div>
+        <div><Label className="text-xs">Concentration (%)</Label><Input type="number" step="0.1" min="0" value={String(form.concentrationPct ?? "")} onChange={e => sf("concentrationPct", e.target.value)} className="h-8 text-xs" /></div>
+        <div><Label className="text-xs">Contact Time (mins)</Label><Input type="number" step="1" min="0" value={String(form.contactTimeMins ?? "")} onChange={e => sf("contactTimeMins", e.target.value)} className="h-8 text-xs" /></div>
+        <div><Label className="text-xs">Temperature (°C)</Label><Input type="number" step="0.5" value={String(form.temperatureC ?? "")} onChange={e => sf("temperatureC", e.target.value)} className="h-8 text-xs" /></div>
+        <div><Label className="text-xs">Operator</Label><Input value={String(form.operatorName ?? "")} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
+        <div className="flex items-center gap-2 pt-5">
+          <Checkbox id={`rinse-${machineId}-${isEdit ? "edit" : "add"}`} checked={!!form.rinseConfirmed} onCheckedChange={v => sf("rinseConfirmed", !!v)} />
+          <Label htmlFor={`rinse-${machineId}-${isEdit ? "edit" : "add"}`} className="text-xs cursor-pointer">Rinse confirmed</Label>
+        </div>
+      </div>
+      <div><Label className="text-xs">Notes</Label><Input value={String(form.notes ?? "")} onChange={e => sf("notes", e.target.value)} className="h-8 text-xs" placeholder="Optional" /></div>
+    </div>
+  );
+}
+
+export function CipRows({ farmId, machineId }: { farmId: number; machineId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-bottling-machine-cleans", farmId, machineId],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!machineId && viticultureActive,
+  });
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState<Record<string, string | boolean>>({ cleanDate: today, timing: "pre-run", rinseConfirmed: true });
+  const sfa = (k: string, v: string | boolean) => setAddForm(f => ({ ...f, [k]: v }));
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string | boolean>>({});
+  const sfe = (k: string, v: string | boolean) => setEditForm(f => ({ ...f, [k]: v }));
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["winery-bottling-machine-cleans", farmId, machineId] });
+    qc.invalidateQueries({ queryKey: ["winery-bottling-machines", farmId] });
+  };
+
+  const addMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(addForm) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+    },
+    onSuccess: () => { invalidate(); setShowAdd(false); setAddForm({ cleanDate: today, timing: "pre-run", rinseConfirmed: true }); toast({ title: "CIP record logged" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+  const editMut = useMutation({
+    mutationFn: async (cleanId: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans/${cleanId}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(editForm) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
+    },
+    onSuccess: () => { invalidate(); setEditingId(null); toast({ title: "CIP record updated" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+  const delMut = useMutation({
+    mutationFn: async (cleanId: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Delete failed"); }
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+
+  const startEdit = (c: Record<string, unknown>) => {
+    setEditingId(Number(c.id));
+    setEditForm({
+      cleanDate: String(c.clean_date ?? ""),
+      timing: String(c.timing ?? "pre-run"),
+      chemicalUsed: String(c.chemical_used ?? ""),
+      concentrationPct: String(c.concentration_pct ?? ""),
+      contactTimeMins: String(c.contact_time_mins ?? ""),
+      temperatureC: String(c.temperature_c ?? ""),
+      rinseConfirmed: !!c.rinse_confirmed,
+      operatorName: String(c.operator_name ?? ""),
+      notes: String(c.notes ?? ""),
+    });
+  };
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Droplets className="w-3 h-3" />CIP / Cleaning Log</p>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(s => !s); setEditingId(null); }}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>
+      </div>
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20">
+          <CipForm form={addForm} sf={sfa} machineId={machineId} />
+          <div className="flex gap-2 mt-3">
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!addForm.cleanDate || addMut.isPending}>{addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" />
+        : isError ? <QueryErrorNotice label="CIP records" error={error} />
+        : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No CIP records yet.</p>
+        : (
+        <div className="space-y-1">
+          {(data ?? []).map(c => editingId === Number(c.id) ? (
+            <div key={String(c.id)} className="border rounded-lg p-3 bg-muted/20">
+              <CipForm form={editForm} sf={sfe} machineId={machineId} isEdit />
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" className="h-7 text-xs" onClick={() => editMut.mutate(Number(c.id))} disabled={!editForm.cleanDate || editMut.isPending}>{editMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save</Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingId(null)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <div key={String(c.id)} className="flex items-center justify-between text-xs border rounded px-3 py-1.5 gap-2 flex-wrap">
+              <span className="font-medium whitespace-nowrap">{fmtDate(c.clean_date)}</span>
+              <span className="text-muted-foreground capitalize">{fmt(c.timing)}</span>
+              {!!c.chemical_used && <span>{fmt(c.chemical_used)}{c.concentration_pct ? ` @ ${c.concentration_pct}%` : ""}</span>}
+              {!!c.contact_time_mins && <span className="text-muted-foreground">{String(c.contact_time_mins)} min</span>}
+              {!!c.temperature_c && <span className="text-muted-foreground">{String(c.temperature_c)}°C</span>}
+              {c.rinse_confirmed ? <span className="text-green-700 font-medium">✓ Rinsed</span> : <span className="text-amber-700">Rinse unconfirmed</span>}
+              {!!c.operator_name && <span className="text-muted-foreground">{fmt(c.operator_name)}</span>}
+              <div className="flex gap-0.5 shrink-0">
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEdit(c)}><Pencil className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BottlingMachinesSection({ farmId }: { farmId: number }) {
+  const farmName = useFarmName(farmId);
+  const crud = useWineryCrud(farmId, "winery-bottling-machines", "winery-bottling-machines");
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [form, setForm] = useState<Record<string, string>>({});
+  const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const now = new Date();
+  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const openAdd = () => { setEditing(null); setForm({}); setOpen(true); };
+  const openEdit = (r: Record<string, unknown>) => {
+    setEditing(r.id as number);
+    setForm({
+      machineRef: String(r.machine_ref ?? ""),
+      machineType: String(r.machine_type ?? ""),
+      manufacturer: String(r.manufacturer ?? ""),
+      model: String(r.model ?? ""),
+      serialNumber: String(r.serial_number ?? ""),
+      commissionedDate: String(r.commissioned_date ?? ""),
+      notes: String(r.notes ?? ""),
+    });
+    setOpen(true);
+  };
+  const save = async () => {
+    try {
+      if (editing !== null) await crud.edit.mutateAsync({ id: editing, ...form } as Record<string, unknown> & { id: number });
+      else await crud.add.mutateAsync(form);
+      toast({ title: "Saved" }); setOpen(false);
+    } catch (err) { toast({ title: "Save failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); }
+  };
+
+  const cleanStatus = (r: Record<string, unknown>) => {
+    if (!r.last_clean_date) return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">Never cleaned</span>;
+    const d = new Date(r.last_clean_date as string);
+    if (d < sevenDaysAgo) return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">Clean overdue</span>;
+    return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Recently cleaned</span>;
+  };
+
+  const overdueClean = crud.data.filter(m => {
+    if (!m.last_clean_date) return true;
+    return new Date(m.last_clean_date as string) < sevenDaysAgo;
+  });
+
+  const machineCsvCols = [
+    { key: "machine_ref", label: "Machine Ref" },
+    { key: "machine_type", label: "Type" },
+    { key: "manufacturer", label: "Manufacturer" },
+    { key: "model", label: "Model" },
+    { key: "serial_number", label: "Serial Number" },
+    { key: "commissioned_date", label: "Commissioned", fmt: (r: Record<string, unknown>) => fmtDate(r.commissioned_date) },
+    { key: "last_clean_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_clean_date) },
+    { key: "notes", label: "Notes" },
+  ];
+
+  return (
+    <div className="space-y-4 pt-6 border-t mt-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-sm flex items-center gap-1.5"><Factory className="w-4 h-4" />Bottling Machine Register</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Register bottling lines with a CIP / cleaning log for each run. Required for hygiene scheme compliance and organic certification traceability.</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "bottling-machines.csv", machineCsvCols, [
+            csvComment(`Bottling Machine Register — ${farmName}`),
+          ])} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Machine</Button>
+        </div>
+      </div>
+
+      {overdueClean.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-amber-800 text-sm">CIP overdue: {overdueClean.map(m => String(m.machine_ref)).join(", ")}</p>
+            <p className="text-xs text-amber-700 mt-0.5">Machines not cleaned in the last 7 days should be CIP'd before the next bottling run.</p>
+          </div>
+        </div>
+      )}
+
+      {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        : crud.isError ? <QueryErrorNotice label="bottling machines" error={crud.error} />
+        : crud.data.length === 0 ? <EmptyState icon={Factory} title="No bottling machines registered" sub="Add your bottling line(s) to track CIP cleaning records before each run." />
+        : (
+        <div className="space-y-2">
+          {crud.data.map(r => {
+            const isExpanded = expanded.has(r.id as number);
+            return (
+              <div key={String(r.id)} className="border rounded-lg overflow-hidden">
+                <div className="flex items-center gap-3 p-3 bg-muted/20 hover:bg-muted/30">
+                  <button className="flex items-center gap-1 text-muted-foreground shrink-0" onClick={() => setExpanded(s => { const n = new Set(s); isExpanded ? n.delete(r.id as number) : n.add(r.id as number); return n; })}>
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                  <span className="font-mono font-semibold text-sm flex-shrink-0">{fmt(r.machine_ref)}</span>
+                  {!!r.machine_type && <span className="text-xs text-muted-foreground capitalize">{String(r.machine_type).replace(/-/g, " ")}</span>}
+                  <span className="text-xs text-muted-foreground hidden sm:block">{[r.manufacturer, r.model].filter(Boolean).map(String).join(" ")}</span>
+                  <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap hidden sm:block">{r.last_clean_date ? `Last cleaned ${fmtDate(r.last_clean_date)}` : "Never cleaned"}</span>
+                  <div className="shrink-0">{cleanStatus(r)}</div>
+                  <div className="flex gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1">
+                    {!!r.notes && <p className="text-xs text-muted-foreground mb-3">{String(r.notes)}</p>}
+                    <CipRows farmId={farmId} machineId={r.id as number} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={o => !o && setOpen(false)}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editing !== null ? "Edit" : "Register"} Bottling Machine</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Machine Reference *</Label><Input value={form.machineRef ?? ""} onChange={e => sf("machineRef", e.target.value)} placeholder="e.g. FILLER-01, LINE-A" /></div>
+              <div>
+                <Label>Machine Type</Label>
+                <Select value={form.machineType ?? ""} onValueChange={v => sf("machineType", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>{BOTTLING_MACHINE_TYPES.map(o => <SelectItem key={o} value={o} className="capitalize">{o.replace(/-/g, " ")}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Manufacturer</Label><Input value={form.manufacturer ?? ""} onChange={e => sf("manufacturer", e.target.value)} placeholder="e.g. Enos, PE Labellers" /></div>
+              <div><Label>Model</Label><Input value={form.model ?? ""} onChange={e => sf("model", e.target.value)} /></div>
+              <div><Label>Serial Number</Label><Input value={form.serialNumber ?? ""} onChange={e => sf("serialNumber", e.target.value)} /></div>
+              <div><Label>Commissioned Date</Label><Input type="date" max={today} value={form.commissionedDate ?? ""} onChange={e => sf("commissionedDate", e.target.value)} /></div>
+            </div>
+            <div><Label>Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={2} placeholder="Speed, configuration, special notes…" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={save} disabled={!form.machineRef || crud.add.isPending || crud.edit.isPending}>
+              {(crud.add.isPending || crud.edit.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Machine</DialogTitle><DialogDescription>Remove {fmt(deleting?.machine_ref)} and all its CIP records?</DialogDescription></DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -304,6 +605,8 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BottlingMachinesSection farmId={farmId} />
     </div>
   );
 }

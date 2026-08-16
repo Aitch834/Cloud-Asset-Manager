@@ -288,5 +288,42 @@ export async function runWineryMigrations(): Promise<void> {
   await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS disposal_notes     text`);
   await db.execute(sql`ALTER TABLE winery_reception_records ADD COLUMN IF NOT EXISTS disposal_date      date`);
 
+  // ─── Bottling Machine Register ────────────────────────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_bottling_machines (
+      id                SERIAL PRIMARY KEY,
+      farm_id           INTEGER NOT NULL REFERENCES farms(id),
+      machine_ref       TEXT NOT NULL,
+      machine_type      TEXT,
+      manufacturer      TEXT,
+      model             TEXT,
+      serial_number     TEXT,
+      commissioned_date DATE,
+      notes             TEXT,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_bottling_machines_farm_idx ON winery_bottling_machines(farm_id)`);
+
+  // ─── Bottling Machine CIP / Cleaning Log ─────────────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_bottling_machine_cleans (
+      id                  SERIAL PRIMARY KEY,
+      farm_id             INTEGER NOT NULL REFERENCES farms(id),
+      machine_id          INTEGER NOT NULL REFERENCES winery_bottling_machines(id) ON DELETE CASCADE,
+      clean_date          DATE NOT NULL,
+      timing              TEXT,
+      chemical_used       TEXT,
+      concentration_pct   NUMERIC(6,2),
+      contact_time_mins   INTEGER,
+      temperature_c       NUMERIC(5,1),
+      rinse_confirmed     BOOLEAN,
+      operator_name       TEXT,
+      notes               TEXT,
+      created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_bottling_machine_cleans_machine_idx ON winery_bottling_machine_cleans(machine_id)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

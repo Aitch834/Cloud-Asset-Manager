@@ -806,3 +806,34 @@ export const wineryBottlingRecordsTable = pgTable("winery_bottling_records", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Winery Bottling Machines ──────────────────────────────────────────────────
+export const wineryBottlingMachinesTable = pgTable("winery_bottling_machines", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  machineRef: text("machine_ref").notNull(),
+  machineType: text("machine_type"), // filler | capper | labeller | bag-in-box | sparkling-line | other
+  manufacturer: text("manufacturer"),
+  model: text("model"),
+  serialNumber: text("serial_number"),
+  commissionedDate: date("commissioned_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ─── Winery Bottling Machine CIP / Cleaning Log ────────────────────────────────
+export const wineryBottlingMachineCleansTable = pgTable("winery_bottling_machine_cleans", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  machineId: integer("machine_id").notNull().references(() => wineryBottlingMachinesTable.id, { onDelete: "cascade" }),
+  cleanDate: date("clean_date").notNull(),
+  timing: text("timing"), // pre-run | post-run | routine
+  chemicalUsed: text("chemical_used"),
+  concentrationPct: numeric("concentration_pct", { precision: 6, scale: 2 }),
+  contactTimeMins: integer("contact_time_mins"),
+  temperatureC: numeric("temperature_c", { precision: 5, scale: 1 }),
+  rinseConfirmed: boolean("rinse_confirmed"),
+  operatorName: text("operator_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
