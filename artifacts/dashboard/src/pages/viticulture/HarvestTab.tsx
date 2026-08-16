@@ -106,6 +106,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-harvest", filter: "print-block", farmId, defaultValue: "__all__" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -222,6 +223,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
     return rows;
   }, [data, yearFilter, blockFilter, searchText, blocks]);
+
+  const printRows = useMemo(() => {
+    let rows = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
+    if (printBlockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === printBlockFilter);
+    return rows;
+  }, [data, yearFilter, printBlockFilter]);
 
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
@@ -1040,7 +1047,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || filteredHarvest.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); } }} disabled={!filteredHarvest.length}><Printer className="w-4 h-4 mr-1" />Print{searchText.trim() ? ` (${filteredHarvest.length})` : ""}</Button>
+          <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
+            <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Print: all blocks</SelectItem>
+              {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(printRows, farmName, farmId, blocks, farmMeta); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
@@ -2089,7 +2103,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       {/* Print pre-flight confirm */}
       {(() => {
-        const unlinkedInView = filteredHarvest.filter(r => !r.blockId);
+        const unlinkedInPrint = printRows.filter(r => !r.blockId);
         return (
           <Dialog open={printConfirmOpen} onOpenChange={o => { if (!o) setPrintConfirmOpen(false); }}>
             <DialogContent className="max-w-sm">
@@ -2102,13 +2116,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 ) : (
                   <DialogTitle className="flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                    {unlinkedInView.length} {unlinkedInView.length === 1 ? "record isn't" : "records aren't"} linked to a block
+                    {unlinkedInPrint.length} {unlinkedInPrint.length === 1 ? "record isn't" : "records aren't"} linked to a block
                   </DialogTitle>
                 )}
                 <DialogDescription>
                   {isSbiInvalid
                     ? "The SBI Number saved in Farm Settings must be exactly 9 digits before printing. Correct it in Farm Settings, then try again."
-                    : `${unlinkedInView.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link ${unlinkedInView.length === 1 ? "it" : "them"} first, or print anyway.`}
+                    : `${unlinkedInPrint.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link ${unlinkedInPrint.length === 1 ? "it" : "them"} first, or print anyway.`}
                 </DialogDescription>
               </DialogHeader>
               {isSbiInvalid && (
@@ -2128,7 +2142,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   {isSbiInvalid ? "Close" : "Cancel"}
                 </Button>
                 {!isSbiInvalid && (
-                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(filteredHarvest, farmName, farmId, blocks, farmMeta); }}>
+                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(printRows, farmName, farmId, blocks, farmMeta); }}>
                     <Printer className="w-4 h-4 mr-1" />Print anyway
                   </Button>
                 )}
