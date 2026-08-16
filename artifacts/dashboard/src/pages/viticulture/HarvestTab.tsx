@@ -81,6 +81,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [summarySortDir, setSummarySortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "summarySortDir", farmId, defaultValue: "asc", validValues: ["asc", "desc"] as const });
   const summarySort = { col: summarySortCol, dir: summarySortDir as "asc" | "desc" };
   const setSummarySort = (v: { col: string; dir: "asc" | "desc" }) => { setSummarySortCol(v.col); setSummarySortDir(v.dir); };
+  const [vintageSummarySortCol, setVintageSummarySortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "vintageSummarySortCol", farmId, defaultValue: "vintage" });
+  const [vintageSummarySortDir, setVintageSummarySortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "vintageSummarySortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
+  const vintageSort = { col: vintageSummarySortCol, dir: vintageSummarySortDir as "asc" | "desc" };
+  const setVintageSort = (v: { col: string; dir: "asc" | "desc" }) => { setVintageSummarySortCol(v.col); setVintageSummarySortDir(v.dir); };
   const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -1235,8 +1239,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             if (!vintageMap[key]) { vintageMap[key] = []; vintageOrder.push(key); }
             vintageMap[key].push(r);
           }
-          // Sort descending (most recent first)
-          vintageOrder.sort((a, b) => Number(b) - Number(a));
+          // Build unsorted rows first, then apply user sort
           const vintageRows = vintageOrder.map(key => {
             const grp = vintageMap[key];
             const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -1259,6 +1262,31 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             }
             const derivedTha = vintageAreaHa > 0 && totalYieldKg > 0 ? totalYieldKg / 1000 / vintageAreaHa : null;
             return { vintage: key, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
+          });
+          const toggleVintageSort = (col: string) => setVintageSort(
+            vintageSort.col === col
+              ? { col, dir: vintageSort.dir === "asc" ? "desc" : "asc" }
+              : { col, dir: col === "vintage" ? "desc" : "desc" }
+          );
+          const VintageSortIcon = ({ col }: { col: string }) => {
+            if (vintageSort.col !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />;
+            return vintageSort.dir === "asc"
+              ? <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
+              : <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />;
+          };
+          const sortedVintageRows = [...vintageRows].sort((a, b) => {
+            const d = vintageSort.dir === "asc" ? 1 : -1;
+            switch (vintageSort.col) {
+              case "vintage":      return d * a.vintage.localeCompare(b.vintage);
+              case "picks":        return d * (a.picks - b.picks);
+              case "totalYieldKg": return d * (a.totalYieldKg - b.totalYieldKg);
+              case "derivedTha":   return d * ((a.derivedTha ?? (d > 0 ? Infinity : -Infinity)) - (b.derivedTha ?? (d > 0 ? Infinity : -Infinity)));
+              case "avgBrix":      return d * ((a.avgBrix ?? (d > 0 ? Infinity : -Infinity)) - (b.avgBrix ?? (d > 0 ? Infinity : -Infinity)));
+              case "avgPh":        return d * ((a.avgPh ?? (d > 0 ? Infinity : -Infinity)) - (b.avgPh ?? (d > 0 ? Infinity : -Infinity)));
+              case "avgTa":        return d * ((a.avgTa ?? (d > 0 ? Infinity : -Infinity)) - (b.avgTa ?? (d > 0 ? Infinity : -Infinity)));
+              case "avgPa":        return d * ((a.avgPa ?? (d > 0 ? Infinity : -Infinity)) - (b.avgPa ?? (d > 0 ? Infinity : -Infinity)));
+              default:             return 0;
+            }
           });
           const vFooterTotalKg = vintageRows.reduce((s, r) => s + r.totalYieldKg, 0);
           const vFooterTotalPicks = vintageRows.reduce((s, r) => s + r.picks, 0);
@@ -1297,18 +1325,33 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                        <th className="text-left px-4 py-2 font-medium">Vintage</th>
-                        <th className="text-right px-3 py-2 font-medium">Picks</th>
-                        <th className="text-right px-3 py-2 font-medium">Total Yield (kg)</th>
-                        <th className="text-right px-3 py-2 font-medium">Avg t/ha</th>
-                        <th className="text-right px-3 py-2 font-medium">Avg Brix °</th>
-                        <th className="text-right px-3 py-2 font-medium">Avg pH</th>
-                        <th className="text-right px-3 py-2 font-medium">Avg TA (g/L)</th>
-                        <th className="text-right px-3 py-2 font-medium">Avg Pot. Alc %</th>
+                        {([
+                          { col: "vintage",      label: "Vintage",          align: "left"  },
+                          { col: "picks",        label: "Picks",            align: "right" },
+                          { col: "totalYieldKg", label: "Total Yield (kg)", align: "right" },
+                          { col: "derivedTha",   label: "Avg t/ha",         align: "right" },
+                          { col: "avgBrix",      label: "Avg Brix °",       align: "right" },
+                          { col: "avgPh",        label: "Avg pH",           align: "right" },
+                          { col: "avgTa",        label: "Avg TA (g/L)",     align: "right" },
+                          { col: "avgPa",        label: "Avg Pot. Alc %",   align: "right" },
+                        ] as { col: string; label: string; align: "left" | "right" }[]).map(({ col, label, align }) => (
+                          <th
+                            key={col}
+                            className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleVintageSort(col)}
+                              className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${vintageSort.col === col ? "text-foreground" : ""}`}
+                            >
+                              {label}<VintageSortIcon col={col} />
+                            </button>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {vintageRows.map((row, i) => (
+                      {sortedVintageRows.map((row, i) => (
                         <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                           <td className="px-4 py-2 font-medium">{row.vintage}</td>
                           <td className="text-right px-3 py-2 tabular-nums">
