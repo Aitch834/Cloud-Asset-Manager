@@ -1347,6 +1347,22 @@ export default function AdPdfGenerator() {
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
+          {brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable) && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
+                  ? "Logo and QR code are missing"
+                  : !brandAssetStatus.logoResolvable
+                  ? "Logo is missing"
+                  : "QR code is missing"}{" "}
+                — the rendered output will show blank placeholders.{" "}
+                <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+                  Upload {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "them" : "it"} below ↓
+                </a>
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
