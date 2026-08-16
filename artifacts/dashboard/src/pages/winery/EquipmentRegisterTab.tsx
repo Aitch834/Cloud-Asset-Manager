@@ -246,7 +246,11 @@ export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
                   <SelectContent>{CALIBRATION_FREQ_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Last Calibration Date</Label><Input type="date" max={today} value={form.lastCalibrationDate ?? ""} onChange={e => sf("lastCalibrationDate", e.target.value)} /></div>
+              <div>
+                <Label>Last Calibration Date</Label>
+                <Input type="date" max={today} value={form.lastCalibrationDate ?? ""} onChange={e => sf("lastCalibrationDate", e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">Seed from paper records when first registering. Subsequent calibrations are logged below in the Calibration Log.</p>
+              </div>
               <div><Label>Next Calibration Due</Label><Input type="date" value={form.nextCalibrationDue ?? ""} onChange={e => sf("nextCalibrationDue", e.target.value)} /></div>
               <div>
                 <Label>Status</Label>

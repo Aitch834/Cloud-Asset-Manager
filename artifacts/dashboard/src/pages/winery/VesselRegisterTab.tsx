@@ -131,8 +131,23 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
             <div><Label className="text-xs">Variety</Label><Input value={form.variety ?? ""} onChange={e => sf("variety", e.target.value)} className="h-8 text-xs" placeholder="e.g. Chardonnay" /></div>
             <div><Label className="text-xs">Volume (L)</Label><Input type="number" step="0.5" value={form.volumeLitres ?? ""} onChange={e => sf("volumeLitres", e.target.value)} className="h-8 text-xs" /></div>
             <div><Label className="text-xs">Batch Ref</Label><Input value={form.batchRef ?? ""} onChange={e => sf("batchRef", e.target.value)} className="h-8 text-xs" placeholder="e.g. WB-2024-01" /></div>
-            <div><Label className="text-xs">Fill Date (wine in)</Label><Input type="date" value={form.fillDate ?? ""} onChange={e => sf("fillDate", e.target.value)} className="h-8 text-xs" /></div>
-            <div><Label className="text-xs">Rack-out Date (wine out)</Label><Input type="date" value={form.rackOutDate ?? ""} onChange={e => sf("rackOutDate", e.target.value)} className="h-8 text-xs" /></div>
+            <div>
+              <Label className="text-xs">Fill Date (wine in)</Label>
+              <Input type="date" value={form.fillDate ?? ""} onChange={e => sf("fillDate", e.target.value)} className="h-8 text-xs" />
+            </div>
+            {editingFill !== null ? (
+              <div>
+                <Label className="text-xs">Rack-out Date (wine out)</Label>
+                <Input type="date" value={form.rackOutDate ?? ""} onChange={e => sf("rackOutDate", e.target.value)} className="h-8 text-xs" />
+                <p className="text-xs text-muted-foreground mt-0.5">Update this when the wine leaves the barrel.</p>
+              </div>
+            ) : (
+              <div className="flex items-end pb-1">
+                <p className="text-xs text-muted-foreground italic border border-dashed border-muted-foreground/30 rounded px-2 py-1.5 w-full leading-snug">
+                  Rack-out Date — edit this record when the wine is racked out.
+                </p>
+              </div>
+            )}
             <div><Label className="text-xs">Operator</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
           </div>
           <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>

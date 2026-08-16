@@ -1756,6 +1756,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
               </Button>
             </div>
             <SectionLabel>Settling</SectionLabel>
+            <p className="text-xs text-muted-foreground -mt-2">Settling is set up immediately after pressing — record the method and target vessel at the same time as the press session. Update the duration once settling is complete.</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Settling Method</Label>
