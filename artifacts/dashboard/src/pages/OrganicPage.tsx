@@ -1212,13 +1212,44 @@ function SupplierCombobox({ suppliers, value, valueId, onChange }: {
   );
 }
 
+type DerogationStatusFilter = "active" | "expired" | "pending" | "all";
+
+function derogationStatus(r: OrganicInput): "active" | "expired" | "pending" {
+  const currentYear = new Date().getFullYear();
+  const year = r.cropYear ?? (r.dateOfUse ? new Date(r.dateOfUse).getFullYear() : null);
+  if (year !== null && year < currentYear) return "expired";
+  if (r.certifierApprovalRef && r.certifierApprovalRef.trim() !== "") return "active";
+  return "pending";
+}
+
+const DEROGATION_FILTER_LABELS: Record<DerogationStatusFilter, string> = {
+  active: "Active",
+  expired: "Expired",
+  pending: "Pending",
+  all: "All",
+};
+
 function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
+  const [statusFilterRaw, setStatusFilter] = usePersistedFilter({
+    page: "organic-restricted-inputs",
+    filter: "derogation-status",
+    farmId,
+    defaultValue: "active",
+  });
+  const statusFilter = statusFilterRaw as DerogationStatusFilter;
+
   const { data, isLoading } = useQuery<{ records: OrganicInput[] }>({
     queryKey: ["organic-inputs", farmId, "all"],
     queryFn: () => fetch(`/api/farms/${farmId}/organic/inputs`).then(r => r.json()),
   });
   const allRecords = data?.records ?? [];
-  const records = allRecords.filter(r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation");
+  const restrictedRecords = allRecords.filter(r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation");
+  const records = useMemo(
+    () => statusFilter === "all"
+      ? restrictedRecords
+      : restrictedRecords.filter(r => derogationStatus(r) === statusFilter),
+    [restrictedRecords, statusFilter]
+  );
 
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
 
@@ -1232,19 +1263,59 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
         <p className="text-amber-800">This view shows all inputs from the <strong>Input Register</strong> that have Restricted or Derogation status — for easy inspection and printing. To add or edit a restricted input, use the <strong>Input Register</strong> tab and set the approval status accordingly.</p>
       </div>
 
-      {records.length > 0 && (
-        <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-foreground/60 shrink-0">Derogation status:</span>
+          <div className="flex gap-1">
+            {(["active", "pending", "expired", "all"] as DerogationStatusFilter[]).map(f => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                  statusFilter === f
+                    ? f === "active" ? "bg-green-600 text-white border-green-600"
+                      : f === "expired" ? "bg-gray-500 text-white border-gray-500"
+                      : f === "pending" ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-foreground text-background border-foreground"
+                    : "bg-transparent text-foreground/70 border-border hover:bg-muted"
+                }`}
+              >
+                {DEROGATION_FILTER_LABELS[f]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {records.length > 0 && (
           <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
             <Printer className="w-4 h-4" />Print Restricted Inputs Log
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {records.length === 0 ? (
         <Card className="p-8 text-center">
           <FlaskConical className="w-10 h-10 mx-auto mb-3 text-amber-500 opacity-50" />
-          <p className="font-semibold mb-1">No restricted or derogation inputs recorded</p>
-          <p className="text-sm text-foreground/60">When you add an input in the Input Register with Restricted or Derogation status, it will appear here for audit review.</p>
+          {statusFilter === "all" ? (
+            <>
+              <p className="font-semibold mb-1">No restricted or derogation inputs recorded</p>
+              <p className="text-sm text-foreground/60">When you add an input in the Input Register with Restricted or Derogation status, it will appear here for audit review.</p>
+            </>
+          ) : statusFilter === "active" ? (
+            <>
+              <p className="font-semibold mb-1">No active derogations this season</p>
+              <p className="text-sm text-foreground/60">Active derogations are inputs with a certifier approval reference logged for the current crop year. Switch to <strong>All</strong> to see every record.</p>
+            </>
+          ) : statusFilter === "pending" ? (
+            <>
+              <p className="font-semibold mb-1">No pending derogations</p>
+              <p className="text-sm text-foreground/60">Pending derogations are restricted inputs awaiting a certifier approval reference. Switch to <strong>All</strong> to see every record.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold mb-1">No expired derogations</p>
+              <p className="text-sm text-foreground/60">Expired derogations are inputs recorded in a previous crop year. Switch to <strong>All</strong> to see every record.</p>
+            </>
+          )}
         </Card>
       ) : (
         <div className="space-y-3">
