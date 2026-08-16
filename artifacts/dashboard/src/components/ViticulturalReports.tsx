@@ -1670,10 +1670,28 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 // ─── Enterprise Report ────────────────────────────────────────────────────────
 const ENT_PRINT_ID = "viticulture-enterprise-report-print";
 function ensureEntPrintStyle() {
-  if (document.getElementById(ENT_PRINT_ID + "-css")) return;
+  // v2 — fixed→absolute so content flows across multiple pages
+  if (document.getElementById(ENT_PRINT_ID + "-css-v2")) return;
+  const old = document.getElementById(ENT_PRINT_ID + "-css");
+  if (old) old.remove();
   const s = document.createElement("style");
-  s.id = ENT_PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{visibility:hidden!important}#${ENT_PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:24px!important}#${ENT_PRINT_ID} *{visibility:visible!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
+  s.id = ENT_PRINT_ID + "-css-v2";
+  s.textContent = [
+    `@page{size:A4 portrait;margin:1.5cm}`,
+    `@media print{`,
+    `html,body{overflow:visible!important;height:auto!important;margin:0!important}`,
+    `body>*{visibility:hidden!important}`,
+    `#${ENT_PRINT_ID}{`,
+    `visibility:visible!important;display:block!important;`,
+    `position:absolute!important;top:0!important;left:0!important;width:100%!important;`,
+    `overflow:visible!important;background:#fff!important;`,
+    `z-index:99999!important;padding:24px!important;box-sizing:border-box!important}`,
+    `#${ENT_PRINT_ID} *{visibility:visible!important}`,
+    `.no-print{display:none!important;visibility:hidden!important}`,
+    `table{page-break-inside:auto;border-collapse:collapse}`,
+    `tr{page-break-inside:avoid;break-inside:avoid}`,
+    `}`,
+  ].join("");
   document.head.appendChild(s);
 }
 
