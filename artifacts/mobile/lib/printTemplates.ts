@@ -805,6 +805,8 @@ export function vineSprayDiaryHtml(
   farmAddress: string | null,
   farmPostcode: string | null,
   searchQuery?: string,
+  dateFrom?: string,
+  dateTo?: string,
 ): string {
   const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   // Escape all user-supplied strings before inserting into HTML
@@ -813,6 +815,21 @@ export function vineSprayDiaryHtml(
   const ePostcode = farmPostcode && farmPostcode.trim() ? escHtml(farmPostcode.trim()) : "";
   const addressParts = [eAddress, ePostcode].filter(Boolean).join(", ");
   const eSearch = searchQuery && searchQuery.trim() ? escHtml(searchQuery.trim()) : "";
+
+  // Format date range for display
+  const fmtDateRange = (d: string) => {
+    const parts = d.split("-");
+    if (parts.length !== 3) return escHtml(d);
+    const [y, m, day] = parts;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mIdx = parseInt(m, 10) - 1;
+    return `${day} ${months[mIdx] ?? m} ${y}`;
+  };
+  const hasDateRange = (dateFrom && dateFrom.trim()) || (dateTo && dateTo.trim());
+  const dateRangeParts: string[] = [];
+  if (dateFrom && dateFrom.trim()) dateRangeParts.push(`From: <strong>${fmtDateRange(dateFrom.trim())}</strong>`);
+  if (dateTo && dateTo.trim()) dateRangeParts.push(`To: <strong>${fmtDateRange(dateTo.trim())}</strong>`);
+  const dateRangeStr = dateRangeParts.join(" &nbsp;&middot;&nbsp; ");
 
   const header = `
     <div class="header">
@@ -832,6 +849,7 @@ export function vineSprayDiaryHtml(
         <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
       </div>
       ${addressParts ? `<div><span>Address: <strong>${addressParts}</strong></span></div>` : ""}
+      ${hasDateRange ? `<div style="margin-top:2px;"><span style="color:#1e3a5f;">&#128197; Date range: ${dateRangeStr}</span></div>` : ""}
     </div>`;
 
   // Build a clear, accurate list of which fields are missing

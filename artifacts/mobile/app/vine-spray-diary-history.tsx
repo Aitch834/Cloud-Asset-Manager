@@ -103,6 +103,23 @@ function formatDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/**
+ * Normalise a grower-typed date to YYYY-MM-DD.
+ * Accepts: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY.
+ * Returns null when the value is blank, still being typed (< 8 chars),
+ * or cannot be parsed.
+ */
+function canonicaliseDate(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  // Already ISO — YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmySlash = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/.exec(s);
+  if (dmySlash) return `${dmySlash[3]}-${dmySlash[2]}-${dmySlash[1]}`;
+  return null; // incomplete or unrecognised
+}
+
 // ─── Block name lookup ────────────────────────────────────────────────────────
 
 function useBlockName(blockId: number | null, blocks: VineBlock[]): string | null {
@@ -1085,6 +1102,8 @@ export default function VineSprayDiaryHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [editingRecord, setEditingRecord] = useState<SprayDiaryRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<SprayDiaryRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -1100,20 +1119,42 @@ export default function VineSprayDiaryHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
+  const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
+
+  // Validation flags — only flag once the user has finished typing a full date
+  const dateFromInvalid = dateFrom.trim().length >= 8 && canonFrom === null;
+  const dateToInvalid = dateTo.trim().length >= 8 && canonTo === null;
+  const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return displayRecords;
-    const q = search.toLowerCase();
-    return displayRecords.filter(r => {
-      const blockName = r.blockId ? blocks.find(b => b.id === r.blockId)?.blockName ?? "" : "";
-      return (
-        (r.productName ?? "").toLowerCase().includes(q) ||
-        blockName.toLowerCase().includes(q) ||
-        (r.operatorName ?? "").toLowerCase().includes(q) ||
-        (r.applicationDate ?? "").includes(q) ||
-        (r.productType ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [displayRecords, search, blocks]);
+    let result = displayRecords;
+
+    // Date range filter — only apply when canonical form is valid
+    if (canonFrom) {
+      result = result.filter(r => r.applicationDate && r.applicationDate >= canonFrom);
+    }
+    if (canonTo) {
+      result = result.filter(r => r.applicationDate && r.applicationDate <= canonTo);
+    }
+
+    // Text search filter
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(r => {
+        const blockName = r.blockId ? blocks.find(b => b.id === r.blockId)?.blockName ?? "" : "";
+        return (
+          (r.productName ?? "").toLowerCase().includes(q) ||
+          blockName.toLowerCase().includes(q) ||
+          (r.operatorName ?? "").toLowerCase().includes(q) ||
+          (r.applicationDate ?? "").includes(q) ||
+          (r.productType ?? "").toLowerCase().includes(q)
+        );
+      });
+    }
+
+    return result;
+  }, [displayRecords, search, canonFrom, canonTo, blocks]);
 
   const handleSaved = (recordId: number, updated: Partial<SprayDiaryRecord>) => {
     setLocalUpdates(prev => ({
@@ -1171,6 +1212,8 @@ export default function VineSprayDiaryHistoryScreen() {
         address,
         postcode,
         search.trim() || undefined,
+        canonFrom ?? undefined,
+        canonTo ?? undefined,
       );
       await savePdf(html, "Vine Spray Diary");
     } catch {
@@ -1215,6 +1258,62 @@ export default function VineSprayDiaryHistoryScreen() {
         />
       </View>
 
+      {/* Date range filter */}
+      <View style={styles.dateRangeRow}>
+        <Feather name="calendar" size={14} color={colors.textSecondary} />
+        <View style={styles.dateRangeInputs}>
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>From</Text>
+            <TextInput
+              style={[styles.dateInput, dateFromInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateFrom}
+              onChangeText={setDateFrom}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+          <View style={styles.dateRangeSep} />
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>To</Text>
+            <TextInput
+              style={[styles.dateInput, dateToInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateTo}
+              onChangeText={setDateTo}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+        </View>
+        {(dateFrom.trim() || dateTo.trim()) ? (
+          <Pressable
+            onPress={() => { setDateFrom(""); setDateTo(""); }}
+            hitSlop={10}
+            style={styles.dateRangeClear}
+          >
+            <Feather name="x-circle" size={16} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {(dateFromInvalid || dateToInvalid || dateRangeReversed) && (
+        <View style={styles.dateRangeError}>
+          <Feather name="alert-circle" size={13} color={colors.error} />
+          <Text style={styles.dateRangeErrorText}>
+            {dateRangeReversed
+              ? "'From' date must be before 'To' date."
+              : "Use DD/MM/YYYY or YYYY-MM-DD format."}
+          </Text>
+        </View>
+      )}
+
       {missingAddressFields.length > 0 && (
         <Pressable
           onPress={() => router.push("/(tabs)/more")}
@@ -1257,7 +1356,9 @@ export default function VineSprayDiaryHistoryScreen() {
               <Feather name="droplet" size={32} color={colors.textSecondary} />
               <Text style={styles.emptyTitle}>No spray diary entries</Text>
               <Text style={styles.emptyText}>
-                {search.trim() ? "No entries match your search." : "Spray diary entries you create will appear here."}
+                {search.trim() || dateFrom.trim() || dateTo.trim()
+                  ? "No entries match the current filters."
+                  : "Spray diary entries you create will appear here."}
               </Text>
             </View>
           }
@@ -1512,6 +1613,70 @@ const styles = StyleSheet.create({
   },
   addressWarningBold: {
     fontFamily: fonts.semiBold,
+  },
+  dateRangeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateRangeInputs: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  dateRangeField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  dateRangeLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    width: 26,
+  },
+  dateInput: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    paddingVertical: 4,
+  },
+  dateRangeSep: {
+    width: 1,
+    height: 18,
+    backgroundColor: colors.border,
+    marginHorizontal: 2,
+  },
+  dateRangeClear: {
+    paddingLeft: spacing.xs,
+  },
+  dateInputError: {
+    color: colors.error,
+  },
+  dateRangeError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  dateRangeErrorText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
   },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
   blockTag: {
