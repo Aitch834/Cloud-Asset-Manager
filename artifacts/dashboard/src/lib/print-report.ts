@@ -5,6 +5,7 @@ export interface ProReportOptions {
   subtitle?: string;
   farmName?: string;
   farmAddress?: string;
+  contactPhone?: string;
   cphNumber?: string;
   sbiNumber?: string;
   redTractorId?: string;
@@ -57,6 +58,7 @@ export function buildProReport(opts: ProReportOptions): string {
     <h1>${opts.title}</h1>
     ${opts.farmName ? `<p><strong>${opts.farmName}</strong>${idMeta ? `  ·  ${idMeta}` : ""}</p>` : ""}
     ${opts.farmAddress ? `<p style="color:#555">${opts.farmAddress}</p>` : ""}
+    ${opts.contactPhone ? `<p style="color:#555">Tel: ${opts.contactPhone}</p>` : ""}
     ${opts.subtitle ? `<p style="color:#444">${opts.subtitle}</p>` : ""}
     ${opts.extraMeta ? `<p style="color:#444">${opts.extraMeta}</p>` : ""}
   </div>

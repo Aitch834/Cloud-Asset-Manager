@@ -1393,6 +1393,11 @@ function PrintTab({ harvests, transports, storages, farm }: any) {
             {farm.name}{farm.cphNumber ? ` · CPH: ${farm.cphNumber}` : ""}{farm.redTractorId ? ` · Red Tractor ID: ${farm.redTractorId}` : ""}
           </p>
         )}
+        {farm?.contactPhone && (
+          <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 2 }}>
+            Tel: {farm.contactPhone}
+          </p>
+        )}
         <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "1.5rem" }}>
           Printed: {today} &nbsp;|&nbsp; BDE Farm Trac
         </p>

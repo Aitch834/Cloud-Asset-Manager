@@ -2001,6 +2001,7 @@ function PrintTab({ applications, farm, cropYear, setCropYear }: any) {
           Spray Application Records — {yearLabel}{reportType === "detail" ? " (Full Detail)" : ""}
         </h2>
         {farmName && <p style={{ fontSize: "0.75rem", color: "#374151", margin: "4px 0", lineHeight: 1.5 }}><strong>{farmName}</strong>{meta ? `  ·  ${meta}` : ""}</p>}
+        {farm?.contactPhone && <p style={{ fontSize: "0.7rem", color: "#555", margin: "2px 0", lineHeight: 1.5 }}>Tel: {farm.contactPhone}</p>}
         <p style={{ fontSize: "0.7rem", color: "#444", margin: "4px 0", lineHeight: 1.5 }}>Red Tractor Crop Inputs Compliance Register</p>
       </div>
       <div style={{ textAlign: "right", lineHeight: 1.8 }}>
