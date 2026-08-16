@@ -12,10 +12,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FieldPicker } from "@/components/ui/FieldPicker";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { useFarm } from "@/lib/context/FarmContext";
+import type { ApiField } from "@/lib/hooks/useApiFields";
+import { useApiFields } from "@/lib/hooks/useApiFields";
 import {
   BLACKGRASS_TARGET_POPULATION_M2,
   STANDARD_TARGET_POPULATION_M2,
@@ -25,17 +29,49 @@ import {
 
 const SOIL_TYPES = ["Clay", "Chalk/Limestone", "Silt", "Peat", "Sand", "Medium Loam", "Not sure"];
 
+// Maps a free-text or underscore soil type value (as stored on a field record)
+// to the nearest calculator chip label, using the same regex priority order as
+// seedRateCalculator's SOIL_ESTABLISHMENT_RULES (first match wins).
+const SOIL_TYPE_CHIP_MAP: Array<{ pattern: RegExp; chip: string }> = [
+  { pattern: /clay/i,            chip: "Clay" },
+  { pattern: /chalk|limestone/i, chip: "Chalk/Limestone" },
+  { pattern: /silt/i,            chip: "Silt" },
+  { pattern: /peat/i,            chip: "Peat" },
+  { pattern: /sand/i,            chip: "Sand" },
+  { pattern: /loam/i,            chip: "Medium Loam" },
+];
+
+function mapFieldSoilTypeToChip(rawSoilType: string): string | null {
+  const normalised = rawSoilType.replace(/_/g, " ").trim();
+  for (const { pattern, chip } of SOIL_TYPE_CHIP_MAP) {
+    if (pattern.test(normalised)) return chip;
+  }
+  return null;
+}
+
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
 }
 
 export default function SeedRateCalculatorScreen() {
   const insets = useSafeAreaInsets();
+  const { currentFarm } = useFarm();
+  const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
+  const { fields, loading: fieldsLoading, fromCache: fieldsFromCache, error: fieldsError } = useApiFields(farmId);
+
+  const [selectedFieldName, setSelectedFieldName] = useState("");
   const [soilType, setSoilType] = useState("");
   const [drillingDate, setDrillingDate] = useState(todayDate());
   const [blackgrassRisk, setBlackgrassRisk] = useState(false);
   const [targetPopulation, setTargetPopulation] = useState(String(STANDARD_TARGET_POPULATION_M2));
   const [tgwGrams, setTgwGrams] = useState("");
+
+  const handleFieldChange = (field: ApiField) => {
+    if (field.soilType) {
+      const chip = mapFieldSoilTypeToChip(field.soilType);
+      if (chip) setSoilType(chip);
+    }
+  };
 
   const handleBlackgrassToggle = () => {
     const next = !blackgrassRisk;
@@ -82,6 +118,18 @@ export default function SeedRateCalculatorScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Field Conditions</Text>
+
+            <FieldPicker
+              value={selectedFieldName}
+              onChange={setSelectedFieldName}
+              onChangeField={handleFieldChange}
+              fields={fields}
+              loading={fieldsLoading}
+              fromCache={fieldsFromCache}
+              error={fieldsError}
+              label="Field (optional)"
+              allowScan={false}
+            />
 
             <View style={styles.field}>
               <Text style={styles.label}>Soil Type</Text>
