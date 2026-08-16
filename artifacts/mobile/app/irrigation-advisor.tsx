@@ -314,7 +314,6 @@ function LogModal({
         fieldOrBlockDescription: prefill.fieldName,
         irrigationDate,
         waterSource: "",
-        fieldOrBlockDescription: prefill.fieldName,
         cropType: cropType.trim(),
         growthStage: "",
         irrigationMethod,
