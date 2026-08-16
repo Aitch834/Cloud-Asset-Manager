@@ -749,6 +749,20 @@ export default function IrrigationAdvisorScreen() {
             </View>
           )}
 
+          {/* Soil type warning */}
+          {selectedField && !selectedField.soilType && (
+            <Pressable
+              style={styles.soilWarningBanner}
+              onPress={() => router.push("/field-edit")}
+            >
+              <Feather name="alert-triangle" size={16} color="#a16207" />
+              <Text style={styles.soilWarningText}>
+                Soil type not set — using medium loam default. Tap to update.
+              </Text>
+              <Feather name="chevron-right" size={16} color="#a16207" />
+            </Pressable>
+          )}
+
           {/* Crop info */}
           {data?.assignment && (
             <View style={[styles.section, styles.cropRow]}>
@@ -955,6 +969,9 @@ const styles = StyleSheet.create({
   pickerItemText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.text, flex: 1 },
   pickerItemTextSelected: { fontFamily: fonts.medium, color: colors.primary },
   pickerSub: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+
+  soilWarningBanner: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: "#fefce8", borderRadius: radius.md, borderWidth: 1, borderColor: "#fef08a", padding: spacing.sm },
+  soilWarningText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#a16207", flex: 1, lineHeight: 18 },
 
   unavailableCard: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#f8fafc", borderRadius: radius.lg, borderWidth: 1, borderColor: "#e2e8f0", padding: spacing.md },
   unavailableTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: "#334155", marginBottom: 4 },
