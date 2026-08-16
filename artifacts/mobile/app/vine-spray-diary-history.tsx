@@ -45,6 +45,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
+import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineSprayDiaryHtml, type VineSprayDiaryRow } from "@/lib/printTemplates";
 
@@ -1162,6 +1163,12 @@ export default function VineSprayDiaryHistoryScreen() {
       [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
     setEditingRecord(null);
+    // If the blockId changed (link/unlink), notify the home screen immediately
+    // so its compliance gap banner reflects the new count without waiting for
+    // the next navigation focus event.
+    if ('blockId' in updated) {
+      vineyardCountEvents.emit();
+    }
   };
 
   const handleDelete = async (id: number) => {

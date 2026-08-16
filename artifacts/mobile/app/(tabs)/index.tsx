@@ -29,6 +29,7 @@ import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
+import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 interface RecentActivity {
   id: string;
@@ -90,6 +91,14 @@ export default function HomeScreen() {
       fetchUnlinkedCounts();
     }, [fetchUnlinkedCounts])
   );
+
+  // Also re-fetch immediately when a history screen changes a block link inline
+  // (without navigating away), so the compliance gap banner stays accurate.
+  useEffect(() => {
+    return vineyardCountEvents.subscribe(() => {
+      fetchUnlinkedCounts();
+    });
+  }, [fetchUnlinkedCounts]);
 
   const [liveWeather, setLiveWeather] = useState<{
     temperature: string;
