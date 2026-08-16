@@ -62,6 +62,7 @@ interface ScoutingRecord {
   phytophthoraViticola: boolean | null;
   actionTaken: string | null;
   notes: string | null;
+  photoCount: number | null;
 }
 
 interface ScoutingPhoto {
@@ -1029,6 +1030,12 @@ function ScoutingRow({
             <Text style={[styles.badgeText, { color: pressure.color }]}>{pressure.label}</Text>
           </View>
         )}
+        {!!item.photoCount && item.photoCount > 0 && (
+          <View style={styles.photoBadge}>
+            <Feather name="camera" size={11} color={colors.primary} />
+            <Text style={styles.photoBadgeText}>{item.photoCount}</Text>
+          </View>
+        )}
         <Feather name="edit-2" size={14} color={colors.textSecondary} />
         <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
           <Feather name="trash-2" size={15} color={colors.error} />
@@ -1387,6 +1394,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs },
+  photoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    backgroundColor: "#f0f7ff",
+  },
+  photoBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
   addressWarning: {
     flexDirection: "row",
     alignItems: "flex-start",
