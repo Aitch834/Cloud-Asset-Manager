@@ -85,6 +85,7 @@ interface SprayDiaryRecord {
   operatorName: string | null;
   operatorCertificateNo: string | null;
   notes: string | null;
+  photoCount: number;
 }
 
 interface SprayDiaryPhoto {
@@ -1031,9 +1032,13 @@ function SprayDiaryRow({
 
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const photoCount = item.photoCount ?? 0;
+    const photoWarning = photoCount > 0
+      ? `\n\nThis record has ${photoCount} ${photoCount === 1 ? "photo" : "photos"}. Deleting it will also remove all attached photos.`
+      : "";
     Alert.alert(
       "Delete Spray Entry",
-      `Delete the spray entry for "${item.productName ?? "this record"}" on ${formatDate(item.applicationDate)}? This cannot be undone.`,
+      `Delete the spray entry for "${item.productName ?? "this record"}" on ${formatDate(item.applicationDate)}?${photoWarning} This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => onDelete(item.id) },
