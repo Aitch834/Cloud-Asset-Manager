@@ -146,6 +146,34 @@ function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {
 </body></html>`);
 }
 
+function escHtml(s: string | null | undefined): string {
+  if (!s) return "—";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function printCertificationSummary(records: Certification[], farmName: string) {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const safeFarmName = escHtml(farmName);
+  const statusColor = (s: string) => s === "certified" ? "#166534" : s === "in-conversion" ? "#92400e" : "#6b7280";
+  const rows = records.map(r => `<tr>
+    <td style="font-weight:600">${escHtml(r.certifier)}</td>
+    <td>${escHtml(r.scope)}</td>
+    <td>${escHtml(r.certificateNumber)}</td>
+    <td>${escHtml(r.operatorNumber)}</td>
+    <td style="white-space:nowrap">${r.certificationDate ? new Date(r.certificationDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="white-space:nowrap">${r.renewalDate ? new Date(r.renewalDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td><span style="font-weight:600;color:${statusColor(r.status)}">${escHtml(STATUS_LABELS[r.status] ?? r.status)}</span></td>
+    <td>${escHtml(r.notes)}</td>
+  </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Certification Summary — ${safeFarmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${safeFarmName}</h1><p class="sub">Organic Certification Summary · Complementary Record</p></div>
+<div class="hdr-r"><b>Certification Summary</b>${records.length} registration${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
+<table><thead><tr><th>Certifying Body</th><th>Scope / Enterprise</th><th>Certificate No.</th><th>Operator No.</th><th>Certification Date</th><th>Annual Renewal</th><th>Status</th><th>Notes</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div class="footer">Organic Certification Summary — Complementary record for Soil Association / OF&amp;G portal. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
+</body></html>`);
+}
+
 function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
@@ -269,7 +297,7 @@ function FieldPicker({
 
 const EMPTY_CERT = { certifier: "Soil Association", scope: "All enterprises", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
 
-function CertificationTab({ farmId }: { farmId: number }) {
+function CertificationTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
@@ -325,7 +353,12 @@ function CertificationTab({ farmId }: { farmId: number }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        {records.length > 0 ? (
+          <Button variant="outline" size="sm" onClick={() => printCertificationSummary(records, farmName)} className="gap-2">
+            <Printer className="w-4 h-4" />Print Certification Summary
+          </Button>
+        ) : <div />}
         <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Certifier Registration</Button>
       </div>
 
@@ -1693,7 +1726,7 @@ export default function OrganicPage() {
           })}
         </TabBar>
 
-        {activeTab === "certification" && <CertificationTab farmId={farmId} />}
+        {activeTab === "certification" && <CertificationTab farmId={farmId} farmName={farmName} />}
         {activeTab === "fields" && <FieldsTab farmId={farmId} farmName={farmName} />}
         {activeTab === "inspections" && <InspectionsTab farmId={farmId} farmName={farmName} />}
         {activeTab === "restricted-inputs" && <RestrictedInputsTab farmId={farmId} farmName={farmName} />}
