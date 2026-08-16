@@ -41,6 +41,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
@@ -1175,6 +1176,14 @@ export default function VineBlockPhotosScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
+  const { address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+
+  const missingAddressFields: string[] = !identifiersLoading
+    ? [
+        !currentFarm?.name || currentFarm.name.trim() === "" ? "Farm name" : "",
+        !address || address.trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
 
   const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
   const [photos, setPhotos] = useState<BlockPhoto[]>([]);
@@ -1433,6 +1442,21 @@ export default function VineBlockPhotosScreen() {
         />
       </View>
 
+      {missingAddressFields.length > 0 && (
+        <Pressable
+          onPress={() => router.push("/(tabs)/more")}
+          style={styles.addressWarning}
+        >
+          <Feather name="alert-triangle" size={15} color="#92400e" />
+          <Text style={styles.addressWarningText}>
+            <Text style={styles.addressWarningBold}>Farm Settings incomplete: </Text>
+            {missingAddressFields.join(", ")}{" "}
+            {missingAddressFields.length === 1 ? "is" : "are"} not set — your report will have blank header fields.{" "}
+            Tap to update in Farm Settings.
+          </Text>
+        </Pressable>
+      )}
+
       {/* Gallery */}
       {!selectedBlock ? (
         <View style={styles.centred}>
@@ -1570,6 +1594,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
+  },
+  addressWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  addressWarningText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
+  addressWarningBold: {
+    fontFamily: fonts.semiBold,
   },
   centred: {
     flex: 1,
