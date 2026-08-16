@@ -505,6 +505,7 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       closeForm();
       toast({ title: editingClean ? "Clean record updated" : "Clean record added" });
     },
@@ -513,7 +514,7 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
 
   const delMut = useMutation({
     mutationFn: async (cleanId: number) => { const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/cleans/${cleanId}`), { method: "DELETE", credentials: "include" }); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Delete failed"); } },
-    onSuccess: () => qc.invalidateQueries({ queryKey: qKey }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] }); },
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
 
@@ -1354,6 +1355,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                               const { label, cls } = fillOakLabel(fill);
                               return <span className={`text-xs rounded px-1 py-0.5 ${cls}`}>{label}</span>;
                             })()}
+                            <span className="text-xs rounded px-1 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                              {Number(r.clean_count ?? 0)} clean{Number(r.clean_count ?? 0) !== 1 ? "s" : ""}
+                            </span>
                             {isApproaching && <span className="text-xs rounded px-1 py-0.5 bg-orange-50 text-orange-700 font-medium">⚠ Approaching neutral</span>}
                             {isIdle && <span className="text-xs rounded px-1 py-0.5 bg-red-50 text-red-700 font-medium">⚠ Idle</span>}
                           </div>
