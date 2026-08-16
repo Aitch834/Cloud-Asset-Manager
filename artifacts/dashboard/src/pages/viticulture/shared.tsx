@@ -1236,7 +1236,7 @@ export async function printVineRegister(
     ? `APPA Ref: <strong>${escHtml(appaRef)}</strong>`
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
   const winegbHtml = winegbMembershipNumber
-    ? `WineGB: <strong>${escHtml(winegbMembershipNumber)}</strong><br>`
+    ? `WineGB Membership No: <strong>${escHtml(winegbMembershipNumber)}</strong><br>`
     : "";
 
   const anyMissingRef = !addressRaw || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
