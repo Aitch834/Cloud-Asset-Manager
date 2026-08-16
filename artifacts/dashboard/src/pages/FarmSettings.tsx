@@ -2529,8 +2529,13 @@ export default function FarmSettings() {
                   placeholder="e.g. 01234 567890"
                   value={formData.phone}
                   onChange={e => updateField("phone", e.target.value)}
+                  className={formData.phone.trim() && (formData.phone.replace(/\D/g, "").length < 10) ? "border-amber-400 focus-visible:ring-amber-400" : ""}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Main farm contact number</p>
+                {formData.phone.trim() && (formData.phone.replace(/\D/g, "").length < 10) ? (
+                  <p className="text-xs text-amber-600 mt-1">This doesn't look like a valid phone number — fewer than 10 digits. You can still save if you're sure.</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Main farm contact number</p>
+                )}
               </div>
 
               <div>
