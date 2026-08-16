@@ -164,6 +164,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   });
   const [compareYear, setCompareYear] = useState<number | null>(null);
   useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
+  useEffect(() => { ensureAnalyticsPrintStyle(); }, []);
 
   // ── Vintage yield + Brix trend (filtered to selected/compare years) ───────
   const allVintageMap = useMemo(() => {
@@ -326,7 +327,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       {/* ── Vintage yield & Brix ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Yield */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">
               Vintage Yield{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
@@ -354,7 +355,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
         </div>
 
         {/* Brix & chemistry */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">
               Must Chemistry{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
@@ -385,7 +386,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* ── Disease pressure ─── */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {selectedYear}</h3>
           <p className="text-xs text-foreground/40">0 = None · 1 = Low · 2 = Medium · 3 = High</p>
@@ -482,7 +483,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
 
       {/* ── Operations hours by type ─── */}
       {opsHoursData.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h3 className="text-sm font-semibold">
               Canopy Operations — Hours by Type{compareYear ? ` · ${selectedYear} vs ${compareYear}` : ` · ${selectedYear}`}
@@ -511,7 +512,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Vintage Season Report ────────────────────────────────────────────────────
+const ANALYTICS_PRINT_ID = "viticulture-analytics-print";
 const SEASON_PRINT_ID = "vintage-season-report-print";
 function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
@@ -2616,4 +2617,12 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
       )}
     </div>
   );
+}
+
+function ensureAnalyticsPrintStyle() {
+  if (document.getElementById(ANALYTICS_PRINT_ID + "-css")) return;
+  const s = document.createElement("style");
+  s.id = ANALYTICS_PRINT_ID + "-css";
+  s.textContent = `@media print{.analytics-chart-cap{page-break-inside:avoid;break-inside:avoid;break-before:avoid}.analytics-chart-cap .recharts-responsive-container{width:100%!important;max-height:300px!important}.analytics-chart-cap .recharts-wrapper{max-height:300px!important}.analytics-chart-cap .recharts-wrapper svg{max-height:300px!important}}`;
+  document.head.appendChild(s);
 }
