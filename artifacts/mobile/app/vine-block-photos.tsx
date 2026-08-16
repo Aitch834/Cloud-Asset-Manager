@@ -33,7 +33,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { colors } from "@/constants/colors";
@@ -46,6 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
+import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
 
 interface BlockPhoto {
   id: number;
@@ -65,11 +65,11 @@ interface BlockPhoto {
 // useUiPrefs; the server is the source of truth.
 const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 
-
-// ---------------------------------------------------------------------------
-// Lightbox
-// ---------------------------------------------------------------------------
-
+function blockStatusColor(plantingStatus: string) {
+  if (plantingStatus === "active") return "#16a34a";
+  if (plantingStatus === "suspended") return "#d97706";
+  return colors.textSecondary;
+}
 const SCREEN = Dimensions.get("window");
 const SWIPE_DOWN_THRESHOLD = 120;
 const SWIPE_HORIZ_THRESHOLD = 60;
@@ -1409,6 +1409,9 @@ export default function VineBlockPhotosScreen() {
     }
   };
 
+  const activeBlocks = blocks.filter(b => b.plantingStatus === "active");
+  const suspendedBlocks = blocks.filter(b => b.plantingStatus === "suspended");
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -1432,15 +1435,17 @@ export default function VineBlockPhotosScreen() {
         )}
       </View>
 
-      {/* Block picker */}
-      <View style={styles.pickerWrapper}>
-        <VineBlockPicker
-          blocks={blocks}
-          selected={selectedBlock}
-          onSelect={setSelectedBlock}
-          loading={blocksLoading}
-        />
-      </View>
+      {/* Block picker — only shown once a block is selected, to allow switching */}
+      {selectedBlock && (
+        <View style={styles.pickerWrapper}>
+          <VineBlockPicker
+            blocks={blocks}
+            selected={selectedBlock}
+            onSelect={setSelectedBlock}
+            loading={blocksLoading}
+          />
+        </View>
+      )}
 
       {missingAddressFields.length > 0 && (
         <Pressable
@@ -1457,15 +1462,69 @@ export default function VineBlockPhotosScreen() {
         </Pressable>
       )}
 
-      {/* Gallery */}
-      {!selectedBlock ? (
+      {/* Block list (no block selected) / Gallery (block selected) */}
+      {blocksLoading && !selectedBlock ? (
         <View style={styles.centred}>
-          <EmptyState
-            icon="image"
-            title="Select a block"
-            message="Choose a vineyard block above to view and add photos."
-          />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : !selectedBlock ? (
+        <FlatList
+          data={[
+            ...(activeBlocks.length > 0 ? [{ _type: "header" as const, label: "Active Blocks" }] : []),
+            ...activeBlocks.map(b => ({ _type: "block" as const, block: b })),
+            ...(suspendedBlocks.length > 0 ? [{ _type: "header" as const, label: "Suspended" }] : []),
+            ...suspendedBlocks.map(b => ({ _type: "block" as const, block: b })),
+          ]}
+          keyExtractor={(item, i) =>
+            item._type === "header" ? `header-${i}` : String(item.block.id)
+          }
+          contentContainerStyle={styles.blockList}
+          renderItem={({ item }) => {
+            if (item._type === "header") {
+              return <Text style={styles.blockListSection}>{item.label}</Text>;
+            }
+            const b = item.block;
+            return (
+              <Pressable
+                style={[
+                  styles.blockListRow,
+                  b.plantingStatus === "suspended" && styles.blockListRowSuspended,
+                ]}
+                onPress={() => setSelectedBlock(b)}
+              >
+                <BlockThumbnail uri={b.coverPhotoUrl ?? null} />
+                <View
+                  style={[styles.blockListStatusDot, { backgroundColor: blockStatusColor(b.plantingStatus) }]}
+                />
+                <View style={styles.blockListInfo}>
+                  <Text style={styles.blockListName}>
+                    {b.blockName}
+                    {b.blockRef ? (
+                      <Text style={styles.blockListRef}> · {b.blockRef}</Text>
+                    ) : null}
+                  </Text>
+                  {b.variety ? (
+                    <Text style={styles.blockListMeta}>
+                      {b.variety}
+                      {b.rootstock ? ` / ${b.rootstock}` : ""}
+                      {b.areaHa ? ` · ${Number(b.areaHa).toFixed(2)} ha` : ""}
+                    </Text>
+                  ) : null}
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.centred}>
+              <EmptyState
+                icon="layers"
+                title="No blocks yet"
+                message="Vineyard blocks added in the dashboard will appear here."
+              />
+            </View>
+          }
+        />
       ) : photosLoading ? (
         <View style={styles.centred}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -1550,7 +1609,6 @@ export default function VineBlockPhotosScreen() {
     </View>
   );
 }
-
 const THUMB_SIZE = 170;
 
 const styles = StyleSheet.create({
@@ -1924,6 +1982,59 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#fff",
+  },
+  // ── Block list (shown when no block is selected) ──────────────────────────
+  blockList: {
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  blockListSection: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+    marginTop: spacing.sm,
+  },
+  blockListRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  blockListRowSuspended: {
+    borderColor: "#fde68a",
+    backgroundColor: "#fffbeb",
+  },
+  blockListStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  blockListInfo: {
+    flex: 1,
+  },
+  blockListName: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.medium,
+    color: colors.text,
+  },
+  blockListRef: {
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+  blockListMeta: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
 });
 

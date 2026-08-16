@@ -15,7 +15,7 @@ interface Props {
 
 const THUMB_SIZE = 36;
 
-function BlockThumbnail({ uri }: { uri: string | null }) {
+export function BlockThumbnail({ uri }: { uri: string | null }) {
   if (uri) {
     return (
       <View style={styles.thumb}>
