@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, ChevronLeft, ChevronRight, FileDown, Droplets, AlertTriangle, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { DocAttach } from "@/components/DocAttach";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useToast } from "@/hooks/use-toast";
@@ -3064,11 +3064,35 @@ export default function OrganicDairyPage() {
   });
   const name = farmData?.name ?? "Farm";
 
+  const { data: dairyAlert } = useQuery({
+    queryKey: ["dairy-platform-alert", farmId],
+    queryFn: () => fetch(`/api/dairy-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   return (
     <AppLayout title="Organic Dairy">
       {farmId && (
         <>
         <ArableFarmSettingsChecklist farmId={farmId} />
+        {dairyAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            dairyAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            dairyAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {dairyAlert.level === "national" ? "National Dairy Herd Disease Alert" :
+                 dairyAlert.level === "regional" ? "Regional Dairy Herd Disease Alert" :
+                 "Dairy Herd Disease Notice"}
+              </span>
+              {dairyAlert.message && <span className="ml-2">{dairyAlert.message}</span>}
+              {dairyAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {dairyAlert.date}</span>}
+            </div>
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="herd-conversion">Herd Conversion</TabsTrigger>

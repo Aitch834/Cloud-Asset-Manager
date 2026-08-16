@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle, Upload, ChevronDown, ChevronRight, Mail, ArrowDownToLine, ArrowUpFromLine, Paperclip, ExternalLink, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList, Eye, Printer, FileText, Bell, AlertTriangle, Upload, ChevronDown, ChevronRight, Mail, ArrowDownToLine, ArrowUpFromLine, Paperclip, ExternalLink, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { DocAttach } from "@/components/DocAttach";
@@ -3652,11 +3652,35 @@ export default function OrganicLivestockPage() {
   });
   const name = farmData?.name ?? "Farm";
 
+  const { data: beefAlert } = useQuery({
+    queryKey: ["beef-platform-alert", farmId],
+    queryFn: () => fetch(`/api/beef-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
+
   return (
     <AppLayout title="Organic Livestock">
       {farmId && (
         <>
           <ArableFarmSettingsChecklist farmId={farmId} />
+          {beefAlert?.active && (
+            <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+              beefAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+              beefAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+              "bg-amber-50 border-amber-200 text-amber-800"
+            }`}>
+              <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-semibold">
+                  {beefAlert.level === "national" ? "National Cattle Disease Alert" :
+                   beefAlert.level === "regional" ? "Regional Cattle Disease Alert" :
+                   "Cattle Disease Notice"}
+                </span>
+                {beefAlert.message && <span className="ml-2">{beefAlert.message}</span>}
+                {beefAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {beefAlert.date}</span>}
+              </div>
+            </div>
+          )}
           <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="flex-wrap h-auto gap-y-1">
             <TabsTrigger value="conversion">Conversion</TabsTrigger>

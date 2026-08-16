@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Redirect } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, Eye, Droplets, Printer, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Eye, Droplets, Printer, AlertTriangle, ShieldAlert } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -122,6 +122,11 @@ const ORGANIC_SHEEP_DAIRY_TAB_IDS: Tab[] = ["tupping", "conversion", "collection
 export default function OrganicSheepDairyPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "organic-sheep-dairy", farmId, validIds: ORGANIC_SHEEP_DAIRY_TAB_IDS, defaultTab: "tupping" });
+  const { data: sheepAlert } = useQuery({
+    queryKey: ["sheep-platform-alert", farmId],
+    queryFn: () => fetch(`/api/sheep-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
   if (!farmId) return <Redirect to="/select" />;
 
   return (
@@ -136,6 +141,24 @@ export default function OrganicSheepDairyPage() {
             Organic certification for dairy sheep — flock conversion register, organic milk collection log with non-organic reason tracking, feed &amp; nutrition (≥95% organic DM target), and vet treatment register with doubled withdrawal periods (SA/OF&amp;G/Biodynamic certified flocks).
           </p>
         </div>
+        {sheepAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm mb-4 ${
+            sheepAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            sheepAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {sheepAlert.level === "national" ? "National Sheep Disease Alert" :
+                 sheepAlert.level === "regional" ? "Regional Sheep Disease Alert" :
+                 "Sheep Disease Notice"}
+              </span>
+              {sheepAlert.message && <span className="ml-2">{sheepAlert.message}</span>}
+              {sheepAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {sheepAlert.date}</span>}
+            </div>
+          </div>
+        )}
         <TabBar>
           <TabButton active={tab === "tupping"} onClick={() => setTab("tupping")}>Tupping</TabButton>
           <TabButton active={tab === "conversion"} onClick={() => setTab("conversion")}>Flock Conversion</TabButton>

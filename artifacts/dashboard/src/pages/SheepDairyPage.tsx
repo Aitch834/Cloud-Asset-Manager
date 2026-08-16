@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Redirect, useLocation } from "wouter";
-import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, AlertTriangle, CheckCircle2, Eye, FileDown, Droplets, Printer, ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
@@ -111,6 +111,11 @@ const SHEEP_DAIRY_TAB_IDS: Tab[] = ["milk", "tupping", "mastitis", "kidding", "t
 export default function SheepDairyPage() {
   const { farmId } = useAppStore();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "sheep-dairy", farmId, validIds: SHEEP_DAIRY_TAB_IDS, defaultTab: "milk" });
+  const { data: sheepAlert } = useQuery({
+    queryKey: ["sheep-platform-alert", farmId],
+    queryFn: () => fetch(`/api/sheep-alert${farmId ? `?farmId=${farmId}` : ""}`).then(r => r.json()).catch(() => ({ active: false })),
+    enabled: !!farmId,
+  });
   if (!farmId) return <Redirect to="/select" />;
 
   return (
@@ -122,6 +127,24 @@ export default function SheepDairyPage() {
             British Sheep Dairying Association compliance — milk recording with SCC monitoring (1,500,000 cells/mL regulatory limit), mastitis, lambing records with LIS tagging, body condition, bulk tank hygiene, and Maedi-Visna monitoring.
           </p>
         </div>
+        {sheepAlert?.active && (
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm mb-4 ${
+            sheepAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :
+            sheepAlert.level === "regional" ? "bg-orange-50 border-orange-200 text-orange-800" :
+            "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">
+                {sheepAlert.level === "national" ? "National Sheep Disease Alert" :
+                 sheepAlert.level === "regional" ? "Regional Sheep Disease Alert" :
+                 "Sheep Disease Notice"}
+              </span>
+              {sheepAlert.message && <span className="ml-2">{sheepAlert.message}</span>}
+              {sheepAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {sheepAlert.date}</span>}
+            </div>
+          </div>
+        )}
         <TabBar>
           <TabButton active={tab === "milk"} onClick={() => setTab("milk")}>Milk Collections</TabButton>
           <TabButton active={tab === "tupping"} onClick={() => setTab("tupping")}>Tupping</TabButton>
