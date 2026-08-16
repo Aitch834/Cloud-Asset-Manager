@@ -72,6 +72,9 @@ function WinegbOverviewNudge({
 }) {
   const year = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1; // 1-based
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+
   const { data, isLoading } = useQuery<{
     submissions: Record<string, { submitted: boolean; submittedAt: string | null }>;
   }>({
@@ -81,6 +84,22 @@ function WinegbOverviewNudge({
         .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json(); }),
     enabled: !!farmId,
     staleTime: 60_000,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ key, submitted }: { key: string; submitted: boolean }) => {
+      const r = await fetch(api(`farms/${farmId}/winegb-submissions/${key}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submitted, year }),
+      });
+      if (!r.ok) throw new Error("Failed to save");
+      return r.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["winegb-submissions", farmId, year] });
+    },
   });
 
   if (isLoading || !data) return null;
@@ -98,12 +117,9 @@ function WinegbOverviewNudge({
   const doneCount = WINEGB_SURVEYS_LIST.length - pending.length;
 
   return (
-    <button
-      type="button"
-      onClick={onNavigateToPhenology}
-      className="w-full text-left rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 py-3 hover:bg-emerald-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-    >
-      <div className="flex items-start gap-2.5">
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/70">
+      {/* Header row */}
+      <div className="flex items-start gap-2.5 px-3.5 py-3">
         <Globe className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
@@ -116,26 +132,89 @@ function WinegbOverviewNudge({
               </span>
             )}
           </div>
-          {overdue.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5 shrink-0">
-                <AlertTriangle className="w-3 h-3 shrink-0" /> Overdue
-              </span>
-              <span className="text-xs text-amber-800">
-                {overdue.map(s => s.label).join(", ")}
-              </span>
-            </div>
-          )}
-          {notYetDue.length > 0 && (
-            <div className="text-xs text-emerald-700">
-              <span className="font-medium">Pending: </span>
-              {notYetDue.map(s => s.label).join(", ")}
-            </div>
+          {!expanded && (
+            <>
+              {overdue.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5 shrink-0">
+                    <AlertTriangle className="w-3 h-3 shrink-0" /> Overdue
+                  </span>
+                  <span className="text-xs text-amber-800">
+                    {overdue.map(s => s.label).join(", ")}
+                  </span>
+                </div>
+              )}
+              {notYetDue.length > 0 && (
+                <div className="text-xs text-emerald-700">
+                  <span className="font-medium">Pending: </span>
+                  {notYetDue.map(s => s.label).join(", ")}
+                </div>
+              )}
+            </>
           )}
         </div>
-        <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          aria-label={expanded ? "Collapse survey checklist" : "Expand survey checklist"}
+        >
+          {expanded ? "Close" : "Tick surveys"}
+        </button>
+        <button
+          type="button"
+          onClick={onNavigateToPhenology}
+          className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          aria-label="Go to Phenology tab"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
-    </button>
+
+      {/* Inline mini checklist */}
+      {expanded && (
+        <div className="border-t border-emerald-200 px-3.5 pb-3 pt-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
+            {WINEGB_SURVEYS_LIST.map(survey => {
+              const isSubmitted = submissions[survey.key]?.submitted ?? false;
+              const isOverdue = !isSubmitted && currentMonth > Math.max(...survey.months);
+              const isPending = toggleMutation.isPending && toggleMutation.variables?.key === survey.key;
+              return (
+                <button
+                  key={survey.key}
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => toggleMutation.mutate({ key: survey.key, submitted: !isSubmitted })}
+                  className={[
+                    "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
+                    isSubmitted
+                      ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                      : isOverdue
+                      ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50",
+                  ].join(" ")}
+                  aria-label={`${isSubmitted ? "Unmark" : "Mark"} ${survey.label} as submitted`}
+                >
+                  {isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  ) : isSubmitted ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                  ) : isOverdue ? (
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  ) : (
+                    <div className="w-3.5 h-3.5 rounded-sm border border-emerald-300 shrink-0" />
+                  )}
+                  <span className="font-medium leading-tight">{survey.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-emerald-700 leading-snug">
+            Tick each survey once you've submitted your data to WineGB. The checklist on the Phenology tab will update automatically.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
