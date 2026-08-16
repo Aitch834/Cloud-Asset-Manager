@@ -329,3 +329,221 @@ const styles = StyleSheet.create({
   savedBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#f0fdf4", borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.success },
   savedBannerText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.success, flex: 1 },
 });
+
+function ScoutingPhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReload }: ScoutingLightboxProps) {
+  const insets = useSafeAreaInsets();
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [sharing, setSharing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Sync index when lightbox opens; also reset in-flight flags on open/close
+  useEffect(() => {
+    if (visible) {
+      setCurrentIndex(Math.min(initialIndex, Math.max(0, photos.length - 1)));
+    }
+    setSharing(false);
+    setDeleting(false);
+  }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clamp if photos array shrinks (e.g. a delete from outside).
+  // clampIndexAfterDelete returns -1 when the array is empty — that's the close signal.
+  useEffect(() => {
+    const next = clampIndexAfterDelete(currentIndex, photos.length);
+    if (next === -1) {
+      onClose();
+      return;
+    }
+    setCurrentIndex(next);
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset in-flight flags and image error state when the displayed photo changes
+  useEffect(() => {
+    setSharing(false);
+    setDeleting(false);
+    setImgError(false);
+  }, [currentIndex]);
+
+  // Also clear the error whenever the photo's URL is refreshed (e.g. after onReload)
+  const photo = photos[currentIndex] ?? null;
+  const prevDownloadUrl = useRef(photo?.downloadUrl);
+  if (prevDownloadUrl.current !== photo?.downloadUrl) {
+    prevDownloadUrl.current = photo?.downloadUrl;
+    if (imgError) setImgError(false);
+  }
+
+  const goNext = useCallback(() => {
+    setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
+  }, [photos.length]);
+
+  const goPrev = useCallback(() => {
+    setCurrentIndex((i) => Math.max(i - 1, 0));
+  }, []);
+
+  // Keep a ref to photos.length so the PanResponder closure stays current
+  const photosLenRef = useRef(photos.length);
+  photosLenRef.current = photos.length;
+
+  // Horizontal swipe via PanResponder (no extra deps)
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gs) =>
+        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderRelease: (_evt, gs) => {
+        if (gs.dx < -SWIPE_THRESHOLD) {
+          setCurrentIndex((i) => Math.min(i + 1, photosLenRef.current - 1));
+        } else if (gs.dx > SWIPE_THRESHOLD) {
+          setCurrentIndex((i) => Math.max(i - 1, 0));
+        }
+      },
+    }),
+  ).current;
+
+  const handleShare = useCallback(async () => {
+    if (!photo?.downloadUrl || sharing) return;
+    setSharing(true);
+    try {
+      const ext = photo.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}scouting_share_${photo.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(photo.downloadUrl, tmpUri);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Sharing Not Available", "Sharing is not supported on this device.");
+        return;
+      }
+      await Sharing.shareAsync(dl.uri, { mimeType: `image/${ext === "jpg" ? "jpeg" : ext}` });
+    } catch {
+      Alert.alert("Share Failed", "Could not share the photo. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }, [photo, sharing]);
+
+  const handleDelete = useCallback(() => {
+    if (!photo || deleting) return;
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to delete this photo? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await onDelete(photo.id);
+            } finally {
+              // Reset so the button is re-enabled for a retry if the call failed.
+              // (If it succeeded the lightbox will already be closing or the photos
+              // array will have shrunk, so this is a no-op in the happy path.)
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [photo, deleting, onDelete]);
+
+  if (!visible) return null;
+
+  const uri = photo?.downloadUrl ?? null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
+      <View style={lbStyles.backdrop}>
+        {/* Close button */}
+        <Pressable
+          style={[lbStyles.closeBtn, { top: insets.top + 12 }]}
+          onPress={onClose}
+          hitSlop={12}
+        >
+          <Feather name="x" size={24} color="#fff" />
+        </Pressable>
+
+        {/* Photo count indicator — hidden for single photos */}
+        {showCounter(photos.length) ? (
+          <View style={[lbStyles.counter, { top: insets.top + 18 }]}>
+            <Text style={lbStyles.counterText}>
+              {counterText(currentIndex, photos.length)}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Swipeable photo area */}
+        <View style={lbStyles.imageWrapper} {...panResponder.panHandlers}>
+          {uri && !imgError ? (
+            <Image
+              source={{ uri }}
+              style={lbStyles.image}
+              resizeMode="contain"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <Pressable style={lbStyles.imagePlaceholder} onPress={onReload} hitSlop={12}>
+              <Feather name="refresh-cw" size={40} color="rgba(255,255,255,0.55)" />
+              <Text style={lbStyles.reloadLabel}>Tap to reload</Text>
+            </Pressable>
+          )}
+
+          {/* Left chevron — hidden at index 0 and for single photos */}
+          {showLeftChevron(photos.length, currentIndex) ? (
+            <Pressable style={[lbStyles.chevron, lbStyles.chevronLeft]} onPress={goPrev} hitSlop={12}>
+              <Feather name="chevron-left" size={32} color="#fff" />
+            </Pressable>
+          ) : null}
+
+          {/* Right chevron — hidden at last index and for single photos */}
+          {showRightChevron(photos.length, currentIndex) ? (
+            <Pressable style={[lbStyles.chevron, lbStyles.chevronRight]} onPress={goNext} hitSlop={12}>
+              <Feather name="chevron-right" size={32} color="#fff" />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* Caption */}
+        {photo?.caption ? (
+          <View style={lbStyles.captionBar}>
+            <Text style={lbStyles.captionText} numberOfLines={3}>
+              {photo.caption}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Action bar */}
+        <View style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+          {/* Share */}
+          <Pressable
+            style={[lbStyles.actionBtn, sharing && lbStyles.actionBtnDisabled]}
+            onPress={handleShare}
+            disabled={sharing || !uri}
+          >
+            {sharing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="share-2" size={22} color="#fff" />
+            )}
+            <Text style={lbStyles.actionBtnText}>{sharing ? "Sharing…" : "Share"}</Text>
+          </Pressable>
+
+          {/* Delete */}
+          <Pressable
+            style={[lbStyles.actionBtn, lbStyles.actionBtnDanger]}
+            onPress={handleDelete}
+            disabled={deleting}
+          >
+            <Feather name="trash-2" size={22} color="#fca5a5" />
+            <Text style={[lbStyles.actionBtnText, { color: "#fca5a5" }]}>Delete</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
