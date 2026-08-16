@@ -1,11 +1,13 @@
 import { pgTable, text, serial, integer, timestamp, numeric } from "drizzle-orm/pg-core";
 import { farmsTable } from "./core";
 import { stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
+import { agriEnvProjectsTable } from "./grants";
 
 export const financialTransactionsTable = pgTable("financial_transactions", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id),
   stockDeliveryId: integer("stock_delivery_id").references(() => stockDeliveriesTable.id),
+  agriEnvProjectId: integer("agri_env_project_id").references(() => agriEnvProjectsTable.id, { onDelete: "set null" }),
   transactionType: text("transaction_type").notNull(),
   category: text("category"),
   description: text("description"),

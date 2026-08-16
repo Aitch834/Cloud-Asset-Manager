@@ -314,11 +314,16 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
 
 // ── P&L Statement Tab ────────────────────────────────────────────────────────
 function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: number; onRegisterExport: (fn: ExportFn) => void }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["report-gross-margin", farmId, year],
     queryFn: () => fetch(`/api/farms/${farmId}/reports/gross-margin?year=${year}`).then(r => r.json()),
     enabled: !!farmId,
   });
+
+  // Link-to-project dialog state
+  const [linkingTx, setLinkingTx] = useState<{ id: number; description: string | null } | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const costs: any[] = data?.costs ?? [];
   // agriEnvSummary: per-project { id, schemeName, totalGrantValuePence, yearClaimedPence }
@@ -327,8 +332,20 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
 
   const sumCat = (cat: string) => costs.filter(t => t.category === cat).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
-  // Income by category (financial transactions only)
-  const incomeValues = INCOME_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
+  // Individual Agri-Env Scheme income transactions, split by linked vs unlinked.
+  // Must be computed before incomeValues so linked transactions can be excluded from totals.
+  const agriEnvSchemeTxs: any[] = costs.filter(t => t.category === "Agri-Environment Scheme" && t.transactionType === "income");
+  // Linked transactions are already represented by the milestone claim in agriEnvYearTotal;
+  // only unlinked transactions contribute to the financial income total.
+  const unlinkedAgriEnvTxTotal = agriEnvSchemeTxs.filter(t => !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+
+  // Income by category (financial transactions only).
+  // For "Agri-Environment Scheme" we use only unlinked transactions so linked ones are not
+  // double-counted alongside the milestone claim amount added via agriEnvYearTotal below.
+  const incomeValues = INCOME_CATS.reduce((m, c) => {
+    m[c] = c === "Agri-Environment Scheme" ? unlinkedAgriEnvTxTotal : sumCat(c);
+    return m;
+  }, {} as Record<string, number>);
   const txIncomeTotal = Object.values(incomeValues).reduce((s, v) => s + v, 0);
 
   // Only count milestones actually claimed (completed) in the selected year — never the full agreement value
@@ -337,10 +354,12 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   // Projects active in year but with no milestone claims yet recorded
   const agriEnvUnclaimedProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) === 0);
 
-  // Double-count warning: both a financial "Agri-Environment Scheme" transaction AND milestone claims exist
-  const hasDoubleCountRisk = agriEnvYearTotal > 0 && incomeValues["Agri-Environment Scheme"] > 0;
+  // Double-count warning: only triggered when there are UNLINKED agri-env scheme transactions alongside milestone claims
+  const hasDoubleCountRisk = agriEnvYearTotal > 0 && unlinkedAgriEnvTxTotal > 0;
 
-  // Total output includes only milestone claims earned this year
+  // Total output = financial income (linked agri-env excluded) + milestone claims this year.
+  // A linked transaction contributes 0 to txIncomeTotal; its value is represented exactly once
+  // through the milestone claim's yearClaimedPence.
   const totalOutput = txIncomeTotal + agriEnvYearTotal;
 
   // Variable costs
@@ -352,6 +371,24 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   const fixedCosts = FIXED_COST_CATS.reduce((m, c) => { m[c] = sumCat(c); return m; }, {} as Record<string, number>);
   const totalFixed = Object.values(fixedCosts).reduce((s, v) => s + v, 0);
   const netFarmIncome = grossMargin - totalFixed;
+
+  // Mutation: link (or unlink) a financial transaction to an agri-env project
+  const linkMutation = useMutation({
+    mutationFn: async ({ txId, projectId }: { txId: number; projectId: number | null }) => {
+      const res = await fetch(`/api/farms/${farmId}/financial-transactions/${txId}/link-agri-env`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agriEnvProjectId: projectId }),
+      });
+      if (!res.ok) throw new Error("Failed to update link");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["report-gross-margin", farmId, year] });
+      setLinkingTx(null);
+      setSelectedProjectId("");
+    },
+  });
 
   useEffect(() => {
     onRegisterExport(() => {
@@ -379,16 +416,66 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (costs.length === 0 && agriEnvSummary.length === 0) return <EmptyState icon={PoundSterling} message="Add financial transactions to generate the income statement." />;
 
+  // Lookup a linked project name from agriEnvSummary (or fall back to id)
+  const projectName = (id: number) => agriEnvSummary.find((p: any) => p.id === id)?.schemeName ?? `Project #${id}`;
+
   return (
     <div>
+      {/* Link-to-project modal */}
+      {linkingTx && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => { setLinkingTx(null); setSelectedProjectId(""); }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "1.5rem", width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontWeight: 700, fontSize: "1rem", marginBottom: 4, color: "#111827" }}>Link transaction to agri-env project</h3>
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 16 }}>
+              Linking tells the system this transaction <em>is</em> the milestone payment — it will be shown as "via milestone record" and excluded from the double-count warning.
+            </p>
+            {linkingTx.description && (
+              <p style={{ fontSize: "0.8rem", color: "#374151", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.5rem 0.75rem", marginBottom: 14, fontStyle: "italic" }}>
+                "{linkingTx.description}"
+              </p>
+            )}
+            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>Agri-env project</label>
+            <select
+              value={selectedProjectId}
+              onChange={e => setSelectedProjectId(e.target.value)}
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.875rem", color: "#111827", background: "#fff", marginBottom: 20 }}
+            >
+              <option value="">— select a project —</option>
+              {agriEnvSummary.map((p: any) => (
+                <option key={p.id} value={String(p.id)}>{p.schemeName}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setLinkingTx(null); setSelectedProjectId(""); }}
+                style={{ padding: "0.45rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", fontSize: "0.875rem", cursor: "pointer", color: "#374151" }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!selectedProjectId || linkMutation.isPending}
+                onClick={() => { if (selectedProjectId) linkMutation.mutate({ txId: linkingTx.id, projectId: parseInt(selectedProjectId) }); }}
+                style={{ padding: "0.45rem 1rem", border: "none", borderRadius: 6, background: selectedProjectId ? "#166534" : "#9ca3af", color: "#fff", fontSize: "0.875rem", cursor: selectedProjectId ? "pointer" : "not-allowed", fontWeight: 600 }}
+              >
+                {linkMutation.isPending ? "Saving…" : "Link transaction"}
+              </button>
+            </div>
+            {linkMutation.isError && (
+              <p style={{ fontSize: "0.78rem", color: "#dc2626", marginTop: 8 }}>Failed to link — please try again.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {hasDoubleCountRisk && (
         <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
           <span style={{ fontSize: "1.1rem", lineHeight: 1.3 }}>⚠️</span>
           <div>
             <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", marginBottom: 2 }}>Possible double-count detected</p>
             <p style={{ color: "#78350f", fontSize: "0.8rem" }}>
-              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env project records in {year}.
-              The agri-env line below is drawn from the Agri-Env tab. To avoid double-counting, remove either the financial transaction or exclude the agri-env tab line from your total.
+              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env milestone claims in {year}.
+              Use the <strong>Link to project</strong> action on the transaction row below to confirm this transaction is the milestone payment — it will be excluded from double-counting.
+              Or remove either the financial transaction or the agri-env milestone claims.
             </p>
           </div>
         </div>
@@ -404,9 +491,48 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <tbody>
             <SectionDivider label="Income" />
-            {INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => (
-              <DataRow key={c} label={c} value={fmt(incomeValues[c])} indent />
-            ))}
+            {INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => {
+              // Agri-env scheme transactions get expanded per-transaction rendering
+              if (c === "Agri-Environment Scheme") {
+                return agriEnvSchemeTxs.map((tx: any) => {
+                  const isLinked = !!tx.agriEnvProjectId;
+                  return (
+                    <tr key={tx.id} style={{ background: isLinked ? "#fafafa" : undefined }}>
+                      <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: isLinked ? "#9ca3af" : "#374151" }}>
+                        <span style={{ textDecoration: isLinked ? "line-through" : undefined }}>
+                          {tx.description || c}
+                        </span>
+                        {isLinked ? (
+                          <span style={{ marginLeft: 8, fontSize: "0.7rem", background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
+                            via milestone record · {projectName(tx.agriEnvProjectId)}
+                          </span>
+                        ) : hasDoubleCountRisk ? (
+                          <button
+                            onClick={() => { setLinkingTx({ id: tx.id, description: tx.description }); setSelectedProjectId(""); }}
+                            style={{ marginLeft: 10, fontSize: "0.72rem", background: "#fffbeb", color: "#92400e", border: "1px solid #fcd34d", borderRadius: 4, padding: "1px 7px", cursor: "pointer", verticalAlign: "middle", fontWeight: 600 }}
+                          >
+                            Link to project
+                          </button>
+                        ) : null}
+                        {isLinked && (
+                          <button
+                            onClick={() => linkMutation.mutate({ txId: tx.id, projectId: null })}
+                            style={{ marginLeft: 8, fontSize: "0.72rem", background: "transparent", color: "#9ca3af", border: "none", cursor: "pointer", padding: "1px 4px", verticalAlign: "middle" }}
+                            title="Remove link"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.5rem 0.875rem", color: isLinked ? "#9ca3af" : "#374151", textAlign: "right" }}>
+                        {fmt(tx.amountPence)}
+                      </td>
+                    </tr>
+                  );
+                });
+              }
+              return <DataRow key={c} label={c} value={fmt(incomeValues[c])} indent />;
+            })}
             {agriEnvYearTotal > 0 && (
               <tr style={{ background: "#f0fdf4" }}>
                 <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: "#166534" }}>

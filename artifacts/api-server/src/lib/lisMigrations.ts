@@ -507,5 +507,15 @@ export async function runLisMigrations(): Promise<void> {
 
   // Enterprise tag column on financial_transactions — added for viticulture enterprise reporting
   await db.execute(sql`ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS enterprise text`);
+
+  // Agri-env project link — allows growers to dismiss the double-count warning on P&L by
+  // linking a financial transaction (category "Agri-Environment Scheme") to the agri-env
+  // project whose milestone payment it represents.  When linked, the transaction amount is
+  // excluded from financial income totals because the milestone claim already represents it.
+  await db.execute(sql`
+    ALTER TABLE financial_transactions
+      ADD COLUMN IF NOT EXISTS agri_env_project_id integer
+        REFERENCES agri_env_projects(id) ON DELETE SET NULL
+  `);
 }
 

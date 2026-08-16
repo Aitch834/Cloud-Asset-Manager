@@ -7122,6 +7122,29 @@ router.delete("/farms/:farmId/financial-transactions/:recordId", requireAuth, re
   res.json({ success: true });
 });
 
+// Link (or unlink) a financial transaction to an agri-env project so the
+// double-count warning is suppressed for that transaction.
+router.patch("/farms/:farmId/financial-transactions/:recordId/link-agri-env", requireAuth, requireTenant, requireModuleByKey("financial-records", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = getRecordId(req);
+  if (!recordId) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { agriEnvProjectId } = req.body as { agriEnvProjectId: number | null };
+  // If a project id is supplied, verify it belongs to this farm.
+  if (agriEnvProjectId != null) {
+    const [project] = await db.select({ id: agriEnvProjectsTable.id })
+      .from(agriEnvProjectsTable)
+      .where(and(eq(agriEnvProjectsTable.id, agriEnvProjectId), eq(agriEnvProjectsTable.farmId, farmId)));
+    if (!project) { res.status(404).json({ error: "Agri-env project not found" }); return; }
+  }
+  const [record] = await db.update(financialTransactionsTable)
+    .set({ agriEnvProjectId: agriEnvProjectId ?? null })
+    .where(and(eq(financialTransactionsTable.id, recordId), eq(financialTransactionsTable.farmId, farmId)))
+    .returning();
+  if (!record) { res.status(404).json({ error: "Transaction not found" }); return; }
+  res.json({ record });
+});
+
 // ─── Xero CSV Export (GET — used by the dashboard UI) ──────────────────────
 // Exports the full union of manual + auto-generated transactions as a Xero-
 // formatted CSV.  Query params: startDate, endDate (ISO strings, optional),
