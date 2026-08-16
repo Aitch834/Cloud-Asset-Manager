@@ -484,7 +484,7 @@ export default function Pricing() {
             </div>
 
             <Button className="w-full h-14 text-base bg-brand-forest hover:bg-brand-sage shadow-lg" asChild>
-              <Link href="/contact">Start Custom Setup</Link>
+              <Link href={sectorFilter !== "All" ? `/contact?sector=${encodeURIComponent(sectorFilter)}` : "/contact"}>Start Custom Setup</Link>
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-1">
               <Info className="w-3 h-3" /> All prices exclude VAT.

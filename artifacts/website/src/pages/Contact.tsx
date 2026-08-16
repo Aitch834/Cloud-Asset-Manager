@@ -1,5 +1,5 @@
 import { Layout } from "@/components/layout/Layout";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,8 +9,45 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCreateLead } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Tag } from "lucide-react";
 import { motion } from "framer-motion";
+
+// Modules that are relevant to each sector (mirrors the SECTOR_MODULES list on the Pricing page).
+// Used to pre-check the module list when a prospect arrives with ?sector=<name>.
+const SECTOR_DEFAULT_MODULES: Record<string, string[]> = {
+  Arable: [
+    "field-crop-management", "sprays-inputs", "soil-management", "grain-crop-storage",
+    "equipment-workshop", "weather-tracking", "environment-sustainability",
+    "finance-business", "red-tractor-compliance",
+  ],
+  Livestock: [
+    "livestock-management", "biosecurity", "equipment-workshop",
+    "finance-business", "environment-sustainability", "red-tractor-compliance",
+  ],
+  Viticulture: [
+    "viticulture", "sprays-inputs", "equipment-workshop",
+    "weather-tracking", "soil-management", "finance-business", "red-tractor-compliance",
+  ],
+  Organic: [
+    "organic-compliance", "red-tractor-compliance",
+  ],
+  "Fresh Produce": [
+    "fresh-produce", "sprays-inputs", "equipment-workshop",
+    "safety-risk-audits", "finance-business", "red-tractor-compliance",
+  ],
+  Diversification: [
+    "farm-diversification", "equipment-workshop",
+    "finance-business", "safety-risk-audits", "red-tractor-compliance",
+  ],
+};
+
+const VALID_SECTOR_NAMES = new Set(Object.keys(SECTOR_DEFAULT_MODULES));
+
+// Read the ?sector= query param set by the Pricing page "Start Custom Setup" link.
+function getSectorParam(): string | null {
+  const s = new URLSearchParams(window.location.search).get("sector");
+  return s && VALID_SECTOR_NAMES.has(s) ? s : null;
+}
 
 // Schema mirrors CreateLeadBody
 const formSchema = z.object({
@@ -66,18 +103,30 @@ export default function Contact() {
   const { toast } = useToast();
   const mutation = useCreateLead();
 
+  // Sector context passed from the Pricing page via ?sector= query param
+  const sectorParam = useMemo(() => getSectorParam(), []);
+  const sectorDefaultModules = useMemo(
+    () => sectorParam ? SECTOR_DEFAULT_MODULES[sectorParam] : ["red-tractor-compliance"],
+    [sectorParam],
+  );
+
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       farmCount: 1,
-      modulesInterested: ["red-tractor-compliance"],
+      modulesInterested: sectorDefaultModules,
     }
   });
 
   const selectedModules = watch("modulesInterested");
 
   const onSubmit = (data: FormValues) => {
-    mutation.mutate({ data }, {
+    // Prepend sector context to the message so sales can see which sector filter
+    // the prospect came from, even though the API schema has no dedicated sector field.
+    const sectorPrefix = sectorParam ? `Sector of interest: ${sectorParam}\n\n` : "";
+    const message = data.message ? `${sectorPrefix}${data.message}` : sectorPrefix || undefined;
+
+    mutation.mutate({ data: { ...data, message } }, {
       onSuccess: () => {
         setIsSuccess(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -122,6 +171,16 @@ export default function Contact() {
                   Fill out the form below and we'll help you configure the perfect setup for your farm.
                 </p>
               </div>
+
+              {sectorParam && (
+                <div className="mb-6 flex items-center gap-3 rounded-xl border border-brand-forest/20 bg-brand-pale/40 px-4 py-3">
+                  <Tag className="w-4 h-4 text-brand-forest shrink-0" />
+                  <p className="text-sm text-brand-forest">
+                    <span className="font-semibold">Sector: {sectorParam}</span>
+                    {" "}— we've pre-selected the most relevant modules below. Feel free to adjust them.
+                  </p>
+                </div>
+              )}
 
               <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl border border-border">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
