@@ -1,6 +1,6 @@
 import { fetchWineryJson, today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { usePersistedFilter } from "@/hooks/use-persisted-filter";
+import { usePersistedFilter, usePersistedArrayFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
@@ -881,7 +881,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills-maintenance", "no-fills-none"] as const;
   const IS_FULL_VALUES = ["true", "false"] as const;
 
-  const [zoneFilter, setZoneFilter] = usePersistedFilter({ page: "vessel-register", filter: "zone", farmId, defaultValue: "" });
+  const [zoneFilter, setZoneFilter] = usePersistedArrayFilter({ page: "vessel-register", filter: "zone", farmId });
   const [fillTierFilter, setFillTierFilter] = usePersistedFilter({ page: "vessel-register", filter: "fill-tier", farmId, defaultValue: "", validValues: FILL_TIER_VALUES });
   const [alertFlagFilter, setAlertFlagFilter] = usePersistedFilter({ page: "vessel-register", filter: "alert-flag", farmId, defaultValue: "", validValues: ALERT_FLAG_VALUES });
   // isFullFilter: "" = show all, "true" = full only, "false" = empty only
@@ -954,9 +954,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
 
   const filteredData = crud.data.filter(r => {
     const isBarrelType = isBarrelVessel(r.vessel_type);
-    if (zoneFilter) {
+    if (zoneFilter.length > 0) {
       if (!isBarrelType) return false;
-      if (String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
+      if (!zoneFilter.includes(String(r.cellar_zone || "Unassigned"))) return false;
     }
     if (fillTierFilter) {
       if (!isBarrelType) return false;
@@ -994,8 +994,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cellar Stock — Barrels</p>
-            {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter(""); setFillTierFilter(""); setAlertFlagFilter(""); setIsFullFilter(""); }}>
+            {(zoneFilter.length > 0 || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setZoneFilter([]); setFillTierFilter(""); setAlertFlagFilter(""); setIsFullFilter(""); }}>
                 Show all
               </Button>
             )}
@@ -1005,14 +1005,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           {(() => {
             const exportBarrels = barrels.filter(r => {
               if (String(r.status ?? "active") !== "active") return false;
-              if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
+              if (zoneFilter.length > 0 && !zoneFilter.includes(String(r.cellar_zone || "Unassigned"))) return false;
               if (fillTierFilter && !matchesFillTierFilter(r)) return false;
               if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
               if (isFullFilter !== "" && !!r.is_full !== (isFullFilter === "true")) return false;
               return true;
             });
             const scopeParts: string[] = [];
-            if (zoneFilter) scopeParts.push(`Zone: ${zoneFilter}`);
+            if (zoneFilter.length > 0) scopeParts.push(`Zone: ${zoneFilter.join(", ")}`);
             if (fillTierFilter) scopeParts.push(`Fill tier: ${fillTierFilter}`);
             if (alertFlagFilter === "approaching-neutral") scopeParts.push("Flag: approaching neutral (fill 4+)");
             else if (alertFlagFilter === "idle") scopeParts.push("Flag: idle >90 days");
@@ -1285,11 +1285,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     : alertFlagFilter === "approaching-neutral" ? "approaching neutral"
                     : alertFlagFilter === "idle" ? "idle"
                     : null;
-                  const isSelected = zoneFilter === zone;
+                  const isSelected = zoneFilter.includes(zone);
                   return (
                     <button
                       key={zone}
-                      onClick={() => setZoneFilter(isSelected ? "" : zone)}
+                      onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
                       className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"}`}
                     >
                       <span className="font-semibold">{zone}</span>
@@ -1314,7 +1314,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               {(() => {
                 // Respect the active zone and alert-flag filters so counts match what the table will show
                 const scopedBarrels = barrels.filter(r => {
-                  if (zoneFilter && String(r.cellar_zone || "Unassigned") !== zoneFilter) return false;
+                  if (zoneFilter.length > 0 && !zoneFilter.includes(String(r.cellar_zone || "Unassigned"))) return false;
                   if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
                   return true;
                 });
@@ -1342,13 +1342,13 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             </div>
           </div>
 
-          {(zoneFilter || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
+          {(zoneFilter.length > 0 || fillTierFilter || alertFlagFilter || isFullFilter !== "") && (
             <p className="text-xs text-muted-foreground">
-              {/* Build a readable sentence: "Showing [full] barrels [in Zone] [on 2nd fill] [flagged as …]" */}
+              {/* Build a readable sentence: "Showing [full] barrels [in Zone A, Zone B] [on 2nd fill] [flagged as …]" */}
               Showing{isFullFilter === "true" && <> <span className="font-medium">full</span></>}{isFullFilter === "false" && <> <span className="font-medium">empty</span></>} barrels
-              {zoneFilter && <> in <span className="font-medium">{zoneFilter}</span></>}
-              {fillTierFilter && <>{(zoneFilter) && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
-              {alertFlagFilter && <>{(zoneFilter || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;90 days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
+              {zoneFilter.length > 0 && <> in <span className="font-medium">{zoneFilter.join(", ")}</span></>}
+              {fillTierFilter && <>{zoneFilter.length > 0 && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
+              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;90 days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
               {" "}— click "Show all" to clear.
             </p>
           )}

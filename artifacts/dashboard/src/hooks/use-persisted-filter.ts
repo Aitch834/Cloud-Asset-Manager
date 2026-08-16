@@ -61,6 +61,43 @@ export function usePersistedFilter(opts: {
 }
 
 /**
+ * Array variant of usePersistedFilter for multi-select filters (e.g. zone chips).
+ * Stores a JSON-serialised string[] in localStorage, scoped to the farm.
+ * Invalid or unreadable stored values fall back to an empty array.
+ * Switching farms re-reads that farm's stored value.
+ */
+export function usePersistedArrayFilter(opts: {
+  page: string;
+  filter: string;
+  farmId: number | null | undefined;
+}): [string[], (v: string[]) => void] {
+  const { page, filter, farmId } = opts;
+  const storageKey = `${page}-${filter}-filter-${farmId ?? 0}`;
+  const readStored = (): string[] => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every(x => typeof x === "string")) return parsed;
+      }
+    } catch { /* localStorage unavailable or corrupt */ }
+    return [];
+  };
+  const [value, setValueRaw] = useState<string[]>(readStored);
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    setValueRaw(readStored());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+  const setValue = (v: string[]) => {
+    try { localStorage.setItem(storageKey, JSON.stringify(v)); } catch { /* localStorage unavailable */ }
+    setValueRaw(v);
+  };
+  return [value, setValue];
+}
+
+/**
  * Numeric variant of usePersistedFilter for year pickers that hold numbers
  * (e.g. Season Reports' crop year). Non-numeric or invalid stored values
  * fall back to `defaultValue`.
