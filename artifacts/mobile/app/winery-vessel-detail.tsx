@@ -1319,7 +1319,13 @@ export default function WineryVesselDetailScreen() {
           {/* Fill history */}
           <SectionHeader title="Fill History" count={data.fills.length} />
           {data.fills.length === 0 ? (
-            <EmptySection label="No fill history recorded for this vessel." />
+            <View style={styles.noFillsWrap}>
+              <View style={styles.noFillsBadge}>
+                <Feather name="alert-circle" size={12} color="#7c3aed" />
+                <Text style={styles.noFillsBadgeText}>No fills logged</Text>
+              </View>
+              <Text style={styles.noFillsHint}>No fill history has been recorded for this vessel.</Text>
+            </View>
           ) : (
             data.fills.map(f => <FillCard key={f.id} fill={f} />)
           )}
@@ -1639,6 +1645,36 @@ const styles = StyleSheet.create({
   // Card icon action buttons (edit / delete)
   cardIconBtn: {
     padding: 2,
+  },
+  // No fills logged badge
+  noFillsWrap: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: "#ede9fe",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  noFillsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ede9fe",
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  noFillsBadgeText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.semiBold,
+    color: "#7c3aed",
+  },
+  noFillsHint: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: colors.textTertiary,
+    textAlign: "center",
   },
   // Fill badge
   fillBadge: {
