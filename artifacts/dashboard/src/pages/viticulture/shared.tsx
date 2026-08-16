@@ -2081,6 +2081,100 @@ export async function printHarvest(
   </table>`;
   }
 
+  // ── 3f. Build Yield by Variety summary ──────────────────────────────────────
+  // Eligibility mirrors the on-screen varietySummaryData: ≥2 distinct named varieties.
+  const VARIETY_UNKNOWN_KEY = "Unknown / Not linked";
+  const varietyMap2: Record<string, {
+    totalKg: number; totalHa: number; blockIds: Set<unknown>;
+    brixSum: number; brixCount: number;
+    phSum: number; phCount: number;
+    taSum: number; taCount: number;
+    paSum: number; paCount: number;
+  }> = {};
+  for (const r of records) {
+    const bid = r.blockId != null ? Number(r.blockId) : null;
+    const block = bid != null && !isNaN(bid) && bid > 0 ? blockLookup2[bid] : undefined;
+    const variety = block ? String(block.variety ?? "").trim() : "";
+    const key = variety || VARIETY_UNKNOWN_KEY;
+    if (!varietyMap2[key]) varietyMap2[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
+    const vEntry = varietyMap2[key];
+    vEntry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+    if (block && r.blockId != null && !vEntry.blockIds.has(r.blockId)) {
+      vEntry.blockIds.add(r.blockId);
+      const ha = parseFloat(String(block.areaHa ?? ""));
+      if (!isNaN(ha) && ha > 0) vEntry.totalHa += ha;
+    }
+    const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { vEntry.brixSum += brix; vEntry.brixCount++; }
+    const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) { vEntry.phSum += ph; vEntry.phCount++; }
+    const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) { vEntry.taSum += ta; vEntry.taCount++; }
+    const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) { vEntry.paSum += pa; vEntry.paCount++; }
+  }
+  const namedVarietyKeys2 = Object.keys(varietyMap2).filter(k => k !== VARIETY_UNKNOWN_KEY);
+  let varietySummaryHtml = "";
+  if (namedVarietyKeys2.length >= 2) {
+    const sortedVarietyEntries = Object.entries(varietyMap2).sort(([a], [b]) => {
+      if (a === VARIETY_UNKNOWN_KEY) return 1;
+      if (b === VARIETY_UNKNOWN_KEY) return -1;
+      return a.localeCompare(b);
+    });
+    const varietyBodyRows = sortedVarietyEntries.map(([variety, e]) => {
+      const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+      const avgBrix = e.brixCount > 0 ? e.brixSum / e.brixCount : null;
+      const avgPh = e.phCount > 0 ? e.phSum / e.phCount : null;
+      const avgTa = e.taCount > 0 ? e.taSum / e.taCount : null;
+      const avgPa = e.paCount > 0 ? e.paSum / e.paCount : null;
+      return `<tr>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(variety)}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${e.totalHa > 0 ? e.totalHa.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${e.totalKg > 0 ? e.totalKg.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${kgPerHa != null ? kgPerHa.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPh != null ? avgPh.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTa != null ? avgTa.toFixed(1) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPa != null ? avgPa.toFixed(1) : "\u2014"}</td>
+      </tr>`;
+    }).join("");
+    // Grand totals for footer
+    const vsGrandKg2 = sortedVarietyEntries.reduce((s, [, e]) => s + e.totalKg, 0);
+    const vsGrandHa2 = sortedVarietyEntries.filter(([k]) => k !== VARIETY_UNKNOWN_KEY).reduce((s, [, e]) => s + e.totalHa, 0);
+    const rowsWithArea2 = sortedVarietyEntries.filter(([, e]) => e.totalHa > 0);
+    const vsGrandKgForArea2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalKg, 0);
+    const vsGrandKgPerHa2 = vsGrandHa2 > 0 && vsGrandKgForArea2 > 0 ? vsGrandKgForArea2 / vsGrandHa2 : null;
+    const vsBrixAll2 = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+    const vsGrandBrix2 = vsBrixAll2.length > 0 ? vsBrixAll2.reduce((a, b) => a + b, 0) / vsBrixAll2.length : null;
+    const vsPhAll2 = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+    const vsGrandPh2 = vsPhAll2.length > 0 ? vsPhAll2.reduce((a, b) => a + b, 0) / vsPhAll2.length : null;
+    const vsTaAll2 = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+    const vsGrandTa2 = vsTaAll2.length > 0 ? vsTaAll2.reduce((a, b) => a + b, 0) / vsTaAll2.length : null;
+    const vsPaAll2 = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+    const vsGrandPa2 = vsPaAll2.length > 0 ? vsPaAll2.reduce((a, b) => a + b, 0) / vsPaAll2.length : null;
+    varietySummaryHtml = `
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Yield by Variety</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+    <thead><tr>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (kg/ha)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
+    </tr></thead>
+    <tbody>${varietyBodyRows}</tbody>
+    <tfoot><tr>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Varieties</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandHa2 > 0 ? vsGrandHa2.toFixed(2) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKg2 > 0 ? vsGrandKg2.toFixed(0) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKgPerHa2 != null ? vsGrandKgPerHa2.toFixed(0) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandBrix2 != null ? vsGrandBrix2.toFixed(1) + " \xb0" : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPh2 != null ? vsGrandPh2.toFixed(2) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandTa2 != null ? vsGrandTa2.toFixed(1) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPa2 != null ? vsGrandPa2.toFixed(1) : "\u2014"}</td>
+    </tr></tfoot>
+  </table>`;
+  }
+
   const summaryHtml = records.length > 0 ? `
   ${vintageSummaryHtml}
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">
@@ -2118,6 +2212,7 @@ export async function printHarvest(
       </tr>
     </tfoot>
   </table>
+  ${varietySummaryHtml}
   ${crossTabHtml}
   ${chemCrossTabHtml}
   ${(yieldChartSvgHtml || yieldTHaChartSvgHtml || (groupByVintage && tHaEligibleBlockCount < 2)) ? `
