@@ -359,6 +359,21 @@ interface TemplateFormProps {
 }
 
 const DEFAULT_ACCENT = "#C49A6C";
+
+// All recognised placeholder tokens (required + optional).
+// Used for near-miss typo detection in the template editor.
+const CANONICAL_PLACEHOLDERS_ALL = [
+  "{{font_css}}", "{{logo}}", "{{bg}}", "{{qr}}",
+  "{{headline}}", "{{body}}", "{{accent_color}}",
+] as const;
+
+/** Map from normalised inner content (lowercase, trimmed, hyphens→underscores) → canonical full token. */
+const CANONICAL_PLACEHOLDER_NORM_MAP: Map<string, string> = new Map(
+  CANONICAL_PLACEHOLDERS_ALL.map((p) => {
+    const inner = p.slice(2, -2); // strip {{ and }}
+    return [inner.trim().toLowerCase().replace(/-/g, "_"), p];
+  })
+);
 const SAMPLE_HEADLINE = "Your vineyard.<br><em>Audit-ready.</em>";
 const SAMPLE_BODY = "Vine register, phenology, harvest chemistry, spray logs, PDO&nbsp;/&nbsp;PGI records — all in one place.";
 
@@ -512,6 +527,29 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
   const missingPlaceholders = htmlBody.trim()
     ? REQUIRED_PLACEHOLDERS.filter((p) => !htmlBody.includes(p))
     : [];
+
+  // Near-miss typo detection — find {{…}} tokens that aren't exact canonical
+  // placeholders but normalise to one (wrong case, extra spaces, - vs _).
+  const typoPlaceholders: Array<{ found: string; expected: string }> = (() => {
+    if (!htmlBody.trim()) return [];
+    const results: Array<{ found: string; expected: string }> = [];
+    const seen = new Set<string>();
+    const tokenRe = /\{\{([^}]*)\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(htmlBody)) !== null) {
+      const found = `{{${m[1]}}}`;
+      if (seen.has(found)) continue;
+      seen.add(found);
+      // Skip tokens that are already exact canonical matches
+      if (CANONICAL_PLACEHOLDER_NORM_MAP.has(m[1].trim().toLowerCase().replace(/-/g, "_")) &&
+          found === CANONICAL_PLACEHOLDER_NORM_MAP.get(m[1].trim().toLowerCase().replace(/-/g, "_"))) continue;
+      // Check whether normalising the inner content matches a canonical placeholder
+      const normInner = m[1].trim().toLowerCase().replace(/-/g, "_");
+      const expected = CANONICAL_PLACEHOLDER_NORM_MAP.get(normInner);
+      if (expected && expected !== found) results.push({ found, expected });
+    }
+    return results;
+  })();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -706,6 +744,29 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
             ))}
             . The rendered PDF will be blank for {missingPlaceholders.length > 1 ? "those fields" : "that field"}.
           </p>
+        </div>
+      )}
+
+      {typoPlaceholders.length > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 border border-amber-200">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+          <div className="text-sm text-amber-800 space-y-1">
+            <p className="font-medium">
+              Likely placeholder typo{typoPlaceholders.length > 1 ? "s" : ""} detected
+            </p>
+            <p className="text-xs">
+              The following token{typoPlaceholders.length > 1 ? "s" : ""} will be silently ignored by the renderer because {typoPlaceholders.length > 1 ? "they don't" : "it doesn't"} match any recognised placeholder exactly. Did you mean:
+            </p>
+            <ul className="text-xs space-y-0.5 mt-1">
+              {typoPlaceholders.map(({ found, expected }) => (
+                <li key={found} className="flex items-center gap-1.5">
+                  <code className="bg-amber-100 px-1 rounded">{found}</code>
+                  <span className="text-amber-600">→</span>
+                  <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
