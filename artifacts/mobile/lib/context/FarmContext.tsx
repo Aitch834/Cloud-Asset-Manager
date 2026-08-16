@@ -228,7 +228,23 @@ const [FarmProviderInner, useFarm] = createContextHook(
       });
     }, []);
 
-    return { farms, currentFarm, setCurrentFarm, updateFarm, user, isLoading };
+    const refreshFarms = useCallback(async () => {
+      const token = await getAuthToken();
+      if (!token && !__DEV__) return;
+      const apiFarms = await fetchFarmsFromApi(token);
+      if (apiFarms.length === 0) return;
+      await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
+      setFarms(apiFarms);
+      setCurrentFarmState(prev => {
+        if (!prev) return prev;
+        const updated = apiFarms.find(f => f.id === prev.id);
+        if (!updated) return prev;
+        setItem(STORAGE_KEYS.CURRENT_FARM, updated).catch(() => {});
+        return updated;
+      });
+    }, []);
+
+    return { farms, currentFarm, setCurrentFarm, updateFarm, refreshFarms, user, isLoading };
   },
 );
 

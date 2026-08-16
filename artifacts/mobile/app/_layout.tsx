@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -17,7 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { FarmProvider } from "@/lib/context/FarmContext";
+import { FarmProvider, useFarm } from "@/lib/context/FarmContext";
 import { RFIDProvider } from "@/lib/context/RFIDContext";
 import { SyncProvider } from "@/lib/context/SyncContext";
 import { getItem, STORAGE_KEYS } from "@/lib/storage";
@@ -67,6 +67,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (!loggedIn && pathname !== "/login") return null;
 
   return <>{children}</>;
+}
+
+function FarmRefresher() {
+  const { refreshFarms } = useFarm();
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        refreshFarms().catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [refreshFarms]);
+  return null;
 }
 
 function RootLayoutNav() {
@@ -145,6 +158,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AuthProvider>
                 <FarmProvider>
+                  <FarmRefresher />
                   <SyncProvider>
                     <RFIDProvider>
                       <AuthGate>
