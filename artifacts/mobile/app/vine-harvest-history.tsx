@@ -28,6 +28,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { apiFetch } from "@/lib/apiFetch";
 
 interface HarvestRecord {
@@ -301,6 +302,7 @@ export default function VineHarvestHistoryScreen() {
 
   const [search, setSearch] = useState("");
   const [selectedVintage, setSelectedVintage] = useState<number | null>(null);
+  const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -338,16 +340,37 @@ export default function VineHarvestHistoryScreen() {
     return displayRecords.filter(r => r.vintageYear === selectedVintage);
   }, [displayRecords, selectedVintage]);
 
+  // Blocks that have at least one record — used to populate the block filter chips
+  const recordBlockIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const r of displayRecords) {
+      if (r.blockId != null) ids.add(r.blockId);
+    }
+    return ids;
+  }, [displayRecords]);
+
+  const filterBlocks = useMemo(
+    () => blocks.filter(b => recordBlockIds.has(b.id)),
+    [blocks, recordBlockIds],
+  );
+
+  // Block-filtered records (applied before free-text search)
+  const blockFilteredRecords = useMemo(() => {
+    if (selectedBlockIds.length === 0) return vintageRecords;
+    const idSet = new Set(selectedBlockIds);
+    return vintageRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
+  }, [vintageRecords, selectedBlockIds]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return vintageRecords;
+    if (!search.trim()) return blockFilteredRecords;
     const q = search.toLowerCase();
-    return vintageRecords.filter(r =>
+    return blockFilteredRecords.filter(r =>
       (r.blockName ?? "").toLowerCase().includes(q) ||
       (r.operatorName ?? "").toLowerCase().includes(q) ||
       (r.harvestDate ?? "").includes(q) ||
       String(r.vintageYear ?? "").includes(q),
     );
-  }, [vintageRecords, search]);
+  }, [blockFilteredRecords, search]);
 
   // Farm-wide totals for the selected vintage
   const totals = useMemo(() => {
@@ -447,6 +470,46 @@ export default function VineHarvestHistoryScreen() {
               </Text>
             </Pressable>
           ))}
+        </ScrollView>
+      )}
+
+      {/* Block filter chips */}
+      {filterBlocks.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.blockFilterScroll}
+          contentContainerStyle={styles.blockFilterScrollContent}
+        >
+          <Pressable
+            style={[styles.blockChip, selectedBlockIds.length === 0 && styles.blockChipActive]}
+            onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
+          >
+            <Text style={[styles.blockChipText, selectedBlockIds.length === 0 && styles.blockChipTextActive]}>
+              All blocks
+            </Text>
+          </Pressable>
+          {filterBlocks.map(b => {
+            const active = selectedBlockIds.includes(b.id);
+            return (
+              <Pressable
+                key={b.id}
+                style={[styles.blockChip, active && styles.blockChipActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedBlockIds(
+                    active
+                      ? selectedBlockIds.filter(id => id !== b.id)
+                      : [...selectedBlockIds, b.id],
+                  );
+                }}
+              >
+                <Text style={[styles.blockChipText, active && styles.blockChipTextActive]}>
+                  {b.blockName}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -695,6 +758,35 @@ const styles = StyleSheet.create({
   },
   vintageChipTextActive: {
     color: "#ffffff",
+  },
+  // Block filter chips
+  blockFilterScroll: { flexGrow: 0 },
+  blockFilterScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  blockChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  blockChipActive: {
+    backgroundColor: "#ede9fe",
+    borderColor: colors.primary,
+  },
+  blockChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  blockChipTextActive: {
+    color: colors.primary,
   },
   // Totals card
   totalsCard: {
