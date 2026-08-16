@@ -437,7 +437,7 @@ export default function Sectors() {
                   <Link href={`/pricing${SECTOR_TO_PRICING[sector.id] ? `?sector=${SECTOR_TO_PRICING[sector.id]}` : ""}`}>See full pricing</Link>
                 </Button>
                 <Button className="bg-white text-brand-forest hover:bg-emerald-50" asChild>
-                  <Link href="/register-interest">
+                  <Link href={`/register-interest?sector=${encodeURIComponent(sector.label)}`}>
                     Get started <ChevronRight className="w-4 h-4 ml-1" />
                   </Link>
                 </Button>

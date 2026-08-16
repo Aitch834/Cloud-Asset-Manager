@@ -1,5 +1,5 @@
 import { Layout } from "@/components/layout/Layout";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,6 +93,7 @@ interface FormState {
   modules: string[];
   heardVia: string;
   message: string;
+  sector: string;
 }
 
 const EMPTY: FormState = {
@@ -108,6 +109,7 @@ const EMPTY: FormState = {
   modules: [],
   heardVia: "",
   message: "",
+  sector: "",
 };
 
 export default function RegisterInterest() {
@@ -115,6 +117,13 @@ export default function RegisterInterest() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill sector from ?sector= query param (passed by Sectors page CTAs)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get("sector");
+    if (s) setForm(f => ({ ...f, sector: s }));
+  }, []);
 
   function toggleModule(id: string) {
     setForm(f => ({
@@ -232,6 +241,23 @@ export default function RegisterInterest() {
               </div>
             </div>
           </section>
+
+          {/* Sector context (pre-filled from Sectors page CTA — read-only) */}
+          {form.sector && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-brand/30 bg-brand/5">
+              <CheckCircle2 className="w-4 h-4 text-brand-forest shrink-0" />
+              <p className="text-sm text-foreground">
+                Enquiring about the <strong>{form.sector}</strong> sector
+              </p>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, sector: "" }))}
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
           {/* Farm details */}
           <section>
