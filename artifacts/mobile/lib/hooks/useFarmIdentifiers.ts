@@ -80,6 +80,23 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
         const apiBase = getApiBase();
         if (!apiBase) { setLoading(false); return; }
         const headers = await getAuthHeaders();
+        // Check whether more.tsx wrote a "just saved" flag for this farm —
+        // done before the res.ok guard so a network failure never silently
+        // swallows a flag the grower earned.
+        try {
+          const key = identifierJustSavedKey(farmId);
+          const raw = await AsyncStorage.getItem(key);
+          if (raw && !cancelled) {
+            const { ts } = JSON.parse(raw) as { ts: number };
+            if (Date.now() - ts < JUST_SAVED_TTL_MS) {
+              setJustSaved(true);
+              await AsyncStorage.removeItem(key); // consume immediately
+            }
+          }
+        } catch {
+          // best-effort; don't surface to user
+        }
+
         const res = await fetch(`${apiBase}/api/farms/${farmId}`, { headers });
         if (!res.ok || cancelled) { setLoading(false); return; }
         const data = await res.json() as { record?: { name?: string | null; contactPhone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null } };
@@ -90,21 +107,6 @@ export function useFarmIdentifiers(farmId: string | undefined): FarmIdentifiers 
           setSbiNumber(data.record?.sbiNumber ?? null);
           setAddress(data.record?.address ?? null);
           setPostcode(data.record?.postcode ?? null);
-
-          // Check whether more.tsx wrote a "just saved" flag for this farm
-          try {
-            const key = identifierJustSavedKey(farmId);
-            const raw = await AsyncStorage.getItem(key);
-            if (raw && !cancelled) {
-              const { ts } = JSON.parse(raw) as { ts: number };
-              if (Date.now() - ts < JUST_SAVED_TTL_MS) {
-                setJustSaved(true);
-                await AsyncStorage.removeItem(key); // consume immediately
-              }
-            }
-          } catch {
-            // best-effort; don't surface to user
-          }
         }
       } catch {
         // silently ignore — no identifier data available offline
