@@ -45,6 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent } from "@/lib/vineBlockPhotosApi";
 import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
 
 interface BlockPhoto {
@@ -1201,6 +1202,27 @@ export default function VineBlockPhotosScreen() {
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
 
+  // Generation counter — incremented at the start of every loadPhotos call AND
+  // synchronously on block selection change and unmount.  applyPhotoUpdateIfCurrent
+  // compares the captured gen against the live counter before writing to state,
+  // discarding any response whose generation no longer matches the latest.
+  const loadGenRef = useRef(0);
+
+  // Advance the generation synchronously when the grower selects a different
+  // block.  This closes the window between the selection commit and the next
+  // loadPhotos invocation during which a stale previous-block response could
+  // otherwise slip past the guard.
+  const handleSelectBlock = useCallback((block: VineBlock | null) => {
+    loadGenRef.current++;
+    setSelectedBlock(block);
+  }, []);
+
+  // Unmount cleanup: advance the generation so any in-flight loadPhotos
+  // call cannot write to state after the component has been torn down.
+  useEffect(() => {
+    return () => { loadGenRef.current++; };
+  }, []);
+
   const openLightbox = useCallback((_uri: string | null, photo: BlockPhoto) => {
     setPhotos((prev) => {
       const idx = prev.findIndex((p) => p.id === photo.id);
@@ -1216,17 +1238,25 @@ export default function VineBlockPhotosScreen() {
 
   const loadPhotos = useCallback(async (options?: { silent?: boolean }) => {
     if (!currentFarm?.id || !selectedBlock) return;
+    // Capture and advance the generation token before any async work so that
+    // a concurrent or later call gets a higher token and wins.
+    const gen = ++loadGenRef.current;
     if (!options?.silent) setPhotosLoading(true);
     try {
-      const res = await apiFetch(`/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos`);
-      if (res.ok) {
-        const data: { photos: BlockPhoto[] } = await res.json();
-        setPhotos(data.photos ?? []);
-      }
-    } catch {
-      // no-op
+      const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id);
+      applyPhotoUpdateIfCurrent(
+        gen,
+        () => loadGenRef.current,
+        fetched,
+        (photos) => setPhotos(photos as BlockPhoto[]),
+      );
     } finally {
-      if (!options?.silent) setPhotosLoading(false);
+      // Clear the spinner whenever this is the current/latest request —
+      // regardless of whether it was silent.  A silent refresh that supersedes
+      // a non-silent load must still clear the spinner that the non-silent
+      // load set; omitting the silent check here prevents a permanently-stuck
+      // indicator when the focus-effect refresh races the initial selection load.
+      if (gen === loadGenRef.current) setPhotosLoading(false);
     }
   }, [currentFarm?.id, selectedBlock]);
 
@@ -1441,7 +1471,7 @@ export default function VineBlockPhotosScreen() {
           <VineBlockPicker
             blocks={blocks}
             selected={selectedBlock}
-            onSelect={setSelectedBlock}
+            onSelect={handleSelectBlock}
             loading={blocksLoading}
           />
         </View>
@@ -1490,7 +1520,7 @@ export default function VineBlockPhotosScreen() {
                   styles.blockListRow,
                   b.plantingStatus === "suspended" && styles.blockListRowSuspended,
                 ]}
-                onPress={() => setSelectedBlock(b)}
+                onPress={() => handleSelectBlock(b)}
               >
                 <BlockThumbnail uri={b.coverPhotoUrl ?? null} />
                 <View

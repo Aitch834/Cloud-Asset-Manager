@@ -1,0 +1,465 @@
+/**
+ * Integration tests for the vine-block-photos delete-warning flow.
+ *
+ * The unit tests in vine-block-photos-delete-warning.test.ts cover the pure
+ * message-builder functions in isolation.  These tests cover the integration
+ * boundary:
+ *
+ *   1. API-sync layer — fetchBlockPhotos (the real production function called
+ *      by VineBlockPhotosScreen.loadPhotos) is tested with a mocked apiFetch
+ *      module.  Tests assert the live server-synced count feeds the message
+ *      builders correctly for both the grid (photosCount = photos.length) and
+ *      lightbox (buildLightboxDeleteMessage(photos.length, photo.isCover)) paths.
+ *
+ *   2. State-update guard — applyPhotoUpdateIfCurrent (extracted from loadPhotos)
+ *      is tested with deferred, out-of-order responses.  Tests model the actual
+ *      production invalidation paths:
+ *        (a) Same-block out-of-order: older request resolves after newer refresh.
+ *        (b) Block-change gap: handleSelectBlock advances the generation
+ *            synchronously BEFORE the next loadPhotos call, so a stale previous-
+ *            block response resolving in that gap is already discarded.
+ *        (c) Unmount cleanup: the cleanup effect advances the generation so an
+ *            in-flight request cannot call setPhotos after the component tears down.
+ *        (d) Error-preservation: null from fetchBlockPhotos does not clear state.
+ *        (e) Fast-path: a current-generation response is applied normally.
+ */
+
+// ---------------------------------------------------------------------------
+// Module mock — hoisted by Babel before any imports execute.
+// Manual factory prevents Jest from loading the real apiFetch module and its
+// transitive React Native dependencies (expo-crypto via lib/database.ts).
+// ---------------------------------------------------------------------------
+jest.mock("../lib/apiFetch", () => ({
+  apiFetch: jest.fn(),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { apiFetch } = require("../lib/apiFetch") as {
+  apiFetch: jest.MockedFunction<() => Promise<Response>>;
+};
+
+import {
+  fetchBlockPhotos,
+  applyPhotoUpdateIfCurrent,
+  type BlockPhotoRecord,
+} from "../lib/vineBlockPhotosApi";
+import {
+  buildGridDeleteMessage,
+  buildLightboxDeleteMessage,
+} from "../lib/vineBlockPhotosHelpers";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makePhoto(overrides: Partial<BlockPhotoRecord> = {}): BlockPhotoRecord {
+  return {
+    id: 101,
+    blockId: 7,
+    farmId: 3,
+    objectPath: "vineyard/block-7/photo-101.jpg",
+    fileName: "photo-101.jpg",
+    caption: null,
+    isCover: true,
+    uploadedAt: "2025-06-01T10:00:00Z",
+    downloadUrl: "https://cdn.example.com/photo-101.jpg",
+    ...overrides,
+  };
+}
+
+function okResponse(payload: unknown): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  } as unknown as Response;
+}
+
+function errorResponse(status = 500): Response {
+  return { ok: false, status, json: async () => ({}) } as unknown as Response;
+}
+
+const ONLY_PHOTO_FRAGMENT = "only photo for this block";
+const FARM_ID = 3;
+const BLOCK_ID = 7;
+const EXPECTED_URL = `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos`;
+
+beforeEach(() => {
+  (apiFetch as jest.MockedFunction<typeof apiFetch>).mockReset();
+});
+
+// ===========================================================================
+// Part 1 — API-sync layer
+// Verifies fetchBlockPhotos calls the real mocked apiFetch module and the
+// returned count feeds the message builders correctly.
+// ===========================================================================
+
+describe("fetchBlockPhotos → message builder (API-sync layer)", () => {
+  describe("Grid delete warning", () => {
+    it("shows 'only photo' warning when the server returns 1 photo", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        okResponse({ photos: [makePhoto({ id: 101, isCover: true })] }),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+
+      expect(apiFetch).toHaveBeenCalledWith(EXPECTED_URL);
+      expect(photos).not.toBeNull();
+      expect(photos).toHaveLength(1);
+      expect(buildGridDeleteMessage(photos!.length)).toContain(ONLY_PHOTO_FRAGMENT);
+    });
+
+    it("does NOT show 'only photo' warning when the server returns 2 photos", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        okResponse({
+          photos: [
+            makePhoto({ id: 101, isCover: true }),
+            makePhoto({ id: 102, isCover: false }),
+          ],
+        }),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+
+      expect(photos).toHaveLength(2);
+      expect(buildGridDeleteMessage(photos!.length)).not.toContain(ONLY_PHOTO_FRAGMENT);
+    });
+
+    it("returns null on server error — loadPhotos skips setPhotos", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        errorResponse(500),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+      expect(photos).toBeNull();
+    });
+
+    it("returns null on network failure — loadPhotos skips setPhotos", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockRejectedValueOnce(
+        new Error("Network error"),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+      expect(photos).toBeNull();
+    });
+  });
+
+  describe("Lightbox delete warning", () => {
+    it("shows 'only photo' warning (cover) when server returns 1 photo", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        okResponse({ photos: [makePhoto({ id: 201, isCover: true })] }),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+
+      expect(photos).toHaveLength(1);
+      const msg = buildLightboxDeleteMessage(photos!.length, photos![0].isCover);
+      expect(msg).toContain(ONLY_PHOTO_FRAGMENT);
+      expect(msg).not.toContain("cover photo for this block");
+    });
+
+    it("shows 'only photo' warning (non-cover) when server returns 1 photo", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        okResponse({ photos: [makePhoto({ id: 202, isCover: false })] }),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+
+      expect(photos).toHaveLength(1);
+      expect(
+        buildLightboxDeleteMessage(photos!.length, photos![0].isCover),
+      ).toContain(ONLY_PHOTO_FRAGMENT);
+    });
+
+    it("shows cover-change notice when multiple photos remain and target is cover", async () => {
+      (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+        okResponse({
+          photos: [
+            makePhoto({ id: 201, isCover: true }),
+            makePhoto({ id: 202, isCover: false }),
+          ],
+        }),
+      );
+
+      const photos = await fetchBlockPhotos(FARM_ID, BLOCK_ID);
+
+      expect(photos).toHaveLength(2);
+      const msg = buildLightboxDeleteMessage(photos!.length, photos![0].isCover);
+      expect(msg).not.toContain(ONLY_PHOTO_FRAGMENT);
+      expect(msg).toContain("cover photo for this block");
+      expect(msg).toContain("The next photo will become the new cover.");
+    });
+  });
+});
+
+// ===========================================================================
+// Part 2 — State-update guard (applyPhotoUpdateIfCurrent)
+//
+// Tests use deferred promises resolved out of order and directly model the
+// production invalidation paths that advance the generation counter:
+//   • loadPhotos start: `const gen = ++loadGenRef.current`
+//   • handleSelectBlock: `loadGenRef.current++` before setSelectedBlock
+//   • unmount cleanup: `loadGenRef.current++` in useEffect cleanup
+// ===========================================================================
+
+describe("applyPhotoUpdateIfCurrent — stale-response guard", () => {
+  // -------------------------------------------------------------------------
+  // (a) Same-block out-of-order: a slow initial load resolves after a newer
+  //     background refresh (useFocusEffect / 4-min interval).
+  // Production path: gen advances at the START of each loadPhotos call.
+  // -------------------------------------------------------------------------
+  it("(a) discards a stale initial load that resolves after a newer background refresh", async () => {
+    const photo1 = makePhoto({ id: 301, isCover: true });
+    const photo2 = makePhoto({ id: 302, isCover: false });
+
+    let latestGen = 0;
+    const getLatestGen = () => latestGen;
+    let photosState: BlockPhotoRecord[] = [];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    let resolveGen1!: (v: BlockPhotoRecord[] | null) => void;
+    let resolveGen2!: (v: BlockPhotoRecord[] | null) => void;
+    const gen1Promise = new Promise<BlockPhotoRecord[] | null>((r) => { resolveGen1 = r; });
+    const gen2Promise = new Promise<BlockPhotoRecord[] | null>((r) => { resolveGen2 = r; });
+
+    // loadPhotos #1 starts — gen1 captured as `++latestGen`
+    const gen1 = ++latestGen;
+    // loadPhotos #2 starts (focus refresh) — gen2 captured as `++latestGen`
+    const gen2 = ++latestGen;
+
+    const applyGen1 = gen1Promise.then((f) =>
+      applyPhotoUpdateIfCurrent(gen1, getLatestGen, f, setPhotos),
+    );
+    const applyGen2 = gen2Promise.then((f) =>
+      applyPhotoUpdateIfCurrent(gen2, getLatestGen, f, setPhotos),
+    );
+
+    // gen2 resolves first with the refreshed single-photo list
+    resolveGen2([photo1]);
+    await applyGen2;
+    expect(setPhotos).toHaveBeenCalledTimes(1);
+    expect(photosState).toHaveLength(1);
+
+    // gen1 resolves late with the stale 2-photo list — must be discarded
+    resolveGen1([photo1, photo2]);
+    await applyGen1;
+    expect(setPhotos).toHaveBeenCalledTimes(1); // no additional call
+    expect(photosState).toHaveLength(1);
+
+    // Delete dialog uses the guarded state (1 photo) — warning fires correctly
+    expect(buildGridDeleteMessage(photosState.length)).toContain(ONLY_PHOTO_FRAGMENT);
+    expect(
+      buildLightboxDeleteMessage(photosState.length, photosState[0].isCover),
+    ).toContain(ONLY_PHOTO_FRAGMENT);
+  });
+
+  // -------------------------------------------------------------------------
+  // (b) Block-change gap: handleSelectBlock advances the generation
+  //     SYNCHRONOUSLY before the next loadPhotos call starts.  An old request
+  //     that resolves in the gap between the selection commit and the new
+  //     loadPhotos invocation must already be discarded.
+  // Production path: `loadGenRef.current++` inside handleSelectBlock, THEN
+  //   `const gen = ++loadGenRef.current` inside the new loadPhotos call.
+  // -------------------------------------------------------------------------
+  it("(b) discards a stale previous-block response resolving in the block-change gap", async () => {
+    const oldBlockPhoto = makePhoto({ id: 401, blockId: 5, isCover: true });
+
+    let latestGen = 0;
+    const getLatestGen = () => latestGen;
+    let photosState: BlockPhotoRecord[] = [];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    let resolveOld!: (v: BlockPhotoRecord[] | null) => void;
+    const oldPromise = new Promise<BlockPhotoRecord[] | null>((r) => { resolveOld = r; });
+
+    // loadPhotos for old block (block 5) starts
+    const gen1 = ++latestGen; // = 1
+
+    const applyOld = oldPromise.then((f) =>
+      applyPhotoUpdateIfCurrent(gen1, getLatestGen, f, setPhotos),
+    );
+
+    // Grower selects a new block.  handleSelectBlock fires:
+    //   `loadGenRef.current++`  ← gen advances synchronously to 2
+    // This happens BEFORE the new loadPhotos call starts.
+    latestGen++; // = 2  (models `loadGenRef.current++` in handleSelectBlock)
+
+    // Old block's response arrives in the gap — gen1 (1) !== latestGen (2)
+    resolveOld([oldBlockPhoto]);
+    await applyOld;
+
+    expect(setPhotos).not.toHaveBeenCalled();
+    expect(photosState).toHaveLength(0);
+
+    // New loadPhotos call for the new block starts afterward
+    const gen3 = ++latestGen; // = 3
+    const newPhoto = makePhoto({ id: 501, blockId: 7, isCover: true });
+    applyPhotoUpdateIfCurrent(gen3, getLatestGen, [newPhoto], setPhotos);
+
+    expect(setPhotos).toHaveBeenCalledTimes(1);
+    expect(photosState).toHaveLength(1);
+    expect(photosState[0].blockId).toBe(7);
+  });
+
+  // -------------------------------------------------------------------------
+  // (c) Unmount cleanup: the useEffect cleanup fires `loadGenRef.current++`
+  //     so an in-flight loadPhotos cannot call setPhotos after the component
+  //     has been torn down.
+  // Production path: `loadGenRef.current++` in `useEffect(() => { return () =>
+  //   { loadGenRef.current++ }; }, [])` cleanup.
+  // -------------------------------------------------------------------------
+  it("(c) discards an in-flight response after unmount cleanup advances the generation", async () => {
+    let latestGen = 0;
+    const getLatestGen = () => latestGen;
+    let photosState: BlockPhotoRecord[] = [];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    let resolveInflight!: (v: BlockPhotoRecord[] | null) => void;
+    const inflightPromise = new Promise<BlockPhotoRecord[] | null>((r) => {
+      resolveInflight = r;
+    });
+
+    // loadPhotos starts — gen captured
+    const gen1 = ++latestGen;
+    const applyInflight = inflightPromise.then((f) =>
+      applyPhotoUpdateIfCurrent(gen1, getLatestGen, f, setPhotos),
+    );
+
+    // Component unmounts — cleanup runs `loadGenRef.current++`
+    latestGen++; // models the useEffect cleanup
+
+    // In-flight response arrives after unmount — must be discarded
+    resolveInflight([makePhoto({ id: 601 })]);
+    await applyInflight;
+
+    expect(setPhotos).not.toHaveBeenCalled();
+    expect(photosState).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // (d) Error-preservation: null from fetchBlockPhotos (network / HTTP error)
+  //     does not clear the existing photo list.
+  // -------------------------------------------------------------------------
+  it("(d) preserves existing photos list when a refresh returns null (error)", () => {
+    const photo1 = makePhoto({ id: 701, isCover: true });
+    const photo2 = makePhoto({ id: 702, isCover: false });
+
+    let latestGen = 0;
+    const getLatestGen = () => latestGen;
+    let photosState: BlockPhotoRecord[] = [photo1, photo2];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    const gen1 = ++latestGen;
+    applyPhotoUpdateIfCurrent(gen1, getLatestGen, null, setPhotos);
+
+    expect(setPhotos).not.toHaveBeenCalled();
+    expect(photosState).toHaveLength(2);
+    expect(buildGridDeleteMessage(photosState.length)).not.toContain(ONLY_PHOTO_FRAGMENT);
+  });
+
+  // -------------------------------------------------------------------------
+  // (f) Spinner-ownership: a non-silent initial load sets photosLoading=true;
+  //     a silent background refresh (useFocusEffect / 4-min interval) supersedes
+  //     it.  When the silent refresh completes as the latest request, it MUST
+  //     clear the spinner — even though it was launched silently — otherwise
+  //     the screen stays permanently on the loading indicator.
+  //
+  // Production path: `if (gen === loadGenRef.current) setPhotosLoading(false)`
+  //   in the finally block (no `!options?.silent` guard).
+  // -------------------------------------------------------------------------
+  it("(f) silent refresh superseding a non-silent load clears the spinner when it completes", async () => {
+    const photo1 = makePhoto({ id: 901, isCover: true });
+
+    // Simulate the generation ref and loading state (stand-ins for useRef/useState)
+    const genRef = { current: 0 };
+    let isLoading = false;
+    const setLoading = jest.fn((v: boolean) => { isLoading = v; });
+    let photosState: BlockPhotoRecord[] = [];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    /**
+     * Mirrors the production loadPhotos control flow:
+     *   const gen = ++loadGenRef.current;
+     *   if (!options?.silent) setPhotosLoading(true);
+     *   try {
+     *     const fetched = await fetchBlockPhotos(...);
+     *     applyPhotoUpdateIfCurrent(gen, () => loadGenRef.current, fetched, setPhotos);
+     *   } finally {
+     *     if (gen === loadGenRef.current) setPhotosLoading(false);
+     *   }
+     */
+    async function simulateLoad(
+      gen: number,
+      silent: boolean,
+      fetchPromise: Promise<BlockPhotoRecord[] | null>,
+    ): Promise<void> {
+      if (!silent) setLoading(true);
+      try {
+        const fetched = await fetchPromise;
+        applyPhotoUpdateIfCurrent(gen, () => genRef.current, fetched, setPhotos);
+      } finally {
+        // Fixed: no `&& !silent` — latest request must always clear spinner
+        if (gen === genRef.current) setLoading(false);
+      }
+    }
+
+    let resolveNonSilent!: (v: BlockPhotoRecord[] | null) => void;
+    let resolveSilent!: (v: BlockPhotoRecord[] | null) => void;
+    const nonSilentFetch = new Promise<BlockPhotoRecord[] | null>((r) => { resolveNonSilent = r; });
+    const silentFetch   = new Promise<BlockPhotoRecord[] | null>((r) => { resolveSilent   = r; });
+
+    // Non-silent loadPhotos starts (initial selection load): gen=1, spinner on
+    const gen1 = ++genRef.current;
+    const run1 = simulateLoad(gen1, false, nonSilentFetch);
+    expect(isLoading).toBe(true);
+
+    // Silent focus-refresh supersedes it: gen=2, spinner stays on
+    const gen2 = ++genRef.current;
+    const run2 = simulateLoad(gen2, true, silentFetch);
+    expect(isLoading).toBe(true); // unchanged
+
+    // Silent refresh resolves first with 1 photo
+    resolveSilent([photo1]);
+    await run2;
+
+    // gen2 is the latest → spinner must be cleared
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+    expect(isLoading).toBe(false);
+    expect(photosState).toHaveLength(1);
+
+    // Non-silent resolves late with stale 2-photo list — must be fully discarded
+    resolveNonSilent([makePhoto({ id: 902 }), makePhoto({ id: 903 })]);
+    await run1;
+
+    expect(photosState).toHaveLength(1); // state unchanged
+    // Spinner was not re-toggled by the stale request
+    const lastLoadingCall = setLoading.mock.calls.at(-1)?.[0];
+    expect(lastLoadingCall).toBe(false);
+
+    // Delete dialog uses the live 1-photo count — warning fires correctly
+    expect(buildGridDeleteMessage(photosState.length)).toContain(ONLY_PHOTO_FRAGMENT);
+  });
+
+  // -------------------------------------------------------------------------
+  // (e) Fast-path: when no newer call superseded the request, its result is
+  //     applied and the delete warning fires correctly.
+  // -------------------------------------------------------------------------
+  it("(e) applies result normally when the generation is still current", () => {
+    const photo = makePhoto({ id: 801, isCover: true });
+
+    let latestGen = 0;
+    const getLatestGen = () => latestGen;
+    let photosState: BlockPhotoRecord[] = [];
+    const setPhotos = jest.fn((p: BlockPhotoRecord[]) => { photosState = p; });
+
+    const gen1 = ++latestGen;
+    applyPhotoUpdateIfCurrent(gen1, getLatestGen, [photo], setPhotos);
+
+    expect(setPhotos).toHaveBeenCalledTimes(1);
+    expect(photosState).toHaveLength(1);
+    expect(buildGridDeleteMessage(photosState.length)).toContain(ONLY_PHOTO_FRAGMENT);
+    expect(
+      buildLightboxDeleteMessage(photosState.length, photosState[0].isCover),
+    ).toContain(ONLY_PHOTO_FRAGMENT);
+  });
+});
