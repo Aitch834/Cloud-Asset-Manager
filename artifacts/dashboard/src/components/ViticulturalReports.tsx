@@ -1161,6 +1161,82 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* Block × Vintage yield cross-tab table (all-vintages mode only) */}
+      {year == null && blockYieldTrendData.blockLines.length > 0 && blockYieldTrendData.chartData.length > 0 && (() => {
+        const allLines = blockYieldTrendData.blockLines;
+        const vintageRows = [...blockYieldTrendData.chartData].sort(
+          (a, b) => String(a.vintage).localeCompare(String(b.vintage)),
+        );
+        return (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold">Block × Vintage Yield (t/ha)</h3>
+                <p className="text-xs text-foreground/40">
+                  Yield per hectare for each block across all vintages
+                  {selectedBlockNames != null && (
+                    <> · <span className="text-purple-600 font-medium">filtered to {selectedBlockNames.size} block{selectedBlockNames.size !== 1 ? "s" : ""}</span></>
+                  )}
+                </p>
+              </div>
+              {selectedBlockNames != null && (
+                <button
+                  type="button"
+                  onClick={() => _persistBlockNames(null)}
+                  className="no-print shrink-0 text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left sticky left-0 bg-muted/20 z-10">Vintage</th>
+                    {/* On screen show filtered blocks; print always shows all */}
+                    {allLines.map(bl => (
+                      <th
+                        key={bl.key}
+                        className={`px-4 py-2 text-right min-w-[80px]${
+                          selectedBlockNames != null && !selectedBlockNames.has(bl.key)
+                            ? " hidden print:table-cell"
+                            : ""
+                        }`}
+                      >
+                        <span className="font-semibold" style={{ color: bl.color }}>{bl.key}</span>
+                        {bl.variety && <div className="text-foreground/40 font-normal truncate max-w-[80px]">{bl.variety}</div>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vintageRows.map(row => (
+                    <tr key={String(row.vintage)} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-4 py-2 font-semibold text-purple-700 sticky left-0 bg-card">{String(row.vintage)}</td>
+                      {allLines.map(bl => (
+                        <td
+                          key={bl.key}
+                          className={`px-4 py-2 text-right font-mono${
+                            selectedBlockNames != null && !selectedBlockNames.has(bl.key)
+                              ? " hidden print:table-cell"
+                              : ""
+                          }`}
+                        >
+                          {row[bl.key] != null
+                            ? <span>{Number(row[bl.key]).toFixed(2)}</span>
+                            : <span className="text-foreground/30">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* All-vintages yield summary table */}
       {year == null && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
