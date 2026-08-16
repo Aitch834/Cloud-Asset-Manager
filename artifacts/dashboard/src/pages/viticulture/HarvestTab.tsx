@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -100,6 +100,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     avgPa:   showVintagePa   === "true",
   };
   const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
+  const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -270,6 +271,65 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     return { kgData, thaData, blockNames, blockAreaByName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
+
+  // ── Yield cross-tab data (block × vintage, kg + t/ha) ─────────────────────
+  const yieldCrossTabData = useMemo(() => {
+    if (yearFilter !== "all") return null;
+    const linkedRows = filteredHarvest.filter(r => r.blockId != null && r.blockId !== "");
+    const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    const uniqueBlockIds = [...new Set(linkedRows.map(r => r.blockId))];
+    if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
+
+    // Build lookup: blockId → vintageYear → totalKg
+    const lookup: Record<string, Record<string, number>> = {};
+    for (const r of linkedRows) {
+      const bid = String(r.blockId);
+      const vy = String(r.vintageYear ?? "");
+      if (!lookup[bid]) lookup[bid] = {};
+      lookup[bid][vy] = (lookup[bid][vy] ?? 0) + (parseFloat(String(r.yieldKg ?? 0)) || 0);
+    }
+
+    const blockRows = uniqueBlockIds.map(bid => {
+      const block = blocks.find(b => b.id === bid);
+      const bname = block ? String((block as Record<string, unknown>).blockName ?? "") : String(bid);
+      const areaHaRaw = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
+      const areaHa = !isNaN(areaHaRaw) && areaHaRaw > 0 ? areaHaRaw : null;
+      const cells: Record<string, { kg: number; tha: number | null }> = {};
+      let rowTotalKg = 0;
+      for (const vy of uniqueVintages) {
+        const kg = lookup[String(bid)]?.[vy] ?? 0;
+        rowTotalKg += kg;
+        cells[vy] = { kg, tha: areaHa && kg > 0 ? kg / 1000 / areaHa : null };
+      }
+      return { bname, areaHa, cells, totalKg: rowTotalKg, totalTha: areaHa && rowTotalKg > 0 ? rowTotalKg / 1000 / areaHa : null };
+    });
+
+    // Footer: per-vintage weighted t/ha (total vintage kg / total area of blocks with area recorded that had yield)
+    const footerCells: Record<string, { kg: number; tha: number | null }> = {};
+    let footerTotalKg = 0;
+    let footerTotalArea = 0;
+    for (const vy of uniqueVintages) {
+      let vyKg = 0; let vyArea = 0;
+      for (const row of blockRows) {
+        const kg = row.cells[vy]?.kg ?? 0;
+        vyKg += kg;
+        if (row.areaHa && kg > 0) vyArea += row.areaHa;
+      }
+      footerCells[vy] = { kg: vyKg, tha: vyArea > 0 && vyKg > 0 ? vyKg / 1000 / vyArea : null };
+      footerTotalKg += vyKg;
+    }
+    // Grand total area: sum of distinct block areas that have any yield
+    const bidsWithYield = blockRows.filter(r => r.totalKg > 0 && r.areaHa);
+    footerTotalArea = bidsWithYield.reduce((s, r) => s + (r.areaHa ?? 0), 0);
+
+    return {
+      uniqueVintages,
+      blockRows,
+      footerCells,
+      footerTotalKg,
+      footerTotalTha: footerTotalArea > 0 && footerTotalKg > 0 ? footerTotalKg / 1000 / footerTotalArea : null,
+    };
+  }, [yearFilter, filteredHarvest, blocks]);
 
   // ── Chemistry cross-tab data (block × vintage) ────────────────────────────
   // Only computed when "All vintages" is selected and there are ≥2 vintages + ≥2 linked blocks
@@ -1126,6 +1186,95 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           </ResponsiveContainer>
         </div>
       )}
+
+      {/* Yield cross-tab: block × vintage, kg + t/ha */}
+      {yieldCrossTabData && (() => {
+        const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha } = yieldCrossTabData;
+        return (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <button
+              type="button"
+              className="w-full px-4 py-2.5 border-b bg-muted/30 flex items-center gap-1.5 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => setYieldCrossTabOpen(o => !o)}
+              aria-expanded={yieldCrossTabOpen}
+            >
+              <Grape className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-sm font-semibold flex-1">Block × Vintage — Total Yield</p>
+              <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${yieldCrossTabOpen ? "rotate-90" : ""}`} />
+            </button>
+            {yieldCrossTabOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                      <th className="text-left px-4 py-2 font-medium sticky left-0 bg-card">Block</th>
+                      {uniqueVintages.map(vy => (
+                        <th key={vy} colSpan={2} className="text-center px-3 py-2 font-medium border-l">{vy}</th>
+                      ))}
+                      <th colSpan={2} className="text-center px-3 py-2 font-medium border-l">Total</th>
+                    </tr>
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <th className="sticky left-0 bg-card" />
+                      {uniqueVintages.map(vy => (
+                        <React.Fragment key={vy}>
+                          <th className="text-right px-3 py-1 font-normal border-l">kg</th>
+                          <th className="text-right px-3 py-1 font-normal">t/ha</th>
+                        </React.Fragment>
+                      ))}
+                      <th className="text-right px-3 py-1 font-normal border-l">kg</th>
+                      <th className="text-right px-3 py-1 font-normal">t/ha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blockRows.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-4 py-2 font-medium sticky left-0 bg-card">{row.bname}</td>
+                        {uniqueVintages.map(vy => (
+                          <React.Fragment key={vy}>
+                            <td className="text-right px-3 py-2 tabular-nums border-l">
+                              {row.cells[vy]?.kg ? row.cells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                            </td>
+                            <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+                              {row.cells[vy]?.tha != null ? row.cells[vy].tha!.toFixed(2) : "—"}
+                            </td>
+                          </React.Fragment>
+                        ))}
+                        <td className="text-right px-3 py-2 tabular-nums font-medium border-l">
+                          {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                        </td>
+                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+                          {row.totalTha != null ? row.totalTha.toFixed(2) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/40 font-semibold">
+                      <td className="px-4 py-2 sticky left-0 bg-muted/40">Total</td>
+                      {uniqueVintages.map(vy => (
+                        <React.Fragment key={vy}>
+                          <td className="text-right px-3 py-2 tabular-nums border-l">
+                            {footerCells[vy]?.kg ? footerCells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                          </td>
+                          <td className="text-right px-3 py-2 tabular-nums">
+                            {footerCells[vy]?.tha != null ? footerCells[vy].tha!.toFixed(2) : "—"}
+                          </td>
+                        </React.Fragment>
+                      ))}
+                      <td className="text-right px-3 py-2 tabular-nums border-l">
+                        {footerTotalKg > 0 ? footerTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                      </td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {footerTotalTha != null ? footerTotalTha.toFixed(2) : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Chemistry cross-tab: block × vintage for Brix, pH, TA, Pot. Alc */}
       {chemCrossTabData && (() => {
