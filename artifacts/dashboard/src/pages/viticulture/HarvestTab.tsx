@@ -99,7 +99,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     avgTa:   showVintageTa   === "true",
     avgPa:   showVintagePa   === "true",
   };
-  const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
+  const [chemSortCol, setChemSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortCol", farmId, defaultValue: "" });
+  const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
+  const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
+  const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
   const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -1281,11 +1284,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const { uniqueVintages, tables } = chemCrossTabData;
 
         const handleChemSortCol = (col: string) => {
-          setChemSort(prev =>
-            prev?.col === col
-              ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
-              : { col, dir: "desc" }
-          );
+          if (chemSort?.col === col) {
+            setChemSort({ col, dir: chemSort.dir === "asc" ? "desc" : "asc" });
+          } else {
+            setChemSort({ col, dir: "desc" });
+          }
         };
 
         const ChemSortIcon = ({ col }: { col: string }) => {
