@@ -592,6 +592,14 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
                 <span className="font-medium shrink-0">{fmtDate(c.clean_date)}</span>
                 <span className="text-muted-foreground shrink-0">{fmt(c.clean_type)}</span>
                 <span className="text-muted-foreground truncate">{fmt(c.cleaning_product)}</span>
+                {(c.concentration_pct != null || c.contact_time_min != null) && (
+                  <span className="text-muted-foreground shrink-0">
+                    {[
+                      c.concentration_pct != null ? `${c.concentration_pct}%` : null,
+                      c.contact_time_min  != null ? `${c.contact_time_min} min` : null,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
+                )}
                 <span className="shrink-0">{c.rinse_completed ? <span className="text-green-700">Rinse ✓</span> : <span className="text-red-600">No rinse</span>}</span>
               </div>
               {!readOnly && (
