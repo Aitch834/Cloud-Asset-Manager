@@ -1960,6 +1960,7 @@ export async function printHarvest(
       const chemThPad = chemN >= 11 ? "5px 3px" : chemN >= 8 ? "5px 4px" : "6px 5px";
       const chemTdPad = chemN >= 11 ? "3px 3px" : chemN >= 8 ? "4px 4px" : "5px 5px";
 
+      let anyLowPickChem = false;
       const chemSubTablesHtml = chemPrintMetrics.map(metric => {
         const vintageHeaders = chemLinkedVintages.map(vy =>
           `<th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
@@ -1974,7 +1975,11 @@ export async function printHarvest(
             const grp = chemCrossLookup[bidStr]?.[vy] ?? [];
             const vals = grp.map(metric.extractor).filter((v): v is number => v !== null);
             const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-            return `<td style="padding:${chemTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
+            const lowPick = avg != null && grp.length === 1;
+            if (lowPick) anyLowPickChem = true;
+            const bgStyle = lowPick ? ";background:#fffbeb" : "";
+            const cellValue = avg != null ? avg.toFixed(metric.precision) + (lowPick ? "\u00a0*" : "") : "\u2014";
+            return `<td style="padding:${chemTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace${bgStyle}">${cellValue}</td>`;
           }).join("");
           const allForBlock = Object.values(chemCrossLookup[bidStr] ?? {}).flat();
           const allValsForBlock = allForBlock.map(metric.extractor).filter((v): v is number => v !== null);
@@ -2017,10 +2022,15 @@ export async function printHarvest(
   </table>`;
       }).join("");
 
+      const chemLowPickLegend = anyLowPickChem
+        ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 0;background:#fffbeb;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;display:inline-block"><strong>*</strong> Based on a single harvest pick &mdash; treat with caution</p>`
+        : "";
+
       chemCrossTabHtml = `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
   <p style="font-size:10px;color:#666;margin:0 0 8px">Average chemistry values per block per vintage. Footer row shows the record-weighted average across all linked blocks for that vintage.</p>
-  ${chemSubTablesHtml}`;
+  ${chemSubTablesHtml}
+  ${chemLowPickLegend}`;
     }
   }
 
