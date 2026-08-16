@@ -56,6 +56,22 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Scouting = Record<string, unknown>;
 
+// Disease keyword → field mapping for search-by-name
+const SCOUTING_DISEASE_KEYWORDS: Array<{ terms: string[]; field: string; isBoolean?: boolean }> = [
+  { terms: ["downy", "downy mildew", "plasmopara"], field: "downyMildewPressure" },
+  { terms: ["powdery", "powdery mildew", "erysiphe"], field: "powderyMildewPressure" },
+  { terms: ["botrytis", "grey mould", "gray mould", "bunch rot"], field: "botrytisPressure" },
+  { terms: ["phomopsis", "cane blight"], field: "phomopsisPressure" },
+  { terms: ["leafhopper"], field: "leafhopperPressure" },
+  { terms: ["spider mite", "mite"], field: "spiderMitePressure" },
+  { terms: ["vine weevil", "weevil"], field: "vineWeevilSighted", isBoolean: true },
+  { terms: ["eutypa", "dieback"], field: "eutypaDiebackSighted", isBoolean: true },
+  { terms: ["xylella"], field: "xylellaFastidiosa", isBoolean: true },
+  { terms: ["phytophthora"], field: "phytophthoraViticola", isBoolean: true },
+];
+const PRESSURE_NUMERIC_FIELDS = ["downyMildewPressure", "powderyMildewPressure", "botrytisPressure", "phomopsisPressure", "leafhopperPressure", "spiderMitePressure"];
+const PRESSURE_BOOLEAN_FIELDS = ["vineWeevilSighted", "eutypaDiebackSighted", "xylellaFastidiosa", "phytophthoraViticola"];
+
 export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<Scouting>(farmId, "vineyard-scouting", "vineyard-scouting");
   const { displayName } = useUserRole();
@@ -69,6 +85,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
   const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-scouting", filter: "search", farmId, defaultValue: "" });
+  const [pressureLevelFilter, setPressureLevelFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "pressure", farmId, defaultValue: "__all__" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
@@ -275,16 +292,36 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     if (blockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === blockFilter);
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
+      // Find disease fields whose keywords match the query
+      const matchedDiseases = SCOUTING_DISEASE_KEYWORDS.filter(d =>
+        d.terms.some(t => t.includes(q) || q.includes(t))
+      );
       rows = rows.filter(r => {
         const block = blocks.find(b => b.id === r.blockId);
         const blockNameStr = String(block?.blockName ?? "").toLowerCase();
         const variety = String(block?.variety ?? "").toLowerCase();
         const scout = String(r.scoutedBy ?? "").toLowerCase();
-        return blockNameStr.includes(q) || variety.includes(q) || scout.includes(q);
+        // Standard text match (block name, variety, scout name)
+        if (blockNameStr.includes(q) || variety.includes(q) || scout.includes(q)) return true;
+        // Disease name match: include row only if matched disease has non-zero pressure/sighting
+        for (const d of matchedDiseases) {
+          if (d.isBoolean) { if (r[d.field]) return true; }
+          else { if (Number(r[d.field] ?? 0) > 0) return true; }
+        }
+        return false;
       });
     }
+    if (pressureLevelFilter !== "__all__") {
+      const minLevel = Number(pressureLevelFilter);
+      // Only numeric pressure fields carry Low/Medium/High gradations; boolean sighting
+      // fields (vine weevil, eutypa, xylella, phytophthora) have no pressure level and
+      // are excluded from this filter to avoid misleading results.
+      rows = rows.filter(r =>
+        PRESSURE_NUMERIC_FIELDS.some(f => Number(r[f] ?? 0) >= minLevel)
+      );
+    }
     return rows;
-  }, [data, yearFilter, blockFilter, searchText, blocks]);
+  }, [data, yearFilter, blockFilter, searchText, pressureLevelFilter, blocks]);
 
   const printRows = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
@@ -361,8 +398,8 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
           <Input
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
-            placeholder="Search block, variety or scout…"
-            className={`h-8 text-xs w-52 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
+            placeholder="Search block, variety, scout or disease…"
+            className={`h-8 text-xs w-64 pr-6 ${searchText.trim() ? "border-primary text-primary" : ""}`}
           />
           {searchText && (
             <button
@@ -375,6 +412,26 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             </button>
           )}
         </div>
+        <Select value={pressureLevelFilter} onValueChange={setPressureLevelFilter}>
+          <SelectTrigger className={`w-36 h-8 text-xs ${pressureLevelFilter !== "__all__" ? "border-amber-400 text-amber-700" : ""}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All pressures</SelectItem>
+            <SelectItem value="1">Low or above</SelectItem>
+            <SelectItem value="2">Medium or above</SelectItem>
+            <SelectItem value="3">High only</SelectItem>
+          </SelectContent>
+        </Select>
+        {(searchText.trim() || pressureLevelFilter !== "__all__") && (
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            onClick={() => { setSearchText(""); setPressureLevelFilter("__all__"); }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
       <DataTable
         cols={[
