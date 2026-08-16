@@ -15,6 +15,11 @@ export interface PricingModule {
   note?: string;
 }
 
+// ⚠️  PRICE CHANGE CHECKLIST — when editing any price below, also run:
+//   grep -rn '£[0-9]' artifacts/website/src/
+// to catch any hardcoded £ literals in pages or components that have drifted
+// from the canonical values here.  Use modulePrice() or BASE_FEE from this
+// file instead of embedding raw numbers in marketing copy.
 export const MODULES: PricingModule[] = [
   { id: "red-tractor-compliance", name: "Red Tractor Compliance (Required)", price: 25, required: true },
   { id: "field-crop-management", name: "Field & Crop Management", price: 20 },

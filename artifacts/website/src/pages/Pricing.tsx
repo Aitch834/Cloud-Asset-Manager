@@ -217,7 +217,7 @@ export default function Pricing() {
               </div>
               <div>
                 <p className="font-bold text-foreground">Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Base platform + Red Tractor Compliance. Less than £500 a year for a fully compliant farm.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Base platform + Red Tractor Compliance. Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100} a year for a fully compliant farm.</p>
               </div>
             </div>
             <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
