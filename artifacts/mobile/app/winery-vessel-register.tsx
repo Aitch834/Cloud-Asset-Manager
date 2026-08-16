@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -225,6 +225,17 @@ export default function WineryVesselRegisterScreen() {
   const { records, loading, refreshing, error, refresh } = useApiFetch<WineryVessel>(
     currentFarm?.id,
     "/api/farms/:farmId/winery-vessels"
+  );
+
+  // Re-fetch the vessel list whenever this screen regains focus so the zone
+  // badge is up-to-date after returning from the vessel detail screen.
+  // Skip the very first focus event — the initial load already fetched data.
+  const isMountedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!isMountedRef.current) { isMountedRef.current = true; return; }
+      refresh();
+    }, [refresh])
   );
 
   // Stats for header summary — idle and approaching-neutral only count active barrel/barrique vessels

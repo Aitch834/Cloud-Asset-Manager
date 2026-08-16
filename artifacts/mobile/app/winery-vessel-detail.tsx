@@ -1216,6 +1216,17 @@ export default function WineryVesselDetailScreen() {
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
   const [currentPosition, setCurrentPosition] = useState(params.cellarPosition ?? "");
 
+  // After any edit or delete of a movement the movements list is re-fetched.
+  // Re-derive currentZone/currentPosition from the most-recent movement so the
+  // "Log movement" from-zone pre-fill stays accurate even for historical edits.
+  // The API returns movements sorted DESC so index 0 is always the latest.
+  useEffect(() => {
+    if (data.movements.length === 0) return;
+    const latest = data.movements[0];
+    setCurrentZone(latest.to_zone ?? "");
+    setCurrentPosition(latest.to_position ?? "");
+  }, [data.movements]);
+
   function handleDeleteMovement(record: BarrelMovement) {
     Alert.alert(
       "Delete movement?",
