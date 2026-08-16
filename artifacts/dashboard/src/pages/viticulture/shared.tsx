@@ -715,14 +715,18 @@ function buildYieldTrendChartSvg(
   const allVals = Object.values(matrix).flatMap(v => Object.values(v));
   const maxVal = Math.max(...allVals, 1);
 
-  // Legend layout — 4 columns, rows grow to fit all blocks
-  const legendCols = 4;
+  // Legend layout — start with 4 columns; add more columns if needed to keep
+  // total SVG height within a single A4 landscape page (~740 px usable).
+  const MAX_H = 740;
+  const W = 700; const plotH = 200;
+  const ML = 68; const MR = 16; const MT = 18;
+  // How many legend rows can fit in the remaining vertical space?
+  const availLegendH = MAX_H - plotH - MT - 22; // 22 = fixed bottom padding inside MB
+  const maxLegendRows = Math.max(1, Math.floor((availLegendH - 10) / 14));
+  const legendCols = Math.max(4, Math.ceil(blockCount / maxLegendRows));
   const legendRows = Math.ceil(blockCount / legendCols);
   const legendH = legendRows * 14 + 10; // 10px top gap inside MB
-
-  // Canvas dimensions — height grows with legend
-  const W = 700; const plotH = 200;
-  const ML = 68; const MR = 16; const MT = 18; const MB = legendH + 22;
+  const MB = legendH + 22;
   const H = plotH + MT + MB;
   const plotW = W - ML - MR;
 
@@ -912,12 +916,17 @@ function buildYieldTrendChartTHaSvg(
   const blockCount = blockIdsWithArea.length;
   const vintageCount = uniqueVintages.length;
 
-  const legendCols = 4;
+  // Legend layout — start with 4 columns; add more columns if needed to keep
+  // total SVG height within a single A4 landscape page (~740 px usable).
+  const MAX_H_THA = 740;
+  const W = 700; const plotH = 200;
+  const ML = 68; const MR = 16; const MT = 18;
+  const availLegendHTha = MAX_H_THA - plotH - MT - 22;
+  const maxLegendRowsTha = Math.max(1, Math.floor((availLegendHTha - 10) / 14));
+  const legendCols = Math.max(4, Math.ceil(blockCount / maxLegendRowsTha));
   const legendRows = Math.ceil(blockCount / legendCols);
   const legendH = legendRows * 14 + 10;
-
-  const W = 700; const plotH = 200;
-  const ML = 68; const MR = 16; const MT = 18; const MB = legendH + 22;
+  const MB = legendH + 22;
   const H = plotH + MT + MB;
   const plotW = W - ML - MR;
 
