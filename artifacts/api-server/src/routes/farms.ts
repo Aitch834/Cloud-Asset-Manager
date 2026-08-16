@@ -7171,6 +7171,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       vendorCustomer: financialTransactionsTable.vendorCustomer,
       vatAmountPence: financialTransactionsTable.vatAmountPence,
       vatRate: financialTransactionsTable.vatRate,
+      enterprise: financialTransactionsTable.enterprise,
     }).from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)),
     db.select().from(grainSalesTable).where(and(eq(grainSalesTable.farmId, farmId), isNotNull(grainSalesTable.grossValuePence))),
     db.select().from(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.farmId, farmId), isNotNull(livestockDeadweightSalesTable.grossValuePence))),
@@ -7205,6 +7206,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     vendorCustomer: string | null;
     vatAmountPence: number | null;
     vatRate: string | null;
+    enterprise: string | null;
   };
 
   const all: any[] = [
@@ -7218,6 +7220,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       vendorCustomer: r.vendorCustomer,
       vatAmountPence: r.vatAmountPence,
       vatRate: r.vatRate,
+      enterprise: r.enterprise ?? null,
     })),
     ...grainSales.map(r => ({
       transactionType: "income",
@@ -7338,7 +7341,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     return signed.toFixed(2);
   };
 
-  const headers = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount"];
+  const headers = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise"];
   const rows = filtered.map(t => [
     dateLabel(t.transactionDate),
     xeroAmount(t),
@@ -7347,6 +7350,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     t.reference ?? "",
     mapVatRateToXeroTax(t.vatRate),
     t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "",
+    t.enterprise ?? "",
   ].map(csvEscape).join(","));
 
   const csvContent = [headers.join(","), ...rows].join("\n");
