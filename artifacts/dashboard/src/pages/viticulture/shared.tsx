@@ -2009,6 +2009,8 @@ export async function printHarvest(
       const vkg = vintageObj[yr]?.totalKg ?? 0;
       return totalArea > 0 && vkg > 0 ? vkg / 1000 / totalArea : null;
     };
+    const vsAllBrix = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+    const vsGrandAvgBrix = vsAllBrix.length > 0 ? vsAllBrix.reduce((a, b) => a + b, 0) / vsAllBrix.length : null;
     const vsAllPh = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
     const vsGrandAvgPh = vsAllPh.length > 0 ? vsAllPh.reduce((a, b) => a + b, 0) / vsAllPh.length : null;
     const vsAllTa = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
@@ -2059,7 +2061,7 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsTotalPicks}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700">${totalKg.toFixed(0)} kg</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTha != null ? grandTha.toFixed(2) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgBrix != null ? vsGrandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgPh != null ? vsGrandAvgPh.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgTa != null ? vsGrandAvgTa.toFixed(1) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandAvgPa != null ? vsGrandAvgPa.toFixed(1) : "\u2014"}</td>
