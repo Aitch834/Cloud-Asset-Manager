@@ -672,6 +672,7 @@ const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6
 function buildYieldTrendChartSvg(
   records: Record<string, unknown>[],
   blockLookup: Record<number, Record<string, unknown>>,
+  sharedVarietyColorMap?: Record<string, string>,
 ): string {
   const linkedRows = records.filter(r => r.blockId != null && r.blockId !== "");
   const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
@@ -690,10 +691,14 @@ function buildYieldTrendChartSvg(
     return !isNaN(bid) && bid > 0 ? String(blockLookup[bid]?.variety ?? "") : "";
   };
 
-  // Assign colours by variety so same-variety blocks share a hue
-  const varietyList = [...new Set(allBlockIds.map(id => bvariety(id)))].filter(Boolean);
-  const varietyColorMap: Record<string, string> = {};
-  varietyList.forEach((v, i) => { varietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+  // Use the shared variety→colour map when provided (keeps both charts consistent).
+  // Fall back to deriving from this chart's own block set when called standalone.
+  const varietyColorMap: Record<string, string> = sharedVarietyColorMap ?? (() => {
+    const vList = [...new Set(allBlockIds.map(id => bvariety(id)))].filter(Boolean);
+    const m: Record<string, string> = {};
+    vList.forEach((v, i) => { m[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+    return m;
+  })();
   // Fallback palette for blocks with no variety — cycle from the end of the array
   const fallbackColors = [...YIELD_CHART_COLORS].reverse();
   let fallbackIdx = 0;
@@ -844,6 +849,7 @@ function buildYieldTrendChartSvg(
 function buildYieldTrendChartTHaSvg(
   records: Record<string, unknown>[],
   blockLookup: Record<number, Record<string, unknown>>,
+  sharedVarietyColorMap?: Record<string, string>,
 ): { svg: string; excludedBlocks: string[]; eligibleBlockCount: number } {
   const linkedRows = records.filter(r => r.blockId != null && r.blockId !== "");
   const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
@@ -877,10 +883,14 @@ function buildYieldTrendChartTHaSvg(
 
   if (uniqueVintages.length < 2 || blockIdsWithArea.length < 2) return { svg: "", excludedBlocks, eligibleBlockCount: blockIdsWithArea.length };
 
-  // Assign colours by variety so same-variety blocks share a hue
-  const thaVarietyList = [...new Set(blockIdsWithArea.map(id => bvarietyTha(id)))].filter(Boolean);
-  const thaVarietyColorMap: Record<string, string> = {};
-  thaVarietyList.forEach((v, i) => { thaVarietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+  // Use the shared variety→colour map when provided (keeps both charts consistent).
+  // Fall back to deriving from this chart's own block set when called standalone.
+  const thaVarietyColorMap: Record<string, string> = sharedVarietyColorMap ?? (() => {
+    const vList = [...new Set(blockIdsWithArea.map(id => bvarietyTha(id)))].filter(Boolean);
+    const m: Record<string, string> = {};
+    vList.forEach((v, i) => { m[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+    return m;
+  })();
   const thaFallbackColors = [...YIELD_CHART_COLORS].reverse();
   let thaFallbackIdx = 0;
   const thaBlockColorMap: Record<string, string> = {};
@@ -2035,14 +2045,29 @@ export async function printHarvest(
   }
 
   // ── 3e. Build yield-by-block × vintage chart SVG ─────────────────────────
+
+  // Build a single shared variety→colour map from ALL linked blocks so that
+  // the kg chart and t/ha chart always assign the same hue to each variety,
+  // even though the t/ha chart excludes blocks that have no recorded area.
+  const _allLinkedBlockIds = [...new Set(
+    records.filter(r => r.blockId != null && r.blockId !== "").map(r => r.blockId),
+  )];
+  const _bvariety = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.variety ?? "") : "";
+  };
+  const _allVarieties = [...new Set(_allLinkedBlockIds.map(id => _bvariety(id)))].filter(Boolean).sort();
+  const sharedVarietyColorMap: Record<string, string> = {};
+  _allVarieties.forEach((v, i) => { sharedVarietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
+
   const yieldChartSvgHtml = showCrossTab
-    ? buildYieldTrendChartSvg(records, blockLookup2)
+    ? buildYieldTrendChartSvg(records, blockLookup2, sharedVarietyColorMap)
     : "";
 
   // t/ha chart — computed for any multi-vintage report so the suppression notice
   // can fire even when there is only one linked block (showCrossTab would miss that case)
   const { svg: yieldTHaChartSvgHtml, excludedBlocks: tHaExcludedBlocks, eligibleBlockCount: tHaEligibleBlockCount } = groupByVintage
-    ? buildYieldTrendChartTHaSvg(records, blockLookup2)
+    ? buildYieldTrendChartTHaSvg(records, blockLookup2, sharedVarietyColorMap)
     : { svg: "", excludedBlocks: [], eligibleBlockCount: 0 };
 
   // Also build vintage-grouped summary if multi-vintage (shown above block summary)
