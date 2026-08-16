@@ -105,6 +105,7 @@ const PRESSURE_COLOR: Record<number, string> = {
   0: "text-gray-400", 1: "text-green-600", 2: "text-amber-600", 3: "text-red-600",
 };
 
+type BlockInfo = { id: number; name: string; variety: string };
 function Collapsible({
   title, open, setOpen, children,
 }: {
@@ -663,7 +664,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
   const [chartInTha, setChartInTha] = useState(false);
 
-  // Block filter strip — search and group-by-variety state
+  // Block filter strip — search and group-by-variety state (used by the per-block yield trend chart)
   const [blockSearch, setBlockSearch] = useState("");
   const [_groupByVarietyStored, _setGroupByVarietyStored] = usePersistedFilter({
     page: "vintage-season-report",
@@ -674,6 +675,16 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   });
   const groupByVariety = _groupByVarietyStored === "true";
   const setGroupByVariety = (v: boolean) => _setGroupByVarietyStored(v ? "true" : "false");
+
+  // Block filter state for spray diary and scouting sections (null = all blocks shown)
+  const [selectedSprayBlocks, setSelectedSprayBlocks] = useState<Set<number> | null>(null);
+  const [selectedScoutBlocks, setSelectedScoutBlocks] = useState<Set<number> | null>(null);
+
+  // Reset spray/scout block filters when the vintage year changes
+  useEffect(() => {
+    setSelectedSprayBlocks(null);
+    setSelectedScoutBlocks(null);
+  }, [year]);
 
   const toggleBlock = (name: string) => {
     // When null, all blocks are shown — expand to full set before toggling
@@ -751,6 +762,43 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     });
     return peak;
   }, [seasonScouts]);
+
+  // Unique blocks appearing in spray/scout records for the selected year — used by filter strips
+  const sprayBlockInfos: BlockInfo[] = useMemo(() => {
+    const seen = new Map<number, BlockInfo>();
+    seasonSprays.forEach(sp => {
+      if (sp.blockId != null && !seen.has(sp.blockId)) {
+        const bl = blockMap[sp.blockId];
+        if (bl) seen.set(sp.blockId, { id: sp.blockId, name: bl.blockName, variety: bl.variety ?? "" });
+      }
+    });
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [seasonSprays, blockMap]);
+
+  const scoutBlockInfos: BlockInfo[] = useMemo(() => {
+    const seen = new Map<number, BlockInfo>();
+    seasonScouts.forEach(sc => {
+      if (sc.blockId != null && !seen.has(sc.blockId)) {
+        const bl = blockMap[sc.blockId];
+        if (bl) seen.set(sc.blockId, { id: sc.blockId, name: bl.blockName, variety: bl.variety ?? "" });
+      }
+    });
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [seasonScouts, blockMap]);
+
+  // Rows filtered by block selection
+  const visibleSprays = useMemo(
+    () => selectedSprayBlocks == null
+      ? seasonSprays
+      : seasonSprays.filter(sp => sp.blockId != null && selectedSprayBlocks.has(sp.blockId)),
+    [seasonSprays, selectedSprayBlocks],
+  );
+  const visibleScouts = useMemo(
+    () => selectedScoutBlocks == null
+      ? seasonScouts
+      : seasonScouts.filter(sc => sc.blockId != null && selectedScoutBlocks.has(sc.blockId)),
+    [seasonScouts, selectedScoutBlocks],
+  );
 
   if (loading) {
     return (
@@ -1637,6 +1685,14 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             No scouting records for {year}. Add rounds in the Disease Scouting tab.
           </p>
         ) : (
+          <>
+            {scoutBlockInfos.length >= 8 && (
+              <BlockFilterStrip
+                blockInfos={scoutBlockInfos}
+                selectedIds={selectedScoutBlocks}
+                onChangeIds={setSelectedScoutBlocks}
+              />
+            )}
           <div className="p-4 space-y-3">
             {/* Peak pressure per disease */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -1673,7 +1729,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {seasonScouts.map(s => {
+                  {visibleScouts.map(s => {
                     const alerts = [
                       s.vineWeevilSighted && "Vine Weevil",
                       s.eutypaDiebackSighted && "Eutypa",
@@ -1705,6 +1761,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               </table>
             </div>
           </div>
+          </>
         )}
       </div>}
 
@@ -1774,6 +1831,13 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               {totalSprayArea > 0 ? `${totalSprayArea.toFixed(2)} ha total area treated` : ""}
             </p>
           </div>
+          {sprayBlockInfos.length >= 8 && (
+            <BlockFilterStrip
+              blockInfos={sprayBlockInfos}
+              selectedIds={selectedSprayBlocks}
+              onChangeIds={setSelectedSprayBlocks}
+            />
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1787,7 +1851,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {seasonSprays.map(sp => (
+                {visibleSprays.map(sp => (
                   <tr key={sp.id} className="border-t border-border/40 hover:bg-muted/20">
                     <td className="px-4 py-2 text-xs">{fmtDate(sp.applicationDate)}</td>
                     <td className="px-4 py-2">{blockName(sp.blockId)}</td>
@@ -1801,7 +1865,9 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               <tfoot>
                 <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
                   <td className="px-4 py-2" colSpan={3}>Season Total</td>
-                  <td className="px-4 py-2 text-right font-mono font-bold">{totalSprayArea.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-mono font-bold">
+                    {visibleSprays.reduce((s, sp) => s + n(sp.areaTreatedHa), 0).toFixed(2)}
+                  </td>
                   <td className="px-4 py-2" colSpan={2} />
                 </tr>
               </tfoot>
@@ -2623,6 +2689,202 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function BlockFilterStrip({
+  blockInfos,
+  selectedIds,
+  onChangeIds,
+}: {
+  blockInfos: BlockInfo[];
+  selectedIds: Set<number> | null;
+  onChangeIds: (ids: Set<number> | null) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [groupByVariety, setGroupByVariety] = useState(false);
+
+  const showSearch = blockInfos.length >= 8;
+  const searchLower = search.trim().toLowerCase();
+  const filtered = searchLower
+    ? blockInfos.filter(b =>
+        b.name.toLowerCase().includes(searchLower) ||
+        b.variety.toLowerCase().includes(searchLower),
+      )
+    : blockInfos;
+
+  const allIds = blockInfos.map(b => b.id);
+
+  const toggleBlock = (id: number) => {
+    const current = selectedIds ?? new Set(allIds);
+    const next = new Set(current);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+      if (next.size === allIds.length) { onChangeIds(null); return; }
+    }
+    onChangeIds(next);
+  };
+
+  const toggleVariety = (variety: string) => {
+    const varietyIds = blockInfos.filter(b => b.variety === variety).map(b => b.id);
+    const current = selectedIds ?? new Set(allIds);
+    const allActive = varietyIds.every(id => current.has(id));
+    const next = new Set(current);
+    if (allActive) {
+      varietyIds.forEach(id => next.delete(id));
+    } else {
+      varietyIds.forEach(id => next.add(id));
+      if (next.size === allIds.length) { onChangeIds(null); return; }
+    }
+    onChangeIds(next);
+  };
+
+  const varietyGroups: { variety: string; blocks: BlockInfo[] }[] = [];
+  if (groupByVariety) {
+    const seen = new Map<string, BlockInfo[]>();
+    filtered.forEach(b => {
+      const v = b.variety || "Unknown variety";
+      if (!seen.has(v)) seen.set(v, []);
+      seen.get(v)!.push(b);
+    });
+    seen.forEach((blocks, variety) => varietyGroups.push({ variety, blocks }));
+    varietyGroups.sort((a, b) => a.variety.localeCompare(b.variety));
+  }
+
+  return (
+    <div className="border-b border-border bg-muted/10 no-print">
+      {/* Toolbar row */}
+      <div className="px-4 py-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-foreground/50 shrink-0">Show blocks:</span>
+
+        {showSearch && (
+          <div className="relative shrink-0">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search blocks or varieties…"
+              className="h-6 pl-6 pr-2 rounded-full border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 w-48"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/70 text-xs leading-none"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+
+        {showSearch && new Set(blockInfos.map(b => b.variety)).size > 1 && (
+          <button
+            type="button"
+            onClick={() => setGroupByVariety(v => !v)}
+            className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
+              groupByVariety
+                ? "bg-purple-600 border-purple-600 text-white"
+                : "border-border bg-background text-foreground/60 hover:text-foreground"
+            }`}
+          >
+            By variety
+          </button>
+        )}
+
+        {selectedIds != null && (
+          <button
+            type="button"
+            onClick={() => onChangeIds(null)}
+            className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
+          >
+            Show all
+          </button>
+        )}
+
+        {(selectedIds == null || selectedIds.size > 0) && (
+          <button
+            type="button"
+            onClick={() => onChangeIds(new Set())}
+            className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
+          >
+            Select none
+          </button>
+        )}
+      </div>
+
+      {/* Pills row */}
+      <div className="px-4 pb-2.5 flex flex-wrap gap-1.5">
+        {groupByVariety ? (
+          varietyGroups.map(({ variety, blocks: vBlocks }) => {
+            const allActive = vBlocks.every(b => selectedIds == null || selectedIds.has(b.id));
+            const someActive = !allActive && vBlocks.some(b => selectedIds == null || selectedIds.has(b.id));
+            return (
+              <div key={variety} className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => toggleVariety(variety)}
+                  className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-xs font-semibold border transition-colors ${
+                    allActive
+                      ? "bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200"
+                      : someActive
+                      ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
+                      : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                  }`}
+                  title={allActive ? `Hide all ${variety}` : `Show all ${variety}`}
+                >
+                  <Grape className="w-2.5 h-2.5" />{variety}
+                </button>
+                {vBlocks.map(b => {
+                  const active = selectedIds == null || selectedIds.has(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => toggleBlock(b.id)}
+                      className={`h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? "bg-purple-600 border-purple-600 text-white"
+                          : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                      }`}
+                      title={active ? `Hide ${b.name}` : `Show ${b.name}`}
+                    >
+                      {b.name}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })
+        ) : (
+          filtered.map(b => {
+            const active = selectedIds == null || selectedIds.has(b.id);
+            return (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => toggleBlock(b.id)}
+                className={`h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
+                  active
+                    ? "bg-purple-600 border-purple-600 text-white"
+                    : "border-border bg-background text-foreground/40 hover:text-foreground/70"
+                }`}
+                title={active ? `Hide ${b.name}` : `Show ${b.name}`}
+              >
+                {b.name}
+              </button>
+            );
+          })
+        )}
+        {filtered.length === 0 && (
+          <p className="text-xs text-foreground/40 italic">No blocks match "{search}"</p>
+        )}
+      </div>
     </div>
   );
 }
