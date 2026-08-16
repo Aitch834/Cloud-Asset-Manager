@@ -1,6 +1,6 @@
 import { BatchTrailDialog } from "./BatchTrail";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, COMMERCIAL_YEAST_STRAINS, INDIGENOUS_YEAST_STRAINS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -63,6 +63,15 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     if (!form.wineColour && match.wine_colour) sf("wineColour", String(match.wine_colour));
     // Inherit organic status from pressing record (user can override manually)
     setIsOrganicForm(!!(match.is_organic === true || match.is_organic === "true"));
+    // Auto-fill volume from the pressing record's total juice yield (if not already set)
+    const totalJuice = match.total_juice_litres ?? (
+      (match.free_run_litres != null && match.press_wine_litres != null)
+        ? (parseFloat(String(match.free_run_litres)) + parseFloat(String(match.press_wine_litres)))
+        : null
+    );
+    if (totalJuice != null && !isNaN(Number(totalJuice))) {
+      setForm(f => f.volumeLitres ? f : { ...f, volumeLitres: String(Math.round(Number(totalJuice))) });
+    }
     // Fetch pressing additions and pre-fill SO₂ if the field is currently empty
     try {
       const res = await fetch(api(`farms/${farmId}/winery-pressing/${val}/additions`), { credentials: "include" });
@@ -80,6 +89,19 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
       }
     } catch {
       // non-critical — silently skip if fetch fails
+    }
+  };
+
+  const handleFermentationTypeChange = (val: string) => {
+    if (val === "Wild / spontaneous fermentation") {
+      setForm(f => ({ ...f, fermentationType: val, yeastStrain: "Wild / spontaneous", inoculationDate: "", inoculationTempC: "" }));
+    } else {
+      setForm(f => ({
+        ...f,
+        fermentationType: val,
+        // Clear the auto-set wild value if switching away from wild
+        yeastStrain: f.yeastStrain === "Wild / spontaneous" ? "" : f.yeastStrain,
+      }));
     }
   };
 
@@ -361,18 +383,63 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <Label>Fermentation Type</Label>
-                <Select value={form.fermentationType ?? ""} onValueChange={v => sf("fermentationType", v)}>
+                <Select value={form.fermentationType ?? ""} onValueChange={handleFermentationTypeChange}>
                   <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{FERMENTATION_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Yeast Strain</Label><Input value={form.yeastStrain ?? ""} onChange={e => sf("yeastStrain", e.target.value)} placeholder="e.g. EC1118, Zymaflore F10, Wild" /></div>
-              <div><Label>Inoculation Date</Label><Input type="date" max={today} value={form.inoculationDate ?? ""} onChange={e => sf("inoculationDate", e.target.value)} /></div>
-              <div><Label>Inoculation Temp (°C)</Label><Input type="number" step="0.1" value={form.inoculationTempC ?? ""} onChange={e => sf("inoculationTempC", e.target.value)} /></div>
+              {/* Yeast strain — behaviour driven by fermentation type */}
+              <div className="col-span-2 grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Yeast Strain</Label>
+                  {form.fermentationType === "Wild / spontaneous fermentation" ? (
+                    <>
+                      <Input value="Wild / spontaneous" disabled className="bg-muted text-muted-foreground cursor-not-allowed" />
+                      <p className="text-xs text-muted-foreground mt-1">Strain unknown by definition — not applicable.</p>
+                    </>
+                  ) : form.fermentationType?.startsWith("Inoculated") ? (
+                    <>
+                      <Input
+                        value={form.yeastStrain ?? ""}
+                        onChange={e => sf("yeastStrain", e.target.value)}
+                        list="yeast-strain-datalist"
+                        placeholder="Select or type strain…"
+                      />
+                      <datalist id="yeast-strain-datalist">
+                        {(form.fermentationType === "Inoculated — cultured indigenous yeast"
+                          ? INDIGENOUS_YEAST_STRAINS
+                          : COMMERCIAL_YEAST_STRAINS
+                        ).map(s => <option key={s} value={s} />)}
+                      </datalist>
+                      <p className="text-xs text-muted-foreground mt-1">Type to search known strains, or enter a custom name.</p>
+                    </>
+                  ) : (
+                    <Input value={form.yeastStrain ?? ""} onChange={e => sf("yeastStrain", e.target.value)} placeholder="e.g. EC1118, Zymaflore F10" />
+                  )}
+                </div>
+                {/* Inoculation details — not applicable for wild / spontaneous */}
+                {form.fermentationType === "Wild / spontaneous fermentation" ? (
+                  <div className="flex items-end pb-1">
+                    <p className="text-xs text-muted-foreground italic border border-dashed border-muted-foreground/30 rounded px-3 py-2 w-full">
+                      Inoculation date &amp; temperature not applicable for wild / spontaneous fermentation.
+                    </p>
+                  </div>
+                ) : (
+                  <div><Label>Inoculation Date</Label><Input type="date" max={today} value={form.inoculationDate ?? ""} onChange={e => sf("inoculationDate", e.target.value)} /></div>
+                )}
+              </div>
+              {form.fermentationType !== "Wild / spontaneous fermentation" && (
+                <div><Label>Inoculation Temp (°C)</Label><Input type="number" step="0.1" value={form.inoculationTempC ?? ""} onChange={e => sf("inoculationTempC", e.target.value)} /></div>
+              )}
             </div>
             <SectionLabel>Fermentation progress</SectionLabel>
+            <p className="text-xs text-muted-foreground -mt-2">Summary of the fermentation arc — key measurements at start and end. For daily Brix / temperature monitoring logs, use the cellar operations record.</p>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date</Label><Input type="date" max={today} value={form.startDate ?? ""} onChange={e => sf("startDate", e.target.value)} /></div>
+              <div>
+                <Label>Start Date</Label>
+                <Input type="date" max={today} value={form.startDate ?? ""} onChange={e => sf("startDate", e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">When fermentation visibly commenced (Brix drop / CO₂ activity) — typically 12–48 h after inoculation.</p>
+              </div>
               <div><Label>Start Brix °</Label><Input type="number" step="0.1" value={form.startBrix ?? ""} onChange={e => sf("startBrix", e.target.value)} /></div>
               <div><Label>End Brix °</Label><Input type="number" step="0.01" value={form.endBrix ?? ""} onChange={e => sf("endBrix", e.target.value)} /></div>
               <div><Label>End SG</Label><Input type="number" step="0.0001" value={form.endSg ?? ""} onChange={e => sf("endSg", e.target.value)} placeholder="e.g. 0.9940" /></div>

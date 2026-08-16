@@ -703,6 +703,16 @@ export const PRESS_TYPE_OPTIONS = ["Pneumatic bladder", "Basket press", "Continu
 export const JUICE_TURBIDITY_OPTIONS = ["Clear", "Slightly turbid", "Turbid"];
 export const SETTLING_METHOD_OPTIONS = ["Static cold", "Static warm", "Centrifuge", "Flocculant", "None"];
 export const FERMENTATION_TYPE_OPTIONS = ["Wild / spontaneous fermentation", "Inoculated — commercial yeast", "Inoculated — cultured indigenous yeast"];
+export const COMMERCIAL_YEAST_STRAINS = [
+  "Lalvin EC-1118", "Lalvin 71B", "Lalvin CY3079", "Lalvin ICV D47", "Lalvin BM4×4",
+  "Lalvin GRE", "Lalvin RA17", "Zymaflore F10", "Zymaflore FX10", "Zymaflore X5",
+  "Zymaflore Delta E", "Oenoferm Freddo", "Oenoferm Kyr", "PDM (Prise de Mousse)",
+  "Uvaferm 43", "AWRI 796", "Anchor VIN 13", "Cross Evolution", "Elixir",
+  "NT 50 (Nottingham)", "S-04", "WY3711",
+];
+export const INDIGENOUS_YEAST_STRAINS = [
+  "Cultured indigenous strain", "Vineyard-selected indigenous strain", "Resident cellar yeast",
+];
 export const VESSEL_TYPE_OPTIONS = ["Stainless steel tank", "Oak barrel (225L)", "Oak barrel (500L)", "Oak vat / foudre", "Amphora / clay", "Fibreglass tank", "HDPE tank", "Concrete tank", "Other"];
 export const VESSEL_STATUS_OPTIONS = ["active", "retired", "sold"];
 export const CLEAN_TYPE_OPTIONS = ["Rinse (water only)", "Hot water rinse", "CIP (Clean-in-place)", "Steam", "Chemical wash", "Ozone", "Other"];
