@@ -596,6 +596,35 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     }
   }, [farmRecord, platformConfig, farmId]);
 
+  const qc = useQueryClient();
+
+  // ── Save cost as farm default ──────────────────────────────────────────────
+  const saveCostDefault = useMutation({
+    mutationFn: (costPerMmHa: string) =>
+      fetch(api(`farms/${farmId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ irrigationCostPerMmHa: costPerMmHa }),
+      }).then(async r => {
+        if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["farm-detail", farmId] });
+    },
+  });
+
+  // Derived: does the session value differ from what's stored in the DB?
+  // Uses numeric comparison so "3.5" == "3.50" (Postgres numeric(8,2)) and empty == null.
+  const dbCost = farmRecord?.irrigationCostPerMmHa as string | undefined;
+  const _sessionCost = defaults.costPerMmHa.trim();
+  const _sessionEmpty = _sessionCost === "";
+  const _dbEmpty = dbCost == null || dbCost === "";
+  const costDiffersFromDb =
+    _sessionEmpty !== _dbEmpty ||
+    (!_sessionEmpty && !_dbEmpty && parseFloat(_sessionCost) !== parseFloat(dbCost!));
+
   function updateDefault(key: keyof IrrigDefaults, value: string) {
     const next = { ...defaults, [key]: value };
     setDefaultsState(next);
@@ -1030,12 +1059,33 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Cost per mm/ha (£)</Label>
-                <Input
-                  type="number" step="0.1" min="0"
-                  value={defaults.costPerMmHa}
-                  onChange={e => updateDefault("costPerMmHa", e.target.value)}
-                  className="h-8 text-sm"
-                />
+                <div className="flex gap-1.5 items-center">
+                  <Input
+                    type="number" step="0.1" min="0"
+                    value={defaults.costPerMmHa}
+                    onChange={e => { saveCostDefault.reset(); updateDefault("costPerMmHa", e.target.value); }}
+                    className="h-8 text-sm"
+                  />
+                  {costDiffersFromDb && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs whitespace-nowrap shrink-0"
+                      onClick={() => saveCostDefault.mutate(defaults.costPerMmHa)}
+                      disabled={saveCostDefault.isPending}
+                      title="Save this value as the farm default (persists across devices)"
+                    >
+                      {saveCostDefault.isPending
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : saveCostDefault.isSuccess
+                          ? "Saved ✓"
+                          : "Save as default"}
+                    </Button>
+                  )}
+                </div>
+                {saveCostDefault.isError && (
+                  <p className="text-xs text-red-600">Failed to save — please try again.</p>
+                )}
                 <p className="text-xs text-muted-foreground">Pump + abstraction cost</p>
               </div>
               <div className="space-y-1">

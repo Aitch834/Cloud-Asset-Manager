@@ -688,7 +688,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
 router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, phone, cphNumber, sbiNumber, address, postcode } = req.body as { name?: string | null; phone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null };
+  const { name, phone, cphNumber, sbiNumber, address, postcode, irrigationCostPerMmHa } = req.body as { name?: string | null; phone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null; irrigationCostPerMmHa?: string | number | null };
   if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
     res.status(400).json({ error: "Farm name cannot be empty" }); return;
   }
@@ -699,6 +699,7 @@ router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, 
     ...(sbiNumber !== undefined ? { sbiNumber: sbiNumber ?? null } : {}),
     ...(address !== undefined ? { address: address ?? null } : {}),
     ...(postcode !== undefined ? { postcode: postcode ?? null } : {}),
+    ...(irrigationCostPerMmHa !== undefined ? { irrigationCostPerMmHa: irrigationCostPerMmHa != null && irrigationCostPerMmHa !== "" ? String(irrigationCostPerMmHa) : null } : {}),
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();
