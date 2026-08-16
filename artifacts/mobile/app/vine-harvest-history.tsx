@@ -38,6 +38,7 @@ interface HarvestRecord {
   vintageYear: number | null;
   harvestMethod: string | null;
   yieldKg: number | null;
+  brix: number | null;
   grapeCondition: string | null;
   operatorName: string | null;
   notes: string | null;
@@ -299,6 +300,7 @@ export default function VineHarvestHistoryScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
   const [search, setSearch] = useState("");
+  const [selectedVintage, setSelectedVintage] = useState<number | null>(null);
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -312,16 +314,74 @@ export default function VineHarvestHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  // Sorted unique vintage years descending
+  const vintages = useMemo(() => {
+    const years = new Set<number>();
+    for (const r of displayRecords) {
+      if (r.vintageYear != null) years.add(r.vintageYear);
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [displayRecords]);
+
+  // Auto-select the most recent vintage when data first loads
+  const didAutoSelect = React.useRef(false);
+  React.useEffect(() => {
+    if (!didAutoSelect.current && vintages.length > 0) {
+      setSelectedVintage(vintages[0]);
+      didAutoSelect.current = true;
+    }
+  }, [vintages]);
+
+  // Records for the selected vintage (all vintages if null)
+  const vintageRecords = useMemo(() => {
+    if (selectedVintage === null) return displayRecords;
+    return displayRecords.filter(r => r.vintageYear === selectedVintage);
+  }, [displayRecords, selectedVintage]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return displayRecords;
+    if (!search.trim()) return vintageRecords;
     const q = search.toLowerCase();
-    return displayRecords.filter(r =>
+    return vintageRecords.filter(r =>
       (r.blockName ?? "").toLowerCase().includes(q) ||
       (r.operatorName ?? "").toLowerCase().includes(q) ||
       (r.harvestDate ?? "").includes(q) ||
       String(r.vintageYear ?? "").includes(q),
     );
-  }, [displayRecords, search]);
+  }, [vintageRecords, search]);
+
+  // Farm-wide totals for the selected vintage
+  const totals = useMemo(() => {
+    const blockAreaMap = new Map<number, number>();
+    for (const b of blocks) {
+      if (b.id != null && b.areaHa != null) blockAreaMap.set(b.id, Number(b.areaHa));
+    }
+    let totalKg = 0;
+    let yieldKgForArea = 0;
+    let totalAreaHa = 0;
+    let brixSum = 0;
+    let brixCount = 0;
+
+    for (const r of vintageRecords) {
+      if (r.yieldKg != null) {
+        totalKg += Number(r.yieldKg);
+        if (r.blockId != null) {
+          const area = blockAreaMap.get(r.blockId);
+          if (area != null && area > 0) {
+            yieldKgForArea += Number(r.yieldKg);
+            totalAreaHa += area;
+          }
+        }
+      }
+      if (r.brix != null) {
+        brixSum += Number(r.brix);
+        brixCount += 1;
+      }
+    }
+
+    const weightedTonnesPerHa = totalAreaHa > 0 ? (yieldKgForArea / 1000) / totalAreaHa : null;
+    const avgBrix = brixCount > 0 ? brixSum / brixCount : null;
+    return { totalKg, weightedTonnesPerHa, avgBrix, count: vintageRecords.length };
+  }, [vintageRecords, blocks]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
@@ -354,6 +414,69 @@ export default function VineHarvestHistoryScreen() {
         </Pressable>
         <Text style={styles.title}>Harvest History</Text>
       </View>
+
+      {/* Vintage filter chips */}
+      {vintages.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.vintageScroll}
+          contentContainerStyle={styles.vintageScrollContent}
+        >
+          <Pressable
+            style={[styles.vintageChip, selectedVintage === null && styles.vintageChipActive]}
+            onPress={() => setSelectedVintage(null)}
+          >
+            <Text style={[styles.vintageChipText, selectedVintage === null && styles.vintageChipTextActive]}>
+              All
+            </Text>
+          </Pressable>
+          {vintages.map(y => (
+            <Pressable
+              key={y}
+              style={[styles.vintageChip, selectedVintage === y && styles.vintageChipActive]}
+              onPress={() => setSelectedVintage(y)}
+            >
+              <Text style={[styles.vintageChipText, selectedVintage === y && styles.vintageChipTextActive]}>
+                {y}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Farm-wide totals summary card */}
+      {!loading && !error && totals.count > 0 && (
+        <View style={styles.totalsCard}>
+          <Text style={styles.totalsLabel}>
+            {selectedVintage != null ? `${selectedVintage} Vintage` : "All Vintages"} · {totals.count} record{totals.count !== 1 ? "s" : ""}
+          </Text>
+          <View style={styles.totalsRow}>
+            <View style={styles.totalsStat}>
+              <Text style={styles.totalsValue}>
+                {totals.totalKg >= 1000
+                  ? `${(totals.totalKg / 1000).toFixed(2)} t`
+                  : `${totals.totalKg.toFixed(0)} kg`}
+              </Text>
+              <Text style={styles.totalsStatLabel}>Total Yield</Text>
+            </View>
+            <View style={styles.totalsDivider} />
+            <View style={styles.totalsStat}>
+              <Text style={styles.totalsValue}>
+                {totals.weightedTonnesPerHa != null ? `${totals.weightedTonnesPerHa.toFixed(2)}` : "—"}
+              </Text>
+              <Text style={styles.totalsStatLabel}>t / ha</Text>
+            </View>
+            <View style={styles.totalsDivider} />
+            <View style={styles.totalsStat}>
+              <Text style={styles.totalsValue}>
+                {totals.avgBrix != null ? `${totals.avgBrix.toFixed(1)}°` : "—"}
+              </Text>
+              <Text style={styles.totalsStatLabel}>Avg Brix</Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {unlinkedCount > 0 && (
         <View style={styles.unlinkedBanner}>
@@ -538,6 +661,79 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  // Vintage filter chips
+  vintageScroll: { flexGrow: 0 },
+  vintageScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  vintageChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  vintageChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  vintageChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  vintageChipTextActive: {
+    color: "#ffffff",
+  },
+  // Totals card
+  totalsCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  totalsLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: spacing.sm,
+  },
+  totalsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  totalsStat: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  totalsValue: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
+  },
+  totalsStatLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  totalsDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
