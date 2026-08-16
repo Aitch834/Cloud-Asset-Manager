@@ -1053,14 +1053,11 @@ function ScoutingRow({
 export default function VineScoutingHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
-  const { cphNumber, sbiNumber, address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { address, cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-scouting-history", currentFarm?.id, user?.id);
 
-  // Re-fetch identifiers when the grower returns from Settings so the banner
-  // reflects any CPH/SBI they just saved without needing a full app restart.
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
-
   const { records, loading, refreshing, error, refresh } = useApiFetch<ScoutingRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-scouting",
@@ -1142,6 +1139,17 @@ export default function VineScoutingHistoryScreen() {
         <Text style={styles.title}>Scouting History</Text>
       </View>
 
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="scouting records"
+      />
+
       <View style={styles.searchRow}>
         <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
@@ -1168,17 +1176,6 @@ export default function VineScoutingHistoryScreen() {
           </Text>
         </Pressable>
       )}
-
-      <IdentifierBanner
-        justSaved={justSaved && !identifiersLoading}
-        missingIdentifiers={missingIdentifiers}
-        bannerDismissed={bannerDismissed}
-        onClearJustSaved={clearJustSaved}
-        onDismiss={dismissBanner}
-        cphMissing={!cphNumber}
-        sbiMissing={!sbiNumber}
-        context="scouting records"
-      />
 
       {loading && !refreshing ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />

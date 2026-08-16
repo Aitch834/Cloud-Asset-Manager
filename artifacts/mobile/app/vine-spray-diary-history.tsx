@@ -1094,14 +1094,11 @@ function SprayDiaryRow({
 export default function VineSprayDiaryHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
-  const { cphNumber, sbiNumber, address, postcode, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { address, postcode, cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
-  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-spray-diary-history", currentFarm?.id, user?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-spray-history", currentFarm?.id, user?.id);
 
-  // Re-fetch identifiers when the grower returns from Settings so the banner
-  // reflects any CPH/SBI they just saved without needing a full app restart.
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
-
   const { records, loading, refreshing, error, refresh } = useApiFetch<SprayDiaryRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-spray-diary",
@@ -1267,6 +1264,17 @@ export default function VineSprayDiaryHistoryScreen() {
         </Pressable>
       </View>
 
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="spray records"
+      />
+
       <View style={styles.searchRow}>
         <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
@@ -1349,17 +1357,6 @@ export default function VineSprayDiaryHistoryScreen() {
           </Text>
         </Pressable>
       )}
-
-      <IdentifierBanner
-        justSaved={justSaved && !identifiersLoading}
-        missingIdentifiers={missingIdentifiers}
-        bannerDismissed={bannerDismissed}
-        onClearJustSaved={clearJustSaved}
-        onDismiss={dismissBanner}
-        cphMissing={!cphNumber}
-        sbiMissing={!sbiNumber}
-        context="spray diary records"
-      />
 
       {loading && !refreshing ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
