@@ -120,6 +120,11 @@ function fmtRaw(v: unknown): string {
   return v == null || v === "" ? "—" : String(v);
 }
 
+function escHtml(v: unknown): string {
+  const s = v == null || v === "" ? "—" : String(v);
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function conversionStatusBadge(status: string) {
   const map: Record<string, string> = {
     "in-conversion": "bg-yellow-100 text-yellow-800",
@@ -230,6 +235,34 @@ function printFeedNutritionLog(records: DairyFeedRecord[], farmName: string) {
     <div class="hdr"><div class="hdr-l"><div class="title">Organic Dairy Feed & Nutrition Log</div><div class="farm">${farmName}</div></div>
     <div class="hdr-r"><b>Feed Records</b><br>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
     <table><thead><tr><th>Date</th><th>Feed Product</th><th>Type</th><th>Supplier</th><th>Qty (kg)</th><th>DM (kg)</th><th>Organic %</th><th>Approved</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+}
+
+function printDctRegister(records: OrgDctRecord[], farmName: string, monthLabel: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const eFarmName = escHtml(farmName);
+  const eMonthLabel = escHtml(monthLabel);
+  const rows = records.map(r => `
+    <tr>
+      <td>${escHtml(fmt(r.dryOffDate))}</td>
+      <td>${escHtml(r.cowEarTag)}</td>
+      <td>${escHtml(r.protocol?.replace(/-/g, " "))}</td>
+      <td>${escHtml(r.antibioticTubeProduct)}</td>
+      <td>${escHtml(r.antibioticTubeBatch)}</td>
+      <td>${escHtml(r.standardMilkWithdrawalDays)}</td>
+      <td>${escHtml(r.doubledMilkWithdrawalDays)}</td>
+      <td>${escHtml(r.teatSealantProduct)}</td>
+      <td>${escHtml(r.sccAtDryOff)}</td>
+      <td>${r.vetAuthorisation ? 'Yes' : 'No'}</td>
+      <td>${escHtml(r.vetName)}</td>
+      <td><span class="badge ${r.certifierNotified ? 'badge-green' : r.antibioticTubeProduct ? 'badge-yellow' : 'badge-gray'}">${r.certifierNotified ? 'Yes' : r.antibioticTubeProduct ? 'Pending' : 'N/A'}</span></td>
+      <td>${escHtml(fmt(r.expectedCalvingDate))}</td>
+      <td>${escHtml(r.therapeuticJustification)}</td>
+    </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Dry Cow Therapy Register &#8212; ${eFarmName}</title><style>${PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Dry Cow Therapy Register</div><div class="farm">${eFarmName}</div></div>
+    <div class="hdr-r"><b>${eMonthLabel}</b><br>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${escHtml(today)}</div></div>
+    <table><thead><tr><th>Dry-Off Date</th><th>Ear Tag</th><th>Protocol</th><th>Antibiotic Product</th><th>Batch</th><th>Std Milk W/D</th><th>Dbl Milk W/D</th><th>Teat Sealant</th><th>SCC (k/mL)</th><th>Vet Auth</th><th>Vet Name</th><th>Cert. Notified</th><th>Exp. Calving</th><th>Justification</th></tr></thead>
     <tbody>${rows}</tbody></table></body></html>`);
 }
 
@@ -813,7 +846,7 @@ interface OrgDctRecord {
   expectedCalvingDate?: string | null; notes?: string | null;
 }
 
-function DctTab({ farmId }: { farmId: number }) {
+function DctTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -896,7 +929,12 @@ function DctTab({ farmId }: { farmId: number }) {
             <button onClick={() => stepMonth(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add DCT Record</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => printDctRegister(filteredList, farmName, monthLabel)} disabled={filteredList.length === 0} className="gap-1.5">
+            <Printer className="w-3.5 h-3.5" />Print
+          </Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add DCT Record</Button>
+        </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filteredList.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><p>No DCT records yet.</p></div>
@@ -2983,7 +3021,7 @@ export default function OrganicDairyPage() {
             <BulkTankTab farmId={farmId} showCollections={false} />
           </TabsContent>
           <TabsContent value="dct" className="mt-4">
-            <DctTab farmId={farmId} />
+            <DctTab farmId={farmId} farmName={name} />
           </TabsContent>
           <TabsContent value="recording" className="mt-4">
             <RecordingVisitsTab farmId={farmId} />
