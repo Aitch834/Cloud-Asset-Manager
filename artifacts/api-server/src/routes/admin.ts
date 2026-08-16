@@ -2792,13 +2792,22 @@ router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Res
     res.status(400).json({ error: "name is required" });
     return;
   }
-  const [row] = await db.insert(adCopyPresetsTable).values({
-    name: name.trim(),
-    headline: headline?.trim() ?? "",
-    body: body?.trim() ?? "",
-    accentColor: accentColor?.trim() ?? "",
-  }).returning();
-  res.status(201).json(row);
+  try {
+    const [row] = await db.insert(adCopyPresetsTable).values({
+      name: name.trim(),
+      headline: headline?.trim() ?? "",
+      body: body?.trim() ?? "",
+      accentColor: accentColor?.trim() ?? "",
+    }).returning();
+    res.status(201).json(row);
+  } catch (err: unknown) {
+    const pgCode = (err as { cause?: { code?: string } }).cause?.code;
+    if (pgCode === "23505") {
+      res.status(409).json({ error: `A preset called '${name.trim()}' already exists — choose a different name or delete the old one first` });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.put("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
@@ -2811,17 +2820,26 @@ router.put("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: 
     res.status(400).json({ error: "name is required" });
     return;
   }
-  const [row] = await db.update(adCopyPresetsTable)
-    .set({
-      name: name.trim(),
-      headline: headline?.trim() ?? "",
-      body: body?.trim() ?? "",
-      accentColor: accentColor?.trim() ?? "",
-    })
-    .where(eq(adCopyPresetsTable.id, id))
-    .returning();
-  if (!row) { res.status(404).json({ error: "Preset not found" }); return; }
-  res.json(row);
+  try {
+    const [row] = await db.update(adCopyPresetsTable)
+      .set({
+        name: name.trim(),
+        headline: headline?.trim() ?? "",
+        body: body?.trim() ?? "",
+        accentColor: accentColor?.trim() ?? "",
+      })
+      .where(eq(adCopyPresetsTable.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Preset not found" }); return; }
+    res.json(row);
+  } catch (err: unknown) {
+    const pgCode = (err as { cause?: { code?: string } }).cause?.code;
+    if (pgCode === "23505") {
+      res.status(409).json({ error: `A preset called '${name.trim()}' already exists — choose a different name or delete the old one first` });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {

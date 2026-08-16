@@ -59,6 +59,49 @@ export async function runAdTemplateMigrations(): Promise<void> {
     )
   `);
 
+  // Unique constraint on name — prevents duplicate preset names in the Load dropdown.
+  // Before adding the constraint, deduplicate any existing rows with the same name.
+  // Strategy: keep the most-recently-updated row with the original name; older duplicates
+  // get a numeric suffix appended (" (2)", " (3)", …) so no data is lost.
+  await db.execute(sql`
+    DO $$
+    DECLARE
+      r RECORD;
+      suffix_n INTEGER;
+      new_name TEXT;
+    BEGIN
+      -- Find every (name) group that has more than one row, ordered oldest-first.
+      FOR r IN
+        SELECT id, name,
+               ROW_NUMBER() OVER (PARTITION BY name ORDER BY updated_at DESC, id DESC) AS rn
+        FROM ad_copy_presets
+        WHERE name IN (
+          SELECT name FROM ad_copy_presets GROUP BY name HAVING count(*) > 1
+        )
+      LOOP
+        -- The row with rn = 1 is the oldest duplicate; the latest row keeps the original name.
+        IF r.rn > 1 THEN
+          suffix_n := r.rn;
+          LOOP
+            new_name := r.name || ' (' || suffix_n || ')';
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM ad_copy_presets WHERE name = new_name AND id <> r.id);
+            suffix_n := suffix_n + 1;
+          END LOOP;
+          UPDATE ad_copy_presets SET name = new_name, updated_at = now() WHERE id = r.id;
+        END IF;
+      END LOOP;
+
+      -- Now add the constraint (safe because duplicates have been resolved above).
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'ad_copy_presets_name_unique'
+          AND conrelid = 'ad_copy_presets'::regclass
+      ) THEN
+        ALTER TABLE ad_copy_presets ADD CONSTRAINT ad_copy_presets_name_unique UNIQUE (name);
+      END IF;
+    END $$
+  `);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS ad_templates (
       id          serial PRIMARY KEY,
