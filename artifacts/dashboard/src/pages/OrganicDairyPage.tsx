@@ -238,6 +238,39 @@ function printFeedNutritionLog(records: DairyFeedRecord[], farmName: string) {
     <tbody>${rows}</tbody></table></body></html>`);
 }
 
+function esc(v: unknown): string {
+  if (v == null || v === "") return "—";
+  return String(v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+function printMastitisRecords(records: OrgDairyMastitisRecord[], farmName: string, monthLabel: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const rows = records.map(r => `
+    <tr>
+      <td>${esc(fmt(r.onsetDate))}</td>
+      <td class="font-mono">${esc(r.earTagNumber)}</td>
+      <td>${esc(r.quartersAffected)}</td>
+      <td>${esc(r.clinicalGrade)}</td>
+      <td>${esc(r.treatmentProduct)}</td>
+      <td>${r.standardWithdrawalDays != null ? esc(r.standardWithdrawalDays) + 'd' : '&mdash;'}</td>
+      <td><b>${r.doubledWithdrawalDays != null ? esc(r.doubledWithdrawalDays) + 'd' : '&mdash;'}</b></td>
+      <td>${esc(fmt(r.withdrawalEndDate))}</td>
+      <td><span class="badge ${r.certifierNotified ? 'badge-green' : r.treatmentProduct ? 'badge-yellow' : 'badge-gray'}">${r.certifierNotified ? 'Notified' : r.treatmentProduct ? 'Pending' : 'N/A'}</span></td>
+      <td>${r.outcome ? esc(r.outcome) : 'Ongoing'}${r.chronicCase ? ' (Chronic)' : ''}</td>
+      <td>${esc(r.attendingVet)}</td>
+      <td>${esc(r.notes)}</td>
+    </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Mastitis Register &mdash; ${esc(farmName)}</title><style>${PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Mastitis Register</div><div class="farm">${esc(farmName)} &middot; ${esc(monthLabel)}</div></div>
+    <div class="hdr-r"><b>Mastitis Records</b><br>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${esc(today)}</div></div>
+    <table><thead><tr><th>Onset Date</th><th>Ear Tag</th><th>Quarter</th><th>Grade</th><th>Treatment</th><th>Std W/D</th><th>Dbl W/D &#9888;</th><th>W/D End</th><th>Certifier</th><th>Outcome</th><th>Vet</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
+}
+
 function printDctRegister(records: OrgDctRecord[], farmName: string, monthLabel: string) {
   const today = new Date().toLocaleDateString("en-GB");
   const eFarmName = escHtml(farmName);
@@ -413,7 +446,7 @@ interface OrgDairyMastitisRecord {
   chronicCase?: boolean | null; culledDueToMastitis?: boolean | null; notes?: string | null;
 }
 
-function MastitisTab({ farmId }: { farmId: number }) {
+function MastitisTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -524,7 +557,10 @@ function MastitisTab({ farmId }: { farmId: number }) {
             <button onClick={() => stepMonthM(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
           </div>
         </div>
-        <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => printMastitisRecords(filtered, farmName, monthLabelM)} disabled={filtered.length === 0} className="gap-1.5"><Printer className="w-4 h-4" />Print</Button>
+          <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
+        </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><p>No mastitis records found.</p></div>
@@ -653,7 +689,7 @@ function OrgEaseScoreBadgeDairy({ v }: { v?: number | null }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${cls[v] || "bg-gray-100 text-gray-700"}`}>{v} — {lbl[v] || "Unknown"}</span>;
 }
 
-function CalvingTab({ farmId }: { farmId: number }) {
+function CalvingTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -729,7 +765,10 @@ function CalvingTab({ farmId }: { farmId: number }) {
             <button onClick={() => stepMonthC(1)} className="p-1 rounded-r hover:bg-gray-200 transition-colors" aria-label="Next month"><ChevronRight className="h-4 w-4 text-gray-600" /></button>
           </div>
         </div>
-        <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Calving</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => printCalvingRecords(calvingRecords, farmName, monthLabelC)} disabled={calvingRecords.length === 0} className="gap-1.5"><Printer className="w-4 h-4" />Print</Button>
+          <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Calving</Button>
+        </div>
       </div>
       {isLoading ? <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div> : calvingRecords.length === 0 ? (
         <div className="text-center py-12 text-gray-400"><p>No calving records for {monthLabelC}.</p></div>
@@ -3056,10 +3095,10 @@ export default function OrganicDairyPage() {
             <MilkCollectionsTab farmId={farmId} farmName={name} />
           </TabsContent>
           <TabsContent value="mastitis" className="mt-4">
-            <MastitisTab farmId={farmId} />
+            <MastitisTab farmId={farmId} farmName={name} />
           </TabsContent>
           <TabsContent value="calving" className="mt-4">
-            <CalvingTab farmId={farmId} />
+            <CalvingTab farmId={farmId} farmName={name} />
           </TabsContent>
           <TabsContent value="bcs" className="mt-4">
             <BcsTab farmId={farmId} />
@@ -3101,4 +3140,28 @@ export default function OrganicDairyPage() {
       )}
     </AppLayout>
   );
+}
+
+function printCalvingRecords(records: OrgCalvingRecord[], farmName: string, monthLabel: string) {
+  const today = new Date().toLocaleDateString("en-GB");
+  const easeLabel = ["", "Unassisted", "Easy pull", "Hard pull", "Mech. assist", "C-section"];
+  const rows = records.map(r => `
+    <tr>
+      <td>${esc(fmt(r.calvingDate))}</td>
+      <td class="font-mono">${esc(r.cowEarTag)}</td>
+      <td>${r.numberOfCalves ?? 1}</td>
+      <td>${r.calfEarTag ? esc(r.calfEarTag) : '&mdash;'}${r.calfSex ? ' (' + esc(r.calfSex) + ')' : ''}</td>
+      <td><span class="badge ${r.calfOutcome === 'live' ? 'badge-green' : r.calfOutcome === 'stillborn' ? 'badge-red' : 'badge-gray'}">${r.calfOutcome ? esc(r.calfOutcome) : '&mdash;'}</span></td>
+      <td>${r.calvingEaseScore ? esc(r.calvingEaseScore) + ' &mdash; ' + esc(easeLabel[r.calvingEaseScore] || '') : '&mdash;'}</td>
+      <td>${r.colostrumGivenWithin2Hours === true ? 'Yes &#10003;' : r.colostrumGivenWithin2Hours === false ? 'No &#9888;' : '&mdash;'}</td>
+      <td>${r.colostrumFromOrganicDam === true ? 'Yes' : r.colostrumFromOrganicDam === false ? 'No' : '&mdash;'}</td>
+      <td><span class="badge ${r.organicStatusConfirmed ? 'badge-green' : 'badge-gray'}">${r.organicStatusConfirmed ? 'Confirmed' : 'Pending'}</span></td>
+      <td><span class="badge ${r.bcmsPassportApplied ? 'badge-green' : 'badge-gray'}">${r.bcmsPassportApplied ? 'Yes' : 'No'}</span></td>
+      <td>${esc(r.notes)}</td>
+    </tr>`).join("");
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Calving Register &mdash; ${esc(farmName)}</title><style>${PRINT_CSS}</style></head><body>
+    <div class="hdr"><div class="hdr-l"><div class="title">Organic Calving Register</div><div class="farm">${esc(farmName)} &middot; ${esc(monthLabel)}</div></div>
+    <div class="hdr-r"><b>Calving Records</b><br>${records.length} calving${records.length !== 1 ? "s" : ""}<br>Printed: ${esc(today)}</div></div>
+    <table><thead><tr><th>Date</th><th>Dam Tag</th><th>Calves</th><th>Calf Tag (sex)</th><th>Outcome</th><th>Ease</th><th>Col &#8804;2h</th><th>Organic Col.</th><th>Organic Status</th><th>BCMS Passport</th><th>Notes</th></tr></thead>
+    <tbody>${rows}</tbody></table></body></html>`);
 }
