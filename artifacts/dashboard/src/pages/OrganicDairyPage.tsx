@@ -443,6 +443,32 @@ function MastitisTab({ farmId }: { farmId: number }) {
     return d.getFullYear() === filterYear && d.getMonth() === filterMonth;
   });
 
+  // Rolling 12-month trend data for the chart
+  const nowYear = nowM.getFullYear();
+  const nowMonth = nowM.getMonth();
+  const trendData = useMemo(() => {
+    const months: { label: string; year: number; month: number; regular: number; chronic: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(nowYear, nowMonth - i, 1);
+      months.push({
+        label: d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        regular: 0,
+        chronic: 0,
+      });
+    }
+    for (const r of allRecords) {
+      if (!r.onsetDate) continue;
+      const d = new Date(r.onsetDate);
+      const slot = months.find(m => m.year === d.getFullYear() && m.month === d.getMonth());
+      if (!slot) continue;
+      if (r.outcome === "chronic") slot.chronic += 1;
+      else slot.regular += 1;
+    }
+    return months;
+  }, [allRecords, nowYear, nowMonth]);
+
   const save = useMutation({
     mutationFn: (body: Partial<OrgDairyMastitisRecord>) => fetch(editing ? `/api/farms/${farmId}/dairy/mastitis-records/${editing.id}` : `/api/farms/${farmId}/dairy/mastitis-records`, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-mastitis", farmId] }); setOpen(false); toast({ title: editing ? "Updated" : "Added" }); },
@@ -463,6 +489,30 @@ function MastitisTab({ farmId }: { farmId: number }) {
         <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>{uncertifiedCount} treated case{uncertifiedCount !== 1 ? "s" : ""} where certifier has not been notified.</span>
+        </div>
+      )}
+      {/* 12-month trend chart */}
+      {!isLoading && allRecords.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">12-Month Case Trend</p>
+          <div className="flex items-center gap-4 mb-2">
+            <span className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />Standard</span>
+            <span className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />Chronic</span>
+          </div>
+          <ResponsiveContainer width="100%" height={120}>
+            <ComposedChart data={trendData} margin={{ top: 2, right: 4, left: -28, bottom: 0 }} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 6, border: "1px solid #e5e7eb" }}
+                formatter={(value: number, name: string) => [value, name === "regular" ? "Standard" : "Chronic"]}
+                labelFormatter={(label: string) => `Month: ${label}`}
+              />
+              <Bar dataKey="regular" stackId="cases" fill="#60a5fa" name="regular" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="chronic" stackId="cases" fill="#fbbf24" name="chronic" radius={[2, 2, 0, 0]} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       )}
       <div className="flex flex-wrap justify-between items-center gap-2">
