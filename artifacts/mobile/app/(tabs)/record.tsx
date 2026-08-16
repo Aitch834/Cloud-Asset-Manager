@@ -1127,6 +1127,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["field-crop-management"],
   },
   {
+    id: "vine-register",
+    title: "FSA Vine Register",
+    description: "View your FSA Vine Register entries — registered varieties, areas, GI classification and status. Includes an RPA reference warning when SBI number or Viticulture sector is missing.",
+    icon: "list",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-register",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-spray-diary",
     title: "Vineyard Spray Diary",
     description: "Log a spray application on a vineyard block — product, MAPP number, rate, area treated, weather conditions and operator details, with photo evidence of application conditions",
