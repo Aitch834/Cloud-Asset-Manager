@@ -1816,10 +1816,11 @@ export async function printHarvest(
     const crossTabBidSet = new Set(uniqueBlockIdsForCross.map(bid => String(bid)));
     const crossTabRecords = records.filter(r => crossTabBidSet.has(String(r.blockId ?? "")));
 
-    const footerVintageCells = crossVintages.map(vy => {
+    const footerVintageData = crossVintages.map(vy => {
       // kg from cross-tab records only (same population as the area denominator)
       const crossTabRecordsForVintage = crossTabRecords.filter(r => String(r.vintageYear ?? "") === vy);
       const total = crossTabRecordsForVintage.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+      const picks = crossTabRecordsForVintage.length;
       // t/ha is only shown when every cross-tab block that contributed kg in this vintage has a known area.
       const vintageBlocksWithRecords = uniqueBlockIdsForCross.filter(bid => (crossLookup[String(bid)]?.[vy] ?? []).length > 0);
       const allHaveArea = vintageBlocksWithRecords.every(bid => {
@@ -1833,9 +1834,24 @@ export async function printHarvest(
           }, 0)
         : 0;
       const vintageTha = allHaveArea && total > 0 && vintageAreaSum > 0 ? (total / 1000 / vintageAreaSum) : null;
-      return `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
-             `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vintageTha != null ? vintageTha.toFixed(2) : "\u2014"}</td>`;
+      return { total, picks, vintageTha };
+    });
+
+    const footerVintageCells = footerVintageData.map(({ total, vintageTha }) =>
+      `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
+      `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vintageTha != null ? vintageTha.toFixed(2) : "\u2014"}</td>`
+    ).join("");
+
+    // Picks footer row: one cell spanning the kg+t/ha pair per vintage, amber flag when picks === 1
+    const picksFooterVintageCells = footerVintageData.map(({ picks }) => {
+      const singlePick = picks === 1;
+      const bg = singlePick ? "#fef3c7" : "#f5f5f4";
+      const border = singlePick ? "#fbbf24" : "#d6b89a";
+      const label = singlePick ? `&#9888; ${picks}` : String(picks);
+      return `<td colspan="2" style="padding:${yieldTdPad};border:1px solid ${border};background:${bg};text-align:center;font-family:monospace;font-weight:${singlePick ? 700 : 500};color:${singlePick ? "#92400e" : "#555"}">${label}</td>`;
     }).join("");
+
+    const grandTotalPicks = crossTabRecords.length;
 
     // Grand total kg also from cross-tab records only, matching the per-vintage footer logic.
     const grandTotal = crossTabRecords.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -1875,7 +1891,8 @@ export async function printHarvest(
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
     </tr></thead>
     <tbody>${crossBodyRows}</tbody>
-    <tfoot><tr>
+    <tfoot>
+    <tr>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
@@ -1885,7 +1902,15 @@ export async function printHarvest(
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPh != null ? grandAvgPh.toFixed(2) : "\u2014"}</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgTa != null ? grandAvgTa.toFixed(1) : "\u2014"}</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
-    </tr></tfoot>
+    </tr>
+    <tr>
+      <td style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-weight:600;color:#555;font-size:${yieldFontPx - 0.5}px">Picks</td>
+      <td style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4"></td>
+      ${picksFooterVintageCells}
+      <td colspan="2" style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;text-align:center;font-family:monospace;font-weight:600;color:#555">${grandTotalPicks}</td>
+      <td colspan="4" style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-size:${yieldFontPx - 1}px;color:#888">&#9888; = single pick &mdash; treat totals with caution</td>
+    </tr>
+    </tfoot>
   </table>`;
 
   }
