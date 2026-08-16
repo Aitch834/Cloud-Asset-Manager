@@ -1095,13 +1095,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   onClick={async () => {
                     setCsvExporting(true);
                     try {
-                      // Single aggregate query — one row per vessel with clean_count + last_clean_date
-                      const summaryRes = await fetch(api(`farms/${farmId}/winery-vessels-clean-summary`), { credentials: "include" });
-                      if (!summaryRes.ok) {
-                        toast({ title: "Export failed", description: "Could not load cleaning history. Please try again.", variant: "destructive" });
+                      // Parallel aggregate queries — clean summary + fill summary
+                      const [summaryRes, fillSummaryRes] = await Promise.all([
+                        fetch(api(`farms/${farmId}/winery-vessels-clean-summary`), { credentials: "include" }),
+                        fetch(api(`farms/${farmId}/winery-vessels-fill-summary`), { credentials: "include" }),
+                      ]);
+                      if (!summaryRes.ok || !fillSummaryRes.ok) {
+                        toast({ title: "Export failed", description: "Could not load barrel history. Please try again.", variant: "destructive" });
                         return;
                       }
-                      const summaryBody = await summaryRes.json();
+                      const [summaryBody, fillSummaryBody] = await Promise.all([summaryRes.json(), fillSummaryRes.json()]);
                       // Build lookup: vesselId → { lastCleanDate, cleanCount }
                       const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number }>();
                       for (const row of (summaryBody.records ?? []) as Record<string, unknown>[]) {
@@ -1110,8 +1113,18 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           cleanCount: Number(row.clean_count ?? 0),
                         });
                       }
+                      // Build lookup: vesselId → { lastFillDate, lastRackOutDate }
+                      const fillMap = new Map<number, { lastFillDate: string; lastRackOutDate: string }>();
+                      for (const row of (fillSummaryBody.records ?? []) as Record<string, unknown>[]) {
+                        fillMap.set(Number(row.vessel_id), {
+                          lastFillDate: row.last_fill_date ? fmtDate(row.last_fill_date) : "",
+                          lastRackOutDate: row.last_rack_out_date ? fmtDate(row.last_rack_out_date) : "",
+                        });
+                      }
                       const colsWithCleans: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
                         ...barrelHealthCols,
+                        { key: "_last_fill_date", label: "Last Fill Date", fmt: (r) => fillMap.get(Number(r.id))?.lastFillDate ?? "" },
+                        { key: "_last_rack_out_date", label: "Last Rack-out Date", fmt: (r) => fillMap.get(Number(r.id))?.lastRackOutDate ?? "" },
                         { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
                         { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
                       ];

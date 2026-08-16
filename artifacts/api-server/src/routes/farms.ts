@@ -38238,6 +38238,16 @@ router.get("/farms/:farmId/winery-vessels-clean-summary", requireAuth, requireTe
   `);
   res.json({ records: rows.rows });
 });
+router.get("/farms/:farmId/winery-vessels-fill-summary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`
+    SELECT vessel_id, MAX(fill_date) AS last_fill_date, MAX(rack_out_date) AS last_rack_out_date
+    FROM winery_barrel_fills
+    WHERE farm_id = ${farmId}
+    GROUP BY vessel_id
+  `);
+  res.json({ records: rows.rows });
+});
 router.post("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body); const vesselId = parseInt(req.params.vesselId as string);
