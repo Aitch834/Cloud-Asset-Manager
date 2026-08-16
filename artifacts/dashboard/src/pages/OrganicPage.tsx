@@ -83,8 +83,9 @@ function openPrint(html: string) {
   setTimeout(() => w.print(), 400);
 }
 
-function printInspectionRegister(records: InspectionRecord[], farmName: string) {
+function printInspectionRegister(records: InspectionRecord[], farmName: string, year: number | null) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const yearLabel = year ? `${year}` : "All Years";
   const rows = records.map(r => `<tr>
     <td style="white-space:nowrap">${r.inspectionDate ? new Date(r.inspectionDate).toLocaleDateString("en-GB") : "—"}</td>
     <td>${r.certifier}</td><td>${r.inspectorName || "—"}</td>
@@ -94,7 +95,7 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string) 
     <td>${r.nonConformances || "—"}</td><td>${r.actions || "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Organic Inspection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Certification Inspection Register · Complementary Record</p></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Certification Inspection Register · ${yearLabel} · Complementary Record</p></div>
 <div class="hdr-r"><b>Inspection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
 <table><thead><tr><th>Date</th><th>Certifier</th><th>Inspector</th><th>Outcome</th><th>Cert Ref</th><th>Next Due</th><th>Non-Conformances</th><th>Actions Required</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -809,12 +810,17 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_INSP);
   const [raiseTaskFor, setRaiseTaskFor] = useState<{ title: string; description: string; dueDate?: string } | null>(null);
+  const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-inspections", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const { data, isLoading } = useQuery<{ records: InspectionRecord[] }>({
     queryKey: ["organic-inspections", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/organic/inspections`).then(r => r.json()),
   });
   const records = data?.records ?? [];
+  const filteredRecords = useMemo(
+    () => yearFilter === "all" ? records : records.filter(r => r.inspectionDate && new Date(r.inspectionDate).getFullYear() === Number(yearFilter)),
+    [records, yearFilter]
+  );
 
   const createM = useMutation({
     mutationFn: (body: typeof EMPTY_INSP) => fetch(`/api/farms/${farmId}/organic/inspections`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
@@ -849,19 +855,33 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
   return (
     <>
       <div className="flex justify-between items-center mb-6">
-        <Button variant="outline" onClick={() => printInspectionRegister(records, farmName)} disabled={records.length === 0} className="gap-2"><Printer className="w-4 h-4" />Print Register</Button>
+        <div className="flex items-center gap-2">
+          <select
+            className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
+            value={yearFilter}
+            onChange={e => setYearFilter(e.target.value)}
+          >
+            <option value="all">All years</option>
+            {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {filteredRecords.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => printInspectionRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+              <Printer className="w-4 h-4" />Print Register
+            </Button>
+          )}
+        </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_INSP); setFormOpen(true); }} className="gap-2"><Plus className="w-4 h-4" />Add Inspection</Button>
       </div>
 
-      {records.length === 0 ? (
+      {filteredRecords.length === 0 ? (
         <Card className="p-8 text-center">
           <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-green-500 opacity-50" />
-          <p className="font-semibold mb-1">No inspections recorded</p>
+          <p className="font-semibold mb-1">{records.length === 0 ? "No inspections recorded" : `No inspections recorded for ${yearFilter}`}</p>
           <p className="text-sm text-foreground/60">Record your annual certifier inspection visits here to keep a local evidence trail alongside your certifier's portal.</p>
         </Card>
       ) : (
         <div className="space-y-3">
-          {records.map(r => {
+          {filteredRecords.map(r => {
             const nextDays = daysUntil(r.nextDueDate);
             const outcomeColor = OUTCOME_COLORS[r.outcome] ?? "text-gray-700 bg-gray-50 border-gray-200";
             return (
