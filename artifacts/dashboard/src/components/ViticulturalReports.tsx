@@ -644,7 +644,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     if (!_storedBlocks) return null;
     try {
       const arr = JSON.parse(_storedBlocks) as string[];
-      if (!Array.isArray(arr) || arr.length === 0) return null;
+      if (!Array.isArray(arr)) return null;
+      // Empty array is a valid "none selected" state — keep it as an empty Set
       return new Set(arr);
     } catch {
       return null;
@@ -662,13 +663,13 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   const [groupByVariety, setGroupByVariety] = useState(false);
 
   const toggleBlock = (name: string) => {
-    // When null, all blocks are shown — clicking one deselects all others
+    // When null, all blocks are shown — expand to full set before toggling
     const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
     const current = selectedBlockNames ?? new Set(allKeys);
     const next = new Set(current);
     if (next.has(name)) {
       next.delete(name);
-      if (next.size === 0) { _persistBlockNames(null); return; } // prevent empty selection
+      // allow the set to become empty — chart will show an empty-state prompt
     } else {
       next.add(name);
       if (next.size === allKeys.length) { _persistBlockNames(null); return; } // back to "all"
@@ -942,9 +943,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               const allActive = varietyKeys.every(k => current.has(k));
               const next = new Set(current);
               if (allActive) {
-                // deselect all in variety (but prevent empty selection)
+                // deselect all in variety — allow empty (chart shows empty-state prompt)
                 varietyKeys.forEach(k => next.delete(k));
-                if (next.size === 0) { _persistBlockNames(null); return; }
               } else {
                 varietyKeys.forEach(k => next.add(k));
                 if (next.size === allKeys.length) { _persistBlockNames(null); return; }
@@ -1018,6 +1018,17 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                       className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
                     >
                       Show all
+                    </button>
+                  )}
+
+                  {/* Select none link — clears all blocks so growers can pick just what they want */}
+                  {(selectedBlockNames == null || selectedBlockNames.size > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => _persistBlockNames(new Set())}
+                      className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
+                    >
+                      Select none
                     </button>
                   )}
                 </div>
@@ -1111,6 +1122,13 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               const visibleLines = blockYieldTrendData.blockLines.filter(
                 bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
               );
+              if (visibleLines.length === 0) {
+                return (
+                  <p className="text-sm text-foreground/40 text-center py-6">
+                    No blocks selected. Tap a block above to add it to the chart, or use <em>Show all</em> to restore the full view.
+                  </p>
+                );
+              }
               return (
                 <ResponsiveContainer width="100%" height={Math.max(220, visibleLines.length * 18 + 80)}>
                   <LineChart data={blockYieldTrendData.chartData} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
