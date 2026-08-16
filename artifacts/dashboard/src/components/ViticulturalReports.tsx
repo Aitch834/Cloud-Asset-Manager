@@ -1387,7 +1387,9 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-2 text-right font-mono font-bold">
                       {avgPH != null ? avgPH.toFixed(2) : "—"}
                     </td>
-                    <td className="px-4 py-2" />
+                    <td className="px-4 py-2 text-right font-mono font-bold">
+                      {avgTA != null ? avgTA.toFixed(1) : "—"}
+                    </td>
                     <td className="px-4 py-2 text-right font-mono font-bold">
                       {avgPotAlc != null ? avgPotAlc.toFixed(1) : "—"}
                     </td>
