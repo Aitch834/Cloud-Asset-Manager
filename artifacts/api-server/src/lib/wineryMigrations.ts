@@ -328,5 +328,22 @@ export async function runWineryMigrations(): Promise<void> {
   // Link bottling records to the machine that ran them
   await db.execute(sql`ALTER TABLE winery_bottling_records ADD COLUMN IF NOT EXISTS bottling_machine_id integer REFERENCES winery_bottling_machines(id)`);
 
+  // ─── Bottling Machine Maintenance / Service Log ───────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS winery_bottling_machine_maintenance (
+      id                  SERIAL PRIMARY KEY,
+      farm_id             INTEGER NOT NULL REFERENCES farms(id),
+      machine_id          INTEGER NOT NULL REFERENCES winery_bottling_machines(id) ON DELETE CASCADE,
+      maintenance_date    DATE NOT NULL,
+      maintenance_type    TEXT,
+      description         TEXT,
+      carried_out_by      TEXT,
+      next_service_due    DATE,
+      notes               TEXT,
+      created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_bottling_machine_maintenance_machine_idx ON winery_bottling_machine_maintenance(machine_id)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

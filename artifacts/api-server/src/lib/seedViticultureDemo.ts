@@ -430,7 +430,23 @@ export async function seedViticultureDemo(): Promise<void> {
         (${FARM_ID}, ${mMap['LABEL-01']}, '2024-09-25', 'pre-run', 'IPA 70%',     70.00, 5,  20.0, true, 'J. Hartley', 'Wipe-down of label applicator rollers and glue heads before rosé run.'),
         (${FARM_ID}, ${mMap['LABEL-01']}, '2024-09-27', 'pre-run', 'IPA 70%',     70.00, 5,  20.0, true, 'J. Hartley', 'Pre-run wipe-down before Chardonnay labelling run.')
     `);
-    console.log("[VITICULTURE-SEED] ✓ 2 bottling machines + 5 CIP records created");
+
+    // Maintenance records for FILLER-01
+    await db.execute(sql`
+      INSERT INTO winery_bottling_machine_maintenance (farm_id, machine_id, maintenance_date, maintenance_type, description, carried_out_by, next_service_due, notes)
+      VALUES
+        (${FARM_ID}, ${mMap['FILLER-01']}, '2024-01-15', 'planned-service', 'Annual factory service — filler valves reseated, drip tray gaskets replaced, all pneumatic seals inspected', 'Enos UK Service (contractor)', '2025-01-15', 'Full service certificate issued. All 8 filling valves inspected — 2 drip tray gaskets replaced. Next annual service booked for Jan 2025.'),
+        (${FARM_ID}, ${mMap['FILLER-01']}, '2024-09-24', 'filter-change',   'Replaced in-line filtration cartridges (0.45 µm sterile membrane) ahead of harvest bottling season', 'J. Hartley',               '2025-03-24', 'Pre-harvest filter change as per annual protocol. New Pall Supor EX cartridges installed. Integrity test passed.')
+    `);
+
+    // Maintenance records for LABEL-01
+    await db.execute(sql`
+      INSERT INTO winery_bottling_machine_maintenance (farm_id, machine_id, maintenance_date, maintenance_type, description, carried_out_by, next_service_due, notes)
+      VALUES
+        (${FARM_ID}, ${mMap['LABEL-01']}, '2024-03-10', 'inspection',       'Annual inspection — glue head alignment checked, applicator roller surface assessed, label roll tension calibrated', 'PE Labellers UK (contractor)', '2025-03-10', 'Inspection certificate issued. Glue head nozzle diameter within tolerance. Label positioning ±0.3 mm — within spec.'),
+        (${FARM_ID}, ${mMap['LABEL-01']}, '2024-09-22', 'nozzle-replacement','Front-label glue nozzle replaced after intermittent misfeed noted during pre-season test run', 'J. Hartley', null, 'Nozzle OEM part #PE-GL-007. Feed alignment re-calibrated post-replacement. Test run of 50 bottles — no further misfeed.')
+    `);
+    console.log("[VITICULTURE-SEED] ✓ 2 bottling machines + 5 CIP records + 4 maintenance entries created");
 
     await db.execute(sql`COMMIT`);
     console.log("[VITICULTURE-SEED] ✅ Viticulture demo data seeded successfully for Highfield Farm.");

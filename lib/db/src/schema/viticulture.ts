@@ -838,3 +838,17 @@ export const wineryBottlingMachineCleansTable = pgTable("winery_bottling_machine
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ─── Winery Bottling Machine Maintenance Log ───────────────────────────────────
+export const wineryBottlingMachineMaintenanceTable = pgTable("winery_bottling_machine_maintenance", {
+  id: serial("id").primaryKey(),
+  farmId: integer("farm_id").notNull().references(() => farmsTable.id),
+  machineId: integer("machine_id").notNull().references(() => wineryBottlingMachinesTable.id, { onDelete: "cascade" }),
+  maintenanceDate: date("maintenance_date").notNull(),
+  maintenanceType: text("maintenance_type"), // planned-service | filter-change | nozzle-replacement | capper-adjustment | repair | inspection | other
+  description: text("description"),
+  carriedOutBy: text("carried_out_by"),
+  nextServiceDue: date("next_service_due"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

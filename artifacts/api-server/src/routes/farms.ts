@@ -38881,7 +38881,8 @@ router.get("/farms/:farmId/winery-bottling-machines", requireAuth, requireTenant
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`
     SELECT m.*,
-      (SELECT MAX(clean_date) FROM winery_bottling_machine_cleans WHERE machine_id = m.id AND farm_id = m.farm_id) AS last_clean_date
+      (SELECT MAX(clean_date) FROM winery_bottling_machine_cleans WHERE machine_id = m.id AND farm_id = m.farm_id) AS last_clean_date,
+      (SELECT next_service_due FROM winery_bottling_machine_maintenance WHERE machine_id = m.id AND farm_id = m.farm_id AND next_service_due IS NOT NULL ORDER BY maintenance_date DESC LIMIT 1) AS next_service_due
     FROM winery_bottling_machines m
     WHERE m.farm_id = ${farmId}
     ORDER BY m.machine_ref ASC
@@ -38947,6 +38948,37 @@ router.put("/farms/:farmId/winery-bottling-machines/:machineId/cleans/:cleanId",
 router.delete("/farms/:farmId/winery-bottling-machines/:machineId/cleans/:cleanId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   await db.execute(sql`DELETE FROM winery_bottling_machine_cleans WHERE id=${parseInt(req.params.cleanId as string)} AND farm_id=${farmId} AND machine_id=${parseInt(req.params.machineId as string)}`);
+  res.json({ success: true });
+});
+
+// ─── Bottling Machine Maintenance Log CRUD ─────────────────────────────────────
+router.get("/farms/:farmId/winery-bottling-machines/:machineId/maintenance", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`SELECT * FROM winery_bottling_machine_maintenance WHERE farm_id=${farmId} AND machine_id=${parseInt(req.params.machineId as string)} ORDER BY maintenance_date DESC`);
+  res.json({ records: rows.rows });
+});
+router.post("/farms/:farmId/winery-bottling-machines/:machineId/maintenance", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body); const machineId = parseInt(req.params.machineId as string);
+  if (!b.maintenanceDate) { res.status(400).json({ error: "maintenance_date required" }); return; }
+  const machineCheck = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${machineId} AND farm_id=${farmId}`);
+  if (!machineCheck.rows.length) { res.status(404).json({ error: "Machine not found" }); return; }
+  const r = await db.execute(sql`INSERT INTO winery_bottling_machine_maintenance (farm_id,machine_id,maintenance_date,maintenance_type,description,carried_out_by,next_service_due,notes) VALUES (${farmId},${machineId},${nd(b.maintenanceDate)},${n(b.maintenanceType)},${n(b.description)},${n(b.carriedOutBy)},${nd(b.nextServiceDue)},${n(b.notes)}) RETURNING *`);
+  res.status(201).json({ record: r.rows[0] });
+});
+router.put("/farms/:farmId/winery-bottling-machines/:machineId/maintenance/:entryId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const b = sanitiseBody(req.body); const machineId = parseInt(req.params.machineId as string); const entryId = parseInt(req.params.entryId as string);
+  if (!b.maintenanceDate) { res.status(400).json({ error: "maintenance_date required" }); return; }
+  const machineCheck = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${machineId} AND farm_id=${farmId}`);
+  if (!machineCheck.rows.length) { res.status(404).json({ error: "Machine not found" }); return; }
+  const r = await db.execute(sql`UPDATE winery_bottling_machine_maintenance SET maintenance_date=${nd(b.maintenanceDate)},maintenance_type=${n(b.maintenanceType)},description=${n(b.description)},carried_out_by=${n(b.carriedOutBy)},next_service_due=${nd(b.nextServiceDue)},notes=${n(b.notes)} WHERE id=${entryId} AND farm_id=${farmId} AND machine_id=${machineId} RETURNING *`);
+  if (!r.rows.length) { res.status(404).json({ error: "Record not found" }); return; }
+  res.json({ record: r.rows[0] });
+});
+router.delete("/farms/:farmId/winery-bottling-machines/:machineId/maintenance/:entryId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  await db.execute(sql`DELETE FROM winery_bottling_machine_maintenance WHERE id=${parseInt(req.params.entryId as string)} AND farm_id=${farmId} AND machine_id=${parseInt(req.params.machineId as string)}`);
   res.json({ success: true });
 });
 

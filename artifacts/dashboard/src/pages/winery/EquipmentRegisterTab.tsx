@@ -102,6 +102,15 @@ export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equip
 
 const BOTTLING_MACHINE_TYPES = ["filler", "capper", "labeller", "bag-in-box", "sparkling-line", "other"];
 const CIP_TIMING_OPTIONS = ["pre-run", "post-run", "routine"];
+const MAINTENANCE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "planned-service",    label: "Planned Service" },
+  { value: "filter-change",      label: "Filter Change" },
+  { value: "nozzle-replacement", label: "Nozzle Replacement" },
+  { value: "capper-adjustment",  label: "Capper Adjustment" },
+  { value: "repair",             label: "Repair" },
+  { value: "inspection",         label: "Inspection" },
+  { value: "other",              label: "Other" },
+];
 
 function CipForm({ form, sf, machineId, isEdit = false }: { form: Record<string, string | boolean>; sf: (k: string, v: string | boolean) => void; machineId: number; isEdit?: boolean }) {
   return (
@@ -239,13 +248,135 @@ export function CipRows({ farmId, machineId }: { farmId: number; machineId: numb
   );
 }
 
+export function MaintenanceRows({ farmId, machineId }: { farmId: number; machineId: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
+  const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-bottling-machine-maintenance", farmId, machineId],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!machineId && viticultureActive,
+  });
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState<Record<string, string>>({ maintenanceDate: today, maintenanceType: "planned-service" });
+  const sfa = (k: string, v: string) => setAddForm(f => ({ ...f, [k]: v }));
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const sfe = (k: string, v: string) => setEditForm(f => ({ ...f, [k]: v }));
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["winery-bottling-machine-maintenance", farmId, machineId] });
+    qc.invalidateQueries({ queryKey: ["winery-bottling-machines", farmId] });
+  };
+
+  const addMut = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(addForm) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
+    },
+    onSuccess: () => { invalidate(); setShowAdd(false); setAddForm({ maintenanceDate: today, maintenanceType: "planned-service" }); toast({ title: "Maintenance entry logged" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+  const editMut = useMutation({
+    mutationFn: async (entryId: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance/${entryId}`), { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(editForm) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
+    },
+    onSuccess: () => { invalidate(); setEditingId(null); toast({ title: "Maintenance entry updated" }); },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+  const delMut = useMutation({
+    mutationFn: async (entryId: number) => {
+      const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance/${entryId}`), { method: "DELETE", credentials: "include" });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Delete failed"); }
+    },
+    onSuccess: () => invalidate(),
+    onError: (err: Error) => toast({ title: "Delete failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
+  });
+
+  const startEdit = (c: Record<string, unknown>) => {
+    setEditingId(Number(c.id));
+    setEditForm({
+      maintenanceDate: String(c.maintenance_date ?? ""),
+      maintenanceType: String(c.maintenance_type ?? "planned-service"),
+      description: String(c.description ?? ""),
+      carriedOutBy: String(c.carried_out_by ?? ""),
+      nextServiceDue: String(c.next_service_due ?? ""),
+      notes: String(c.notes ?? ""),
+    });
+  };
+
+  const MaintenanceForm = ({ form, sf }: { form: Record<string, string>; sf: (k: string, v: string) => void }) => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.maintenanceDate ?? ""} onChange={e => sf("maintenanceDate", e.target.value)} className="h-8 text-xs" /></div>
+        <div><Label className="text-xs">Type</Label>
+          <Select value={form.maintenanceType ?? "planned-service"} onValueChange={v => sf("maintenanceType", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{MAINTENANCE_TYPE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2"><Label className="text-xs">Description</Label><Input value={form.description ?? ""} onChange={e => sf("description", e.target.value)} className="h-8 text-xs" placeholder="What was done?" /></div>
+        <div><Label className="text-xs">Carried Out By</Label><Input value={form.carriedOutBy ?? ""} onChange={e => sf("carriedOutBy", e.target.value)} className="h-8 text-xs" placeholder="Name or contractor" /></div>
+        <div><Label className="text-xs">Next Service Due</Label><Input type="date" value={form.nextServiceDue ?? ""} onChange={e => sf("nextServiceDue", e.target.value)} className="h-8 text-xs" /></div>
+      </div>
+      <div><Label className="text-xs">Notes</Label><Input value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} className="h-8 text-xs" placeholder="Optional" /></div>
+    </div>
+  );
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Wrench className="w-3 h-3" />Maintenance Log</p>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(s => !s); setEditingId(null); }}><Plus className="w-3 h-3 mr-1" />Log Entry</Button>
+      </div>
+      {showAdd && (
+        <div className="border rounded-lg p-3 mb-3 bg-muted/20">
+          <MaintenanceForm form={addForm} sf={sfa} />
+          <div className="flex gap-2 mt-3">
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!addForm.maintenanceDate || addMut.isPending}>{addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" />
+        : isError ? <QueryErrorNotice label="maintenance records" error={error} />
+        : (data ?? []).length === 0 ? <p className="text-xs text-muted-foreground">No maintenance entries yet.</p>
+        : (
+        <div className="space-y-1">
+          {(data ?? []).map(c => editingId === Number(c.id) ? (
+            <div key={String(c.id)} className="border rounded-lg p-3 bg-muted/20">
+              <MaintenanceForm form={editForm} sf={sfe} />
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" className="h-7 text-xs" onClick={() => editMut.mutate(Number(c.id))} disabled={!editForm.maintenanceDate || editMut.isPending}>{editMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save</Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingId(null)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <div key={String(c.id)} className="flex items-center justify-between text-xs border rounded px-3 py-1.5 gap-2 flex-wrap">
+              <span className="font-medium whitespace-nowrap">{fmtDate(c.maintenance_date)}</span>
+              {!!c.maintenance_type && <span className="text-muted-foreground capitalize">{MAINTENANCE_TYPE_OPTIONS.find(o => o.value === String(c.maintenance_type))?.label ?? String(c.maintenance_type)}</span>}
+              {!!c.description && <span className="truncate max-w-[200px]">{String(c.description)}</span>}
+              {!!c.carried_out_by && <span className="text-muted-foreground">{String(c.carried_out_by)}</span>}
+              {!!c.next_service_due && <span className="text-muted-foreground whitespace-nowrap">Next: {fmtDate(c.next_service_due)}</span>}
+              <div className="flex gap-0.5 shrink-0 ml-auto">
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEdit(c)}><Pencil className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BottlingMachinesSection({ farmId }: { farmId: number }) {
   const farmName = useFarmName(farmId);
   const crud = useWineryCrud(farmId, "winery-bottling-machines", "winery-bottling-machines");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
-  const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [form, setForm] = useState<Record<string, string>>({});
@@ -253,6 +384,7 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
 
   const now = new Date();
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const fourteenDaysFromNow = new Date(); fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14);
 
   const openAdd = () => { setEditing(null); setForm({}); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => {
@@ -283,9 +415,23 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
     return <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5">Recently cleaned</span>;
   };
 
+  const serviceStatus = (r: Record<string, unknown>) => {
+    if (!r.next_service_due) return null;
+    const d = new Date(r.next_service_due as string);
+    if (d < now) return <span className="text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 flex items-center gap-0.5"><AlertTriangle className="w-3 h-3" />Service overdue</span>;
+    if (d <= fourteenDaysFromNow) return <span className="text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 flex items-center gap-0.5"><AlertTriangle className="w-3 h-3" />Service due soon</span>;
+    return null;
+  };
+
   const overdueClean = crud.data.filter(m => {
     if (!m.last_clean_date) return true;
     return new Date(m.last_clean_date as string) < sevenDaysAgo;
+  });
+
+  const overdueService = crud.data.filter(m => {
+    if (!m.next_service_due) return false;
+    const d = new Date(m.next_service_due as string);
+    return d < now || d <= fourteenDaysFromNow;
   });
 
   const machineCsvCols = [
@@ -296,6 +442,7 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
     { key: "serial_number", label: "Serial Number" },
     { key: "commissioned_date", label: "Commissioned", fmt: (r: Record<string, unknown>) => fmtDate(r.commissioned_date) },
     { key: "last_clean_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_clean_date) },
+    { key: "next_service_due", label: "Next Service Due", fmt: (r: Record<string, unknown>) => fmtDate(r.next_service_due) },
     { key: "notes", label: "Notes" },
   ];
 
@@ -304,7 +451,7 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-semibold text-sm flex items-center gap-1.5"><Factory className="w-4 h-4" />Bottling Machine Register</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Register bottling lines with a CIP / cleaning log for each run. Required for hygiene scheme compliance and organic certification traceability.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Register bottling lines with CIP / cleaning and maintenance logs for each machine. Required for hygiene scheme compliance and organic certification traceability.</p>
         </div>
         <div className="flex gap-2 items-center">
           <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "bottling-machines.csv", machineCsvCols, [
@@ -324,13 +471,24 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {overdueService.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <Wrench className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-amber-800 text-sm">Service due: {overdueService.map(m => `${String(m.machine_ref)} (${fmtDate(m.next_service_due)})`).join(", ")}</p>
+            <p className="text-xs text-amber-700 mt-0.5">Scheduled service is overdue or due within 14 days. Log a maintenance entry once completed.</p>
+          </div>
+        </div>
+      )}
+
       {crud.isLoading ? <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         : crud.isError ? <QueryErrorNotice label="bottling machines" error={crud.error} />
-        : crud.data.length === 0 ? <EmptyState icon={Factory} title="No bottling machines registered" sub="Add your bottling line(s) to track CIP cleaning records before each run." />
+        : crud.data.length === 0 ? <EmptyState icon={Factory} title="No bottling machines registered" sub="Add your bottling line(s) to track CIP cleaning and maintenance records." />
         : (
         <div className="space-y-2">
           {crud.data.map(r => {
             const isExpanded = expanded.has(r.id as number);
+            const svcBadge = serviceStatus(r);
             return (
               <div key={String(r.id)} className="border rounded-lg overflow-hidden">
                 <div className="flex items-center gap-3 p-3 bg-muted/20 hover:bg-muted/30">
@@ -340,17 +498,22 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
                   <span className="font-mono font-semibold text-sm flex-shrink-0">{fmt(r.machine_ref)}</span>
                   {!!r.machine_type && <span className="text-xs text-muted-foreground capitalize">{String(r.machine_type).replace(/-/g, " ")}</span>}
                   <span className="text-xs text-muted-foreground hidden sm:block">{[r.manufacturer, r.model].filter(Boolean).map(String).join(" ")}</span>
-                  <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap hidden sm:block">{r.last_clean_date ? `Last cleaned ${fmtDate(r.last_clean_date)}` : "Never cleaned"}</span>
+                  <div className="ml-auto hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="whitespace-nowrap">{r.last_clean_date ? `Last cleaned ${fmtDate(r.last_clean_date)}` : "Never cleaned"}</span>
+                    {!!r.next_service_due && <span className="whitespace-nowrap">· Next service {fmtDate(r.next_service_due)}</span>}
+                  </div>
                   <div className="shrink-0">{cleanStatus(r)}</div>
+                  {svcBadge && <div className="shrink-0">{svcBadge}</div>}
                   <div className="flex gap-0.5 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
                 {isExpanded && (
-                  <div className="px-4 pb-4 pt-1">
-                    {!!r.notes && <p className="text-xs text-muted-foreground mb-3">{String(r.notes)}</p>}
+                  <div className="px-4 pb-4 pt-1 space-y-2 divide-y">
+                    {!!r.notes && <p className="text-xs text-muted-foreground pb-2">{String(r.notes)}</p>}
                     <CipRows farmId={farmId} machineId={r.id as number} />
+                    <MaintenanceRows farmId={farmId} machineId={r.id as number} />
                   </div>
                 )}
               </div>
@@ -390,7 +553,7 @@ function BottlingMachinesSection({ farmId }: { farmId: number }) {
 
       <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Delete Machine</DialogTitle><DialogDescription>Remove {fmt(deleting?.machine_ref)} and all its CIP records?</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Delete Machine</DialogTitle><DialogDescription>Remove {fmt(deleting?.machine_ref)} and all its CIP and maintenance records?</DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
