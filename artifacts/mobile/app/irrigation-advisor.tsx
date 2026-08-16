@@ -37,6 +37,8 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
+import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { scheduleSync } from "@/lib/sync-engine";
 
 // ─── Inlined irrigation data constants (from irrigationData.ts) ───────────────
 
@@ -305,27 +307,32 @@ function LogModal({
     setSaving(true);
 
     try {
-      const body: Record<string, unknown> = {
+      const record = {
+        id: generateId(),
+        farmId: String(farmId),
         fieldId: prefill.fieldId,
         irrigationDate,
-        cropType: cropType.trim() || undefined,
-        applicationDepthMm: depthNum,
+        waterSource: "",
+        fieldOrBlockDescription: prefill.fieldName,
+        cropType: cropType.trim(),
+        growthStage: "",
         irrigationMethod,
-        status: "closed",
-        notes: notes.trim() || undefined,
+        meterStartReading: null,
+        meterEndReading: null,
+        volumeAppliedM3: null,
+        applicationDepthMm: depthNum,
+        areaIrrigatedHa: null,
+        operatorName: "",
+        rainfallLast7DaysMm: null,
+        notes: notes.trim(),
+        createdAt: new Date().toISOString(),
+        synced: false,
       };
-      const res = await apiFetch(`/api/farms/${farmId}/irrigation-records`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const msg = await res.text().catch(() => "");
-        throw new Error(msg || `Request failed (${res.status})`);
-      }
+      await appendToList(STORAGE_KEYS.IRRIGATION_APPLICATIONS, record);
+      void scheduleSync();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
-      Alert.alert("Saved", "Irrigation application logged successfully.");
+      Alert.alert("Saved", "Irrigation application logged — it will sync when online.");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save — please try again.");
     } finally {

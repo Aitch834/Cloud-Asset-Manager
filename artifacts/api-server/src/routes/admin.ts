@@ -2464,32 +2464,6 @@ router.put("/admin/alert-subscriptions", requireAuth, async (req: Request, res: 
   res.json({ ok: true });
 });
 
-router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: Request, res: Response): Promise<void> => {
-  if (!(await checkPlatformAdmin(req, res))) return;
-
-  const tenantId = parseInt(req.params.tenantId as string, 10);
-  const farmId = parseInt(req.params.farmId as string, 10);
-  if (isNaN(tenantId) || isNaN(farmId)) { res.status(400).json({ error: "Invalid ID" }); return; }
-
-  const { name, address, postcode } = req.body as { name?: string; address?: string | null; postcode?: string | null };
-
-  const updates: Record<string, unknown> = {};
-  if (name !== undefined) {
-    if (typeof name !== "string" || name.trim().length === 0) { res.status(400).json({ error: "Farm name cannot be empty" }); return; }
-    updates.name = name.trim();
-  }
-  if (address !== undefined) updates.address = address ?? null;
-  if (postcode !== undefined) updates.postcode = postcode ?? null;
-
-  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
-
-  const [updated] = await db.update(farmsTable).set(updates)
-    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
-    .returning();
-  if (!updated) { res.status(404).json({ error: "Farm not found" }); return; }
-  res.json({ farm: updated });
-});
-
 router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
@@ -2549,6 +2523,44 @@ router.post("/admin/tenants/:tenantId/farms/:farmId/start-trial", requireAuth, a
   res.json({ success: true, modulesProvisioned: toInsert.length, trialEndsAt: trialEnd.toISOString() });
 });
 
+// ─── Farm data update (admin) ─────────────────────────────────────────────────
+
+router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+
+  const tenantId = parseInt(req.params.tenantId as string, 10);
+  const farmId = parseInt(req.params.farmId as string, 10);
+  if (isNaN(tenantId) || isNaN(farmId)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const [farm] = await db
+    .select({ id: farmsTable.id })
+    .from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
+    .limit(1);
+
+  if (!farm) { res.status(404).json({ error: "Farm not found for this tenant" }); return; }
+
+  const { name, address, postcode } = req.body as { name?: string; address?: string | null; postcode?: string | null };
+  const updates: Record<string, string | null> = {};
+  if (name !== undefined) {
+    if (typeof name !== "string" || name.trim().length === 0) { res.status(400).json({ error: "Farm name cannot be empty" }); return; }
+    updates.name = name.trim();
+  }
+  if (address !== undefined) updates.address = address?.trim() || null;
+  if (postcode !== undefined) updates.postcode = postcode?.trim() || null;
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+
+  const [updated] = await db
+    .update(farmsTable)
+    .set(updates)
+    .where(eq(farmsTable.id, farmId))
+    .returning({ id: farmsTable.id, name: farmsTable.name, address: farmsTable.address, postcode: farmsTable.postcode });
+
+  await writeAuditLog(req.userId!, "admin_update_farm", { tenantId, farmId, updates }, tenantId, farmId);
+
+  res.json({ farm: updated });
+});
 // ─── Module Management ────────────────────────────────────────────────────────
 
 router.get("/admin/modules", requireAuth, async (req: Request, res: Response): Promise<void> => {

@@ -69,6 +69,19 @@ export async function refreshPendingCount(): Promise<number> {
   return count;
 }
 
+/**
+ * Refresh the pending count and, if the device is connected, immediately
+ * schedule a sync attempt. Call this after enqueueing a new record so the
+ * sync engine picks it up without waiting for the next NetInfo event or
+ * app restart.
+ */
+export async function scheduleSync(delayMs = 500): Promise<void> {
+  await refreshPendingCount();
+  if (state.isConnected && state.pendingCount > 0) {
+    scheduleSyncAttempt(delayMs);
+  }
+}
+
 // One-time migration: move any entries stored under the old plural KV key
 // (bde_vine_operations) into the correct TABLE_MAP-backed key (bde_vine_operation).
 //
@@ -126,11 +139,66 @@ async function migrateVineOperationsKey(): Promise<void> {
   }
 }
 
+// One-time migration: move any entries stored under the old flat KV key
+// (bde_irrigation_applications) into the TABLE_MAP-backed SQLite records table
+// and the sync queue, so records saved before this key was wired up are uploaded.
+//
+// Safety guarantees mirror migrateVineOperationsKey:
+//   At-least-once  — OLD_KEY is kept until every entry is confirmed migrated.
+//   No duplicates  — MARKER_KEY tracks already-processed IDs; hasPendingSyncItem
+//                    guards the queue against double-POST.
+async function migrateIrrigationApplicationsKey(): Promise<void> {
+  const OLD_KEY = "bde_irrigation_applications";
+  const MARKER_KEY = "bde_irrigation_app_migration_v1";
+  try {
+    const raw = await kvGet(OLD_KEY);
+    if (!raw) return;
+    let entries: Array<Record<string, unknown>>;
+    try {
+      entries = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(entries) || entries.length === 0) {
+      await kvDelete(OLD_KEY);
+      return;
+    }
+
+    const markerRaw = await kvGet(MARKER_KEY);
+    const migratedIds: Set<string> = markerRaw
+      ? new Set(JSON.parse(markerRaw) as string[])
+      : new Set();
+
+    for (const entry of entries) {
+      const id = String(entry.id ?? "");
+      const farmId = String(entry.farmId ?? "");
+      const createdAt = String(entry.createdAt ?? new Date().toISOString());
+      if (!id || migratedIds.has(id)) continue;
+
+      await insertRecord("irrigation_applications", id, farmId, entry, createdAt);
+
+      const alreadyQueued = await hasPendingSyncItem("bde_irrigation_applications", id);
+      if (!alreadyQueued) {
+        await enqueueSyncItem("bde_irrigation_applications", id, entry);
+      }
+
+      migratedIds.add(id);
+      await kvSet(MARKER_KEY, JSON.stringify(Array.from(migratedIds)));
+    }
+
+    await kvDelete(OLD_KEY);
+    await kvDelete(MARKER_KEY);
+  } catch (err) {
+    console.warn("migrateIrrigationApplicationsKey:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function initialize(): Promise<void> {
   if (isInitialized) return;
   isInitialized = true;
 
   await migrateVineOperationsKey();
+  await migrateIrrigationApplicationsKey();
   await refreshPendingCount();
 
   try {
@@ -371,6 +439,28 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
       notes: [data.batchNumber ? `Batch: ${data.batchNumber}` : null, data.notes ? String(data.notes) : null].filter(Boolean).join(". ") || null,
     };
   }
+  if (recordType === "bde_irrigation_applications") {
+    const numOrNull = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === "") return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+    return {
+      fieldId: data.fieldId != null ? Number(data.fieldId) : undefined,
+      irrigationDate: data.irrigationDate,
+      fieldOrBlockDescription: data.fieldOrBlockDescription || null,
+      cropType: data.cropType || null,
+      growthStage: data.growthStage || null,
+      irrigationMethod: data.irrigationMethod || null,
+      applicationDepthMm: numOrNull(data.applicationDepthMm),
+      volumeAppliedM3: numOrNull(data.volumeAppliedM3),
+      areaIrrigatedHa: numOrNull(data.areaIrrigatedHa),
+      rainfallLast7DaysMm: numOrNull(data.rainfallLast7DaysMm),
+      soilMoistureDeficitMm: numOrNull(data.soilMoistureDeficitMm),
+      operatorName: data.operatorName || null,
+      notes: data.notes || null,
+    };
+  }
   return data;
 }
 
@@ -493,6 +583,7 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_silage_haylage_stock: `/farms/${farmId}/silage-haylage-stock`,
     bde_pig_inventory_records: `/farms/${farmId}/pig-inventory`,
     bde_pig_death_records: `/farms/${farmId}/pig-deaths`,
+    bde_irrigation_applications: `/farms/${farmId}/irrigation-records`,
   };
   return typeMap[recordType] || null;
 }
