@@ -619,12 +619,32 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const _w0 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w0 ? _w0 + "\n" : "";
 
+    // ── Build pick-count lookup per (blockId, vintageYear) ────────────────
+    const pickCountMap: Record<string, number> = {};
+    for (const r of rows) {
+      const k = `${r.blockId ?? ""}|${r.vintageYear ?? ""}`;
+      pickCountMap[k] = (pickCountMap[k] ?? 0) + 1;
+    }
+
+    // ── Low-pick warning: collect blocks/vintages with only 1 pick ────────
+    const lowPickEntries = Object.entries(pickCountMap).filter(([, count]) => count === 1);
+    let lowPickWarningLine = "";
+    if (lowPickEntries.length > 0) {
+      const descriptions = lowPickEntries.map(([k]) => {
+        const [bid, vy] = k.split("|");
+        const bName = (() => { const n = Number(bid); return !isNaN(n) && n > 0 ? String(blockName(n)) : null; })();
+        return bName && vy ? `${bName} (${vy})` : bName ? bName : vy || "unknown";
+      });
+      const plural = lowPickEntries.length === 1;
+      lowPickWarningLine = `"NOTE: ${lowPickEntries.length} block-vintage combination${plural ? "" : "s"} based on a single pick — yield and chemistry averages may be less representative: ${descriptions.join("; ")}"\n`;
+    }
+
     let csv: string;
     let filename: string;
 
     if (mode === "summary") {
       // ── Summary-only export ──────────────────────────────────────────────
-      csv = warningLine + [
+      csv = warningLine + lowPickWarningLine + [
         cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
         summaryHeader,
         ...summaryRows,
@@ -633,15 +653,21 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       filename = "vineyard-harvest-summary.csv";
     } else {
       // ── Full export (summary + detail rows) ──────────────────────────────
-      const detailHeader = csvCols.map(c => cell(c.label)).join(",");
-      const detailBody = rows.map(r =>
-        csvCols.map(c => {
-          const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
-          return cell(raw);
-        }).join(",")
-      ).join("\n");
+      // Detail header includes an extra "Picks" column (pick count for that block+vintage)
+      const detailHeader = [...csvCols.map(c => cell(c.label)), cell("Picks")].join(",");
+      const detailBody = rows.map(r => {
+        const k = `${r.blockId ?? ""}|${r.vintageYear ?? ""}`;
+        const picks = pickCountMap[k] ?? 1;
+        return [
+          ...csvCols.map(c => {
+            const raw = c.fmt ? c.fmt(r) : String(r[c.key] ?? "");
+            return cell(raw);
+          }),
+          cell(picks),
+        ].join(",");
+      }).join("\n");
 
-      csv = warningLine + [
+      csv = warningLine + lowPickWarningLine + [
         cell(`Yield Summary — ${summaryLabel === "Vintage Year" ? "by Vintage Year" : "by Block"}`),
         summaryHeader,
         ...summaryRows,
@@ -723,7 +749,19 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const _w1 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w1 ? _w1 + "\n" : "";
 
-    const csv = warningLine + [
+    // Low-pick warning for blocks with only 1 pick
+    const lowPickBlocks = Object.entries(blockMap).filter(([, grp]) => grp.length === 1);
+    let lowPickWarningLine = "";
+    if (lowPickBlocks.length > 0) {
+      const descriptions = lowPickBlocks.map(([key]) => {
+        const block = key === "__unlinked__" ? null : blocks.find(b => String(b.id) === key);
+        return block ? String(block.blockName ?? key) : "Not linked";
+      });
+      const plural = lowPickBlocks.length === 1;
+      lowPickWarningLine = `"NOTE: ${lowPickBlocks.length} block${plural ? "" : "s"} based on a single pick — averages may be less representative: ${descriptions.join("; ")}"\n`;
+    }
+
+    const csv = warningLine + lowPickWarningLine + [
       cell(`Per-Block Yield Summary — Vintage ${vintageLabel} — ${farmName ?? ""}`),
       header,
       ...dataRows,
