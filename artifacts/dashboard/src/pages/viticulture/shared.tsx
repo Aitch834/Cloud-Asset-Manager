@@ -1442,7 +1442,11 @@ export async function printOperations(
   }).join("");
 
   const safeFarmName = escHtml(farmName);
-  const opsAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const opsAddressValue = String(farmMeta?.address ?? "").trim();
+  const opsPostcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const opsAddressHtml = opsAddressValue
+    ? [opsAddressValue, opsPostcodeValue].filter(Boolean).map(escHtml).join(", ")
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const colSpan = hasPhotos ? 9 : 10;
 
   // ── FSA / APPA refs ───────────────────────────────────────────────────────
@@ -1496,7 +1500,7 @@ export async function printOperations(
     <div>
       <h1>Pruning &amp; Canopy Operations</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${opsAddress ? `<br>${opsAddress}` : ""}<br>
+        <strong>${safeFarmName}</strong><br>${opsAddressHtml}<br>
         ${opsFsaVineRefHtml}<br>
         ${opsFsaWineRefHtml}<br>
         ${opsAppaRefHtml}<br>
@@ -1637,7 +1641,11 @@ export async function printHarvest(
   const detailPaVals = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
   const detailAvgPa = detailPaVals.length > 0 ? detailPaVals.reduce((a, b) => a + b, 0) / detailPaVals.length : null;
   const safeFarmName = escHtml(farmName);
-  const harvestAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const harvestAddressValue = String(farmMeta?.address ?? "").trim();
+  const harvestPostcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const harvestAddressHtml = harvestAddressValue
+    ? [harvestAddressValue, harvestPostcodeValue].filter(Boolean).map(escHtml).join(", ")
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
   const colSpan = 14;
 
@@ -2338,7 +2346,7 @@ export async function printHarvest(
     <div>
       <h1>Harvest &amp; Vintage Records</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${harvestAddress ? `<br>${harvestAddress}` : ""}${vintages ? `<br>Vintages: ${vintages}` : ""}<br>
+        <strong>${safeFarmName}</strong><br>${harvestAddressHtml}${vintages ? `<br>Vintages: ${vintages}` : ""}<br>
         ${harvestFsaVineRefHtml}<br>
         ${harvestFsaWineRefHtml}<br>
         ${harvestAppaRefHtml}<br>
@@ -2405,6 +2413,7 @@ export async function printPhenology(
   records: Record<string, unknown>[],
   farmName: string,
   blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -2439,6 +2448,11 @@ export async function printPhenology(
   </tr>`).join("");
 
   const safeFarmName = escHtml(farmName);
+  const phenAddressValue = String(farmMeta?.address ?? "").trim();
+  const phenPostcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const phenAddressHtml = phenAddressValue
+    ? [phenAddressValue, phenPostcodeValue].filter(Boolean).map(escHtml).join(", ")
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const years = [...new Set(records.map(r => new Date(r.observationDate as string).getFullYear()))].sort().reverse().join(", ");
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -2449,6 +2463,7 @@ export async function printPhenology(
     h1 { font-size: 17px; margin: 0 0 2px; color: #4b3a8a; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4b3a8a; padding-bottom: 10px; margin-bottom: 14px; }
     .meta { font-size: 11px; color: #555; margin-top: 3px; line-height: 1.5; }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
@@ -2456,13 +2471,14 @@ export async function printPhenology(
     td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
     tr:nth-child(even) td { background: #f5f3ff; }
     .footer { margin-top: 16px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    @media print { body { margin: 0; } button { display: none !important; } .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style></head><body>
   <div class="header">
     <div>
       <h1>Phenology (BBCH Growth Stages)</h1>
       <div class="meta">
         <strong>${safeFarmName}</strong><br>
+        ${phenAddressHtml}<br>
         ${years ? `Season(s): ${years}<br>` : ""}
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
@@ -2683,7 +2699,11 @@ export async function printDiseaseScouting(
   }).join("");
 
   const safeFarmName = escHtml(farmName);
-  const scoutAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
+  const scoutAddressValue = String(farmMeta?.address ?? "").trim();
+  const scoutPostcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const scoutAddressHtml = scoutAddressValue
+    ? [scoutAddressValue, scoutPostcodeValue].filter(Boolean).map(escHtml).join(", ")
+    : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
   const xylellaCount = records.filter(r => r.xylellaFastidiosa).length;
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
@@ -2703,13 +2723,14 @@ export async function printDiseaseScouting(
     tr:nth-child(even) td { background: #f0fdf4; }
     .alert-box { background: #fef2f2; border: 1px solid #fca5a5; padding: 7px 10px; border-radius: 4px; font-size: 11px; margin-bottom: 12px; }
     .footer { margin-top: 14px; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 7px; }
-    @media print { body { margin: 0; } button { display: none !important; } }
+    .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    @media print { body { margin: 0; } button { display: none !important; } .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style></head><body>
   <div class="header">
     <div>
       <h1>Disease &amp; Pest Scouting Register</h1>
       <div class="meta">
-        <strong>${safeFarmName}</strong>${scoutAddress ? `<br>${scoutAddress}` : ""}<br>
+        <strong>${safeFarmName}</strong><br>${scoutAddressHtml}<br>
         ${blockLabel ? `Block: <strong>${escHtml(blockLabel)}</strong><br>` : ""}${yearLabel ? `Year: <strong>${escHtml(yearLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
