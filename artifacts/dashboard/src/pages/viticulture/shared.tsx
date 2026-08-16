@@ -1752,9 +1752,15 @@ export async function printHarvest(
       crossLookup[bid][vy].push(r);
     }
 
+    // Dynamic scaling: yield cross-tab has 2*N+8 columns; reduce font/padding for wide tables
+    const yieldN = crossVintages.length;
+    const yieldFontPx = yieldN >= 9 ? 8 : yieldN >= 7 ? 8.5 : yieldN >= 5 ? 9.5 : 10.5;
+    const yieldThPad = yieldN >= 9 ? "4px 3px" : yieldN >= 7 ? "5px 3px" : yieldN >= 5 ? "5px 4px" : "6px 5px";
+    const yieldTdPad = yieldN >= 9 ? "3px 3px" : yieldN >= 7 ? "4px 3px" : yieldN >= 5 ? "4px 4px" : "5px 5px";
+
     const vintageColHeaders = crossVintages.map(vy =>
-      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)} (kg)</th>` +
-      `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)} (t/ha)</th>`
+      `<th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">${escHtml(vy)} (kg)</th>` +
+      `<th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">${escHtml(vy)} (t/ha)</th>`
     ).join("");
 
     const crossBodyRows = uniqueBlockIdsForCross.map(bid => {
@@ -1767,8 +1773,8 @@ export async function printHarvest(
         const grp = crossLookup[bidStr]?.[vy] ?? [];
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
         const tha = total > 0 && areaHa > 0 ? (total / 1000 / areaHa) : null;
-        return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
-               `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace;color:#555">${tha != null ? tha.toFixed(2) : "\u2014"}</td>`;
+        return `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
+               `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace;color:#555">${tha != null ? tha.toFixed(2) : "\u2014"}</td>`;
       }).join("");
       const allForBlock = Object.values(crossLookup[bidStr] ?? {}).flat();
       const rowTotal = allForBlock.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -1782,15 +1788,15 @@ export async function printHarvest(
       const paAll = allForBlock.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
       const avgPaRow = paAll.length > 0 ? paAll.reduce((a, b) => a + b, 0) / paAll.length : null;
       return `<tr>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
         ${vintageCells}
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace;color:#555">${rowTha != null ? rowTha.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPhRow != null ? avgPhRow.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTaRow != null ? avgTaRow.toFixed(1) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPaRow != null ? avgPaRow.toFixed(1) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace;color:#555">${rowTha != null ? rowTha.toFixed(2) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPhRow != null ? avgPhRow.toFixed(2) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTaRow != null ? avgTaRow.toFixed(1) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPaRow != null ? avgPaRow.toFixed(1) : "\u2014"}</td>
       </tr>`;
     }).join("");
 
@@ -1817,8 +1823,8 @@ export async function printHarvest(
           }, 0)
         : 0;
       const vintageTha = allHaveArea && total > 0 && vintageAreaSum > 0 ? (total / 1000 / vintageAreaSum) : null;
-      return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
-             `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vintageTha != null ? vintageTha.toFixed(2) : "\u2014"}</td>`;
+      return `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
+             `<td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vintageTha != null ? vintageTha.toFixed(2) : "\u2014"}</td>`;
     }).join("");
 
     // Grand total kg also from cross-tab records only, matching the per-vintage footer logic.
@@ -1846,29 +1852,29 @@ export async function printHarvest(
 
     crossTabHtml = `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Block &times; Vintage &mdash; Total Yield</h2>
-  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+  <table style="width:100%;border-collapse:collapse;font-size:${yieldFontPx}px;margin-bottom:18px">
     <thead><tr>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:left;white-space:nowrap">Variety</th>
       ${vintageColHeaders}
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total (kg)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total (t/ha)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Total (kg)</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Total (t/ha)</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg Brix &deg;</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg pH</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg TA (g/L)</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
     </tr></thead>
     <tbody>${crossBodyRows}</tbody>
     <tfoot><tr>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTha != null ? grandTha.toFixed(2) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPh != null ? grandAvgPh.toFixed(2) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgTa != null ? grandAvgTa.toFixed(1) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTha != null ? grandTha.toFixed(2) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPh != null ? grandAvgPh.toFixed(2) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgTa != null ? grandAvgTa.toFixed(1) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
     </tr></tfoot>
   </table>`;
 
@@ -1904,9 +1910,15 @@ export async function printHarvest(
         { label: "Avg Pot. Alc %", precision: 2, extractor: r => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; } },
       ];
 
+      // Dynamic scaling: each chem sub-table has N+3 columns; reduce font/padding for wide tables
+      const chemN = chemLinkedVintages.length;
+      const chemFontPx = chemN >= 11 ? 8.5 : chemN >= 8 ? 9.5 : 10.5;
+      const chemThPad = chemN >= 11 ? "5px 3px" : chemN >= 8 ? "5px 4px" : "6px 5px";
+      const chemTdPad = chemN >= 11 ? "3px 3px" : chemN >= 8 ? "4px 4px" : "5px 5px";
+
       const chemSubTablesHtml = chemPrintMetrics.map(metric => {
         const vintageHeaders = chemLinkedVintages.map(vy =>
-          `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
+          `<th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
         ).join("");
 
         const chemBodyRows = chemLinkedBlockIds.map(bid => {
@@ -1918,16 +1930,16 @@ export async function printHarvest(
             const grp = chemCrossLookup[bidStr]?.[vy] ?? [];
             const vals = grp.map(metric.extractor).filter((v): v is number => v !== null);
             const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-            return `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
+            return `<td style="padding:${chemTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
           }).join("");
           const allForBlock = Object.values(chemCrossLookup[bidStr] ?? {}).flat();
           const allValsForBlock = allForBlock.map(metric.extractor).filter((v): v is number => v !== null);
           const rowAvg = allValsForBlock.length > 0 ? allValsForBlock.reduce((a, b) => a + b, 0) / allValsForBlock.length : null;
           return `<tr>
-            <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
-            <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
+            <td style="padding:${chemTdPad};border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+            <td style="padding:${chemTdPad};border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
             ${vintageCells}
-            <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowAvg != null ? rowAvg.toFixed(metric.precision) : "\u2014"}</td>
+            <td style="padding:${chemTdPad};border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowAvg != null ? rowAvg.toFixed(metric.precision) : "\u2014"}</td>
           </tr>`;
         }).join("");
 
@@ -1937,26 +1949,26 @@ export async function printHarvest(
             .map(metric.extractor)
             .filter((v): v is number => v !== null);
           const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-          return `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
+          return `<td style="padding:${chemTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${avg != null ? avg.toFixed(metric.precision) : "\u2014"}</td>`;
         }).join("");
         const allValsGrand = chemLinkedRecords.map(metric.extractor).filter((v): v is number => v !== null);
         const grandAvgMetric = allValsGrand.length > 0 ? allValsGrand.reduce((a, b) => a + b, 0) / allValsGrand.length : null;
 
         return `
   <h3 style="font-size:11px;font-weight:700;margin:0 0 4px;color:#7c3d12">${escHtml(metric.label)} &mdash; Block &times; Vintage</h3>
-  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:14px">
+  <table style="width:100%;border-collapse:collapse;font-size:${chemFontPx}px;margin-bottom:14px">
     <thead><tr>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Block</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
+      <th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:left;white-space:nowrap">Variety</th>
       ${vintageHeaders}
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg All Vintages</th>
+      <th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:right;white-space:nowrap">Avg All Vintages</th>
     </tr></thead>
     <tbody>${chemBodyRows}</tbody>
     <tfoot><tr>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>
+      <td style="padding:${chemTdPad};border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      <td style="padding:${chemTdPad};border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgMetric != null ? grandAvgMetric.toFixed(metric.precision) : "\u2014"}</td>
+      <td style="padding:${chemTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgMetric != null ? grandAvgMetric.toFixed(metric.precision) : "\u2014"}</td>
     </tr></tfoot>
   </table>`;
       }).join("");
