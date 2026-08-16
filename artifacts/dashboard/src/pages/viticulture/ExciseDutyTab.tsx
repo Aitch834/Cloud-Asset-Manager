@@ -285,6 +285,21 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
                 <RecordAttachments farmId={farmId} recordType="winery-excise-return" recordId={view.id} />
               </div>
             )}
+            {farmMeta && !farmMeta.address && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+                <span>
+                  <span className="font-medium">Farm address is not set</span> — the printed return will have a blank address field.{" "}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-amber-900 font-medium"
+                    onClick={() => { setView(null); setLocation("/settings/farm"); }}
+                  >
+                    Add in Farm Settings → Basic Details
+                  </button>
+                </span>
+              </div>
+            )}
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta)}>
                 <Printer className="w-3.5 h-3.5 mr-1.5" />Print Return
