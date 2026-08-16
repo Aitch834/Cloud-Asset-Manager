@@ -2021,6 +2021,11 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Annual production ceiling (in hectolitres) below which Small Producer Relief may be claimed. Currently 4,500 hl. Update if HMRC revises the eligibility threshold.",
     value: "4500",
   },
+  "hmrc.duty.rates_last_reviewed": {
+    label: "HMRC Duty — Rates Last Reviewed Date (YYYY-MM-DD)",
+    description: "ISO date (YYYY-MM-DD) when the HMRC alcohol duty rates were last verified or updated. Shown to staff on the Excise Duty tab as a confidence signal. Update this whenever you review or change the rates — especially after each Budget.",
+    value: "2023-08-01",
+  },
 };
 
 router.get("/version", async (_req: Request, res: Response): Promise<void> => {
@@ -2197,11 +2202,15 @@ router.get("/hmrc-duty-rates", async (_req: Request, res: Response): Promise<voi
   const byKey: Record<string, string> = {};
   for (const row of rows) byKey[row.key] = row.value;
   const get = (key: string) => byKey[key] ?? PLATFORM_CONFIG_DEFAULTS[key]?.value ?? "";
+  // ratesLastUpdated: explicit review-date config key, defaulting to "2023-08-01" (August 2023 reform)
+  const reviewDate = get("hmrc.duty.rates_last_reviewed").trim();
   res.json({
     lowAbvRatePerLpa:    parseFloat(get("hmrc.duty.low_abv_rate_per_lpa"))   || 9.27,
     highAbvRatePerLpa:   parseFloat(get("hmrc.duty.high_abv_rate_per_lpa"))  || 28.50,
     abvBandThresholdPct: parseFloat(get("hmrc.duty.abv_band_threshold_pct")) || 8.5,
     sprThresholdHl:      parseFloat(get("hmrc.duty.spr_threshold_hl"))       || 4500,
+    // ISO date string of when rates were last reviewed — always populated (defaults to Aug 2023 reform date)
+    ratesLastUpdated: reviewDate || null,
     // Informational — effective date of the current rates (not editable via config)
     source: "HMRC Alcohol Duty (August 2023 reform) — gov.uk/government/publications/alcohol-duty-rates",
   });

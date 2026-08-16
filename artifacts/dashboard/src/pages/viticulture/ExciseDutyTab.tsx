@@ -135,6 +135,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
     highAbvRatePerLpa: number;
     abvBandThresholdPct: number;
     sprThresholdHl: number;
+    ratesLastUpdated: string | null;
   }>({
     queryKey: ["hmrc-duty-rates"],
     queryFn: async () => {
@@ -147,6 +148,9 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   const highAbvRate   = hmrcRates?.highAbvRatePerLpa   ?? 28.50;
   const abvThreshold  = hmrcRates?.abvBandThresholdPct ?? 8.5;
   const sprThresholdHl = hmrcRates?.sprThresholdHl     ?? 4500;
+  const ratesLastUpdated = hmrcRates?.ratesLastUpdated
+    ? new Date(hmrcRates.ratesLastUpdated).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : null;
 
   // Rate per 100 L at ABV% = standardPerLPA × ABV
   // SPR: standard rate × min(1, annualProduction_hl / sprThreshold)
@@ -397,7 +401,11 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
           </div>
 
           {/* Section: Duty calculation */}
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3">Duty calculation (HMRC August 2023 rates)</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3">
+            {ratesLastUpdated
+              ? <>Duty calculation (rates last reviewed: {ratesLastUpdated} — <a href="https://www.gov.uk/guidance/alcohol-duty-rates" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">check gov.uk after each Budget</a>)</>
+              : "Duty calculation (HMRC August 2023 rates)"}
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Nominal ABV (%)</Label>
