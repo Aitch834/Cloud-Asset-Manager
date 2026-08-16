@@ -190,7 +190,7 @@ export function ScoutingPhotoLightbox({
   onClose: () => void;
   /** Awaited; lightbox stays open on rejection so the grower can retry. */
   onDelete: (id: number) => Promise<void>;
-  onReload?: () => void;
+  onReload?: () => Promise<void>;
   /** When provided a "Caption" button appears in the action bar. */
   onEditCaption?: (photo: ScoutingPhoto) => void;
 }) {
@@ -199,6 +199,7 @@ export function ScoutingPhotoLightbox({
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   // Sync index when lightbox opens; reset in-flight flags
   useEffect(() => {
@@ -207,6 +208,7 @@ export function ScoutingPhotoLightbox({
     }
     setSharing(false);
     setDeleting(false);
+    setReloading(false);
   }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clamp when photos array shrinks (e.g. a delete from outside)
@@ -223,15 +225,27 @@ export function ScoutingPhotoLightbox({
     setSharing(false);
     setDeleting(false);
     setImgError(false);
+    setReloading(false);
   }, [currentIndex]);
 
-  // Clear image error when the URL is refreshed (e.g. after onReload)
+  // Clear image error (and reloading) when the URL is refreshed (e.g. after onReload)
   const photo = photos[currentIndex] ?? null;
   const prevDownloadUrl = useRef(photo?.downloadUrl);
   if (prevDownloadUrl.current !== photo?.downloadUrl) {
     prevDownloadUrl.current = photo?.downloadUrl;
     if (imgError) setImgError(false);
+    if (reloading) setReloading(false);
   }
+
+  const handleReload = useCallback(async () => {
+    if (!onReload || reloading) return;
+    setReloading(true);
+    try {
+      await onReload();
+    } finally {
+      setReloading(false);
+    }
+  }, [onReload, reloading]);
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
@@ -353,10 +367,14 @@ export function ScoutingPhotoLightbox({
               resizeMode="contain"
               onError={() => setImgError(true)}
             />
+          ) : reloading ? (
+            <View style={lbStyles.imagePlaceholder}>
+              <ActivityIndicator size="large" color="rgba(255,255,255,0.75)" />
+            </View>
           ) : (
             <Pressable
               style={lbStyles.imagePlaceholder}
-              onPress={onReload}
+              onPress={handleReload}
               hitSlop={12}
               disabled={!onReload}
             >
