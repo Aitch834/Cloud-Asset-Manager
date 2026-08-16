@@ -2009,7 +2009,7 @@ export async function printHarvest(
       }).join("");
 
       chemCrossTabHtml = `
-  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
+  <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
   <p style="font-size:10px;color:#666;margin:0 0 8px">Average chemistry values per block per vintage. Footer row shows the record-weighted average across all linked blocks for that vintage.</p>
   ${chemSubTablesHtml}`;
     }
