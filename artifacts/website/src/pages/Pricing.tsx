@@ -123,6 +123,17 @@ export default function Pricing() {
   });
   const nextFarmIdRef = useRef(2);
 
+  const handleSectorChange = (sector: Sector) => {
+    setSectorFilter(sector);
+    const url = new URL(window.location.href);
+    if (sector === "All") {
+      url.searchParams.delete("sector");
+    } else {
+      url.searchParams.set("sector", sector);
+    }
+    history.replaceState(null, "", url.toString());
+  };
+
   const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
   const activeBundled = useMemo(() => getBundledModules(activeFarm.selectedModules), [activeFarm.selectedModules]);
 
@@ -307,7 +318,7 @@ export default function Pricing() {
                   return (
                     <button
                       key={sector}
-                      onClick={() => setSectorFilter(sector)}
+                      onClick={() => handleSectorChange(sector)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-all ${
                         isActive
                           ? "bg-brand-forest text-white border-brand-forest"
