@@ -53,7 +53,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, printRpaReference, emailRpaReference, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, printRpaReference, buildRpaMailtoHref, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -74,6 +74,8 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkEntryId, setUnlinkEntryId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [emailTruncatedOpen, setEmailTruncatedOpen] = useState(false);
+  const [pendingMailtoHref, setPendingMailtoHref] = useState("");
 
   const isSbiInvalid = !!farmRecord && !!String(farmRecord.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmRecord.sbiNumber ?? "").trim());
   const [changingBlockEntryId, setChangingBlockEntryId] = useState<number | null>(null);
@@ -443,7 +445,15 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                     </span>
                   )}
                 </span>
-                <Button size="sm" variant="outline" onClick={() => emailRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Open your email client with a pre-filled RPA block summary ready to send to an advisor or agronomist"><Mail className="w-4 h-4 mr-1" />Email RPA Reference</Button>
+                <Button size="sm" variant="outline" onClick={() => {
+                    const { href, isTruncated } = buildRpaMailtoHref(blocks, farmName, farmRecord);
+                    if (isTruncated) {
+                      setPendingMailtoHref(href);
+                      setEmailTruncatedOpen(true);
+                    } else {
+                      window.location.href = href;
+                    }
+                  }} disabled={!blocks.length} title="Open your email client with a pre-filled RPA block summary ready to send to an advisor or agronomist"><Mail className="w-4 h-4 mr-1" />Email RPA Reference</Button>
               </>
             );
           })()}
@@ -817,6 +827,32 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           <FsaCompletenessBar farmId={farmId} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPrintConfirmOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email body too long — blocking confirmation */}
+      <Dialog open={emailTruncatedOpen} onOpenChange={o => { if (!o) { setEmailTruncatedOpen(false); setPendingMailtoHref(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Email may be cut off
+            </DialogTitle>
+            <DialogDescription>
+              Your vineyard has many blocks and the email body exceeds the limit most email clients support (~2,000 characters). The draft will open but your email client may silently truncate the text.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Use <span className="font-medium">RPA Reference Export</span> to download a CSV — it contains all your blocks with no character limit.
+          </p>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); exportRpaCSV(); }}>
+              <FileDown className="w-4 h-4 mr-1" />Download CSV instead
+            </Button>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); window.location.href = pendingMailtoHref; setPendingMailtoHref(""); }}>
+              <Mail className="w-4 h-4 mr-1" />Open email anyway
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

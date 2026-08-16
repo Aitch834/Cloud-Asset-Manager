@@ -595,11 +595,21 @@ export function printRpaReference(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
-export function emailRpaReference(
+// Browsers silently truncate mailto: links beyond roughly 2,000 characters.
+const MAILTO_BODY_LIMIT = 1800;
+
+/**
+ * Builds the mailto href for the RPA Vineyard Block Reference email.
+ * Returns the href string and a flag indicating whether the encoded body
+ * exceeds the limit most email clients support (~2,000 characters).
+ * Callers should show a blocking confirmation before opening the href
+ * when `isTruncated` is true.
+ */
+export function buildRpaMailtoHref(
   blocks: Record<string, unknown>[],
   farmName: string,
   farmMeta?: Record<string, unknown> | null,
-) {
+): { href: string; isTruncated: boolean } {
   const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
   const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
   const printed = new Date().toLocaleDateString("en-GB");
@@ -610,7 +620,6 @@ export function emailRpaReference(
     return s.padEnd(width);
   };
 
-  // Plain-text table
   const headerLine = [
     col("Block Name", 20),
     col("Parcel / Field Ref", 20),
@@ -670,7 +679,19 @@ export function emailRpaReference(
     `RPA Vineyard Block Reference — ${farmName}${sbi ? ` (SBI: ${sbi})` : ""}`,
   );
   const encodedBody = encodeURIComponent(body);
-  window.location.href = `mailto:?subject=${subject}&body=${encodedBody}`;
+  const href = `mailto:?subject=${subject}&body=${encodedBody}`;
+
+  return { href, isTruncated: encodedBody.length > MAILTO_BODY_LIMIT };
+}
+
+/** Opens the RPA Reference email directly. Use only when the body is known to be within limit. */
+export function emailRpaReference(
+  blocks: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const { href } = buildRpaMailtoHref(blocks, farmName, farmMeta);
+  window.location.href = href;
 }
 
 /** Escape a plain-text value for safe insertion into an HTML document. */
