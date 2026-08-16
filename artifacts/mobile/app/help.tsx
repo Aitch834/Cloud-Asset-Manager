@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
 import {
   Pressable,
@@ -421,7 +422,7 @@ export default function HelpScreen() {
             </Text>
             <TouchableOpacity
               style={styles.webButton}
-              onPress={() => Linking.openURL("https://bdefarmtrac.co.uk/help")}
+              onPress={() => WebBrowser.openBrowserAsync("https://bdefarmtrac.co.uk/help")}
             >
               <Feather name="external-link" size={15} color="#fff" />
               <Text style={styles.webButtonText}>Open Full Help Centre</Text>
@@ -454,7 +455,7 @@ export default function HelpScreen() {
             </Text>
             <TouchableOpacity
               style={styles.webButton}
-              onPress={() => Linking.openURL("https://bdefarmtrac.co.uk/help")}
+              onPress={() => WebBrowser.openBrowserAsync("https://bdefarmtrac.co.uk/help")}
             >
               <Feather name="external-link" size={15} color="#fff" />
               <Text style={styles.webButtonText}>Open Full Help Centre</Text>
