@@ -1,6 +1,6 @@
 import { BatchTrailDialog } from "./BatchTrail";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
-import { useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, COMMERCIAL_YEAST_STRAINS, INDIGENOUS_YEAST_STRAINS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { useWineryCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, fmtDate, fmtNum, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, FERMENTATION_TYPE_OPTIONS, COMMERCIAL_YEAST_STRAINS, INDIGENOUS_YEAST_STRAINS, today, ORGANIC_MAX_SO2, ViewField, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -27,7 +27,7 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function FermentationRecordsTab({ farmId }: { farmId: number }) {
-  const crud = useCrud(farmId, "winery-fermentation", "winery-fermentation");
+  const crud = useWineryCrud(farmId, "winery-fermentation", "winery-fermentation");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);

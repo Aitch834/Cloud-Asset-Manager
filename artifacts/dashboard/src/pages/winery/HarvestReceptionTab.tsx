@@ -1,4 +1,4 @@
-import { useCrud, usePersistedYearFilter, useStaff, HARVEST_COLUMNS, HARVEST_IMPORT_HEADERS, resolveHarvestField, today, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, NotesCell, SectionLabel, SOURCE_TYPE_OPTIONS, GRAPE_CONDITION_OPTIONS, ViewField } from "./shared";
+import { useWineryCrud, usePersistedYearFilter, useStaff, HARVEST_COLUMNS, HARVEST_IMPORT_HEADERS, resolveHarvestField, today, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, NotesCell, SectionLabel, SOURCE_TYPE_OPTIONS, GRAPE_CONDITION_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -24,7 +24,7 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function HarvestReceptionTab({ farmId, blocks }: { farmId: number; blocks: Record<string, unknown>[] }) {
-  const crud = useCrud(farmId, "winery-reception", "winery-reception");
+  const crud = useWineryCrud(farmId, "winery-reception", "winery-reception");
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);

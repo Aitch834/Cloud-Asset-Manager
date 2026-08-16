@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useWineryCrud, useIsViticultureActive, useVessels, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, fmtDate, CELLAR_OP_TYPES, CELLAR_OP_LABELS, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmtNum, fmt, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, WINE_COLOUR_OPTIONS, SectionLabel, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -27,13 +27,14 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function CellarOpsTab({ farmId }: { farmId: number }) {
-  const crud = useCrud(farmId, "winery-cellar-ops", "winery-cellar-ops");
+  const viticultureActive = useIsViticultureActive(farmId);
+  const crud = useWineryCrud(farmId, "winery-cellar-ops", "winery-cellar-ops");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
   const { data: cellarFermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);

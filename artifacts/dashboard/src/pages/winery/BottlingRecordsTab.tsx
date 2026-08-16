@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, bottlingSo2Verdict, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
+import { fetchWineryJson, useWineryCrud, useIsViticultureActive, useVessels, usePressing, useStaff, usePersistedYearFilter, today, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, bottlingSo2Verdict, csvComment, csvSlug, exportCSV, QueryErrorNotice, EmptyState, fmtDate, fmt, fmtNum, So2Badge, NotesCell, SignOffBadge, BatchTrailButton, ViewAdditionsButton, SignOffButton, SignedEditWarning, SectionLabel, WINE_COLOUR_OPTIONS, CLOSURE_TYPE_OPTIONS, ViewField, AuditSignOffView, EditHistorySection, RecordSignOffDialog, SIGN_OFF_CSV_COLUMNS } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -27,7 +27,8 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function BottlingRecordsTab({ farmId }: { farmId: number }) {
-  const crud = useCrud(farmId, "winery-bottling", "winery-bottling");
+  const viticultureActive = useIsViticultureActive(farmId);
+  const crud = useWineryCrud(farmId, "winery-bottling", "winery-bottling");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
@@ -146,7 +147,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const { data: so2TestRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-so2-tests", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-so2-tests`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 30_000,
   });
 
@@ -154,7 +155,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const { data: fermentationRecords = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
 

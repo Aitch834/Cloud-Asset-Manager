@@ -1,5 +1,5 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
-import { fetchWineryJson, usePressing, useVessels, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
+import { fetchWineryJson, usePressing, useVessels, useIsViticultureActive, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
 import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow } from "./VesselRegisterTab";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -28,10 +28,11 @@ import { apiUrl as api } from "@/lib/api";
 export function useWineryBatchSettings(farmId: number) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const q = useQuery<{ settings: Record<string, unknown>; nextRef: string }>({
     queryKey: ["winery-batch-settings", farmId],
     queryFn: async () => (await fetchWineryJson(`farms/${farmId}/winery-batch-settings`)) as unknown as { settings: Record<string, unknown>; nextRef: string },
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 30_000,
   });
   const save = useMutation({
@@ -67,6 +68,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const listRef = useRef<HTMLDivElement>(null);
 
   const farmName: string = useFarmName(farmId);
+  const viticultureActive = useIsViticultureActive(farmId);
 
   // Reuse cached pressing data already fetched by the pressing tab
   const { data: pressingData } = usePressing(farmId);
@@ -75,7 +77,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
   const { data: fermentationData } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-fermentation", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-fermentation`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
 
@@ -89,7 +91,7 @@ export function BatchTrailQuickSearch({ farmId }: { farmId: number }) {
     useQuery<Record<string, unknown>[]>({
       queryKey: [key, farmId],
       queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/${endpoint}`)).records ?? []) as Record<string, unknown>[],
-      enabled: !!farmId,
+      enabled: !!farmId && viticultureActive,
       staleTime: 60_000,
     });
   const { data: cellarOpsData } = useBatchRefSource("winery-cellar-ops", "winery-cellar-ops");
@@ -791,15 +793,9 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: vessels, isLoading } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["winery-vessels", farmId],
-    queryFn: async () => {
-      const r = await fetch(api(`farms/${farmId}/winery-vessels`), { credentials: "include" });
-      if (!r.ok) throw new Error("Failed to load vessels");
-      return (await r.json()).records ?? [];
-    },
-    staleTime: 60_000,
-  });
+  // useVessels shares the same queryKey as the vessel register and is already
+  // gated by useIsViticultureActive, so no additional guard is needed here.
+  const { data: vessels, isLoading } = useVessels(farmId);
 
   const vessel = vessels?.find(v => Number(v.id) === vesselId) ?? null;
   const isBarrel = vessel
@@ -1005,6 +1001,7 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
 }
 
 export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farmId: number; pressing: Record<string, unknown>; farmName: string; onClose: () => void }) {
+  const viticultureActive = useIsViticultureActive(farmId);
   const batchRef = pressing.batch_ref != null && String(pressing.batch_ref).trim() !== "" ? String(pressing.batch_ref).trim() : null;
   const vintageYear = pressing.vintage_year != null ? String(pressing.vintage_year) : null;
   const hasQuery = !!(batchRef || vintageYear);
@@ -1020,7 +1017,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
       if (!r.ok) throw new Error("Failed to load batch trail");
       return r.json();
     },
-    enabled: hasQuery,
+    enabled: hasQuery && viticultureActive,
     staleTime: 30_000,
   });
 
@@ -1229,7 +1226,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   const { data: vintagePressingAttachments } = useQuery<Map<number, TrailAttachment[]>>({
     queryKey: ["winery-batch-trail-pressing-attachments", farmId, vintageYear, vintagePressingIds.join(",")],
     queryFn: () => fetchStageAttachments(farmId, "winery-pressing", data?.pressings ?? []),
-    enabled: isVintageScoped && !!data && vintagePressingIds.length > 0,
+    enabled: isVintageScoped && !!data && vintagePressingIds.length > 0 && viticultureActive,
     staleTime: 30_000,
   });
 
@@ -1257,7 +1254,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
       ]);
       return { ferm, cellar, so2, bottling };
     },
-    enabled: !!data && stageRecordIds.length > 0,
+    enabled: !!data && stageRecordIds.length > 0 && viticultureActive,
     staleTime: 30_000,
   });
   // Renders a row's attachment list — nothing when the record has no files

@@ -1,4 +1,4 @@
-import { fetchWineryJson, today, CALIBRATION_RESULT_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, NotesCell, EQUIPMENT_TYPES, CALIBRATION_FREQ_OPTIONS, EQUIPMENT_STATUS_OPTIONS, ViewField } from "./shared";
+import { fetchWineryJson, today, CALIBRATION_RESULT_OPTIONS, fmtDate, fmt, useWineryCrud, useIsViticultureActive, exportCSV, csvComment, QueryErrorNotice, EmptyState, NotesCell, EQUIPMENT_TYPES, CALIBRATION_FREQ_OPTIONS, EQUIPMENT_STATUS_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -26,10 +26,11 @@ import { apiUrl as api } from "@/lib/api";
 export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equipmentId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-equipment-cals", farmId, equipmentId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-equipment/${equipmentId}/calibrations`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!equipmentId,
+    enabled: !!equipmentId && viticultureActive,
   });
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({ calibrationDate: today, result: "pass" });
@@ -101,7 +102,7 @@ export function CalibrationRows({ farmId, equipmentId }: { farmId: number; equip
 
 export function EquipmentRegisterTab({ farmId }: { farmId: number }) {
   const farmNameEquip = useFarmName(farmId);
-  const crud = useCrud(farmId, "winery-equipment", "winery-equipment");
+  const crud = useWineryCrud(farmId, "winery-equipment", "winery-equipment");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);

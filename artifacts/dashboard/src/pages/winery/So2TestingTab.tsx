@@ -1,5 +1,5 @@
 import { BatchTrailDialog } from "./BatchTrail";
-import { useCrud, useVessels, useEquipment, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, SO2_TEST_STAGE_LABELS, so2LimitUnverified, fmtDate, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, So2Badge, NotesCell, BatchTrailButton, ViewAdditionsButton, SectionLabel, WINE_COLOUR_OPTIONS, SO2_TEST_STAGES, SO2_TEST_METHODS, ViewField, SIGN_OFF_CSV_COLUMNS, SignOffBadge, SignOffButton, RecordSignOffDialog, AuditSignOffView, SignedEditWarning, EditHistorySection } from "./shared";
+import { useWineryCrud, useVessels, useEquipment, usePressing, useStaff, usePersistedYearFilter, ORGANIC_MAX_SO2, CONVENTIONAL_MAX_SO2, today, SO2_TEST_STAGE_LABELS, so2LimitUnverified, fmtDate, csvSlug, csvComment, exportCSV, QueryErrorNotice, EmptyState, fmt, fmtNum, So2Badge, NotesCell, BatchTrailButton, ViewAdditionsButton, SectionLabel, WINE_COLOUR_OPTIONS, SO2_TEST_STAGES, SO2_TEST_METHODS, ViewField, SIGN_OFF_CSV_COLUMNS, SignOffBadge, SignOffButton, RecordSignOffDialog, AuditSignOffView, SignedEditWarning, EditHistorySection } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -26,7 +26,7 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function So2TestingTab({ farmId }: { farmId: number }) {
-  const crud = useCrud(farmId, "winery-so2-tests", "winery-so2-tests");
+  const crud = useWineryCrud(farmId, "winery-so2-tests", "winery-so2-tests");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: equipment = [] } = useEquipment(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);

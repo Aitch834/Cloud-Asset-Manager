@@ -79,7 +79,7 @@ export async function fetchWineryJson(path: string): Promise<Record<string, unkn
   return r.json();
 }
 
-export function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
+export function useCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string, enabled = true) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const q = useQuery<T[]>({
@@ -88,7 +88,7 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
       const d = await fetchWineryJson(`farms/${farmId}/${endpoint}`);
       return (d.records ?? []) as T[];
     },
-    enabled: !!farmId,
+    enabled: !!farmId && enabled,
   });
   const invalidate = () => qc.invalidateQueries({ queryKey: [key, farmId] });
   const add = useMutation({
@@ -117,13 +117,21 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
   return { data: q.data ?? [], isLoading: q.isLoading, isError: q.isError, error: q.error, add, edit, remove };
 }
 
-export function useVessels(farmId: number) {
-  // Reactively observe the farm-dashboard query (shares the same cache entry
-  // used by the Sidebar and Dashboard page). Using useQuery here — not the
-  // imperative getQueryData — means the component re-evaluates `enabled` as
-  // soon as the dashboard data arrives, so a direct page load or refresh on
-  // a viticulture farm will still trigger the vessel fetch once the
-  // farm-dashboard request resolves.
+// Winery-specific CRUD wrapper — gates the GET query on viticultureActive so no
+// winery API calls fire for non-viticulture farms even if a page guard is bypassed.
+// All winery register tabs should use this instead of the plain useCrud.
+export function useWineryCrud<T extends Record<string, unknown>>(farmId: number, endpoint: string, key: string) {
+  const viticultureActive = useIsViticultureActive(farmId);
+  return useCrud<T>(farmId, endpoint, key, viticultureActive);
+}
+
+// Shared viticulture subscription check — reactively observes the farm-dashboard
+// query (shares the same cache entry used by the Sidebar and Dashboard page).
+// Using useQuery here — not the imperative getQueryData — means every caller
+// re-evaluates as soon as the dashboard data arrives, so a direct page load or
+// refresh on a viticulture farm still triggers winery fetches once the
+// farm-dashboard request resolves.
+export function useIsViticultureActive(farmId: number): boolean {
   const { data: dashboardData } = useQuery<{ activeSubscriptions?: Array<{ moduleKey: string }> }>({
     queryKey: ["farm-dashboard", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
@@ -131,8 +139,11 @@ export function useVessels(farmId: number) {
     staleTime: 60_000,
   });
   const activeSubs = (dashboardData?.activeSubscriptions ?? []).map((s) => s.moduleKey);
-  const viticultureActive =
-    activeSubs.includes("viticulture") || activeSubs.includes("organic-viticulture");
+  return activeSubs.includes("viticulture") || activeSubs.includes("organic-viticulture");
+}
+
+export function useVessels(farmId: number) {
+  const viticultureActive = useIsViticultureActive(farmId);
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-vessels", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels`)).records ?? []) as Record<string, unknown>[],
@@ -142,37 +153,41 @@ export function useVessels(farmId: number) {
 }
 
 export function useEquipment(farmId: number) {
+  const viticultureActive = useIsViticultureActive(farmId);
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-equipment", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-equipment`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
 }
 
 export function usePressing(farmId: number) {
+  const viticultureActive = useIsViticultureActive(farmId);
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 60_000,
   });
 }
 
 export function useAdditionsSummary(farmId: number) {
+  const viticultureActive = useIsViticultureActive(farmId);
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-additions-summary", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/additions-summary`)).summary ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 30_000,
   });
 }
 
 export function useAllPressAdditions(farmId: number) {
+  const viticultureActive = useIsViticultureActive(farmId);
   return useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-all-additions", farmId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/all-additions`)).additions ?? []) as Record<string, unknown>[],
-    enabled: !!farmId,
+    enabled: !!farmId && viticultureActive,
     staleTime: 30_000,
   });
 }

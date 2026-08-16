@@ -1,4 +1,4 @@
-import { fetchWineryJson, today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useCrud, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
+import { fetchWineryJson, today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useWineryCrud, useIsViticultureActive, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePersistedFilter, usePersistedArrayFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -48,6 +48,7 @@ function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
 export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-fills", farmId, vesselId];
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
@@ -57,7 +58,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
       if (!res.ok) throw new Error("Failed to load fill history");
       return ((await res.json()).records ?? []) as Record<string, unknown>[];
     },
-    enabled: !!vesselId,
+    enabled: !!vesselId && viticultureActive,
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -214,6 +215,7 @@ const MAINTENANCE_WORK_TYPE_OPTIONS = [
 export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-maintenance", farmId, vesselId];
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
@@ -223,7 +225,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
       if (!res.ok) throw new Error("Failed to load maintenance log");
       return ((await res.json()).records ?? []) as Record<string, unknown>[];
     },
-    enabled: !!vesselId,
+    enabled: !!vesselId && viticultureActive,
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -386,6 +388,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-movements", farmId, vesselId];
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
@@ -395,7 +398,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
       if (!res.ok) throw new Error("Failed to load movement log");
       return ((await res.json()).records ?? []) as Record<string, unknown>[];
     },
-    enabled: !!vesselId,
+    enabled: !!vesselId && viticultureActive,
   });
 
   const [showAdd, setShowAdd] = useState(false);
@@ -517,11 +520,12 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
 export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-vessel-cleans", farmId, vesselId];
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: qKey,
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${vesselId}/cleans`)).records ?? []) as Record<string, unknown>[],
-    enabled: !!vesselId,
+    enabled: !!vesselId && viticultureActive,
   });
 
   const [showForm, setShowForm] = useState(false);
@@ -853,7 +857,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     win.focus();
     win.print();
   };
-  const crud = useCrud(farmId, "winery-vessels", "winery-vessels");
+  const crud = useWineryCrud(farmId, "winery-vessels", "winery-vessels");
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);

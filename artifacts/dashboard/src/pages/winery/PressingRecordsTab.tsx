@@ -1,6 +1,6 @@
 import { SignatureEmbed, NO_EMBED, signatureEmbedFrom, computeSo2DominantUnitByVintage, SOURCE_LABELS, so2UnitOutlierDominant, printPressingReport, printAdditionsReport, printSo2TransactionLog } from "./print";
 import { useWineryBatchSettings, BatchTrailDialog } from "./BatchTrail";
-import { fetchWineryJson, useCrud, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS, usePersistedYearFilter } from "./shared";
+import { fetchWineryJson, useWineryCrud, useIsViticultureActive, useVessels, useEquipment, useStaff, AdditionRow, additionsShortcutKey, WINERY_VIEW_ADDITIONS_EVENT, ADDITIVE_CATEGORY_LABELS, WINE_COLOUR_OPTIONS, UNSPECIFIED_COLOUR, useAdditionsSummary, useAllPressAdditions, PERMITTED_ADDITIVES, PRESS_TYPE_OPTIONS, today, rowMatchesColour, additiveCsvCol, fmtDate, colourFilterLabel, exportCSV, QueryErrorNotice, EmptyState, NotesCell, fmt, fmtNum, signOffTooltip, BatchTrailButton, ORGANIC_MAX_SO2, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SectionLabel, JUICE_TURBIDITY_OPTIONS, ALL_DOSE_UNITS, SETTLING_METHOD_OPTIONS, ViewField, AssignWineColourDialog, type AssignColourTarget, SIGN_OFF_CSV_COLUMNS, usePersistedYearFilter } from "./shared";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -27,7 +27,8 @@ import SignatureCanvas from "react-signature-canvas";
 import { apiUrl as api } from "@/lib/api";
 
 export function PressingRecordsTab({ farmId }: { farmId: number }) {
-  const crud = useCrud(farmId, "winery-pressing", "winery-pressing");
+  const viticultureActive = useIsViticultureActive(farmId);
+  const crud = useWineryCrud(farmId, "winery-pressing", "winery-pressing");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: equipment = [] } = useEquipment(farmId);
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
@@ -200,7 +201,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
         notes: String(a.notes ?? ""),
       }));
     },
-    enabled: editing !== null && open,
+    enabled: editing !== null && open && viticultureActive,
     staleTime: 0,
   });
   useEffect(() => {
@@ -211,7 +212,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const { data: viewAdditions } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-pressing-additions-view", farmId, view?.id],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-pressing/${view!.id}/additions`)).additions ?? []) as Record<string, unknown>[],
-    enabled: !!view?.id,
+    enabled: !!view?.id && viticultureActive,
     staleTime: 0,
   });
 
