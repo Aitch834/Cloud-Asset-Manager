@@ -198,6 +198,17 @@ async function savePreset(data: { name: string; headline: string; body: string; 
   return json;
 }
 
+async function updatePreset(id: number, data: { name: string; headline: string; body: string; accentColor: string }): Promise<AdCopyPreset> {
+  const res = await fetch(`/api/admin/ad-copy-presets/${id}`, {
+    method: "PUT",
+    headers: adminHeaders(),
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+  return json;
+}
+
 async function deletePreset(id: number): Promise<void> {
   const res = await fetch(`/api/admin/ad-copy-presets/${id}`, {
     method: "DELETE",
@@ -692,6 +703,48 @@ export default function AdPdfGenerator() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-copy-presets"] }); },
   });
 
+  // Inline preset editing
+  const [editingPresetId,  setEditingPresetId]  = useState<number | null>(null);
+  const [editName,         setEditName]         = useState("");
+  const [editHeadline,     setEditHeadline]     = useState("");
+  const [editBody,         setEditBody]         = useState("");
+  const [editAccentColor,  setEditAccentColor]  = useState("");
+  const [editErr,          setEditErr]          = useState<string | null>(null);
+
+  const updatePresetMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { name: string; headline: string; body: string; accentColor: string } }) =>
+      updatePreset(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ad-copy-presets"] });
+      setEditingPresetId(null);
+      setEditErr(null);
+    },
+    onError: (err) => {
+      setEditErr(err instanceof Error ? err.message : "Update failed");
+    },
+  });
+
+  function handleStartEdit(p: AdCopyPreset) {
+    setEditingPresetId(p.id);
+    setEditName(p.name);
+    setEditHeadline(p.headline);
+    setEditBody(p.body);
+    setEditAccentColor(p.accentColor);
+    setEditErr(null);
+  }
+
+  function handleCancelEdit() {
+    setEditingPresetId(null);
+    setEditErr(null);
+    updatePresetMutation.reset();
+  }
+
+  function handleSubmitEdit(id: number) {
+    if (!editName.trim()) { setEditErr("Name is required"); return; }
+    setEditErr(null);
+    updatePresetMutation.mutate({ id, data: { name: editName.trim(), headline: editHeadline, body: editBody, accentColor: editAccentColor } });
+  }
+
   function handleSavePreset() {
     if (!presetName.trim()) return;
     setPresetSaveErr(null);
@@ -941,38 +994,120 @@ export default function AdPdfGenerator() {
                 </p>
               </div>
 
-              {/* ── Manage presets (delete) ── */}
+              {/* ── Manage presets (edit / delete) ── */}
               {presets.length > 0 && (
                 <div className="pt-2 border-t border-border space-y-1">
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">Saved presets</p>
                   {presets.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 py-1 group">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{p.name}</p>
-                        <p className="text-xs text-muted-foreground truncate font-mono">
-                          {[p.headline && `"${p.headline.slice(0, 40)}${p.headline.length > 40 ? "…" : ""}"`, p.accentColor && p.accentColor].filter(Boolean).join(" · ") || "no overrides"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        title={`Load "${p.name}"`}
-                        onClick={() => handleLoadPreset(p.id)}
-                        className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      >
-                        <BookOpen className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        title={`Delete "${p.name}"`}
-                        disabled={deletePresetMutation.isPending}
-                        onClick={() => {
-                          if (!confirm(`Delete preset "${p.name}"?`)) return;
-                          deletePresetMutation.mutate(p.id);
-                        }}
-                        className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div key={p.id}>
+                      {editingPresetId === p.id ? (
+                        /* ── Inline edit form ── */
+                        <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2 my-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => { setEditName(e.target.value); setEditErr(null); }}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmitEdit(p.id); } if (e.key === "Escape") handleCancelEdit(); }}
+                              placeholder="Preset name"
+                              autoFocus
+                              className="flex-1 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={editHeadline}
+                            onChange={(e) => setEditHeadline(e.target.value)}
+                            placeholder="Headline HTML (optional)"
+                            className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                          />
+                          <textarea
+                            value={editBody}
+                            onChange={(e) => setEditBody(e.target.value)}
+                            placeholder="Body copy HTML (optional)"
+                            rows={2}
+                            className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y font-mono"
+                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={editAccentColor || "#C49A6C"}
+                              onChange={(e) => setEditAccentColor(e.target.value)}
+                              className="h-8 w-10 rounded border border-input cursor-pointer bg-background p-0.5 shrink-0"
+                            />
+                            <input
+                              type="text"
+                              value={editAccentColor}
+                              onChange={(e) => setEditAccentColor(e.target.value)}
+                              placeholder="#C49A6C (default)"
+                              className="flex-1 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                            />
+                          </div>
+                          {editErr && (
+                            <p className="text-xs text-destructive flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />{editErr}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!editName.trim() || updatePresetMutation.isPending}
+                              onClick={() => handleSubmitEdit(p.id)}
+                            >
+                              {updatePresetMutation.isPending
+                                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                                : <><Save className="w-3.5 h-3.5 mr-1.5" />Save changes</>}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCancelEdit}
+                            >
+                              <X className="w-3.5 h-3.5 mr-1.5" />Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* ── Normal row ── */
+                        <div className="flex items-center gap-2 py-1 group">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{p.name}</p>
+                            <p className="text-xs text-muted-foreground truncate font-mono">
+                              {[p.headline && `"${p.headline.slice(0, 40)}${p.headline.length > 40 ? "…" : ""}"`, p.accentColor && p.accentColor].filter(Boolean).join(" · ") || "no overrides"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            title={`Load "${p.name}"`}
+                            onClick={() => handleLoadPreset(p.id)}
+                            className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title={`Edit "${p.name}"`}
+                            onClick={() => handleStartEdit(p)}
+                            className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title={`Delete "${p.name}"`}
+                            disabled={deletePresetMutation.isPending}
+                            onClick={() => {
+                              if (!confirm(`Delete preset "${p.name}"?`)) return;
+                              deletePresetMutation.mutate(p.id);
+                            }}
+                            className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {deletePresetMutation.isError && (

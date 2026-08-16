@@ -2801,6 +2801,29 @@ router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Res
   res.status(201).json(row);
 });
 
+router.put("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const id = Number(req.params.id);
+  const { name, headline, body, accentColor } = req.body as {
+    name?: string; headline?: string; body?: string; accentColor?: string;
+  };
+  if (!name?.trim()) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const [row] = await db.update(adCopyPresetsTable)
+    .set({
+      name: name.trim(),
+      headline: headline?.trim() ?? "",
+      body: body?.trim() ?? "",
+      accentColor: accentColor?.trim() ?? "",
+    })
+    .where(eq(adCopyPresetsTable.id, id))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Preset not found" }); return; }
+  res.json(row);
+});
+
 router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const id = Number(req.params.id);
