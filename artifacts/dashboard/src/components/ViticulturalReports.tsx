@@ -170,12 +170,13 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
     const map: Record<string, {
       totalKg: number; totalHa: number; brixSum: number; brixCount: number;
       phSum: number; phCount: number; potAlcSum: number; potAlcCount: number;
+      taSum: number; taCount: number;
       records: number;
     }> = {};
     harvests.forEach(h => {
       const yr = String(h.vintageYear);
       if (!yr || yr === "null") return;
-      if (!map[yr]) map[yr] = { totalKg: 0, totalHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, potAlcSum: 0, potAlcCount: 0, records: 0 };
+      if (!map[yr]) map[yr] = { totalKg: 0, totalHa: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, potAlcSum: 0, potAlcCount: 0, taSum: 0, taCount: 0, records: 0 };
       const m = map[yr];
       m.totalKg += n(h.yieldKg);
       const tha = n(h.yieldTonnesPerHa);
@@ -183,6 +184,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       if (h.brix != null && h.brix !== "") { m.brixSum += n(h.brix); m.brixCount++; }
       if (h.ph != null && h.ph !== "") { m.phSum += n(h.ph); m.phCount++; }
       if (h.potentialAlcohol != null && h.potentialAlcohol !== "") { m.potAlcSum += n(h.potentialAlcohol); m.potAlcCount++; }
+      if (h.titratableAcidityGl != null && h.titratableAcidityGl !== "") { m.taSum += n(h.titratableAcidityGl); m.taCount++; }
       m.records++;
     });
     return map;
@@ -203,6 +205,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
           "Avg Brix °": v.brixCount > 0 ? parseFloat((v.brixSum / v.brixCount).toFixed(1)) : null,
           "Avg pH": v.phCount > 0 ? parseFloat((v.phSum / v.phCount).toFixed(2)) : null,
           "Potential Alcohol %": v.potAlcCount > 0 ? parseFloat((v.potAlcSum / v.potAlcCount).toFixed(1)) : null,
+          "Avg TA (g/L)": v.taCount > 0 ? parseFloat((v.taSum / v.taCount).toFixed(2)) : null,
           records: v.records,
         };
       });
@@ -356,10 +359,10 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
             <h3 className="text-sm font-semibold">
               Must Chemistry{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
             </h3>
-            <p className="text-xs text-foreground/40">Average Brix, pH, and potential alcohol per vintage</p>
+            <p className="text-xs text-foreground/40">Average Brix, pH, potential alcohol, and TA per vintage</p>
           </div>
           <div className="p-4">
-            {vintageData.filter(d => d["Avg Brix °"] != null).length === 0 ? (
+            {vintageData.filter(d => d["Avg Brix °"] != null || d["Avg pH"] != null || d["Potential Alcohol %"] != null || d["Avg TA (g/L)"] != null).length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">No chemistry data recorded for {selectedYear}</p>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
@@ -373,6 +376,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                   <Line yAxisId="brix" type="monotone" dataKey="Avg Brix °" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} connectNulls />
                   <Line yAxisId="brix" type="monotone" dataKey="Avg pH" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" connectNulls />
                   <Line yAxisId="alc" type="monotone" dataKey="Potential Alcohol %" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line yAxisId="alc" type="monotone" dataKey="Avg TA (g/L)" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="3 2" connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             )}
