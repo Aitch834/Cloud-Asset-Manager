@@ -248,6 +248,7 @@ interface AdvisorPayload {
   dailyWeather: { date: string; tmax: number | null; tmin: number | null; rainfallMm: number | null }[];
   hasWeatherStation: boolean;
   forecastRainfall7dMm: number | null;
+  forecastDailyMm: Array<{ date: string; mm: number }> | null;
   year: number;
 }
 
@@ -510,6 +511,57 @@ function ScenarioCard({
   );
 }
 
+// ─── 7-day Forecast Bar Chart ─────────────────────────────────────────────────
+
+const DAY_ABBREV = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function ForecastRainfallChart({ days }: { days: Array<{ date: string; mm: number }> }) {
+  const maxMm = Math.max(...days.map(d => d.mm), 1);
+  const BAR_HEIGHT = 80;
+
+  return (
+    <View style={fcStyles.container}>
+      <View style={fcStyles.bars}>
+        {days.map((d) => {
+          const barH = Math.max(2, (d.mm / maxMm) * BAR_HEIGHT);
+          const heavy = d.mm >= 5;
+          const dayName = DAY_ABBREV[new Date(d.date).getDay()];
+          return (
+            <View key={d.date} style={fcStyles.col}>
+              {d.mm > 0 && (
+                <Text style={fcStyles.mmLabel}>{d.mm % 1 === 0 ? d.mm : d.mm.toFixed(1)}</Text>
+              )}
+              <View style={fcStyles.barTrack}>
+                <View
+                  style={[
+                    fcStyles.bar,
+                    { height: barH, backgroundColor: heavy ? "#1d4ed8" : "#93c5fd" },
+                  ]}
+                />
+              </View>
+              <Text style={fcStyles.dayLabel}>{dayName}</Text>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={fcStyles.caption}>
+        Total: <Text style={{ fontFamily: fonts.semiBold }}>{days.reduce((s, d) => s + d.mm, 0).toFixed(1)} mm</Text> over 7 days · darker bars ≥ 5 mm
+      </Text>
+    </View>
+  );
+}
+
+const fcStyles = StyleSheet.create({
+  container: { gap: 6 },
+  bars: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: 108 },
+  col: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 2 },
+  barTrack: { width: "100%", justifyContent: "flex-end" },
+  bar: { width: "100%", borderRadius: 3, minHeight: 2 },
+  mmLabel: { fontFamily: fonts.regular, fontSize: 9, color: "#334155", textAlign: "center" },
+  dayLabel: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSecondary, textAlign: "center" },
+  caption: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, textAlign: "center" },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function IrrigationAdvisorScreen() {
@@ -755,6 +807,23 @@ export default function IrrigationAdvisorScreen() {
               </View>
             </View>
           </View>
+
+          {/* 7-day rainfall forecast chart */}
+          {data?.forecastDailyMm && data.forecastDailyMm.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>7-Day Rainfall Forecast</Text>
+              <View style={[styles.statusCard, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
+                <ForecastRainfallChart days={data.forecastDailyMm} />
+              </View>
+            </View>
+          ) : data && data.forecastDailyMm === null ? (
+            <View style={[styles.unavailableCard]}>
+              <Feather name="cloud-off" size={18} color="#64748b" />
+              <Text style={[styles.unavailableDesc, { flex: 1 }]}>
+                No rainfall forecast available — set a farm location to enable the 7-day forecast chart.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Scenario cards — only when a recognized crop profile is available */}
           {data && !scenarios && (
