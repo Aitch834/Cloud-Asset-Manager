@@ -1291,6 +1291,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             // Derive t/ha consistently: totalKg / 1000 / sum(distinct linked block areas for this vintage)
             const seenBids = new Set<unknown>();
             let vintageAreaHa = 0;
+            let hasLinkedBlocksNoArea = false;
             for (const r of grp) {
               if (r.blockId != null && !seenBids.has(r.blockId)) {
                 seenBids.add(r.blockId);
@@ -1298,11 +1299,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 if (block) {
                   const ha = parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? ""));
                   if (!isNaN(ha) && ha > 0) vintageAreaHa += ha;
+                  else hasLinkedBlocksNoArea = true;
                 }
               }
             }
             const derivedTha = vintageAreaHa > 0 && totalYieldKg > 0 ? totalYieldKg / 1000 / vintageAreaHa : null;
-            return { vintage: key, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
+            return { vintage: key, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa, hasLinkedBlocksNoArea };
           });
           const toggleVintageSort = (col: string) => setVintageSort(
             vintageSort.col === col
@@ -1334,6 +1336,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           // Footer t/ha: grand total kg / 1000 / sum of all distinct linked block areas across all vintages
           const allSeenBids = new Set<unknown>();
           let grandAreaHa = 0;
+          let vFooterResolvedNoArea = false;
           for (const r of filteredHarvest) {
             if (r.blockId != null && !allSeenBids.has(r.blockId)) {
               allSeenBids.add(r.blockId);
@@ -1341,10 +1344,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               if (block) {
                 const ha = parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? ""));
                 if (!isNaN(ha) && ha > 0) grandAreaHa += ha;
+                else vFooterResolvedNoArea = true;
               }
             }
           }
           const vFooterDerivedTha = grandAreaHa > 0 && vFooterTotalKg > 0 ? vFooterTotalKg / 1000 / grandAreaHa : null;
+          const vFooterHasLinkedNoArea = vFooterResolvedNoArea && grandAreaHa === 0;
           const vFooterAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
           const vFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
           const vFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
@@ -1405,7 +1410,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                             )}
                           </td>
                           <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.derivedTha != null ? row.derivedTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">
+                            {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.hasLinkedBlocksNoArea ? (
+                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                            ) : "—"}
+                          </td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
@@ -1419,7 +1428,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           <td className="px-4 py-2">Total / Average</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterDerivedTha != null ? vFooterDerivedTha.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">
+                            {vFooterDerivedTha != null ? vFooterDerivedTha.toFixed(2) : vFooterHasLinkedNoArea ? (
+                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                            ) : "—"}
+                          </td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgBrix != null ? vFooterAvgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPh != null ? vFooterAvgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTa != null ? vFooterAvgTa.toFixed(2) : "—"}</td>
@@ -1452,11 +1465,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
           const derivedTha = !isNaN(areaHaNum) && areaHaNum > 0 && totalYieldKg > 0
             ? totalYieldKg / 1000 / areaHaNum : null;
+          const linkedButNoArea = block !== null && (isNaN(areaHaNum) || areaHaNum <= 0);
           const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
           const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
           const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
           const avgPa = avg(grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-          return { name, variety, areaHa: !isNaN(areaHaNum) ? areaHaNum : null, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa };
+          return { name, variety, areaHa: !isNaN(areaHaNum) ? areaHaNum : null, picks: grp.length, totalYieldKg, derivedTha, avgBrix, avgPh, avgTa, avgPa, linkedButNoArea };
         });
         // Sort rows; nulls sort last regardless of direction
         const sortedSummaryRows = [...summaryRows].sort((a, b) => {
@@ -1500,6 +1514,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const bFooterTotalArea = rowsWithArea.reduce((s, r) => s + (r.areaHa ?? 0), 0);
         const bFooterAreaYieldKg = rowsWithArea.reduce((s, r) => s + r.totalYieldKg, 0);
         const bFooterDerivedTha = bFooterTotalArea > 0 && bFooterAreaYieldKg > 0 ? bFooterAreaYieldKg / 1000 / bFooterTotalArea : null;
+        const bFooterHasLinkedNoArea = bFooterDerivedTha === null && summaryRows.some(r => r.linkedButNoArea);
         const bFooterAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
@@ -1564,7 +1579,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           )}
                         </td>
                         <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.derivedTha != null ? row.derivedTha.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.linkedButNoArea ? (
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                          ) : "—"}
+                        </td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
@@ -1580,7 +1599,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalArea > 0 ? bFooterTotalArea.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalPicks}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalKg > 0 ? bFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{bFooterDerivedTha != null ? bFooterDerivedTha.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {bFooterDerivedTha != null ? bFooterDerivedTha.toFixed(2) : bFooterHasLinkedNoArea ? (
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                          ) : "—"}
+                        </td>
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgBrix != null ? bFooterAvgBrix.toFixed(1) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPh != null ? bFooterAvgPh.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgTa != null ? bFooterAvgTa.toFixed(2) : "—"}</td>
