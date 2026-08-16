@@ -1410,7 +1410,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <td className="p-3">{statusBadge(r.status)}</td>
                     <NotesCell notes={r.notes} />
                     <td className="p-3 text-right whitespace-nowrap">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                      <RadixTooltipProvider>
+                        <RadixTooltip>
+                          <RadixTooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                          </RadixTooltipTrigger>
+                          <RadixTooltipContent>View details</RadixTooltipContent>
+                        </RadixTooltip>
+                      </RadixTooltipProvider>
                       {isBarrelRow && (
                         <RadixTooltipProvider>
                           <RadixTooltip>
@@ -1421,8 +1428,22 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           </RadixTooltip>
                         </RadixTooltipProvider>
                       )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
+                      <RadixTooltipProvider>
+                        <RadixTooltip>
+                          <RadixTooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                          </RadixTooltipTrigger>
+                          <RadixTooltipContent>Edit vessel</RadixTooltipContent>
+                        </RadixTooltip>
+                      </RadixTooltipProvider>
+                      <RadixTooltipProvider>
+                        <RadixTooltip>
+                          <RadixTooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
+                          </RadixTooltipTrigger>
+                          <RadixTooltipContent>Delete vessel</RadixTooltipContent>
+                        </RadixTooltip>
+                      </RadixTooltipProvider>
                     </td>
                   </tr>
                 );
