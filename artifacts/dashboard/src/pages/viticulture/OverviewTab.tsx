@@ -56,11 +56,11 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 // ─── WineGB Nudge ──────────────────────────────────────────────────────────────
 
 const WINEGB_SURVEYS_LIST = [
-  { key: "bud_burst",    label: "Bud Burst"  },
-  { key: "frost_damage", label: "Frost Damage" },
-  { key: "flowering",    label: "Flowering"  },
-  { key: "veraison",     label: "Véraison"   },
-  { key: "harvest",      label: "Harvest"    },
+  { key: "bud_burst",    label: "Bud Burst",    months: [3, 4]    },
+  { key: "frost_damage", label: "Frost Damage",  months: [3, 4, 5] },
+  { key: "flowering",    label: "Flowering",     months: [6, 7]    },
+  { key: "veraison",     label: "Véraison",      months: [8, 9]    },
+  { key: "harvest",      label: "Harvest",       months: [9, 10]   },
 ] as const;
 
 function WinegbOverviewNudge({
@@ -71,6 +71,7 @@ function WinegbOverviewNudge({
   onNavigateToPhenology: () => void;
 }) {
   const year = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1; // 1-based
   const { data, isLoading } = useQuery<{
     submissions: Record<string, { submitted: boolean; submittedAt: string | null }>;
   }>({
@@ -90,6 +91,10 @@ function WinegbOverviewNudge({
   // All done — no nudge needed
   if (pending.length === 0) return null;
 
+  // Overdue = collection window has already passed this year (current month is past the last month)
+  const overdue = pending.filter(s => currentMonth > Math.max(...s.months));
+  const notYetDue = pending.filter(s => currentMonth <= Math.max(...s.months));
+
   const doneCount = WINEGB_SURVEYS_LIST.length - pending.length;
 
   return (
@@ -98,22 +103,37 @@ function WinegbOverviewNudge({
       onClick={onNavigateToPhenology}
       className="w-full text-left rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 py-3 hover:bg-emerald-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
     >
-      <div className="flex items-center gap-2.5">
-        <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-emerald-900">
-            WineGB Seasonal Surveys — {pending.length} of {WINEGB_SURVEYS_LIST.length} pending
-          </span>
-          <span className="ml-2 text-xs text-emerald-700">
-            {pending.map(s => s.label).join(", ")}
-          </span>
+      <div className="flex items-start gap-2.5">
+        <Globe className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-emerald-900">
+              WineGB Seasonal Surveys — {pending.length} of {WINEGB_SURVEYS_LIST.length} pending
+            </span>
+            {doneCount > 0 && (
+              <span className="text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
+                {doneCount}/{WINEGB_SURVEYS_LIST.length} done
+              </span>
+            )}
+          </div>
+          {overdue.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5 shrink-0">
+                <AlertTriangle className="w-3 h-3 shrink-0" /> Overdue
+              </span>
+              <span className="text-xs text-amber-800">
+                {overdue.map(s => s.label).join(", ")}
+              </span>
+            </div>
+          )}
+          {notYetDue.length > 0 && (
+            <div className="text-xs text-emerald-700">
+              <span className="font-medium">Pending: </span>
+              {notYetDue.map(s => s.label).join(", ")}
+            </div>
+          )}
         </div>
-        {doneCount > 0 && (
-          <span className="shrink-0 text-xs text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
-            {doneCount}/{WINEGB_SURVEYS_LIST.length} done
-          </span>
-        )}
-        <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0" />
+        <ChevronRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
       </div>
     </button>
   );
