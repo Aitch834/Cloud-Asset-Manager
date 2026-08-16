@@ -494,7 +494,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
   );
 }
 
-export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?: (tab: string, blockId?: number) => void }) {
+export function BlocksTab({ farmId, onNavigate, highlightBlockId }: { farmId: number; onNavigate?: (tab: string, blockId?: number) => void; highlightBlockId?: number }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -562,6 +562,17 @@ export function BlocksTab({ farmId, onNavigate }: { farmId: number; onNavigate?:
     onSuccess: () => { invalidate(); setReplantOpen(false); setReplantBlock(null); setReplantForm({}); },
     onError: () => toast({ title: "Replant failed", variant: "destructive" }),
   });
+
+  // Auto-open edit dialog when a block is highlighted from another tab
+  const highlightBlockIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!highlightBlockId || highlightBlockId === highlightBlockIdRef.current) return;
+    if (isLoading) return;
+    highlightBlockIdRef.current = highlightBlockId;
+    const block = data.find(b => b.id === highlightBlockId);
+    if (block) openEdit(block);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightBlockId, isLoading, data]);
 
   const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
   const openEdit = (r: Block) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
