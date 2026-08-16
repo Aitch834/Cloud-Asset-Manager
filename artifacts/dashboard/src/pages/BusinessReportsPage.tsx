@@ -396,7 +396,10 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
         ["Line Item", "Amount", "Note"],
         ["INCOME", "", ""],
         ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c]), ""]),
-        ...(agriEnvYearTotal > 0 ? [["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`]] : []),
+        ...(agriEnvYearTotal > 0 ? [
+          ["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`],
+          ...(agriEnvActiveProjects.length > 1 ? agriEnvActiveProjects.map((p: any) => [`  ↳ ${p.schemeName}`, fmt(p.yearClaimedPence), ""]) : []),
+        ] : []),
         ["Total Farm Output", fmt(totalOutput), ""],
         [],
         ["VARIABLE COSTS", "", ""],
@@ -534,15 +537,25 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
               return <DataRow key={c} label={c} value={fmt(incomeValues[c])} indent />;
             })}
             {agriEnvYearTotal > 0 && (
-              <tr style={{ background: "#f0fdf4" }}>
-                <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: "#166534" }}>
-                  Agri-environment schemes (milestone claims)
-                  <span style={{ marginLeft: 8, fontSize: "0.7rem", background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
-                    from Agri-Env tab · {agriEnvActiveProjects.length} project{agriEnvActiveProjects.length !== 1 ? "s" : ""}
-                  </span>
-                </td>
-                <td style={{ padding: "0.5rem 0.875rem", color: "#166534", textAlign: "right", fontWeight: 500 }}>{fmt(agriEnvYearTotal)}</td>
-              </tr>
+              <>
+                <tr style={{ background: "#f0fdf4" }}>
+                  <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: "#166534" }}>
+                    Agri-environment schemes (milestone claims)
+                    <span style={{ marginLeft: 8, fontSize: "0.7rem", background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
+                      from Agri-Env tab · {agriEnvActiveProjects.length} project{agriEnvActiveProjects.length !== 1 ? "s" : ""}
+                    </span>
+                  </td>
+                  <td style={{ padding: "0.5rem 0.875rem", color: "#166534", textAlign: "right", fontWeight: 500 }}>{fmt(agriEnvYearTotal)}</td>
+                </tr>
+                {agriEnvActiveProjects.length > 1 && agriEnvActiveProjects.map((p: any) => (
+                  <tr key={p.id} style={{ background: "#f7fef9" }}>
+                    <td style={{ padding: "0.35rem 0.875rem", paddingLeft: "3rem", color: "#15803d", fontSize: "0.82rem" }}>
+                      <span style={{ marginRight: 6, opacity: 0.5 }}>↳</span>{p.schemeName}
+                    </td>
+                    <td style={{ padding: "0.35rem 0.875rem", color: "#15803d", textAlign: "right", fontSize: "0.82rem" }}>{fmt(p.yearClaimedPence)}</td>
+                  </tr>
+                ))}
+              </>
             )}
             {agriEnvUnclaimedProjects.length > 0 && agriEnvYearTotal === 0 && (
               <tr style={{ background: "#fafafa" }}>
