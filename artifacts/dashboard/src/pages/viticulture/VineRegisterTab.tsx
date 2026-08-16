@@ -807,6 +807,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>SBI <span className="font-mono font-semibold">{String(farmRecord?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); }}>Fix in Farm Settings</button></span>
           </div>
+          <FsaCompletenessBar farmId={farmId} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPrintConfirmOpen(false)}>Close</Button>
           </DialogFooter>
