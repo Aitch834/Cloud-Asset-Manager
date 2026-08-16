@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,6 +22,9 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { STORAGE_KEYS, appendToList, generateId } from "@/lib/storage";
 import type { LambingRecord } from "@/lib/types";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
@@ -144,8 +147,12 @@ function LambCard({
 
 export default function LambingRecordScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { triggerSync } = useSync();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("lambing", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -266,6 +273,17 @@ export default function LambingRecordScreen() {
         <Text style={styles.headerTitle}>Lambing Record</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="lambing submissions"
+      />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}

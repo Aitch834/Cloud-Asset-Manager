@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -25,6 +25,9 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import type { CasualtySlaughter } from "@/lib/types";
@@ -137,8 +140,12 @@ function ToggleRow({
 
 export default function CasualtySlaughterScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("casualty-slaughter", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
@@ -257,6 +264,17 @@ export default function CasualtySlaughterScreen() {
           <Text style={styles.warningBadgeText}>Legal</Text>
         </View>
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="casualty slaughter submissions"
+      />
 
       <ScrollView
         style={{ flex: 1 }}

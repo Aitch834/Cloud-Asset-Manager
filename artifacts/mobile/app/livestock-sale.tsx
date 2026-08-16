@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -21,6 +21,9 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { LivestockSaleRecord } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
@@ -29,8 +32,12 @@ const SPECIES_FALLBACK = ["Cattle", "Sheep", "Pigs", "Deer", "Goats", "Other"];
 
 export default function LivestockSaleScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("livestock-sale", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_FALLBACK);
   const [saving, setSaving] = useState(false);
 
@@ -124,6 +131,17 @@ export default function LivestockSaleScreen() {
           <Text style={styles.headerTitle}>Livestock Sale</Text>
           <View style={{ width: 40 }} />
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="livestock sale submissions"
+        />
 
         <View style={styles.form}>
           <Text style={styles.sectionLabel}>Sale Type</Text>

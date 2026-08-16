@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,9 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { AnimalMortality } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
@@ -144,6 +147,10 @@ export default function MortalityRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("mortality", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const speciesOptions = useMobileLookup("livestock_species", SPECIES_FALLBACK);
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -260,6 +267,17 @@ export default function MortalityRecordScreen() {
           <Text style={styles.warningBadgeText}>Legal</Text>
         </View>
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="mortality submissions"
+      />
 
       <ScrollView
         style={{ flex: 1 }}

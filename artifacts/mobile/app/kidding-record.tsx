@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,6 +24,9 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
@@ -61,8 +64,12 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
 
 export default function KiddingRecordScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("kidding", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const { flocks, loading: flocksLoading, fromCache: flocksCached, error: flocksError } = useApiGoatFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -138,6 +145,17 @@ export default function KiddingRecordScreen() {
         <Text style={styles.headerTitle}>Kidding Record</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="kidding submissions"
+      />
 
       <ScrollView
         style={styles.scroll}
