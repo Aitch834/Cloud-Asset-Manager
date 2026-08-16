@@ -1279,6 +1279,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   });
                   const full = zoneFiltered.filter(r => r.is_full).length;
                   const empty = zoneFiltered.length - full;
+                  const flaggedCount = alertFlagFilter ? zoneFiltered.length : null;
+                  const flagLabel = alertFlagFilter === "no-fills-maintenance" ? "no fills"
+                    : alertFlagFilter === "no-fills-none" ? "no records"
+                    : alertFlagFilter === "approaching-neutral" ? "approaching neutral"
+                    : alertFlagFilter === "idle" ? "idle"
+                    : null;
                   const isSelected = zoneFilter === zone;
                   return (
                     <button
@@ -1287,7 +1293,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"}`}
                     >
                       <span className="font-semibold">{zone}</span>
-                      {isFullFilter === "false"
+                      {flaggedCount !== null
+                        ? <span className={`font-bold ${flaggedCount > 0 ? "text-amber-700" : "text-slate-400"}`}>{flaggedCount} {flagLabel}</span>
+                        : isFullFilter === "false"
                         ? <span className="text-slate-500">○ {empty}</span>
                         : isFullFilter === "true"
                         ? <span className="text-green-700 font-medium">● {full}</span>
