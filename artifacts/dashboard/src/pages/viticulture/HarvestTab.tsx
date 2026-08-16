@@ -990,6 +990,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
         </div>
       )}
+      <FsaCompletenessBar farmId={farmId} />
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Harvest & Vintage Records</p>
