@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { computeScenarios } from "../irrigationSMD";
+import { computeScenarios, computeForecastVerdict } from "../irrigationSMD";
 
 // ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -254,5 +254,122 @@ describe("forecast rainfall application — 7-day window only", () => {
     });
     expect(r.irrigateNow.yieldLossTha).toBeCloseTo(0, 6);
     expect(r.irrigateNow.projectedSmd14Mm).toBeCloseTo(0, 6);
+  });
+});
+
+// ── 9. computeForecastVerdict — sufficient / partial / insufficient ────────────
+
+describe("computeForecastVerdict — daily water-balance verdict", () => {
+  // Helper: build a uniform forecast array (same mm every day)
+  function uniformForecast(days: number, mmPerDay: number) {
+    return Array.from({ length: days }, (_, i) => ({
+      date: `2026-08-${String(i + 1).padStart(2, "0")}`,
+      mm: mmPerDay,
+    }));
+  }
+
+  it("returns null when currentSmdMm ≤ 0 (no deficit to close)", () => {
+    expect(
+      computeForecastVerdict({
+        currentSmdMm: 0,
+        forecastDailyMm: uniformForecast(7, 5),
+        dailyEtcMm: 2,
+        fieldCapacityMm: 100,
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null when forecastDailyMm is empty", () => {
+    expect(
+      computeForecastVerdict({
+        currentSmdMm: 20,
+        forecastDailyMm: [],
+        dailyEtcMm: 2,
+        fieldCapacityMm: 100,
+      }),
+    ).toBeNull();
+  });
+
+  it("sufficient — heavy rain closes deficit even with ET accumulating", () => {
+    // SMD = 20 mm, 7 days × 5 mm rain − 2 mm ETc = 3 mm net gain per day
+    // After 7 days: 20 − 7×3 = −1 → clamped to 0 → sufficient
+    const result = computeForecastVerdict({
+      currentSmdMm: 20,
+      forecastDailyMm: uniformForecast(7, 5),
+      dailyEtcMm: 2,
+      fieldCapacityMm: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe("sufficient");
+    expect(result!.projectedSmd).toBeCloseTo(0, 6);
+    expect(result!.forecastTotal).toBeCloseTo(35, 6);
+  });
+
+  it("insufficient — high ET means rain doesn't dent the deficit", () => {
+    // SMD = 30 mm, 7 days × 1 mm rain, 4 mm ETc → net −3 mm/day (deficit grows)
+    // After 7 days: 30 + 7×3 = 51 → capped at FC (100) → insufficient
+    const result = computeForecastVerdict({
+      currentSmdMm: 30,
+      forecastDailyMm: uniformForecast(7, 1),
+      dailyEtcMm: 4,
+      fieldCapacityMm: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.verdict).toBe("insufficient");
+    expect(result!.projectedSmd).toBeGreaterThan(30 * 0.5);
+  });
+
+  it("partial — rain reduces deficit by more than half but not fully", () => {
+    // SMD = 40 mm, 7 days × 3 mm rain, 2 mm ETc → net +1 mm/day deficit reduction
+    // After 7 days: 40 − 7 = 33 mm → still > 0 but < 40*0.5=20? No, 33 > 20 → insufficient.
+    // Adjust: SMD = 40, 7 × 4 mm rain, 2 mm ETc → net +2 mm/day reduction
+    // After 7 days: 40 − 14 = 26 → still > 0 but 26 < 40*0.5=20? No.
+    // Try: SMD = 40, 7 × 5 mm rain, 2 mm ETc → net +3/day → 40 - 21 = 19 < 20 → partial
+    const result = computeForecastVerdict({
+      currentSmdMm: 40,
+      forecastDailyMm: uniformForecast(7, 5),
+      dailyEtcMm: 2,
+      fieldCapacityMm: 100,
+    });
+    expect(result).not.toBeNull();
+    // projectedSmd = 40 - 7*(5-2) = 40 - 21 = 19; 19 < 40*0.5=20 → partial
+    expect(result!.projectedSmd).toBeCloseTo(19, 6);
+    expect(result!.verdict).toBe("partial");
+  });
+
+  it("projectedSmd is clamped to [0, fieldCapacity]", () => {
+    // Huge ET, no rain → SMD climbs; must stay ≤ FC
+    const result = computeForecastVerdict({
+      currentSmdMm: 90,
+      forecastDailyMm: uniformForecast(7, 0),
+      dailyEtcMm: 10,
+      fieldCapacityMm: 100,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.projectedSmd).toBeLessThanOrEqual(100);
+    expect(result!.projectedSmd).toBeGreaterThanOrEqual(0);
+  });
+
+  it("forecastTotal is the sum of all daily mm values", () => {
+    const days = [{ date: "2026-08-01", mm: 3 }, { date: "2026-08-02", mm: 7 }, { date: "2026-08-03", mm: 2 }];
+    const result = computeForecastVerdict({
+      currentSmdMm: 50,
+      forecastDailyMm: days,
+      dailyEtcMm: 1,
+      fieldCapacityMm: 100,
+    });
+    expect(result!.forecastTotal).toBeCloseTo(12, 6);
+  });
+
+  it("rain exactly equal to ET each day holds SMD steady → insufficient (no improvement)", () => {
+    // net = 0 per day → SMD stays at 30 → 30 is not < 30*0.5 → insufficient
+    const result = computeForecastVerdict({
+      currentSmdMm: 30,
+      forecastDailyMm: uniformForecast(7, 3),
+      dailyEtcMm: 3,
+      fieldCapacityMm: 100,
+    });
+    expect(result!.projectedSmd).toBeCloseTo(30, 6);
+    expect(result!.verdict).toBe("insufficient");
   });
 });

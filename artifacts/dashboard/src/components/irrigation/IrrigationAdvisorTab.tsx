@@ -47,6 +47,7 @@ import {
   getGrowthStage,
   getSmdStatus,
   computeScenarios,
+  computeForecastVerdict,
   type DailyReading,
   type SmdDay,
   type SmdStatus,
@@ -1121,6 +1122,43 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
               <p className="text-xs text-muted-foreground">
                 Bars shaded darker blue for ≥ 5 mm days. Total: <strong>{data.forecastRainfall7dMm ?? 0} mm</strong> over 7 days.
               </p>
+              {/* ── SMD vs forecast verdict ── */}
+              {(() => {
+                if (!data.forecastDailyMm) return null;
+                const vr = computeForecastVerdict({
+                  currentSmdMm: todaySmd,
+                  forecastDailyMm: data.forecastDailyMm,
+                  dailyEtcMm: todayEtC,
+                  fieldCapacityMm: fieldCapacity,
+                });
+                if (!vr) return null;
+                const { projectedSmd, forecastTotal, verdict } = vr;
+                const style =
+                  verdict === "sufficient"
+                    ? { bg: "bg-green-50 border-green-200", text: "text-green-800", dot: "bg-green-500" }
+                    : verdict === "partial"
+                    ? { bg: "bg-yellow-50 border-yellow-200", text: "text-yellow-800", dot: "bg-yellow-500" }
+                    : { bg: "bg-red-50 border-red-200", text: "text-red-800", dot: "bg-red-500" };
+                return (
+                  <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${style.bg} ${style.text}`}>
+                    <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${style.dot}`} />
+                    {verdict === "sufficient" ? (
+                      <>
+                        Forecast <strong>{forecastTotal.toFixed(1)} mm</strong> closes the{" "}
+                        <strong>{todaySmd.toFixed(1)} mm</strong> deficit — rain likely sufficient,
+                        consider holding off irrigation.
+                      </>
+                    ) : (
+                      <>
+                        Forecast <strong>{forecastTotal.toFixed(1)} mm</strong> vs{" "}
+                        <strong>{todaySmd.toFixed(1)} mm</strong> deficit — projected SMD{" "}
+                        <strong>{projectedSmd.toFixed(1)} mm</strong> after 7-day ET
+                        {verdict === "insufficient" ? " — consider irrigating" : ""}.
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ) : data && data.forecastDailyMm === null && (
             <div className="rounded-lg border border-muted bg-muted/20 p-3 text-xs text-muted-foreground flex items-center gap-2">

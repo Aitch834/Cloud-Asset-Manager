@@ -158,6 +158,58 @@ export function getGrowthStage(
   return "Late season";
 }
 
+// ─── Forecast deficit verdict ─────────────────────────────────────────────────
+
+export type ForecastVerdict = "sufficient" | "partial" | "insufficient";
+
+export interface ForecastVerdictResult {
+  /** Projected SMD at the end of the forecast window after applying daily ET and rain. */
+  projectedSmd: number;
+  /** Sum of all forecast daily rainfall values (mm). */
+  forecastTotal: number;
+  /** Traffic-light verdict. */
+  verdict: ForecastVerdict;
+}
+
+/**
+ * Determine whether the 7-day rainfall forecast is likely to close the current
+ * soil-moisture deficit, accounting for crop ET each forecast day.
+ *
+ * Runs the same daily water-balance model as computeSMD / computeScenarios:
+ *   SMD(t) = max(0, min(FC, SMD(t-1) + ETc − rain(t)))
+ *
+ * Verdict:
+ *   "sufficient"   — projected SMD reaches 0 (deficit fully closed)
+ *   "partial"      — deficit improves by more than half but isn't fully closed
+ *   "insufficient" — deficit improves by less than half or worsens
+ *
+ * Returns null when there is no current deficit (currentSmdMm ≤ 0) or the
+ * forecast array is empty — callers should suppress the verdict in those cases.
+ */
+export function computeForecastVerdict(opts: {
+  currentSmdMm: number;
+  forecastDailyMm: Array<{ date: string; mm: number }>;
+  dailyEtcMm: number;
+  fieldCapacityMm: number;
+}): ForecastVerdictResult | null {
+  const { currentSmdMm, forecastDailyMm, dailyEtcMm, fieldCapacityMm } = opts;
+  if (currentSmdMm <= 0 || forecastDailyMm.length === 0) return null;
+
+  let smd = currentSmdMm;
+  let forecastTotal = 0;
+  for (const day of forecastDailyMm) {
+    forecastTotal += day.mm;
+    smd = Math.max(0, Math.min(fieldCapacityMm, smd + dailyEtcMm - day.mm));
+  }
+
+  const verdict: ForecastVerdict =
+    smd <= 0 ? "sufficient" :
+    smd < currentSmdMm * 0.5 ? "partial" :
+    "insufficient";
+
+  return { projectedSmd: smd, forecastTotal, verdict };
+}
+
 /** Traffic-light status based on current SMD vs critical threshold */
 export function getSmdStatus(smd: number, criticalSmdMm: number): SmdStatus {
   if (smd <= criticalSmdMm * 0.40) return "OK";
