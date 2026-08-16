@@ -239,16 +239,23 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       "",
     ];
     const colHeaders = ["Block Name", "Parcel / Field Ref", "Variety", "Area (ha)", "Planting Year", "Rootstock", "SBI Number"].map(cell).join(",");
-    const dataRows = blocks.map(b => [
-      cell(b.blockName),
-      cell(b.fieldParcelRef ?? ""),
-      cell(b.variety ?? ""),
-      cell(n(b.areaHa)),
-      cell(b.plantingYear ?? ""),
-      cell(b.rootstock ?? ""),
-      cell(sbi),
-    ].join(","));
-    const csv = [...headerRows, colHeaders, ...dataRows].join("\n");
+    const missingRefCount = blocks.filter(b => !b.fieldParcelRef || String(b.fieldParcelRef).trim() === "").length;
+    const summaryRows = missingRefCount > 0
+      ? [`${cell(`⚠ ${missingRefCount} block${missingRefCount === 1 ? "" : "s"} missing Parcel / Field Ref — add before RPA entry`)}`, ""]
+      : [];
+    const dataRows = blocks.map(b => {
+      const hasRef = b.fieldParcelRef && String(b.fieldParcelRef).trim() !== "";
+      return [
+        cell(b.blockName),
+        hasRef ? cell(b.fieldParcelRef) : cell("(NOT SET — add before RPA entry)"),
+        cell(b.variety ?? ""),
+        cell(n(b.areaHa)),
+        cell(b.plantingYear ?? ""),
+        cell(b.rootstock ?? ""),
+        cell(sbi),
+      ].join(",");
+    });
+    const csv = [...summaryRows, ...headerRows, colHeaders, ...dataRows].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
