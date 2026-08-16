@@ -1366,6 +1366,7 @@ export async function printOperations(
   farmId?: number,
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
+  yearLabel?: string,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -1499,7 +1500,7 @@ export async function printOperations(
         ${opsFsaVineRefHtml}<br>
         ${opsFsaWineRefHtml}<br>
         ${opsAppaRefHtml}<br>
-        Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+        ${yearLabel ? `Year: <strong>${escHtml(yearLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
     <div style="text-align:right;font-size:11px;color:#555">
@@ -1543,6 +1544,7 @@ export async function printHarvest(
   farmId?: number,
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
+  yearLabel?: string,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -2340,7 +2342,7 @@ export async function printHarvest(
         ${harvestFsaVineRefHtml}<br>
         ${harvestFsaWineRefHtml}<br>
         ${harvestAppaRefHtml}<br>
-        ${harvestWinegbHtml ? `${harvestWinegbHtml}<br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
+        ${harvestWinegbHtml ? `${harvestWinegbHtml}<br>` : ""}${yearLabel ? `Year: <strong>${escHtml(yearLabel)}</strong><br>` : ""}Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>
     <div style="text-align:right;font-size:11px;color:#555">

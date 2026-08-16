@@ -1054,7 +1054,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(printRows, farmName, farmId, blocks, farmMeta); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
@@ -2142,7 +2142,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   {isSbiInvalid ? "Close" : "Cancel"}
                 </Button>
                 {!isSbiInvalid && (
-                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(printRows, farmName, farmId, blocks, farmMeta); }}>
+                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined); }}>
                     <Printer className="w-4 h-4 mr-1" />Print anyway
                   </Button>
                 )}
