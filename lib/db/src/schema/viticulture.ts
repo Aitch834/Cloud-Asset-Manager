@@ -803,6 +803,7 @@ export const wineryBottlingRecordsTable = pgTable("winery_bottling_records", {
   certifiedOrganic: boolean("certified_organic").default(false),
   certifierRef: text("certifier_ref"),
   operatorName: text("operator_name"),
+  bottlingMachineId: integer("bottling_machine_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

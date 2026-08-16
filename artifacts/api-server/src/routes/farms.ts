@@ -37696,9 +37696,11 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
                b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
                b.operator_name, b.notes, b.edit_history,
-               v.vessel_ref AS source_vessel_ref
+               v.vessel_ref AS source_vessel_ref,
+               m.machine_ref AS bottling_machine_ref, m.machine_type AS bottling_machine_type
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
+        LEFT JOIN winery_bottling_machines m ON m.id = b.bottling_machine_id AND m.farm_id = b.farm_id
         WHERE b.farm_id = ${farmId} AND b.batch_ref = ${batchRef}
         ORDER BY b.bottling_date ASC NULLS LAST
       `),
@@ -37820,9 +37822,11 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
                b.cases_produced, b.closure_type, b.free_so2_mg_l, b.total_so2_mg_l,
                b.actual_abv_pct, b.is_organic, b.certified_organic, b.ph, b.titratable_acidity_gl,
                b.operator_name, b.notes, b.edit_history,
-               v.vessel_ref AS source_vessel_ref
+               v.vessel_ref AS source_vessel_ref,
+               m.machine_ref AS bottling_machine_ref, m.machine_type AS bottling_machine_type
         FROM winery_bottling_records b
         LEFT JOIN winery_vessels v ON v.id = b.source_vessel_id
+        LEFT JOIN winery_bottling_machines m ON m.id = b.bottling_machine_id AND m.farm_id = b.farm_id
         WHERE b.farm_id = ${farmId} AND b.vintage_year = ${vintageYear}
         ORDER BY b.bottling_date ASC NULLS LAST
       `),
@@ -38640,7 +38644,7 @@ router.delete("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant
 // ── Bottling Records ───────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT b.*, v.vessel_ref AS source_vessel_ref FROM winery_bottling_records b LEFT JOIN winery_vessels v ON v.id=b.source_vessel_id WHERE b.farm_id=${farmId} ORDER BY b.bottling_date DESC, b.created_at DESC`);
+  const rows = await db.execute(sql`SELECT b.*, v.vessel_ref AS source_vessel_ref, m.machine_ref AS bottling_machine_ref, m.machine_type AS bottling_machine_type FROM winery_bottling_records b LEFT JOIN winery_vessels v ON v.id=b.source_vessel_id LEFT JOIN winery_bottling_machines m ON m.id=b.bottling_machine_id AND m.farm_id=${farmId} WHERE b.farm_id=${farmId} ORDER BY b.bottling_date DESC, b.created_at DESC`);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -38654,8 +38658,12 @@ router.post("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requir
       return;
     }
   }
+  if (b.bottlingMachineId) {
+    const machineOwn = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${ni(b.bottlingMachineId)} AND farm_id=${farmId} LIMIT 1`);
+    if (machineOwn.rows.length === 0) { res.status(400).json({ error: "Invalid bottling machine." }); return; }
+  }
   try {
-    const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,notes) VALUES (${farmId},${nd(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${n(b.notes)}) RETURNING *`);
+    const r = await db.execute(sql`INSERT INTO winery_bottling_records (farm_id,bottling_date,vintage_year,batch_ref,lot_code,wine_colour,source_vessel_id,volume_bottled_litres,bottle_size_ml,bottles_produced,cases_produced,closure_type,cork_grade,label_batch,free_so2_mg_l,total_so2_mg_l,actual_abv_pct,residual_sugar_gl,ph,titratable_acidity_gl,is_organic,certified_organic,certifier_ref,operator_name,bottling_machine_id,notes) VALUES (${farmId},${nd(b.bottlingDate)},${ni(b.vintageYear)},${n(b.batchRef)},${n(b.lotCode)},${n(b.wineColour)},${ni(b.sourceVesselId)},${nf(b.volumeBottledLitres)},${ni(b.bottleSizeMl)},${ni(b.bottlesProduced)},${ni(b.casesProduced)},${n(b.closureType)},${n(b.corkGrade)},${n(b.labelBatch)},${nf(b.freeSo2MgL)},${nf(b.totalSo2MgL)},${nf(b.actualAbvPct)},${nf(b.residualSugarGl)},${nf(b.ph)},${nf(b.titratableAcidityGl)},${nb(b.isOrganic) ?? false},${nb(b.certifiedOrganic) ?? false},${n(b.certifierRef)},${n(b.operatorName)},${ni(b.bottlingMachineId)},${n(b.notes)}) RETURNING *`);
     res.status(201).json({ record: r.rows[0] });
   } catch (err: unknown) {
     // Drizzle wraps pg errors — the real code may live on err.cause.code (race fallback)
@@ -38679,10 +38687,14 @@ router.put("/farms/:farmId/winery-bottling/:id", requireAuth, requireTenant, req
       return;
     }
   }
+  if (b.bottlingMachineId) {
+    const machineOwn = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${ni(b.bottlingMachineId)} AND farm_id=${farmId} LIMIT 1`);
+    if (machineOwn.rows.length === 0) { res.status(400).json({ error: "Invalid bottling machine." }); return; }
+  }
   try {
     // Post-sign-off audit trail — same pattern as the pressing PUT.
     const bottlingEditEntry = buildAuditEditEntry(await resolveAuditEditor(req), "Edited");
-    const r = await db.execute(sql`UPDATE winery_bottling_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${bottlingEditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,bottling_date=${nd(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},is_organic=${nb(b.isOrganic) ?? false},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
+    const r = await db.execute(sql`UPDATE winery_bottling_records SET edit_history=CASE WHEN audit_signature IS NOT NULL THEN COALESCE(edit_history,'[]'::jsonb) || ${bottlingEditEntry}::jsonb ELSE COALESCE(edit_history,'[]'::jsonb) END,bottling_date=${nd(b.bottlingDate)},vintage_year=${ni(b.vintageYear)},batch_ref=${n(b.batchRef)},lot_code=${n(b.lotCode)},wine_colour=${n(b.wineColour)},source_vessel_id=${ni(b.sourceVesselId)},volume_bottled_litres=${nf(b.volumeBottledLitres)},bottle_size_ml=${ni(b.bottleSizeMl)},bottles_produced=${ni(b.bottlesProduced)},cases_produced=${ni(b.casesProduced)},closure_type=${n(b.closureType)},cork_grade=${n(b.corkGrade)},label_batch=${n(b.labelBatch)},free_so2_mg_l=${nf(b.freeSo2MgL)},total_so2_mg_l=${nf(b.totalSo2MgL)},actual_abv_pct=${nf(b.actualAbvPct)},residual_sugar_gl=${nf(b.residualSugarGl)},ph=${nf(b.ph)},titratable_acidity_gl=${nf(b.titratableAcidityGl)},is_organic=${nb(b.isOrganic) ?? false},certified_organic=${nb(b.certifiedOrganic) ?? false},certifier_ref=${n(b.certifierRef)},operator_name=${n(b.operatorName)},bottling_machine_id=${ni(b.bottlingMachineId)},notes=${n(b.notes)} WHERE id=${recordId} AND farm_id=${farmId} RETURNING *`);
     res.json({ record: r.rows[0] });
   } catch (err: unknown) {
     // Drizzle wraps pg errors — the real code may live on err.cause.code (race fallback)
@@ -38893,7 +38905,15 @@ router.put("/farms/:farmId/winery-bottling-machines/:id", requireAuth, requireTe
 });
 router.delete("/farms/:farmId/winery-bottling-machines/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  await db.execute(sql`DELETE FROM winery_bottling_machines WHERE id=${parseInt(req.params.id as string)} AND farm_id=${farmId}`);
+  const machineDelId = parseInt(req.params.id as string);
+  // Block deletion when bottling records still reference this machine — safer than cascade-null,
+  // which would silently drop the audit link from existing records.
+  const linked = await db.execute(sql`SELECT id FROM winery_bottling_records WHERE bottling_machine_id=${machineDelId} AND farm_id=${farmId} LIMIT 1`);
+  if (linked.rows.length > 0) {
+    res.status(409).json({ error: "This machine is linked to one or more bottling records. Please unlink or reassign those records before deleting the machine.", code: "MACHINE_IN_USE" });
+    return;
+  }
+  await db.execute(sql`DELETE FROM winery_bottling_machines WHERE id=${machineDelId} AND farm_id=${farmId}`);
   res.json({ success: true });
 });
 router.get("/farms/:farmId/winery-bottling-machines/:machineId/cleans", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {

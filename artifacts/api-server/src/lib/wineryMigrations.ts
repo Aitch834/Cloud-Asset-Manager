@@ -325,5 +325,8 @@ export async function runWineryMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_bottling_machine_cleans_machine_idx ON winery_bottling_machine_cleans(machine_id)`);
 
+  // Link bottling records to the machine that ran them
+  await db.execute(sql`ALTER TABLE winery_bottling_records ADD COLUMN IF NOT EXISTS bottling_machine_id integer REFERENCES winery_bottling_machines(id)`);
+
   console.log("[WINERY-MIGRATE] Done.");
 }

@@ -416,9 +416,6 @@ export const api = {
       secret
     ),
 
-  updateFarm: (tenantId: number, farmId: number, data: { name?: string; address?: string; postcode?: string }, secret: string) =>
-    patch<{ farm: Farm }>(`/admin/tenants/${tenantId}/farms/${farmId}`, data, secret),
-
   getInbox: (secret: string, limit = 50) =>
     get<{ emails: InboxEmail[] }>(`/admin/inbox?limit=${limit}`, secret),
 

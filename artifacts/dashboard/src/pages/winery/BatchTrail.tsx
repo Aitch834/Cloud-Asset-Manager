@@ -1840,7 +1840,10 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
                           )}
                           {isVintageScoped && (r.batch_ref ? <span className="text-xs font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{String(r.batch_ref)}</span> : <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">No ref</span>)}
                         </div>
-                        {!!r.operator_name && <span className="text-xs text-muted-foreground shrink-0">{String(r.operator_name)}</span>}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!!r.bottling_machine_ref && <span className="text-xs text-muted-foreground font-mono">{String(r.bottling_machine_ref)}</span>}
+                          {!!r.operator_name && <span className="text-xs text-muted-foreground">{String(r.operator_name)}</span>}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                         {r.volume_bottled_litres != null && <span>{fmtNum(r.volume_bottled_litres, 1)} L</span>}

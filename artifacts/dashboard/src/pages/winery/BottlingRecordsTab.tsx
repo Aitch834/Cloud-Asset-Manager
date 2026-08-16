@@ -31,6 +31,11 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useWineryCrud(farmId, "winery-bottling", "winery-bottling");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
+  const { data: bottlingMachines = [] } = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-bottling-machines", farmId],
+    queryFn: () => fetchWineryJson(`farms/${farmId}/winery-bottling-machines`).then(d => (d as { records: Record<string, unknown>[] }).records ?? []),
+    staleTime: 60_000,
+  });
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -249,9 +254,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const openEdit = (r: Record<string, unknown>) => {
     setEditing(r.id as number);
     const raw = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)]));
-    // API returns snake_case; normalize organic boolean fields to camelCase so form checkboxes read them correctly
+    // API returns snake_case; normalize organic boolean fields and machine FK to camelCase so form controls read them correctly
     if (raw.isOrganic === undefined || raw.isOrganic === "") raw.isOrganic = raw.is_organic ?? "false";
     if (raw.certifiedOrganic === undefined || raw.certifiedOrganic === "") raw.certifiedOrganic = raw.certified_organic ?? "false";
+    if (raw.bottlingMachineId === undefined || raw.bottlingMachineId === "") raw.bottlingMachineId = raw.bottling_machine_id ?? "";
     setForm(raw);
     setSo2FromTest(false);
     setPhTaFromAnalysis(null);
@@ -471,6 +477,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium">Colour</th>
               <th className="text-right p-3 font-medium">Volume (L)</th>
               <th className="text-right p-3 font-medium">Bottles</th>
+              {crud.data.some(r => r.bottling_machine_id != null) && <th className="text-left p-3 font-medium">Machine</th>}
               <th className="text-left p-3 font-medium">Closure</th>
               <th className="text-right p-3 font-medium">Free SO₂</th>
               <th className="text-right p-3 font-medium">Total SO₂</th>
@@ -493,6 +500,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                   </td>
                   <td className="p-3 text-right">{fmtNum(r.volume_bottled_litres, 0)}</td>
                   <td className="p-3 text-right">{fmt(r.bottles_produced)}</td>
+                  {crud.data.some(r2 => r2.bottling_machine_id != null) && <td className="p-3 text-xs text-muted-foreground">{fmt(r.bottling_machine_ref)}</td>}
                   <td className="p-3 text-muted-foreground text-xs">{fmt(r.closure_type)}</td>
                   <td className="p-3 text-right">{r.free_so2_mg_l ? `${fmtNum(r.free_so2_mg_l, 0)} mg/L` : "—"}</td>
                   <td className="p-3 text-right">{r.total_so2_mg_l ? `${fmtNum(r.total_so2_mg_l, 0)} mg/L` : "—"}</td>
@@ -576,6 +584,22 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                 </Select>
               </div>
               <div><Label>Operator</Label><StaffSelect value={String(form.operatorName ?? "")} onChange={v => sf("operatorName", v)} staffNames={staffNames} loading={staffLoading} /></div>
+              {bottlingMachines.length > 0 && (
+                <div>
+                  <Label>Bottling Machine</Label>
+                  <Select value={String(form.bottlingMachineId ?? "")} onValueChange={v => sf("bottlingMachineId", v)}>
+                    <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {bottlingMachines.map(m => (
+                        <SelectItem key={String(m.id)} value={String(m.id)}>
+                          {String(m.machine_ref)}{m.machine_type ? ` (${String(m.machine_type)})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <SectionLabel>Volume & format</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
@@ -705,6 +729,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               <ViewField label="Bottle Size" value={view.bottle_size_ml ? `${view.bottle_size_ml} ml` : "—"} />
               <ViewField label="Bottles Produced" value={view.bottles_produced ? Number(view.bottles_produced).toLocaleString() : "—"} />
               <ViewField label="Cases (12s)" value={fmt(view.cases_produced)} />
+              {view.bottling_machine_ref != null && <ViewField label="Machine" value={fmt(view.bottling_machine_ref)} />}
               <ViewField label="Closure" value={fmt(view.closure_type)} />
               <ViewField label="Cork Grade" value={fmt(view.cork_grade)} />
               <ViewField label="Label Batch" value={fmt(view.label_batch)} />
