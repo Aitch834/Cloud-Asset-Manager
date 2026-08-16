@@ -1591,12 +1591,14 @@ export async function printHarvest(
       ${photoCell}
       <td>${d(r.harvestDate)}</td>
       <td>${escHtml(r.vintageYear)}</td>
-      <td>${hasPhotos ? "" : escHtml(bName)}</td>
+      ${hasPhotos ? "" : `<td>${escHtml(bName)}</td>`}
       <td>${escHtml(r.harvestMethod)}</td>
       <td style="text-align:right">${n(r.yieldKg, 1)}</td>
       <td style="text-align:right">${n(r.yieldTonnesPerHa, 2)}</td>
       <td style="text-align:right">${n(r.brix, 1)}</td>
       <td style="text-align:right">${n(r.ph, 2)}</td>
+      <td style="text-align:right">${n(r.titratableAcidityGl, 1)}</td>
+      <td style="text-align:right">${n(r.potentialAlcohol, 1)}</td>
       <td>${escHtml(r.grapeCondition)}</td>
       <td>${botrytisCell}</td>
       <td>${escHtml(r.operatorName)}</td>
@@ -1605,10 +1607,18 @@ export async function printHarvest(
   }).join("");
 
   const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+  const detailBrixVals = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+  const detailAvgBrix = detailBrixVals.length > 0 ? detailBrixVals.reduce((a, b) => a + b, 0) / detailBrixVals.length : null;
+  const detailPhVals = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+  const detailAvgPh = detailPhVals.length > 0 ? detailPhVals.reduce((a, b) => a + b, 0) / detailPhVals.length : null;
+  const detailTaVals = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+  const detailAvgTa = detailTaVals.length > 0 ? detailTaVals.reduce((a, b) => a + b, 0) / detailTaVals.length : null;
+  const detailPaVals = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+  const detailAvgPa = detailPaVals.length > 0 ? detailPaVals.reduce((a, b) => a + b, 0) / detailPaVals.length : null;
   const safeFarmName = escHtml(farmName);
   const harvestAddress = [farmMeta?.address, farmMeta?.postcode].filter(v => v != null && v !== "").map(escHtml).join(", ");
   const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
-  const colSpan = hasPhotos ? 12 : 13;
+  const colSpan = 14;
 
   // ── FSA / APPA refs ───────────────────────────────────────────────────────
   const harvestFsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
@@ -2284,6 +2294,8 @@ export async function printHarvest(
         <th style="text-align:right">t/ha</th>
         <th style="text-align:right">Brix °</th>
         <th style="text-align:right">pH</th>
+        <th style="text-align:right">TA (g/L)</th>
+        <th style="text-align:right">Pot. Alc. %</th>
         <th>Condition</th>
         <th>Botrytis</th>
         <th>Operator</th>
@@ -2296,9 +2308,16 @@ export async function printHarvest(
     ${records.length > 0 ? `
     <tfoot>
       <tr class="tfoot">
-        <td colspan="${hasPhotos ? 4 : 4}"><strong>Total Yield</strong></td>
+        <td colspan="4"><strong>Farm Totals</strong> &nbsp;&middot;&nbsp; <span style="font-weight:400">${records.length} pick${records.length === 1 ? "" : "s"}</span></td>
         <td style="text-align:right"><strong>${totalKg.toFixed(1)} kg</strong></td>
-        <td colspan="${hasPhotos ? 7 : 8}"></td>
+        <td></td>
+        <td style="text-align:right"><strong>${detailAvgBrix != null ? detailAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</strong></td>
+        <td style="text-align:right"><strong>${detailAvgPh != null ? detailAvgPh.toFixed(2) : "\u2014"}</strong></td>
+        <td style="text-align:right"><strong>${detailAvgTa != null ? detailAvgTa.toFixed(1) : "\u2014"}</strong></td>
+        <td style="text-align:right"><strong>${detailAvgPa != null ? detailAvgPa.toFixed(1) : "\u2014"}</strong></td>
+        <td></td>
+        <td></td>
+        <td colspan="2"></td>
       </tr>
     </tfoot>` : ""}
   </table>
