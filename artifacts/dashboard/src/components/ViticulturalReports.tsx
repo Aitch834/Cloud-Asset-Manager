@@ -665,7 +665,15 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
   // Block filter strip — search and group-by-variety state
   const [blockSearch, setBlockSearch] = useState("");
-  const [groupByVariety, setGroupByVariety] = useState(false);
+  const [_groupByVarietyStored, _setGroupByVarietyStored] = usePersistedFilter({
+    page: "vintage-season-report",
+    filter: "group-by-variety",
+    farmId,
+    defaultValue: "false",
+    validValues: ["true", "false"],
+  });
+  const groupByVariety = _groupByVarietyStored === "true";
+  const setGroupByVariety = (v: boolean) => _setGroupByVarietyStored(v ? "true" : "false");
 
   const toggleBlock = (name: string) => {
     // When null, all blocks are shown — expand to full set before toggling
@@ -1041,7 +1049,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                   {showSearch && new Set(lines.map(bl => bl.variety)).size > 1 && (
                     <button
                       type="button"
-                      onClick={() => setGroupByVariety(v => !v)}
+                      onClick={() => setGroupByVariety(!groupByVariety)}
                       className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
                         groupByVariety
                           ? "bg-purple-600 border-purple-600 text-white"
