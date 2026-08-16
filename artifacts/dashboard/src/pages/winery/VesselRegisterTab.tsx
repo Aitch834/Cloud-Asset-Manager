@@ -914,6 +914,28 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   // isFullFilter: "" = show all, "true" = full only, "false" = empty only
   const [isFullFilter, setIsFullFilter] = usePersistedFilter({ page: "vessel-register", filter: "is-full", farmId, defaultValue: "", validValues: IS_FULL_VALUES });
 
+  // Persisted sort — remembered across page visits and navigation
+  const SORT_COL_VALUES = ["vessel_ref", "vessel_type", "capacity_litres", "location", "current_contents", "current_volume_litres", "status"] as const;
+  const SORT_DIR_VALUES = ["asc", "desc"] as const;
+  const [sortCol, setSortCol] = usePersistedFilter({ page: "vessel-register", filter: "sort-col", farmId, defaultValue: "vessel_ref", validValues: SORT_COL_VALUES });
+  const [sortDir, setSortDir] = usePersistedFilter({ page: "vessel-register", filter: "sort-dir", farmId, defaultValue: "asc", validValues: SORT_DIR_VALUES });
+
+  function handleSort(col: typeof SORT_COL_VALUES[number]) {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  function SortIcon({ col }: { col: string }) {
+    if (sortCol !== col) return <ArrowUpDown className="inline ml-1 h-3 w-3 text-muted-foreground opacity-50" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="inline ml-1 h-3 w-3 text-primary" />
+      : <ArrowDown className="inline ml-1 h-3 w-3 text-primary" />;
+  }
+
   // Barrel health CSV export loading state
   const [csvExporting, setCsvExporting] = useState(false);
 
@@ -999,6 +1021,25 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     }
     return true;
   });
+
+  const sortedData = useMemo(() => {
+    return [...filteredData].sort((a, b) => {
+      let aVal: unknown = a[sortCol] ?? "";
+      let bVal: unknown = b[sortCol] ?? "";
+      if (sortCol === "capacity_litres" || sortCol === "current_volume_litres") {
+        const aNum = aVal !== "" ? Number(aVal) : -Infinity;
+        const bNum = bVal !== "" ? Number(bVal) : -Infinity;
+        return sortDir === "asc" ? aNum - bNum : bNum - aNum;
+      }
+      if (sortCol === "location") {
+        aVal = a.cellar_zone ? `${String(a.cellar_zone)}${a.cellar_position ? `/${String(a.cellar_position)}` : ""}` : String(a.location ?? "");
+        bVal = b.cellar_zone ? `${String(b.cellar_zone)}${b.cellar_position ? `/${String(b.cellar_position)}` : ""}` : String(b.location ?? "");
+      }
+      const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredData, sortCol, sortDir]);
 
   return (
     <div className="space-y-4">
@@ -1388,18 +1429,18 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40"><tr>
-              <th className="text-left p-3 font-medium">Ref</th>
-              <th className="text-left p-3 font-medium">Type</th>
-              <th className="text-right p-3 font-medium">Capacity (L)</th>
-              <th className="text-left p-3 font-medium">Location</th>
-              <th className="text-left p-3 font-medium">Current Contents</th>
-              <th className="text-right p-3 font-medium">Volume (L)</th>
-              <th className="text-left p-3 font-medium">Status</th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("vessel_ref")}>Ref<SortIcon col="vessel_ref" /></th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("vessel_type")}>Type<SortIcon col="vessel_type" /></th>
+              <th className="text-right p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("capacity_litres")}>Capacity (L)<SortIcon col="capacity_litres" /></th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("location")}>Location<SortIcon col="location" /></th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("current_contents")}>Current Contents<SortIcon col="current_contents" /></th>
+              <th className="text-right p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("current_volume_litres")}>Volume (L)<SortIcon col="current_volume_litres" /></th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("status")}>Status<SortIcon col="status" /></th>
               <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filteredData.map(r => {
+              {sortedData.map(r => {
                 const isBarrelRow = isBarrelVessel(r.vessel_type);
                 const locationDisplay = r.cellar_zone
                   ? `${String(r.cellar_zone)}${r.cellar_position ? ` / ${String(r.cellar_position)}` : ""}`
