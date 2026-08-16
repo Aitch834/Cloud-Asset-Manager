@@ -53,7 +53,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, printRpaReference, buildRpaMailtoHref, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, printRpaReference, buildRpaMailtoHref, emailRpaReference, emailVineRegister, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type VineReg = Record<string, unknown>;
 
@@ -458,6 +458,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             );
           })()}
           <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => emailVineRegister(displayRows, farmName, farmRecord)} disabled={!displayRows.length} title="Open your email client with a pre-filled Vine Register summary ready to send to an advisor or certifier"><Mail className="w-4 h-4 mr-1" />Email Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>

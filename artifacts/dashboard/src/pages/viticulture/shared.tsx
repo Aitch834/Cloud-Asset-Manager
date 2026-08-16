@@ -694,6 +694,79 @@ export function emailRpaReference(
   window.location.href = href;
 }
 
+export function emailVineRegister(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const fsaRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const fsaWineRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const winegbNo = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const activeRecords = records.filter(r => !r.isRemovedFromRegister);
+  const removedRecords = records.filter(r => !!r.isRemovedFromRegister);
+  const totalHa = records.reduce((sum, r) => sum + (parseFloat(String(r.registeredAreaHa ?? 0)) || 0), 0);
+
+  const col = (v: unknown, width: number) => {
+    const s = v == null || v === "" ? "—" : String(v);
+    return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
+  };
+  const d = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+
+  const headerLine = [
+    col("Variety", 24),
+    col("FSA Ref", 16),
+    col("Area (ha)", 10),
+    col("GI", 22),
+    col("Wine Colour", 16),
+    col("Date Reg.", 12),
+    col("Status", 8),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const buildLines = (recs: Record<string, unknown>[]) =>
+    recs.map(r => [
+      col(r.registeredVariety, 24),
+      col(r.fsaVineRegisterRef ?? "", 16),
+      col(r.registeredAreaHa ? parseFloat(String(r.registeredAreaHa)).toFixed(4) : "—", 10),
+      col(r.giClassification ?? "", 22),
+      col(r.wineColour ?? "", 16),
+      col(d(r.dateRegistered), 12),
+      col(r.isRemovedFromRegister ? "Removed" : "Active", 8),
+    ].join("  "));
+
+  const body = [
+    `FSA Vine Register — ${farmName}`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
+    sbi ? `SBI Number: ${sbi}` : `SBI Number: (not set — add in Farm Settings)`,
+    fsaRef ? `FSA Vine Register Ref: ${fsaRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
+    fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
+    ...(winegbNo ? [`WineGB Membership No: ${winegbNo}`] : []),
+    ...(appaRef ? [`APPA Ref: ${appaRef}`] : []),
+    `Date: ${printed}`,
+    `Entries: ${records.length}   Active: ${activeRecords.length}   Removed: ${removedRecords.length}   Total area: ${totalHa.toFixed(4)} ha`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...(activeRecords.length > 0 ? buildLines(activeRecords) : [`(no active entries)`]),
+    ...(removedRecords.length > 0 ? [separator, `Removed from register:`, ...buildLines(removedRecords)] : []),
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac. Mandatory FSA register for UK vineyards over 0.01 ha.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `FSA Vine Register — ${farmName}${fsaRef ? ` (Ref: ${fsaRef})` : ""}`,
+  );
+  window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+}
 /** Escape a plain-text value for safe insertion into an HTML document. */
 function escHtml(v: unknown): string {
   if (v == null || v === "") return "—";
@@ -3410,4 +3483,85 @@ export function RaiseTaskBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-// ─── Overview ─────────────────────────────────────────────────────────────────
+export function emailHarvestReport(
+  records: Record<string, unknown>[],
+  farmName: string,
+  blocks?: Record<string, unknown>[],
+  farmMeta?: Record<string, unknown> | null,
+  yearLabel?: string,
+) {
+  const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const fsaVineRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const fsaWineRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const blockLookup: Record<number, string> = {};
+  (blocks ?? []).forEach(b => { blockLookup[b.id as number] = String(b.blockName ?? ""); });
+  const bname = (id: unknown) => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? (blockLookup[bid] ?? "—") : "—";
+  };
+
+  const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+
+  const col = (v: unknown, width: number) => {
+    const s = v == null || v === "" ? "—" : String(v);
+    return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
+  };
+  const nf = (v: unknown, dp: number) => {
+    const f = parseFloat(String(v ?? ""));
+    return isNaN(f) ? "—" : f.toFixed(dp);
+  };
+  const df = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+
+  const headerLine = [
+    col("Date", 12),
+    col("Vintage", 8),
+    col("Block", 20),
+    col("Method", 14),
+    col("Yield (kg)", 11),
+    col("Brix", 6),
+    col("pH", 6),
+    col("TA g/L", 7),
+    col("PA %", 6),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const dataLines = records.map(r => [
+    col(df(r.harvestDate), 12),
+    col(r.vintageYear ?? "", 8),
+    col(bname(r.blockId), 20),
+    col(r.harvestMethod ?? "", 14),
+    col(r.yieldKg ? parseFloat(String(r.yieldKg)).toFixed(1) : "—", 11),
+    col(nf(r.brix, 1), 6),
+    col(nf(r.ph, 2), 6),
+    col(nf(r.titratableAcidityGl, 2), 7),
+    col(nf(r.potentialAlcohol, 2), 6),
+  ].join("  "));
+
+  const body = [
+    `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
+    sbi ? `SBI Number: ${sbi}` : `SBI Number: (not set — add in Farm Settings)`,
+    fsaVineRef ? `FSA Vine Register Ref: ${fsaVineRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
+    fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
+    `Date: ${printed}`,
+    `Records: ${records.length}   Total yield: ${totalKg > 0 ? totalKg.toFixed(1) + " kg" : "—"}`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...(dataLines.length > 0 ? dataLines : [`(no records)`]),
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
+  );
+  window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+}
