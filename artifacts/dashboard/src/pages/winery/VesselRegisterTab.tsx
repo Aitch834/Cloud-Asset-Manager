@@ -402,18 +402,41 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
   const [form, setForm] = useState<Record<string, string>>({ movedDate: today, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  // Re-sync fromZone/fromPosition when the parent's vessel query refreshes the prop
+  // (e.g. after a previous move invalidates winery-vessels), but only while the add
+  // form is closed so mid-entry values are never clobbered.
+  useEffect(() => {
+    if (!showAdd) {
+      setForm(f => ({ ...f, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" }));
+    }
+  }, [currentZone, currentPosition, showAdd]);
+
   const addMut = useMutation({
-    mutationFn: async () => {
+    // Accept a snapshot of the form so onSuccess can safely read the submitted
+    // destination values even if the user edits fields while the request is in-flight.
+    mutationFn: async (snapshot: Record<string, string>) => {
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements`), {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(form),
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(snapshot),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
     },
-    onSuccess: () => {
+    onSuccess: (_data, snapshot) => {
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
-      setShowAdd(false);
-      setForm({ movedDate: today, fromZone: form.toZone ?? "", fromPosition: form.toPosition ?? "" });
+      // Keep the panel open so the winemaker can log a second consecutive move.
+      // Use snapshot (the values that were actually sent) — not live form state —
+      // to advance fromZone/fromPosition to the confirmed destination.
+      setForm(f => ({
+        movedDate: today,
+        fromZone: snapshot.toZone ?? "",
+        fromPosition: snapshot.toPosition ?? "",
+        operatorName: f.operatorName ?? "",
+        toZone: "",
+        toPosition: "",
+        reason: "",
+        notes: "",
+      }));
+      addMut.reset();
       toast({ title: "Movement logged" });
     },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
@@ -457,7 +480,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
           <div><Label className="text-xs">Notes</Label><Textarea value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} rows={1} className="text-xs" /></div>
           <DialogMutationError mutation={addMut} />
           <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate()} disabled={!form.movedDate || !form.toZone || addMut.isPending}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate({ ...form })} disabled={!form.movedDate || !form.toZone || addMut.isPending}>
               {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save Move
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
