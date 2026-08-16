@@ -205,21 +205,34 @@ function LogMovementModal({ visible, farmId, vesselId, initialFromZone, initialF
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form each time the modal opens so it picks up the latest from-zone/position
+  // Reset form each time the modal opens so it picks up the latest from-zone/position,
+  // then asynchronously pre-fill the operator name from KV storage.
   useEffect(() => {
-    if (visible) {
-      setForm({
-        movedDate: todayIso(),
-        fromZone: initialFromZone ?? "",
-        fromPosition: initialFromPosition ?? "",
-        toZone: "",
-        toPosition: "",
-        reason: "",
-        operatorName: "",
-        notes: "",
-      });
-      setError(null);
-    }
+    if (!visible) return;
+    // Synchronous reset so the form is clean before the user can type anything
+    setForm({
+      movedDate: todayIso(),
+      fromZone: initialFromZone ?? "",
+      fromPosition: initialFromPosition ?? "",
+      toZone: "",
+      toPosition: "",
+      reason: "",
+      operatorName: "",
+      notes: "",
+    });
+    setError(null);
+    // Asynchronously pre-fill operator name; only apply if the user hasn't typed yet
+    let cancelled = false;
+    void (async () => {
+      const storedOperator = await kvGet("last_operator_name");
+      if (!cancelled && storedOperator) {
+        setForm(prev => ({
+          ...prev,
+          ...(prev.operatorName === "" ? { operatorName: storedOperator } : {}),
+        }));
+      }
+    })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -256,6 +269,10 @@ function LogMovementModal({ visible, farmId, vesselId, initialFromZone, initialF
       }
       const submittedToZone = form.toZone.trim();
       const submittedToPosition = form.toPosition.trim();
+      const submittedOperator = form.operatorName.trim();
+      if (submittedOperator) {
+        void kvSet("last_operator_name", submittedOperator);
+      }
       setForm({ movedDate: todayIso(), fromZone: initialFromZone ?? "", fromPosition: initialFromPosition ?? "", toZone: "", toPosition: "", reason: "", operatorName: "", notes: "" });
       onSuccess(submittedToZone, submittedToPosition);
     } catch (err) {
