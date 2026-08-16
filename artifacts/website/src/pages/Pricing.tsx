@@ -3,7 +3,7 @@ import { useState, useMemo, useRef } from "react";
 import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { BASE_FEE, MODULES, BUNDLE_INCLUSIONS } from "@/lib/pricing-data";
+import { BASE_FEE, MODULES, BUNDLE_INCLUSIONS, modulePrice } from "@/lib/pricing-data";
 // ── Sector filter ──────────────────────────────────────────────────────────────
 // Maps each sector pill label to the module IDs relevant to that sector.
 // red-tractor-compliance is always shown regardless of the active filter.
@@ -205,7 +205,7 @@ export default function Pricing() {
                 <PoundSterling className="w-5 h-5 text-brand-forest" />
               </div>
               <div>
-                <p className="font-bold text-foreground">Start from £40/month</p>
+                <p className="font-bold text-foreground">Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month</p>
                 <p className="text-sm text-muted-foreground mt-0.5">Base platform + Red Tractor Compliance. Less than £500 a year for a fully compliant farm.</p>
               </div>
             </div>

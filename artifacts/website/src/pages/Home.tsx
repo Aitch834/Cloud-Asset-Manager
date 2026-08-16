@@ -2,6 +2,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
+import { BASE_FEE, modulePrice } from "@/lib/pricing-data";
 import { 
   ClipboardCheck, 
   Map as MapIcon, 
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const MIN_PRICE = BASE_FEE + modulePrice("red-tractor-compliance");
   const modules = [
     {
       title: "Red Tractor Compliance",
@@ -55,8 +57,8 @@ export default function Home() {
   const smallFarmReasons = [
     {
       icon: PoundSterling,
-      title: "From just £40 a month",
-      desc: "A fully Red Tractor compliant setup for one farm starts at £40/month — no expensive software licences, no hardware to buy, and no IT department needed.",
+      title: `From just £${MIN_PRICE} a month`,
+      desc: `A fully Red Tractor compliant setup for one farm starts at £${MIN_PRICE}/month — no expensive software licences, no hardware to buy, and no IT department needed.`,
     },
     {
       icon: CalendarCheck,
@@ -284,7 +286,7 @@ export default function Home() {
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to take the paperwork off your plate?</h2>
           <p className="text-lg text-muted-foreground mb-10">
-            Family farms and smallholdings across the UK use BDE Farm Trac to stay Red Tractor compliant without the stress. Start for as little as £40 a month — no contract, no upfront cost.
+            {`Family farms and smallholdings across the UK use BDE Farm Trac to stay Red Tractor compliant without the stress. Start for as little as £${MIN_PRICE} a month — no contract, no upfront cost.`}
           </p>
           <Button size="lg" className="bg-earth-brown hover:bg-earth-brown/90 text-white h-14 px-10 text-lg shadow-xl" asChild>
             <Link href="/contact">Register Your Interest Today</Link>

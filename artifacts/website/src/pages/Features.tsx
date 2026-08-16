@@ -1,5 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
+import { modulePrice } from "@/lib/pricing-data";
 import {
   ClipboardCheck, Map, Tractor, FileText, LineChart,
   CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
@@ -255,7 +256,7 @@ const sections: Section[] = [
           "Resource chips on task bars — colour-coded dots representing assigned resources are shown directly on Gantt bars for a whole-week utilisation overview at a glance",
           "Live conflict resolution — conflict markers update instantly as assignments are added or removed; no page refresh needed",
           "Analytics tab — KPI cards (upcoming tasks, planning completion %, active resources, allocations logged); planning status horizontal bar chart with overall progress bar; tasks-by-week stacked bar chart for next 8 weeks coloured by planning state; resource demand bar chart by type across all upcoming tasks; resource utilisation chart showing how many times each named resource has been allocated (coloured by resource colour); material requirements table aggregating planned quantities across all upcoming tasks; Plan vs Actual variance charts once actuals are recorded — date slip distribution and resource planned-vs-actual grouped bar with average slip badge",
-          "Purchaseable add-on module at £20/month — activate in Settings for any farm holding",
+          `Purchaseable add-on module at £${modulePrice("resource-planner")}/month — activate in Settings for any farm holding`,
         ],
       },
       {
@@ -1044,7 +1045,7 @@ const sections: Section[] = [
           "Suitable for connecting to third-party farm management systems, Power Query spreadsheets, Power BI, or custom business intelligence tools",
           "In-app documentation — endpoint URLs, authentication header format, and example JSON responses shown on the Data API dashboard page",
           "No manual CSV export needed — external tools can poll the API on a schedule and always have current data",
-          "£15/month add-on",
+          `£${modulePrice("data-api")}/month add-on`,
         ],
       },
       {
@@ -1060,7 +1061,7 @@ const sections: Section[] = [
           "Optional charts — bar, line, or pie; configure label field, value field, and aggregation (count, sum, or average) to turn raw records into visual insight",
           "CSV export — download any result set as a formatted spreadsheet in one click",
           "Saved reports — name and save report definitions; re-run with fresh live data any time from the saved reports list",
-          "£20/month add-on — unlimited custom reports without writing SQL or exporting raw data",
+          `£${modulePrice("report-builder")}/month add-on — unlimited custom reports without writing SQL or exporting raw data`,
         ],
       },
       {
