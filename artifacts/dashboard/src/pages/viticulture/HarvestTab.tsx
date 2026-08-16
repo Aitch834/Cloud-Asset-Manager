@@ -89,6 +89,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [vintageSummarySortDir, setVintageSummarySortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "vintageSummarySortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const vintageSort = { col: vintageSummarySortCol, dir: vintageSummarySortDir as "asc" | "desc" };
   const setVintageSort = (v: { col: string; dir: "asc" | "desc" }) => { setVintageSummarySortCol(v.col); setVintageSummarySortDir(v.dir); };
+  const [showVintageBrix, setShowVintageBrix] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVintageBrix", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVintagePh, setShowVintagePh] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVintagePh", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVintageTa, setShowVintageTa] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVintageTa", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVintagePa, setShowVintagePa] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVintagePa", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const vintageChemCols = {
+    avgBrix: showVintageBrix === "true",
+    avgPh:   showVintagePh   === "true",
+    avgTa:   showVintageTa   === "true",
+    avgPa:   showVintagePa   === "true",
+  };
   const [chemSort, setChemSort] = useState<{ col: string; dir: "asc" | "desc" } | null>(null);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -1382,78 +1392,107 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${blockSummaryOpen ? "rotate-90" : ""}`} />
               </button>
               {blockSummaryOpen && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                <>
+                  <div className="px-4 py-2 border-b flex items-center justify-end gap-2 bg-background">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                          <Beaker className="w-3.5 h-3.5" />
+                          Columns
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
                         {([
-                          { col: "vintage",    label: "Vintage",          align: "left"  },
-                          { col: "picks",      label: "Picks",            align: "right" },
-                          { col: "totalKg",    label: "Total Yield (kg)", align: "right" },
-                          { col: "derivedTha", label: "Avg t/ha",         align: "right" },
-                          { col: "avgBrix",    label: "Avg Brix °",       align: "right" },
-                          { col: "avgPh",      label: "Avg pH",           align: "right" },
-                          { col: "avgTa",      label: "Avg TA (g/L)",     align: "right" },
-                          { col: "avgPa",      label: "Avg Pot. Alc %",   align: "right" },
-                        ] as { col: string; label: string; align: "left" | "right" }[]).map(({ col, label, align }) => (
-                          <th key={col} className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}>
-                            <button
-                              type="button"
-                              onClick={() => toggleVintageSort(col)}
-                              className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${vintageSort.col === col ? "text-foreground" : ""}`}
-                            >
-                              {label}<VintageSortIcon col={col} />
-                            </button>
-                          </th>
+                          { key: "avgBrix", label: "Avg Brix °",     val: showVintageBrix, set: setShowVintageBrix },
+                          { key: "avgPh",   label: "Avg pH",          val: showVintagePh,   set: setShowVintagePh   },
+                          { key: "avgTa",   label: "Avg TA (g/L)",    val: showVintageTa,   set: setShowVintageTa   },
+                          { key: "avgPa",   label: "Avg Pot. Alc %",  val: showVintagePa,   set: setShowVintagePa   },
+                        ] as { key: string; label: string; val: string; set: (v: string) => void }[]).map(({ key, label, val, set }) => (
+                          <DropdownMenuItem
+                            key={key}
+                            onSelect={e => { e.preventDefault(); set(val === "true" ? "false" : "true"); }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Checkbox checked={val === "true"} className="pointer-events-none" />
+                            <span>{label}</span>
+                          </DropdownMenuItem>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedVintageRows.map((row, i) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-2 font-medium">{row.vintage}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {row.picks === 1 ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
-                            ) : row.picks <= 3 ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
-                            ) : (
-                              <span className="text-muted-foreground">{row.picks}</span>
-                            )}
-                          </td>
-                          <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.hasLinkedBlocksNoArea ? (
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
-                            ) : "—"}
-                          </td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                          {([
+                            { col: "vintage",    label: "Vintage",          align: "left",  show: true },
+                            { col: "picks",      label: "Picks",            align: "right", show: true },
+                            { col: "totalKg",    label: "Total Yield (kg)", align: "right", show: true },
+                            { col: "derivedTha", label: "Avg t/ha",         align: "right", show: true },
+                            { col: "avgBrix",    label: "Avg Brix °",       align: "right", show: vintageChemCols.avgBrix },
+                            { col: "avgPh",      label: "Avg pH",           align: "right", show: vintageChemCols.avgPh   },
+                            { col: "avgTa",      label: "Avg TA (g/L)",     align: "right", show: vintageChemCols.avgTa   },
+                            { col: "avgPa",      label: "Avg Pot. Alc %",   align: "right", show: vintageChemCols.avgPa   },
+                          ] as { col: string; label: string; align: "left" | "right"; show: boolean }[]).filter(c => c.show).map(({ col, label, align }) => (
+                            <th key={col} className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}>
+                              <button
+                                type="button"
+                                onClick={() => toggleVintageSort(col)}
+                                className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${vintageSort.col === col ? "text-foreground" : ""}`}
+                              >
+                                {label}<VintageSortIcon col={col} />
+                              </button>
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                    {vintageRows.length > 1 && (
-                      <tfoot>
-                        <tr className="border-t-2 bg-muted/40 font-semibold">
-                          <td className="px-4 py-2">Total / Average</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {vFooterDerivedTha != null ? vFooterDerivedTha.toFixed(2) : vFooterHasLinkedNoArea ? (
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
-                            ) : "—"}
-                          </td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgBrix != null ? vFooterAvgBrix.toFixed(1) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPh != null ? vFooterAvgPh.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTa != null ? vFooterAvgTa.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPa != null ? vFooterAvgPa.toFixed(2) : "—"}</td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {sortedVintageRows.map((row, i) => (
+                          <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                            <td className="px-4 py-2 font-medium">{row.vintage}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">
+                              {row.picks === 1 ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+                              ) : row.picks <= 3 ? (
+                                <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
+                              ) : (
+                                <span className="text-muted-foreground">{row.picks}</span>
+                              )}
+                            </td>
+                            <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">
+                              {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.hasLinkedBlocksNoArea ? (
+                                <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                              ) : "—"}
+                            </td>
+                            {vintageChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>}
+                            {vintageChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPh   != null ? row.avgPh.toFixed(2)   : "—"}</td>}
+                            {vintageChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgTa   != null ? row.avgTa.toFixed(2)   : "—"}</td>}
+                            {vintageChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPa   != null ? row.avgPa.toFixed(2)   : "—"}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                      {vintageRows.length > 1 && (
+                        <tfoot>
+                          <tr className="border-t-2 bg-muted/40 font-semibold">
+                            <td className="px-4 py-2">Total / Average</td>
+                            <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">
+                              {vFooterDerivedTha != null ? vFooterDerivedTha.toFixed(2) : vFooterHasLinkedNoArea ? (
+                                <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                              ) : "—"}
+                            </td>
+                            {vintageChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgBrix != null ? vFooterAvgBrix.toFixed(1) : "—"}</td>}
+                            {vintageChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPh   != null ? vFooterAvgPh.toFixed(2)   : "—"}</td>}
+                            {vintageChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgTa   != null ? vFooterAvgTa.toFixed(2)   : "—"}</td>}
+                            {vintageChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{vFooterAvgPa   != null ? vFooterAvgPa.toFixed(2)   : "—"}</td>}
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           );
