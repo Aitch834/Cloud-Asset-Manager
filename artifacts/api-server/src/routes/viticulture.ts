@@ -728,6 +728,37 @@ router.delete("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAut
   res.json({ success: true });
 });
 
+// ── Update a scouting photo's caption ────────────────────────────────────────
+router.patch("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const scoutingId = Number(req.params.id);
+  const photoId = Number(req.params.photoId);
+  const { caption } = req.body as { caption?: string | null };
+
+  if (typeof caption !== "string" && caption !== null) {
+    res.status(400).json({ error: "caption must be a string or null" });
+    return;
+  }
+
+  const [photo] = await db.select({ id: vineyardScoutingPhotosTable.id })
+    .from(vineyardScoutingPhotosTable)
+    .where(and(
+      eq(vineyardScoutingPhotosTable.id, photoId),
+      eq(vineyardScoutingPhotosTable.scoutingId, scoutingId),
+      eq(vineyardScoutingPhotosTable.farmId, farmId),
+    ))
+    .limit(1);
+
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  const [updated] = await db.update(vineyardScoutingPhotosTable)
+    .set({ caption: caption === null || caption.trim() === "" ? null : caption.trim() })
+    .where(eq(vineyardScoutingPhotosTable.id, photoId))
+    .returning();
+
+  res.json({ photo: updated });
+});
+
 // ─── Organic Viticulture — Block Conversion Status ────────────────────────────
 
 router.get("/farms/:farmId/organic-viticulture/block-status", requireAuth, requireTenant, requireModuleByKey("organic-viticulture", "read"), async (req: Request, res: Response): Promise<void> => {

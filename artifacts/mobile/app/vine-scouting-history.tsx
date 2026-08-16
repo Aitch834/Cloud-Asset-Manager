@@ -211,16 +211,122 @@ const lbStyles = StyleSheet.create({
   },
 });
 
+// ─── Caption Edit Modal ───────────────────────────────────────────────────────
+
+function CaptionEditModal({
+  visible,
+  initialCaption,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  initialCaption: string;
+  onSave: (caption: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(initialCaption);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (visible) setText(initialCaption);
+  }, [visible, initialCaption]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Pressable style={captionModalStyles.backdrop} onPress={onClose}>
+          <Pressable style={[captionModalStyles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
+            <Text style={captionModalStyles.title}>Edit Caption</Text>
+            <TextInput
+              style={captionModalStyles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder="Describe what this photo shows…"
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              multiline
+              numberOfLines={3}
+              maxLength={300}
+              autoFocus
+            />
+            <View style={captionModalStyles.actions}>
+              <Pressable style={captionModalStyles.cancelBtn} onPress={onClose}>
+                <Text style={captionModalStyles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={captionModalStyles.saveBtn} onPress={() => { onSave(text); onClose(); }}>
+                <Text style={captionModalStyles.saveBtnText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const captionModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#1c1c1e",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    gap: 16,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    padding: 12,
+    color: "#fff",
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+  },
+  cancelBtnText: { color: "#fff", fontSize: 15, fontWeight: "500" },
+  saveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#6d28d9",
+    alignItems: "center",
+  },
+  saveBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+});
+
+// ─── Scouting Photo Lightbox ──────────────────────────────────────────────────
+
 function ScoutingPhotoLightbox({
   photo,
   visible,
   onClose,
   onDelete,
+  onEditCaption,
 }: {
   photo: ScoutingPhoto | null;
   visible: boolean;
   onClose: () => void;
   onDelete: (id: number) => void;
+  onEditCaption: (photo: ScoutingPhoto) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [sharing, setSharing] = useState(false);
@@ -308,6 +414,13 @@ function ScoutingPhotoLightbox({
             )}
             <Text style={lbStyles.actionBtnText}>{sharing ? "Sharing…" : "Share"}</Text>
           </Pressable>
+          <Pressable
+            style={lbStyles.actionBtn}
+            onPress={() => onEditCaption(photo)}
+          >
+            <Feather name="edit-2" size={22} color="#fff" />
+            <Text style={lbStyles.actionBtnText}>Caption</Text>
+          </Pressable>
           <Pressable style={[lbStyles.actionBtn, lbStyles.actionBtnDanger]} onPress={handleDelete} disabled={deleting}>
             <Feather name="trash-2" size={22} color="#fca5a5" />
             <Text style={[lbStyles.actionBtnText, { color: "#fca5a5" }]}>Delete</Text>
@@ -325,11 +438,13 @@ function ScoutingPhotoThumbnail({
   onDelete,
   onPress,
   onReload,
+  onEditCaption,
 }: {
   photo: ScoutingPhoto;
   onDelete: (id: number) => void;
   onPress: (photo: ScoutingPhoto) => void;
   onReload?: () => void;
+  onEditCaption: (photo: ScoutingPhoto) => void;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
@@ -343,6 +458,10 @@ function ScoutingPhotoThumbnail({
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Photo Options", undefined, [
+      {
+        text: "Edit Caption",
+        onPress: () => onEditCaption(photo),
+      },
       {
         text: "Delete",
         style: "destructive",
@@ -396,6 +515,7 @@ function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scouting
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState<ScoutingPhoto | null>(null);
+  const [captionEditPhoto, setCaptionEditPhoto] = useState<ScoutingPhoto | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
@@ -473,6 +593,33 @@ function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scouting
     }
   };
 
+  const handleSaveCaption = async (photoId: number, caption: string) => {
+    const trimmed = caption.trim();
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: trimmed || null }),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, caption: trimmed || null } : p));
+        // Keep lightbox in sync if it's open
+        setLightboxPhoto((prev) => prev?.id === photoId ? { ...prev, caption: trimmed || null } : prev);
+      } else {
+        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+      }
+    } catch {
+      Alert.alert("Save Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  const handleOpenCaptionEdit = (photo: ScoutingPhoto) => {
+    setLightboxPhoto(null);
+    // small delay so lightbox closes before caption modal opens
+    setTimeout(() => setCaptionEditPhoto(photo), 150);
+  };
+
   return (
     <View style={editStyles.card}>
       <View style={photoStyles.photoHeader}>
@@ -480,7 +627,7 @@ function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scouting
         <Text style={photoStyles.photoHint}>{photos.length} attached</Text>
       </View>
       <Text style={editStyles.helperText}>
-        Tap a photo to view, share or delete. Long-press a thumbnail to delete quickly.
+        Tap a photo to view or edit its caption. Long-press a thumbnail for quick options.
       </Text>
       {loading ? (
         <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
@@ -499,6 +646,7 @@ function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scouting
               onDelete={handleDeletePhoto}
               onPress={setLightboxPhoto}
               onReload={() => loadPhotos({ silent: true })}
+              onEditCaption={handleOpenCaptionEdit}
             />
           )}
           ListEmptyComponent={
@@ -529,6 +677,15 @@ function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scouting
           handleDeletePhoto(id);
           setLightboxPhoto(null);
         }}
+        onEditCaption={handleOpenCaptionEdit}
+      />
+      <CaptionEditModal
+        visible={captionEditPhoto !== null}
+        initialCaption={captionEditPhoto?.caption ?? ""}
+        onSave={(caption) => {
+          if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
+        }}
+        onClose={() => setCaptionEditPhoto(null)}
       />
     </View>
   );
