@@ -929,7 +929,7 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
               <Text style={editStyles.quickLinkHint}>Jump to a related record for this scouting observation</Text>
               <Pressable
                 style={editStyles.quickLinkBtn}
-                onPress={() => { onClose(); router.push("/vine-operation"); }}
+                onPress={() => { onClose(); const params = record?.blockId ? { blockId: String(record.blockId) } : undefined; router.push(params ? { pathname: "/vine-operation", params } : "/vine-operation"); }}
               >
                 <Feather name="tool" size={16} color={colors.primary} />
                 <Text style={editStyles.quickLinkText}>Log Vineyard Operation</Text>
@@ -937,7 +937,7 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
               </Pressable>
               <Pressable
                 style={[editStyles.quickLinkBtn, { marginTop: spacing.sm }]}
-                onPress={() => { onClose(); router.push("/vine-harvest"); }}
+                onPress={() => { onClose(); const params = record?.blockId ? { blockId: String(record.blockId) } : undefined; router.push(params ? { pathname: "/vine-harvest", params } : "/vine-harvest"); }}
               >
                 <Feather name="package" size={16} color={colors.primary} />
                 <Text style={editStyles.quickLinkText}>Log Harvest Record</Text>
