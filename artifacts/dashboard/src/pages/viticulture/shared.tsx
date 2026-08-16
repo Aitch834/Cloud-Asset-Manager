@@ -2783,6 +2783,147 @@ export async function printSprayRecords(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+/**
+ * Opens a print-ready Vine Spray Diary export in a new window using the same
+ * tabular template as the mobile share/export. Reflects the current filtered
+ * records (search + block + year) so growers always print what they see.
+ */
+export function printVineSprayDiaryReport(
+  records: Record<string, unknown>[],
+  blocks: Record<string, unknown>[],
+  farmName: string,
+  farmMeta: Record<string, unknown> | null | undefined,
+  searchQuery?: string,
+) {
+  const win = window.open("", "_blank", "width=1200,height=850");
+  if (!win) return;
+
+  const blockLookup: Record<number, string> = {};
+  blocks.forEach(b => { blockLookup[b.id as number] = String(b.blockName ?? b.id); });
+  const resolveBlock = (id: unknown): string => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? (blockLookup[bid] ?? "—") : "—";
+  };
+
+  const safeFarmName = escHtml(farmName);
+  const addressValue = String(farmMeta?.address ?? "").trim();
+  const postcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const addressParts = [addressValue, postcodeValue].filter(Boolean).map(escHtml).join(", ");
+  const eSearch = searchQuery && searchQuery.trim() ? escHtml(searchQuery.trim()) : "";
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const missingFields: string[] = [];
+  if (!farmName || !farmName.trim()) missingFields.push("Farm name");
+  if (!addressValue) missingFields.push("Farm address");
+  const missingWarning = missingFields.length > 0
+    ? `<div class="warning-box">&#9888; ${missingFields.join(" and ")} not set — update Farm Settings to populate the header.</div>`
+    : "";
+
+  const tableRows = records.map(r => {
+    const rate = r.ratePerHectare != null
+      ? `${r.ratePerHectare} ${escHtml(r.rateUnit ?? "")}`.trim()
+      : "—";
+    const weatherParts: string[] = [];
+    if (r.windSpeedMph != null && r.windSpeedMph !== "") weatherParts.push(`${r.windSpeedMph} mph`);
+    if (r.temperatureCelsius != null && r.temperatureCelsius !== "") weatherParts.push(`${r.temperatureCelsius} \u00b0C`);
+    if (r.weatherConditions) weatherParts.push(escHtml(r.weatherConditions as string));
+    const weather = weatherParts.length > 0 ? weatherParts.join(" &middot; ") : "—";
+    const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
+
+    return `<tr>
+      <td>${appDate}</td>
+      <td><strong>${escHtml(r.productName)}</strong>${r.productType ? `<br><span style="color:#555;font-size:8.5pt">${escHtml(r.productType)}</span>` : ""}</td>
+      <td>${escHtml(r.mappNumber)}</td>
+      <td>${escHtml(r.activeIngredient)}</td>
+      <td>${rate}</td>
+      <td style="text-align:right">${r.areaTreatedHa != null && r.areaTreatedHa !== "" ? `${parseFloat(String(r.areaTreatedHa)).toFixed(2)} ha` : "—"}</td>
+      <td>${escHtml(resolveBlock(r.blockId))}</td>
+      <td style="font-size:8.5pt">${weather}</td>
+      <td>${escHtml(r.operatorName)}${r.operatorCertificateNo ? `<br><span style="color:#555;font-size:8pt">${escHtml(r.operatorCertificateNo)}</span>` : ""}</td>
+    </tr>`;
+  }).join("");
+
+  const notesRows = records.filter(r => r.notes).map(r => {
+    const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
+    return `<tr>
+      <td style="width:22%;font-weight:600">${appDate} &mdash; ${escHtml(r.productName)}</td>
+      <td>${escHtml(r.notes)}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>Vine Spray Diary &mdash; ${safeFarmName}</title>
+  <style>
+    @page { size: A4 landscape; margin: 16mm 12mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111; margin: 0; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e4f8a; padding-bottom: 10px; margin-bottom: 12px; }
+    .logo-block h1 { font-size: 16px; margin: 0 0 2px; color: #0e4f8a; }
+    .logo-block p { margin: 0; font-size: 10px; color: #666; }
+    .doc-title { text-align: right; }
+    .doc-title h2 { font-size: 14px; margin: 0 0 3px; color: #0e4f8a; }
+    .doc-title p { margin: 1px 0; font-size: 10px; color: #555; }
+    .farm-bar { display: flex; gap: 28px; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 4px; padding: 6px 10px; font-size: 10px; margin-bottom: 10px; }
+    .warning-box { background: #fffbeb; border: 1px solid #fcd34d; padding: 6px 10px; border-radius: 4px; font-size: 10px; margin-bottom: 8px; color: #78350f; }
+    .info-box { background: #f0f9ff; border: 1px solid #7dd3fc; padding: 6px 10px; border-radius: 4px; font-size: 10px; margin-bottom: 12px; color: #075985; }
+    .section-heading { font-size: 11px; font-weight: 700; border-bottom: 1px solid #0e4f8a; padding-bottom: 3px; margin: 12px 0 6px; color: #0e4f8a; text-transform: uppercase; letter-spacing: 0.04em; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #0e4f8a; color: white; padding: 5px 5px; text-align: left; font-size: 8pt; white-space: nowrap; }
+    td { padding: 4px 5px; border: 1px solid #d1d5db; vertical-align: top; }
+    tr:nth-child(even) td { background: #f5f8ff; }
+    .footer { margin-top: 12px; font-size: 9px; color: #666; border-top: 1px solid #ccc; padding-top: 6px; }
+    @media print { body { margin: 0; } }
+  </style></head><body>
+  <div class="header">
+    <div class="logo-block">
+      <h1>BDE Farm Trac</h1>
+      <p>Vineyard Compliance Platform</p>
+    </div>
+    <div class="doc-title">
+      <h2>Vine Spray Diary</h2>
+      <p>Date: ${safeDate}</p>
+      <p>${records.length} record${records.length === 1 ? "" : "s"}${eSearch ? ` &middot; Filter: &ldquo;${eSearch}&rdquo;` : ""}</p>
+    </div>
+  </div>
+  <div class="farm-bar">
+    <span>Farm: <strong>${safeFarmName}</strong></span>
+    <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
+    ${addressParts ? `<span>Address: <strong>${addressParts}</strong></span>` : ""}
+  </div>
+  ${missingWarning}
+  <div class="info-box">
+    &#8505; This spray diary must be retained for a minimum of 3 years. All pesticide applications must comply
+    with product label instructions and current certification requirements.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Product</th>
+        <th>MAPP No.</th>
+        <th>Active Ingredient</th>
+        <th>Rate</th>
+        <th style="text-align:right">Area</th>
+        <th>Block</th>
+        <th>Weather</th>
+        <th>Operator</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows || `<tr><td colspan="9" style="text-align:center;color:#888;padding:14px">No spray diary records match the current filter.</td></tr>`}
+    </tbody>
+  </table>
+  ${notesRows ? `<div class="section-heading">Notes</div><table><tbody>${notesRows}</tbody></table>` : ""}
+  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Vine Spray Diary &nbsp;&middot;&nbsp; Plant Protection Products Regulations 2011 &nbsp;&middot;&nbsp; Retain for 3 years</div>
+  </body></html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { setTimeout(() => win.print(), 200); };
+}
+
 export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: "None", color: "text-gray-400" },
   1: { label: "Low", color: "text-green-600" },
