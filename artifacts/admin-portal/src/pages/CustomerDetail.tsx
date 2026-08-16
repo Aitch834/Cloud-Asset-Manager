@@ -8,6 +8,151 @@ import {
   TrendingDown, RotateCcw, AlertTriangle, Zap, Plus, Trash2, Package, Pencil, X,
 } from "lucide-react";
 
+const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+
+function normalisePostcode(raw: string): string {
+  const stripped = raw.replace(/\s+/g, "").toUpperCase();
+  if (stripped.length > 3) return stripped.slice(0, -3) + " " + stripped.slice(-3);
+  return raw.toUpperCase();
+}
+
+interface FarmEditDialogProps {
+  farm: Farm;
+  tenantId: number;
+  onClose: () => void;
+  onSaved: (updated: Farm) => void;
+}
+
+function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProps) {
+  const secret = getSecret()!;
+  const [name, setName] = useState(farm.name);
+  const [address, setAddress] = useState(farm.address ?? "");
+  const [postcode, setPostcode] = useState(farm.postcode ?? "");
+  const [postcodeBlurred, setPostcodeBlurred] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const postcodeVal = postcode.trim();
+  const postcodeWarn =
+    postcodeBlurred &&
+    postcodeVal.length > 0 &&
+    !UK_POSTCODE_RE.test(postcodeVal);
+
+  async function handleSave() {
+    const normalisedPostcode = postcodeVal ? normalisePostcode(postcodeVal) : "";
+    setPostcode(normalisedPostcode);
+    setPostcodeBlurred(true);
+
+    if (!name.trim()) { setError("Farm name cannot be empty"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await api.updateFarm(tenantId, farm.id, {
+        name: name.trim(),
+        address: address.trim() || null,
+        postcode: normalisedPostcode || null,
+      }, secret);
+      onSaved(result.farm);
+      onClose();
+    } catch (e) {
+      setError("Failed to save. Please try again.");
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-primary" />
+            </div>
+            <h3 className="font-bold text-foreground">Edit Farm Details</h3>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Farm Name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g. Home Farm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Address
+            </label>
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              placeholder="Street, town or village"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Postcode
+            </label>
+            <input
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value)}
+              onBlur={() => {
+                setPostcodeBlurred(true);
+                if (postcode.trim()) setPostcode(normalisePostcode(postcode));
+              }}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g. DT1 1AA"
+            />
+            {postcodeWarn && (
+              <p className="mt-1.5 text-xs text-amber-600 flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <p className="text-xs text-destructive">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -237,6 +382,7 @@ export default function CustomerDetail() {
   const [selectedModuleId, setSelectedModuleId] = useState<Record<number, string>>({});
   const [savingAddFarmId, setSavingAddFarmId] = useState<number | null>(null);
   const [removingSubId, setRemovingSubId] = useState<number | null>(null);
+  const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
 
   // Farm inline edit state
   const [editingFarmId, setEditingFarmId] = useState<number | null>(null);
@@ -807,6 +953,14 @@ export default function CustomerDetail() {
                       </button>
                     )}
                     <button
+                      onClick={() => setEditingFarm(farm)}
+                      title="Edit farm name, address, and postcode"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-accent transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleDownloadGuide(farm)}
                       disabled={isDownloading}
                       title="Download tailored setup guide PDF"
@@ -940,6 +1094,18 @@ export default function CustomerDetail() {
           tenant={tenant}
           onClose={() => setShowChurnDialog(false)}
           onSaved={(updated) => setTenant(updated)}
+        />
+      )}
+
+      {editingFarm && (
+        <FarmEditDialog
+          farm={editingFarm}
+          tenantId={tenantId}
+          onClose={() => setEditingFarm(null)}
+          onSaved={(updated) => {
+            setFarms((prev) => prev.map((f) => (f.id === updated.id ? { ...f, name: updated.name, address: updated.address, postcode: updated.postcode } : f)));
+            setEditingFarm(null);
+          }}
         />
       )}
     </div>
