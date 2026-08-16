@@ -487,6 +487,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     queryKey: ["farm-dashboard", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/dashboard`).then(r => r.json()),
     enabled: !!farmId,
+    // Match the staleTime used by useVessels (winery/shared.tsx) so both
+    // observers share the same freshness window and the sidebar never briefly
+    // shows module links from a previous farm's stale cache entry.
+    staleTime: 60_000,
   });
 
   const currentFarm = farmDetail?.record;
@@ -494,10 +498,20 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const activeModuleKeys = useMemo(() => {
     const keys = new Set<string>();
     const subs = dashboardData?.activeSubscriptions;
-    if (Array.isArray(subs)) {
-      for (const sub of subs) {
-        const s = sub as { moduleName?: string; moduleKey?: string; status?: string };
-        if (s.moduleKey) keys.add(s.moduleKey);
+    if (!Array.isArray(subs)) return keys;
+    const nowMs = Date.now();
+    for (const sub of subs) {
+      const s = sub as { moduleKey?: string; status?: string; currentPeriodEnd?: string | null };
+      if (!s.moduleKey) continue;
+      // Only include subscriptions that are genuinely active or within a live
+      // trial period.  The API pre-filters activeSubs, but bundled entries
+      // injected server-side carry status:"active" unconditionally — this
+      // client-side guard ensures the sidebar never uses a stale or
+      // cancelled subscription to unlock a nav section.
+      if (s.status === "active") { keys.add(s.moduleKey); continue; }
+      if (s.status === "trial") {
+        const end = s.currentPeriodEnd ? new Date(s.currentPeriodEnd).getTime() : Infinity;
+        if (end > nowMs) keys.add(s.moduleKey);
       }
     }
     return keys;
