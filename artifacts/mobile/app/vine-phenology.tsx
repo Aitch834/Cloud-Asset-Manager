@@ -28,6 +28,7 @@ import { appendToList, generateId } from "@/lib/storage";
 import { useUiPrefs, runUiPrefBatchMigration, dismissHintDurable } from "@/lib/hooks/useUiPrefs";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { apiFetch } from "@/lib/apiFetch";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -59,28 +60,31 @@ const BBCH_STAGES: { code: string; desc: string; season: string }[] = [
 
 const seasons = Array.from(new Set(BBCH_STAGES.map(s => s.season)));
 
-// Maps BBCH stage codes to WineGB's seasonal vineyard surveys
-const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string }> = {
-  "05": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "07": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "09": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "11": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "13": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "15": { surveyName: "Bud Burst Survey", label: "bud burst" },
-  "53": { surveyName: "Flowering Survey", label: "flowering" },
-  "55": { surveyName: "Flowering Survey", label: "flowering" },
-  "57": { surveyName: "Flowering Survey", label: "flowering" },
-  "60": { surveyName: "Flowering Survey", label: "flowering" },
-  "65": { surveyName: "Flowering Survey", label: "flowering" },
-  "68": { surveyName: "Flowering Survey", label: "flowering" },
-  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development" },
-  "77": { surveyName: "Véraison Survey", label: "véraison" },
-  "81": { surveyName: "Véraison Survey", label: "véraison" },
-  "83": { surveyName: "Véraison Survey", label: "véraison" },
-  "85": { surveyName: "Véraison Survey", label: "véraison" },
-  "89": { surveyName: "Harvest Survey", label: "harvest" },
+type WinegbSurveyKey = "bud_burst" | "flowering" | "veraison" | "harvest";
+
+// Maps BBCH stage codes to WineGB's seasonal vineyard surveys.
+// surveyKey matches the server's WinegbSurveyKey (null = no checklist entry).
+const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string; surveyKey: WinegbSurveyKey | null }> = {
+  "05": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "07": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "09": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "11": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "13": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "15": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
+  "53": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "55": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "57": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "60": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "65": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "68": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
+  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
+  "77": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "81": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "83": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "85": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
+  "89": { surveyName: "Harvest Survey", label: "harvest", surveyKey: "harvest" },
 };
 
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
@@ -208,8 +212,47 @@ export default function VinePhenologyScreen() {
     if (currentFarm?.sectorViticulture) {
       const survey = WINEGB_SURVEY_MAP[selectedStage.code];
       if (survey && prefsReady && migrationDone && !isHintDismissed(winegbPrefKey(survey.surveyName, currentSeasonYear))) {
-        setWinegbSurveyBanner(survey);
-        return; // stay on screen to show banner
+        if (survey.surveyKey) {
+          // This survey has a checklist entry — check if already ticked for the year,
+          // then offer to mark it submitted via an Alert.
+          const obsYear = observationDate
+            ? new Date(observationDate).getFullYear()
+            : currentSeasonYear;
+          try {
+            const res = await apiFetch(`/api/farms/${currentFarm?.id}/winegb-submissions?year=${obsYear}`);
+            if (res.ok) {
+              const payload = await res.json() as { submissions: Record<string, { submitted: boolean }> };
+              const alreadySubmitted = payload.submissions?.[survey.surveyKey]?.submitted ?? false;
+              if (!alreadySubmitted) {
+                Alert.alert(
+                  `Mark ${survey.surveyName} as submitted?`,
+                  `You've recorded a ${survey.label} observation. Have you already submitted your data to WineGB for ${obsYear}?`,
+                  [
+                    {
+                      text: "Mark as Submitted",
+                      onPress: async () => {
+                        try {
+                          await apiFetch(`/api/farms/${currentFarm?.id}/winegb-submissions/${survey.surveyKey}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ submitted: true, year: obsYear }),
+                          });
+                        } catch { /* best-effort */ }
+                        router.back();
+                      },
+                    },
+                    { text: "Not Yet", style: "cancel", onPress: () => router.back() },
+                  ],
+                );
+                return; // wait for Alert button before navigating
+              }
+            }
+          } catch { /* network error — fall through to router.back() */ }
+        } else {
+          // No checklist key (e.g. Fruit Set) — show the external-link banner
+          setWinegbSurveyBanner(survey);
+          return; // stay on screen to show banner
+        }
       }
     }
 
