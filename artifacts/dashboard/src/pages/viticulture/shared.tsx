@@ -137,7 +137,7 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
       <div className="flex items-start gap-2.5 mb-2.5">
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
         <div>
-          <p className="text-sm font-semibold text-amber-800">FSA / APPA registration incomplete</p>
+          <p className="text-sm font-semibold text-amber-800">FSA / APPA / WineGB registration incomplete</p>
           <p className="text-xs text-amber-700 mt-0.5">
             Missing references will appear blank in printed reports. Add them in{" "}
             <button
