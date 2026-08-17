@@ -4,37 +4,8 @@ import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
-  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Tractor,
+  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout,
 } from "lucide-react";
-
-// Extract "Sector: <value>" from the packed notes field (first line when present)
-function parseSector(notes: string | null | undefined): string | null {
-  if (!notes) return null;
-  const line = notes.split("\n")[0];
-  const match = line.match(/^Sector:\s*(.+)$/);
-  return match ? match[1].trim() : null;
-}
-
-const SECTOR_COLORS: Record<string, string> = {
-  "Beef & Dairy":              "bg-amber-100 text-amber-800",
-  "Sheep & Goat":              "bg-sky-100 text-sky-800",
-  "Arable":                    "bg-lime-100 text-lime-800",
-  "Viticulture":               "bg-purple-100 text-purple-800",
-  "Mixed Farming":             "bg-orange-100 text-orange-800",
-  "Agricultural Contracting":  "bg-teal-100 text-teal-800",
-};
-
-function SectorBadge({ sector }: { sector: string }) {
-  const color = SECTOR_COLORS[sector] ?? "bg-gray-100 text-gray-700";
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${color}`}>
-      <Tractor className="w-3 h-3" />
-      {sector}
-    </span>
-  );
-}
-
-const SECTORS = Object.keys(SECTOR_COLORS);
 
 const STATUSES = [
   { value: "new", label: "New", color: "bg-blue-100 text-blue-700", icon: Clock },
@@ -80,6 +51,44 @@ const MODULE_LABELS: Record<string, string> = {
   "biofuel-rtfo": "Biofuel / RTFO",
 };
 
+const SECTORS = [
+  "Beef & Dairy",
+  "Sheep & Goat",
+  "Arable",
+  "Viticulture",
+  "Mixed Farming",
+  "Agricultural Contracting",
+];
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Beef & Dairy":              "bg-orange-100 text-orange-700",
+  "Sheep & Goat":              "bg-amber-100 text-amber-700",
+  "Arable":                    "bg-yellow-100 text-yellow-700",
+  "Viticulture":               "bg-purple-100 text-purple-700",
+  "Mixed Farming":             "bg-teal-100 text-teal-700",
+  "Agricultural Contracting":  "bg-sky-100 text-sky-700",
+};
+
+/** Extract "Sector: X" from the packed notes field (returns null if absent). */
+function parseSector(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  for (const line of notes.split("\n")) {
+    const m = line.match(/^Sector:\s*(.+)$/);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+function SectorBadge({ sector }: { sector: string }) {
+  const color = SECTOR_COLORS[sector] ?? "bg-gray-100 text-gray-700";
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${color}`}>
+      <Sprout className="w-3 h-3" />
+      {sector}
+    </span>
+  );
+}
+
 function statusMeta(status: string) {
   return STATUSES.find((s) => s.value === status) ?? STATUSES[0];
 }
@@ -121,6 +130,8 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  const sector = parseSector(lead.notes);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -151,6 +162,16 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {sector && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Sprout className="w-3 h-3" />
+                Sector of Interest
+              </p>
+              <SectorBadge sector={sector} />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
@@ -429,7 +450,11 @@ export default function Leads() {
                   {lead.contactName} · {lead.email}
                 </p>
               </div>
-              {(() => { const s = parseSector(lead.notes); return s ? <span className="hidden md:block"><SectorBadge sector={s} /></span> : null; })()}
+              {(() => { const s = parseSector(lead.notes); return s ? (
+                <span className="hidden lg:block shrink-0">
+                  <SectorBadge sector={s} />
+                </span>
+              ) : null; })()}
               {lead.source && (
                 <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
                   <Tag className="w-3 h-3" />

@@ -748,12 +748,12 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
                 <span className="font-medium shrink-0">{fmtDate(c.clean_date)}</span>
                 <span className="text-muted-foreground shrink-0">{fmt(c.clean_type)}</span>
                 <span className="text-muted-foreground truncate">{fmt(c.cleaning_product)}</span>
-                {(c.concentration_pct != null || c.contact_time_min != null || c.water_temp_c != null) && (
+                {(c.concentration_pct != null || c.water_temp_c != null || c.contact_time_min != null) && (
                   <span className="text-muted-foreground shrink-0">
                     {[
                       c.concentration_pct != null ? `${c.concentration_pct}%` : null,
-                      c.contact_time_min  != null ? `${c.contact_time_min} min` : null,
                       c.water_temp_c      != null ? `${c.water_temp_c}°C` : null,
+                      c.contact_time_min  != null ? `${c.contact_time_min} min` : null,
                     ].filter(Boolean).join(" · ")}
                   </span>
                 )}
@@ -761,8 +761,8 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
               </div>
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
