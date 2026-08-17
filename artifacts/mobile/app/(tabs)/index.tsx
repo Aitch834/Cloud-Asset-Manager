@@ -61,6 +61,13 @@ export default function HomeScreen() {
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
   const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
   const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
+  const [upcomingMilestones, setUpcomingMilestones] = useState<Array<{
+    id: number;
+    milestoneName: string;
+    dueDate: string;
+    schemeName: string;
+    isOverdue: boolean;
+  }>>([]);
 
   const fetchFPInputDerogAlerts = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -79,6 +86,42 @@ export default function HomeScreen() {
           .filter((t) => t.type === "organic_fp_derogation_expiry")
           .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red" })),
       );
+    } catch { /* ignore */ }
+  }, [currentFarm?.id]);
+
+  const fetchUpcomingMilestones = useCallback(async () => {
+    if (!currentFarm?.id) return;
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/planner-events`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const milestones: Array<{
+        id: number;
+        milestoneName: string;
+        dueDate: string;
+        status: string;
+        schemeName: string;
+      }> = data.milestones ?? [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today);
+      horizon.setDate(horizon.getDate() + 90);
+      const upcoming = milestones
+        .filter((m) => {
+          if (!m.dueDate) return false;
+          if (m.status === "paid" || m.status === "cancelled") return false;
+          const due = new Date(m.dueDate);
+          return due <= horizon;
+        })
+        .map((m) => ({
+          id: m.id,
+          milestoneName: m.milestoneName,
+          dueDate: m.dueDate,
+          schemeName: m.schemeName,
+          isOverdue: new Date(m.dueDate) < today,
+        }))
+        .slice(0, 5);
+      setUpcomingMilestones(upcoming);
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
 
@@ -116,7 +159,8 @@ export default function HomeScreen() {
     useCallback(() => {
       fetchUnlinkedCounts();
       fetchFPInputDerogAlerts();
-    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts])
+      fetchUpcomingMilestones();
+    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones])
   );
 
   // Also re-fetch immediately when a history screen changes a block link inline
@@ -566,6 +610,44 @@ export default function HomeScreen() {
           </>
         )}
 
+        {upcomingMilestones.length > 0 && (
+          <>
+            <SectionHeader title="Grant Milestones" />
+            {upcomingMilestones.map((ms) => (
+              <Pressable
+                key={ms.id}
+                style={[
+                  styles.unlinkedBanner,
+                  ms.isOverdue ? styles.alertBannerRed : styles.milestoneBanner,
+                ]}
+                onPress={() => router.push("/agri-env-projects")}
+              >
+                <View style={[
+                  styles.unlinkedIconWrap,
+                  { backgroundColor: ms.isOverdue ? "#DC262622" : "#0D9488" + "22" },
+                ]}>
+                  <Feather
+                    name="flag"
+                    size={18}
+                    color={ms.isOverdue ? "#DC2626" : "#0D9488"}
+                  />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>{ms.milestoneName}</Text>
+                  <Text style={[styles.unlinkedSubtitle, ms.isOverdue && { color: "#DC2626" }]}>
+                    {ms.schemeName
+                      ? `${ms.schemeName} · `
+                      : ""}
+                    {ms.isOverdue ? "Overdue — was due " : "Due "}
+                    {new Date(ms.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            ))}
+          </>
+        )}
+
         {recentActivity.length > 0 && (
           <>
             <SectionHeader title="Recent Activity" />
@@ -772,5 +854,9 @@ const styles = StyleSheet.create({
   alertBannerAmber: {
     backgroundColor: colors.warningBg,
     borderColor: colors.warning + "55",
+  },
+  milestoneBanner: {
+    backgroundColor: "#F0FDFA",
+    borderColor: "#0D948855",
   },
 });
