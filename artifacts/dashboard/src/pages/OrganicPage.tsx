@@ -268,6 +268,31 @@ function exportCertificationSummaryCSV(records: Certification[], farmName: strin
   ];
   downloadCsvFile(`${safeName}_Organic_Certification_${dateStr}.csv`, rows);
 }
+
+function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cropYear: number | null) {
+  const fmtDate = (v: string | null | undefined) => {
+    if (!v) return "";
+    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
+  };
+  const safeName = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+  const yearPart = cropYear ? `-${cropYear}` : "";
+  downloadCsvFile(`input-register${yearPart}-${safeName}.csv`, [
+    ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref", "Approval Status", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
+    ...records.map(r => [
+      fmtDate(r.dateOfUse),
+      r.productName,
+      r.inputType ?? "",
+      r.supplier ?? "",
+      r.poReference ?? "",
+      r.grnReference ?? "",
+      APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
+      r.certifierApprovalRef ?? "",
+      r.fieldName ?? "",
+      r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "",
+      r.notes ?? "",
+    ]),
+  ]);
+}
 function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
@@ -1688,6 +1713,9 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                 {restricted > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{restricted} restricted</span>}
                 {derogation > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{derogation} derogation</span>}
               </div>
+              <Button variant="outline" size="sm" onClick={() => downloadInputRegisterCsv(records, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+                <Download className="w-4 h-4" />Export CSV
+              </Button>
               <Button variant="outline" size="sm" onClick={() => printInputRegister(records, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
                 <Printer className="w-4 h-4" />Print Register
               </Button>
