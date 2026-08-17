@@ -566,6 +566,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
   const [draftPreviewPending,      setDraftPreviewPending]      = useState(false);
   const [draftPreviewError,        setDraftPreviewError]        = useState<string | null>(null);
   const [draftPreviewMissingAssets, setDraftPreviewMissingAssets] = useState<string[] | null>(null);
+  // Track whether a preview has ever been successfully generated — used to keep
+  // the missing-placeholder warning visible even after subsequent HTML edits clear
+  // the preview image.
+  const [hasEverPreviewed, setHasEverPreviewed] = useState(false);
   const prevDraftObjectUrl = useRef<string | null>(null);
   // Monotonic revision counter — completed fetches whose revision doesn't match the
   // current one are discarded, preventing stale responses from overwriting a newer preview.
@@ -642,6 +646,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
       if (prevDraftObjectUrl.current) URL.revokeObjectURL(prevDraftObjectUrl.current);
       prevDraftObjectUrl.current = url;
       setDraftPreviewUrl(url);
+      setHasEverPreviewed(true);
     } catch (err) {
       if (thisRevision !== previewRevision.current) return;
       if (err instanceof MissingAssetsError) {
@@ -765,24 +770,27 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
           </div>
         )}
 
+        {/* Missing-placeholder warning shown independently of the preview image so it
+            persists after the admin edits the HTML following a successful preview. */}
+        {hasEverPreviewed && missingPlaceholders.length > 0 && (
+          <div className="flex items-start gap-2 px-3 py-2 mt-2 rounded-md bg-amber-50 border border-amber-200">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+            <p className="text-xs text-amber-800">
+              <span className="font-medium">Incomplete preview</span> — the following required placeholder{missingPlaceholders.length > 1 ? "s are" : " is"} absent from the template, so{" "}
+              {missingPlaceholders.length > 1 ? "those assets will" : "that asset will"} appear blank:{" "}
+              {missingPlaceholders.map((p, i) => (
+                <span key={p}>
+                  <code className="bg-amber-100 px-1 rounded">{p}</code>
+                  {i < missingPlaceholders.length - 1 ? ", " : ""}
+                </span>
+              ))}
+            </p>
+          </div>
+        )}
+
         {draftPreviewUrl && (
           <div className="mt-3 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Draft preview</p>
-            {missingPlaceholders.length > 0 && (
-              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-                <p className="text-xs text-amber-800">
-                  <span className="font-medium">Incomplete preview</span> — the following required placeholder{missingPlaceholders.length > 1 ? "s are" : " is"} absent from the template, so{" "}
-                  {missingPlaceholders.length > 1 ? "those assets will" : "that asset will"} appear blank:{" "}
-                  {missingPlaceholders.map((p, i) => (
-                    <span key={p}>
-                      <code className="bg-amber-100 px-1 rounded">{p}</code>
-                      {i < missingPlaceholders.length - 1 ? ", " : ""}
-                    </span>
-                  ))}
-                </p>
-              </div>
-            )}
             {typoPlaceholders.length > 0 && (
               <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
