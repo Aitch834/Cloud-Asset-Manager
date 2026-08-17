@@ -28252,6 +28252,122 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
         legalNotificationDate: new Date(),
         bcmsSubmissionRef: result.reference ?? `LIS-SANDBOX-${submission.id}`,
       }).where(eq(livestockMovementsTable.id, movementId));
+
+      // ── INC0208722 closure email ──────────────────────────────────────────────
+      // On every successful *production* (non-sandbox) CLA submission, attempt to
+      // claim or reclaim the INC0208722 notification slot and send the closure email.
+      //
+      // State machine (lis_incident_notifications.status):
+      //   pending_send — claimed by this worker; email in flight
+      //   sent         — successfully delivered; claim locked forever
+      //   failed       — last attempt failed; eligible for reclaim
+      //
+      // The single atomic query handles all cases:
+      //   - Fresh DB: INSERT → pending_send → we send
+      //   - Concurrent fresh submissions: only the INSERT winner gets RETURNING;
+      //     the loser sees conflict with status=pending_send (not failed) → no row
+      //   - Retry after failure: UPDATE WHERE status='failed' → pending_send → we send
+      //   - Stale pending_send (process crashed before final UPDATE): reclaim after
+      //     10-minute timeout so the claim is never permanently abandoned
+      //   - Already sent: conflict + status='sent' → WHERE false → no row → skip
+      if (!result.sandbox) {
+        try {
+          // Use the returned reference if available; fall back to a sentinel so
+          // the closure email still fires and BDE can locate the submission manually
+          const lisRef = result.reference ?? `(submission-id:${submission.id} — ref not returned by LIS API)`;
+          const movDateFmt = movDate ?? new Date().toISOString().slice(0, 10);
+
+          const claimResult = await db.execute<{ id: number }>(sql`
+            INSERT INTO lis_incident_notifications (incident_ref, lis_reference, status, claimed_at)
+            VALUES ('INC0208722', ${lisRef}, 'pending_send', now())
+            ON CONFLICT (incident_ref) DO UPDATE
+              SET lis_reference = EXCLUDED.lis_reference,
+                  status        = 'pending_send',
+                  claimed_at    = now(),
+                  updated_at    = now()
+              WHERE lis_incident_notifications.status = 'failed'
+                 OR (lis_incident_notifications.status = 'pending_send'
+                     AND lis_incident_notifications.claimed_at < now() - interval '10 minutes')
+            RETURNING id
+          `);
+
+          if (claimResult.rows.length > 0) {
+            const notifId = claimResult.rows[0].id;
+            const body = `
+              <p>Dear Aquil,</p>
+              <p>
+                We are writing in relation to incident <strong>INC0208722</strong> raised with LIS Developer
+                Hub support regarding BDE Farm Trac's integration with the CLA (Common Livestock Application) API.
+              </p>
+              <p>
+                We are pleased to confirm that our first live production movement submission has been
+                successfully processed via the CLA v1.0 API. Please find the details below for your
+                records and validation:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="background:#f0f7f4;border-radius:6px;margin:20px 0;">
+                <tr><td style="padding:20px 24px;">
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">LIS Movement Document Reference</p>
+                  <p style="margin:0 0 16px;font-size:22px;font-weight:bold;color:#1a1a1a;font-family:monospace;">${lisRef}</p>
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Movement Date</p>
+                  <p style="margin:0 0 16px;font-size:14px;color:#374151;">${movDateFmt}</p>
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">API Endpoint</p>
+                  <p style="margin:0;font-size:14px;color:#374151;">POST https://cla.api.livestockinformation.org.uk/v1.0/TransferRequests</p>
+                </td></tr>
+              </table>
+              <p>
+                Could you please confirm receipt of this submission on your side and, once validated,
+                mark incident <strong>INC0208722</strong> as resolved? We would also appreciate
+                confirmation that the reference format and submission content meet your expectations
+                for ongoing production use.
+              </p>
+              <p>
+                If you need any additional details (farm CPH, subscription key, or further test
+                submissions) please do not hesitate to contact us.
+              </p>
+              <p>
+                Kind regards,<br />
+                BDE Farm Trac Technical Team<br />
+                <small style="color:#6b7280;">Barnett Davies Enterprises Ltd · hello@bdefarmtrac.co.uk</small>
+              </p>
+            `;
+
+            const emailResult = await sendAdminEmail({
+              to: "incidentmanagement@livestockinformation.org.uk",
+              toName: "Aquil Asif — LIS Support",
+              subject: "INC0208722 — First live CLA production submission confirmed",
+              body,
+              replyTo: "hello@bdefarmtrac.co.uk",
+            });
+
+            // Persist final state — sent locks the slot; failed leaves it reclaimable
+            if (emailResult.sent) {
+              await db.execute(sql`
+                UPDATE lis_incident_notifications
+                SET status = 'sent', email_sent_at = now(), email_error = NULL, updated_at = now()
+                WHERE id = ${notifId}
+              `);
+              console.log(`[LIS] INC0208722 closure email sent to LIS support — ref: ${lisRef}`);
+            } else {
+              await db.execute(sql`
+                UPDATE lis_incident_notifications
+                SET status = 'failed', email_error = ${emailResult.reason ?? "unknown"}, updated_at = now()
+                WHERE id = ${notifId}
+              `);
+              console.warn(`[LIS] INC0208722 closure email FAILED (will retry on next production submission): ${emailResult.reason}`);
+            }
+
+            // Internal copy so BDE can track delivery and manually intervene if needed
+            await sendAdminEmail({
+              to: "hello@bdefarmtrac.co.uk",
+              subject: `[Internal] INC0208722 closure email ${emailResult.sent ? "sent ✓" : "FAILED — action required"} — LIS ref ${lisRef}`,
+              body: `<p>An automated closure email for LIS incident INC0208722 was ${emailResult.sent ? "successfully sent" : "<strong style='color:red'>NOT sent due to an SMTP error</strong>"} to <strong>incidentmanagement@livestockinformation.org.uk</strong> following a live CLA production submission.</p><p><strong>LIS Movement Document Reference:</strong> <code>${lisRef}</code></p>${!emailResult.sent ? `<p><strong>Error:</strong> ${emailResult.reason ?? "unknown"}</p><p>The system will automatically retry on the next successful production LIS submission. If no further submissions are expected soon, please send the closure email manually to <a href="mailto:incidentmanagement@livestockinformation.org.uk">incidentmanagement@livestockinformation.org.uk</a> referencing <strong>INC0208722</strong> and the LIS reference above.</p>` : ""}`,
+            });
+          }
+        } catch (emailErr) {
+          console.error("[LIS] Error in INC0208722 closure email routine:", emailErr);
+        }
+      }
     }
 
     res.json({ success: result.success, sandbox: result.sandbox, reference: result.reference, error: result.errorMessage });

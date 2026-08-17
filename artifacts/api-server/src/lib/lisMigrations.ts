@@ -525,5 +525,35 @@ export async function runLisMigrations(): Promise<void> {
   // expiry date from the certifier's approval letter so the Active/Expired filter
   // uses this date instead of the crop-year heuristic.
   await db.execute(sql`ALTER TABLE organic_inputs ADD COLUMN IF NOT EXISTS derogation_expiry_date date`);
+
+  // One-time incident notification log — records each support-portal incident that
+  // required an automatic closure email once a production milestone was reached.
+  //
+  // Delivery state machine (status column):
+  //   pending_send — row claimed by a worker; email in flight
+  //   sent         — email successfully delivered; no further action needed
+  //   failed       — last attempt failed; eligible for reclaim by the next
+  //                  successful production submission
+  //
+  // The UNIQUE constraint on incident_ref is the race-safe gate:
+  //   INSERT ... ON CONFLICT DO UPDATE SET status='pending_send'
+  //     WHERE status='failed'
+  // atomically claims a fresh row (INSERT) or reclaims a previously failed one
+  // (UPDATE-where-failed) while ignoring already-sent or already-in-flight rows.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS lis_incident_notifications (
+      id             serial primary key,
+      incident_ref   text not null unique,
+      lis_reference  text,
+      status         text not null default 'pending_send',
+      claimed_at     timestamptz not null default now(),
+      email_sent_at  timestamptz,
+      email_error    text,
+      created_at     timestamptz not null default now(),
+      updated_at     timestamptz not null default now()
+    )
+  `);
+  // claimed_at column added after initial creation (idempotent backfill)
+  await db.execute(sql`ALTER TABLE lis_incident_notifications ADD COLUMN IF NOT EXISTS claimed_at timestamptz NOT NULL DEFAULT now()`);
 }
 
