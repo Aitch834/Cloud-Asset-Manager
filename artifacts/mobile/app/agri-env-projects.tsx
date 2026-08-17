@@ -71,10 +71,13 @@ function FarmDrawdownSummary({
   projects: AgriEnvProject[];
   milestones: AgriEnvMilestone[];
 }) {
-  // Only consider projects with a grant value — and restrict milestone
-  // aggregation to the same project IDs so the numerator and denominator
-  // are always consistent.
-  const withValue = projects.filter(p => (p.totalGrantValuePence ?? 0) > 0);
+  // Only consider active/applied/pending projects with a grant value.
+  // Withdrawn and completed projects still appear in the list below but
+  // should not inflate the farm-wide summary bar.
+  const ACTIVE_STATUSES = new Set(["active", "applied", "pending"]);
+  const withValue = projects.filter(
+    p => ACTIVE_STATUSES.has(p.status) && (p.totalGrantValuePence ?? 0) > 0,
+  );
   if (withValue.length === 0) return null;
 
   const includedIds = new Set(withValue.map(p => p.id));
@@ -94,7 +97,7 @@ function FarmDrawdownSummary({
   return (
     <View style={summaryStyles.card}>
       <Text style={summaryStyles.heading}>
-        Farm-wide drawdown — {withValue.length} project{withValue.length !== 1 ? "s" : ""}
+        Farm-wide drawdown — {withValue.length} active project{withValue.length !== 1 ? "s" : ""}
       </Text>
       <View style={summaryStyles.labelsRow}>
         <Text style={summaryStyles.label}>
