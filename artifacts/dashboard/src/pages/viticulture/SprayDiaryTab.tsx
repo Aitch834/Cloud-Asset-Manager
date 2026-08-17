@@ -1146,19 +1146,25 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                   {sprayPhotos.length > 1 && (
                     <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">
                       {sprayPhotos.map((ph, idx) => (
-                        <button
-                          key={String(ph.id)}
-                          type="button"
-                          onClick={() => setPhotoLightboxIndex(idx)}
-                          className={`shrink-0 w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === photoLightboxIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
-                        >
-                          <img
-                            src={String(ph.downloadUrl ?? "")}
-                            alt={String(ph.fileName ?? "")}
-                            className="w-full h-full object-cover"
-                            onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          />
-                        </button>
+                        <div key={String(ph.id)} className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPhotoLightboxIndex(idx)}
+                            className={`w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === photoLightboxIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
+                          >
+                            <img
+                              src={String(ph.downloadUrl ?? "")}
+                              alt={String(ph.fileName ?? "")}
+                              className="w-full h-full object-cover"
+                              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          </button>
+                          {!!ph.isCover && (
+                            <span className="absolute top-0.5 left-0.5 bg-yellow-400 text-yellow-900 rounded-full p-0.5 shadow pointer-events-none flex items-center justify-center" title="Cover photo">
+                              <Star className="w-2.5 h-2.5 fill-yellow-900" />
+                            </span>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
