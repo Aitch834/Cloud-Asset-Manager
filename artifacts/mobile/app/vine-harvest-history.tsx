@@ -30,6 +30,7 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { apiFetch } from "@/lib/apiFetch";
+import { getList } from "@/lib/storage";
 
 interface HarvestRecord {
   id: number;
@@ -45,6 +46,20 @@ interface HarvestRecord {
   notes: string | null;
 }
 
+interface OfflineHarvestEntry {
+  id: string;
+  farmId: string;
+  harvestDate?: string;
+  vintageYear?: number;
+  blockId?: number;
+  blockName?: string;
+  yieldKg?: number;
+  brix?: number;
+  grapeCondition?: string;
+  operatorName?: string;
+  notes?: string;
+  _pendingSync?: boolean;
+}
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -307,6 +322,26 @@ export default function VineHarvestHistoryScreen() {
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
 
+  // Offline-pending records that haven't synced yet
+  const [offlinePending, setOfflinePending] = useState<OfflineHarvestEntry[]>([]);
+  React.useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const all = await getList<OfflineHarvestEntry>("bde_vine_harvest");
+        if (!active) return;
+        const pending = all.filter(
+          r => r._pendingSync === true && (!currentFarm?.id || r.farmId === currentFarm.id),
+        );
+        setOfflinePending(pending);
+      } catch {
+        // non-fatal — totals will just exclude offline records
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, [currentFarm?.id, records]); // re-read whenever server records refresh (sync may have cleared some)
+
   const displayRecords = useMemo(() => {
     return records
       .filter(r => !deletedIds.has(r.id))
@@ -372,7 +407,14 @@ export default function VineHarvestHistoryScreen() {
     );
   }, [blockFilteredRecords, search]);
 
-  // Farm-wide totals for the selected vintage
+  // Offline pending records that match the current vintage filter
+  const offlinePendingForVintage = useMemo(() => {
+    if (offlinePending.length === 0) return [];
+    if (selectedVintage === null) return offlinePending;
+    return offlinePending.filter(r => r.vintageYear === selectedVintage);
+  }, [offlinePending, selectedVintage]);
+
+  // Farm-wide totals for the selected vintage (server + offline pending merged)
   const totals = useMemo(() => {
     const blockAreaMap = new Map<number, number>();
     for (const b of blocks) {
@@ -406,6 +448,27 @@ export default function VineHarvestHistoryScreen() {
       }
     }
 
+    // Merge offline pending records into totals
+    for (const r of offlinePendingForVintage) {
+      if (r.yieldKg != null) {
+        totalKg += Number(r.yieldKg);
+        if (r.blockId != null) {
+          const area = blockAreaMap.get(r.blockId);
+          if (area != null && area > 0) {
+            yieldKgForArea += Number(r.yieldKg);
+            if (!seenBlockIds.has(r.blockId)) {
+              seenBlockIds.add(r.blockId);
+              totalAreaHa += area;
+            }
+          }
+        }
+      }
+      if (r.brix != null) {
+        brixSum += Number(r.brix);
+        brixCount += 1;
+      }
+    }
+
     const weightedTonnesPerHa = totalAreaHa > 0 ? (yieldKgForArea / 1000) / totalAreaHa : null;
     const avgBrix = brixCount > 0 ? brixSum / brixCount : null;
     // True when at least one record is linked to a block whose area is absent or
@@ -415,8 +478,16 @@ export default function VineHarvestHistoryScreen() {
       const area = blockAreaMap.get(r.blockId);
       return area == null || area <= 0;
     });
-    return { totalKg, weightedTonnesPerHa, avgBrix, count: vintageRecords.length, hasBlockWithMissingArea };
-  }, [vintageRecords, blocks]);
+    const hasUnsynced = offlinePendingForVintage.length > 0;
+    return {
+      totalKg,
+      weightedTonnesPerHa,
+      avgBrix,
+      count: vintageRecords.length + offlinePendingForVintage.length,
+      hasBlockWithMissingArea,
+      hasUnsynced,
+    };
+  }, [vintageRecords, blocks, offlinePendingForVintage]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
@@ -564,6 +635,14 @@ export default function VineHarvestHistoryScreen() {
               <Text style={styles.totalsStatLabel}>Avg Brix</Text>
             </View>
           </View>
+          {totals.hasUnsynced && (
+            <View style={styles.unsyncedNote}>
+              <Feather name="cloud-off" size={11} color={colors.textSecondary} />
+              <Text style={styles.unsyncedNoteText}>
+                Includes {offlinePendingForVintage.length} unsynced record{offlinePendingForVintage.length !== 1 ? "s" : ""} — totals may update once connected
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -860,6 +939,21 @@ const styles = StyleSheet.create({
     width: 1,
     height: 32,
     backgroundColor: colors.border,
+  },
+  unsyncedNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  unsyncedNoteText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    flex: 1,
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
