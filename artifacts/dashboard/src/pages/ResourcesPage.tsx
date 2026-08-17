@@ -2000,7 +2000,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     new Date(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   function exportStatusCSV() {
-    const rows: string[][] = [["Date", "Task", "Status", "Requirements", "Committed By", "Committed At"]];
+    const rows: string[][] = [["Type", "Date", "Task / Milestone", "Scheme", "Status", "Requirements", "Committed By", "Committed At"]];
     for (const e of upcoming) {
       const status = getPlanningStatus(e);
       const parts: string[] = [];
@@ -2010,7 +2010,13 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
       if (e.reqSprayers > 0) parts.push(`${e.reqSprayers} sprayers`);
       if (e.reqTrailers > 0) parts.push(`${e.reqTrailers} trailers`);
       if (e.reqStaff > 0) parts.push(`${e.reqStaff} staff`);
-      rows.push([e.eventDate, e.title, status, parts.join("; "), e.reqCommittedBy ?? "", e.reqCommittedAt ? new Date(e.reqCommittedAt).toLocaleDateString("en-GB") : ""]);
+      rows.push(["Planner task", e.eventDate, e.title, "", status, parts.join("; "), e.reqCommittedBy ?? "", e.reqCommittedAt ? new Date(e.reqCommittedAt).toLocaleDateString("en-GB") : ""]);
+    }
+    if (upcomingMilestones.length > 0) {
+      rows.push(["", "", "", "", "", "", "", ""]);
+      for (const m of upcomingMilestones) {
+        rows.push(["Agri-environment milestone", m.dueDate, m.milestoneName, m.schemeName, m.status, "", "", ""]);
+      }
     }
     const csv = "\uFEFF" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -2216,7 +2222,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
           {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
         </div>
         {/* Export */}
-        {upcoming.length > 0 && (
+        {(upcoming.length > 0 || upcomingMilestones.length > 0) && (
           <button
             onClick={exportStatusCSV}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border hover:bg-muted transition-colors text-foreground/60 shrink-0"
