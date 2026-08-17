@@ -1219,7 +1219,8 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                             onChange={e => {
                                               const newStatus = e.target.value as MilestoneStatus;
                                               if (needsDate(newStatus)) {
-                                                setPendingCompletion({ milestoneId: ms.id, projectId: p.id, newStatus, date: todayIso });
+                                                const defaultDate = ms.dueDate && ms.dueDate.slice(0, 10) <= todayIso ? ms.dueDate.slice(0, 10) : todayIso;
+                                                setPendingCompletion({ milestoneId: ms.id, projectId: p.id, newStatus, date: defaultDate });
                                               } else if (pnlChanges(newStatus, ms.completionDate)) {
                                                 setPendingPnlWarning({ milestoneId: ms.id, projectId: p.id, newStatus, completionDate: ms.completionDate, claimAmountPence: ms.claimAmountPence, direction: pnlChangeDir(newStatus, ms.completionDate) });
                                               } else {
