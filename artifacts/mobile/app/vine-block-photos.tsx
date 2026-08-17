@@ -1107,6 +1107,7 @@ function PhotoThumbnail({
   onHideTooltip,
   onReload,
   reloading,
+  anyReloading,
 }: {
   photo: BlockPhoto;
   photosCount: number;
@@ -1117,6 +1118,8 @@ function PhotoThumbnail({
   onHideTooltip: () => void;
   onReload: () => void;
   reloading?: boolean;
+  /** True when a different thumbnail's reload is already in flight — disables this broken thumbnail. */
+  anyReloading?: boolean;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
@@ -1181,17 +1184,17 @@ function PhotoThumbnail({
           />
         ) : imgError ? (
           <Pressable
-            style={styles.thumbPlaceholder}
-            onPress={(e) => { e.stopPropagation(); if (!reloading) onReload(); }}
+            style={[styles.thumbPlaceholder, anyReloading && !reloading && styles.thumbPlaceholderDisabled]}
+            onPress={(e) => { e.stopPropagation(); if (!reloading && !anyReloading) onReload(); }}
             hitSlop={8}
-            disabled={reloading}
+            disabled={reloading || anyReloading}
           >
             {reloading ? (
               <ActivityIndicator size="small" color={colors.textSecondary} />
             ) : (
               <>
-                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+                <Feather name="refresh-cw" size={22} color={anyReloading ? colors.border : colors.textSecondary} />
+                {!anyReloading && <Text style={styles.thumbReloadLabel}>Tap to reload</Text>}
               </>
             )}
           </Pressable>
@@ -1246,6 +1249,9 @@ export default function VineBlockPhotosScreen() {
 
   // Which thumbnail's reload is currently in-flight (null = none)
   const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
+  // Synchronous guard so rapid / multi-touch taps on different broken thumbnails
+  // cannot start two concurrent reloads before React commits the first state update.
+  const reloadInFlightRef = useRef(false);
 
   // Generation counter — incremented at the start of every loadPhotos call AND
   // synchronously on block selection change and unmount.  applyPhotoUpdateIfCurrent
@@ -1312,8 +1318,12 @@ export default function VineBlockPhotosScreen() {
 
   // User-initiated reload from a broken thumbnail: shows a spinner on that
   // thumbnail while in-flight and an Alert if the server request fails.
+  // reloadInFlightRef provides a synchronous mutex so rapid/multi-touch presses
+  // on different broken thumbnails cannot race past the React state commit.
   const handleReload = useCallback(async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
+    if (reloadInFlightRef.current) return; // another reload already claimed the slot
+    reloadInFlightRef.current = true;
     setReloadingPhotoId(photoId);
     const gen = ++loadGenRef.current;
     try {
@@ -1326,6 +1336,7 @@ export default function VineBlockPhotosScreen() {
     } catch {
       Alert.alert("Reload Failed", "Could not reload photos. Please check your connection and try again.");
     } finally {
+      reloadInFlightRef.current = false;
       setReloadingPhotoId(null);
     }
   }, [currentFarm?.id, selectedBlock]);
@@ -1656,6 +1667,7 @@ export default function VineBlockPhotosScreen() {
               onHideTooltip={() => setGridTooltipCaption(null)}
               onReload={() => handleReload(item.id)}
               reloading={reloadingPhotoId === item.id}
+              anyReloading={reloadingPhotoId !== null}
             />
           )}
           ListFooterComponent={
@@ -1801,6 +1813,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#f1f5f9",
     height: THUMB_SIZE,
+  },
+  thumbPlaceholderDisabled: {
+    opacity: 0.45,
   },
   thumbReloadLabel: {
     fontFamily: fonts.regular,

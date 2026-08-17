@@ -611,6 +611,8 @@ export function ScoutingPhotoThumbnail({
   onEditCaption,
   onShowTooltip,
   onHideTooltip,
+  reloading,
+  anyReloading,
 }: {
   photo: ScoutingPhoto;
   onDelete: (id: number) => void;
@@ -620,6 +622,10 @@ export function ScoutingPhotoThumbnail({
   onEditCaption?: (photo: ScoutingPhoto) => void;
   onShowTooltip?: (caption: string) => void;
   onHideTooltip?: () => void;
+  /** True when this specific thumbnail's reload is in flight (shows spinner). */
+  reloading?: boolean;
+  /** True when any thumbnail's reload is in flight — disables other broken thumbnails. */
+  anyReloading?: boolean;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
@@ -679,9 +685,20 @@ export function ScoutingPhotoThumbnail({
             onError={() => setImgError(true)}
           />
         ) : imgError ? (
-          <Pressable style={photoStyles.thumbPlaceholder} onPress={() => onReload?.()} hitSlop={8}>
-            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-            <Text style={photoStyles.thumbReloadLabel}>Tap to reload</Text>
+          <Pressable
+            style={[photoStyles.thumbPlaceholder, anyReloading && !reloading && photoStyles.thumbPlaceholderDisabled]}
+            onPress={() => { if (!reloading && !anyReloading) onReload?.(); }}
+            hitSlop={8}
+            disabled={reloading || anyReloading}
+          >
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={anyReloading ? colors.border : colors.textSecondary} />
+                {!anyReloading && <Text style={photoStyles.thumbReloadLabel}>Tap to reload</Text>}
+              </>
+            )}
           </Pressable>
         ) : (
           <View style={photoStyles.thumbPlaceholder}>
@@ -709,6 +726,12 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
+  // Which thumbnail's reload is currently in-flight (null = none).
+  // While non-null, all other broken thumbnails are disabled so only one reload runs at a time.
+  const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
+  // Synchronous guard so rapid / multi-touch presses on different broken thumbnails
+  // cannot start two concurrent reloads before React commits the first state update.
+  const reloadInFlightRef = useRef(false);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -844,10 +867,22 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
                 });
               }}
               onPress={handlePressPhoto}
-              onReload={() => loadPhotos({ silent: true })}
+              onReload={async () => {
+                if (reloadInFlightRef.current) return;
+                reloadInFlightRef.current = true;
+                setReloadingPhotoId(item.id);
+                try {
+                  await loadPhotos({ silent: true });
+                } finally {
+                  reloadInFlightRef.current = false;
+                  setReloadingPhotoId(null);
+                }
+              }}
               onEditCaption={handleOpenCaptionEdit}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
+              reloading={reloadingPhotoId === item.id}
+              anyReloading={reloadingPhotoId !== null}
             />
           )}
           ListEmptyComponent={
@@ -935,6 +970,7 @@ const photoStyles = StyleSheet.create({
   thumbImgBox: { width: 88, height: 88, borderRadius: radius.md, overflow: "hidden", backgroundColor: colors.border },
   thumbImage: { width: 88, height: 88 },
   thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  thumbPlaceholderDisabled: { opacity: 0.45 },
   thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
   captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
   gridCaptionTooltip: {
