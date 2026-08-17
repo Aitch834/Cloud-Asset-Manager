@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
+import { downloadCsvFile } from "@/lib/csv";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -246,6 +247,29 @@ function printCertificationSummary(records: Certification[], farmName: string) {
 </body></html>`);
 }
 
+function exportCertificationSummaryCSV(records: Certification[], farmName: string) {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const fmtDate = (val: string | null | undefined) => {
+    if (!val) return "";
+    try { return new Date(val).toLocaleDateString("en-GB"); } catch { return String(val); }
+  };
+  const safeName = farmName.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  const rows: unknown[][] = [
+    ["Certifying Body", "Scope / Enterprise", "Certificate No.", "Operator No.", "Certification Date", "Annual Renewal Date", "Certificate Expiry Date", "Status", "Notes"],
+    ...records.map(r => [
+      r.certifier,
+      r.scope ?? "",
+      r.certificateNumber ?? "",
+      r.operatorNumber ?? "",
+      fmtDate(r.certificationDate),
+      fmtDate(r.renewalDate),
+      fmtDate(r.expiryDate),
+      STATUS_LABELS[r.status] ?? r.status,
+      r.notes ?? "",
+    ]),
+  ];
+  downloadCsvFile(`${safeName}_Organic_Certification_${dateStr}.csv`, rows);
+}
 function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
@@ -427,9 +451,14 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
 
       <div className="flex justify-between items-center">
         {records.length > 0 ? (
-          <Button variant="outline" size="sm" onClick={() => printCertificationSummary(records, farmName)} className="gap-2">
-            <Printer className="w-4 h-4" />Print Certification Summary
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => printCertificationSummary(records, farmName)} className="gap-2">
+              <Printer className="w-4 h-4" />Print Certification Summary
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportCertificationSummaryCSV(records, farmName)} className="gap-2">
+              <Download className="w-4 h-4" />Export CSV
+            </Button>
+          </div>
         ) : <div />}
         <Button onClick={openAdd}><Plus className="w-4 h-4 mr-2" />Add Certifier Registration</Button>
       </div>
@@ -1460,7 +1489,6 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
     </>
   );
 }
-
 
 
 // ─── Input Register Tab ───────────────────────────────────────────────────────
