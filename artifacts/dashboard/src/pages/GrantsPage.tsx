@@ -633,9 +633,10 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const overdueMs  = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
   const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
 
-  const activeCount    = projects.filter(p => ["applied", "active"].includes(p.status)).length;
-  const completedCount = projects.filter(p => p.status === "completed").length;
-  const totalValue     = projects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+  const schemeProjects = aeScreenScheme === "all" ? projects : projects.filter(p => p.schemeName === aeScreenScheme);
+  const activeCount    = schemeProjects.filter(p => ["applied", "active"].includes(p.status)).length;
+  const completedCount = schemeProjects.filter(p => p.status === "completed").length;
+  const totalValue     = schemeProjects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
 
   const saveProjectMut = useMutation({
     mutationFn: async (payload: typeof projectForm) => {
@@ -843,7 +844,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
             {totalValue > 0 ? `£${(totalValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}` : "—"}
           </div>
           <div style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: 2 }}>
-            across {projects.filter(p => p.status !== "withdrawn").length} scheme(s)
+            across {schemeProjects.filter(p => p.status !== "withdrawn").length} scheme(s)
           </div>
         </div>
         <div style={{ background: "#fefce8", border: "1px solid #fde68a", borderRadius: 10, padding: "16px 20px" }}>
