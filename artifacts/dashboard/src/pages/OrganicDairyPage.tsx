@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { useSafeUser } from "@/hooks/use-safe-clerk";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -3089,7 +3090,7 @@ export default function OrganicDairyPage() {
                  "Dairy Herd Disease Notice"}
               </span>
               {dairyAlert.message && <span className="ml-2">{dairyAlert.message}</span>}
-              {dairyAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {dairyAlert.date}</span>}
+              {(dairyAlert.issuedAt || dairyAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(dairyAlert.issuedAt, dairyAlert.date)}</span>}
             </div>
           </div>
         )}

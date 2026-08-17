@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scissors, Scale, Bug, ShieldCheck, ShieldAlert, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
@@ -1707,7 +1708,7 @@ export default function SheepProductionPage() {
                  "Sheep Disease Notice"}
               </span>
               {sheepAlert.message && <span className="ml-2">{sheepAlert.message}</span>}
-              {sheepAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {sheepAlert.date}</span>}
+              {(sheepAlert.issuedAt || sheepAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(sheepAlert.issuedAt, sheepAlert.date)}</span>}
             </div>
           </div>
         )}

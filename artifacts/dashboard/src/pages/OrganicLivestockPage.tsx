@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -3677,7 +3678,7 @@ export default function OrganicLivestockPage() {
                    "Cattle Disease Notice"}
                 </span>
                 {beefAlert.message && <span className="ml-2">{beefAlert.message}</span>}
-                {beefAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {beefAlert.date}</span>}
+                {(beefAlert.issuedAt || beefAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(beefAlert.issuedAt, beefAlert.date)}</span>}
               </div>
             </div>
           )}

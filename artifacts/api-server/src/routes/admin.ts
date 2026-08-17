@@ -2053,6 +2053,22 @@ async function resolveFarmCounty(farmId: string | undefined): Promise<string> {
   return rows[0]?.country ?? "";
 }
 
+// ─── Sector alert episode helper ──────────────────────────────────────────────
+
+async function getActiveEpisodeIssuedAt(sector: string): Promise<string | null> {
+  try {
+    const result = await db.execute(sql`
+      SELECT issued_at FROM sector_alert_episodes
+      WHERE sector = ${sector} AND ended_at IS NULL
+      ORDER BY issued_at DESC LIMIT 1
+    `);
+    const row = result.rows[0] as { issued_at: string } | undefined;
+    return row?.issued_at ?? null;
+  } catch {
+    return null;
+  }
+}
+
 router.get("/hpai-alert", async (req: Request, res: Response): Promise<void> => {
   const rows = await db.select().from(platformConfigTable);
   const byKey: Record<string, string> = {};
@@ -2066,6 +2082,7 @@ router.get("/hpai-alert", async (req: Request, res: Response): Promise<void> => 
     message: byKey["hpai.alert_message"] ?? "",
     date: byKey["hpai.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("hpai") : null,
   });
 });
 
@@ -2082,6 +2099,7 @@ router.get("/arable-alert", async (req: Request, res: Response): Promise<void> =
     message: byKey["arable.alert_message"] ?? "",
     date: byKey["arable.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("arable") : null,
   });
 });
 
@@ -2098,6 +2116,7 @@ router.get("/horticulture-alert", async (req: Request, res: Response): Promise<v
     message: byKey["horticulture.alert_message"] ?? "",
     date: byKey["horticulture.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("horticulture") : null,
   });
 });
 
@@ -2114,6 +2133,7 @@ router.get("/viticulture-alert", async (req: Request, res: Response): Promise<vo
     message: byKey["viticulture.alert_message"] ?? "",
     date: byKey["viticulture.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("viticulture") : null,
   });
 });
 
@@ -2130,6 +2150,7 @@ router.get("/beef-alert", async (req: Request, res: Response): Promise<void> => 
     message: byKey["beef.alert_message"] ?? "",
     date: byKey["beef.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("beef") : null,
   });
 });
 
@@ -2146,6 +2167,7 @@ router.get("/dairy-alert", async (req: Request, res: Response): Promise<void> =>
     message: byKey["dairy.alert_message"] ?? "",
     date: byKey["dairy.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("dairy") : null,
   });
 });
 
@@ -2162,6 +2184,7 @@ router.get("/pig-alert", async (req: Request, res: Response): Promise<void> => {
     message: byKey["pig.alert_message"] ?? "",
     date: byKey["pig.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("pig") : null,
   });
 });
 
@@ -2178,6 +2201,7 @@ router.get("/sheep-alert", async (req: Request, res: Response): Promise<void> =>
     message: byKey["sheep.alert_message"] ?? "",
     date: byKey["sheep.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("sheep") : null,
   });
 });
 
@@ -2194,6 +2218,7 @@ router.get("/goat-alert", async (req: Request, res: Response): Promise<void> => 
     message: byKey["goat.alert_message"] ?? "",
     date: byKey["goat.alert_date"] ?? "",
     counties: alertCounties,
+    issuedAt: isActive ? await getActiveEpisodeIssuedAt("goat") : null,
   });
 });
 

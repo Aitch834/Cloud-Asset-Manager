@@ -41,3 +41,28 @@ export function formatCurrency(amountPence: number) {
     currency: 'GBP',
   }).format(amountPence / 100);
 }
+
+/**
+ * Returns a human-readable "Issued X days ago" / "Issued today" label for a
+ * sector alert banner.  Prefers the episode `issuedAt` timestamp (ISO string)
+ * from the sector_alert_episodes table; falls back to the legacy `date` string
+ * stored in platform config for alerts that pre-date the episode model.
+ */
+export function formatAlertIssuedAt(
+  issuedAt: string | null | undefined,
+  fallbackDate?: string,
+): string | null {
+  if (issuedAt) {
+    const issued = new Date(issuedAt);
+    if (!isNaN(issued.getTime())) {
+      const diffDays = Math.floor(
+        (Date.now() - issued.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (diffDays === 0) return "Issued today";
+      if (diffDays === 1) return "Issued yesterday";
+      return `Issued ${diffDays} days ago`;
+    }
+  }
+  if (fallbackDate) return `Issued ${fallbackDate}`;
+  return null;
+}

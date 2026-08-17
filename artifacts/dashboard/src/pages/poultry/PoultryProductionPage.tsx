@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Home, Bird, BarChart3, Pill, SprayCan, Thermometer, FileText, ShieldCheck, Scissors, ClipboardList, ClipboardCheck, Star, Truck, FileDown, AlertTriangle, TrendingUp, LayoutDashboard, Receipt, Syringe, Activity, ArrowRightLeft, ShieldAlert, MapPin, Clock, Save } from "lucide-react";
@@ -266,7 +267,7 @@ function HpaiBanner({ farmId }: { farmId: number }) {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">HPAI National Alert{platformAlert.level ? ` — ${platformAlert.level.charAt(0).toUpperCase() + platformAlert.level.slice(1)}` : ""}</p>
             {platformAlert.message && <p className="text-xs mt-0.5 opacity-90">{platformAlert.message}</p>}
-            {platformAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(platformAlert.date).toLocaleDateString("en-GB")}</p>}
+            {(platformAlert.issuedAt || platformAlert.date) && <p className="text-xs opacity-75 mt-0.5">{formatAlertIssuedAt(platformAlert.issuedAt, platformAlert.date)}</p>}
           </div>
         </div>
       )}

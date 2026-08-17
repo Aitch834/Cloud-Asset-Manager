@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
@@ -141,7 +142,7 @@ export default function SheepDairyPage() {
                  "Sheep Disease Notice"}
               </span>
               {sheepAlert.message && <span className="ml-2">{sheepAlert.message}</span>}
-              {sheepAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {sheepAlert.date}</span>}
+              {(sheepAlert.issuedAt || sheepAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(sheepAlert.issuedAt, sheepAlert.date)}</span>}
             </div>
           </div>
         )}

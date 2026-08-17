@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { useAppStore } from "@/hooks/use-app-store";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -72,7 +73,7 @@ export default function DairyPage() {
                  "Dairy Herd Disease Notice"}
               </span>
               {dairyAlert.message && <span className="ml-2">{dairyAlert.message}</span>}
-              {dairyAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {dairyAlert.date}</span>}
+              {(dairyAlert.issuedAt || dairyAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(dairyAlert.issuedAt, dairyAlert.date)}</span>}
             </div>
           </div>
         )}

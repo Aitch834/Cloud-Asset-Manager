@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { openPrintWindow } from "@/lib/print-report";
@@ -741,7 +742,7 @@ export default function BeefProductionPage() {
                  "Cattle Disease Notice"}
               </span>
               {beefAlert.message && <span className="ml-2">{beefAlert.message}</span>}
-              {beefAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {beefAlert.date}</span>}
+              {(beefAlert.issuedAt || beefAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(beefAlert.issuedAt, beefAlert.date)}</span>}
             </div>
           </div>
         )}

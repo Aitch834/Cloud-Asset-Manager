@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
@@ -2764,7 +2765,7 @@ export default function PigProductionPage() {
                  "Pig Disease Notice"}
               </span>
               {pigAlert.message && <span className="ml-2">{pigAlert.message}</span>}
-              {pigAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {pigAlert.date}</span>}
+              {(pigAlert.issuedAt || pigAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(pigAlert.issuedAt, pigAlert.date)}</span>}
             </div>
           </div>
         )}

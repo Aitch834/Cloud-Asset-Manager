@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
@@ -953,7 +954,7 @@ export default function OrganicArablePage() {
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">Crop Health Alert{arableAlert.level ? ` — ${arableAlert.level.charAt(0).toUpperCase() + arableAlert.level.slice(1)}` : ""}</p>
               {arableAlert.message && <p className="text-xs mt-0.5 opacity-90">{arableAlert.message}</p>}
-              {arableAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(arableAlert.date).toLocaleDateString("en-GB")}</p>}
+              {(arableAlert.issuedAt || arableAlert.date) && <p className="text-xs opacity-75 mt-0.5">{formatAlertIssuedAt(arableAlert.issuedAt, arableAlert.date)}</p>}
             </div>
           </div>
         )}

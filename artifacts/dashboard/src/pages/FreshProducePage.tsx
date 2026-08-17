@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LabSelector } from "@/components/ui/LabSelector";
@@ -1506,7 +1507,7 @@ export default function FreshProducePage() {
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">Plant Health Alert{hortiAlert.level ? ` — ${hortiAlert.level.charAt(0).toUpperCase() + hortiAlert.level.slice(1)}` : ""}</p>
               {hortiAlert.message && <p className="text-xs mt-0.5 opacity-90">{hortiAlert.message}</p>}
-              {hortiAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(hortiAlert.date).toLocaleDateString("en-GB")}</p>}
+              {(hortiAlert.issuedAt || hortiAlert.date) && <p className="text-xs opacity-75 mt-0.5">{formatAlertIssuedAt(hortiAlert.issuedAt, hortiAlert.date)}</p>}
             </div>
           </div>
         )}

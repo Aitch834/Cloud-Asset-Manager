@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useAppStore } from "@/hooks/use-app-store";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
@@ -115,7 +116,7 @@ export default function OrganicGoatDairyPage() {
                  "Goat Disease Notice"}
               </span>
               {goatAlert.message && <span className="ml-2">{goatAlert.message}</span>}
-              {goatAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {goatAlert.date}</span>}
+              {(goatAlert.issuedAt || goatAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(goatAlert.issuedAt, goatAlert.date)}</span>}
             </div>
           </div>
         )}

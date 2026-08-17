@@ -1,4 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -206,7 +207,7 @@ export default function ViticulturePage() {
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">Vine Disease Alert{viticultureAlert.level ? ` — ${viticultureAlert.level.charAt(0).toUpperCase() + viticultureAlert.level.slice(1)}` : ""}</p>
               {viticultureAlert.message && <p className="text-xs mt-0.5 opacity-90">{viticultureAlert.message}</p>}
-              {viticultureAlert.date && <p className="text-xs opacity-75 mt-0.5">Issued: {new Date(viticultureAlert.date).toLocaleDateString("en-GB")}</p>}
+              {(viticultureAlert.issuedAt || viticultureAlert.date) && <p className="text-xs opacity-75 mt-0.5">{formatAlertIssuedAt(viticultureAlert.issuedAt, viticultureAlert.date)}</p>}
             </div>
           </div>
         )}

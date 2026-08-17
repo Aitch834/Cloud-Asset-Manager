@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { formatAlertIssuedAt } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Loader2, Eye, Scale, Bug, ShieldAlert, ClipboardList, AlertTriangle, Printer, BarChart3, Paperclip } from "lucide-react";
@@ -1050,7 +1051,7 @@ export default function GoatProductionPage() {
                  "Goat Disease Notice"}
               </span>
               {goatAlert.message && <span className="ml-2">{goatAlert.message}</span>}
-              {goatAlert.date && <span className="ml-2 opacity-70 text-xs">Issued {goatAlert.date}</span>}
+              {(goatAlert.issuedAt || goatAlert.date) && <span className="ml-2 opacity-70 text-xs">{formatAlertIssuedAt(goatAlert.issuedAt, goatAlert.date)}</span>}
             </div>
           </div>
         )}
