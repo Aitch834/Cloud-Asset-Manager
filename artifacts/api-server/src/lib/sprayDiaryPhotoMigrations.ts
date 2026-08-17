@@ -27,4 +27,9 @@ export async function runSprayDiaryPhotoMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_vineyard_spray_diary_photos_farm_id
       ON vineyard_spray_diary_photos(farm_id)
   `);
+  // Add is_cover column if it doesn't exist yet
+  await db.execute(sql`
+    ALTER TABLE vineyard_spray_diary_photos
+      ADD COLUMN IF NOT EXISTS is_cover boolean NOT NULL DEFAULT false
+  `);
 }

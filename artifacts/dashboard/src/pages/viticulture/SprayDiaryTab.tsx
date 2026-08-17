@@ -10,7 +10,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, ChevronLeft, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
-  Camera, Upload, X,
+  Camera, Upload, X, Star,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -162,6 +162,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [photoOnlyRecordId, setPhotoOnlyRecordId] = useState<number | null>(null);
   // Photo id awaiting delete-confirm in the standalone lightbox
   const [confirmDeleteLightboxPhotoId, setConfirmDeleteLightboxPhotoId] = useState<number | null>(null);
+  // Photo id currently being promoted to cover in the lightbox
+  const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(null);
   // Photo id awaiting delete-confirm in the view dialog thumbnail grid
   const [confirmDeleteThumbnailPhotoId, setConfirmDeleteThumbnailPhotoId] = useState<number | null>(null);
   // Caption editing state (view dialog thumbnails + lightbox)
@@ -427,6 +429,30 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     },
     onError: () => {
       toast({ title: "Failed to delete photo", variant: "destructive" });
+    },
+  });
+
+  // ── Set cover photo (spray diary lightbox) ───────────────────────────────────
+  const setCoverPhotoMutation = useMutation({
+    mutationFn: async ({ recordId, photoId }: { recordId: number; photoId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-spray-diary/${recordId}/photos/${photoId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCover: true }),
+      });
+      if (!r.ok) throw new Error("Failed to set cover photo");
+      return r.json();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary-photos", farmId, activePhotoRecordId] });
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-spray-diary", farmId] });
+      setSettingCoverPhotoId(null);
+      toast({ title: "Cover photo updated" });
+    },
+    onError: () => {
+      setSettingCoverPhotoId(null);
+      toast({ title: "Failed to set cover photo", variant: "destructive" });
     },
   });
 
@@ -979,6 +1005,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                     className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
                     onError={e => { (e.target as HTMLImageElement).src = ""; }}
                   />
+                  {/* Delete button — top-right */}
                   <button
                     type="button"
                     title="Delete photo"
@@ -988,6 +1015,27 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+
+                  {/* Set as cover — top-left; only shown for non-cover photos */}
+                  {!currentPhoto.isCover && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const photoId = currentPhoto.id as number;
+                        setSettingCoverPhotoId(photoId);
+                        setCoverPhotoMutation.mutate({ recordId: activePhotoRecordId!, photoId });
+                      }}
+                      disabled={settingCoverPhotoId === (currentPhoto.id as number)}
+                      className="absolute top-2 left-2 rounded-full bg-black/60 hover:bg-yellow-500/90 text-white p-1.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
+                      aria-label="Set as cover photo"
+                      title="Set as cover photo"
+                    >
+                      {settingCoverPhotoId === (currentPhoto.id as number)
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Star className="w-4 h-4" />}
+                    </button>
+                  )}
+
                   {sprayPhotos.length > 1 && (
                     <>
                       <button

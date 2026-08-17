@@ -10,7 +10,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
-  Camera, ChevronLeft, ChevronRight as ChevronRightIcon, Trash, Upload,
+  Camera, ChevronLeft, ChevronRight as ChevronRightIcon, Trash, Upload, Star,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -97,6 +97,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
+  const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
@@ -268,6 +269,30 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     },
     onError: () => {
       toast({ title: "Failed to delete photo", variant: "destructive" });
+    },
+  });
+
+  // ── Set cover photo (scouting lightbox) ──────────────────────────────────
+  const setCoverPhotoMutation = useMutation({
+    mutationFn: async ({ scoutingId, photoId }: { scoutingId: number; photoId: number }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCover: true }),
+      });
+      if (!r.ok) throw new Error("Failed to set cover photo");
+      return r.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+      setSettingCoverPhotoId(null);
+      toast({ title: "Cover photo updated" });
+    },
+    onError: () => {
+      setSettingCoverPhotoId(null);
+      toast({ title: "Failed to set cover photo", variant: "destructive" });
     },
   });
 
@@ -706,7 +731,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                 onError={e => { (e.target as HTMLImageElement).src = ""; }}
               />
 
-              {/* Delete button — visible on hover or keyboard focus */}
+              {/* Delete button — top-right */}
               <button
                 type="button"
                 onClick={() => setDeletePhotoId(currentPhoto.id as number)}
@@ -716,6 +741,26 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               >
                 <Trash className="w-4 h-4" />
               </button>
+
+              {/* Set as cover — top-left; only shown for non-cover photos */}
+              {!currentPhoto.isCover && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const photoId = currentPhoto.id as number;
+                    setSettingCoverPhotoId(photoId);
+                    setCoverPhotoMutation.mutate({ scoutingId: lightboxScoutingId!, photoId });
+                  }}
+                  disabled={settingCoverPhotoId === (currentPhoto.id as number)}
+                  className="absolute top-2 left-2 rounded-full bg-black/50 hover:bg-yellow-500/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100 disabled:opacity-40"
+                  aria-label="Set as cover photo"
+                  title="Set as cover photo"
+                >
+                  {settingCoverPhotoId === (currentPhoto.id as number)
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Star className="w-4 h-4" />}
+                </button>
+              )}
 
               {/* Prev / Next controls */}
               {lightboxPhotos.length > 1 && (

@@ -734,9 +734,9 @@ router.patch("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAuth
   const farmId = Number(req.params.farmId);
   const scoutingId = Number(req.params.id);
   const photoId = Number(req.params.photoId);
-  const { caption } = req.body as { caption?: string | null };
+  const { caption, isCover } = req.body as { caption?: string | null; isCover?: boolean };
 
-  if (typeof caption !== "string" && caption !== null) {
+  if (caption !== undefined && typeof caption !== "string" && caption !== null) {
     res.status(400).json({ error: "caption must be a string or null" });
     return;
   }
@@ -752,8 +752,22 @@ router.patch("/farms/:farmId/vineyard-scouting/:id/photos/:photoId", requireAuth
 
   if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
 
+  // When setting a new cover, clear existing cover flag on all other photos in this record first
+  if (isCover === true) {
+    await db.update(vineyardScoutingPhotosTable)
+      .set({ isCover: false })
+      .where(and(
+        eq(vineyardScoutingPhotosTable.scoutingId, scoutingId),
+        eq(vineyardScoutingPhotosTable.farmId, farmId),
+      ));
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (caption !== undefined) patch.caption = caption === null || (typeof caption === "string" && caption.trim() === "") ? null : (typeof caption === "string" ? caption.trim() : null);
+  if (isCover !== undefined) patch.isCover = isCover;
+
   const [updated] = await db.update(vineyardScoutingPhotosTable)
-    .set({ caption: caption === null || caption.trim() === "" ? null : caption.trim() })
+    .set(patch as any)
     .where(eq(vineyardScoutingPhotosTable.id, photoId))
     .returning();
 
@@ -1170,9 +1184,9 @@ router.patch("/farms/:farmId/vineyard-spray-diary/:id/photos/:photoId", requireA
   const farmId = Number(req.params.farmId);
   const sprayDiaryId = Number(req.params.id);
   const photoId = Number(req.params.photoId);
-  const { caption } = req.body as { caption?: string | null };
+  const { caption, isCover } = req.body as { caption?: string | null; isCover?: boolean };
 
-  if (typeof caption !== "string" && caption !== null) {
+  if (caption !== undefined && typeof caption !== "string" && caption !== null) {
     res.status(400).json({ error: "caption must be a string or null" });
     return;
   }
@@ -1187,8 +1201,22 @@ router.patch("/farms/:farmId/vineyard-spray-diary/:id/photos/:photoId", requireA
     .limit(1);
   if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
 
+  // When setting a new cover, clear existing cover flag on all other photos in this record first
+  if (isCover === true) {
+    await db.update(vineyardSprayDiaryPhotosTable)
+      .set({ isCover: false })
+      .where(and(
+        eq(vineyardSprayDiaryPhotosTable.sprayDiaryId, sprayDiaryId),
+        eq(vineyardSprayDiaryPhotosTable.farmId, farmId),
+      ));
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (caption !== undefined) patch.caption = caption === null || (typeof caption === "string" && caption.trim() === "") ? null : (typeof caption === "string" ? caption.trim() : null);
+  if (isCover !== undefined) patch.isCover = isCover;
+
   const [updated] = await db.update(vineyardSprayDiaryPhotosTable)
-    .set({ caption: caption === null || caption.trim() === "" ? null : caption.trim() })
+    .set(patch as any)
     .where(eq(vineyardSprayDiaryPhotosTable.id, photoId))
     .returning();
 
