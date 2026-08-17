@@ -448,6 +448,7 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
         <div className="space-y-3">
           {records.map(record => {
             const renewalDays = daysUntil(record.renewalDate);
+            const expiryDays = daysUntil(record.expiryDate);
             return (
               <Card key={record.id} className="p-5">
                 <div className="flex items-start justify-between gap-4">
@@ -476,7 +477,16 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
                   {record.certificateNumber && <><span className="text-foreground/60">Certificate No.</span><span className="font-medium">{record.certificateNumber}</span></>}
                   {record.operatorNumber && <><span className="text-foreground/60">Operator No.</span><span className="font-medium">{record.operatorNumber}</span></>}
                   {record.certificationDate && <><span className="text-foreground/60">Certified Since</span><span className="font-medium">{fmt(record.certificationDate)}</span></>}
-                  {record.expiryDate && <><span className="text-foreground/60">Expiry Date</span><span className="font-medium">{fmt(record.expiryDate)}</span></>}
+                  {record.expiryDate && (
+                    <>
+                      <span className="text-foreground/60">Expiry Date</span>
+                      <span className={`font-medium flex items-center gap-1.5 ${expiryDays !== null && expiryDays <= 60 && expiryDays >= 0 ? "text-amber-600" : expiryDays !== null && expiryDays < 0 ? "text-red-600" : ""}`}>
+                        {fmt(record.expiryDate)}
+                        {expiryDays !== null && expiryDays <= 60 && expiryDays >= 0 && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 rounded-full border border-amber-200">{expiryDays}d</span>}
+                        {expiryDays !== null && expiryDays < 0 && <span className="text-xs bg-red-100 text-red-700 px-1.5 rounded-full border border-red-200">Expired</span>}
+                      </span>
+                    </>
+                  )}
                   {record.renewalDate && (
                     <>
                       <span className="text-foreground/60">Annual Renewal</span>
