@@ -253,7 +253,7 @@ const TITLES: [string, string][] = [
   ["Organic Poultry — Outdoor Access Log: Birds on Range, Stocking Density and Compliance Status", "Organic Poultry"],
   ["Organic Poultry — Feed Records: Organic Approval Status, Certifier Reference and Derogation Case Linking", "Organic Poultry"],
   ["Organic Poultry — Derogations: Non-Permitted Input Case Register and Full Lifecycle Tracking", "Organic Poultry"],
-  ["SMS Alerts — Configuring Alert Types, Per-Member Opt-In Levels and Alert History Log", "Platform Add-ons"],
+  ["SMS Alerts — Configuring Alert Categories, Per-Member Settings and Alert History Log", "Platform Add-ons"],
   ["Goat Production — Enterprise Report Tab: Financial and Production KPIs, Kidding Performance and DLWG Analysis", "Goat Production"],
   ["Mobile App — Organic Poultry: Outdoor Access Log and Feed Record Capture with Offline Sync", "Mobile App"],
   ["Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries", "Livestock"],
@@ -1037,27 +1037,31 @@ const CONTENT: [string, string][] = [
   // 37 — SMS Text Alerts — Setup, Who Receives Them & Opting In
   // 33 — SMS Text Alerts — Setup, Who Receives Them & Opting In
   [
-    "How to configure SMS text alerts in BDE Farm Trac, including who receives alerts, what triggers them, and how to opt individual users in or out.",
+    "How to configure SMS text alerts in BDE Farm Trac, including the category-based opt-in system, what triggers each category, and how each team member controls their own alerts.",
     `<h2>SMS Text Alerts — Setup, Who Receives Them & Opting In</h2>
-<p>BDE Farm Trac's SMS Text Alerts module sends instant text messages to opted-in farm users when critical compliance events occur. This ensures important alerts reach people even when they are away from a computer or do not have the mobile app open.</p>
-<h3>What triggers an SMS alert</h3>
+<p>BDE Farm Trac's SMS Text Alerts module sends instant text messages to opted-in farm users when compliance events occur. Each team member independently chooses which alert categories they receive — so dairy managers only get dairy texts, cereals managers only get arable texts, and no-one is bombarded with alerts outside their role.</p>
+<h3>Why category-based alerts?</h3>
+<p>On a mixed farm, a dairy manager can enable Dairy alerts and disable Livestock and Arable, so they only receive texts relevant to their role. A livestock manager can do the reverse. A farm administrator might enable all categories to stay across the whole operation. Each person's category settings are personal to them — changing yours does not affect anyone else's preferences.</p>
+<h3>Setting up — entering your mobile number</h3>
+<p>Navigate to <strong>Account &amp; Notifications</strong> (via your account menu in the top-right corner, or on the mobile app via Settings). Enter your UK mobile number in international format (e.g. +447911123456), tick the consent checkbox, and click <strong>Save preferences</strong>.</p>
+<h3>Enabling SMS and choosing your categories</h3>
+<p>Toggle <strong>Enable SMS text notifications</strong> on. The alert categories panel appears beneath the master toggle. Switch each category on or off to match your responsibilities. Only categories relevant to your farm's active modules are shown — a farm without the Dairy module will not see the Dairy category.</p>
+<p>The master toggle acts as an override: switching it off stops all SMS alerts to you regardless of your category settings, without losing your category preferences for when you re-enable it.</p>
+<h3>Alert categories</h3>
 <ul>
-<li>Livestock movement reporting deadlines approaching (BCMS, eAML2)</li>
-<li>Medicine withdrawal periods ending within three days</li>
-<li>Staff certificates expiring within 90 days</li>
-<li>Water quality test failures</li>
-<li>Overdue NVZ applications or closed period breaches</li>
-<li>Farm assurance certificate expiry warnings</li>
-<li>Task assignments (the assigned staff member receives an SMS)</li>
-<li>Notifiable disease suspicions (critical APHA alerts)</li>
-<li>High-pressure disease scouting findings in the Viticulture module</li>
+<li><strong>Livestock &amp; Animals</strong> — Welfare alerts, withdrawal period breaches, notifiable disease suspicions, and herd health follow-ups.</li>
+<li><strong>Dairy</strong> — ABR test results, mastitis records, and mobility scoring alerts.</li>
+<li><strong>Arable &amp; Crops</strong> — IPM pest and disease threshold alerts, irrigation advisories, and field scouting flags.</li>
+<li><strong>Viticulture &amp; Winery</strong> — Vineyard and winery compliance alerts.</li>
+<li><strong>Task Assignments &amp; Reminders</strong> — Notifications when tasks are assigned to you, and timesheet submission reminders.</li>
+<li><strong>Regulatory Compliance</strong> — Withdrawal period breaches, biosecurity declarations, SSAFO inspections, and RIDDOR incidents.</li>
+<li><strong>Quality &amp; Non-conformances</strong> — Non-conformance records, corrective actions, and feed intake rejections.</li>
+<li><strong>Stock &amp; Supplies</strong> — Stock-low and stock-out alerts across feed, medicines, and supplies.</li>
 </ul>
-<h3>Opting in</h3>
-<p>Navigate to <strong>Settings → SMS Alerts</strong>. Each farm user must opt in individually by entering and verifying their UK mobile number. Only verified numbers receive SMS alerts — this prevents alerts being sent to wrong numbers.</p>
-<h3>Who receives which alerts</h3>
-<p>Module-level alerts (certificate expiry, movement deadlines) are sent to all opted-in managers on the account. Task assignment alerts go only to the person assigned the task. Critical disease alerts (APHA notification triggers) go to all opted-in users.</p>
+<h3>Farm Managers</h3>
+<p>Farm Managers are automatically included in critical alerts when a mobile number is saved. Disabling SMS entirely always overrides this designation. Your BDE Farm Trac account administrator can update your alert designation.</p>
 <h3>Push notifications</h3>
-<p>Staff who have the mobile app installed also receive a push notification when a task is assigned to them. Tapping the notification opens the Task Inbox directly. Push notifications work alongside SMS — both are sent for task assignments.</p>`,
+<p>Staff who have the mobile app installed also receive push notifications alongside SMS. Each team member's category settings apply to both channels — enabling or disabling a category affects SMS and push notifications together.</p>`,
   ],
   // 38 — Waste Disposal Logging — Records, Carrier Licences & Legal Requirements
   // 34 — Waste Disposal Logging — Records, Carrier Licences & Legal Requirements
@@ -6239,7 +6243,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 <p>Withdrawal end dates are calculated automatically when you save a medicine treatment record. The system adds the withdrawal period in days (taken from the medicine record's withdrawal days field) to the treatment date and stores the result as the withdrawal end date. If a medicine has separate meat and milk withdrawal periods — as is common with dairy treatments — both are calculated and displayed independently. A red withdrawal alert banner appears on the animal's profile and any linked movement record while the withdrawal is active, preventing accidental off-farm movement before clearance.</p>
 
 <h3>Who Receives the Alerts</h3>
-<p>Navigate to the <strong>Team</strong> tab in SMS Alerts. Each farm member is shown with a per-member SMS opt-in level: <strong>All Alerts</strong> (receives both Critical and Standard alerts including withdrawal reminders), <strong>Critical Only</strong> (receives Critical-tier alerts only — withdrawal reminders are Standard tier so they would not receive these), or <strong>None</strong>. Set the appropriate level for each team member. Farm managers and herd keepers should typically be set to All Alerts.</p>
+<p>Each farm member controls their own SMS preferences from <strong>Account &amp; Notifications</strong>. To receive medicine withdrawal reminders, a team member must have SMS notifications enabled and the <strong>Livestock &amp; Animals</strong> category switched on. Stockpersons and herd keepers responsible for monitoring treated animals should ensure this category is active.</p>
 
 <h3>Alert History</h3>
 <p>The <strong>History</strong> tab in SMS Alerts shows a full timestamped log of every alert sent, including the recipient, alert type, and the record that triggered it. Use this to confirm that reminders were sent and received, or to investigate if an alert was not delivered.</p>
