@@ -23,6 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useSmsMisconfiguredContext } from "@/lib/context/SmsMisconfiguredContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
@@ -56,6 +57,7 @@ export default function MoreScreen() {
   const { currentFarm, farms, setCurrentFarm, updateFarm, user } = useFarm();
   const { logout } = useAuth();
   const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
+  const { refresh: refreshSmsMisconfigured } = useSmsMisconfiguredContext();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
   const { farmName, contactPhone, cphNumber, sbiNumber, address, postcode, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
@@ -243,6 +245,9 @@ export default function MoreScreen() {
       }
       setSmsSaved(true);
       setTimeout(() => setSmsSaved(false), 3000);
+      // Re-evaluate the badge in the tab bar so it clears immediately
+      // if the grower just fixed their category settings.
+      refreshSmsMisconfigured();
     } catch (err: unknown) {
       setSmsError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
     } finally {
