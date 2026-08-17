@@ -138,12 +138,14 @@ interface SprayLightboxProps {
   initialIndex: number;
   visible: boolean;
   onClose: () => void;
+  onReload?: () => void;
 }
 
-function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLightboxProps) {
+function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }: SprayLightboxProps) {
   const insets = useSafeAreaInsets();
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [imgError, setImgError] = useState(false);
 
   // UI-thread shared values
   const indexSv = useSharedValue(initialIndex);
@@ -164,11 +166,25 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLig
     totalSv.value = photos.length;
   }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reset error state when the photo index changes
+  useEffect(() => {
+    setImgError(false);
+  }, [currentIndex]);
+
+  // Reset error state when the presigned URL is refreshed for the current photo
+  const currentUri = photos[currentIndex]?.downloadUrl ?? null;
+  const prevUriRef = useRef(currentUri);
+  if (prevUriRef.current !== currentUri) {
+    prevUriRef.current = currentUri;
+    if (imgError) setImgError(false);
+  }
+
   // Reset on open/close
   useEffect(() => {
     if (visible) {
       const idx = Math.min(initialIndex, photos.length - 1);
       setCurrentIndex(idx);
+      setImgError(false);
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -428,12 +444,25 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose }: SprayLig
           {/* Zoomable image */}
           <GestureDetector gesture={composed}>
             <Animated.View style={[lbStyles.imageContainer, imageStyle]}>
-              {uri ? (
+              {uri && !imgError ? (
                 <Image
                   source={{ uri }}
                   style={lbStyles.image}
                   resizeMode="contain"
+                  onError={() => setImgError(true)}
                 />
+              ) : imgError ? (
+                <Pressable
+                  style={lbStyles.errorContainer}
+                  onPress={() => {
+                    setImgError(false);
+                    onReload?.();
+                  }}
+                  hitSlop={12}
+                >
+                  <Feather name="refresh-cw" size={28} color="rgba(255,255,255,0.75)" />
+                  <Text style={lbStyles.errorLabel}>Tap to reload</Text>
+                </Pressable>
               ) : (
                 <ActivityIndicator size="large" color="#fff" />
               )}
@@ -680,6 +709,7 @@ function SprayDiaryPhotoSection({
             initialIndex={lightboxIndex ?? 0}
             visible={lightboxIndex !== null}
             onClose={() => setLightboxIndex(null)}
+            onReload={() => loadPhotos({ silent: true })}
           />
         </>
       )}
@@ -1870,6 +1900,17 @@ const lbStyles = StyleSheet.create({
   image: {
     width: SCREEN.width,
     height: SCREEN.height,
+  },
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  errorLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 4,
   },
   captionBar: {
     position: "absolute",
