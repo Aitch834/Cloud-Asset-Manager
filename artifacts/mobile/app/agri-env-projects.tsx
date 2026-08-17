@@ -308,7 +308,13 @@ export default function AgriEnvProjectsScreen() {
         getItem<AgriEnvCache<AgriEnvProject>>(projectsCacheKey(currentFarm.id)),
         getItem<AgriEnvCache<AgriEnvMilestone>>(milestonesCacheKey(currentFarm.id)),
       ]);
-      if (projCache && milCache && !cancelRef.current) {
+      const cacheValid =
+        projCache &&
+        milCache &&
+        !isCacheStale(projCache.cachedAt) &&
+        !isCacheStale(milCache.cachedAt) &&
+        !cancelRef.current;
+      if (cacheValid) {
         setProjects(projCache.data);
         setMilestones(milCache.data);
         setCachedAt(new Date(projCache.cachedAt));
@@ -1319,4 +1325,21 @@ interface AgriEnvCache<T> {
 
 function milestonesCacheKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_MILESTONES_CACHE}_${farmId}`;
+}
+
+/** Cache entries older than this are discarded and a fresh fetch is made. */
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * Returns true when the cache entry should be discarded:
+ * - timestamp is missing, unparseable, or in the future (clock skew / corruption)
+ * - entry is older than CACHE_TTL_MS
+ */
+function isCacheStale(cachedAt: string | undefined | null): boolean {
+  if (!cachedAt) return true;
+  const ts = new Date(cachedAt).getTime();
+  if (Number.isNaN(ts)) return true;      // unparseable timestamp
+  const age = Date.now() - ts;
+  if (age < 0) return true;               // future timestamp — treat as corrupt
+  return age > CACHE_TTL_MS;
 }
