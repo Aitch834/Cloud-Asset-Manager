@@ -184,6 +184,7 @@ const EMPTY_INPUT_FORM = {
   approvalStatus: "permitted",
   certifierApprovalRef: "",
   approvedByBody: "",
+  derogationExpiryDate: "",
   supplier: "",
   poReference: "",
   grnReference: "",
@@ -817,10 +818,18 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
   }, [allRows, form.supplier]);
 
   const save = useMutation({
-    mutationFn: (b: Record<string, unknown>) => fetch(
-      editing ? api(`farms/${farmId}/organic-fp-input-log/${editing.id}`) : api(`farms/${farmId}/organic-fp-input-log`),
-      { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }
-    ),
+    mutationFn: async (b: Record<string, unknown>) => {
+      const payload = {
+        ...b,
+        derogationExpiryDate: (b.derogationExpiryDate as string) || null,
+      };
+      const r = await fetch(
+        editing ? api(`farms/${farmId}/organic-fp-input-log/${editing.id}`) : api(`farms/${farmId}/organic-fp-input-log`),
+        { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(payload) }
+      );
+      if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); }
+      return r;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ofp-input-log", farmId] });
       setOpen(false); setEditing(null); setForm({ ...EMPTY_INPUT_FORM });
@@ -846,6 +855,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
       approvalStatus: (r.approvalStatus as string) ?? "permitted",
       certifierApprovalRef: (r.certifierApprovalRef as string) ?? "",
       approvedByBody: (r.approvedByBody as string) ?? "",
+      derogationExpiryDate: (r.derogationExpiryDate as string)?.slice(0, 10) ?? "",
       supplier: (r.supplier as string) ?? "",
       poReference: (r.poReference as string) ?? "",
       grnReference: (r.grnReference as string) ?? "",
@@ -917,6 +927,16 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
           {rows.map((row, i) => {
             const status = (row.approvalStatus as string) ?? (row.isApproved ? "permitted" : "restricted");
             const statusColor = APPROVAL_STATUS_COLORS[status] ?? APPROVAL_STATUS_COLORS.permitted;
+            const showExpiry = (status === "restricted" || status === "derogation") && !!row.derogationExpiryDate;
+            const expiryBadge = (() => {
+              if (!showExpiry) return null;
+              const expiry = new Date(row.derogationExpiryDate as string);
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const daysLeft = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
+              if (daysLeft < 0) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-500 border-gray-300">Expired {fmt(row.derogationExpiryDate as string)}</span>;
+              if (daysLeft <= 30) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300">Expires {fmt(row.derogationExpiryDate as string)}</span>;
+              return null;
+            })();
             return (
               <div key={i} className="rounded-md border p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -928,6 +948,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor}`}>
                         {APPROVAL_STATUS_LABELS[status] ?? status}
                       </span>
+                      {expiryBadge}
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
                       {!!row.applicationDate && <span>{fmt(row.applicationDate as string)}</span>}
@@ -968,6 +989,9 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
               </div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved by Body</p><p className="font-medium">{fmtRaw(viewRecord.approvedByBody)}</p></div>
+              {(viewRecord.approvalStatus === "restricted" || viewRecord.approvalStatus === "derogation") && (
+                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Expiry Date</p><p className="font-medium">{viewRecord.derogationExpiryDate ? fmt(viewRecord.derogationExpiryDate as string) : "—"}</p></div>
+              )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{fmtRaw(viewRecord.supplier)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{fmtRaw(viewRecord.poReference)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{fmtRaw(viewRecord.grnReference)}</p></div>
@@ -1060,6 +1084,21 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
                 </div>
               )}
             </div>
+
+            {/* Derogation expiry date */}
+            {(form.approvalStatus === "restricted" || form.approvalStatus === "derogation") && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Derogation Expiry Date</Label>
+                  <Input
+                    type="date"
+                    value={form.derogationExpiryDate}
+                    onChange={e => setForm(f => ({ ...f, derogationExpiryDate: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Date the certifier's approval expires, if applicable.</p>
+                </div>
+              </div>
+            )}
 
             {/* Supplier / PO / GRN */}
             <datalist id="input-supplier-list">
