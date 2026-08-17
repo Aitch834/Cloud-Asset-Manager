@@ -66,6 +66,10 @@ args = "no-silent-saves-test-dashboard"
 task = "workflow.run"
 args = "no-silent-saves-mobile"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "no-hardcoded-prices-website"
+
 [[workflows.workflow]]
 name = "typecheck-mobile"
 author = "agent"
@@ -183,6 +187,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node artifacts/dashboard/scripts/fix-mutation-ok.mjs artifacts/mobile --dry"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "no-hardcoded-prices-website"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node artifacts/website/scripts/check-hardcoded-prices.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true
