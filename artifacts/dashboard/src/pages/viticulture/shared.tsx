@@ -2415,8 +2415,9 @@ export async function printHarvest(
     </tfoot>
   </table>
   ${varietySummaryHtml}
-  ${crossTabHtml}
-  ${chemCrossTabHtml}
+  ${uniqueBlockIdsForCross.length * uniqueVintages.length <= 8
+    ? `<div style="page-break-inside:avoid">${crossTabHtml}${chemCrossTabHtml}</div>`
+    : `${crossTabHtml}${chemCrossTabHtml}`}
   ${(yieldChartSvgHtml || yieldTHaChartSvgHtml || (groupByVintage && tHaEligibleBlockCount < 2)) ? `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Yield by Block &times; Vintage</h2>
   ${yieldChartSvgHtml ? `
