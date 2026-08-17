@@ -28,7 +28,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
+import { downloadCsvFile } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -52,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printDiseaseScouting, useFarmMeta, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, printDiseaseScouting, useFarmMeta, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Scouting = Record<string, unknown>;
 
@@ -265,26 +265,6 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     },
   });
 
-  const csvCols = [
-    { key: "scoutDate", label: "Scout Date", fmt: (r: Record<string, unknown>) => fmtDate(r.scoutDate) },
-    { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId)) },
-    { key: "blockId", label: "Block Linked", fmt: (r: Record<string, unknown>) => r.blockId ? "Yes" : "No" },
-    { key: "scoutedBy", label: "Scouted By" },
-    { key: "downyMildewPressure", label: "Downy Mildew", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.downyMildewPressure) || 0]?.label },
-    { key: "powderyMildewPressure", label: "Powdery Mildew", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.powderyMildewPressure) || 0]?.label },
-    { key: "botrytisPressure", label: "Botrytis", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.botrytisPressure) || 0]?.label },
-    { key: "phomopsisPressure", label: "Phomopsis", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.phomopsisPressure) || 0]?.label },
-    { key: "leafhopperPressure", label: "Leafhopper", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.leafhopperPressure) || 0]?.label },
-    { key: "spiderMitePressure", label: "Spider Mite", fmt: (r: Record<string, unknown>) => PRESSURE_LABELS[Number(r.spiderMitePressure) || 0]?.label },
-    { key: "vineWeevilSighted", label: "Vine Weevil", fmt: (r: Record<string, unknown>) => r.vineWeevilSighted ? "Yes" : "No" },
-    { key: "eutypaDiebackSighted", label: "Eutypa Dieback", fmt: (r: Record<string, unknown>) => r.eutypaDiebackSighted ? "Yes" : "No" },
-    { key: "xylellaFastidiosa", label: "Xylella", fmt: (r: Record<string, unknown>) => r.xylellaFastidiosa ? "ALERT" : "No" },
-    { key: "phytophthoraViticola", label: "Phytophthora viticola", fmt: (r: Record<string, unknown>) => r.phytophthoraViticola ? "ALERT" : "No" },
-    { key: "nextScoutDate", label: "Next Scout Date", fmt: (r: Record<string, unknown>) => fmtDate(r.nextScoutDate) },
-    { key: "actionTaken", label: "Action Taken" },
-    { key: "notes", label: "Notes" },
-  ];
-
   const scoutingYears = Array.from(new Set(data.map(r => new Date(r.scoutDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!scoutingYears.includes(new Date().getFullYear())) scoutingYears.unshift(new Date().getFullYear());
   const filteredScouting = useMemo(() => {
@@ -380,7 +360,55 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               {scoutingYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { exportCSV(filteredScouting, "vineyard-scouting.csv", csvCols, buildViticultureUnlinkedWarning(filteredScouting)); }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            // ── Build per-block summary (visits, date range, max pressures, total photos) ──
+            const bMap: Record<string, { label: string; visits: number; minDate: string; maxDate: string; maxDowny: number; maxPowdery: number; maxBotrytis: number; maxPhomopsis: number; vineWeevil: boolean; eutypa: boolean; xylella: boolean; phytophthora: boolean; totalPhotos: number }> = {};
+            const bKeys: string[] = [];
+            for (const r of filteredScouting) {
+              const bid = r.blockId != null ? Number(r.blockId) : null;
+              const key = bid != null && !isNaN(bid) && bid > 0 ? String(bid) : "unlinked";
+              if (!bMap[key]) {
+                const bl = bid != null && !isNaN(bid) && bid > 0 ? blocks.find(b => b.id === bid) : undefined;
+                const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
+                bMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false, phytophthora: false, totalPhotos: 0 };
+                bKeys.push(key);
+              }
+              const e = bMap[key];
+              e.visits++;
+              e.totalPhotos += Number(r.photoCount) || 0;
+              const sd = String(r.scoutDate ?? "");
+              if (sd && (!e.minDate || sd < e.minDate)) e.minDate = sd;
+              if (sd && (!e.maxDate || sd > e.maxDate)) e.maxDate = sd;
+              e.maxDowny = Math.max(e.maxDowny, Number(r.downyMildewPressure) || 0);
+              e.maxPowdery = Math.max(e.maxPowdery, Number(r.powderyMildewPressure) || 0);
+              e.maxBotrytis = Math.max(e.maxBotrytis, Number(r.botrytisPressure) || 0);
+              e.maxPhomopsis = Math.max(e.maxPhomopsis, Number(r.phomopsisPressure) || 0);
+              if (r.vineWeevilSighted) e.vineWeevil = true;
+              if (r.eutypaDiebackSighted) e.eutypa = true;
+              if (r.xylellaFastidiosa) e.xylella = true;
+              if (r.phytophthoraViticola) e.phytophthora = true;
+            }
+            const pLbl = (n: number) => PRESSURE_LABELS[n]?.label ?? "None";
+            const sortedKeys = [...bKeys].sort((a, b) => bMap[a].label.localeCompare(bMap[b].label));
+            const summaryRows = sortedKeys.map(key => {
+              const e = bMap[key];
+              const alerts = [e.xylella && "Xylella", e.phytophthora && "Phytophthora viticola", e.eutypa && "Eutypa Dieback", e.vineWeevil && "Vine Weevil"].filter(Boolean).join("; ");
+              return [e.label, String(e.visits), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", pLbl(e.maxDowny), pLbl(e.maxPowdery), pLbl(e.maxBotrytis), pLbl(e.maxPhomopsis), String(e.totalPhotos), alerts || "None"];
+            });
+            // ── Build per-record rows ─────────────────────────────────────────────────
+            const recordRows = filteredScouting.map(r => [fmtDate(r.scoutDate), String(blockName(r.blockId)), r.blockId ? "Yes" : "No", String(r.scoutedBy ?? ""), pLbl(Number(r.downyMildewPressure) || 0), pLbl(Number(r.powderyMildewPressure) || 0), pLbl(Number(r.botrytisPressure) || 0), pLbl(Number(r.phomopsisPressure) || 0), pLbl(Number(r.leafhopperPressure) || 0), pLbl(Number(r.spiderMitePressure) || 0), r.vineWeevilSighted ? "Yes" : "No", r.eutypaDiebackSighted ? "Yes" : "No", r.xylellaFastidiosa ? "ALERT" : "No", r.phytophthoraViticola ? "ALERT" : "No", fmtDate(r.nextScoutDate), String(r.actionTaken ?? ""), String(r.notes ?? ""), String(Number(r.photoCount) || 0)]);
+            const unlinkedCount2 = filteredScouting.filter(r => !r.blockId).length;
+            downloadCsvFile("vineyard-scouting.csv", [
+              ...(unlinkedCount2 > 0 ? [[`WARNING: ${unlinkedCount2} record${unlinkedCount2 === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`]] : []),
+              ["BLOCK SUMMARY"],
+              ["Block", "Visits", "First Visit", "Last Visit", "Max Downy", "Max Powdery", "Max Botrytis", "Max Phomopsis", "Total Photos", "Alerts"],
+              ...summaryRows,
+              [],
+              ["DETAILED SCOUTING RECORDS"],
+              ["Scout Date", "Block", "Block Linked", "Scouted By", "Downy Mildew", "Powdery Mildew", "Botrytis", "Phomopsis", "Leafhopper", "Spider Mite", "Vine Weevil", "Eutypa Dieback", "Xylella", "Phytophthora viticola", "Next Scout Date", "Action Taken", "Notes", "Photos"],
+              ...recordRows,
+            ]);
+          }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
             <SelectContent>
