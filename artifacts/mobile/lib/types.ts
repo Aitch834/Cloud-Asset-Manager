@@ -15,6 +15,8 @@ export interface Farm {
   sectorPigs: boolean;
   sectorPoultry: boolean;
   sectorViticulture: boolean;
+  idleBarrelDays?: number | null;
+  approachingNeutralFills?: number | null;
 }
 
 export interface SprayRecord {

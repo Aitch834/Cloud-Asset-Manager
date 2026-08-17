@@ -66,6 +66,8 @@ router.get("/my-farms", requireAuth, async (req: Request, res: Response): Promis
         sectorPigs: farmsTable.sectorPigs,
         sectorPoultry: farmsTable.sectorPoultry,
         sectorViticulture: farmsTable.sectorViticulture,
+        idleBarrelDays: farmsTable.idleBarrelDays,
+        approachingNeutralFills: farmsTable.approachingNeutralFills,
       })
       .from(farmsTable)
       .where(inArray(farmsTable.tenantId, tenantIds)),
@@ -87,6 +89,8 @@ router.get("/my-farms", requireAuth, async (req: Request, res: Response): Promis
     sectorPigs: f.sectorPigs ?? false,
     sectorPoultry: f.sectorPoultry ?? false,
     sectorViticulture: f.sectorViticulture ?? false,
+    idleBarrelDays: f.idleBarrelDays ?? null,
+    approachingNeutralFills: f.approachingNeutralFills ?? null,
   }));
 
   res.json({ farms });

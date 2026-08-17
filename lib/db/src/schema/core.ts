@@ -82,6 +82,8 @@ export const farmsTable = pgTable("farms", {
   invoiceFooterText: text("invoice_footer_text"),
   invoiceLogoPath: text("invoice_logo_path"),
   harvestStrictStorage: boolean("harvest_strict_storage").notNull().default(false),
+  idleBarrelDays: integer("idle_barrel_days"),
+  approachingNeutralFills: integer("approaching_neutral_fills"),
   hpaiZoneStatus: text("hpai_zone_status"),
   hpaiZoneDate: text("hpai_zone_date"),
   hpaiHousingRequiredSince: text("hpai_housing_required_since"),

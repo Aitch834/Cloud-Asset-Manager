@@ -109,6 +109,8 @@ interface FarmFormData {
   harvestStrictStorage: boolean;
   irrigationCostPerMmHa: string;
   irrigationAbstractionSource: string;
+  idleBarrelDays: string;
+  approachingNeutralFills: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -183,6 +185,8 @@ function farmToFormData(farm: Farm & {
     harvestStrictStorage: !!(farm as any).harvestStrictStorage,
     irrigationCostPerMmHa: (farm as any).irrigationCostPerMmHa?.toString() || "",
     irrigationAbstractionSource: (farm as any).irrigationAbstractionSource || "",
+    idleBarrelDays: (farm as any).idleBarrelDays?.toString() || "",
+    approachingNeutralFills: (farm as any).approachingNeutralFills?.toString() || "",
   };
 }
 
@@ -2297,6 +2301,7 @@ export default function FarmSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["farm-detail", farmId] });
       queryClient.invalidateQueries({ queryKey: ["farm-dashboard", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-settings", farmId] });
       toast({ title: "Farm updated", description: "Your changes have been saved." });
     },
     onError: () => {
@@ -2498,6 +2503,8 @@ export default function FarmSettings() {
       invoiceFooterText: formData.invoiceFooterText.trim() || undefined,
       invoiceLogoPath: formData.invoiceLogoPath.trim() || undefined,
       irrigationCostPerMmHa: formData.irrigationCostPerMmHa.trim() || null,
+      idleBarrelDays: formData.idleBarrelDays.trim() ? parseInt(formData.idleBarrelDays, 10) : null,
+      approachingNeutralFills: formData.approachingNeutralFills.trim() ? parseInt(formData.approachingNeutralFills, 10) : null,
       irrigationAbstractionSource: formData.irrigationAbstractionSource.trim() || null,
     });
   };
@@ -3177,6 +3184,43 @@ export default function FarmSettings() {
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
                 <strong>How these registrations work:</strong> The <strong>FSA Wine Production Registration</strong> records your vineyard or winery with the Food Standards Agency (the UK vine planting register and wine standards authority post-Brexit). The <strong>HMRC APPA</strong> is your excise approval to produce and sell wine — required before you remove any wine from your premises on which duty is payable. Apply for your APPA via Government Gateway; contact HMRC Excise on <strong>0300 200 3700</strong>.
+              </div>
+
+              <SectionHeader
+                title="Barrel Alert Thresholds"
+                description="Adjust these to match your winery's practices. Defaults are used when left blank."
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <Label htmlFor="settings-idle-barrel-days">Idle Barrel Threshold (days)</Label>
+                  <Input
+                    id="settings-idle-barrel-days"
+                    type="number"
+                    min="1"
+                    placeholder="Default: 90"
+                    value={formData.idleBarrelDays}
+                    onChange={e => updateField("idleBarrelDays", e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    A barrel empty for longer than this many days is flagged as idle in the vessel register. Leave blank to use the platform default of 90 days.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-approaching-neutral-fills">Neutral Oak Threshold (fills)</Label>
+                  <Input
+                    id="settings-approaching-neutral-fills"
+                    type="number"
+                    min="1"
+                    placeholder="Default: 4"
+                    value={formData.approachingNeutralFills}
+                    onChange={e => updateField("approachingNeutralFills", e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of 4 fills.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

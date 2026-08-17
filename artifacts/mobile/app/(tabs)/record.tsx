@@ -2179,12 +2179,12 @@ export default function RecordScreen() {
     let neutralCount = 0;
     for (const v of vesselRecords) {
       if (_isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
-        if (_isIdleBarrel(v.empty_since)) idleCount++;
-        if (_isApproachingNeutral(v.fill_number)) neutralCount++;
+        if (_isIdleBarrel(v.empty_since, currentFarm?.idleBarrelDays)) idleCount++;
+        if (_isApproachingNeutral(v.fill_number, currentFarm?.approachingNeutralFills)) neutralCount++;
       }
     }
     return { idleCount, neutralCount };
-  }, [vesselRecords]);
+  }, [vesselRecords, currentFarm?.idleBarrelDays, currentFarm?.approachingNeutralFills]);
 
   const visibleOptions = recordOptions.filter((option) => {
     if (option.requiresSectors && !hasSector(currentFarm, option.requiresSectors)) {

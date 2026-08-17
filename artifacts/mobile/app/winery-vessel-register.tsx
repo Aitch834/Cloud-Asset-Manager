@@ -55,17 +55,22 @@ interface FlagDef {
 }
 
 const FLAG_DEFS: FlagDef[] = [
-  { key: "idle",               label: "Idle >90 days",       shortLabel: "idle"             },
+  { key: "idle",               label: "Idle (threshold exceeded)", shortLabel: "idle"          },
   { key: "approaching-neutral",label: "Approaching neutral",  shortLabel: "approaching neutral" },
   { key: "no-fills",           label: "No fills logged",      shortLabel: "no fills"         },
 ];
 
-function matchesFlag(v: WineryVessel, flag: AlertFlag | null): boolean {
+function matchesFlag(
+  v: WineryVessel,
+  flag: AlertFlag | null,
+  idleBarrelDaysThreshold?: number | null,
+  approachingNeutralFillsThreshold?: number | null,
+): boolean {
   if (!flag) return true;
   const barrel = isBarrelType(v.vessel_type);
   const active = String(v.status ?? "active") === "active";
-  if (flag === "idle")                return barrel && active && isIdleBarrel(v.empty_since);
-  if (flag === "approaching-neutral") return barrel && active && isApproachingNeutral(v.fill_number);
+  if (flag === "idle")                return barrel && active && isIdleBarrel(v.empty_since, idleBarrelDaysThreshold);
+  if (flag === "approaching-neutral") return barrel && active && isApproachingNeutral(v.fill_number, approachingNeutralFillsThreshold);
   // no-fills: barrel/barrique vessels only, consistent with dashboard barrel-health flags
   if (flag === "no-fills")            return barrel && active && Number(v.fill_count ?? 0) === 0;
   return true;
@@ -93,21 +98,21 @@ function fillTier(fillNumber: number | null): { label: string; color: string; bg
   return { label: `${fillNumber}th fill – neutral`, color: "#6b7280", bg: "#f9fafb" };
 }
 
-/** A barrel is idle when it has been empty for more than 90 days. */
-function isIdleBarrel(emptySince: string | null): boolean {
+/** A barrel is idle when it has been empty for longer than the threshold (default 90 days). */
+function isIdleBarrel(emptySince: string | null, idleBarrelDaysThreshold?: number | null): boolean {
   if (!emptySince) return false;
   const emptyDate = new Date(emptySince);
   const now = new Date();
   const diffDays = (now.getTime() - emptyDate.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays > 90;
+  return diffDays > (idleBarrelDaysThreshold ?? 90);
 }
 
 /**
- * A barrel is approaching neutral at fill 4+.
- * Matches dashboard: `if (flagFilter === "approaching-neutral") return fill >= 4;`
+ * A barrel is approaching neutral at or above the fill threshold (default 4+).
+ * Matches dashboard: `if (flagFilter === "approaching-neutral") return fill >= approachingNeutralFills;`
  */
-function isApproachingNeutral(fillNumber: number | null): boolean {
-  return fillNumber != null && fillNumber >= 4;
+function isApproachingNeutral(fillNumber: number | null, approachingNeutralFillsThreshold?: number | null): boolean {
+  return fillNumber != null && fillNumber >= (approachingNeutralFillsThreshold ?? 4);
 }
 
 function idleDays(emptySince: string): number {
@@ -154,13 +159,21 @@ function ZoneSectionHeader({ zone, totalCount, flagCount, flagShortLabel }: Zone
 
 // ── Row component ─────────────────────────────────────────────────────────────
 
-function VesselRow({ vessel }: { vessel: WineryVessel }) {
+function VesselRow({
+  vessel,
+  idleBarrelDaysThreshold,
+  approachingNeutralFillsThreshold,
+}: {
+  vessel: WineryVessel;
+  idleBarrelDaysThreshold?: number | null;
+  approachingNeutralFillsThreshold?: number | null;
+}) {
   const barrel = isBarrelType(vessel.vessel_type);
   const active = String(vessel.status ?? "active") === "active";
   const tier = fillTier(vessel.fill_number);
   // Health alerts only apply to active barrel/barrique vessels (matches dashboard behaviour)
-  const idle = barrel && active && isIdleBarrel(vessel.empty_since);
-  const approachingNeutral = barrel && active && isApproachingNeutral(vessel.fill_number);
+  const idle = barrel && active && isIdleBarrel(vessel.empty_since, idleBarrelDaysThreshold);
+  const approachingNeutral = barrel && active && isApproachingNeutral(vessel.fill_number, approachingNeutralFillsThreshold);
   const hasAlerts = idle || approachingNeutral;
 
   const locationParts = [vessel.cellar_zone, vessel.cellar_position, vessel.location]
@@ -323,12 +336,12 @@ export default function WineryVesselRegisterScreen() {
   const idleCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
     String(v.status ?? "active") === "active" &&
-    isIdleBarrel(v.empty_since)
+    isIdleBarrel(v.empty_since, currentFarm?.idleBarrelDays)
   ).length;
   const neutralCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
     String(v.status ?? "active") === "active" &&
-    isApproachingNeutral(v.fill_number)
+    isApproachingNeutral(v.fill_number, currentFarm?.approachingNeutralFills)
   ).length;
   const noFillsCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
@@ -357,7 +370,11 @@ export default function WineryVesselRegisterScreen() {
       );
       // Vessels passing the active flag filter
       const filtered = alertFlag
-        ? zoneVessels.filter(v => matchesFlag(v, alertFlag))
+        ? zoneVessels.filter(v => matchesFlag(
+            v, alertFlag,
+            currentFarm?.idleBarrelDays,
+            currentFarm?.approachingNeutralFills,
+          ))
         : zoneVessels;
 
       return {
@@ -369,9 +386,16 @@ export default function WineryVesselRegisterScreen() {
     }).filter(s => s.data.length > 0 || alertFlag === null);
     // When a flag is active, hide zones where nothing matches (data.length === 0)
     // But only hide when a flag IS active; otherwise all zones always show.
-  }, [records, alertFlag]);
+  }, [records, alertFlag, currentFarm?.idleBarrelDays, currentFarm?.approachingNeutralFills]);
 
   const activeFlagDef = alertFlag ? FLAG_DEFS.find(f => f.key === alertFlag) ?? null : null;
+
+  // Derive the effective label for the active flag using farm-configured thresholds where applicable
+  const activeFlagLabel = activeFlagDef
+    ? activeFlagDef.key === "idle"
+      ? `Idle >${currentFarm?.idleBarrelDays ?? 90} days`
+      : activeFlagDef.label
+    : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -431,7 +455,7 @@ export default function WineryVesselRegisterScreen() {
         <View style={styles.filterPillRow}>
           <View style={styles.filterPill}>
             <Feather name="filter" size={11} color={colors.primary} />
-            <Text style={styles.filterPillText}>{activeFlagDef?.label}</Text>
+            <Text style={styles.filterPillText}>{activeFlagLabel}</Text>
             <Pressable onPress={() => setAlertFlag(null)} hitSlop={8}>
               <Feather name="x" size={13} color={colors.primary} />
             </Pressable>
@@ -449,7 +473,13 @@ export default function WineryVesselRegisterScreen() {
         <SectionList
           sections={sections}
           keyExtractor={item => String(item.id)}
-          renderItem={({ item }) => <VesselRow vessel={item} />}
+          renderItem={({ item }) => (
+            <VesselRow
+              vessel={item}
+              idleBarrelDaysThreshold={currentFarm?.idleBarrelDays}
+              approachingNeutralFillsThreshold={currentFarm?.approachingNeutralFills}
+            />
+          )}
           renderSectionHeader={({ section }) => (
             <ZoneSectionHeader
               zone={section.zone}

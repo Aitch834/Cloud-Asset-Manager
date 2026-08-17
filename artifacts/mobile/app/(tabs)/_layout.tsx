@@ -149,7 +149,12 @@ export default function TabLayout() {
   const { currentFarm } = useFarm();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
   const isViticultureActive = activeModuleKeys.includes("viticulture");
-  const barrelAlertCount = useBarrelAlertCount(currentFarm?.id, isViticultureActive);
+  const barrelAlertCount = useBarrelAlertCount(
+    currentFarm?.id,
+    isViticultureActive,
+    currentFarm?.idleBarrelDays,
+    currentFarm?.approachingNeutralFills,
+  );
 
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout barrelAlertCount={barrelAlertCount} />;

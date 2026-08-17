@@ -14,13 +14,16 @@ interface WineryVesselSummary {
 }
 
 /**
- * Returns the number of barrels that are idle (>90 days empty) or approaching
- * neutral (≥4 fills). Returns 0 when the viticulture module is not active so
- * non-winery farms never trigger an unnecessary API call.
+ * Returns the number of barrels that are idle (empty for longer than the farm's
+ * idle threshold, default 90 days) or approaching neutral (at or above the farm's
+ * neutral fill threshold, default 4 fills). Returns 0 when the viticulture module
+ * is not active so non-winery farms never trigger an unnecessary API call.
  */
 export function useBarrelAlertCount(
   farmId: string | undefined,
-  isViticultureActive: boolean
+  isViticultureActive: boolean,
+  idleBarrelDays?: number | null,
+  approachingNeutralFills?: number | null,
 ): number {
   // Pass undefined farmId when viticulture is inactive to skip the fetch entirely
   const { records } = useApiFetch<WineryVesselSummary>(
@@ -33,11 +36,14 @@ export function useBarrelAlertCount(
     let count = 0;
     for (const v of records) {
       if (isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
-        if (isIdleBarrel(v.empty_since) || isApproachingNeutral(v.fill_number)) {
+        if (
+          isIdleBarrel(v.empty_since, idleBarrelDays) ||
+          isApproachingNeutral(v.fill_number, approachingNeutralFills)
+        ) {
           count++;
         }
       }
     }
     return count;
-  }, [records, isViticultureActive]);
+  }, [records, isViticultureActive, idleBarrelDays, approachingNeutralFills]);
 }

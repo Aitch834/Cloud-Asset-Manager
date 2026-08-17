@@ -55,7 +55,7 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
       headers: buildApiHeaders(token),
     });
     if (!res.ok) return [];
-    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; sectorViticulture: boolean; }> };
+    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; sectorViticulture: boolean; idleBarrelDays?: number | null; approachingNeutralFills?: number | null; }> };
     return (data.farms ?? []).map((f) => ({
       id: String(f.id),
       name: f.name,
@@ -66,6 +66,8 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
       sectorPigs: f.sectorPigs,
       sectorPoultry: f.sectorPoultry,
       sectorViticulture: f.sectorViticulture ?? false,
+      idleBarrelDays: f.idleBarrelDays ?? null,
+      approachingNeutralFills: f.approachingNeutralFills ?? null,
     }));
   } catch {
     return [];
@@ -173,9 +175,11 @@ const [FarmProviderInner, useFarm] = createContextHook(
             fetchUserProfileFromApi(token),
           ]);
           if (apiFarms.length > 0) {
+            // Always use the fresh API farm object so new fields (e.g. barrel
+            // alert thresholds) are never shadowed by a stale cached value.
             const currentApiFarm =
-              savedFarm && apiFarms.find((f) => f.id === savedFarm.id)
-                ? savedFarm
+              savedFarm
+                ? (apiFarms.find((f) => f.id === savedFarm.id) ?? apiFarms[0])
                 : apiFarms[0];
             const resolvedUser = apiUser || savedUser || DEMO_USER;
             await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);

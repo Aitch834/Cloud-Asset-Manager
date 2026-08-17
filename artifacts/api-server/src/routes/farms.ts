@@ -617,9 +617,24 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     winegbMembershipNumber,
     harvestStrictStorage,
     irrigationCostPerMmHa, irrigationAbstractionSource,
+    idleBarrelDays, approachingNeutralFills,
   } = req.body;
 
   if (!name) { res.status(400).json({ error: "Farm name is required" }); return; }
+
+  // Validate optional positive-integer barrel threshold fields
+  let parsedIdleBarrelDays: number | null = null;
+  let parsedApproachingNeutralFills: number | null = null;
+  if (idleBarrelDays != null && idleBarrelDays !== "") {
+    const v = Number(idleBarrelDays);
+    if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "idleBarrelDays must be a positive integer" }); return; }
+    parsedIdleBarrelDays = v;
+  }
+  if (approachingNeutralFills != null && approachingNeutralFills !== "") {
+    const v = Number(approachingNeutralFills);
+    if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "approachingNeutralFills must be a positive integer" }); return; }
+    parsedApproachingNeutralFills = v;
+  }
 
   const [updated] = await db.update(farmsTable).set({
     name,
@@ -672,6 +687,8 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     harvestStrictStorage: harvestStrictStorage ?? false,
     irrigationCostPerMmHa: irrigationCostPerMmHa != null && irrigationCostPerMmHa !== "" ? String(irrigationCostPerMmHa) : null,
     irrigationAbstractionSource: irrigationAbstractionSource?.trim() || null,
+    idleBarrelDays: parsedIdleBarrelDays,
+    approachingNeutralFills: parsedApproachingNeutralFills,
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();

@@ -45,7 +45,7 @@ function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
   return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
 }
 
-export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean }) {
+export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly, approachingNeutralFills: neutralFillsThreshold }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean; approachingNeutralFills?: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
@@ -147,7 +147,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fill History</p>
-          {highestFill >= 4 && (
+          {highestFill >= (neutralFillsThreshold ?? 4) && (
             <span className="text-xs bg-orange-100 text-orange-700 rounded px-1.5 py-0.5 font-medium">
               ⚠ Fill {highestFill} — approaching neutral oak
             </span>
@@ -989,6 +989,26 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     win.print();
   };
   const crud = useWineryCrud(farmId, "winery-vessels", "winery-vessels");
+
+  // Fetch farm settings to resolve per-farm barrel alert thresholds
+  const { data: farmSettingsData } = useQuery<{ record: Record<string, unknown> }>({
+    queryKey: ["farm-settings", farmId],
+    queryFn: async () => {
+      const res = await fetch(api(`farms/${farmId}`), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load farm settings");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const idleBarrelDays: number =
+    farmSettingsData?.record?.idleBarrelDays != null
+      ? Number(farmSettingsData.record.idleBarrelDays)
+      : 90;
+  const approachingNeutralFills: number =
+    farmSettingsData?.record?.approachingNeutralFills != null
+      ? Number(farmSettingsData.record.approachingNeutralFills)
+      : 4;
+
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
@@ -1154,16 +1174,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       else if (fill === 3) tier["3"]++;
       else if (fill === 4) tier["4"]++;
       else if (fill >= 5) tier["5plus"]++;
-      if (fill >= 4) approaching++;
-      // Idle: no open fill (is_full=false) AND empty for >90 days
+      if (fill >= approachingNeutralFills) approaching++;
+      // Idle: no open fill (is_full=false) AND empty for longer than the farm threshold
       const isEmpty = !r.is_full;
       if (isEmpty) {
         const since = daysSince(r.empty_since);
-        if (since !== null && since > 90) idle++;
+        if (since !== null && since > idleBarrelDays) idle++;
       }
     }
     return { tier, approaching, idle, noFillsWithMaintenance, noFillsNoRecords };
-  }, [barrels]);
+  }, [barrels, idleBarrelDays, approachingNeutralFills]);
 
   // Check if a barrel matches the active fill-tier filter
   function matchesFillTierFilter(r: Record<string, unknown>): boolean {
@@ -1183,8 +1203,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     const fill = Number(r.fill_number ?? 0);
     const isEmpty = !r.is_full;
     const since = daysSince(r.empty_since);
-    if (alertFlagFilter === "approaching-neutral") return fill >= 4;
-    if (alertFlagFilter === "idle") return isEmpty && since !== null && since > 90;
+    if (alertFlagFilter === "approaching-neutral") return fill >= approachingNeutralFills;
+    if (alertFlagFilter === "idle") return isEmpty && since !== null && since > idleBarrelDays;
     if (alertFlagFilter === "no-fills-maintenance") return Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0;
     if (alertFlagFilter === "no-fills-none") return Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0;
     return true;
@@ -1271,8 +1291,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             const scopeParts: string[] = [];
             if (zoneFilter.length > 0) scopeParts.push(`Zone: ${zoneFilter.join(", ")}`);
             if (fillTierFilter) scopeParts.push(`Fill tier: ${fillTierFilter}`);
-            if (alertFlagFilter === "approaching-neutral") scopeParts.push("Flag: approaching neutral (fill 4+)");
-            else if (alertFlagFilter === "idle") scopeParts.push("Flag: idle >90 days");
+            if (alertFlagFilter === "approaching-neutral") scopeParts.push(`Flag: approaching neutral (fill ${approachingNeutralFills}+)`);
+            else if (alertFlagFilter === "idle") scopeParts.push(`Flag: idle >${idleBarrelDays} days`);
             else if (alertFlagFilter === "no-fills-maintenance") scopeParts.push("Flag: no fills — cooperage only");
             else if (alertFlagFilter === "no-fills-none") scopeParts.push("Flag: no records at all");
             if (isFullFilter === "true") scopeParts.push("Is Full: Yes");
@@ -1291,7 +1311,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "is_full", label: "Is Full", fmt: r => r.is_full ? "Yes" : "No" },
               { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
               { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
-              { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= 4 ? "Yes" : "No" },
+              { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No" },
             ];
             const handlePrint = () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
@@ -1312,7 +1332,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   r.is_full ? "Yes" : "No",
                   r.empty_since ? fmtDate(r.empty_since) : "\u2014",
                   idleDays,
-                  Number(r.fill_number ?? 0) >= 4 ? "Yes" : "No",
+                  Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
                 ];
               });
 
@@ -1523,7 +1543,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   >
                     <AlertTriangle className="h-3 w-3" />
                     <span>{barrelStats.approaching} approaching neutral</span>
-                    <span className="text-orange-500 text-xs font-normal">(fill 4+)</span>
+                    <span className="text-orange-500 text-xs font-normal">(fill {approachingNeutralFills}+)</span>
                   </button>
                 )}
                 {barrelStats.idle > 0 && (
@@ -1533,7 +1553,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   >
                     <AlertTriangle className="h-3 w-3" />
                     <span>{barrelStats.idle} idle barrel{barrelStats.idle !== 1 ? "s" : ""}</span>
-                    <span className="text-red-500 text-xs font-normal">(empty &gt;90 days)</span>
+                    <span className="text-red-500 text-xs font-normal">(empty &gt;{idleBarrelDays} days)</span>
                   </button>
                 )}
               </div>
@@ -1638,7 +1658,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               Showing{isFullFilter === "true" && <> <span className="font-medium">full</span></>}{isFullFilter === "false" && <> <span className="font-medium">empty</span></>} barrels
               {zoneFilter.length > 0 && <> in <span className="font-medium">{zoneFilter.join(", ")}</span></>}
               {fillTierFilter && <>{zoneFilter.length > 0 && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
-              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill 4+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;90 days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
+              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill {approachingNeutralFills}+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;{idleBarrelDays} days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
               {" "}— click "Show all" to clear.
             </p>
           )}
@@ -1684,8 +1704,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <div>{fmt(r.vessel_type)}</div>
                       {isBarrelRow && (() => {
                         const fill = Number(r.fill_number ?? 0);
-                        const isIdle = !r.is_full && (() => { const d = daysSince(r.empty_since); return d !== null && d > 90; })();
-                        const isApproaching = fill >= 4;
+                        const isIdle = !r.is_full && (() => { const d = daysSince(r.empty_since); return d !== null && d > idleBarrelDays; })();
+                        const isApproaching = fill >= approachingNeutralFills;
                         return (
                           <div className="flex flex-wrap items-center gap-1 mt-0.5">
                             {r.is_full
@@ -1868,7 +1888,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             {isBarrelVessel(view.vessel_type) && (
               <>
                 <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} />
-                <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} />
+                <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
                 <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
               </>
             )}
