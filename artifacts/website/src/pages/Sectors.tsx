@@ -7,7 +7,7 @@ import {
   Beef, Wheat, Grape, Tractor, LayoutGrid, Wrench,
   CheckCircle2, ArrowRight, ChevronRight, AlertTriangle,
   ClipboardList, PoundSterling, ShieldCheck, Smartphone,
-  Gift, FileDown,
+  Gift, FileDown, X, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -176,14 +176,26 @@ const WHY = [
 
 export default function Sectors() {
   const [active, setActive] = useState(SECTORS[0].id);
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
+
   // Pre-select sector from ?sector= query param so Sectors page links from other pages work
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get("sector");
     if (s && SECTORS.some(sec => sec.id === s)) setActive(s);
   }, []);
+
+  // Close lightbox on Escape
+  useEffect(() => {
+    if (!lightboxId) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxId(null); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lightboxId]);
+
   const sector = SECTORS.find((s) => s.id === active)!;
   const Icon = sector.icon as React.ElementType;
+  const lightboxSector = lightboxId ? SECTORS.find((s) => s.id === lightboxId) ?? null : null;
 
   return (
     <Layout>
@@ -245,13 +257,11 @@ export default function Sectors() {
                 </div>
                 {sector.leaflet && (
                   <div className="flex flex-col items-end gap-2">
-                    <a
-                      href={sector.leaflet}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-lg overflow-hidden border border-border shadow-md hover:shadow-lg transition-shadow w-28"
-                      aria-label={`Preview leaflet cover for ${sector.label}`}
-                      tabIndex={-1}
+                    <button
+                      type="button"
+                      onClick={() => setLightboxId(sector.id)}
+                      className="group relative block rounded-lg overflow-hidden border border-border shadow-md hover:shadow-lg transition-shadow w-28 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-forest"
+                      aria-label={`Preview ${sector.label} leaflet cover full-screen`}
                     >
                       <img
                         src={`/leaflets/img/${sector.id}.jpg`}
@@ -260,7 +270,10 @@ export default function Sectors() {
                         width={112}
                         loading="lazy"
                       />
-                    </a>
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                      </span>
+                    </button>
                     <a
                       href={sector.leaflet}
                       download
@@ -506,6 +519,58 @@ export default function Sectors() {
           </div>
         </div>
       </section>
+      {/* Leaflet cover lightbox */}
+      {lightboxSector && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${lightboxSector.label} leaflet preview`}
+          onClick={() => setLightboxId(null)}
+        >
+          <div
+            className="relative max-w-lg w-full flex flex-col items-center gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setLightboxId(null)}
+              className="absolute -top-3 -right-3 z-10 w-9 h-9 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              aria-label="Close preview"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Cover image */}
+            <img
+              src={`/leaflets/img/${lightboxSector.id}.jpg`}
+              alt={`${lightboxSector.label} leaflet cover`}
+              className="w-full rounded-xl shadow-2xl border border-white/10"
+            />
+
+            {/* Actions row */}
+            <div className="flex items-center gap-3">
+              <a
+                href={lightboxSector.leaflet}
+                download
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-foreground text-sm font-medium hover:bg-secondary transition-colors shadow"
+              >
+                <FileDown className="w-4 h-4 text-brand-forest" />
+                Download leaflet (PDF)
+              </a>
+              <a
+                href={lightboxSector.leaflet}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
+              >
+                Open in browser
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
