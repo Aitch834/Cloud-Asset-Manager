@@ -1144,6 +1144,7 @@ export default function AdPdfGenerator() {
     setEditAccentColor(p.accentColor);
     setEditBgUrl(p.bgUrl ?? "");
     setEditErr(null);
+    updatePresetMutation.reset();
   }
 
   function handleCancelEdit() {
