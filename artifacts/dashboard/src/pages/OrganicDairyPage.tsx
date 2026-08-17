@@ -3075,7 +3075,7 @@ export default function OrganicDairyPage() {
     <AppLayout title="Organic Dairy">
       {farmId && (
         <>
-        <ArableFarmSettingsChecklist farmId={farmId} />
+        <ArableFarmSettingsChecklist farmId={farmId} reportLabel="dairy" />
         {dairyAlert?.active && (
           <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
             dairyAlert.level === "national" ? "bg-red-50 border-red-200 text-red-800" :

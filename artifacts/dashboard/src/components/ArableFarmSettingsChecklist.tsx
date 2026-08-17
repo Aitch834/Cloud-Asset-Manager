@@ -10,7 +10,7 @@ import { useFarmMeta } from "@/pages/viticulture/shared";
  * Place this component above the tab bar on any page that produces printed
  * arable reports so growers are warned before they try to export.
  */
-export function ArableFarmSettingsChecklist({ farmId }: { farmId: number }) {
+export function ArableFarmSettingsChecklist({ farmId, reportLabel = "arable" }: { farmId: number; reportLabel?: string }) {
   const { farmRecord, isLoading } = useFarmMeta(farmId);
   const [, navigate] = useLocation();
 
@@ -41,7 +41,7 @@ export function ArableFarmSettingsChecklist({ farmId }: { farmId: number }) {
         <div>
           <p className="text-sm font-semibold text-amber-800">Farm Settings incomplete</p>
           <p className="text-xs text-amber-700 mt-0.5">
-            {missingCount} field{missingCount === 1 ? "" : "s"} below {missingCount === 1 ? "is" : "are"} missing — your printed arable reports will have blank header fields.
+            {missingCount} field{missingCount === 1 ? "" : "s"} below {missingCount === 1 ? "is" : "are"} missing — your printed {reportLabel} reports will have blank header fields.
           </p>
         </div>
       </div>
