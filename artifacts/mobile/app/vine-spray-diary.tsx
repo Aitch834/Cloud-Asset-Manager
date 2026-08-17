@@ -43,6 +43,7 @@ interface SprayDiaryPhoto {
   fileName: string | null;
   caption: string | null;
   sortOrder: number | null;
+  isCover: boolean;
   uploadedAt: string;
   downloadUrl: string | null;
 }
@@ -135,6 +136,11 @@ function SprayPhotoThumbnail({
             <Feather name="image" size={24} color={colors.textSecondary} />
           </View>
         )}
+        {photo.isCover ? (
+          <View style={styles.coverBadge}>
+            <Text style={styles.coverBadgeText}>★</Text>
+          </View>
+        ) : null}
       </View>
       {photo.caption ? (
         <Text style={styles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
@@ -719,6 +725,19 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     maxWidth: 80,
+  },
+  coverBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 3,
+    paddingHorizontal: 2,
+  },
+  coverBadgeText: {
+    fontSize: 8,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 11,
   },
   gridCaptionTooltip: {
     position: "absolute",

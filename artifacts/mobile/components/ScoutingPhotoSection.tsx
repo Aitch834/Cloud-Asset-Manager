@@ -54,6 +54,7 @@ export interface ScoutingPhoto {
   fileName: string | null;
   caption: string | null;
   sortOrder: number | null;
+  isCover: boolean;
   uploadedAt: string;
   downloadUrl: string | null;
 }
@@ -705,6 +706,11 @@ export function ScoutingPhotoThumbnail({
             <Feather name="image" size={24} color={colors.textSecondary} />
           </View>
         )}
+        {photo.isCover ? (
+          <View style={photoStyles.coverBadge}>
+            <Text style={photoStyles.coverBadgeText}>★</Text>
+          </View>
+        ) : null}
       </View>
       {photo.caption ? (
         <Text style={photoStyles.captionBelow} numberOfLines={2}>{photo.caption}</Text>
@@ -995,4 +1001,17 @@ const photoStyles = StyleSheet.create({
   addPhotoBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary ?? colors.success, alignSelf: "flex-start", marginTop: spacing.sm },
   addPhotoBtnDisabled: { opacity: 0.5 },
   addPhotoBtnText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.primary ?? colors.success },
+  coverBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 3,
+    paddingHorizontal: 2,
+  },
+  coverBadgeText: {
+    fontSize: 8,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 11,
+  },
 });
