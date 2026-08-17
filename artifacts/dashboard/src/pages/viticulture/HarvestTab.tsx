@@ -917,13 +917,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       : "all";
 
     // Group records by variety (via their linked block)
-    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[]; pickCount: number }> = {};
     for (const r of rows) {
       const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
       const variety = block ? String(block.variety ?? "").trim() : "";
       const key = variety || "Unknown / Not linked";
-      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [], pickCount: 0 };
       const entry = varietyMap[key];
+      entry.pickCount++;
       entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       // Accumulate area from each unique block only once per variety
       if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
@@ -973,7 +974,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const _w2 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w2 ? _w2 + "\n" : "";
 
-    const csv = warningLine + [
+    // Low-pick warning: varieties with only 1 harvest record have less representative averages
+    const lowPickVarieties = Object.entries(varietyMap).filter(([, e]) => e.pickCount === 1);
+    let lowPickWarningLine = "";
+    if (lowPickVarieties.length > 0) {
+      const names = lowPickVarieties.map(([variety]) => variety);
+      const plural = lowPickVarieties.length === 1;
+      lowPickWarningLine = cell(`NOTE: ${lowPickVarieties.length} variet${plural ? "y" : "ies"} based on a single pick — yield and chemistry averages may be less representative: ${names.join("; ")}`) + "\n";
+    }
+
+    const csv = warningLine + lowPickWarningLine + [
       cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),
       cell("Submit this data at winegb.co.uk (members area → Harvest Yield Survey). Select the correct vintage year when submitting."),
       "",
