@@ -16,10 +16,21 @@ export interface PricingModule {
 }
 
 // ⚠️  PRICE CHANGE CHECKLIST — when editing any price below, also run:
-//   grep -rn '£[0-9]' artifacts/website/src/
-// to catch any hardcoded £ literals in pages or components that have drifted
-// from the canonical values here.  Use modulePrice() or BASE_FEE from this
-// file instead of embedding raw numbers in marketing copy.
+//   node artifacts/website/scripts/check-hardcoded-prices.mjs
+//   node artifacts/website/scripts/check-annual-pricing-ceiling.mjs
+//
+// check-hardcoded-prices.mjs catches bare £N/month literals that have drifted
+// from these canonical values into pages or components.
+//
+// check-annual-pricing-ceiling.mjs asserts that
+//   (BASE_FEE + red-tractor-compliance price) × 12  <  £500/yr
+// so the "Under £500 a year" claim on the Pricing page cannot silently become
+// "Under £600 a year" without a copy review.  If prices push the annual total
+// to £500 or above, update ANNUAL_CEILING in that script after marketing
+// approves new copy.
+//
+// Use modulePrice() or BASE_FEE from this file instead of embedding raw
+// numbers in marketing copy.
 export const MODULES: PricingModule[] = [
   { id: "red-tractor-compliance", name: "Red Tractor Compliance (Required)", price: 25, required: true },
   { id: "field-crop-management", name: "Field & Crop Management", price: 20 },

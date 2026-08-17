@@ -70,6 +70,10 @@ args = "no-silent-saves-mobile"
 task = "workflow.run"
 args = "no-hardcoded-prices-website"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "no-annual-pricing-claim-drift-website"
+
 [[workflows.workflow]]
 name = "typecheck-mobile"
 author = "agent"
@@ -198,6 +202,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node artifacts/website/scripts/check-hardcoded-prices.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "no-annual-pricing-claim-drift-website"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node artifacts/website/scripts/check-annual-pricing-ceiling.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true
