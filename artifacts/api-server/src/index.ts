@@ -29,6 +29,7 @@ import { runFarmCoreMigrations } from "./lib/farmCoreMigrations";
 import { runPigInventoryDeathMigrations } from "./lib/pigInventoryDeathMigrations";
 import { runViticultureMigrations } from "./lib/viticultureMigrations";
 import { runSectorAlertMigrations } from "./lib/sectorAlertMigrations";
+import { runHelpArticleMigrations } from "./lib/helpArticleMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -182,5 +183,8 @@ app.listen(port, () => {
   });
   runSectorAlertMigrations().catch((err) => {
     console.error("[SECTOR-ALERT-MIGRATE] Failed:", err);
+  });
+  runHelpArticleMigrations().catch((err) => {
+    console.error("[HELP-ARTICLE-MIGRATE] Failed:", err);
   });
 });
