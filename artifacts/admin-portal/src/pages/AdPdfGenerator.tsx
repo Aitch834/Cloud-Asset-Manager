@@ -1694,21 +1694,20 @@ export default function AdPdfGenerator() {
           )}
         </div>
 
-        {/* API save warnings — shown after a successful create/update that had near-miss placeholders */}
+        {/* API save warnings — shown after a successful create/update that had missing or near-miss placeholders */}
         {apiSaveWarnings.length > 0 && (
           <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                Template saved — likely placeholder typo{apiSaveWarnings.length > 1 ? "s" : ""} detected
+                Template saved — {apiSaveWarnings.length === 1 ? "1 warning" : `${apiSaveWarnings.length} warnings`} detected
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 mb-1.5">
-                The following token{apiSaveWarnings.length > 1 ? "s" : ""} will be silently ignored by the renderer because{" "}
-                {apiSaveWarnings.length > 1 ? "they don't" : "it doesn't"} match any recognised placeholder exactly:
+                Review the following issue{apiSaveWarnings.length > 1 ? "s" : ""} — {apiSaveWarnings.length > 1 ? "they" : "it"} may cause blank assets in generated PDFs:
               </p>
               <ul className="text-xs space-y-0.5">
                 {apiSaveWarnings.map((w) => (
-                  <li key={w} className="font-mono">{w}</li>
+                  <li key={w}>{w}</li>
                 ))}
               </ul>
             </div>

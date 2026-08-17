@@ -2793,6 +2793,14 @@ function detectAdTemplateNearMissPlaceholders(htmlBody: string): string[] {
   return warnings;
 }
 
+const AD_TEMPLATE_REQUIRED_PLACEHOLDERS = ["{{font_css}}", "{{logo}}", "{{bg}}", "{{qr}}"];
+
+function detectAdTemplateMissingRequiredPlaceholders(htmlBody: string): string[] {
+  return AD_TEMPLATE_REQUIRED_PLACEHOLDERS
+    .filter((p) => !htmlBody.includes(p))
+    .map((p) => `Required placeholder ${p} is missing — the rendered PDF will have a blank asset`);
+}
+
 router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const { name, slug, widthMm, heightMm, htmlBody, isDefault } = req.body as {
@@ -2808,7 +2816,10 @@ router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Respon
       name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm),
       htmlBody, isDefault: !!isDefault,
     }).returning();
-    const warnings = detectAdTemplateNearMissPlaceholders(htmlBody);
+    const warnings = [
+      ...detectAdTemplateMissingRequiredPlaceholders(htmlBody),
+      ...detectAdTemplateNearMissPlaceholders(htmlBody),
+    ];
     res.status(201).json({ ...row, warnings });
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
@@ -2839,7 +2850,10 @@ router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Res
       .where(eq(adTemplatesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Template not found" }); return; }
-    const warnings = detectAdTemplateNearMissPlaceholders(htmlBody);
+    const warnings = [
+      ...detectAdTemplateMissingRequiredPlaceholders(htmlBody),
+      ...detectAdTemplateNearMissPlaceholders(htmlBody),
+    ];
     res.json({ ...row, warnings });
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
