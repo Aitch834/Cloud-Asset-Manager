@@ -2278,6 +2278,12 @@ export default function FarmSettings() {
   });
   const currentFarm = farmDetailData?.record;
 
+  const { data: platformConfig } = useQuery<Record<string, string>>({
+    queryKey: ["platform-config"],
+    queryFn: () => fetch("/api/platform-config").then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { mutate: updateFarm, isPending: isSaving } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await fetch(`/api/farms/${farmId}`, {
@@ -3203,9 +3209,15 @@ export default function FarmSettings() {
                   value={formData.irrigationCostPerMmHa}
                   onChange={e => updateField("irrigationCostPerMmHa", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Combined pump + abstraction cost per mm applied per hectare. Leave blank to use the platform default.
-                </p>
+                {!formData.irrigationCostPerMmHa && platformConfig?.["irrigation.costPerMmHa"] ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                    Using platform default: £{Number(platformConfig["irrigation.costPerMmHa"]).toFixed(2)}/mm/ha
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Combined pump + abstraction cost per mm applied per hectare. Leave blank to use the platform default.
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="settings-irrig-source">Default Abstraction Source</Label>

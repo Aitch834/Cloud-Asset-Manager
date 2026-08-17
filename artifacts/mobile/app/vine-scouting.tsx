@@ -330,4 +330,3 @@ const styles = StyleSheet.create({
   savedBannerText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.success, flex: 1 },
 
 });
-
