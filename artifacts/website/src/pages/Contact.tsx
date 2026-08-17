@@ -96,25 +96,53 @@ const AVAILABLE_MODULES = [
   { id: "pig-production", label: "Pig Production" },
   { id: "poultry-production", label: "Poultry Production" },
   { id: "farm-diversification", label: "Farm Diversification" },
+  { id: "report-builder", label: "Report Builder" },
+  { id: "data-api", label: "Data API Access" },
+  { id: "resource-planner", label: "Resource Planner" },
+  { id: "organic-venison", label: "Organic Venison" },
+  { id: "organic-poultry", label: "Organic Poultry" },
 ];
+
+const VALID_MODULE_IDS = new Set(AVAILABLE_MODULES.map(m => m.id));
+
+// Read the ?modules= query param set by the Pricing page "Start Custom Setup" link.
+// Returns only IDs that exist in AVAILABLE_MODULES; unknown IDs are silently ignored.
+function getModulesParam(): string[] | null {
+  const raw = new URLSearchParams(window.location.search).get("modules");
+  if (!raw) return null;
+  const ids = raw.split(",").map(s => s.trim()).filter(id => VALID_MODULE_IDS.has(id));
+  return ids.length > 0 ? ids : null;
+}
+
+// Read the ?farms= query param set by the Pricing page "Start Custom Setup" link.
+function getFarmsParam(): number | null {
+  const raw = new URLSearchParams(window.location.search).get("farms");
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
 
 export default function Contact() {
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
   const mutation = useCreateLead();
 
-  // Sector context passed from the Pricing page via ?sector= query param
+  // Module/sector/farm-count context passed from the Pricing page via query params.
+  // ?modules= (explicit selection) takes priority over ?sector= (sector defaults).
   const sectorParam = useMemo(() => getSectorParam(), []);
-  const sectorDefaultModules = useMemo(
-    () => sectorParam ? SECTOR_DEFAULT_MODULES[sectorParam] : ["red-tractor-compliance"],
-    [sectorParam],
-  );
+  const modulesParam = useMemo(() => getModulesParam(), []);
+  const farmsParam = useMemo(() => getFarmsParam(), []);
+  const defaultModules = useMemo(() => {
+    if (modulesParam) return modulesParam;
+    if (sectorParam) return SECTOR_DEFAULT_MODULES[sectorParam];
+    return ["red-tractor-compliance"];
+  }, [modulesParam, sectorParam]);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      farmCount: 1,
-      modulesInterested: sectorDefaultModules,
+      farmCount: farmsParam ?? 1,
+      modulesInterested: defaultModules,
     }
   });
 
