@@ -3,6 +3,7 @@ import multer from "multer";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import os from "os";
 import crypto from "crypto";
 import dns from "dns";
@@ -12,6 +13,17 @@ import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
 import { fetchInbox, fetchEmail, fetchAttachment, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
+
+// __dirname is not defined in ESM (tsx dev) — derive it from import.meta.url.
+// The production esbuild CJS bundle injects __dirname globally, so the catch
+// branch handles that case.
+const __esmDirname = (() => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return typeof __dirname !== "undefined" ? __dirname : process.cwd();
+  }
+})();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -3072,8 +3084,8 @@ async function resolveAdBrandAssets(): Promise<{ logoUri: string; qrUri: string 
     const candidates = [
       path.resolve(process.cwd(), "scripts/ad-templates"),
       path.resolve(process.cwd(), "artifacts/api-server/scripts/ad-templates"),
-      path.resolve(__dirname, "../../scripts/ad-templates"),
-      path.resolve(__dirname, "../../../scripts/ad-templates"),
+      path.resolve(__esmDirname, "../../scripts/ad-templates"),
+      path.resolve(__esmDirname, "../../../scripts/ad-templates"),
     ];
     const srcDir = candidates.find((d) => fs.existsSync(d));
     if (srcDir) {

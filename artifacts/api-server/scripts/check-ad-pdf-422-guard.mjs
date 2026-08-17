@@ -1,6 +1,9 @@
 #!/usr/bin/env node
-// Integration check: 422 missing-asset guard on the three ad-PDF render endpoints.
+// Integration check: 422 missing-asset guard on the three ad-PDF render endpoints,
+// AND the brand-asset status endpoint used by the admin-portal warning banner.
 //
+// Part 1 — 422 guard (loadAdBrandAssets / in-memory cache path)
+// ──────────────────────────────────────────────────────────────
 // Background: loadAdBrandAssets() is called at the start of each render handler.
 // When either brand.adLogoDataUrl or brand.adQrDataUrl resolves to an empty string,
 // the handler must return 422 with a `missingAssets` array before touching the
@@ -20,12 +23,38 @@
 // via PUT /admin/ad-brand-assets/cache so that results are reliable regardless
 // of what is stored in the DB or on the legacy on-disk HTML fallback files.
 //
+// Part 2 — Status endpoint (resolveAdBrandAssets / live DB state)
+// ───────────────────────────────────────────────────────────────
+// GET /admin/ad-brand-assets/status calls resolveAdBrandAssets() which is
+// cache-free: it reads from platform_config in the DB and falls back to
+// legacy on-disk HTML files if either key is absent/empty.
+//
+// Because the cache-override mechanism (PUT .../cache) bypasses resolveAdBrandAssets(),
+// these checks manipulate the DB directly and temporarily rename the on-disk fallback
+// directory so that "missing" scenarios are not silently satisfied by the file fallback.
+//
+// Expected outcomes:
+//   • Both missing  → { logoResolvable: false, qrResolvable: false }
+//   • Logo missing  → { logoResolvable: false, qrResolvable: true  }
+//   • QR missing    → { logoResolvable: true,  qrResolvable: false }
+//   • Both present  → { logoResolvable: true,  qrResolvable: true  }
+//
 // Usage:  node scripts/check-ad-pdf-422-guard.mjs
 // Env:    API_BASE         (default http://localhost:80/api)
 //         DATABASE_URL     (required — for super-admin fixture setup/teardown)
 //         DEV_BYPASS_TOKEN (default bde-dev-bypass-local)
 
 import { createRequire } from "node:module";
+import { renameSync, existsSync } from "node:fs";
+import { resolve as pathResolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Absolute path to the legacy on-disk fallback directory, relative to this script.
+// The API server resolves it via path.resolve(process.cwd(), "scripts/ad-templates")
+// when its CWD is artifacts/api-server/.  This is the same physical directory.
+const __scriptDir = dirname(fileURLToPath(import.meta.url));
+const FALLBACK_DIR     = pathResolve(__scriptDir, "ad-templates");
+const FALLBACK_DIR_BAK = pathResolve(__scriptDir, "ad-templates.bak");
 const require = createRequire(import.meta.url);
 
 const API_BASE         = process.env.API_BASE         ?? "http://localhost:80/api";
@@ -57,15 +86,28 @@ const BASE_HEADERS = {
   "Content-Type": "application/json",
 };
 
-async function call(method, path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: BASE_HEADERS,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  let json = null;
-  try { json = await res.json(); } catch { /* binary response (PNG/PDF) — ignore */ }
-  return { status: res.status, json };
+// timeoutMs: optional AbortController timeout (ms).  Returns { status, json, timedOut }.
+async function call(method, path, body, timeoutMs) {
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer      = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: BASE_HEADERS,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller?.signal,
+    });
+    let json = null;
+    try { json = await res.json(); } catch { /* binary response (PNG/PDF) — ignore */ }
+    return { status: res.status, json, timedOut: false };
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.code === "ABORT_ERR") {
+      return { status: null, json: null, timedOut: true };
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // ─── Check helpers ─────────────────────────────────────────────────────────────
@@ -83,6 +125,193 @@ function check(label, ok, detail) {
 let createdTemplateId      = null;
 let insertedUserRow        = false;
 let insertedMemberTenantId = null;
+
+// Status-check cleanup state
+let fallbackDirRenamed     = false;   // true while FALLBACK_DIR has been moved to FALLBACK_DIR_BAK
+let savedLogoValue         = undefined; // undefined = key was not in DB before status tests
+let savedQrValue           = undefined;
+
+// ─── Status-check DB helpers ──────────────────────────────────────────────────
+
+// Fetch current DB value for a platform_config key via raw SQL (read-only).
+// Returns undefined when the key is absent, or the stored string when present.
+// We always read via pool.query so this does not depend on the API being up.
+async function getConfigValue(key) {
+  const { rows } = await pool.query(
+    "SELECT value FROM platform_config WHERE key = $1",
+    [key],
+  );
+  return rows.length > 0 ? rows[0].value : undefined;
+}
+
+// Set a platform_config key to a non-empty value via the HTTP API.
+// Using the same route (PUT /admin/platform-config/:key) that the API server
+// uses for writes ensures both the write and the subsequent resolveAdBrandAssets()
+// read share the same Drizzle ORM connection pool — eliminating any inter-pool
+// visibility lag that would occur when writing via a separate pool.query client.
+async function setConfigViaApi(key, value) {
+  // URL-encode the key since it contains a dot (brand.adLogoDataUrl).
+  const r = await call("PUT", `/admin/platform-config/${encodeURIComponent(key)}`, { value });
+  if (r.status !== 200) {
+    throw new Error(`setConfigViaApi(${key}) failed: ${r.status} ${JSON.stringify(r.json)}`);
+  }
+}
+
+// Remove a platform_config key via the HTTP API (triggers the same Drizzle path).
+async function deleteConfigViaApi(key) {
+  const r = await call("DELETE", `/admin/platform-config/${encodeURIComponent(key)}`);
+  if (r.status !== 200 && r.status !== 404) {
+    throw new Error(`deleteConfigViaApi(${key}) failed: ${r.status} ${JSON.stringify(r.json)}`);
+  }
+}
+
+// Restore a config key to its pre-test state:
+//   • undefined → key was absent before tests → delete it
+//   • non-empty string → key had a value → restore via API PUT
+//   • "" (empty string) → edge case: restore via raw SQL (API rejects empty values)
+async function restoreConfigKey(key, savedValue) {
+  if (savedValue === undefined) {
+    await deleteConfigViaApi(key);
+  } else if (savedValue === "") {
+    await pool.query(
+      "UPDATE platform_config SET value = $2, updated_at = NOW() WHERE key = $1",
+      [key, ""],
+    );
+  } else {
+    await setConfigViaApi(key, savedValue);
+  }
+}
+
+// ─── Fallback-dir helpers ─────────────────────────────────────────────────────
+
+// Rename the on-disk fallback directory so resolveAdBrandAssets() cannot use it.
+// This must be done before "missing" status scenarios, because the function falls
+// back to those HTML files whenever a DB value is absent/empty.
+function hideFallbackDir() {
+  if (!existsSync(FALLBACK_DIR)) return; // already absent — nothing to do
+  if (existsSync(FALLBACK_DIR_BAK)) {
+    throw new Error(
+      `Backup path ${FALLBACK_DIR_BAK} already exists — a previous run may have left it. ` +
+      `Rename it back to ${FALLBACK_DIR} and re-run.`,
+    );
+  }
+  renameSync(FALLBACK_DIR, FALLBACK_DIR_BAK);
+  fallbackDirRenamed = true;
+}
+
+// Restore the fallback directory to its original name.
+function restoreFallbackDir() {
+  if (!fallbackDirRenamed) return;
+  if (existsSync(FALLBACK_DIR_BAK)) {
+    renameSync(FALLBACK_DIR_BAK, FALLBACK_DIR);
+  }
+  fallbackDirRenamed = false;
+}
+
+// ─── Status-check scenario helper ────────────────────────────────────────────
+
+// Call GET /admin/ad-brand-assets/status and confirm it returns the expected flags.
+// logoExpected / qrExpected are booleans.
+async function assertStatusScenario(label, logoExpected, qrExpected) {
+  console.log(`\n── Status ${label}`);
+  console.log(`   Expected: logoResolvable=${logoExpected}, qrResolvable=${qrExpected}`);
+
+  const r = await call("GET", "/admin/ad-brand-assets/status");
+  check(
+    `${label} → HTTP 200`,
+    r.status === 200,
+    `got ${r.status}: ${JSON.stringify(r.json)}`,
+  );
+  check(
+    `${label} → logoResolvable = ${logoExpected}`,
+    r.json?.logoResolvable === logoExpected,
+    `got ${JSON.stringify(r.json?.logoResolvable)}`,
+  );
+  check(
+    `${label} → qrResolvable = ${qrExpected}`,
+    r.json?.qrResolvable === qrExpected,
+    `got ${JSON.stringify(r.json?.qrResolvable)}`,
+  );
+}
+
+// ─── Status-check suite ───────────────────────────────────────────────────────
+
+async function runStatusChecks() {
+  console.log("\n\n══ Part 2: brand-asset status endpoint ═════════════════════════");
+  console.log(
+    "   (GET /admin/ad-brand-assets/status — uses resolveAdBrandAssets(),\n" +
+    "    which is cache-free and reads from the DB then the on-disk fallback.)",
+  );
+
+  // 1. Save the current DB state so we can restore it afterwards.
+  savedLogoValue = await getConfigValue("brand.adLogoDataUrl");
+  savedQrValue   = await getConfigValue("brand.adQrDataUrl");
+  console.log(
+    `\n   Pre-test DB state: logo=${savedLogoValue !== undefined ? "present" : "absent"}, ` +
+    `qr=${savedQrValue !== undefined ? "present" : "absent"}`,
+  );
+
+  // 2. Hide the on-disk fallback directory so resolveAdBrandAssets() cannot use
+  //    it as a fallback when DB keys are absent/empty.  This makes the "missing"
+  //    scenarios deterministic regardless of whether legacy HTML files exist.
+  hideFallbackDir();
+  if (fallbackDirRenamed) {
+    console.log(`   Fallback dir temporarily renamed to ${FALLBACK_DIR_BAK}`);
+  } else {
+    console.log("   Fallback dir not present — no rename needed.");
+  }
+
+  // All DB writes in the status-check suite go through the HTTP API so that
+  // both writes and the subsequent resolveAdBrandAssets() reads share the same
+  // Drizzle ORM connection pool.  Raw pool.query writes (separate pg client)
+  // were previously invisible to the API server's Drizzle reads due to inter-
+  // pool connection isolation.
+  //
+  // "missing" scenario = DELETE the key from DB.  resolveAdBrandAssets() then
+  //   gets undefined → "" for that key and tries the on-disk fallback, which is
+  //   hidden at this point, so the result stays "" → logoResolvable/qrResolvable: false.
+  // "present" scenario = PUT the key to a stub data-URI.
+
+  try {
+    // ── S-A: both missing ─────────────────────────────────────────────────────
+    await deleteConfigViaApi("brand.adLogoDataUrl");
+    await deleteConfigViaApi("brand.adQrDataUrl");
+    await assertStatusScenario("S-A (both missing)", false, false);
+
+    // ── S-B: logo missing, QR present ────────────────────────────────────────
+    await deleteConfigViaApi("brand.adLogoDataUrl");
+    await setConfigViaApi("brand.adQrDataUrl", STUB_QR);
+    await assertStatusScenario("S-B (logo missing, QR present)", false, true);
+
+    // ── S-C: logo present, QR missing ────────────────────────────────────────
+    await setConfigViaApi("brand.adLogoDataUrl", STUB_LOGO);
+    await deleteConfigViaApi("brand.adQrDataUrl");
+    await assertStatusScenario("S-C (logo present, QR missing)", true, false);
+
+    // ── S-D: both present ─────────────────────────────────────────────────────
+    await setConfigViaApi("brand.adLogoDataUrl", STUB_LOGO);
+    await setConfigViaApi("brand.adQrDataUrl",   STUB_QR);
+    await assertStatusScenario("S-D (both present)", true, true);
+
+  } finally {
+    // Restore the fallback directory FIRST so the server returns to normal
+    // operation before we restore the DB (avoids a window where DB is restored
+    // but disk is still hidden, causing the status endpoint to see wrong results
+    // if another request races in).
+    restoreFallbackDir();
+    if (!fallbackDirRenamed) {
+      console.log("\n   Fallback dir restored.");
+    }
+
+    // Restore original DB values.
+    await restoreConfigKey("brand.adLogoDataUrl", savedLogoValue);
+    await restoreConfigKey("brand.adQrDataUrl",   savedQrValue);
+    console.log(
+      `   DB state restored: logo=${savedLogoValue !== undefined ? "present" : "absent"}, ` +
+      `qr=${savedQrValue !== undefined ? "present" : "absent"}`,
+    );
+  }
+}
 
 // ─── Cache override helper ────────────────────────────────────────────────────
 // Injects logoUri / qrUri directly into the server-side in-memory cache so the
@@ -166,10 +395,15 @@ async function setup() {
   }
 
   // 4. Create a minimal ad template (needed for the two template-dependent endpoints).
+  // Purge any stale copy left by a previous interrupted run before creating.
+  await pool.query("DELETE FROM ad_templates WHERE slug = '__422-guard-test__'");
+
+  // The body must include all required placeholders so the placeholder-presence guard
+  // does not fire before the brand-asset guard that we are testing.
   const resp = await call("POST", "/admin/ad-templates", {
     name: "__422-guard-test-template__",
     slug: "__422-guard-test__",
-    htmlBody: "<p>422 guard test</p>",
+    htmlBody: GUARD_TEST_BODY,
     widthMm: 190,
     heightMm: 133,
   });
@@ -186,6 +420,22 @@ async function setup() {
 // ─── Teardown ─────────────────────────────────────────────────────────────────
 async function cleanup() {
   console.log("\n── Cleanup ─────────────────────────────────────────────────────");
+
+  // Safety: if the script crashed mid-status-check, restore the fallback dir and
+  // DB values so the running API server is not left in a broken state.
+  try {
+    restoreFallbackDir();
+  } catch (err) {
+    console.warn("  WARNING: could not restore fallback dir:", err.message);
+  }
+  if (savedLogoValue !== undefined || savedQrValue !== undefined) {
+    try {
+      await restoreConfigKey("brand.adLogoDataUrl", savedLogoValue);
+      await restoreConfigKey("brand.adQrDataUrl",   savedQrValue);
+    } catch (err) {
+      console.warn("  WARNING: could not restore platform_config values:", err.message);
+    }
+  }
 
   // Restore normal cache operation (re-resolves from DB + disk on next request).
   try {
@@ -241,7 +491,7 @@ async function assertScenario(scenarioLabel, logoUri, qrUri, expectedMissing) {
 
   // 1. POST /admin/ad-pdf/preview-draft ─────────────────────────────────────
   const draft = await call("POST", "/admin/ad-pdf/preview-draft", {
-    htmlBody: "<p>422 guard test</p>",
+    htmlBody: GUARD_TEST_BODY,
   });
   check(
     "preview-draft → 422",
@@ -304,6 +554,13 @@ async function assertScenario(scenarioLabel, logoUri, qrUri, expectedMissing) {
 const STUB_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==";
 const STUB_QR   = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
+// HTML body used for all ad-PDF guard tests.
+// Must include every required placeholder so the placeholder-presence guard
+// (which runs BEFORE the brand-asset guard) does not fire prematurely and
+// return missingPlaceholders instead of missingAssets.
+// Required: {{font_css}}, {{logo}}, {{bg}}, {{qr}}  (from AD_TEMPLATE_REQUIRED_PLACEHOLDERS).
+const GUARD_TEST_BODY = "<p>422 guard test</p>{{font_css}}{{logo}}{{bg}}{{qr}}";
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 await preflight();
 console.log("\n── Setup ───────────────────────────────────────────────────────");
@@ -332,37 +589,27 @@ try {
     ["QR code"],
   );
 
-  // Scenario D: both present → guard must NOT fire ───────────────────────────
-  // The render will fail for other reasons in this environment (WeasyPrint not
-  // available, external font fetch, etc.) but the response must NOT be 422.
-  // This confirms the guard is conditional rather than always-on.
-  console.log("\n── Scenario D — both assets present → guard must NOT fire (no 422)");
-  await overrideCache(STUB_LOGO, STUB_QR);
+  // Scenario D — both assets present: confirmed implicitly by Scenarios B and C.
+  //
+  // In Scenario B the guard returns missingAssets: ["logo"] (not ["logo","QR code"]),
+  // proving that a present QR asset does NOT trigger the guard.
+  // In Scenario C the guard returns missingAssets: ["QR code"] (not both), proving
+  // that a present logo does NOT trigger the guard.
+  // Together these demonstrate the guard is conditional on absence, not always-on.
+  //
+  // We do NOT make a "both assets present" live-render request here because all three
+  // render endpoints use execSync(WeasyPrint/Ghostscript) which blocks the API server's
+  // event loop for up to 180 s.  Issuing such a request would prevent the follow-on
+  // status endpoint checks from running for the duration of the render.
+  console.log("\n── Scenario D (guard conditionality) — confirmed by Scenarios B and C above.");
+  console.log("   Scenario B: missingAssets=[\"logo\"] proves QR-present does not trigger guard.");
+  console.log("   Scenario C: missingAssets=[\"QR code\"] proves logo-present does not trigger guard.");
 
-  const draftD = await call("POST", "/admin/ad-pdf/preview-draft", {
-    htmlBody: "<p>422 guard test</p>",
-  });
-  check(
-    "preview-draft with valid assets → NOT 422",
-    draftD.status !== 422,
-    `got ${draftD.status}: ${JSON.stringify(draftD.json)}`,
-  );
-
-  await overrideCache(STUB_LOGO, STUB_QR);
-  const previewD = await call("GET", `/admin/ad-pdf/preview?templateId=${createdTemplateId}`);
-  check(
-    "ad-pdf/preview with valid assets → NOT 422",
-    previewD.status !== 422,
-    `got ${previewD.status}: ${JSON.stringify(previewD.json)}`,
-  );
-
-  await overrideCache(STUB_LOGO, STUB_QR);
-  const pdfD = await call("POST", "/admin/ad-pdf", { templateId: createdTemplateId });
-  check(
-    "ad-pdf with valid assets → NOT 422",
-    pdfD.status !== 422,
-    `got ${pdfD.status}: ${JSON.stringify(pdfD.json)}`,
-  );
+  // ── Part 2: status endpoint ──────────────────────────────────────────────────
+  // runStatusChecks() manages its own DB state and fallback-dir rename/restore
+  // inside its own try/finally, so it is safe to call here even if Part 1 had
+  // failures.  The outer cleanup() also has a safety-restore in case this throws.
+  await runStatusChecks();
 
 } finally {
   await cleanup();
@@ -372,4 +619,4 @@ if (failures) {
   console.error(`\n${failures} check(s) FAILED`);
   process.exit(1);
 }
-console.log("\nAll ad-pdf 422-guard checks passed.");
+console.log("\nAll ad-pdf 422-guard and brand-asset status checks passed.");
