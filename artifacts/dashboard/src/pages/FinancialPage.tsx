@@ -260,6 +260,8 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [linkingTx, setLinkingTx] = useState<{ id: number; description: string | null } | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -274,6 +276,13 @@ function TransactionsTab({ farmId }: { farmId: number }) {
     enabled: !!farmId,
     select: (d) => d.records ?? [],
   });
+
+  const agriEnvProjectsQ = useQuery({
+    queryKey: ["agri-env-projects", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/agri-env-projects`).then(r => r.json()).then(d => d.projects ?? []),
+    enabled: !!farmId,
+  });
+  const agriEnvProjects: any[] = agriEnvProjectsQ.data ?? [];
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["financial-transactions", farmId] });
 
@@ -291,6 +300,23 @@ function TransactionsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { toast({ title: "Transaction deleted" }); invalidate(); setDeleteId(null); },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
   });
+
+  const linkMut = useMutation({
+    mutationFn: async ({ txId, projectId }: { txId: number; projectId: number | null }) => {
+      const res = await fetch(`/api/farms/${farmId}/financial-transactions/${txId}/link-agri-env`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agriEnvProjectId: projectId }),
+      });
+      if (!res.ok) throw new Error("Failed to update link");
+      return res.json();
+    },
+    onSuccess: () => { invalidate(); setLinkingTx(null); setSelectedProjectId(""); },
+    onError: () => toast({ title: "Failed to update link", variant: "destructive" }),
+  });
+
+  const agriEnvProjectName = (id: number) => agriEnvProjects.find((p: any) => p.id === id)?.schemeName ?? `Project #${id}`;
+  const AGRI_ENV_INCOME_CATS = ["Agri-Environment Scheme", "Vineyard Agri-Environment Scheme"];
 
   const handleExport = async () => {
     setExporting(true);
@@ -447,6 +473,29 @@ function TransactionsTab({ farmId }: { farmId: number }) {
                         <Zap size={9} />
                         {srcCfg.label}
                       </span>
+                    )}
+                    {AGRI_ENV_INCOME_CATS.includes(r.category) && r.transactionType === "income" && (
+                      r.agriEnvProjectId ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 3, fontSize: "0.68rem", fontWeight: 600, background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px" }}>
+                          <Link2 size={9} />
+                          via milestone · {agriEnvProjectName(r.agriEnvProjectId)}
+                          <button
+                            title="Unlink from project"
+                            onClick={() => linkMut.mutate({ txId: r.id, projectId: null })}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#166534", padding: 0, lineHeight: 1, display: "flex", alignItems: "center" }}
+                          >
+                            <X size={9} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => { setLinkingTx({ id: r.id, description: r.description }); setSelectedProjectId(""); }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: "0.68rem", fontWeight: 600, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", cursor: "pointer" }}
+                        >
+                          <Link2 size={9} />
+                          Link to project
+                        </button>
+                      )
                     )}
                   </td>
                   <td style={{ padding: "0.625rem 0.875rem", color: "#6b7280", whiteSpace: "nowrap" }}>{r.category || "—"}</td>
@@ -620,6 +669,55 @@ function TransactionsTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link-to-project modal */}
+      {linkingTx && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => { setLinkingTx(null); setSelectedProjectId(""); }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "1.5rem", width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontWeight: 700, fontSize: "1rem", marginBottom: 4, color: "#111827" }}>Link transaction to agri-env project</h3>
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 16 }}>
+              Linking tells the system this transaction <em>is</em> the milestone payment — it will be shown as "via milestone record" and excluded from any double-count warning in the P&amp;L.
+            </p>
+            {linkingTx.description && (
+              <p style={{ fontSize: "0.8rem", color: "#374151", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.5rem 0.75rem", marginBottom: 14, fontStyle: "italic" }}>
+                "{linkingTx.description}"
+              </p>
+            )}
+            {agriEnvProjects.length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 14 }}>No agri-env projects found for this farm. Add a project in the Agri-Environment tab first.</p>
+            ) : (
+              <>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#374151", marginBottom: 6 }}>Agri-env project</label>
+                <select
+                  value={selectedProjectId}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 6, padding: "0.5rem 0.75rem", fontSize: "0.875rem", color: "#111827", background: "#fff", marginBottom: 20 }}
+                >
+                  <option value="">— select a project —</option>
+                  {agriEnvProjects.map((p: any) => (
+                    <option key={p.id} value={String(p.id)}>{p.schemeName}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => { setLinkingTx(null); setSelectedProjectId(""); }} style={{ padding: "0.45rem 1rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", fontSize: "0.875rem", cursor: "pointer", color: "#374151" }}>Cancel</button>
+              {agriEnvProjects.length > 0 && (
+                <button
+                  disabled={!selectedProjectId || linkMut.isPending}
+                  onClick={() => { if (selectedProjectId) linkMut.mutate({ txId: linkingTx.id, projectId: parseInt(selectedProjectId) }); }}
+                  style={{ padding: "0.45rem 1rem", border: "none", borderRadius: 6, background: selectedProjectId ? "#166534" : "#9ca3af", color: "#fff", fontSize: "0.875rem", cursor: selectedProjectId ? "pointer" : "not-allowed", fontWeight: 600 }}
+                >
+                  {linkMut.isPending ? "Saving…" : "Link transaction"}
+                </button>
+              )}
+            </div>
+            {linkMut.isError && (
+              <p style={{ fontSize: "0.78rem", color: "#dc2626", marginTop: 8 }}>Failed to link — please try again.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent style={{ maxWidth: 440 }}>

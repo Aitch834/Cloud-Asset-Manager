@@ -61,6 +61,7 @@ const INCOME_CATS = [
   "Straw & Crop By-Product Sales",
   "Timber & Woodland Sales",
   "Agri-Environment Scheme",
+  "Vineyard Agri-Environment Scheme",
   "Grant / Subsidy",
   "Diversification Income",
   "Shooting & Sporting Rights Income",
@@ -178,14 +179,19 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
   const totalYield = Object.values(cropMap).reduce((s, c) => s + c.yield, 0);
   const totalArea = Object.values(cropMap).reduce((s, c) => s + c.area, 0);
 
-  // Individual Agri-Env Scheme income transactions, split by linked vs unlinked
-  const agriEnvSchemeTxs: any[] = costs.filter(t => t.category === "Agri-Environment Scheme" && t.transactionType === "income");
+  // Individual Agri-Env Scheme income transactions, split by linked vs unlinked.
+  // Covers both standard and vineyard agri-env categories since both are linkable.
+  const agriEnvSchemeTxs: any[] = costs.filter((t: any) =>
+    (t.category === "Agri-Environment Scheme" || t.category === "Vineyard Agri-Environment Scheme") &&
+    t.transactionType === "income"
+  );
   // Linked agri-env income transactions are already represented by their milestone claim in
   // agriEnvYearTotal; exclude them from financial income to avoid double-counting.
-  const txIncomeTotal = costs.filter(t =>
+  // Both "Agri-Environment Scheme" and "Vineyard Agri-Environment Scheme" are linkable categories.
+  const txIncomeTotal = costs.filter((t: any) =>
     t.transactionType === "income" &&
-    !(t.category === "Agri-Environment Scheme" && t.agriEnvProjectId)
-  ).reduce((s, t) => s + (t.amountPence ?? 0), 0);
+    !((t.category === "Agri-Environment Scheme" || t.category === "Vineyard Agri-Environment Scheme") && t.agriEnvProjectId)
+  ).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
   const varCostTotal = costs.filter(t => t.transactionType === "expense" && VARIABLE_COST_CATS.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
   // Agri-env milestone claims earned in the selected year (same logic as P&L tab)
@@ -504,17 +510,21 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   const sumCat = (cat: string) => costs.filter(t => t.category === cat).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
   // Individual Agri-Env Scheme income transactions, split by linked vs unlinked.
+  // Covers both "Agri-Environment Scheme" and "Vineyard Agri-Environment Scheme" since both are linkable.
   // Must be computed before incomeValues so linked transactions can be excluded from totals.
-  const agriEnvSchemeTxs: any[] = costs.filter(t => t.category === "Agri-Environment Scheme" && t.transactionType === "income");
+  const AGRI_ENV_CATS = ["Agri-Environment Scheme", "Vineyard Agri-Environment Scheme"] as const;
+  const agriEnvSchemeTxs: any[] = costs.filter((t: any) => AGRI_ENV_CATS.includes(t.category) && t.transactionType === "income");
   // Linked transactions are already represented by the milestone claim in agriEnvYearTotal;
   // only unlinked transactions contribute to the financial income total.
-  const unlinkedAgriEnvTxTotal = agriEnvSchemeTxs.filter(t => !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+  const unlinkedAgriEnvTxTotal = agriEnvSchemeTxs.filter((t: any) => !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
 
   // Income by category (financial transactions only).
-  // For "Agri-Environment Scheme" we use only unlinked transactions so linked ones are not
+  // For both agri-env categories we use only unlinked transactions so linked ones are not
   // double-counted alongside the milestone claim amount added via agriEnvYearTotal below.
+  const linkedAgriEnvCatTotal = (cat: string) =>
+    agriEnvSchemeTxs.filter((t: any) => t.category === cat && !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
   const incomeValues = INCOME_CATS.reduce((m, c) => {
-    m[c] = c === "Agri-Environment Scheme" ? unlinkedAgriEnvTxTotal : sumCat(c);
+    m[c] = AGRI_ENV_CATS.includes(c as typeof AGRI_ENV_CATS[number]) ? linkedAgriEnvCatTotal(c) : sumCat(c);
     return m;
   }, {} as Record<string, number>);
   const txIncomeTotal = Object.values(incomeValues).reduce((s, v) => s + v, 0);
@@ -1578,7 +1588,7 @@ function YearOnYearTab({ farmId, onRegisterExport }: { farmId: number; onRegiste
   // across all years, returned by the year-on-year endpoint.
   const agriEnvTotalClaimedPence: number = data?.agriEnvTotalClaimedPence ?? 0;
   const unlinkedAgriEnvTxTotal: number = allTx
-    .filter((t: any) => t.category === "Agri-Environment Scheme" && t.transactionType === "income" && !t.agriEnvProjectId)
+    .filter((t: any) => (t.category === "Agri-Environment Scheme" || t.category === "Vineyard Agri-Environment Scheme") && t.transactionType === "income" && !t.agriEnvProjectId)
     .reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
   const hasDoubleCountRisk = agriEnvTotalClaimedPence > 0 && unlinkedAgriEnvTxTotal > 0;
 
