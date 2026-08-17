@@ -59,7 +59,7 @@ export default function HomeScreen() {
   });
 
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
-  const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
+  const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
 
   const fetchFPInputDerogAlerts = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -67,11 +67,11 @@ export default function HomeScreen() {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/week-ahead?days=30`);
       if (!res.ok) return;
       const data = await res.json();
-      const tasks: Array<{ id: string; type: string; title: string; colour: string }> = data.tasks ?? [];
+      const tasks: Array<{ id: string; type: string; title: string; colour: string; dueDate?: string }> = data.tasks ?? [];
       setFpInputDerogAlerts(
         tasks
           .filter((t) => t.type === "organic_fp_input_log_derogation_expiry")
-          .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red" })),
+          .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red", dueDate: t.dueDate ?? null })),
       );
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
@@ -522,7 +522,11 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.unlinkedContent}>
                   <Text style={styles.unlinkedTitle}>{alert.title}</Text>
-                  <Text style={styles.unlinkedSubtitle}>Tap to review FP input log</Text>
+                  <Text style={[styles.unlinkedSubtitle, alert.isOverdue && { color: colors.error }]}>
+                    {alert.dueDate
+                      ? `${alert.isOverdue ? "Expired" : "Expires"} ${new Date(alert.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · Tap to review FP input log`
+                      : "Tap to review FP input log"}
+                  </Text>
                 </View>
                 <Feather name="chevron-right" size={18} color={colors.textSecondary} />
               </Pressable>
