@@ -150,7 +150,7 @@ function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, fi
   const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const filterLabel = filter === "all" ? "all" : filter;
   downloadCsvFile(`restricted-inputs-${filterLabel}-${slug}.csv`, [
-    ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"],
+    ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Derogation Expiry Date", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"],
     ...records.map(r => [
       r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "",
       r.productName,
@@ -160,6 +160,7 @@ function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, fi
       APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
       r.certifierApprovalRef ?? "",
       r.certifierNotified ? "Yes" : "No",
+      r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "",
       r.supplier ?? "",
       r.poReference ?? "",
       r.grnReference ?? "",
@@ -182,11 +183,12 @@ function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {
     <td>${r.justification || "—"}</td>
     <td>${r.certifierApprovalRef || "—"}</td>
     <td>${r.certifierNotified ? "Yes" : "No"}</td>
+    <td style="white-space:nowrap">${r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Restricted Inputs Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Restricted Inputs Log · Complementary Record</p></div>
 <div class="hdr-r"><b>Restricted Inputs</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th></tr></thead>
+<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th><th>Derogation Expiry</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Restricted Inputs Log — Complementary record for Soil Association / OF&G portal. Retain with derogation approvals. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
