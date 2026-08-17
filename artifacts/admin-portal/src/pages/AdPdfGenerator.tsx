@@ -33,6 +33,17 @@ interface AdTemplate {
   archivedAt: string | null;
 }
 
+// ── Custom errors ─────────────────────────────────────────────────────────────
+
+class MissingAssetsError extends Error {
+  missingAssets: string[];
+  constructor(message: string, missingAssets: string[]) {
+    super(message);
+    this.name = "MissingAssetsError";
+    this.missingAssets = missingAssets;
+  }
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 function adminHeaders(): Record<string, string> {
@@ -108,8 +119,9 @@ async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpt
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+    if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
+    throw new Error(json.error ?? `HTTP ${res.status}`);
   }
   return res.blob();
 }
@@ -125,8 +137,9 @@ async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOp
     headers: { "x-admin-secret": getSecret() ?? "" },
   });
   if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+    if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
+    throw new Error(json.error ?? `HTTP ${res.status}`);
   }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -541,9 +554,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
 
   // Draft preview state
   const [draftBgUrl, setDraftBgUrl] = useState("");
-  const [draftPreviewUrl,     setDraftPreviewUrl]      = useState<string | null>(null);
-  const [draftPreviewPending, setDraftPreviewPending]  = useState(false);
-  const [draftPreviewError,   setDraftPreviewError]    = useState<string | null>(null);
+  const [draftPreviewUrl,          setDraftPreviewUrl]          = useState<string | null>(null);
+  const [draftPreviewPending,      setDraftPreviewPending]      = useState(false);
+  const [draftPreviewError,        setDraftPreviewError]        = useState<string | null>(null);
+  const [draftPreviewMissingAssets, setDraftPreviewMissingAssets] = useState<string[] | null>(null);
   const prevDraftObjectUrl = useRef<string | null>(null);
   // Monotonic revision counter — completed fetches whose revision doesn't match the
   // current one are discarded, preventing stale responses from overwriting a newer preview.
@@ -596,6 +610,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
     const thisRevision = ++previewRevision.current;
     setDraftPreviewPending(true);
     setDraftPreviewError(null);
+    setDraftPreviewMissingAssets(null);
     try {
       const res = await fetch("/api/admin/ad-pdf/preview-draft", {
         method: "POST",
@@ -610,8 +625,9 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
       // Discard if a newer request was already dispatched while this one was in flight.
       if (thisRevision !== previewRevision.current) return;
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+        const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+        if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
+        throw new Error(json.error ?? `HTTP ${res.status}`);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -620,7 +636,12 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
       setDraftPreviewUrl(url);
     } catch (err) {
       if (thisRevision !== previewRevision.current) return;
-      setDraftPreviewError(err instanceof Error ? err.message : "Preview generation failed");
+      if (err instanceof MissingAssetsError) {
+        setDraftPreviewMissingAssets(err.missingAssets);
+        setDraftPreviewError(null);
+      } else {
+        setDraftPreviewError(err instanceof Error ? err.message : "Preview generation failed");
+      }
     } finally {
       if (thisRevision === previewRevision.current) setDraftPreviewPending(false);
     }
@@ -711,6 +732,23 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
           body={previewBody}
           accentColor={previewAccentColor}
         />
+
+        {draftPreviewMissingAssets && draftPreviewMissingAssets.length > 0 && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 mt-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+            <p className="text-sm text-destructive">
+              <span className="font-medium">Cannot generate preview:</span>{" "}
+              {draftPreviewMissingAssets.map((a, i) => (
+                <span key={a}>
+                  <strong>{a}</strong>{i < draftPreviewMissingAssets.length - 1 ? " and " : ""}
+                </span>
+              ))}{" "}
+              {draftPreviewMissingAssets.length === 1 ? "is" : "are"} missing — upload{" "}
+              {draftPreviewMissingAssets.length === 1 ? "it" : "them"} in{" "}
+              <a href="/platform-config" className="underline font-medium">Platform Config</a> before retrying.
+            </p>
+          </div>
+        )}
 
         {draftPreviewError && (
           <div className="flex items-start gap-2 text-sm text-destructive mt-2">
@@ -1443,14 +1481,31 @@ export default function AdPdfGenerator() {
           )}
 
           {previewMutation.isError && (
-            <div className="flex items-start gap-2 text-sm text-destructive">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                {previewMutation.error instanceof Error
-                  ? previewMutation.error.message
-                  : "Preview generation failed — check the API server logs."}
-              </span>
-            </div>
+            previewMutation.error instanceof MissingAssetsError ? (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Cannot generate preview:</span>{" "}
+                  {previewMutation.error.missingAssets.map((a, i) => (
+                    <span key={a}>
+                      <strong>{a}</strong>{i < (previewMutation.error as MissingAssetsError).missingAssets.length - 1 ? " and " : ""}
+                    </span>
+                  ))}{" "}
+                  {previewMutation.error.missingAssets.length === 1 ? "is" : "are"} missing — upload{" "}
+                  {previewMutation.error.missingAssets.length === 1 ? "it" : "them"} in{" "}
+                  <a href="#brand-assets" className="underline font-medium">Brand Assets ↓</a> before retrying.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 text-sm text-destructive">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  {previewMutation.error instanceof Error
+                    ? previewMutation.error.message
+                    : "Preview generation failed — check the API server logs."}
+                </span>
+              </div>
+            )
           )}
 
           {mutation.isSuccess && (
@@ -1461,14 +1516,31 @@ export default function AdPdfGenerator() {
           )}
 
           {mutation.isError && (
-            <div className="flex items-start gap-2 text-sm text-destructive">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                {mutation.error instanceof Error
-                  ? mutation.error.message
-                  : "Generation failed — check the API server logs."}
-              </span>
-            </div>
+            mutation.error instanceof MissingAssetsError ? (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Cannot generate PDF:</span>{" "}
+                  {mutation.error.missingAssets.map((a, i) => (
+                    <span key={a}>
+                      <strong>{a}</strong>{i < (mutation.error as MissingAssetsError).missingAssets.length - 1 ? " and " : ""}
+                    </span>
+                  ))}{" "}
+                  {mutation.error.missingAssets.length === 1 ? "is" : "are"} missing — upload{" "}
+                  {mutation.error.missingAssets.length === 1 ? "it" : "them"} in{" "}
+                  <a href="#brand-assets" className="underline font-medium">Brand Assets ↓</a> before retrying.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 text-sm text-destructive">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  {mutation.error instanceof Error
+                    ? mutation.error.message
+                    : "Generation failed — check the API server logs."}
+                </span>
+              </div>
+            )
           )}
         </div>
 
