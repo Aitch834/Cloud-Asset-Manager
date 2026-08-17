@@ -782,6 +782,25 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
                 </p>
               </div>
             )}
+            {typoPlaceholders.length > 0 && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                <div className="text-xs text-amber-800 space-y-1">
+                  <p className="font-medium">
+                    Likely placeholder typo{typoPlaceholders.length > 1 ? "s" : ""} — {typoPlaceholders.length > 1 ? "these tokens were" : "this token was"} silently ignored in the render above:
+                  </p>
+                  <ul className="space-y-0.5">
+                    {typoPlaceholders.map(({ found, expected }) => (
+                      <li key={found} className="flex items-center gap-1.5">
+                        <code className="bg-amber-100 px-1 rounded">{found}</code>
+                        <span className="text-amber-600">→</span>
+                        <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
             <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
               <img src={draftPreviewUrl} alt="Draft template preview" className="w-full object-contain" />
             </div>
