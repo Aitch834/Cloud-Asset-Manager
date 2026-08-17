@@ -914,6 +914,43 @@ export default function AdPdfGenerator() {
 
   // Background URL
   const [bgUrl, setBgUrl] = useState("");
+  const [bgUrlCheckStatus, setBgUrlCheckStatus] = useState<"idle" | "checking" | "ok" | "unreachable">("idle");
+  // Tracks which URL is currently being probed (for stale-result guard)
+  const bgUrlChecking = useRef<string>("");
+  // Tracks the last URL whose probe has fully completed — so we know if the current value needs a new check
+  const bgUrlLastChecked = useRef<string>("");
+
+  function checkBgUrl(url: string) {
+    const trimmed = url.trim();
+    if (!trimmed) { setBgUrlCheckStatus("idle"); return; }
+    setBgUrlCheckStatus("checking");
+    bgUrlChecking.current = trimmed;
+    const img = new Image();
+    img.onload = () => {
+      if (bgUrlChecking.current !== trimmed) return; // stale
+      bgUrlLastChecked.current = trimmed;
+      setBgUrlCheckStatus("ok");
+    };
+    img.onerror = () => {
+      if (bgUrlChecking.current !== trimmed) return; // stale
+      bgUrlLastChecked.current = trimmed;
+      setBgUrlCheckStatus("unreachable");
+    };
+    img.src = trimmed;
+  }
+
+  /**
+   * Returns true if the current bgUrl needs a reachability probe before
+   * Generate / Preview can safely proceed. Triggers the probe as a side-effect.
+   */
+  function ensureBgUrlChecked(): boolean {
+    const trimmed = bgUrl.trim();
+    if (!trimmed) return false; // no URL — nothing to check
+    if (bgUrlLastChecked.current === trimmed) return false; // already checked this exact URL
+    if (bgUrlChecking.current === trimmed) return true; // probe already in flight — wait
+    checkBgUrl(trimmed); // start the probe; buttons will be disabled while pending
+    return true;
+  }
 
   // Customise copy & colour
   const [customiseOpen, setCustomiseOpen] = useState(false);
@@ -1177,11 +1214,21 @@ export default function AdPdfGenerator() {
               id="bg-url"
               type="url"
               value={bgUrl}
-              onChange={(e) => { setBgUrl(e.target.value); resetRendering(); }}
+              onChange={(e) => { setBgUrl(e.target.value); setBgUrlCheckStatus("idle"); bgUrlChecking.current = ""; bgUrlLastChecked.current = ""; resetRendering(); }}
+              onBlur={(e) => checkBgUrl(e.target.value)}
               placeholder="https://… (leave blank for default vineyard photo)"
               className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            {bgUrlCheckStatus === "checking" && (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
+            )}
           </div>
+          {bgUrlCheckStatus === "unreachable" && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              This URL doesn't appear to serve a loadable image. The generated PDF may have a blank background.
+            </div>
+          )}
           <p className="text-xs text-muted-foreground mt-1.5">
             Must be a publicly accessible JPEG URL. Leave blank to use the default Pexels vineyard photo.
           </p>
@@ -1487,24 +1534,28 @@ export default function AdPdfGenerator() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={() => previewMutation.mutate()}
-              disabled={!effectiveId || previewMutation.isPending || mutation.isPending}
+              onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
+              disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking"}
               size="lg"
             >
               {previewMutation.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
+              ) : bgUrlCheckStatus === "checking" ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
               ) : (
                 <><Eye className="w-4 h-4 mr-2" />Preview</>
               )}
             </Button>
 
             <Button
-              onClick={() => mutation.mutate()}
-              disabled={!effectiveId || mutation.isPending || previewMutation.isPending}
+              onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
+              disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking"}
               size="lg"
             >
               {mutation.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
+              ) : bgUrlCheckStatus === "checking" ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
               ) : (
                 "Generate & Download CMYK PDF"
               )}
