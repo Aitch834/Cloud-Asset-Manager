@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -17,6 +17,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -324,10 +325,10 @@ export default function WineryVesselRegisterScreen() {
   );
 
   // ── Alert-flag filter ──────────────────────────────────────────────────────
-  const [alertFlag, setAlertFlag] = useState<AlertFlag | null>(null);
+  const [alertFlag, setAlertFlag] = usePersistedAlertFlag(currentFarm?.id ? String(currentFarm.id) : undefined);
 
   function toggleFlag(flag: AlertFlag) {
-    setAlertFlag(prev => (prev === flag ? null : flag));
+    setAlertFlag(alertFlag === flag ? null : flag);
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
