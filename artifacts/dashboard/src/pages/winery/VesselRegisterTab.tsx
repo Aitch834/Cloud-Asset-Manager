@@ -841,6 +841,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     let maint: Record<string, unknown>[] = [];
     let movs: Record<string, unknown>[] = [];
     let cleans: Record<string, unknown>[] = [];
+    let fillsFetchOk = false;
     const fetchErrors: string[] = [];
     try {
       const [fillsRes, maintRes, movRes, cleansRes] = await Promise.all([
@@ -849,7 +850,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         fetch(api(`farms/${farmId}/winery-vessels/${vid}/movements`), { credentials: "include" }),
         fetch(api(`farms/${farmId}/winery-vessels/${vid}/cleans`), { credentials: "include" }),
       ]);
-      if (fillsRes.ok) { fills = ((await fillsRes.json()).records ?? []) as Record<string, unknown>[]; }
+      if (fillsRes.ok) { fills = ((await fillsRes.json()).records ?? []) as Record<string, unknown>[]; fillsFetchOk = true; }
       else { fetchErrors.push(`Fill history (HTTP ${fillsRes.status})`); }
       if (maintRes.ok) { maint = ((await maintRes.json()).records ?? []) as Record<string, unknown>[]; }
       else { fetchErrors.push(`Maintenance log (HTTP ${maintRes.status})`); }
@@ -877,6 +878,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       "tr:nth-child(even) td{background:#fafafa}" +
       ".empty{color:#888;font-style:italic;font-size:11px}" +
       ".footer{margin-top:14px;font-size:9px;color:#888}" +
+      ".no-fills-note{background:#fffbeb;border:1px solid #f59e0b;border-radius:4px;padding:6px 10px;margin:10px 0;font-size:10px;color:#92400e;font-weight:600}" +
       "@media print{body{margin:10mm}}" +
       "</style></head><body></body></html>");
     doc.close();
@@ -926,6 +928,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       grid.appendChild(d);
     }
     doc.body.appendChild(grid);
+
+    // No-fills warning badge — only shown when the fills fetch succeeded and returned no records
+    if (fillsFetchOk && fills.length === 0) {
+      const noFillsNote = doc.createElement("div");
+      noFillsNote.className = "no-fills-note";
+      noFillsNote.textContent = "⚠ No fills logged — this barrel has no fill history on record.";
+      doc.body.appendChild(noFillsNote);
+    }
 
     // Helper: section heading
     const addH2 = (text: string) => {
@@ -1433,15 +1443,20 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               table.appendChild(thead);
 
               const tbody = doc.createElement("tbody");
-              for (const cells of rows) {
+              rows.forEach((cells, rowIdx) => {
                 const tr = doc.createElement("tr");
-                for (const cell of cells) {
+                const hasNoFills = Number(exportBarrels[rowIdx]?.fill_count ?? 0) === 0;
+                cells.forEach((cell, colIdx) => {
                   const td = doc.createElement("td");
                   td.textContent = cell;
+                  // Highlight the Fill Tier column (index 4) for barrels with no fills
+                  if (colIdx === 4 && hasNoFills) {
+                    td.style.cssText = "background:#fffbeb;color:#92400e;font-weight:600";
+                  }
                   tr.appendChild(td);
-                }
+                });
                 tbody.appendChild(tr);
-              }
+              });
               table.appendChild(tbody);
               doc.body.appendChild(table);
 
