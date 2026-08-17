@@ -301,11 +301,12 @@ const MAINTENANCE_WORK_TYPE_OPTIONS = [
   "Condemned",
 ];
 
-export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
+export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThresholdPence = 60000 }: { farmId: number; vesselId: number; readOnly?: boolean; retirementThresholdPence?: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-maintenance", farmId, vesselId];
+  const [retirementAlertDismissed, setRetirementAlertDismissed] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: qKey,
@@ -405,6 +406,21 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
           </Button>
         )}
       </div>
+      {!isLoading && !isError && !retirementAlertDismissed && totalSpendPence > retirementThresholdPence && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 mb-2 text-xs text-amber-800">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+          <span className="flex-1">
+            Total maintenance spend (£{(totalSpendPence / 100).toFixed(2)}) exceeds the retirement threshold (£{(retirementThresholdPence / 100).toFixed(0)}). Consider retiring this barrel.
+          </span>
+          <button
+            onClick={() => setRetirementAlertDismissed(true)}
+            className="shrink-0 text-amber-600 hover:text-amber-800 ml-1 leading-none"
+            aria-label="Dismiss retirement warning"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <p className="text-xs font-medium text-muted-foreground">{editingRecord ? "Edit maintenance record" : "Log new work"}</p>
