@@ -240,16 +240,36 @@ LIS_LIP_SCOPE_SANDBOX = "https://livestockinformationb2cprod.onmicrosoft.com/ms-
 LIS_LIP_REDIRECT_URI = ""
 
 [[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
 localPort = 8081
 externalPort = 8081
+
+[[ports]]
+localPort = 8082
+externalPort = 5173
 
 [[ports]]
 localPort = 18115
 externalPort = 3002
 
 [[ports]]
+localPort = 18652
+externalPort = 6000
+
+[[ports]]
+localPort = 18653
+externalPort = 5000
+
+[[ports]]
 localPort = 19161
 externalPort = 3001
+
+[[ports]]
+localPort = 19162
+externalPort = 3003
 
 [[ports]]
 localPort = 23183
@@ -258,6 +278,10 @@ externalPort = 80
 [[ports]]
 localPort = 25580
 externalPort = 3000
+
+[[ports]]
+localPort = 25581
+externalPort = 4200
 
 [objectStorage]
 defaultBucketID = "replit-objstore-4376c68c-358c-4bbe-9eb0-37e779037a5a"

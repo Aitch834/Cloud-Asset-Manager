@@ -131,6 +131,11 @@ const uploadLimiter = rateLimit({
   message: { error: "Upload request limit reached, please wait before uploading more files." },
 });
 
+// Trust the first proxy hop (Replit / Cloudflare / load-balancer) so that
+// express-rate-limit and req.ip resolve the real client IP from X-Forwarded-For
+// rather than the proxy's internal address, which prevents ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set("trust proxy", 1);
+
 // Clerk proxy must be mounted before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
@@ -157,6 +162,7 @@ app.use(tenantMiddleware);
 // Apply public rate limiter to unauthenticated submission endpoints.
 app.use("/api/leads", publicLimiter);
 app.use("/api/register-interest", publicLimiter);
+app.use("/api/analytics", publicLimiter);
 app.use("/api/support/tickets", publicLimiter);
 app.use("/api/support/chat", publicLimiter);
 
