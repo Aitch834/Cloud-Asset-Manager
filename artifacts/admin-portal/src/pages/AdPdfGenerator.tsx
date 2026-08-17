@@ -437,6 +437,12 @@ function TemplatePlaceholderPreview({
   const resolvedHeadline = headline.trim()      || SAMPLE_HEADLINE;
   const resolvedBody     = body.trim()          || SAMPLE_BODY;
 
+  // True when any placeholder that appears in the template has no real value supplied
+  const anyValueMissing =
+    (hasHeadline && !headline.trim()) ||
+    (hasBody && !body.trim()) ||
+    (hasAccentColor && !accentColor.trim());
+
   return (
     <div className="mt-3 rounded-lg border border-border overflow-hidden text-sm">
       {/* Mini accent bar */}
@@ -450,11 +456,20 @@ function TemplatePlaceholderPreview({
           </span>
         </p>
 
+        {anyValueMissing && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+            <span>
+              <span className="font-medium">Sample text shown.</span>{" "}
+              Fill in the <span className="font-medium">Customise</span> fields above to preview real values.
+            </span>
+          </div>
+        )}
+
         {hasHeadline && (
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">
               <code className="bg-muted px-1 rounded">{"{{headline}}"}</code>
-              {!headline.trim() && <span className="ml-1 italic">(using sample text)</span>}
             </p>
             <p
               className="font-semibold leading-snug"
@@ -468,7 +483,6 @@ function TemplatePlaceholderPreview({
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">
               <code className="bg-muted px-1 rounded">{"{{body}}"}</code>
-              {!body.trim() && <span className="ml-1 italic">(using sample text)</span>}
             </p>
             <p
               className="text-muted-foreground leading-snug"
@@ -481,7 +495,6 @@ function TemplatePlaceholderPreview({
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">
               <code className="bg-muted px-1 rounded">{"{{accent_color}}"}</code>
-              {!accentColor.trim() && <span className="ml-1 italic">(using default gold)</span>}
             </p>
             <div className="flex items-center gap-2">
               <div
