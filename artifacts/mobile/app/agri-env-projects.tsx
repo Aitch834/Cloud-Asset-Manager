@@ -36,20 +36,23 @@ interface AgriEnvProject {
 interface AgriEnvMilestone {
   id: number;
   projectId: number;
+  farmId: number;
   milestoneName: string | null;
   dueDate: string | null;
   completionDate: string | null;
   claimAmountPence: number | null;
   status: string;
+  evidenceNotes: string | null;
 }
 
 type MilestoneStatus = "pending" | "submitted" | "paid" | "overdue";
 
-const MILESTONE_STATUS_META: Record<MilestoneStatus, { label: string; color: string; bg: string }> = {
+const MILESTONE_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: "Pending",   color: "#d97706", bg: "#fef3c7" },
   submitted: { label: "Submitted", color: "#1d4ed8", bg: "#dbeafe" },
   paid:      { label: "Paid",      color: "#15803d", bg: "#dcfce7" },
   overdue:   { label: "Overdue",   color: "#b91c1c", bg: "#fee2e2" },
+  cancelled: { label: "Cancelled", color: "#6b7280", bg: "#f3f4f6" },
 };
 const MILESTONE_STATUSES: MilestoneStatus[] = ["pending", "submitted", "paid", "overdue"];
 
@@ -537,7 +540,7 @@ export default function AgriEnvProjectsScreen() {
               </View>
             )}
 
-            {/* Individual milestone rows */}
+            {/* Individual milestone rows — tap body to open detail, tap pill to change status */}
             {projMilestones.length > 0 && (
               <View style={styles.milestonesWrap}>
                 <Text style={styles.milestonesHeading}>Milestones</Text>
@@ -553,7 +556,21 @@ export default function AgriEnvProjectsScreen() {
                         idx < projMilestones.length - 1 && styles.milestoneRowBorder,
                       ]}
                     >
-                      <View style={styles.milestoneMain}>
+                      {/* Tap main body → detail screen */}
+                      <Pressable
+                        style={styles.milestoneMain}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/agri-env-milestone-detail" as any,
+                            params: {
+                              projectId: String(project.id),
+                              milestoneId: String(ms.id),
+                            },
+                          })
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`${ms.milestoneName ?? "Milestone"}, ${msMeta.label}. Open milestone detail.`}
+                      >
                         <Text style={styles.milestoneName} numberOfLines={2}>
                           {ms.milestoneName ?? "Milestone"}
                         </Text>
@@ -572,7 +589,8 @@ export default function AgriEnvProjectsScreen() {
                             {fmt(ms.claimAmountPence)}
                           </Text>
                         )}
-                      </View>
+                      </Pressable>
+                      {/* Tap pill → quick status change */}
                       <Pressable
                         onPress={() => {
                           if (isSaving) return;
@@ -1187,6 +1205,7 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: 3,
   },
+
 });
 
 const summaryStyles = StyleSheet.create({

@@ -242,4 +242,5 @@ export const STORAGE_KEYS = {
   PIG_DEATH_RECORDS: "bde_pig_death_records",
   AGRI_ENV_PROJECTS_CACHE: "bde_agri_env_projects_cache",
   AGRI_ENV_MILESTONES_CACHE: "bde_agri_env_milestones_cache",
+  AGRI_ENV_PROJECT_MILESTONES_CACHE: "bde_agri_env_project_milestones_cache",
 } as const;
