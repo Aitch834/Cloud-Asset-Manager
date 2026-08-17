@@ -103,6 +103,40 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string, 
 </body></html>`);
 }
 
+function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, year: number | null) {
+  const csvEsc = (v: string | null | undefined) => {
+    const s = v ?? "";
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const fmtCsv = (v: string | null | undefined) => {
+    if (!v) return "";
+    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
+  };
+  const header = ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required"];
+  const rows = records.map(r => [
+    fmtCsv(r.inspectionDate),
+    r.certifier,
+    r.inspectorName ?? "",
+    r.outcome,
+    r.certificateReference ?? "",
+    fmtCsv(r.nextDueDate),
+    r.nonConformances ?? "",
+    r.actions ?? "",
+  ].map(csvEsc).join(","));
+  const csv = [header.join(","), ...rows].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const yearPart = year ? `-${year}` : "";
+  a.href = url;
+  a.download = `inspections-${safeName}${yearPart}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const rows = records.map(r => `<tr>
@@ -909,9 +943,14 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
             {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           {filteredRecords.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => printInspectionRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
-              <Printer className="w-4 h-4" />Print Register
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => printInspectionRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+                <Printer className="w-4 h-4" />Print Register
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => downloadInspectionsCsv(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+                <Download className="w-4 h-4" />Download CSV
+              </Button>
+            </>
           )}
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_INSP); setFormOpen(true); }} className="gap-2"><Plus className="w-4 h-4" />Add Inspection</Button>
