@@ -1517,6 +1517,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                               const { label, cls } = fillOakLabel(fill);
                               return <span className={`text-xs rounded px-1 py-0.5 ${cls}`}>{label}</span>;
                             })()}
+                            {Number(r.fill_count ?? 0) > 0 && (
+                              <span className="text-xs rounded px-1 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium">
+                                {Number(r.fill_count)} fill{Number(r.fill_count) !== 1 ? "s" : ""}
+                              </span>
+                            )}
                             <span className="text-xs rounded px-1 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 font-medium">
                               {Number(r.clean_count ?? 0)} clean{Number(r.clean_count ?? 0) !== 1 ? "s" : ""}
                             </span>
