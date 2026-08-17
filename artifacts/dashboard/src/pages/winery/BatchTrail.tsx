@@ -2614,14 +2614,18 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "SO₂ Compliance": "Rack-out Date",
       "pH": "Duration",
       "Vessel": "Vessel Ref",
-      "Operator": "Cooperage",
-      "Notes": "Oak Origin / Toasting",
+      "Operator": "Operator",
+      "Notes": "Cooperage / Oak Origin / Toasting",
     });
     for (const f of barrelFillsForCsv) {
       const fillNum = f.fill_number != null ? Number(f.fill_number) : null;
       const fillLabel = fillNum != null ? `Fill ${fillNum}` : "";
       const volL = f.volume_litres != null ? parseFloat(String(f.volume_litres)) : null;
-      const oakParts = [f.oak_origin ? String(f.oak_origin) : "", f.toasting_level ? `Toasting: ${String(f.toasting_level)}` : ""].filter(Boolean);
+      const oakParts = [
+        f.cooperage ? String(f.cooperage) : "",
+        f.oak_origin ? String(f.oak_origin) : "",
+        f.toasting_level ? `Toasting: ${String(f.toasting_level)}` : "",
+      ].filter(Boolean);
       pushRow({
         "Stage": "Barrel Fill",
         "Batch Ref": String(f.fill_batch_ref ?? ""),
@@ -2634,7 +2638,7 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
         "SO₂ Compliance": f.rack_out_date ? fmtDate(f.rack_out_date) : "",
         "pH": csvBarrelDuration(f.fill_date, f.rack_out_date),
         "Vessel": String(f.vessel_ref ?? ""),
-        "Operator": String(f.cooperage ?? ""),
+        "Operator": String(f.operator_name ?? ""),
         "Notes": oakParts.join("; "),
       });
     }
