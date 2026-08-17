@@ -38418,6 +38418,7 @@ router.get("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, req
   const rows = await db.execute(sql`
     SELECT f.*,
       v.vessel_ref,
+      v.capacity_litres AS vessel_capacity_litres,
       p.batch_ref  AS pressing_batch_ref,
       p.press_date AS pressing_press_date,
       COALESCE(
@@ -38429,7 +38430,7 @@ router.get("/farms/:farmId/winery-fermentation", requireAuth, requireTenant, req
     LEFT JOIN winery_pressing_records p ON p.id = f.pressing_record_id AND p.farm_id = ${farmId}
     LEFT JOIN winery_pressing_additions a ON a.pressing_record_id = f.pressing_record_id AND a.farm_id = ${farmId}
     WHERE f.farm_id = ${farmId}
-    GROUP BY f.id, v.vessel_ref, p.batch_ref, p.press_date
+    GROUP BY f.id, v.vessel_ref, v.capacity_litres, p.batch_ref, p.press_date
     ORDER BY f.start_date DESC NULLS LAST, f.created_at DESC
   `);
   res.json({ records: rows.rows });
@@ -38507,7 +38508,7 @@ router.delete("/farms/:farmId/winery-fermentation/:id", requireAuth, requireTena
 // ── SO₂ Testing Register ───────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT t.*, v.vessel_ref, e.equipment_ref FROM winery_so2_tests t LEFT JOIN winery_vessels v ON v.id=t.vessel_id LEFT JOIN winery_equipment e ON e.id=t.equipment_id WHERE t.farm_id=${farmId} ORDER BY t.test_date DESC, t.created_at DESC`);
+  const rows = await db.execute(sql`SELECT t.*, v.vessel_ref, v.capacity_litres AS vessel_capacity_litres, e.equipment_ref FROM winery_so2_tests t LEFT JOIN winery_vessels v ON v.id=t.vessel_id LEFT JOIN winery_equipment e ON e.id=t.equipment_id WHERE t.farm_id=${farmId} ORDER BY t.test_date DESC, t.created_at DESC`);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-so2-tests", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {

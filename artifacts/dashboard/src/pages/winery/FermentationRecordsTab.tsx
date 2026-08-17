@@ -158,6 +158,12 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     { key: "wine_colour", label: "Wine Colour" },
     { key: "is_organic", label: "Organic", fmt: (r: Record<string, unknown>) => (r.is_organic === true || r.is_organic === "true") ? "Yes" : "No" },
     { key: "volume_litres", label: "Volume (L)" },
+    { key: "vessel_ref", label: "Vessel" },
+    { key: "vessel_capacity_litres", label: "Vessel capacity (L)", fmt: (r: Record<string, unknown>) => {
+      if (r.vessel_capacity_litres == null || r.vessel_capacity_litres === "") return "";
+      const cap = parseFloat(String(r.vessel_capacity_litres));
+      return isNaN(cap) ? "" : String(Math.round(cap));
+    } },
     { key: "fermentation_type", label: "Fermentation Type" },
     { key: "yeast_strain", label: "Yeast Strain" },
     { key: "inoculation_date", label: "Inoculation Date", fmt: (r: Record<string, unknown>) => fmtDate(r.inoculation_date) },

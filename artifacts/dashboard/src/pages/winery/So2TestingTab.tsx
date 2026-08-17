@@ -243,6 +243,12 @@ export function So2TestingTab({ farmId }: { farmId: number }) {
     { key: "wine_name", label: "Wine Name" },
     { key: "wine_colour", label: "Colour" },
     { key: "test_stage", label: "Stage" },
+    { key: "vessel_ref", label: "Vessel" },
+    { key: "vessel_capacity_litres", label: "Vessel capacity (L)", fmt: (r: Record<string, unknown>) => {
+      if (r.vessel_capacity_litres == null || r.vessel_capacity_litres === "") return "";
+      const cap = parseFloat(String(r.vessel_capacity_litres));
+      return isNaN(cap) ? "" : String(Math.round(cap));
+    } },
     { key: "free_so2_mg_l", label: "Free SO₂ (mg/L)" },
     { key: "total_so2_mg_l", label: "Total SO₂ (mg/L)" },
     { key: "max_permitted_mg_l", label: "Max Permitted (mg/L)" },
