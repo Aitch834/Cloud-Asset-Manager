@@ -632,12 +632,13 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     return parts.join("-") + ".csv";
   }
 
-  // Deadline counts across all milestones (excluding paid ones)
-  const pendingMilestones = allMilestones.filter(m => m.status !== "paid");
+  const schemeProjects = aeScreenScheme === "all" ? projects : projects.filter(p => p.schemeName === aeScreenScheme);
+
+  // Deadline counts — scoped to the selected scheme's projects (or farm-wide when "All schemes")
+  const schemeProjectIds = useMemo(() => new Set(schemeProjects.map(p => p.id)), [schemeProjects]);
+  const pendingMilestones = allMilestones.filter(m => m.status !== "paid" && schemeProjectIds.has(m.projectId));
   const overdueMs  = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
   const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
-
-  const schemeProjects = aeScreenScheme === "all" ? projects : projects.filter(p => p.schemeName === aeScreenScheme);
   const activeCount    = schemeProjects.filter(p => ["applied", "active"].includes(p.status)).length;
   const completedCount = schemeProjects.filter(p => p.status === "completed").length;
   const totalValue     = schemeProjects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
