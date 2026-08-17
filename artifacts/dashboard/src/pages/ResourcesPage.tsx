@@ -1996,6 +1996,20 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     [milestones, today, sq]
   );
 
+  // Overdue = past deadline AND not yet submitted or paid (grower still needs to act).
+  // Canonical statuses: "pending" | "overdue" | "submitted" | "paid".
+  // "submitted" means the claim is in flight; "paid" means fully resolved.
+  // Both exclude from the overdue count — only "pending"/"overdue" rows need action.
+  const overdueMilestones = useMemo(() =>
+    milestones.filter(m =>
+      m.dueDate &&
+      new Date(m.dueDate + "T12:00:00") < today &&
+      m.status !== "submitted" &&
+      m.status !== "paid"
+    ),
+    [milestones, today]
+  );
+
   const fmtDate = (s: string) =>
     new Date(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
@@ -2233,7 +2247,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className={cn("grid gap-3", overdueMilestones.length > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
         {([
           { label: "Not started", count: notStarted.length, color: "bg-red-50 border-red-200 text-red-600", icon: <CircleDashed className="w-4 h-4" /> },
           { label: "Needs sign-off", count: planned.length, color: "bg-amber-50 border-amber-200 text-amber-700", icon: <ClipboardList className="w-4 h-4" /> },
@@ -2247,6 +2261,15 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
             </div>
           </Card>
         ))}
+        {overdueMilestones.length > 0 && (
+          <Card className="flex items-center gap-3 px-4 py-3 border bg-red-50 border-red-300 text-red-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <div>
+              <div className="text-2xl font-bold leading-none">{overdueMilestones.length}</div>
+              <div className="text-xs opacity-80 mt-0.5">Overdue milestones</div>
+            </div>
+          </Card>
+        )}
       </div>
 
       <p className="text-xs text-foreground/40 -mt-2">
@@ -2322,6 +2345,30 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
+      {/* Overdue milestone alert banner (always visible when overdue milestones exist) */}
+      {overdueMilestones.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
+          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">
+              {overdueMilestones.length} overdue agri-environment milestone{overdueMilestones.length !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {overdueMilestones.length === 1
+                ? "1 milestone has passed its deadline without being marked complete — this may affect your grant claim."
+                : `${overdueMilestones.length} milestones have passed their deadlines without being marked complete — this may affect your grant claim.`}
+              {" "}
+              <button
+                onClick={() => setShowPast(true)}
+                className="underline underline-offset-2 hover:text-red-800 font-semibold"
+              >
+                Review below
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Past tasks toggle */}
       <div className="pt-2 border-t border-border">
         <button
@@ -2356,25 +2403,40 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
               <span className="ml-auto font-normal opacity-70">{pastMilestones.length}</span>
             </div>
             <Card className="overflow-hidden">
-              {pastMilestones.map(m => (
-                <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 opacity-60">
-                  <div className="w-1 self-stretch rounded-full flex-shrink-0 mt-0.5 bg-teal-300" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium leading-snug">{m.milestoneName}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-foreground/50">{fmtDate(m.dueDate + "T12:00:00")}</span>
-                      <span className="text-foreground/30 text-xs">·</span>
-                      <span className="text-xs text-teal-600">{m.schemeName}</span>
+              {pastMilestones.map(m => {
+                // "submitted" = claim in flight; "paid" = fully resolved — neither is actionably overdue
+                const isOverdue = m.status !== "submitted" && m.status !== "paid";
+                return (
+                  <div key={m.id} className={cn("flex items-center gap-3 px-4 py-3 border-b border-border last:border-0", isOverdue ? "bg-red-50/40" : "opacity-60")}>
+                    <div className={cn("w-1 self-stretch rounded-full flex-shrink-0 mt-0.5", isOverdue ? "bg-red-400" : "bg-teal-300")} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium leading-snug">{m.milestoneName}</span>
+                        {isOverdue ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-100 text-red-700 border-red-200">
+                            <AlertCircle className="w-2.5 h-2.5" /> Overdue
+                          </span>
+                        ) : m.status === "paid" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-green-100 text-green-700">✓ Paid</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-teal-100 text-teal-700">↑ Submitted</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-foreground/50">{fmtDate(m.dueDate + "T12:00:00")}</span>
+                        <span className="text-foreground/30 text-xs">·</span>
+                        <span className="text-xs text-teal-600">{m.schemeName}</span>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
+                      className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" /> View
+                    </button>
                   </div>
-                  <button
-                    onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
-                    className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" /> View
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </Card>
           </div>
         )}
