@@ -454,7 +454,7 @@ function sanitizeInlineHtml(html: string): string {
   return Array.from(wrapper.childNodes).map(walk).join("");
 }
 
-function TemplatePlaceholderPreview({
+export function TemplatePlaceholderPreview({
   htmlBody,
   headline,
   body,
