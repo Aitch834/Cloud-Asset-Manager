@@ -491,6 +491,9 @@ export default function AgriEnvProjectsScreen() {
     const pct    = total > 0 ? Math.min(100, Math.round(paidPence      / total * 100)) : 0;
     const pctSub = total > 0 ? Math.min(100 - pct, Math.round(submittedPence / total * 100)) : 0;
 
+    // Remaining = total grant minus all paid claims (null when no grant value set).
+    const remaining: number | null = total > 0 ? total - paidPence : null;
+
     const statusMeta = STATUS_META[project.status] ?? { label: project.status, color: "#374151", bg: "#f3f4f6" };
 
     const dateRange = [formatDate(project.startDate), formatDate(project.endDate)].filter(Boolean).join(" – ");
@@ -520,11 +523,26 @@ export default function AgriEnvProjectsScreen() {
           </View>
         </View>
 
-        {/* Collapsed summary line */}
+        {/* Collapsed summary line — grant total + remaining badge */}
         {!isExpanded && total > 0 && (
-          <Text style={styles.collapsedSummary} numberOfLines={1}>
-            {fmt(total)} — {pct}% drawn
-          </Text>
+          <View style={styles.collapsedRow}>
+            <Text style={styles.collapsedSummary} numberOfLines={1}>
+              {fmt(total)} total
+            </Text>
+            {remaining !== null && (
+              <View style={[
+                summaryStyles.remainingPill,
+                remaining <= 0 ? summaryStyles.remainingPillFull : summaryStyles.remainingPillPartial,
+              ]}>
+                <Text style={[
+                  summaryStyles.remainingPillText,
+                  remaining <= 0 ? summaryStyles.remainingPillTextFull : summaryStyles.remainingPillTextPartial,
+                ]}>
+                  {remaining > 0 ? `${fmt(remaining)} left` : "fully claimed"}
+                </Text>
+              </View>
+            )}
+          </View>
         )}
 
         {/* Expanded body */}
@@ -540,9 +558,24 @@ export default function AgriEnvProjectsScreen() {
               <Text style={styles.metaLine}>{dateRange}</Text>
             )}
 
-            {/* Grant value */}
+            {/* Grant value + remaining badge */}
             {total > 0 && (
-              <Text style={styles.grantValue}>{fmt(total)} total grant value</Text>
+              <View style={styles.grantValueRow}>
+                <Text style={styles.grantValue}>{fmt(total)} total grant value</Text>
+                {remaining !== null && (
+                  <View style={[
+                    summaryStyles.remainingPill,
+                    remaining <= 0 ? summaryStyles.remainingPillFull : summaryStyles.remainingPillPartial,
+                  ]}>
+                    <Text style={[
+                      summaryStyles.remainingPillText,
+                      remaining <= 0 ? summaryStyles.remainingPillTextFull : summaryStyles.remainingPillTextPartial,
+                    ]}>
+                      {remaining > 0 ? `${fmt(remaining)} remaining` : "fully claimed"}
+                    </Text>
+                  </View>
+                )}
+              </View>
             )}
 
             {/* Drawdown progress bar — shown whenever totalGrantValuePence > 0 */}
@@ -1025,11 +1058,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: 11,
   },
+  collapsedRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginTop: 4,
+    gap: 6,
+    flexWrap: "wrap" as const,
+  },
   collapsedSummary: {
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textTertiary,
-    marginTop: 4,
+  },
+
+  // Grant value row (expanded body)
+  grantValueRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginTop: 6,
+    gap: 8,
+    flexWrap: "wrap" as const,
   },
 
   // Expanded body
@@ -1046,7 +1094,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#059669",
-    marginTop: 6,
   },
 
   // Milestone rows
