@@ -111,8 +111,9 @@ function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, y
   };
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const yearPart = year ? `-${year}` : "";
-  downloadCsvFile(`inspections-${safeName}${yearPart}.csv`, [
-    ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required"],
+  const dateStr = new Date().toISOString().slice(0, 10);
+  downloadCsvFile(`inspections-${safeName}${yearPart}-${dateStr}.csv`, [
+    ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required", "Notes"],
     ...records.map(r => [
       fmtDate(r.inspectionDate),
       r.certifier,
@@ -122,6 +123,7 @@ function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, y
       fmtDate(r.nextDueDate),
       r.nonConformances ?? "",
       r.actions ?? "",
+      r.notes ?? "",
     ]),
   ]);
 }
