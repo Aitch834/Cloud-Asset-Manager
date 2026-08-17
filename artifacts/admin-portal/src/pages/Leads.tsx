@@ -4,8 +4,37 @@ import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
-  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag,
+  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Tractor,
 } from "lucide-react";
+
+// Extract "Sector: <value>" from the packed notes field (first line when present)
+function parseSector(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const line = notes.split("\n")[0];
+  const match = line.match(/^Sector:\s*(.+)$/);
+  return match ? match[1].trim() : null;
+}
+
+const SECTOR_COLORS: Record<string, string> = {
+  "Beef & Dairy":              "bg-amber-100 text-amber-800",
+  "Sheep & Goat":              "bg-sky-100 text-sky-800",
+  "Arable":                    "bg-lime-100 text-lime-800",
+  "Viticulture":               "bg-purple-100 text-purple-800",
+  "Mixed Farming":             "bg-orange-100 text-orange-800",
+  "Agricultural Contracting":  "bg-teal-100 text-teal-800",
+};
+
+function SectorBadge({ sector }: { sector: string }) {
+  const color = SECTOR_COLORS[sector] ?? "bg-gray-100 text-gray-700";
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${color}`}>
+      <Tractor className="w-3 h-3" />
+      {sector}
+    </span>
+  );
+}
+
+const SECTORS = Object.keys(SECTOR_COLORS);
 
 const STATUSES = [
   { value: "new", label: "New", color: "bg-blue-100 text-blue-700", icon: Clock },
@@ -165,6 +194,13 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
             )}
           </div>
 
+          {parseSector(lead.notes) && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Sector</p>
+              <SectorBadge sector={parseSector(lead.notes)!} />
+            </div>
+          )}
+
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Modules Interested In</p>
             <div className="flex flex-wrap gap-2">
@@ -259,6 +295,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterSector, setFilterSector] = useState<string>("all");
   const [selected, setSelected] = useState<Lead | null>(null);
   const secret = getSecret()!;
 
@@ -277,6 +314,7 @@ export default function Leads() {
   const filtered = useMemo(() => {
     let list = leads;
     if (filterStatus !== "all") list = list.filter((l) => l.status === filterStatus);
+    if (filterSector !== "all") list = list.filter((l) => parseSector(l.notes) === filterSector);
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter((l) =>
@@ -284,7 +322,7 @@ export default function Leads() {
       );
     }
     return list;
-  }, [leads, filterStatus, query]);
+  }, [leads, filterStatus, filterSector, query]);
 
   const stats = useMemo(() => ({
     total: leads.length,
@@ -332,6 +370,16 @@ export default function Leads() {
             className="w-full pl-9 pr-4 h-10 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
+        <select
+          value={filterSector}
+          onChange={(e) => setFilterSector(e.target.value)}
+          className="h-10 px-3 pr-8 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="all">All Sectors</option>
+          {SECTORS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -381,6 +429,7 @@ export default function Leads() {
                   {lead.contactName} · {lead.email}
                 </p>
               </div>
+              {(() => { const s = parseSector(lead.notes); return s ? <span className="hidden md:block"><SectorBadge sector={s} /></span> : null; })()}
               {lead.source && (
                 <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
                   <Tag className="w-3 h-3" />
