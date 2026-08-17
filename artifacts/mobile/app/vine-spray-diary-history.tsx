@@ -139,13 +139,21 @@ interface SprayLightboxProps {
   visible: boolean;
   onClose: () => void;
   onReload?: () => void;
+  farmId: string | number;
+  sprayDiaryId: number;
+  onCaptionSaved: (photoId: number, caption: string | null) => void;
 }
 
-function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }: SprayLightboxProps) {
+function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, farmId, sprayDiaryId, onCaptionSaved }: SprayLightboxProps) {
   const insets = useSafeAreaInsets();
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imgError, setImgError] = useState(false);
+
+  // Caption editing
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [captionSaving, setCaptionSaving] = useState(false);
 
   // UI-thread shared values
   const indexSv = useSharedValue(initialIndex);
@@ -185,6 +193,8 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
       const idx = Math.min(initialIndex, photos.length - 1);
       setCurrentIndex(idx);
       setImgError(false);
+      setEditingCaption(false);
+      setCaptionDraft("");
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -196,6 +206,8 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
       bgOpacity.value = withTiming(1, { duration: 200 });
     } else {
       bgOpacity.value = withTiming(0, { duration: 150 });
+      setEditingCaption(false);
+      setCaptionDraft("");
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -205,6 +217,8 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
 
   const goToIndex = useCallback((idx: number) => {
     setCurrentIndex(idx);
+    setEditingCaption(false);
+    setCaptionDraft("");
     scale.value = 1;
     savedScale.value = 1;
     translateX.value = 0;
@@ -213,6 +227,35 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
     savedTranslateY.value = 0;
     slideX.value = 0;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save caption via PATCH
+  const handleSaveCaption = useCallback(async () => {
+    const currentPhoto = photosRef.current[currentIndex];
+    if (!currentPhoto) return;
+    const newCaption = captionDraft.trim() || null;
+    setCaptionSaving(true);
+    try {
+      const res = await apiFetch(
+        `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${currentPhoto.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption: newCaption }),
+        },
+      );
+      if (!res.ok) {
+        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+        return;
+      }
+      onCaptionSaved(currentPhoto.id, newCaption);
+      setEditingCaption(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Save Failed", "An error occurred. Please try again.");
+    } finally {
+      setCaptionSaving(false);
+    }
+  }, [currentIndex, captionDraft, farmId, sprayDiaryId, onCaptionSaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save to camera roll + share
   const [saving, setSaving] = useState(false);
@@ -469,21 +512,74 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
             </Animated.View>
           </GestureDetector>
 
-          {/* Caption (read-only) */}
-          {caption ? (
-            <View style={[lbStyles.captionBar, { paddingBottom: insets.bottom + 16 }]}>
-              <Text style={lbStyles.captionText}>{caption}</Text>
-            </View>
+          {/* Caption bar — edit or read mode */}
+          {photo ? (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={[lbStyles.captionBar, { paddingBottom: insets.bottom + 12 }]}
+            >
+              {editingCaption ? (
+                <>
+                  <TextInput
+                    style={lbStyles.captionInput}
+                    value={captionDraft}
+                    onChangeText={setCaptionDraft}
+                    placeholder="Add a caption…"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    multiline
+                    autoFocus
+                    maxLength={500}
+                  />
+                  <View style={lbStyles.captionEditActions}>
+                    <Pressable
+                      style={lbStyles.captionCancelBtn}
+                      onPress={() => { setEditingCaption(false); setCaptionDraft(caption ?? ""); }}
+                      hitSlop={8}
+                      disabled={captionSaving}
+                    >
+                      <Text style={lbStyles.captionCancelText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={lbStyles.captionSaveBtn}
+                      onPress={handleSaveCaption}
+                      hitSlop={8}
+                      disabled={captionSaving}
+                    >
+                      {captionSaving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={lbStyles.captionSaveText}>Save</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <View style={lbStyles.captionReadRow}>
+                  <Text style={[lbStyles.captionText, { flex: 1 }]} numberOfLines={3}>
+                    {caption ?? ""}
+                  </Text>
+                  <Pressable
+                    style={lbStyles.captionEditBtn}
+                    onPress={() => { setCaptionDraft(caption ?? ""); setEditingCaption(true); }}
+                    hitSlop={12}
+                  >
+                    <Feather name="edit-2" size={16} color="rgba(255,255,255,0.75)" />
+                  </Pressable>
+                </View>
+              )}
+            </KeyboardAvoidingView>
           ) : null}
 
           {/* Hint */}
-          <View style={[lbStyles.hintBar, { bottom: (caption ? 60 : 16) + insets.bottom }]}>
-            <Text style={lbStyles.hintText}>
-              {hasMultiple
-                ? "Swipe to browse · Pinch to zoom · Swipe down to close"
-                : "Pinch to zoom · Double-tap · Swipe down to close"}
-            </Text>
-          </View>
+          {!editingCaption ? (
+            <View style={[lbStyles.hintBar, { bottom: (photo ? 68 : 16) + insets.bottom }]}>
+              <Text style={lbStyles.hintText}>
+                {hasMultiple
+                  ? "Swipe to browse · Pinch to zoom · Swipe down to close"
+                  : "Pinch to zoom · Double-tap · Swipe down to close"}
+              </Text>
+            </View>
+          ) : null}
         </Animated.View>
       </GestureHandlerRootView>
     </Modal>
@@ -710,6 +806,13 @@ function SprayDiaryPhotoSection({
             visible={lightboxIndex !== null}
             onClose={() => setLightboxIndex(null)}
             onReload={() => loadPhotos({ silent: true })}
+            farmId={farmId}
+            sprayDiaryId={sprayDiaryId}
+            onCaptionSaved={(photoId, caption) => {
+              setPhotos((prev) =>
+                prev.map((p) => (p.id === photoId ? { ...p, caption } : p)),
+              );
+            }}
           />
         </>
       )}
@@ -1961,5 +2064,61 @@ const lbStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  captionReadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  captionEditBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  captionInput: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minHeight: 48,
+    textAlignVertical: "top",
+    marginBottom: spacing.xs,
+  },
+  captionEditActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+  },
+  captionCancelBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  captionCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.8)",
+  },
+  captionSaveBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    minWidth: 64,
+    alignItems: "center",
+  },
+  captionSaveText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
 });
