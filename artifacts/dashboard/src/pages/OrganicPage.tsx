@@ -148,27 +148,6 @@ function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
   ]);
 }
 
-function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const fmtDate = (v: string | null | undefined) => {
-    if (!v) return "";
-    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
-  };
-  const safeName = farmName.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
-  downloadCsvFile(`${safeName}_Field_Status_Register_${dateStr}.csv`, [
-    ["Field Name", "Status", "Conversion Start Date", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
-    ...records.map(r => [
-      r.fieldName,
-      STATUS_LABELS[r.status] ?? r.status,
-      fmtDate(r.conversionStartDate),
-      fmtDate(r.certificationDate),
-      r.certifierRef ?? "",
-      r.parallelProduction ? "Yes" : "No",
-      r.notes ?? "",
-    ]),
-  ]);
-}
-
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const rows = records.map(r => `<tr>
