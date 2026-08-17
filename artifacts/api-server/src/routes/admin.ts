@@ -3474,4 +3474,28 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   }
 });
 
+// ─── Brand-asset cache control (test / admin tooling) ────────────────────────
+// DELETE: flush the cache so the next render re-resolves from DB + disk.
+// PUT:    override the cache with specific values so integration tests can
+//         inject known-empty or known-present URIs without touching the DB or
+//         on-disk fallback files.  The override expires after BRAND_ASSET_CACHE_TTL_MS
+//         like any normal cache entry.
+
+router.delete("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  _brandAssetCache = null;
+  res.json({ flushed: true });
+});
+
+router.put("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { logoUri, qrUri } = req.body as { logoUri?: string; qrUri?: string };
+  if (typeof logoUri !== "string" || typeof qrUri !== "string") {
+    res.status(400).json({ error: "logoUri and qrUri (strings) are required" });
+    return;
+  }
+  _brandAssetCache = { logoUri, qrUri, cachedAt: Date.now() };
+  res.json({ overridden: true, logoUri: !!logoUri, qrUri: !!qrUri });
+});
+
 export default router;
