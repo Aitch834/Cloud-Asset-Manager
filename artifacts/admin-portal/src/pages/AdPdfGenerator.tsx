@@ -1125,6 +1125,10 @@ export default function AdPdfGenerator() {
   });
 
   function handleStartEdit(p: AdCopyPreset) {
+    // Always clear any stale mutation error immediately — even when re-opening
+    // the same preset's form or when the user cancels a discard prompt.
+    setEditErr(null);
+    updatePresetMutation.reset();
     if (editingPresetId !== null && editingPresetId !== p.id) {
       const orig = presets.find((x) => x.id === editingPresetId);
       const isDirty =
@@ -1143,8 +1147,6 @@ export default function AdPdfGenerator() {
     setEditBody(p.body);
     setEditAccentColor(p.accentColor);
     setEditBgUrl(p.bgUrl ?? "");
-    setEditErr(null);
-    updatePresetMutation.reset();
   }
 
   function handleCancelEdit() {
