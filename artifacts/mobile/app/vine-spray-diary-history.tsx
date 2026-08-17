@@ -395,7 +395,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload }
           <Pressable
             style={[lbStyles.closeBtn, { top: insets.top + 12 }]}
             onPress={onClose}
-            hitSlop={16}
+            hitSlop={24}
           >
             <Feather name="x" size={24} color="#fff" />
           </Pressable>

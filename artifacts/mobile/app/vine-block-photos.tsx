@@ -864,7 +864,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         <Pressable
           style={[styles.lbCloseBtn, { top: insets.top + 12 }]}
           onPress={onClose}
-          hitSlop={16}
+          hitSlop={24}
         >
           <Feather name="x" size={24} color="#fff" />
         </Pressable>
