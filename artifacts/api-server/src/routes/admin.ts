@@ -3273,6 +3273,16 @@ router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res
     return;
   }
 
+  // Guard: required placeholders must be present before rendering
+  const draftMissingPlaceholders = detectAdTemplateMissingRequiredPlaceholders(htmlBody);
+  if (draftMissingPlaceholders.length > 0) {
+    res.status(422).json({
+      error: `Template is missing required placeholder(s): ${draftMissingPlaceholders.join(", ")}`,
+      missingPlaceholders: draftMissingPlaceholders,
+    });
+    return;
+  }
+
   // Guard: brand assets must be present before starting any render job
   const { logoUri: draftLogoUri, qrUri: draftQrUri } = await loadAdBrandAssets();
   const draftMissing = [...(!draftLogoUri ? ["logo"] : []), ...(!draftQrUri ? ["QR code"] : [])];

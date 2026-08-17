@@ -594,6 +594,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
   const [draftPreviewPending,      setDraftPreviewPending]      = useState(false);
   const [draftPreviewError,        setDraftPreviewError]        = useState<string | null>(null);
   const [draftPreviewMissingAssets, setDraftPreviewMissingAssets] = useState<string[] | null>(null);
+  const [draftPreviewMissingPlaceholders, setDraftPreviewMissingPlaceholders] = useState<string[] | null>(null);
   // Track whether a preview has ever been successfully generated — used to keep
   // the missing-placeholder warning visible even after subsequent HTML edits clear
   // the preview image.
@@ -651,6 +652,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
     setDraftPreviewPending(true);
     setDraftPreviewError(null);
     setDraftPreviewMissingAssets(null);
+    setDraftPreviewMissingPlaceholders(null);
     try {
       const res = await fetch("/api/admin/ad-pdf/preview-draft", {
         method: "POST",
@@ -665,7 +667,8 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
       // Discard if a newer request was already dispatched while this one was in flight.
       if (thisRevision !== previewRevision.current) return;
       if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+        const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[]; missingPlaceholders?: string[] };
+        if (json.missingPlaceholders?.length) throw new MissingPlaceholdersError(json.error ?? `HTTP ${res.status}`, json.missingPlaceholders);
         if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
@@ -677,7 +680,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
       setHasEverPreviewed(true);
     } catch (err) {
       if (thisRevision !== previewRevision.current) return;
-      if (err instanceof MissingAssetsError) {
+      if (err instanceof MissingPlaceholdersError) {
+        setDraftPreviewMissingPlaceholders(err.missingPlaceholders);
+        setDraftPreviewError(null);
+      } else if (err instanceof MissingAssetsError) {
         setDraftPreviewMissingAssets(err.missingAssets);
         setDraftPreviewError(null);
       } else {
@@ -773,6 +779,22 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
           body={previewBody}
           accentColor={previewAccentColor}
         />
+
+        {draftPreviewMissingPlaceholders && draftPreviewMissingPlaceholders.length > 0 && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 mt-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+            <p className="text-sm text-destructive">
+              <span className="font-medium">Cannot generate preview:</span>{" "}
+              the following required placeholder{draftPreviewMissingPlaceholders.length > 1 ? "s are" : " is"} missing from the template:{" "}
+              {draftPreviewMissingPlaceholders.map((p, i) => (
+                <span key={p}>
+                  <code className="bg-destructive/10 px-1 rounded">{p}</code>{i < draftPreviewMissingPlaceholders.length - 1 ? ", " : ""}
+                </span>
+              ))}
+              . Add {draftPreviewMissingPlaceholders.length === 1 ? "it" : "them"} to the HTML body and retry.
+            </p>
+          </div>
+        )}
 
         {draftPreviewMissingAssets && draftPreviewMissingAssets.length > 0 && (
           <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30 mt-2">

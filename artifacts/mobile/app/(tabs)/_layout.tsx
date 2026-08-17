@@ -161,7 +161,11 @@ function ClassicTabLayout({
   );
 }
 
-export default function TabLayout() {
+/**
+ * Inner shell rendered inside SmsPrefsProvider so that useSmsMisconfigured
+ * can subscribe to refreshKey from SmsPrefsContext correctly.
+ */
+function TabLayoutInner() {
   const { currentFarm } = useFarm();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
   const isViticultureActive = activeModuleKeys.includes("viticulture");
@@ -174,15 +178,15 @@ export default function TabLayout() {
   const smsMisconfigured = useSmsMisconfigured(activeModuleKeys);
 
   if (isLiquidGlassAvailable()) {
-    return (
-      <SmsPrefsProvider>
-        <NativeTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
-      </SmsPrefsProvider>
-    );
+    return <NativeTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />;
   }
+  return <ClassicTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />;
+}
+
+export default function TabLayout() {
   return (
     <SmsPrefsProvider>
-      <ClassicTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
+      <TabLayoutInner />
     </SmsPrefsProvider>
   );
 }
