@@ -472,8 +472,9 @@ const MOVEMENT_REASON_OPTIONS = [
   "Other",
 ];
 
-export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPosition, readOnly }: {
+export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPosition, readOnly, onMoveLogged }: {
   farmId: number; vesselId: number; currentZone?: string; currentPosition?: string; readOnly?: boolean;
+  onMoveLogged?: (toZone: string, toPosition: string) => void;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -561,6 +562,12 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
           reason: "",
           notes: "",
         }));
+        // Immediately notify the parent so the identity grid ViewFields update
+        // without waiting for the winery-vessels refetch to complete.
+        // Only for new moves — edits to historical records don't necessarily
+        // change the current location (the API derives it from the latest-dated
+        // movement), so we let the query invalidation handle that case.
+        onMoveLogged?.(snapshot.toZone ?? "", snapshot.toPosition ?? "");
         toast({ title: "Movement logged" });
       }
       addMut.reset();
@@ -1887,7 +1894,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             </div>
             {isBarrelVessel(view.vessel_type) && (
               <>
-                <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} />
+                <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} onMoveLogged={(toZone, toPosition) => setView(v => v ? { ...v, cellar_zone: toZone, cellar_position: toPosition } : v)} />
                 <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
                 <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
               </>
