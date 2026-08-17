@@ -228,6 +228,22 @@ export default function MoreScreen() {
   }
 
   // ── SMS Notification Preferences ────────────────────────────────────────────
+
+  /**
+   * Convert a UK phone number (local 07... or already +44...) to E.164
+   * international format (+447...). Returns null if it doesn't look like a
+   * UK mobile.
+   */
+  function toUkMobileIntl(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const digits = raw.replace(/[\s\-().]/g, "");
+    // Already in international format: +447XXXXXXXXX (12 chars)
+    if (/^\+447\d{9}$/.test(digits)) return digits;
+    // Local format: 07XXXXXXXXX (11 digits)
+    if (/^07\d{9}$/.test(digits)) return "+44" + digits.slice(1);
+    return null;
+  }
+
   const [smsMobile, setSmsMobile] = useState("");
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [categoryStates, setCategoryStates] = useState<Record<string, boolean>>({});
@@ -1023,6 +1039,32 @@ export default function MoreScreen() {
                 autoCorrect={false}
                 returnKeyType="done"
               />
+              {/* One-tap suggestion: use farm contact phone if SMS field is empty */}
+              {!smsMobile.trim() && !!toUkMobileIntl(contactPhone) && (
+                <TouchableOpacity
+                  onPress={() => { setSmsMobile(toUkMobileIntl(contactPhone)!); setSmsSaved(false); }}
+                  activeOpacity={0.75}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    alignSelf: "flex-start",
+                    gap: 6,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                    borderRadius: radius.md,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 5,
+                    marginTop: -spacing.xs,
+                    marginBottom: spacing.sm,
+                    backgroundColor: colors.primary + "10",
+                  }}
+                >
+                  <Feather name="smartphone" size={13} color={colors.primary} />
+                  <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary }}>
+                    Use {toUkMobileIntl(contactPhone)}
+                  </Text>
+                </TouchableOpacity>
+              )}
               <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: -spacing.sm, marginBottom: spacing.md }}>
                 UK number in international format, e.g. +447911123456
               </Text>
