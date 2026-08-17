@@ -60,6 +60,62 @@ function expandedKey(farmId: string | number): string {
   return `bde_agri_env_expanded_${farmId}`;
 }
 
+function FarmDrawdownSummary({
+  projects,
+  milestones,
+}: {
+  projects: AgriEnvProject[];
+  milestones: AgriEnvMilestone[];
+}) {
+  // Only consider projects with a grant value — and restrict milestone
+  // aggregation to the same project IDs so the numerator and denominator
+  // are always consistent.
+  const withValue = projects.filter(p => (p.totalGrantValuePence ?? 0) > 0);
+  if (withValue.length === 0) return null;
+
+  const includedIds = new Set(withValue.map(p => p.id));
+  const totalGrantPence = withValue.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+
+  const paidPence = milestones
+    .filter(m => m.status === "paid" && includedIds.has(m.projectId))
+    .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+
+  const submittedPence = milestones
+    .filter(m => m.status === "submitted" && includedIds.has(m.projectId))
+    .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+
+  const pct    = Math.min(100, Math.round(paidPence      / totalGrantPence * 100));
+  const pctSub = Math.min(100 - pct, Math.round(submittedPence / totalGrantPence * 100));
+
+  return (
+    <View style={summaryStyles.card}>
+      <Text style={summaryStyles.heading}>
+        Farm-wide drawdown — {withValue.length} project{withValue.length !== 1 ? "s" : ""}
+      </Text>
+      <View style={summaryStyles.labelsRow}>
+        <Text style={summaryStyles.label}>
+          {paidPence > 0
+            ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed`
+            : `${fmt(totalGrantPence)} total — no paid claims yet`}
+        </Text>
+        <Text style={[summaryStyles.pct, pct >= 100 && summaryStyles.pctFull]}>
+          {pct}%
+        </Text>
+      </View>
+      <View style={summaryStyles.track}>
+        <View style={[summaryStyles.fill, { width: `${pct}%` as any }]} />
+        {pctSub > 0 && (
+          <View style={[summaryStyles.submitted, { width: `${pctSub}%` as any }]} />
+        )}
+      </View>
+      {pctSub > 0 && (
+        <Text style={summaryStyles.submittedNote}>
+          {fmt(submittedPence)} submitted (awaiting payment)
+        </Text>
+      )}
+    </View>
+  );
+}
 export default function AgriEnvProjectsScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -113,6 +169,7 @@ export default function AgriEnvProjectsScreen() {
         ) {
           setExpandedId(stored);
         } else {
+          // Project was deleted or no stored value — start fully collapsed.
           setExpandedId(null);
         }
       }
@@ -317,12 +374,15 @@ export default function AgriEnvProjectsScreen() {
             </View>
           }
           ListHeaderComponent={
-            filteredProjects.length > 0 ? (
-              <Text style={styles.countLabel}>
-                {searchQuery.trim()
-                  ? `${filteredProjects.length} of ${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`
-                  : `${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`}
-              </Text>
+            projects.length > 0 ? (
+              <View>
+                <FarmDrawdownSummary projects={projects} milestones={milestones} />
+                <Text style={styles.countLabel}>
+                  {searchQuery.trim()
+                    ? `${filteredProjects.length} of ${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`
+                    : `${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`}
+                </Text>
+              </View>
             ) : null
           }
           renderItem={renderItem}
@@ -536,6 +596,66 @@ const styles = StyleSheet.create({
     backgroundColor: "#059669",
   },
   progressSubmitted: {
+    height: "100%",
+    backgroundColor: "#93c5fd",
+  },
+  submittedNote: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 3,
+  },
+});
+
+const summaryStyles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  heading: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  labelsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  label: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+  },
+  pct: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: colors.text,
+    marginLeft: spacing.xs,
+  },
+  pctFull: {
+    color: "#059669",
+  },
+  track: {
+    height: 8,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 4,
+    overflow: "hidden",
+    flexDirection: "row",
+  },
+  fill: {
+    height: "100%",
+    backgroundColor: "#059669",
+  },
+  submitted: {
     height: "100%",
     backgroundColor: "#93c5fd",
   },
