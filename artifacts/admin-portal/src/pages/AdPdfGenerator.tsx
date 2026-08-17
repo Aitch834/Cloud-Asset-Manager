@@ -16,6 +16,7 @@ interface AdCopyPreset {
   headline: string;
   body: string;
   accentColor: string;
+  bgUrl: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -207,7 +208,7 @@ async function fetchPresets(): Promise<AdCopyPreset[]> {
   return res.json();
 }
 
-async function savePreset(data: { name: string; headline: string; body: string; accentColor: string }): Promise<AdCopyPreset> {
+async function savePreset(data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string }): Promise<AdCopyPreset> {
   const res = await fetch("/api/admin/ad-copy-presets", {
     method: "POST",
     headers: adminHeaders(),
@@ -218,7 +219,7 @@ async function savePreset(data: { name: string; headline: string; body: string; 
   return json;
 }
 
-async function updatePreset(id: number, data: { name: string; headline: string; body: string; accentColor: string }): Promise<AdCopyPreset> {
+async function updatePreset(id: number, data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string }): Promise<AdCopyPreset> {
   const res = await fetch(`/api/admin/ad-copy-presets/${id}`, {
     method: "PUT",
     headers: adminHeaders(),
@@ -1066,10 +1067,11 @@ export default function AdPdfGenerator() {
   const [editHeadline,     setEditHeadline]     = useState("");
   const [editBody,         setEditBody]         = useState("");
   const [editAccentColor,  setEditAccentColor]  = useState("");
+  const [editBgUrl,        setEditBgUrl]        = useState("");
   const [editErr,          setEditErr]          = useState<string | null>(null);
 
   const updatePresetMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name: string; headline: string; body: string; accentColor: string } }) =>
+    mutationFn: ({ id, data }: { id: number; data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string } }) =>
       updatePreset(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ad-copy-presets"] });
@@ -1099,6 +1101,7 @@ export default function AdPdfGenerator() {
     setEditHeadline(p.headline);
     setEditBody(p.body);
     setEditAccentColor(p.accentColor);
+    setEditBgUrl(p.bgUrl ?? "");
     setEditErr(null);
   }
 
@@ -1111,14 +1114,14 @@ export default function AdPdfGenerator() {
   function handleSubmitEdit(id: number) {
     if (!editName.trim()) { setEditErr("Name is required"); return; }
     setEditErr(null);
-    updatePresetMutation.mutate({ id, data: { name: editName.trim(), headline: editHeadline, body: editBody, accentColor: editAccentColor } });
+    updatePresetMutation.mutate({ id, data: { name: editName.trim(), headline: editHeadline, body: editBody, accentColor: editAccentColor, bgUrl: editBgUrl } });
   }
 
   function handleSavePreset() {
     if (!presetName.trim()) return;
     setPresetSaveErr(null);
     setSavingPreset(true);
-    savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor });
+    savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor, bgUrl });
   }
 
   function handleLoadPreset(id: number) {
@@ -1127,6 +1130,7 @@ export default function AdPdfGenerator() {
     setHeadline(p.headline);
     setBody(p.body);
     setAccentColor(p.accentColor);
+    setBgUrl(p.bgUrl ?? "");
     resetRendering();
   }
 
@@ -1369,7 +1373,7 @@ export default function AdPdfGenerator() {
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Stores the current headline, body, and accent colour under a name so you can reload it later without re-typing.
+                  Stores the current headline, body, accent colour, and background image URL under a name so you can reload them later without re-typing.
                 </p>
               </div>
 
@@ -1422,6 +1426,13 @@ export default function AdPdfGenerator() {
                               className="flex-1 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                             />
                           </div>
+                          <input
+                            type="url"
+                            value={editBgUrl}
+                            onChange={(e) => setEditBgUrl(e.target.value)}
+                            placeholder="Background image URL (optional)"
+                            className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
                           {editErr && (
                             <p className="text-xs text-destructive flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />{editErr}
@@ -1454,7 +1465,7 @@ export default function AdPdfGenerator() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm truncate">{p.name}</p>
                             <p className="text-xs text-muted-foreground truncate font-mono">
-                              {[p.headline && `"${p.headline.slice(0, 40)}${p.headline.length > 40 ? "…" : ""}"`, p.accentColor && p.accentColor].filter(Boolean).join(" · ") || "no overrides"}
+                              {[p.headline && `"${p.headline.slice(0, 40)}${p.headline.length > 40 ? "…" : ""}"`, p.accentColor && p.accentColor, p.bgUrl && "bg url saved"].filter(Boolean).join(" · ") || "no overrides"}
                             </p>
                           </div>
                           <button

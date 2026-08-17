@@ -2894,8 +2894,8 @@ router.get("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Resp
 
 router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const { name, headline, body, accentColor } = req.body as {
-    name?: string; headline?: string; body?: string; accentColor?: string;
+  const { name, headline, body, accentColor, bgUrl } = req.body as {
+    name?: string; headline?: string; body?: string; accentColor?: string; bgUrl?: string;
   };
   if (!name?.trim()) {
     res.status(400).json({ error: "name is required" });
@@ -2907,6 +2907,7 @@ router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Res
       headline: headline?.trim() ?? "",
       body: body?.trim() ?? "",
       accentColor: accentColor?.trim() ?? "",
+      bgUrl: bgUrl?.trim() ?? "",
     }).returning();
     res.status(201).json(row);
   } catch (err: unknown) {
@@ -2922,8 +2923,8 @@ router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Res
 router.put("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const id = Number(req.params.id);
-  const { name, headline, body, accentColor } = req.body as {
-    name?: string; headline?: string; body?: string; accentColor?: string;
+  const { name, headline, body, accentColor, bgUrl } = req.body as {
+    name?: string; headline?: string; body?: string; accentColor?: string; bgUrl?: string;
   };
   if (!name?.trim()) {
     res.status(400).json({ error: "name is required" });
@@ -2936,6 +2937,7 @@ router.put("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, res: 
         headline: headline?.trim() ?? "",
         body: body?.trim() ?? "",
         accentColor: accentColor?.trim() ?? "",
+        bgUrl: bgUrl?.trim() ?? "",
       })
       .where(eq(adCopyPresetsTable.id, id))
       .returning();

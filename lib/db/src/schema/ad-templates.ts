@@ -6,6 +6,7 @@ export const adCopyPresetsTable = pgTable("ad_copy_presets", {
   headline: text("headline").notNull().default(""),
   body: text("body").notNull().default(""),
   accentColor: text("accent_color").notNull().default(""),
+  bgUrl: text("bg_url").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

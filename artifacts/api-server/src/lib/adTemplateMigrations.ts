@@ -54,9 +54,15 @@ export async function runAdTemplateMigrations(): Promise<void> {
       headline    text NOT NULL DEFAULT '',
       body        text NOT NULL DEFAULT '',
       accent_color text NOT NULL DEFAULT '',
+      bg_url      text NOT NULL DEFAULT '',
       created_at  timestamptz NOT NULL DEFAULT now(),
       updated_at  timestamptz NOT NULL DEFAULT now()
     )
+  `);
+
+  // bg_url column — added after initial release; idempotent for existing installations
+  await db.execute(sql`
+    ALTER TABLE ad_copy_presets ADD COLUMN IF NOT EXISTS bg_url text NOT NULL DEFAULT ''
   `);
 
   // Unique constraint on name — prevents duplicate preset names in the Load dropdown.
