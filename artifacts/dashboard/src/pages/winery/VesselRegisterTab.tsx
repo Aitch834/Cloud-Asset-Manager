@@ -238,8 +238,8 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
                           Rack out
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button>
-                      <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button>
+                      <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                      <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                     </div>
                   )}
                 </div>
@@ -449,8 +449,8 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
               </div>
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit maintenance record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete maintenance record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
