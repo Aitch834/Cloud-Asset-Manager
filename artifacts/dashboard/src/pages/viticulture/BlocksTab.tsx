@@ -5,6 +5,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -14,6 +15,7 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -132,8 +134,9 @@ function SortablePhotoThumbnail({
         {/* Drag handle — only for non-cover photos */}
         {!photo.isCover && (
           <button
-            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
-            title="Drag to reorder"
+            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+            title="Drag to reorder — or use Space/Enter to pick up, arrow keys to move, Space/Enter to drop"
+            aria-label="Reorder photo"
             {...attributes}
             {...listeners}
             onClick={e => e.stopPropagation()}
@@ -205,7 +208,10 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   const [orderedPhotos, setOrderedPhotos] = useState<BlockPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Load gallery photos
   const { data: photosData, refetch } = useQuery<{ photos: BlockPhoto[] }>({
@@ -362,7 +368,21 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       </div>
 
       {orderedPhotos.length > 0 ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          accessibility={{
+            announcements: {
+              onDragStart: ({ active }) => `Picked up photo ${active.id}. Use arrow keys to move, Space or Enter to drop.`,
+              onDragOver: ({ active, over }) =>
+                over ? `Photo ${active.id} is now over position ${over.id}.` : `Photo ${active.id} is no longer over a drop target.`,
+              onDragEnd: ({ active, over }) =>
+                over ? `Photo ${active.id} was dropped at position ${over.id}.` : `Photo ${active.id} was returned to its original position.`,
+              onDragCancel: ({ active }) => `Reordering of photo ${active.id} was cancelled.`,
+            },
+          }}
+        >
           <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-3 gap-2">
               {orderedPhotos.map((photo) => (
@@ -401,7 +421,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       )}
 
       {orderedPhotos.length > 1 && (
-        <p className="text-[10px] text-muted-foreground/60 mt-1">Drag photos to reorder · cover photo is always shown first</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Drag or use Space/arrow keys to reorder · cover photo is always shown first</p>
       )}
 
       {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
