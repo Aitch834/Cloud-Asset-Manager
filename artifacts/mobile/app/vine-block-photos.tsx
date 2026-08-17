@@ -46,6 +46,15 @@ import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
 import { fetchBlockPhotos, applyPhotoUpdateIfCurrent } from "@/lib/vineBlockPhotosApi";
+import {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+  DIR_NONE,
+  DIR_HORIZ,
+  DIR_VERT,
+} from "@/lib/vineBlockLightboxHelpers";
 import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
 
 interface BlockPhoto {
@@ -72,15 +81,10 @@ function blockStatusColor(plantingStatus: string) {
   return colors.textSecondary;
 }
 const SCREEN = Dimensions.get("window");
-const SWIPE_DOWN_THRESHOLD = 120;
-const SWIPE_HORIZ_THRESHOLD = 60;
-const MIN_SCALE = 1;
-const MAX_SCALE = 5;
-
-// Gesture direction lock — 0 = undecided, 1 = horizontal, 2 = vertical
-const DIR_NONE = 0;
-const DIR_HORIZ = 1;
-const DIR_VERT = 2;
+// SWIPE_DOWN_THRESHOLD, SWIPE_HORIZ_THRESHOLD, MIN_SCALE, MAX_SCALE,
+// DIR_NONE, DIR_HORIZ, DIR_VERT — imported from @/lib/vineBlockLightboxHelpers
+// so that the unit tests in __tests__/vine-block-lightbox-gestures.test.ts
+// exercise the same values that drive the production gesture behaviour.
 
 function clamp(value: number, min: number, max: number) {
   "worklet";
