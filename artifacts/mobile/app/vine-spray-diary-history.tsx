@@ -592,12 +592,14 @@ function SprayPhotoThumbnail({
   photo,
   onPress,
   onDelete,
+  onEditCaption,
   onShowTooltip,
   onHideTooltip,
 }: {
   photo: SprayDiaryPhoto;
   onPress: () => void;
   onDelete: (id: number) => void;
+  onEditCaption: (photo: SprayDiaryPhoto) => void;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
 }) {
@@ -628,6 +630,10 @@ function SprayPhotoThumbnail({
     longPressJustFiredRef.current = false;
     onHideTooltip();
     Alert.alert("Photo Options", undefined, [
+      {
+        text: "Edit Caption",
+        onPress: () => onEditCaption(photo),
+      },
       {
         text: "Delete",
         style: "destructive",
@@ -680,6 +686,10 @@ function SprayDiaryPhotoSection({
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
+  // Android caption-edit modal state (iOS uses Alert.prompt instead)
+  const [captionEditPhoto, setCaptionEditPhoto] = useState<SprayDiaryPhoto | null>(null);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [captionSaving, setCaptionSaving] = useState(false);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -764,13 +774,65 @@ function SprayDiaryPhotoSection({
     }
   };
 
+  const handleSaveCaptionFromThumbnail = async (photoId: number, newCaption: string | null) => {
+    setCaptionSaving(true);
+    try {
+      const res = await apiFetch(
+        `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photoId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption: newCaption }),
+        },
+      );
+      if (!res.ok) {
+        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+        return;
+      }
+      setPhotos((prev) =>
+        prev.map((p) => (p.id === photoId ? { ...p, caption: newCaption } : p)),
+      );
+      setCaptionEditPhoto(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Save Failed", "An error occurred. Please try again.");
+    } finally {
+      setCaptionSaving(false);
+    }
+  };
+
+  const handleEditCaption = (photo: SprayDiaryPhoto) => {
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Edit Caption",
+        undefined,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: (value?: string) => {
+              const trimmed = (value ?? "").trim() || null;
+              handleSaveCaptionFromThumbnail(photo.id, trimmed);
+            },
+          },
+        ],
+        "plain-text",
+        photo.caption ?? "",
+        "default",
+      );
+    } else {
+      setCaptionDraft(photo.caption ?? "");
+      setCaptionEditPhoto(photo);
+    }
+  };
+
   return (
     <View style={editStyles.photoSection}>
       <View style={editStyles.photoHeader}>
         <Text style={editStyles.photoSectionTitle}>Application Photos</Text>
         <Text style={editStyles.photoCount}>{photos.length} attached</Text>
       </View>
-      <Text style={editStyles.photoHint}>Tap to view full-screen · Long-press to delete.</Text>
+      <Text style={editStyles.photoHint}>Tap to view full-screen · Long-press for options.</Text>
 
       {loading ? (
         <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
@@ -789,6 +851,7 @@ function SprayDiaryPhotoSection({
                 photo={item}
                 onPress={() => setLightboxIndex(index)}
                 onDelete={handleDeletePhoto}
+                onEditCaption={handleEditCaption}
                 onShowTooltip={setGridTooltipCaption}
                 onHideTooltip={() => setGridTooltipCaption(null)}
               />
@@ -837,6 +900,57 @@ function SprayDiaryPhotoSection({
             {gridTooltipCaption}
           </Text>
         </View>
+      ) : null}
+
+      {/* Android caption-edit modal (iOS uses Alert.prompt) */}
+      {Platform.OS !== "ios" ? (
+        <Modal
+          visible={captionEditPhoto !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => { if (!captionSaving) setCaptionEditPhoto(null); }}
+        >
+          <KeyboardAvoidingView behavior="padding" style={editStyles.captionModalOverlay}>
+            <View style={editStyles.captionModalCard}>
+              <Text style={editStyles.captionModalTitle}>Edit Caption</Text>
+              <TextInput
+                style={editStyles.captionModalInput}
+                value={captionDraft}
+                onChangeText={setCaptionDraft}
+                placeholder="Add a caption…"
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                autoFocus
+                maxLength={500}
+              />
+              <View style={editStyles.captionModalActions}>
+                <Pressable
+                  style={editStyles.captionModalCancelBtn}
+                  onPress={() => setCaptionEditPhoto(null)}
+                  disabled={captionSaving}
+                >
+                  <Text style={editStyles.captionModalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={editStyles.captionModalSaveBtn}
+                  onPress={() => {
+                    if (captionEditPhoto) {
+                      const trimmed = captionDraft.trim() || null;
+                      handleSaveCaptionFromThumbnail(captionEditPhoto.id, trimmed);
+                    }
+                  }}
+                  disabled={captionSaving}
+                >
+                  {captionSaving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={editStyles.captionModalSaveText}>Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       ) : null}
     </View>
   );
@@ -1731,6 +1845,65 @@ const editStyles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 13,
     lineHeight: 18,
+  },
+  captionModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  captionModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  captionModalTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  captionModalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  captionModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+  },
+  captionModalCancelBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  captionModalCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  captionModalSaveBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  captionModalSaveText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
 });
 
