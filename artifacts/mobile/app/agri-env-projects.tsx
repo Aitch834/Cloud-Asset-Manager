@@ -8,6 +8,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -69,6 +70,7 @@ export default function AgriEnvProjectsScreen() {
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [expandedId,  setExpandedId]  = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const cancelRef = useRef(false);
 
   // Persist / restore the expanded project ID per farm.
@@ -111,7 +113,6 @@ export default function AgriEnvProjectsScreen() {
         ) {
           setExpandedId(stored);
         } else {
-          // Project was deleted or no stored value — start fully collapsed.
           setExpandedId(null);
         }
       }
@@ -139,6 +140,12 @@ export default function AgriEnvProjectsScreen() {
     },
     [persistExpanded],
   );
+
+  const filteredProjects = searchQuery.trim()
+    ? projects.filter(p =>
+        p.schemeName.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      )
+    : projects;
 
   const renderItem = ({ item: project }: { item: AgriEnvProject }) => {
     const isExpanded = expandedId === project.id;
@@ -252,6 +259,29 @@ export default function AgriEnvProjectsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Search bar */}
+      {!loading && !error && (
+        <View style={styles.searchWrap}>
+          <Feather name="search" size={16} color={colors.textTertiary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Filter by scheme name…"
+            placeholderTextColor={colors.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={8} style={styles.searchClear}>
+              <Feather name="x" size={15} color={colors.textTertiary} />
+            </Pressable>
+          )}
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -267,25 +297,31 @@ export default function AgriEnvProjectsScreen() {
         </View>
       ) : (
         <FlatList
-          data={projects}
+          data={filteredProjects}
           keyExtractor={item => String(item.id)}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
           }
-          contentContainerStyle={projects.length === 0 ? styles.centre : styles.listContent}
+          contentContainerStyle={filteredProjects.length === 0 ? styles.centre : styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Feather name="file-text" size={36} color={colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No agri-env projects</Text>
+              <Text style={styles.emptyTitle}>
+                {searchQuery.trim() ? "No matching projects" : "No agri-env projects"}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                Add projects and milestones from the dashboard Grants tab.
+                {searchQuery.trim()
+                  ? "Try a different scheme name."
+                  : "Add projects and milestones from the dashboard Grants tab."}
               </Text>
             </View>
           }
           ListHeaderComponent={
-            projects.length > 0 ? (
+            filteredProjects.length > 0 ? (
               <Text style={styles.countLabel}>
-                {projects.length} project{projects.length !== 1 ? "s" : ""} — tap to expand
+                {searchQuery.trim()
+                  ? `${filteredProjects.length} of ${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`
+                  : `${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`}
               </Text>
             ) : null
           }
@@ -360,6 +396,31 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textInverse,
+  },
+
+  // Search
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  searchIcon: {
+    flexShrink: 0,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    paddingVertical: 6,
+  },
+  searchClear: {
+    padding: 4,
   },
 
   // List
