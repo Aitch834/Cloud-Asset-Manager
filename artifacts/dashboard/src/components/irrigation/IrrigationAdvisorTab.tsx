@@ -25,7 +25,7 @@ import {
 } from "recharts";
 import {
   Loader2, Sprout, Gauge, CloudRain, TrendingDown, TrendingUp,
-  Minus, Info, Thermometer, BarChart3, AlertCircle, PlusCircle,
+  Minus, Info, Thermometer, BarChart3, AlertCircle, AlertTriangle, PlusCircle,
 } from "lucide-react";
 import { apiUrl as api } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -911,6 +911,21 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
               </>
             )}
           </div>
+
+          {/* ── Soil type warning ── */}
+          {field && !field.soilType && (
+            <a
+              href="/fields"
+              className="flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800 hover:bg-yellow-100 transition-colors no-underline"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span className="flex-1">
+                <span className="font-medium">Soil type not set</span> — field capacity is estimated at {DEFAULT_FIELD_CAPACITY_MM} mm (medium loam default).
+                Set the soil type on this field for a more accurate calculation.
+              </span>
+              <span className="text-xs font-medium underline underline-offset-2">Edit field →</span>
+            </a>
+          )}
 
           {/* ── Data source notice ── */}
           {data && !data.hasWeatherStation && !useManual && (
