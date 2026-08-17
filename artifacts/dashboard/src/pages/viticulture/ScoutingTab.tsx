@@ -1,6 +1,7 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUpload } from "@workspace/object-storage-web";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
@@ -9,7 +10,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink, ArrowLeftRight,
-  Camera, ChevronLeft, ChevronRight as ChevronRightIcon, Trash,
+  Camera, ChevronLeft, ChevronRight as ChevronRightIcon, Trash, Upload,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -96,8 +97,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [lightboxScoutingId, setLightboxScoutingId] = useState<number | null>(null);
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+  const photoFileRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { uploadFile } = useUpload();
 
   // Fetch photos for the lightbox scouting record; refresh every 4 minutes to keep presigned URLs valid
   const { data: lightboxData, isLoading: lightboxLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
@@ -264,6 +270,33 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       toast({ title: "Failed to delete photo", variant: "destructive" });
     },
   });
+
+  async function handlePhotoUpload(file: File, caption: string) {
+    if (lightboxScoutingId === null) return;
+    setUploadingPhoto(true);
+    try {
+      const uploaded = await uploadFile(file);
+      if (!uploaded?.objectPath) throw new Error("Upload failed");
+      const body: Record<string, unknown> = { objectPath: uploaded.objectPath, fileName: file.name };
+      if (caption.trim()) body.caption = caption.trim();
+      const res = await fetch(api(`farms/${farmId}/vineyard-scouting/${lightboxScoutingId}/photos`), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
+      void queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+      toast({ title: "Photo added" });
+    } catch {
+      toast({ title: "Failed to upload photo", variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+      setPendingPhotoFile(null);
+      setPendingPhotoCaption("");
+    }
+  }
 
   const scoutingYears = Array.from(new Set(data.map(r => new Date(r.scoutDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!scoutingYears.includes(new Date().getFullYear())) scoutingYears.unshift(new Date().getFullYear());
@@ -639,7 +672,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       {/* Scouting Photo Lightbox */}
       <Dialog
         open={lightboxScoutingId !== null}
-        onOpenChange={o => { if (!o) { setLightboxScoutingId(null); setLightboxPhotoIndex(0); } }}
+        onOpenChange={o => { if (!o) { setLightboxScoutingId(null); setLightboxPhotoIndex(0); setPendingPhotoFile(null); setPendingPhotoCaption(""); } }}
       >
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-2 pt-2 pb-1">
@@ -660,7 +693,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             </div>
           )}
 
-          {!lightboxLoading && lightboxPhotos.length === 0 && (
+          {!lightboxLoading && lightboxPhotos.length === 0 && !pendingPhotoFile && (
             <p className="text-sm text-muted-foreground text-center py-12">No photos attached to this record.</p>
           )}
 
@@ -740,6 +773,79 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Photo upload ─────────────────────────────────────────── */}
+          {!lightboxLoading && (
+            <div className="px-2 pb-2 pt-1 border-t mt-2">
+              <input
+                ref={photoFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) { setPendingPhotoFile(f); setPendingPhotoCaption(""); }
+                  e.target.value = "";
+                }}
+              />
+              {!pendingPhotoFile && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 gap-1 text-xs"
+                  onClick={() => photoFileRef.current?.click()}
+                  disabled={uploadingPhoto}
+                >
+                  <Upload className="w-3 h-3" />
+                  Add photo
+                </Button>
+              )}
+              {pendingPhotoFile && (
+                <div className="mt-1 rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                  <p className="text-xs font-medium truncate text-muted-foreground">
+                    <Camera className="w-3 h-3 inline mr-1" />
+                    {pendingPhotoFile.name}
+                  </p>
+                  <div className="space-y-1">
+                    <Label htmlFor="scouting-photo-caption" className="text-xs">Caption <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Input
+                      id="scouting-photo-caption"
+                      value={pendingPhotoCaption}
+                      onChange={e => setPendingPhotoCaption(e.target.value)}
+                      placeholder="e.g. canopy detail, lesion close-up…"
+                      className="h-8 text-xs"
+                      disabled={uploadingPhoto}
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { e.preventDefault(); void handlePhotoUpload(pendingPhotoFile, pendingPhotoCaption); }
+                        if (e.key === "Escape") { setPendingPhotoFile(null); setPendingPhotoCaption(""); }
+                      }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-7 px-3 text-xs gap-1"
+                      onClick={() => void handlePhotoUpload(pendingPhotoFile, pendingPhotoCaption)}
+                      disabled={uploadingPhoto}
+                    >
+                      {uploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                      {uploadingPhoto ? "Uploading…" : "Upload"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-3 text-xs"
+                      onClick={() => { setPendingPhotoFile(null); setPendingPhotoCaption(""); }}
+                      disabled={uploadingPhoto}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

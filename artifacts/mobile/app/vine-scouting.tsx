@@ -25,10 +25,8 @@ import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { ScoutingPhotoSection, type ScoutingPhoto } from "@/components/ScoutingPhotoSection";
+import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
 
 const today = new Date().toISOString().split("T")[0];
 
