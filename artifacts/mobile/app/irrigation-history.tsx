@@ -25,6 +25,7 @@ interface IrrigationRecord {
   id: number;
   irrigationDate: string;
   fieldId: number | null;
+  fieldName: string | null;
   fieldOrBlockDescription: string | null;
   applicationDepthMm: string | number | null;
   irrigationMethod: string;
@@ -46,6 +47,7 @@ function yearOf(d: string | null | undefined): string {
 
 function fieldLabel(record: IrrigationRecord): string {
   if (record.fieldOrBlockDescription) return record.fieldOrBlockDescription;
+  if (record.fieldName) return record.fieldName;
   if (record.fieldId) return `Field #${record.fieldId}`;
   return "";
 }

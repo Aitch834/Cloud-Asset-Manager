@@ -23537,7 +23537,42 @@ router.get("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requ
   const whereClause = fieldIdParam && !isNaN(fieldIdParam)
     ? and(eq(irrigationRecordsTable.farmId, farmId), eq(irrigationRecordsTable.fieldId, fieldIdParam))
     : eq(irrigationRecordsTable.farmId, farmId);
-  const rows = await db.select().from(irrigationRecordsTable).where(whereClause).orderBy(desc(irrigationRecordsTable.irrigationDate));
+  const rows = await db
+    .select({
+      id: irrigationRecordsTable.id,
+      farmId: irrigationRecordsTable.farmId,
+      licenceId: irrigationRecordsTable.licenceId,
+      fieldId: irrigationRecordsTable.fieldId,
+      irrigationEquipmentId: irrigationRecordsTable.irrigationEquipmentId,
+      equipmentIdsJson: irrigationRecordsTable.equipmentIdsJson,
+      status: irrigationRecordsTable.status,
+      irrigationDate: irrigationRecordsTable.irrigationDate,
+      startTime: irrigationRecordsTable.startTime,
+      endDate: irrigationRecordsTable.endDate,
+      endTime: irrigationRecordsTable.endTime,
+      startOperatorId: irrigationRecordsTable.startOperatorId,
+      endOperatorId: irrigationRecordsTable.endOperatorId,
+      fieldOrBlockDescription: irrigationRecordsTable.fieldOrBlockDescription,
+      areaIrrigatedHa: irrigationRecordsTable.areaIrrigatedHa,
+      cropType: irrigationRecordsTable.cropType,
+      growthStage: irrigationRecordsTable.growthStage,
+      irrigationMethod: irrigationRecordsTable.irrigationMethod,
+      meterStartReading: irrigationRecordsTable.meterStartReading,
+      meterEndReading: irrigationRecordsTable.meterEndReading,
+      applicationDepthMm: irrigationRecordsTable.applicationDepthMm,
+      volumeAppliedM3: irrigationRecordsTable.volumeAppliedM3,
+      costPerM3Override: irrigationRecordsTable.costPerM3Override,
+      soilMoistureDeficitMm: irrigationRecordsTable.soilMoistureDeficitMm,
+      rainfallLast7DaysMm: irrigationRecordsTable.rainfallLast7DaysMm,
+      operatorName: irrigationRecordsTable.operatorName,
+      notes: irrigationRecordsTable.notes,
+      createdAt: irrigationRecordsTable.createdAt,
+      fieldName: fieldsTable.name,
+    })
+    .from(irrigationRecordsTable)
+    .leftJoin(fieldsTable, eq(irrigationRecordsTable.fieldId, fieldsTable.id))
+    .where(whereClause)
+    .orderBy(desc(irrigationRecordsTable.irrigationDate));
   res.json(rows);
 });
 router.post("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "write"), async (req: Request, res: Response): Promise<void> => {
