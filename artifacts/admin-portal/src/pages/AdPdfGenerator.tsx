@@ -431,11 +431,32 @@ function TemplatePlaceholderPreview({
   const hasBody        = htmlBody.includes("{{body}}");
   const hasAccentColor = htmlBody.includes("{{accent_color}}");
 
+  // Debounce the three text values so the preview only re-renders after the
+  // user pauses typing, avoiding flicker on every keystroke.
+  const [debouncedHeadline,    setDebouncedHeadline]    = useState(headline);
+  const [debouncedBody,        setDebouncedBody]        = useState(body);
+  const [debouncedAccentColor, setDebouncedAccentColor] = useState(accentColor);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedHeadline(headline), 150);
+    return () => clearTimeout(t);
+  }, [headline]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBody(body), 150);
+    return () => clearTimeout(t);
+  }, [body]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAccentColor(accentColor), 150);
+    return () => clearTimeout(t);
+  }, [accentColor]);
+
   if (!hasHeadline && !hasBody && !hasAccentColor) return null;
 
-  const resolvedAccent   = accentColor.trim()  || DEFAULT_ACCENT;
-  const resolvedHeadline = headline.trim()      || SAMPLE_HEADLINE;
-  const resolvedBody     = body.trim()          || SAMPLE_BODY;
+  const resolvedAccent   = debouncedAccentColor.trim() || DEFAULT_ACCENT;
+  const resolvedHeadline = debouncedHeadline.trim()    || SAMPLE_HEADLINE;
+  const resolvedBody     = debouncedBody.trim()        || SAMPLE_BODY;
 
   // True when any placeholder that appears in the template has no real value supplied
   const anyValueMissing =
