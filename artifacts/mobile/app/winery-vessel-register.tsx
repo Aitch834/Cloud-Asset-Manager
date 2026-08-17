@@ -1,11 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -41,6 +41,34 @@ interface WineryVessel {
   is_full: boolean;
   empty_since: string | null; // ISO date of last rack-out, null if currently full or never filled
   fill_count: number | null;
+  maintenance_count: number | null;
+}
+
+// ── Flag filter ───────────────────────────────────────────────────────────────
+
+type AlertFlag = "idle" | "approaching-neutral" | "no-fills";
+
+interface FlagDef {
+  key: AlertFlag;
+  label: string;
+  shortLabel: string;
+}
+
+const FLAG_DEFS: FlagDef[] = [
+  { key: "idle",               label: "Idle >90 days",       shortLabel: "idle"             },
+  { key: "approaching-neutral",label: "Approaching neutral",  shortLabel: "approaching neutral" },
+  { key: "no-fills",           label: "No fills logged",      shortLabel: "no fills"         },
+];
+
+function matchesFlag(v: WineryVessel, flag: AlertFlag | null): boolean {
+  if (!flag) return true;
+  const barrel = isBarrelType(v.vessel_type);
+  const active = String(v.status ?? "active") === "active";
+  if (flag === "idle")                return barrel && active && isIdleBarrel(v.empty_since);
+  if (flag === "approaching-neutral") return barrel && active && isApproachingNeutral(v.fill_number);
+  // no-fills: barrel/barrique vessels only, consistent with dashboard barrel-health flags
+  if (flag === "no-fills")            return barrel && active && Number(v.fill_count ?? 0) === 0;
+  return true;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -86,6 +114,42 @@ function idleDays(emptySince: string): number {
   const emptyDate = new Date(emptySince);
   const now = new Date();
   return Math.floor((now.getTime() - emptyDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// ── Zone section header ───────────────────────────────────────────────────────
+
+interface ZoneSectionHeaderProps {
+  zone: string;
+  totalCount: number;
+  flagCount: number | null;
+  flagShortLabel: string | null;
+}
+
+function ZoneSectionHeader({ zone, totalCount, flagCount, flagShortLabel }: ZoneSectionHeaderProps) {
+  const hasFlaggedVessels = flagCount !== null && flagCount > 0;
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText} numberOfLines={1}>
+        {zone}
+      </Text>
+      {flagCount !== null ? (
+        // Flag filter active — show count of matching vessels
+        <View style={[styles.sectionCountChip, hasFlaggedVessels ? styles.sectionCountChipAlert : styles.sectionCountChipNone]}>
+          {hasFlaggedVessels && <Feather name="alert-triangle" size={10} color="#b45309" />}
+          <Text style={[styles.sectionCountText, hasFlaggedVessels ? styles.sectionCountTextAlert : styles.sectionCountTextNone]}>
+            {flagCount} {flagShortLabel}
+          </Text>
+        </View>
+      ) : (
+        // No filter — show total vessel count
+        <View style={styles.sectionCountChip}>
+          <Text style={styles.sectionCountText}>
+            {totalCount} vessel{totalCount !== 1 ? "s" : ""}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 // ── Row component ─────────────────────────────────────────────────────────────
@@ -246,7 +310,15 @@ export default function WineryVesselRegisterScreen() {
     }, [refresh])
   );
 
-  // Stats for header summary — idle and approaching-neutral only count active barrel/barrique vessels
+  // ── Alert-flag filter ──────────────────────────────────────────────────────
+  const [alertFlag, setAlertFlag] = useState<AlertFlag | null>(null);
+
+  function toggleFlag(flag: AlertFlag) {
+    setAlertFlag(prev => (prev === flag ? null : flag));
+  }
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
   const total = records.length;
   const idleCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
@@ -258,6 +330,48 @@ export default function WineryVesselRegisterScreen() {
     String(v.status ?? "active") === "active" &&
     isApproachingNeutral(v.fill_number)
   ).length;
+  const noFillsCount = records.filter(v =>
+    isBarrelType(v.vessel_type) &&
+    String(v.status ?? "active") === "active" &&
+    Number(v.fill_count ?? 0) === 0
+  ).length;
+
+  // ── Zone-grouped sections ──────────────────────────────────────────────────
+
+  const sections = useMemo(() => {
+    // Collect all unique zones (preserving order: assigned zones sorted, then "Unassigned")
+    const zoneSet = new Set<string>();
+    for (const v of records) {
+      zoneSet.add(v.cellar_zone ? v.cellar_zone : "Unassigned");
+    }
+    const zones = Array.from(zoneSet).sort((a, b) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    });
+
+    return zones.map(zone => {
+      // All vessels in this zone
+      const zoneVessels = records.filter(v =>
+        (v.cellar_zone ? v.cellar_zone : "Unassigned") === zone
+      );
+      // Vessels passing the active flag filter
+      const filtered = alertFlag
+        ? zoneVessels.filter(v => matchesFlag(v, alertFlag))
+        : zoneVessels;
+
+      return {
+        zone,
+        totalCount: zoneVessels.length,
+        flagCount: alertFlag !== null ? filtered.length : null,
+        data: filtered,
+      };
+    }).filter(s => s.data.length > 0 || alertFlag === null);
+    // When a flag is active, hide zones where nothing matches (data.length === 0)
+    // But only hide when a flag IS active; otherwise all zones always show.
+  }, [records, alertFlag]);
+
+  const activeFlagDef = alertFlag ? FLAG_DEFS.find(f => f.key === alertFlag) ?? null : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -269,7 +383,7 @@ export default function WineryVesselRegisterScreen() {
         <Text style={styles.title}>Vessel Register</Text>
       </View>
 
-      {/* Summary bar */}
+      {/* Summary / filter bar */}
       {total > 0 && (
         <View style={styles.summaryBar}>
           <View style={styles.summaryChip}>
@@ -277,21 +391,51 @@ export default function WineryVesselRegisterScreen() {
             <Text style={styles.summaryText}>{total} vessel{total !== 1 ? "s" : ""}</Text>
           </View>
           {idleCount > 0 && (
-            <View style={[styles.summaryChip, styles.summaryAlert]}>
+            <Pressable
+              onPress={() => toggleFlag("idle")}
+              style={[styles.summaryChip, styles.summaryAlert, alertFlag === "idle" && styles.summaryChipActive]}
+            >
               <Feather name="alert-triangle" size={13} color={colors.error} />
               <Text style={[styles.summaryText, { color: colors.error }]}>
                 {idleCount} idle
               </Text>
-            </View>
+            </Pressable>
           )}
           {neutralCount > 0 && (
-            <View style={[styles.summaryChip, styles.summaryWarn]}>
+            <Pressable
+              onPress={() => toggleFlag("approaching-neutral")}
+              style={[styles.summaryChip, styles.summaryWarn, alertFlag === "approaching-neutral" && styles.summaryChipActive]}
+            >
               <Feather name="alert-triangle" size={13} color={colors.accentDark} />
               <Text style={[styles.summaryText, { color: colors.accentDark }]}>
                 {neutralCount} approaching neutral
               </Text>
-            </View>
+            </Pressable>
           )}
+          {noFillsCount > 0 && (
+            <Pressable
+              onPress={() => toggleFlag("no-fills")}
+              style={[styles.summaryChip, styles.summaryNoFills, alertFlag === "no-fills" && styles.summaryChipActive]}
+            >
+              <Feather name="alert-triangle" size={13} color="#b45309" />
+              <Text style={[styles.summaryText, { color: "#b45309" }]}>
+                {noFillsCount} no fills
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {/* Active filter pill */}
+      {alertFlag && (
+        <View style={styles.filterPillRow}>
+          <View style={styles.filterPill}>
+            <Feather name="filter" size={11} color={colors.primary} />
+            <Text style={styles.filterPillText}>{activeFlagDef?.label}</Text>
+            <Pressable onPress={() => setAlertFlag(null)} hitSlop={8}>
+              <Feather name="x" size={13} color={colors.primary} />
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -302,16 +446,26 @@ export default function WineryVesselRegisterScreen() {
           <Text style={styles.loadingText}>Loading vessels…</Text>
         </View>
       ) : (
-        <FlatList
-          data={records}
+        <SectionList
+          sections={sections}
           keyExtractor={item => String(item.id)}
           renderItem={({ item }) => <VesselRow vessel={item} />}
+          renderSectionHeader={({ section }) => (
+            <ZoneSectionHeader
+              zone={section.zone}
+              totalCount={section.totalCount}
+              flagCount={section.flagCount}
+              flagShortLabel={activeFlagDef?.shortLabel ?? null}
+            />
+          )}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: insets.bottom + spacing.xl },
           ]}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          SectionSeparatorComponent={() => <View style={styles.sectionSeparator} />}
           ListEmptyComponent={<EmptyState error={error} />}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -370,16 +524,47 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: colors.borderLight,
   },
+  summaryChipActive: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
   summaryAlert: {
     backgroundColor: colors.errorBg,
   },
   summaryWarn: {
     backgroundColor: colors.warningBg,
   },
+  summaryNoFills: {
+    backgroundColor: "#fffbeb",
+  },
   summaryText: {
     fontSize: fontSize.xs,
     fontFamily: fonts.medium,
     color: colors.textSecondary,
+  },
+  filterPillRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  filterPillText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.primary,
   },
   loadingWrap: {
     flex: 1,
@@ -398,6 +583,53 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: spacing.sm,
+  },
+  sectionSeparator: {
+    height: spacing.md,
+  },
+  // Zone section header
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: spacing.xs,
+    paddingTop: spacing.xs,
+  },
+  sectionHeaderText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  sectionCountChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.borderLight,
+  },
+  sectionCountChipAlert: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  sectionCountChipNone: {
+    backgroundColor: colors.borderLight,
+  },
+  sectionCountText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+  },
+  sectionCountTextAlert: {
+    color: "#b45309",
+    fontFamily: fonts.semiBold,
+  },
+  sectionCountTextNone: {
+    color: colors.textTertiary,
   },
   // Row
   row: {
