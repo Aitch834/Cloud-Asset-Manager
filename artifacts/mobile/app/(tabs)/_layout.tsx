@@ -12,8 +12,15 @@ import { colors } from "@/constants/colors";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useBarrelAlertCount } from "@/lib/hooks/useBarrelAlertCount";
+import { useSmsMisconfigured } from "@/lib/hooks/useSmsMisconfigured";
 
-function NativeTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
+function NativeTabLayout({
+  barrelAlertCount,
+  smsMisconfigured,
+}: {
+  barrelAlertCount: number;
+  smsMisconfigured: boolean;
+}) {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -36,12 +43,19 @@ function NativeTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
       <NativeTabs.Trigger name="more">
         <Icon sf={{ default: "ellipsis.circle", selected: "ellipsis.circle.fill" }} />
         <Label>More</Label>
+        {smsMisconfigured && <Badge>!</Badge>}
       </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
-function ClassicTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
+function ClassicTabLayout({
+  barrelAlertCount,
+  smsMisconfigured,
+}: {
+  barrelAlertCount: number;
+  smsMisconfigured: boolean;
+}) {
   const colorScheme = useColorScheme();
   const safeAreaInsets = useSafeAreaInsets();
   const isDark = colorScheme === "dark";
@@ -139,6 +153,7 @@ function ClassicTabLayout({ barrelAlertCount }: { barrelAlertCount: number }) {
             ) : (
               <Feather name="more-horizontal" size={22} color={color} />
             ),
+          tabBarBadge: smsMisconfigured ? "!" : undefined,
         }}
       />
     </Tabs>
@@ -155,9 +170,10 @@ export default function TabLayout() {
     currentFarm?.idleBarrelDays,
     currentFarm?.approachingNeutralFills,
   );
+  const smsMisconfigured = useSmsMisconfigured(activeModuleKeys);
 
   if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout barrelAlertCount={barrelAlertCount} />;
+    return <NativeTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />;
   }
-  return <ClassicTabLayout barrelAlertCount={barrelAlertCount} />;
+  return <ClassicTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />;
 }

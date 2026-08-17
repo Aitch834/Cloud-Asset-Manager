@@ -32,75 +32,7 @@ import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 import * as Location from "expo-location";
 
-const SMS_CATEGORIES: ReadonlyArray<{
-  key: string;
-  label: string;
-  description: string;
-  moduleGates: ReadonlyArray<string>;
-}> = [
-  {
-    key: "livestock",
-    label: "Livestock & Animals",
-    description: "Welfare alerts, withdrawal breaches, notifiable disease, herd health follow-ups.",
-    moduleGates: [
-      "livestock-management", "livestock",
-      "beef-production", "sheep-production", "goat-production", "venison-production",
-      "pig-production", "poultry-production",
-      "organic-livestock",
-    ],
-  },
-  {
-    key: "dairy",
-    label: "Dairy",
-    description: "ABR test results, mastitis records, mobility scoring alerts.",
-    moduleGates: [
-      "dairy-management",
-      "sheep-dairy", "goat-dairy",
-      "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy",
-    ],
-  },
-  {
-    key: "arable",
-    label: "Arable & Crops",
-    description: "IPM pest/disease threshold alerts, irrigation advisories, field scouting flags.",
-    moduleGates: [
-      "field-crop-management", "crop-management",
-      "fresh-produce", "organic-fresh-produce",
-      "water-irrigation",
-      "organic-arable",
-    ],
-  },
-  {
-    key: "viticulture",
-    label: "Viticulture & Winery",
-    description: "Vineyard and winery compliance alerts.",
-    moduleGates: ["viticulture"],
-  },
-  {
-    key: "tasks",
-    label: "Task Assignments & Reminders",
-    description: "Notifications when tasks are assigned to you, and timesheet submission reminders.",
-    moduleGates: [],
-  },
-  {
-    key: "regulatory",
-    label: "Regulatory Compliance",
-    description: "Withdrawal period breaches, biosecurity declarations, SSAFO inspections, RIDDOR incidents.",
-    moduleGates: [],
-  },
-  {
-    key: "quality",
-    label: "Quality & Non-conformances",
-    description: "Non-conformance records, corrective actions, feed intake rejections.",
-    moduleGates: [],
-  },
-  {
-    key: "stock",
-    label: "Stock & Supplies",
-    description: "Stock-low and stock-out alerts across feed, medicines, and supplies.",
-    moduleGates: [],
-  },
-];
+import { SMS_CATEGORIES } from "@/constants/smsCategories";
 
 type LisStatus = {
   configured: boolean;
@@ -258,6 +190,13 @@ export default function MoreScreen() {
   const visibleCategories = SMS_CATEGORIES.filter(
     cat => cat.moduleGates.length === 0 || cat.moduleGates.some(g => activeModuleKeySet.has(g)),
   );
+
+  // True when SMS is enabled but the grower has disabled every visible category
+  // — they'd receive no texts despite thinking they're covered.
+  const allCategoriesOff =
+    smsEnabled &&
+    visibleCategories.length > 0 &&
+    visibleCategories.every(cat => categoryStates[cat.key] === false);
 
   useEffect(() => {
     setSmsLoading(true);
@@ -1122,6 +1061,14 @@ export default function MoreScreen() {
                   <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: spacing.xs, lineHeight: 18 }}>
                     Disable categories you're not responsible for. A dairy manager can silence livestock alerts; a cereals manager can silence dairy alerts.
                   </Text>
+                  {allCategoriesOff && (
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fef3c7", borderWidth: 1, borderColor: "#fbbf24", borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm }}>
+                      <Feather name="alert-triangle" size={16} color="#92400e" style={{ marginTop: 1, flexShrink: 0 }} />
+                      <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.xs, color: "#92400e", flex: 1, lineHeight: 18 }}>
+                        SMS is enabled but every category is off — you won't receive any text alerts. Turn on at least one category or disable SMS entirely.
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
 
