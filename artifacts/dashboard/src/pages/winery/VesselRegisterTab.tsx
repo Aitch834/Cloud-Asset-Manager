@@ -1533,40 +1533,54 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Filter by cellar zone</p>
               <div className="flex flex-wrap gap-1.5">
-                {cellarZones.map(zone => {
-                  const zoneBarrels = barrels.filter(r => String(r.cellar_zone || "Unassigned") === zone);
-                  // Apply the active alert-flag and fill-status filters so counts match what the table will show
-                  const zoneFiltered = zoneBarrels.filter(r => {
-                    if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
-                    if (isFullFilter !== "" && !!r.is_full !== (isFullFilter === "true")) return false;
-                    return true;
+                {(() => {
+                  // Build zone data rows first so we can sort when a flag filter is active
+                  const zoneRows = cellarZones.map(zone => {
+                    const zoneBarrels = barrels.filter(r => String(r.cellar_zone || "Unassigned") === zone);
+                    // Apply the active alert-flag and fill-status filters so counts match what the table will show
+                    const zoneFiltered = zoneBarrels.filter(r => {
+                      if (alertFlagFilter && !matchesAlertFlagFilter(r)) return false;
+                      if (isFullFilter !== "" && !!r.is_full !== (isFullFilter === "true")) return false;
+                      return true;
+                    });
+                    const full = zoneFiltered.filter(r => r.is_full).length;
+                    const empty = zoneFiltered.length - full;
+                    const flaggedCount = alertFlagFilter ? zoneFiltered.length : null;
+                    return { zone, full, empty, flaggedCount };
                   });
-                  const full = zoneFiltered.filter(r => r.is_full).length;
-                  const empty = zoneFiltered.length - full;
-                  const flaggedCount = alertFlagFilter ? zoneFiltered.length : null;
+
+                  // When a flag filter is active, sort zones by flagged count descending so the worst-affected appear first
+                  const sortedRows = alertFlagFilter
+                    ? [...zoneRows].sort((a, b) => (b.flaggedCount ?? 0) - (a.flaggedCount ?? 0))
+                    : zoneRows;
+
                   const flagLabel = alertFlagFilter === "no-fills-maintenance" ? "no fills"
                     : alertFlagFilter === "no-fills-none" ? "no records"
                     : alertFlagFilter === "approaching-neutral" ? "approaching neutral"
                     : alertFlagFilter === "idle" ? "idle"
                     : null;
-                  const isSelected = zoneFilter.includes(zone);
-                  return (
-                    <button
-                      key={zone}
-                      onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
-                      className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"}`}
-                    >
-                      <span className="font-semibold">{zone}</span>
-                      {flaggedCount !== null
-                        ? <span className={`font-bold ${flaggedCount > 0 ? "text-amber-700" : "text-slate-400"}`}>{flaggedCount} {flagLabel}</span>
-                        : isFullFilter === "false"
-                        ? <span className="text-slate-500">○ {empty}</span>
-                        : isFullFilter === "true"
-                        ? <span className="text-green-700 font-medium">● {full}</span>
-                        : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
-                    </button>
-                  );
-                })}
+
+                  return sortedRows.map(({ zone, full, empty, flaggedCount }) => {
+                    const isSelected = zoneFilter.includes(zone);
+                    const isDimmed = alertFlagFilter && flaggedCount === 0 && !isSelected;
+                    return (
+                      <button
+                        key={zone}
+                        onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
+                        className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"} ${isDimmed ? "opacity-40" : ""}`}
+                      >
+                        <span className="font-semibold">{zone}</span>
+                        {flaggedCount !== null
+                          ? <span className={`font-bold ${flaggedCount > 0 ? "text-amber-700" : "text-slate-400"}`}>{flaggedCount} {flagLabel}</span>
+                          : isFullFilter === "false"
+                          ? <span className="text-slate-500">○ {empty}</span>
+                          : isFullFilter === "true"
+                          ? <span className="text-green-700 font-medium">● {full}</span>
+                          : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
