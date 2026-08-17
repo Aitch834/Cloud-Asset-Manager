@@ -3544,6 +3544,10 @@ router.delete("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, 
 });
 
 router.put("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   if (!(await checkPlatformAdmin(req, res))) return;
   const { logoUri, qrUri } = req.body as { logoUri?: string; qrUri?: string };
   if (typeof logoUri !== "string" || typeof qrUri !== "string") {
