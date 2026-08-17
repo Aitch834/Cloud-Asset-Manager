@@ -1572,6 +1572,16 @@ function YearOnYearTab({ farmId, onRegisterExport }: { farmId: number; onRegiste
     });
   }, [data, byYear, allHarvests, onRegisterExport]);
 
+  // Double-count warning: same condition as P&L tab — unlinked "Agri-Environment Scheme"
+  // income transactions exist alongside completed milestone claims (from Agri-Env tab).
+  // agriEnvTotalClaimedPence is the sum of all submitted/paid milestone claims for this farm
+  // across all years, returned by the year-on-year endpoint.
+  const agriEnvTotalClaimedPence: number = data?.agriEnvTotalClaimedPence ?? 0;
+  const unlinkedAgriEnvTxTotal: number = allTx
+    .filter((t: any) => t.category === "Agri-Environment Scheme" && t.transactionType === "income" && !t.agriEnvProjectId)
+    .reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+  const hasDoubleCountRisk = agriEnvTotalClaimedPence > 0 && unlinkedAgriEnvTxTotal > 0;
+
   if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
   if (availableYears.length === 0) return <EmptyState icon={Calendar} message="Add harvest records and financial transactions across multiple years to see trends." />;
 
@@ -1584,6 +1594,19 @@ function YearOnYearTab({ farmId, onRegisterExport }: { farmId: number; onRegiste
 
   return (
     <div className="space-y-6">
+      {hasDoubleCountRisk && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.1rem", lineHeight: 1.3 }}>⚠️</span>
+          <div>
+            <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", marginBottom: 2 }}>Possible double-count detected</p>
+            <p style={{ color: "#78350f", fontSize: "0.8rem" }}>
+              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env milestone records on file.
+              The income figures across all years shown here are drawn from financial transactions only — if the same payment also appears as a milestone claim in the Agri-Env tab, it may be counted twice in your overall reporting.
+              To resolve this, link the financial transaction to the relevant agri-env project in the P&amp;L tab.
+            </p>
+          </div>
+        </div>
+      )}
       {availableYears.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: "0.8rem", color: "#6b7280", fontWeight: 500 }}>Compare seasons (up to 5):</span>

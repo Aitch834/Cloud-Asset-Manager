@@ -19480,7 +19480,26 @@ router.get("/:farmId/reports/year-on-year", requireAuth, requireTenant, requireM
 
   const allTransactions = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId));
 
-  res.json({ harvests: allHarvests, transactions: allTransactions });
+  // Total completed milestone claim amounts across all years — used by the frontend to detect
+  // whether the agri-env milestone system is in use (double-count risk check).
+  const allAgriEnvProjects = await db.select({ id: agriEnvProjectsTable.id })
+    .from(agriEnvProjectsTable)
+    .where(and(eq(agriEnvProjectsTable.farmId, farmId), ne(agriEnvProjectsTable.status, "withdrawn")));
+
+  const agriEnvTotalClaimedPence: number = allAgriEnvProjects.length > 0
+    ? (await db.select({ claimAmountPence: agriEnvMilestonesTable.claimAmountPence })
+        .from(agriEnvMilestonesTable)
+        .where(
+          and(
+            inArray(agriEnvMilestonesTable.projectId, allAgriEnvProjects.map(p => p.id)),
+            inArray(agriEnvMilestonesTable.status, ["submitted", "paid"]),
+            isNotNull(agriEnvMilestonesTable.completionDate)
+          )
+        )
+      ).reduce((s, m) => s + (m.claimAmountPence ?? 0), 0)
+    : 0;
+
+  res.json({ harvests: allHarvests, transactions: allTransactions, agriEnvTotalClaimedPence });
 });
 
 router.get("/:farmId/reports/assets", requireAuth, requireTenant, requireModuleByKey("business-reports", "read"), async (req, res): Promise<void> => {
