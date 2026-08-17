@@ -13,6 +13,7 @@ import {
 import {
   SortableContext,
   rectSortingStrategy,
+  horizontalListSortingStrategy,
   useSortable,
   arrayMove,
   sortableKeyboardCoordinates,
@@ -197,14 +198,70 @@ function SortablePhotoThumbnail({
   );
 }
 
+// ─── Filmstrip thumbnail (used inside the lightbox) ───────────────────────────
+
+function SortableFilmstripThumb({
+  photo, photoSrc, isActive, onClick,
+}: {
+  photo: BlockPhoto;
+  photoSrc: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: photo.id,
+    disabled: photo.isCover,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative flex-none w-16 h-16 rounded overflow-hidden border-2 transition-colors ${isActive ? "border-purple-500 shadow-md" : "border-transparent hover:border-gray-400"}`}
+    >
+      <img
+        src={photoSrc}
+        alt={photo.fileName ?? ""}
+        className="w-full h-full object-cover cursor-pointer"
+        onClick={onClick}
+        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+      />
+      {photo.isCover && (
+        <span className="absolute bottom-0.5 left-0.5 bg-yellow-400 text-yellow-900 rounded text-[8px] font-bold px-0.5 pointer-events-none">★</span>
+      )}
+      {!photo.isCover && (
+        <button
+          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-0 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+          onClick={e => e.stopPropagation()}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; block: Block; onPhotoChanged: () => void }) {
   const blockId = block.id as number;
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
-  const [lightbox, setLightbox] = useState<BlockPhoto | null>(null);
+  // Store the lightbox photo ID rather than the object — stays stable across reorders
+  const [lightboxId, setLightboxId] = useState<number | null>(null);
   const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
+  const filmstripRef = useRef<HTMLDivElement>(null);
   const [orderedPhotos, setOrderedPhotos] = useState<BlockPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -328,6 +385,9 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     }
   };
 
+  // Derive the active lightbox photo from orderedPhotos (stays correct after reorders)
+  const lightboxPhoto = lightboxId !== null ? (orderedPhotos.find(p => p.id === lightboxId) ?? null) : null;
+
   const deletePhotoMutation = useMutation({
     mutationFn: async (photoId: number) => {
       const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`), {
@@ -337,7 +397,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     },
     onSuccess: (_data, photoId) => {
       // If the deleted photo is open in the lightbox, close it
-      if (lightbox?.id === photoId) setLightbox(null);
+      if (lightboxId === photoId) setLightboxId(null);
       setDeletePhotoId(null);
       invalidate();
     },
@@ -354,6 +414,13 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     `${api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${p.id}`)}?t=${String(p.id)}`;
 
   const sortableIds = orderedPhotos.filter(p => !p.isCover).map(p => p.id);
+
+  // Scroll the active filmstrip thumb into view when lightboxId changes
+  useEffect(() => {
+    if (lightboxId === null || !filmstripRef.current) return;
+    const el = filmstripRef.current.querySelector<HTMLElement>(`[data-photo-id="${lightboxId}"]`);
+    el?.scrollIntoView({ inline: "nearest", behavior: "smooth", block: "nearest" });
+  }, [lightboxId]);
 
   return (
     <div className="border-t pt-3">
@@ -394,7 +461,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
                   onDelete={() => handleDelete(photo)}
                   onSetCover={() => patchPhoto(photo.id, { isCover: true })}
                   onCaptionSave={(caption) => patchPhoto(photo.id, { caption: caption || null })}
-                  onExpand={() => setLightbox(photo)}
+                  onExpand={() => setLightboxId(photo.id)}
                 />
               ))}
             </div>
@@ -428,51 +495,80 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
 
       {/* Lightbox */}
-      <Dialog open={!!lightbox} onOpenChange={o => { if (!o) setLightbox(null); }}>
+      <Dialog open={!!lightboxPhoto} onOpenChange={o => { if (!o) setLightboxId(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-1 pb-1">
             <DialogTitle className="text-sm font-medium truncate">
-              {lightbox?.fileName ?? "Block photo"}
+              {lightboxPhoto?.fileName ?? "Block photo"}
             </DialogTitle>
           </DialogHeader>
-          {lightbox && (
-            <div className="relative group/lightbox">
-              <img
-                src={photoSrc(lightbox)}
-                alt={lightbox.fileName ?? "Block photo"}
-                className="w-full max-h-[70vh] object-contain rounded-lg"
-              />
-              {/* Delete button — visible on hover or keyboard focus; positioned top-left
-                  to avoid overlapping the DialogContent close button at top-right */}
-              <button
-                type="button"
-                onClick={() => setDeletePhotoId(lightbox.id)}
-                className="absolute top-2 left-2 rounded-full bg-black/50 hover:bg-red-600/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
-                aria-label="Delete photo"
-                title="Delete this photo"
-              >
-                <Trash className="w-4 h-4" />
-              </button>
-              {/* Set as cover — only shown for non-cover photos */}
-              {!lightbox.isCover && (
+          {lightboxPhoto && (
+            <div className="flex flex-col gap-2">
+              {/* Main image */}
+              <div className="relative group/lightbox">
+                <img
+                  src={photoSrc(lightboxPhoto)}
+                  alt={lightboxPhoto.fileName ?? "Block photo"}
+                  className="w-full max-h-[60vh] object-contain rounded-lg"
+                />
+                {/* Delete button */}
                 <button
                   type="button"
-                  onClick={async () => {
-                    // Optimistic updates so the UI responds immediately
-                    setLightbox({ ...lightbox, isCover: true });
-                    setOrderedPhotos(prev => prev.map(p => ({ ...p, isCover: p.id === lightbox.id })));
-                    await patchPhoto(lightbox.id, { isCover: true });
-                  }}
-                  disabled={savingId === lightbox.id}
-                  className="absolute top-2 left-12 rounded-full bg-black/50 hover:bg-yellow-500/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100 disabled:opacity-40"
-                  aria-label="Set as cover photo"
-                  title="Set as cover photo"
+                  onClick={() => setDeletePhotoId(lightboxPhoto.id)}
+                  className="absolute top-2 left-2 rounded-full bg-black/50 hover:bg-red-600/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
+                  aria-label="Delete photo"
+                  title="Delete this photo"
                 >
-                  <Star className="w-4 h-4" />
+                  <Trash className="w-4 h-4" />
                 </button>
-              )}
-              {lightbox.caption && (
-                <p className="text-xs text-center text-muted-foreground mt-2 italic">{lightbox.caption}</p>
+                {/* Set as cover */}
+                {!lightboxPhoto.isCover && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setOrderedPhotos(prev => prev.map(p => ({ ...p, isCover: p.id === lightboxPhoto.id })));
+                      await patchPhoto(lightboxPhoto.id, { isCover: true });
+                    }}
+                    disabled={savingId === lightboxPhoto.id}
+                    className="absolute top-2 left-12 rounded-full bg-black/50 hover:bg-yellow-500/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100 disabled:opacity-40"
+                    aria-label="Set as cover photo"
+                    title="Set as cover photo"
+                  >
+                    <Star className="w-4 h-4" />
+                  </button>
+                )}
+                {lightboxPhoto.caption && (
+                  <p className="text-xs text-center text-muted-foreground mt-1 italic">{lightboxPhoto.caption}</p>
+                )}
+              </div>
+
+              {/* Filmstrip — drag to reorder, click to navigate */}
+              {orderedPhotos.length > 1 && (
+                <div className="flex flex-col gap-1">
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
+                      <div
+                        ref={filmstripRef}
+                        className="flex gap-1.5 overflow-x-auto pb-1 px-0.5"
+                        style={{ scrollbarWidth: "thin" }}
+                      >
+                        {orderedPhotos.map(photo => (
+                          <div key={photo.id} data-photo-id={photo.id}>
+                            <SortableFilmstripThumb
+                              photo={photo}
+                              photoSrc={photoSrc(photo)}
+                              isActive={photo.id === lightboxPhoto.id}
+                              onClick={() => setLightboxId(photo.id)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  <p className="text-[10px] text-muted-foreground/60 text-center">
+                    Drag thumbnails to reorder · click to view
+                  </p>
+                </div>
               )}
             </div>
           )}
