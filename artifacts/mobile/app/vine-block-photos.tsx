@@ -45,7 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
-import { fetchBlockPhotos, applyPhotoUpdateIfCurrent } from "@/lib/vineBlockPhotosApi";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -1325,16 +1325,18 @@ export default function VineBlockPhotosScreen() {
     if (reloadInFlightRef.current) return; // another reload already claimed the slot
     reloadInFlightRef.current = true;
     setReloadingPhotoId(photoId);
-    const gen = ++loadGenRef.current;
     try {
-      const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id);
-      if (fetched === null) {
-        Alert.alert("Reload Failed", "Could not reload photos. Please check your connection and try again.");
+      const freshUrl = await fetchBlockPhotoUrl(currentFarm.id, selectedBlock.id, photoId);
+      if (freshUrl === null) {
+        Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
         return;
       }
-      applyPhotoUpdateIfCurrent(gen, () => loadGenRef.current, fetched, (p) => setPhotos(p as BlockPhoto[]));
+      // Patch only the affected photo — no need to replace the full list.
+      setPhotos((prev) =>
+        prev.map((p) => (p.id === photoId ? { ...p, downloadUrl: freshUrl } : p)),
+      );
     } catch {
-      Alert.alert("Reload Failed", "Could not reload photos. Please check your connection and try again.");
+      Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
     } finally {
       reloadInFlightRef.current = false;
       setReloadingPhotoId(null);

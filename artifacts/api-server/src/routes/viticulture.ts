@@ -36,6 +36,7 @@ import {
   vineyardSprayDiaryPhotosTable,
   vineyardFrostEventsTable,
   vineyardCaneWeightsTable,
+  farmsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, isNull, inArray, sql, getTableColumns } from "drizzle-orm";
 import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
@@ -1585,6 +1586,32 @@ router.put("/farms/:farmId/vineyard-blocks/:blockId/photos/reorder", requireAuth
   });
 
   res.json({ success: true });
+});
+
+// ── Refresh presigned URL for a single gallery photo ─────────────────────────
+// Lightweight endpoint used by handleReload in vine-block-photos.tsx to refresh
+// only the expired URL for one photo rather than re-fetching the full list.
+router.get("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId/url", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const blockId = Number(req.params.blockId);
+  const photoId = Number(req.params.photoId);
+
+  // Verify the farm belongs to the caller's tenant before issuing any URL.
+  const [farm] = await db
+    .select({ id: farmsTable.id })
+    .from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
+    .limit(1);
+  if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+  const [photo] = await db
+    .select({ id: vineyardBlockPhotosTable.id, objectPath: vineyardBlockPhotosTable.objectPath })
+    .from(vineyardBlockPhotosTable)
+    .where(and(eq(vineyardBlockPhotosTable.id, photoId), eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+  const downloadUrl = await _blockPhotoStorage.getPresignedDownloadUrl(photo.objectPath, 300);
+  res.json({ downloadUrl });
 });
 
 // ── Serve a gallery photo by row id ──────────────────────────────────────────

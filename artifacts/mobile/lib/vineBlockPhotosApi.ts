@@ -72,6 +72,36 @@ export async function fetchBlockPhotos(
  *                     error; an array (possibly empty) means success.
  * @param setPhotos    The React state setter for the photos array.
  */
+/**
+ * Fetches a fresh presigned download URL for a single block photo.
+ *
+ * Used by `handleReload` in vine-block-photos.tsx so that tapping
+ * "Tap to reload" on a broken thumbnail only hits a lightweight
+ * single-URL endpoint rather than re-fetching the full photo list.
+ *
+ * Returns:
+ *   - A URL string on HTTP 2xx — the caller should patch only the
+ *     affected photo in state.
+ *   - `null` on any network or non-2xx HTTP error — the caller should
+ *     show an error Alert and leave the existing state unchanged.
+ */
+export async function fetchBlockPhotoUrl(
+  farmId: number | string,
+  blockId: number | string,
+  photoId: number | string,
+): Promise<string | null> {
+  try {
+    const res = await apiFetch(
+      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}/url`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { downloadUrl: string | null };
+    return data.downloadUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function applyPhotoUpdateIfCurrent(
   gen: number,
   getLatestGen: () => number,
