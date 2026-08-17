@@ -708,11 +708,12 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
                 <span className="font-medium shrink-0">{fmtDate(c.clean_date)}</span>
                 <span className="text-muted-foreground shrink-0">{fmt(c.clean_type)}</span>
                 <span className="text-muted-foreground truncate">{fmt(c.cleaning_product)}</span>
-                {(c.concentration_pct != null || c.contact_time_min != null) && (
+                {(c.concentration_pct != null || c.contact_time_min != null || c.water_temp_c != null) && (
                   <span className="text-muted-foreground shrink-0">
                     {[
                       c.concentration_pct != null ? `${c.concentration_pct}%` : null,
                       c.contact_time_min  != null ? `${c.contact_time_min} min` : null,
+                      c.water_temp_c      != null ? `${c.water_temp_c} °C` : null,
                     ].filter(Boolean).join(" · ")}
                   </span>
                 )}
