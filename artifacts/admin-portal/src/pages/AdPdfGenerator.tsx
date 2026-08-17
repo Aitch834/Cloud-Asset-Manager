@@ -970,6 +970,18 @@ export default function AdPdfGenerator() {
   });
 
   function handleStartEdit(p: AdCopyPreset) {
+    if (editingPresetId !== null && editingPresetId !== p.id) {
+      const orig = presets.find((x) => x.id === editingPresetId);
+      const isDirty =
+        !orig ||
+        editName !== orig.name ||
+        editHeadline !== orig.headline ||
+        editBody !== orig.body ||
+        editAccentColor !== orig.accentColor;
+      if (isDirty && !window.confirm("Discard unsaved changes?")) {
+        return;
+      }
+    }
     setEditingPresetId(p.id);
     setEditName(p.name);
     setEditHeadline(p.headline);
