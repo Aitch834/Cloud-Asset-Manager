@@ -438,13 +438,13 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly }: { farmId: n
           {(data ?? []).map(m => (
             <div key={String(m.id)} className="flex items-start justify-between text-xs border rounded px-3 py-2 gap-2">
               <div className="space-y-0.5 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium">{fmtDate(m.maintenance_date)}</span>
                   <span className="text-foreground font-semibold">{String(m.work_type)}</span>
                   {!!m.cooperage_name && <span className="text-muted-foreground">— {String(m.cooperage_name)}</span>}
+                  {!!m.operator_name && <span className="text-foreground">· <span className="font-medium">Operator:</span> {String(m.operator_name)}</span>}
                 </div>
                 {m.cost_pence != null && <div className="text-muted-foreground">Cost: £{(Number(m.cost_pence) / 100).toFixed(2)}</div>}
-                {!!m.operator_name && <div className="text-muted-foreground">By: {String(m.operator_name)}</div>}
                 {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
               </div>
               {!readOnly && (
