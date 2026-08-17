@@ -1697,10 +1697,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           </tr>
                         ))}
                       </tbody>
-                      {vintageRows.length > 1 && (
+                      {vintageRows.length >= 1 && (
                         <tfoot>
                           <tr className="border-t-2 bg-muted/40 font-semibold">
-                            <td className="px-4 py-2">Total / Average</td>
+                            <td className="px-4 py-2">Season Totals</td>
                             <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalPicks}</td>
                             <td className="text-right px-3 py-2 tabular-nums">{vFooterTotalKg > 0 ? vFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
                             <td className="text-right px-3 py-2 tabular-nums">
