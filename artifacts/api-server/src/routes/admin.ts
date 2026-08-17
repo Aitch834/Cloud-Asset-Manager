@@ -2761,6 +2761,38 @@ router.get("/admin/ad-templates", requireAuth, async (req: Request, res: Respons
   res.json(rows);
 });
 
+// ─── Near-miss placeholder detection ─────────────────────────────────────────
+// Detects {{…}} tokens whose inner content normalises to a known canonical
+// placeholder but doesn't match exactly (wrong case, spaces, hyphens vs underscores).
+const AD_TEMPLATE_CANONICAL_PLACEHOLDERS = [
+  "{{font_css}}", "{{logo}}", "{{bg}}", "{{qr}}",
+  "{{headline}}", "{{body}}", "{{accent_color}}",
+];
+const AD_TEMPLATE_CANONICAL_NORM_MAP: Map<string, string> = new Map(
+  AD_TEMPLATE_CANONICAL_PLACEHOLDERS.map((p) => {
+    const inner = p.slice(2, -2);
+    return [inner.trim().toLowerCase().replace(/-/g, "_"), p];
+  })
+);
+
+function detectAdTemplateNearMissPlaceholders(htmlBody: string): string[] {
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+  const tokenRe = /\{\{([^}]*)\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(htmlBody)) !== null) {
+    const found = `{{${m[1]}}}`;
+    if (seen.has(found)) continue;
+    seen.add(found);
+    const normInner = m[1].trim().toLowerCase().replace(/-/g, "_");
+    const canonical = AD_TEMPLATE_CANONICAL_NORM_MAP.get(normInner);
+    if (!canonical) continue;
+    if (found === canonical) continue; // exact match — fine
+    warnings.push(`${found} looks like a typo for ${canonical}`);
+  }
+  return warnings;
+}
+
 router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
   const { name, slug, widthMm, heightMm, htmlBody, isDefault } = req.body as {
@@ -2776,7 +2808,8 @@ router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Respon
       name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm),
       htmlBody, isDefault: !!isDefault,
     }).returning();
-    res.status(201).json(row);
+    const warnings = detectAdTemplateNearMissPlaceholders(htmlBody);
+    res.status(201).json({ ...row, warnings });
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
     if (code === "23505") {
@@ -2806,7 +2839,8 @@ router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Res
       .where(eq(adTemplatesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Template not found" }); return; }
-    res.json(row);
+    const warnings = detectAdTemplateNearMissPlaceholders(htmlBody);
+    res.json({ ...row, warnings });
   } catch (err: unknown) {
     const code = (err as { cause?: { code?: string } }).cause?.code;
     if (code === "23505") {

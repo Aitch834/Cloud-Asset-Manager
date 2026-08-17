@@ -66,7 +66,12 @@ async function restoreTemplate(id: number): Promise<AdTemplate> {
   return json;
 }
 
-async function createTemplate(data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt">): Promise<AdTemplate> {
+interface TemplateSaveResult {
+  template: AdTemplate;
+  warnings: string[];
+}
+
+async function createTemplate(data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt">): Promise<TemplateSaveResult> {
   const res = await fetch("/api/admin/ad-templates", {
     method: "POST",
     headers: adminHeaders(),
@@ -74,10 +79,11 @@ async function createTemplate(data: Omit<AdTemplate, "id" | "createdAt" | "updat
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-  return json;
+  const { warnings, ...template } = json as AdTemplate & { warnings?: string[] };
+  return { template: template as AdTemplate, warnings: warnings ?? [] };
 }
 
-async function updateTemplate(id: number, data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt">): Promise<AdTemplate> {
+async function updateTemplate(id: number, data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt">): Promise<TemplateSaveResult> {
   const res = await fetch(`/api/admin/ad-templates/${id}`, {
     method: "PUT",
     headers: adminHeaders(),
@@ -85,7 +91,8 @@ async function updateTemplate(id: number, data: Omit<AdTemplate, "id" | "created
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-  return json;
+  const { warnings, ...template } = json as AdTemplate & { warnings?: string[] };
+  return { template: template as AdTemplate, warnings: warnings ?? [] };
 }
 
 async function deleteTemplate(id: number): Promise<void> {
@@ -934,15 +941,26 @@ export default function AdPdfGenerator() {
   // CRUD panel
   const [panel, setPanel] = useState<PanelMode>("none");
 
+  // Warnings surfaced from the API after a successful template create/update
+  const [apiSaveWarnings, setApiSaveWarnings] = useState<string[]>([]);
+
   const createMutation = useMutation({
     mutationFn: createTemplate,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); setPanel("none"); },
+    onSuccess: ({ warnings }) => {
+      qc.invalidateQueries({ queryKey: ["ad-templates"] });
+      setPanel("none");
+      setApiSaveWarnings(warnings);
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt"> }) =>
       updateTemplate(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ad-templates"] }); setPanel("none"); },
+    onSuccess: ({ warnings }) => {
+      qc.invalidateQueries({ queryKey: ["ad-templates"] });
+      setPanel("none");
+      setApiSaveWarnings(warnings);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -1608,11 +1626,40 @@ export default function AdPdfGenerator() {
             </p>
           </div>
           {panel === "none" && (
-            <Button size="sm" variant="outline" onClick={() => setPanel("create")}>
+            <Button size="sm" variant="outline" onClick={() => { setPanel("create"); setApiSaveWarnings([]); }}>
               <Plus className="w-4 h-4 mr-1.5" />New template
             </Button>
           )}
         </div>
+
+        {/* API save warnings — shown after a successful create/update that had near-miss placeholders */}
+        {apiSaveWarnings.length > 0 && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Template saved — likely placeholder typo{apiSaveWarnings.length > 1 ? "s" : ""} detected
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 mb-1.5">
+                The following token{apiSaveWarnings.length > 1 ? "s" : ""} will be silently ignored by the renderer because{" "}
+                {apiSaveWarnings.length > 1 ? "they don't" : "it doesn't"} match any recognised placeholder exactly:
+              </p>
+              <ul className="text-xs space-y-0.5">
+                {apiSaveWarnings.map((w) => (
+                  <li key={w} className="font-mono">{w}</li>
+                ))}
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={() => setApiSaveWarnings([])}
+              className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200 shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Create / Edit form */}
         {panel !== "none" && (
@@ -1695,7 +1742,7 @@ export default function AdPdfGenerator() {
                         <button
                           type="button"
                           title="Edit"
-                          onClick={() => setPanel({ edit: t })}
+                          onClick={() => { setPanel({ edit: t }); setApiSaveWarnings([]); }}
                           className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Pencil className="w-3.5 h-3.5" />
