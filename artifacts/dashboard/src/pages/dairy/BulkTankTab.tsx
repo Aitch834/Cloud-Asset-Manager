@@ -157,6 +157,12 @@ export function BulkTankTab({ farmId, showCollections = true }: { farmId: number
   const [collForm, setCollForm] = useState<Partial<MilkCollection>>({});
   const [showCollQuality, setShowCollQuality] = useState(false);
 
+  // ── Statement details dialog ──────────────────────────────────────────────
+  const [stmtDialog, setStmtDialog] = useState(false);
+  const [stmtColl, setStmtColl] = useState<MilkCollection | null>(null);
+  const [stmtForm, setStmtForm] = useState<Partial<MilkCollection>>({});
+  const [showStmtQuality, setShowStmtQuality] = useState(false);
+
   const collQ = useQuery<{ collections: MilkCollection[] }>({
     queryKey: ["dairy-milk-collections", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/dairy/milk-collections`), { credentials: "include" }).then(r => r.json()),
@@ -168,6 +174,20 @@ export function BulkTankTab({ farmId, showCollections = true }: { farmId: number
       return fetch(url, { method: editingColl ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) }).then(r => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-milk-collections", farmId] }); setCollDialog(false); setEditingColl(null); setCollForm({}); },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const saveStmt = useMutation({
+    mutationFn: (body: Partial<MilkCollection>) => {
+      if (!stmtColl) throw new Error("No collection selected");
+      return fetch(api(`farms/${farmId}/dairy/milk-collections/${stmtColl.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r.json(); });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["dairy-milk-collections", farmId] }); setStmtDialog(false); setStmtColl(null); },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const delColl = useMutation({
@@ -184,6 +204,14 @@ export function BulkTankTab({ farmId, showCollections = true }: { farmId: number
     setCollDialog(true);
   }
   function setColl(k: keyof MilkCollection, v: unknown) { setCollForm(f => ({ ...f, [k]: v })); }
+
+  function openStmtDialog(c: MilkCollection) {
+    setStmtColl(c);
+    setStmtForm({ ...c, collectionDate: c.collectionDate.slice(0, 10) });
+    setShowStmtQuality(!!(c.buyerSccThousands || c.buyerBactoscanThousands || c.buyerFatPercent));
+    setStmtDialog(true);
+  }
+  function setStmt(k: keyof MilkCollection, v: unknown) { setStmtForm(f => ({ ...f, [k]: v })); }
 
   const tankName = (id?: number | null) => tanks.find(t => t.id === id)?.name ?? null;
 
@@ -638,6 +666,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
                     {c.buyerTvcCfuMl != null && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">TVC: {c.buyerTvcCfuMl.toLocaleString()}</span>}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-500 hover:text-gray-800" title="Enter milk statement details" onClick={() => openStmtDialog(c)}><Receipt className="h-3.5 w-3.5" /></Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditColl(c)}><Pencil className="h-3.5 w-3.5" /></Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => setPendingDelColl(c.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
@@ -713,6 +742,65 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Milk Statement Details Dialog ─────────────────────────────────────── */}
+      {stmtColl && (
+        <Dialog open={stmtDialog} onOpenChange={o => { setStmtDialog(o); if (!o) { saveStmt.reset(); setStmtColl(null); } }}>
+          <DialogContent style={{ maxWidth: "34rem" }}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-gray-500" />
+                Milk Statement Details
+              </DialogTitle>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {formatDate(stmtColl.collectionDate)}{stmtColl.milkBuyer ? ` · ${stmtColl.milkBuyer}` : ""}{stmtColl.volumeCollectedLitres ? ` · ${parseFloat(String(stmtColl.volumeCollectedLitres)).toLocaleString()} L` : ""}
+              </p>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-3 py-1">
+              <div className="col-span-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Financial Settlement</p>
+                <p className="text-xs text-gray-400 mb-2">Fill these in once you receive your milk statement (usually 1–2 weeks after collection).</p>
+              </div>
+              <div><Label>Statement Ref</Label><Input value={stmtForm.statementRef || ""} onChange={e => setStmt("statementRef", e.target.value)} /></div>
+              <div><Label>Pence per Litre</Label><Input type="number" step="0.01" value={stmtForm.pencePerLitre ?? ""} onChange={e => setStmt("pencePerLitre", e.target.value)} placeholder="e.g. 35.50" /></div>
+              <div><Label>Gross Value (£)</Label><Input type="number" step="0.01" value={stmtForm.grossValuePence != null ? (stmtForm.grossValuePence / 100).toFixed(2) : ""} onChange={e => setStmt("grossValuePence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} placeholder="e.g. 3018.00" /></div>
+              <div><Label>Quality Bonus (£)</Label><Input type="number" step="0.01" value={stmtForm.qualityBonusPence != null ? (stmtForm.qualityBonusPence / 100).toFixed(2) : ""} onChange={e => setStmt("qualityBonusPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+              <div><Label>Quality Penalty (£)</Label><Input type="number" step="0.01" value={stmtForm.qualityPenaltyPence != null ? (stmtForm.qualityPenaltyPence / 100).toFixed(2) : ""} onChange={e => setStmt("qualityPenaltyPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+              <div><Label>Transport Deduction (£)</Label><Input type="number" step="0.01" value={stmtForm.transportDeductionPence != null ? (stmtForm.transportDeductionPence / 100).toFixed(2) : ""} onChange={e => setStmt("transportDeductionPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+              <div><Label>Net Payment (£)</Label><Input type="number" step="0.01" value={stmtForm.netPaymentPence != null ? (stmtForm.netPaymentPence / 100).toFixed(2) : ""} onChange={e => setStmt("netPaymentPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
+
+              <div className="col-span-2">
+                <button type="button" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium" onClick={() => setShowStmtQuality(v => !v)}>
+                  <FlaskConical className="h-3.5 w-3.5" />{showStmtQuality ? "Hide" : "Add"} Buyer Quality Results
+                </button>
+              </div>
+              {showStmtQuality && <>
+                <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-0.5">Buyer Quality Results</p></div>
+                <div><Label>Buyer SCC (k/mL)</Label><Input type="number" min="0" value={stmtForm.buyerSccThousands ?? ""} onChange={e => setStmt("buyerSccThousands", e.target.value ? parseInt(e.target.value) : null)} placeholder="e.g. 120" /></div>
+                <div><Label>Bactoscan (k/mL)</Label><Input type="number" min="0" value={stmtForm.buyerBactoscanThousands ?? ""} onChange={e => setStmt("buyerBactoscanThousands", e.target.value ? parseInt(e.target.value) : null)} placeholder="e.g. 15" /></div>
+                <div><Label>TVC (cfu/mL)</Label><Input type="number" min="0" value={stmtForm.buyerTvcCfuMl ?? ""} onChange={e => setStmt("buyerTvcCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                <div><Label>Thermodurics (cfu/mL)</Label><Input type="number" min="0" value={stmtForm.buyerThermsCfuMl ?? ""} onChange={e => setStmt("buyerThermsCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                <div><Label>Coliforms (cfu/mL)</Label><Input type="number" min="0" value={stmtForm.buyerColiformsCfuMl ?? ""} onChange={e => setStmt("buyerColiformsCfuMl", e.target.value ? parseInt(e.target.value) : null)} /></div>
+                <div><Label>Buyer Fat%</Label><Input type="number" step="0.01" value={stmtForm.buyerFatPercent ?? ""} onChange={e => setStmt("buyerFatPercent", e.target.value)} placeholder="e.g. 4.15" /></div>
+                <div><Label>Buyer Protein%</Label><Input type="number" step="0.01" value={stmtForm.buyerProteinPercent ?? ""} onChange={e => setStmt("buyerProteinPercent", e.target.value)} placeholder="e.g. 3.30" /></div>
+                <div><Label>Buyer Casein%</Label><Input type="number" step="0.01" value={stmtForm.buyerCaseinPercent ?? ""} onChange={e => setStmt("buyerCaseinPercent", e.target.value)} placeholder="e.g. 2.60" /></div>
+                <div><Label>Buyer Lactose%</Label><Input type="number" step="0.01" value={stmtForm.buyerLactosePercent ?? ""} onChange={e => setStmt("buyerLactosePercent", e.target.value)} placeholder="e.g. 4.70" /></div>
+                <div><Label>Buyer Urea (mmol/L)</Label><Input type="number" step="0.1" value={stmtForm.buyerUreaMillimolesPerLitre ?? ""} onChange={e => setStmt("buyerUreaMillimolesPerLitre", e.target.value)} placeholder="e.g. 4.5" /></div>
+              </>}
+            </div>
+
+            <DialogMutationError mutation={saveStmt} message="Failed to save — your entries are still here." />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setStmtDialog(false); setStmtColl(null); saveStmt.reset(); }}>Cancel</Button>
+              <Button onClick={() => saveStmt.mutate(stmtForm)} disabled={saveStmt.isPending}>
+                {saveStmt.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Save Statement Details
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       </>)}
 
