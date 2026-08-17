@@ -27,6 +27,7 @@ interface WineryVesselSummary {
   status: string | null;
   empty_since: string | null;
   fill_number: number | null;
+  fill_count: number | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2177,13 +2178,15 @@ export default function RecordScreen() {
   const vesselAlertCounts = React.useMemo(() => {
     let idleCount = 0;
     let neutralCount = 0;
+    let noFillsCount = 0;
     for (const v of vesselRecords) {
       if (_isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
         if (_isIdleBarrel(v.empty_since, currentFarm?.idleBarrelDays)) idleCount++;
         if (_isApproachingNeutral(v.fill_number, currentFarm?.approachingNeutralFills)) neutralCount++;
+        if (Number(v.fill_count ?? 0) === 0) noFillsCount++;
       }
     }
-    return { idleCount, neutralCount };
+    return { idleCount, neutralCount, noFillsCount };
   }, [vesselRecords, currentFarm?.idleBarrelDays, currentFarm?.approachingNeutralFills]);
 
   const visibleOptions = recordOptions.filter((option) => {
@@ -2226,7 +2229,7 @@ function RecordOptionCard({
   vesselAlertCounts,
 }: {
   option: RecordOption;
-  vesselAlertCounts?: { idleCount: number; neutralCount: number };
+  vesselAlertCounts?: { idleCount: number; neutralCount: number; noFillsCount: number };
 }) {
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2235,9 +2238,9 @@ function RecordOptionCard({
 
   const showVesselBadge =
     vesselAlertCounts != null &&
-    (vesselAlertCounts.idleCount > 0 || vesselAlertCounts.neutralCount > 0);
+    (vesselAlertCounts.idleCount > 0 || vesselAlertCounts.neutralCount > 0 || vesselAlertCounts.noFillsCount > 0);
 
-  // Build badge label, e.g. "2 idle · 1 neutral"
+  // Build badge label, e.g. "2 idle · 1 neutral · 3 no fills"
   const vesselBadgeLabel = showVesselBadge
     ? [
         vesselAlertCounts!.idleCount > 0
@@ -2246,12 +2249,15 @@ function RecordOptionCard({
         vesselAlertCounts!.neutralCount > 0
           ? `${vesselAlertCounts!.neutralCount} neutral`
           : null,
+        vesselAlertCounts!.noFillsCount > 0
+          ? `${vesselAlertCounts!.noFillsCount} no fills`
+          : null,
       ]
         .filter(Boolean)
         .join(" · ")
     : null;
 
-  // Use red when there are idle barrels, amber when only neutral
+  // Use red when there are idle barrels, amber when only neutral/no-fills
   const badgeIsRed =
     showVesselBadge && vesselAlertCounts!.idleCount > 0;
 
