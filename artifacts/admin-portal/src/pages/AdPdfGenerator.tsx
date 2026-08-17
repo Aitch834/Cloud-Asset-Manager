@@ -1394,7 +1394,7 @@ export default function AdPdfGenerator() {
                   <input
                     type="text"
                     value={presetName}
-                    onChange={(e) => { setPresetName(e.target.value); setPresetSaveErr(null); }}
+                    onChange={(e) => { setPresetName(e.target.value); setPresetSaveErr(null); savePresetMutation.reset(); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSavePreset(); } }}
                     placeholder="Preset name, e.g. Harvest 2026"
                     className="flex-1 text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
