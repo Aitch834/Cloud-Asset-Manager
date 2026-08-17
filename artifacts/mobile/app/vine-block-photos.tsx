@@ -469,9 +469,10 @@ interface LightboxProps {
   onDelete: (photoId: number) => void;
   onReorder: (newPhotoIds: number[]) => void;
   onEditCaption: (photo: BlockPhoto) => void;
+  onReload: () => void;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload }: LightboxProps) {
   const insets = useSafeAreaInsets();
   const { user } = useFarm();
 
@@ -552,6 +553,10 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const [showReorderHint, setShowReorderHint] = useState(false);
   const hintOpacity = useSharedValue(0);
   const hintDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Image error / retry state for the lightbox
+  const [imgError, setImgError] = useState(false);
+  const prevUriRef = useRef<string | null>(null);
 
   const [saving, setSaving] = useState(false);
 
@@ -935,11 +940,31 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
             {uri ? (
-              <Image
-                source={{ uri }}
-                style={styles.lbImage}
-                resizeMode="contain"
-              />
+              (() => {
+                // Reset error flag whenever the URI changes (new photo navigated to,
+                // or URLs refreshed after a successful reload).
+                if (prevUriRef.current !== uri) {
+                  prevUriRef.current = uri;
+                  if (imgError) setImgError(false);
+                }
+                return imgError ? (
+                  <Pressable
+                    style={styles.lbRetryContainer}
+                    onPress={onReload}
+                    hitSlop={16}
+                  >
+                    <Feather name="refresh-cw" size={36} color="rgba(255,255,255,0.85)" />
+                    <Text style={styles.lbRetryText}>Tap to reload</Text>
+                  </Pressable>
+                ) : (
+                  <Image
+                    source={{ uri }}
+                    style={styles.lbImage}
+                    resizeMode="contain"
+                    onError={() => setImgError(true)}
+                  />
+                );
+              })()
             ) : (
               <ActivityIndicator size="large" color="#fff" />
             )}
@@ -1626,6 +1651,7 @@ export default function VineBlockPhotosScreen() {
         onDelete={handleDelete}
         onReorder={handleReorder}
         onEditCaption={handleEditCaption}
+        onReload={() => loadPhotos({ silent: true })}
       />
 
       {/* Caption editor */}
@@ -1874,6 +1900,16 @@ const styles = StyleSheet.create({
   lbImage: {
     width: SCREEN.width,
     height: SCREEN.height,
+  },
+  lbRetryContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  lbRetryText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: fontSize.sm,
+    fontFamily: fonts.medium,
   },
   lbCaption: {
     position: "absolute",
