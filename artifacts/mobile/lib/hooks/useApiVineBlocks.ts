@@ -34,7 +34,8 @@ interface UrlEntry {
 
 const coverPhotoUrlCache = new Map<number, UrlEntry>();
 
-function getCachedUrl(blockId: number): string | null {
+/** Read a cached cover-photo URL for a block, or null if absent/expired. */
+export function getCachedBlockCoverUrl(blockId: number): string | null {
   const entry = coverPhotoUrlCache.get(blockId);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
@@ -44,10 +45,15 @@ function getCachedUrl(blockId: number): string | null {
   return entry.url;
 }
 
-function setCachedUrl(blockId: number, url: string | null): void {
+/** Store a cover-photo URL in the in-session cache. No-op when url is null/empty. */
+export function setCachedBlockCoverUrl(blockId: number, url: string | null): void {
   if (!url) return;
   coverPhotoUrlCache.set(blockId, { url, expiresAt: Date.now() + URL_CACHE_TTL_MS });
 }
+
+// Internal aliases used by the hook below.
+const getCachedUrl = getCachedBlockCoverUrl;
+const setCachedUrl = setCachedBlockCoverUrl;
 
 /** Overlay in-memory cached URLs onto blocks that currently have null coverPhotoUrl. */
 function overlayUrls(blocks: VineBlock[]): VineBlock[] {
