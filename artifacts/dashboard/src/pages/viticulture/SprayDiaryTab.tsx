@@ -878,6 +878,30 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                                 {String(ph.caption)}
                               </p>
                             )}
+                            {/* Cover photo badge (always visible when this is the cover) */}
+                            {!!ph.isCover && (
+                              <span className="absolute bottom-0.5 left-0.5 rounded-full bg-amber-500/90 text-white p-0.5 pointer-events-none">
+                                <Star className="w-3 h-3 fill-current" />
+                              </span>
+                            )}
+                            {/* Set as Cover button (hover-only, non-cover photos only) */}
+                            {!ph.isCover && (
+                              <button
+                                type="button"
+                                title="Set as cover photo"
+                                disabled={settingCoverPhotoId === (ph.id as number)}
+                                onClick={() => {
+                                  if (typeof view?.id !== "number") return;
+                                  setSettingCoverPhotoId(ph.id as number);
+                                  setCoverPhotoMutation.mutate({ recordId: view.id as number, photoId: ph.id as number });
+                                }}
+                                className="absolute bottom-0.5 left-0.5 rounded-full bg-black/60 hover:bg-amber-500/90 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                              >
+                                {settingCoverPhotoId === (ph.id as number)
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <Star className="w-3 h-3" />}
+                              </button>
+                            )}
                             {/* Edit caption icon */}
                             <button
                               type="button"
