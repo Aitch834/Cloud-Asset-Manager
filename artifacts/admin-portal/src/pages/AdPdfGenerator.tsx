@@ -1438,7 +1438,7 @@ export default function AdPdfGenerator() {
                             <input
                               type="text"
                               value={editName}
-                              onChange={(e) => { setEditName(e.target.value); setEditErr(null); }}
+                              onChange={(e) => { setEditName(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmitEdit(p.id); } if (e.key === "Escape") handleCancelEdit(); }}
                               placeholder="Preset name"
                               autoFocus
