@@ -60,6 +60,7 @@ export default function HomeScreen() {
 
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
   const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
+  const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
 
   const fetchFPInputDerogAlerts = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -72,6 +73,11 @@ export default function HomeScreen() {
         tasks
           .filter((t) => t.type === "organic_fp_input_log_derogation_expiry")
           .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red", dueDate: t.dueDate ?? null })),
+      );
+      setFpDerogAlerts(
+        tasks
+          .filter((t) => t.type === "organic_fp_derogation_expiry")
+          .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red" })),
       );
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
@@ -498,7 +504,7 @@ export default function HomeScreen() {
           </>
         )}
 
-        {fpInputDerogAlerts.length > 0 && (
+        {(fpInputDerogAlerts.length > 0 || fpDerogAlerts.length > 0) && (
           <>
             <SectionHeader title="Upcoming Alerts" />
             {fpInputDerogAlerts.map((alert) => (
@@ -527,6 +533,32 @@ export default function HomeScreen() {
                       ? `${alert.isOverdue ? "Expired" : "Expires"} ${new Date(alert.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · Tap to review FP input log`
                       : "Tap to review FP input log"}
                   </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            ))}
+            {fpDerogAlerts.map((alert) => (
+              <Pressable
+                key={alert.id}
+                style={[
+                  styles.unlinkedBanner,
+                  alert.isOverdue ? styles.alertBannerRed : styles.alertBannerAmber,
+                ]}
+                onPress={() => router.push("/organic-fp-derogations")}
+              >
+                <View style={[
+                  styles.unlinkedIconWrap,
+                  { backgroundColor: (alert.isOverdue ? colors.error : colors.warning) + "22" },
+                ]}>
+                  <Feather
+                    name="alert-triangle"
+                    size={18}
+                    color={alert.isOverdue ? colors.error : colors.warning}
+                  />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>{alert.title}</Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to review FP derogations</Text>
                 </View>
                 <Feather name="chevron-right" size={18} color={colors.textSecondary} />
               </Pressable>
