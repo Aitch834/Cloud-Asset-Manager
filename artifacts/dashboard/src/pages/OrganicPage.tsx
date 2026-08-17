@@ -105,37 +105,25 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string, 
 }
 
 function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, year: number | null) {
-  const csvEsc = (v: string | null | undefined) => {
-    const s = v ?? "";
-    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const fmtCsv = (v: string | null | undefined) => {
+  const fmtDate = (v: string | null | undefined) => {
     if (!v) return "";
     try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
   };
-  const header = ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required"];
-  const rows = records.map(r => [
-    fmtCsv(r.inspectionDate),
-    r.certifier,
-    r.inspectorName ?? "",
-    r.outcome,
-    r.certificateReference ?? "",
-    fmtCsv(r.nextDueDate),
-    r.nonConformances ?? "",
-    r.actions ?? "",
-  ].map(csvEsc).join(","));
-  const csv = [header.join(","), ...rows].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const yearPart = year ? `-${year}` : "";
-  a.href = url;
-  a.download = `inspections-${safeName}${yearPart}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadCsvFile(`inspections-${safeName}${yearPart}.csv`, [
+    ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required"],
+    ...records.map(r => [
+      fmtDate(r.inspectionDate),
+      r.certifier,
+      r.inspectorName ?? "",
+      r.outcome,
+      r.certificateReference ?? "",
+      fmtDate(r.nextDueDate),
+      r.nonConformances ?? "",
+      r.actions ?? "",
+    ]),
+  ]);
 }
 
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
@@ -158,40 +146,26 @@ function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
 </body></html>`);
 }
 
-function csvCell(val: string | null | undefined): string {
-  const s = val ?? "";
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
 function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, filter: DerogationStatusFilter) {
-  const headers = ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"];
-  const rows = records.map(r => [
-    r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "",
-    r.productName,
-    r.inputType ?? "",
-    r.fieldName ?? "",
-    r.appliedBy ?? "",
-    APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
-    r.certifierApprovalRef ?? "",
-    r.certifierNotified ? "Yes" : "No",
-    r.supplier ?? "",
-    r.poReference ?? "",
-    r.grnReference ?? "",
-    r.justification ?? "",
-  ].map(csvCell).join(","));
-  const csv = [headers.map(csvCell).join(","), ...rows].join("\r\n");
   const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const filterLabel = filter === "all" ? "all" : filter;
-  const filename = `restricted-inputs-${filterLabel}-${slug}.csv`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  downloadCsvFile(`restricted-inputs-${filterLabel}-${slug}.csv`, [
+    ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"],
+    ...records.map(r => [
+      r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "",
+      r.productName,
+      r.inputType ?? "",
+      r.fieldName ?? "",
+      r.appliedBy ?? "",
+      APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
+      r.certifierApprovalRef ?? "",
+      r.certifierNotified ? "Yes" : "No",
+      r.supplier ?? "",
+      r.poReference ?? "",
+      r.grnReference ?? "",
+      r.justification ?? "",
+    ]),
+  ]);
 }
 
 function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {

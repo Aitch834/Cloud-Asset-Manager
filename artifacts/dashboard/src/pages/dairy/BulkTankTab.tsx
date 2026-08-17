@@ -668,10 +668,13 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
             <div><Label>Tanker Registration</Label><Input value={collForm.tankerRegistration || ""} onChange={e => setColl("tankerRegistration", e.target.value)} /></div>
             <div><Label>Tanker Driver</Label><Input value={collForm.tankerDriverName || ""} onChange={e => setColl("tankerDriverName", e.target.value)} /></div>
             <div><Label>Collection Ref</Label><Input value={collForm.collectionRef || ""} onChange={e => setColl("collectionRef", e.target.value)} /></div>
-            <div><Label>Statement Ref</Label><Input value={collForm.statementRef || ""} onChange={e => setColl("statementRef", e.target.value)} /></div>
             <div className="col-span-2"><Label>ABR Result (pre-collection)</Label><Input value={collForm.abtResultBeforeCollection || ""} onChange={e => setColl("abtResultBeforeCollection", e.target.value)} placeholder="e.g. Negative" /></div>
 
-            <div className="col-span-2"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">Financial Settlement</p></div>
+            <div className="col-span-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 mt-1">Financial Settlement</p>
+              <p className="text-xs text-gray-400 mb-2">These details arrive with your milk statement — leave blank at collection time and fill in once the statement is received.</p>
+            </div>
+            <div><Label>Statement Ref</Label><Input value={collForm.statementRef || ""} onChange={e => setColl("statementRef", e.target.value)} /></div>
             <div><Label>Pence per Litre</Label><Input type="number" step="0.01" value={collForm.pencePerLitre ?? ""} onChange={e => setColl("pencePerLitre", e.target.value)} placeholder="e.g. 35.50" /></div>
             <div><Label>Gross Value (£)</Label><Input type="number" step="0.01" value={collForm.grossValuePence != null ? (collForm.grossValuePence / 100).toFixed(2) : ""} onChange={e => setColl("grossValuePence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} placeholder="e.g. 3018.00" /></div>
             <div><Label>Quality Bonus (£)</Label><Input type="number" step="0.01" value={collForm.qualityBonusPence != null ? (collForm.qualityBonusPence / 100).toFixed(2) : ""} onChange={e => setColl("qualityBonusPence", e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null)} /></div>
@@ -681,7 +684,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
 
             <div className="col-span-2">
               <button type="button" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium" onClick={() => setShowCollQuality(v => !v)}>
-                <FlaskConical className="h-3.5 w-3.5" />{showCollQuality ? "Hide" : "Add"} Buyer Quality Results
+                <FlaskConical className="h-3.5 w-3.5" />{showCollQuality ? "Hide" : "Add"} Buyer Quality Results (from milk statement)
               </button>
             </div>
             {showCollQuality && <>
