@@ -68,12 +68,50 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
   const [form, setForm] = useState<Record<string, string>>(blankForm());
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
+  // Rack-out quick action state
+  const [rackOutFillId, setRackOutFillId] = useState<number | null>(null);
+  const [rackOutDate, setRackOutDate] = useState<string>(today);
+
   const openAdd = () => { setEditingFill(null); setForm({ fillNumber: String(nextFill) }); setShowAdd(true); };
   const openEdit = (r: Record<string, unknown>) => {
     setEditingFill(r);
     setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
     setShowAdd(true);
   };
+
+  const rackOutMut = useMutation({
+    mutationFn: async ({ fill, date }: { fill: Record<string, unknown>; date: string }) => {
+      // The PUT endpoint does a full-row overwrite and requires fillNumber.
+      // Mirror the same camelCase mapping that openEdit uses so all fields are preserved.
+      const payload = {
+        fillNumber:    fill.fill_number   != null ? String(fill.fill_number)   : "",
+        wineName:      fill.wine_name     != null ? String(fill.wine_name)     : "",
+        vintageYear:   fill.vintage_year  != null ? String(fill.vintage_year)  : "",
+        variety:       fill.variety       != null ? String(fill.variety)       : "",
+        volumeLitres:  fill.volume_litres != null ? String(fill.volume_litres) : "",
+        fillDate:      fill.fill_date     != null ? String(fill.fill_date).slice(0, 10) : "",
+        batchRef:      fill.batch_ref     != null ? String(fill.batch_ref)     : "",
+        operatorName:  fill.operator_name != null ? String(fill.operator_name) : "",
+        notes:         fill.notes         != null ? String(fill.notes)         : "",
+        rackOutDate:   date,
+      };
+      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/fills/${Number(fill.id)}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string,string>).error || "Save failed"); }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+      setRackOutFillId(null);
+      setRackOutDate(today);
+      toast({ title: "Rack-out date recorded" });
+    },
+    onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
+  });
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -169,6 +207,8 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
           {(data ?? []).map(f => {
             const oak = fillOakLabel(Number(f.fill_number));
             const stillIn = !f.rack_out_date;
+            const fillId = Number(f.id);
+            const isRackingOut = rackOutFillId === fillId;
             return (
               <div key={String(f.id)} className="border rounded-lg px-3 py-2 text-xs space-y-1">
                 <div className="flex items-center justify-between">
@@ -180,6 +220,24 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
                   </div>
                   {!readOnly && (
                     <div className="flex items-center gap-1">
+                      {stillIn && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-5 text-xs px-1.5 py-0 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          onClick={() => {
+                            if (isRackingOut) {
+                              setRackOutFillId(null);
+                            } else {
+                              setRackOutFillId(fillId);
+                              setRackOutDate(today);
+                              rackOutMut.reset();
+                            }
+                          }}
+                        >
+                          Rack out
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button>
                       <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button>
                     </div>
@@ -193,6 +251,37 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly 
                   {!!f.batch_ref && <span>Batch: {String(f.batch_ref)}</span>}
                 </div>
                 {!!f.notes && <p className="text-muted-foreground italic">{String(f.notes)}</p>}
+                {!readOnly && isRackingOut && (
+                  <div className="mt-2 pt-2 border-t border-dashed border-amber-200 space-y-2">
+                    <p className="text-xs font-medium text-amber-800">Record rack-out date</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={rackOutDate}
+                        max={today}
+                        onChange={e => setRackOutDate(e.target.value)}
+                        className="h-7 text-xs w-36"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={!rackOutDate || rackOutMut.isPending}
+                        onClick={() => rackOutMut.mutate({ fill: f, date: rackOutDate })}
+                      >
+                        {rackOutMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => { setRackOutFillId(null); rackOutMut.reset(); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <DialogMutationError mutation={rackOutMut} />
+                  </div>
+                )}
               </div>
             );
           })}
