@@ -113,7 +113,11 @@ interface CustomiseOpts {
   accentColor: string;
 }
 
-async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<Blob> {
+interface GeneratePdfResult {
+  blob: Blob;
+  warnings: string[];
+}
+async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<GeneratePdfResult> {
   const payload: Record<string, string | number | undefined> = {
     templateId,
     bgUrl: bgUrl.trim() || undefined,
@@ -131,10 +135,17 @@ async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpt
     if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
     throw new Error(json.error ?? `HTTP ${res.status}`);
   }
-  return res.blob();
+  const warningsHeader = res.headers.get("X-Ad-Render-Warnings");
+  const warnings: string[] = warningsHeader ? (JSON.parse(warningsHeader) as string[]) : [];
+  const blob = await res.blob();
+  return { blob, warnings };
 }
 
-async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<string> {
+interface FetchPreviewResult {
+  url: string;
+  warnings: string[];
+}
+async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOpts): Promise<FetchPreviewResult> {
   const params = new URLSearchParams({ templateId: String(templateId) });
   const trimmed = bgUrl.trim();
   if (trimmed) params.set("bgUrl", trimmed);
@@ -149,8 +160,10 @@ async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOp
     if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
     throw new Error(json.error ?? `HTTP ${res.status}`);
   }
+  const warningsHeader = res.headers.get("X-Ad-Render-Warnings");
+  const warnings: string[] = warningsHeader ? (JSON.parse(warningsHeader) as string[]) : [];
   const blob = await res.blob();
-  return URL.createObjectURL(blob);
+  return { url: URL.createObjectURL(blob), warnings };
 }
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -975,17 +988,20 @@ export default function AdPdfGenerator() {
   // PDF / preview mutations
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const prevObjectUrl = useRef<string | null>(null);
+  // Near-miss warnings returned by the render API (populated after preview or PDF generation)
+  const [renderWarnings, setRenderWarnings] = useState<string[]>([]);
 
   const mutation = useMutation({
     mutationFn: () => {
       if (!effectiveId) throw new Error("No template selected");
       return generatePdf(effectiveId, bgUrl, customiseOpts);
     },
-    onSuccess: (blob) => {
+    onSuccess: ({ blob, warnings }) => {
       const name = selectedTemplate
         ? `BDE-FarmTrac-${selectedTemplate.slug}-CMYK.pdf`
         : "BDE-FarmTrac-CMYK.pdf";
       triggerDownload(blob, name);
+      setRenderWarnings(warnings);
     },
   });
 
@@ -994,10 +1010,11 @@ export default function AdPdfGenerator() {
       if (!effectiveId) throw new Error("No template selected");
       return fetchPreview(effectiveId, bgUrl, customiseOpts);
     },
-    onSuccess: (url) => {
+    onSuccess: ({ url, warnings }) => {
       if (prevObjectUrl.current) URL.revokeObjectURL(prevObjectUrl.current);
       prevObjectUrl.current = url;
       setPreviewUrl(url);
+      setRenderWarnings(warnings);
     },
   });
 
@@ -1005,6 +1022,7 @@ export default function AdPdfGenerator() {
     mutation.reset();
     previewMutation.reset();
     setPreviewUrl(null);
+    setRenderWarnings([]);
   }
 
   // CRUD panel
@@ -1634,6 +1652,35 @@ export default function AdPdfGenerator() {
             <p className="text-xs text-muted-foreground">
               Rendered at 150&nbsp;dpi from the RGB intermediate PDF. Colours will shift slightly after CMYK conversion.
             </p>
+            {renderWarnings.length > 0 && (
+              <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    Likely placeholder typo{renderWarnings.length > 1 ? "s" : ""} detected in template
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 mb-1.5">
+                    The following token{renderWarnings.length > 1 ? "s were" : " was"} silently dropped during substitution — {renderWarnings.length > 1 ? "they don't" : "it doesn't"} match any recognised placeholder exactly:
+                  </p>
+                  <ul className="text-xs space-y-0.5">
+                    {renderWarnings.map((w) => (
+                      <li key={w} className="font-mono">{w}</li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
+                    Edit the template in the <span className="font-medium">Template library</span> below to fix the typos.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRenderWarnings([])}
+                  className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200 shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

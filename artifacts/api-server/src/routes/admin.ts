@@ -3358,6 +3358,9 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
   // Snapshot the HTML body at request time — no mid-flight re-fetch during the render
   const snapshotHtmlBody = template.htmlBody;
 
+  // Detect near-miss placeholder typos in the saved template HTML and surface them to the caller
+  const previewRenderWarnings = detectAdTemplateNearMissPlaceholders(snapshotHtmlBody);
+
   const tmpId  = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), `ad-pdf-prev-${tmpId}`);
   const htmlOut = path.join(tmpDir, "print.html");
@@ -3386,11 +3389,14 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
       { timeout: 180_000, stdio: "pipe" },
     );
 
-    // Step 3: Return PNG
+    // Step 3: Return PNG — include any near-miss warnings as a response header
     const pngBuffer = fs.readFileSync(pngOut);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Content-Length", pngBuffer.length);
     res.setHeader("Cache-Control", "no-store");
+    if (previewRenderWarnings.length > 0) {
+      res.setHeader("X-Ad-Render-Warnings", JSON.stringify(previewRenderWarnings));
+    }
     res.send(pngBuffer);
   } catch (err: unknown) {
     console.error("[ad-pdf/preview] Generation failed:", err);
@@ -3436,6 +3442,9 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
   // Snapshot the HTML body immediately so a mid-flight archive cannot affect this render
   const snapshotHtmlBody = template.htmlBody;
 
+  // Detect near-miss placeholder typos in the saved template HTML and surface them to the caller
+  const pdfRenderWarnings = detectAdTemplateNearMissPlaceholders(snapshotHtmlBody);
+
   const tmpId   = crypto.randomUUID();
   const tmpDir  = path.join(os.tmpdir(), `ad-pdf-${tmpId}`);
   const htmlOut = path.join(tmpDir, "print.html");
@@ -3469,11 +3478,14 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
       { timeout: 180_000, stdio: "pipe" },
     );
 
-    // Step 3: Return PDF
+    // Step 3: Return PDF — include any near-miss warnings as a response header
     const pdfBuffer = fs.readFileSync(cmykPdf);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Length", pdfBuffer.length);
+    if (pdfRenderWarnings.length > 0) {
+      res.setHeader("X-Ad-Render-Warnings", JSON.stringify(pdfRenderWarnings));
+    }
     res.send(pdfBuffer);
   } catch (err: unknown) {
     console.error("[ad-pdf] Generation failed:", err);
