@@ -59,6 +59,22 @@ export default function HomeScreen() {
   });
 
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
+  const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
+
+  const fetchFPInputDerogAlerts = useCallback(async () => {
+    if (!currentFarm?.id) return;
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/week-ahead?days=30`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const tasks: Array<{ id: string; type: string; title: string; colour: string }> = data.tasks ?? [];
+      setFpInputDerogAlerts(
+        tasks
+          .filter((t) => t.type === "organic_fp_input_log_derogation_expiry")
+          .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red" })),
+      );
+    } catch { /* ignore */ }
+  }, [currentFarm?.id]);
 
   const fetchUnlinkedCounts = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -93,7 +109,8 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchUnlinkedCounts();
-    }, [fetchUnlinkedCounts])
+      fetchFPInputDerogAlerts();
+    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts])
   );
 
   // Also re-fetch immediately when a history screen changes a block link inline
@@ -222,9 +239,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts]);
+  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -481,6 +498,38 @@ export default function HomeScreen() {
           </>
         )}
 
+        {fpInputDerogAlerts.length > 0 && (
+          <>
+            <SectionHeader title="Upcoming Alerts" />
+            {fpInputDerogAlerts.map((alert) => (
+              <Pressable
+                key={alert.id}
+                style={[
+                  styles.unlinkedBanner,
+                  alert.isOverdue ? styles.alertBannerRed : styles.alertBannerAmber,
+                ]}
+                onPress={() => router.push("/organic-fp-inputs-list")}
+              >
+                <View style={[
+                  styles.unlinkedIconWrap,
+                  { backgroundColor: (alert.isOverdue ? colors.error : colors.warning) + "22" },
+                ]}>
+                  <Feather
+                    name="alert-triangle"
+                    size={18}
+                    color={alert.isOverdue ? colors.error : colors.warning}
+                  />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>{alert.title}</Text>
+                  <Text style={styles.unlinkedSubtitle}>Tap to review FP input log</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            ))}
+          </>
+        )}
+
         {recentActivity.length > 0 && (
           <>
             <SectionHeader title="Recent Activity" />
@@ -679,5 +728,13 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  alertBannerRed: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#DC262655",
+  },
+  alertBannerAmber: {
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warning + "55",
   },
 });

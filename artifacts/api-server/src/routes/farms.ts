@@ -17654,6 +17654,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     nvzRiskReviewRows, nvzActiveRestrictionsRows,
     vhpActionDueRows,
     ppePpoDeliveryRows,
+    organicFPInputLogDerogRows,
   ] = (await Promise.allSettled([
     poolDb.select({ id: pestControlRecordsTable.id, pestType: pestControlRecordsTable.pestType, location: pestControlRecordsTable.location, followUpDate: pestControlRecordsTable.followUpDate })
       .from(pestControlRecordsTable)
@@ -18171,6 +18172,11 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     poolDb.select({ id: ppePurchaseOrdersTable.id, poNumber: ppePurchaseOrdersTable.poNumber, supplierName: ppePurchaseOrdersTable.supplierName, expectedDeliveryDate: ppePurchaseOrdersTable.expectedDeliveryDate, status: ppePurchaseOrdersTable.status })
       .from(ppePurchaseOrdersTable)
       .where(and(eq(ppePurchaseOrdersTable.farmId, farmId), isNotNull(ppePurchaseOrdersTable.expectedDeliveryDate), gte(ppePurchaseOrdersTable.expectedDeliveryDate, sql`${overdueStart.toISOString().split("T")[0]}::date`), lt(ppePurchaseOrdersTable.expectedDeliveryDate, sql`${rangeEnd.toISOString().split("T")[0]}::date`))),
+
+    // ── Organic FP Input Log: derogation expiry (approval_status = restricted/derogation) ─
+    poolDb.select({ id: organicFreshProduceInputLogTable.id, inputName: organicFreshProduceInputLogTable.inputName, approvalStatus: organicFreshProduceInputLogTable.approvalStatus, derogationExpiryDate: organicFreshProduceInputLogTable.derogationExpiryDate })
+      .from(organicFreshProduceInputLogTable)
+      .where(and(eq(organicFreshProduceInputLogTable.farmId, farmId), inArray(organicFreshProduceInputLogTable.approvalStatus, ["restricted", "derogation"]), isNotNull(organicFreshProduceInputLogTable.derogationExpiryDate), gte(organicFreshProduceInputLogTable.derogationExpiryDate, sql`${overdueStart.toISOString().split("T")[0]}::date`), lt(organicFreshProduceInputLogTable.derogationExpiryDate, sql`${rangeEnd.toISOString().split("T")[0]}::date`))),
 
   ])).map((r, i) => { if (r.status === "rejected") { const err = r.reason as any; console.error(`[week-ahead] query[${i}] failed:`, err?.message ?? r.reason); if (err?.cause) console.error(`[week-ahead] query[${i}] cause:`, err.cause?.message ?? err.cause); } return r.status === "fulfilled" ? (r.value as any[]) : []; });
 
@@ -18885,6 +18891,12 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
     if (!r.expiryDate) continue;
     const isOverdue = new Date(r.expiryDate + "T00:00:00Z") < now;
     tasks.push({ id: `org-fp-derog-${r.id}`, type: "organic_fp_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Input Derogation Expiring — ${r.inputName}`, description: `The derogation approval for '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Renew or confirm with your certifying body. Manage in Organic Fresh Produce → Input Derogations.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Fresh Produce", href: "/organic-fresh-produce?tab=derogations", colour: isOverdue ? "red" : "amber" });
+  }
+
+  for (const r of organicFPInputLogDerogRows) {
+    if (!r.derogationExpiryDate) continue;
+    const isOverdue = new Date(r.derogationExpiryDate + "T00:00:00Z") < now;
+    tasks.push({ id: `org-fp-input-derog-${r.id}`, type: "organic_fp_input_log_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}FP Input Derogation Expiring — ${r.inputName}`, description: `The derogation approval for input '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Check and renew the approval with your certifying body. Review the record in Organic Fresh Produce → Input Log.`, dueDate: new Date(r.derogationExpiryDate + "T00:00:00Z").toISOString(), module: "Organic Fresh Produce", href: "/organic-fresh-produce?tab=inputs", colour: isOverdue ? "red" : "amber" });
   }
 
   for (const r of organicComplianceCertRows) {
