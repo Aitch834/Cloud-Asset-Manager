@@ -2492,6 +2492,7 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "pH": r.end_ph != null ? fmtNum(r.end_ph, 2) : "",
       "TA (g/L)": r.end_ta_gl != null ? fmtNum(r.end_ta_gl, 1) : "",
       "Vessel": String(r.vessel_ref ?? ""),
+      "Vessel capacity (L)": vesselCapacityStr(r.vessel_ref),
       "Operator": String(r.operator_name ?? ""),
       "Notes": String(r.notes ?? ""),
     });
@@ -2550,6 +2551,7 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "pH": r.ph != null ? fmtNum(r.ph, 2) : "",
       "TA (g/L)": r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       "Vessel": String(r.vessel_ref ?? ""),
+      "Vessel capacity (L)": vesselCapacityStr(r.vessel_ref),
       "Operator": String(r.operator_name ?? ""),
       "Notes": String(r.notes ?? ""),
     });
