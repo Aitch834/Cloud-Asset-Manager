@@ -11,7 +11,7 @@ import { Redirect } from "wouter";
 import {
   Plus, Loader2, Pencil, Trash2, CheckCircle2, AlertTriangle,
   Calendar, Printer, Leaf, ShieldCheck, FlaskConical, BookOpen,
-  Clock, Info, ExternalLink, Eye, ClipboardList, Package, ChevronsUpDown, Check,
+  Clock, Info, ExternalLink, Eye, ClipboardList, Package, ChevronsUpDown, Check, Download,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -121,6 +121,42 @@ function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
 <tbody>${rows}</tbody></table>
 <div class="footer">Organic Field Status Register — Complementary record for Soil Association / OF&G portal. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
+}
+
+function csvCell(val: string | null | undefined): string {
+  const s = val ?? "";
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, filter: DerogationStatusFilter) {
+  const headers = ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"];
+  const rows = records.map(r => [
+    r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "",
+    r.productName,
+    r.inputType ?? "",
+    r.fieldName ?? "",
+    r.appliedBy ?? "",
+    APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
+    r.certifierApprovalRef ?? "",
+    r.certifierNotified ? "Yes" : "No",
+    r.supplier ?? "",
+    r.poReference ?? "",
+    r.grnReference ?? "",
+    r.justification ?? "",
+  ].map(csvCell).join(","));
+  const csv = [headers.map(csvCell).join(","), ...rows].join("\r\n");
+  const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+  const filterLabel = filter === "all" ? "all" : filter;
+  const filename = `restricted-inputs-${filterLabel}-${slug}.csv`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
 function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {
@@ -1294,9 +1330,14 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
           </div>
         </div>
         {records.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
-            <Printer className="w-4 h-4" />Print Restricted Inputs Log
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => exportRestrictedInputsCsv(records, farmName, statusFilter)} className="gap-2">
+              <Download className="w-4 h-4" />Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => printRestrictedInputsLog(records, farmName)} className="gap-2">
+              <Printer className="w-4 h-4" />Print
+            </Button>
+          </div>
         )}
       </div>
 
