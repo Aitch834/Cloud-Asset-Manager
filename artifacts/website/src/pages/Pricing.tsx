@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState, useMemo, useRef } from "react";
-import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift } from "lucide-react";
+import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { BASE_FEE, MODULES, BUNDLE_INCLUSIONS, modulePrice } from "@/lib/pricing-data";
@@ -121,7 +121,15 @@ export default function Pricing() {
     const param = new URLSearchParams(window.location.search).get("sector") as Sector | null;
     return param && (SECTORS as readonly string[]).includes(param) ? param : "All";
   });
+  const [linkCopied, setLinkCopied] = useState(false);
   const nextFarmIdRef = useRef(2);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   const handleSectorChange = (sector: Sector) => {
     setSectorFilter(sector);
@@ -311,7 +319,7 @@ export default function Pricing() {
               <h3 className="text-xl font-bold mb-1">2. Select Modules</h3>
 
               {/* Sector filter pills */}
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 {SECTORS.map(sector => {
                   const count = sectorModuleCount[sector] ?? 0;
                   const isActive = sectorFilter === sector;
@@ -332,6 +340,18 @@ export default function Pricing() {
                     </button>
                   );
                 })}
+                <button
+                  onClick={handleCopyLink}
+                  title="Copy link to this view"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-all ${
+                    linkCopied
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      : "bg-white text-muted-foreground border-border hover:border-brand-light hover:text-foreground"
+                  }`}
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  {linkCopied ? "Copied!" : "Copy link"}
+                </button>
               </div>
 
               <p className="text-sm text-muted-foreground mb-4">
