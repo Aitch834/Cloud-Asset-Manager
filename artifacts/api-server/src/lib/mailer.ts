@@ -460,6 +460,87 @@ export interface WeeklyDigestItem {
   severity: "critical" | "warning";
 }
 
+export async function sendSectorAlertAllClearEmail(opts: {
+  to: string;
+  toName?: string;
+  sectorLabel: string;
+  level: string;
+  issuedAt: Date;
+  endedAt: Date;
+  endedReason?: string | null;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const levelLabel = opts.level.charAt(0).toUpperCase() + opts.level.slice(1);
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const durationMs = opts.endedAt.getTime() - opts.issuedAt.getTime();
+  const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+  const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+  const durationLabel = durationHours > 0
+    ? `${durationHours} hour${durationHours !== 1 ? "s" : ""}${durationMins > 0 ? ` ${durationMins} minute${durationMins !== 1 ? "s" : ""}` : ""}`
+    : `${durationMins} minute${durationMins !== 1 ? "s" : ""}`;
+
+  const reasonRow = opts.endedReason?.trim()
+    ? `<tr>
+        <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Resolution reason</td>
+        <td style="padding:8px 12px;font-size:14px;color:#374151;">${opts.endedReason.trim()}</td>
+       </tr>`
+    : "";
+
+  const greeting = opts.toName ? `Hi ${opts.toName.split(" ")[0]},` : "Hello,";
+
+  const body = `
+    <p>${greeting}</p>
+    <p>We are writing to let you know that the <strong>${opts.sectorLabel}</strong> sector alert that was previously issued for your farm has now been <strong style="color:#1a6b3a;">lifted</strong>. Normal operations may resume.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f5ee;border-radius:6px;margin:20px 0;">
+      <tr>
+        <td style="padding:16px 20px 4px;">
+          <p style="margin:0;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;">Alert cleared</p>
+          <p style="margin:4px 0 0;font-size:22px;font-weight:bold;color:#1a1a1a;">${opts.sectorLabel}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 20px 16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Alert level</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${levelLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Issued</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Lifted</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.endedAt)}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Duration</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${durationLabel}</td>
+            </tr>
+            ${reasonRow}
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p>Thank you for your vigilance during this alert period. If you have any questions, please contact our support team or review the Notifications section of your dashboard.</p>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
+    </p>
+    <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd</small></p>
+  `;
+
+  return sendAdminEmail({
+    to: opts.to,
+    toName: opts.toName,
+    subject: `Sector Alert Lifted — ${opts.sectorLabel}`,
+    body,
+  });
+}
+
 export async function sendWeeklyDigestEmail(opts: {
   to: string;
   toName: string;

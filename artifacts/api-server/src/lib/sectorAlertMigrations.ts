@@ -41,5 +41,32 @@ export async function runSectorAlertMigrations(): Promise<void> {
     ON sector_alert_episodes(end_notified)
     WHERE ended_at IS NOT NULL
   `);
+
+  // Separate email-completion flag so SMS dispatch (end_notified) and advisor email
+  // delivery (end_email_notified) can complete independently. This prevents the
+  // email retry loop from re-dispatching all-clear SMS on every cycle.
+  await db.execute(sql`
+    ALTER TABLE sector_alert_episodes
+    ADD COLUMN IF NOT EXISTS end_email_notified boolean NOT NULL DEFAULT false
+  `);
+
+  // Per-recipient email delivery outbox: tracks which advisor addresses have already
+  // received an all-clear email for a given episode. Prevents duplicate sends on retry
+  // and lets the job skip already-delivered recipients if SMTP was down for some.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS sector_alert_email_deliveries (
+      id           serial       PRIMARY KEY,
+      episode_id   integer      NOT NULL REFERENCES sector_alert_episodes(id) ON DELETE CASCADE,
+      email_norm   text         NOT NULL,
+      advisor_name text,
+      sent_at      timestamptz  NOT NULL DEFAULT now(),
+      UNIQUE (episode_id, email_norm)
+    )
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_saed_episode
+    ON sector_alert_email_deliveries(episode_id)
+  `);
+
   console.log("[SECTOR-ALERT-MIGRATE] Done.");
 }

@@ -1,12 +1,12 @@
 import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable, agriEnvMilestonesTable, agriEnvProjectsTable } from "@workspace/db";
-import { usersTable, userTenantsTable } from "@workspace/db/schema";
+import { usersTable, userTenantsTable, farmAdvisorsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
 import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
-import { sendWeeklyDigestEmail, type WeeklyDigestItem } from "./mailer";
+import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
@@ -1873,11 +1873,15 @@ const SECTOR_ALERT_LABELS: Record<string, string> = {
 };
 
 async function runSectorAlertAllClearNotifications() {
-  // Find ended episodes not yet notified
+  // Find ended episodes where SMS and/or email all-clear has not yet completed.
+  // end_notified  = SMS dispatched (set immediately; no retry needed)
+  // end_email_notified = all advisor emails confirmed sent (retried until true)
   const pending = await db.execute(sql`
-    SELECT id, sector, level, message, counties, ended_at, ended_reason
+    SELECT id, sector, level, message, counties, issued_at, ended_at, ended_reason,
+           end_notified, end_email_notified
     FROM sector_alert_episodes
-    WHERE ended_at IS NOT NULL AND end_notified = false
+    WHERE ended_at IS NOT NULL
+      AND (end_notified = false OR end_email_notified = false)
   `);
   if (pending.rows.length === 0) return;
 
@@ -1885,7 +1889,11 @@ async function runSectorAlertAllClearNotifications() {
   const allFarms = await db.execute(sql`SELECT id, tenant_id, county FROM farms`);
   const farmRows = allFarms.rows as { id: number; tenant_id: number; county: string | null }[];
 
-  for (const ep of pending.rows as { id: number; sector: string; level: string; message: string; counties: string; ended_reason: string | null }[]) {
+  for (const ep of pending.rows as {
+    id: number; sector: string; level: string; message: string; counties: string;
+    issued_at: string; ended_at: string; ended_reason: string | null;
+    end_notified: boolean; end_email_notified: boolean;
+  }[]) {
     const counties = ep.counties
       ? ep.counties.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean)
       : [];
@@ -1900,17 +1908,101 @@ async function runSectorAlertAllClearNotifications() {
     const reasonPart = ep.ended_reason ? ` Reason: ${ep.ended_reason}.` : "";
     const smsMessage = `The ${sectorLabel} alert has now been resolved.${reasonPart} Normal operations may resume. Thank you for your vigilance.`;
 
-    for (const tenantId of tenantIds) {
-      try {
-        await dispatchSmsForCriticalAlert(tenantId, "sector_alert_cleared", title, smsMessage);
-      } catch (err) {
-        console.error(`[ALERTS] All-clear SMS failed for tenant ${tenantId}, sector ${ep.sector}:`, err);
+    const issuedAt = new Date(ep.issued_at);
+    const endedAt = new Date(ep.ended_at);
+
+    // --- SMS: per-tenant, dispatched once (end_notified guards repeat sends) ---
+    if (!ep.end_notified) {
+      for (const tenantId of tenantIds) {
+        try {
+          await dispatchSmsForCriticalAlert(tenantId, "sector_alert_cleared", title, smsMessage);
+        } catch (err) {
+          console.error(`[ALERTS] All-clear SMS failed for tenant ${tenantId}, sector ${ep.sector}:`, err);
+        }
       }
+      await db.execute(sql`UPDATE sector_alert_episodes SET end_notified = true WHERE id = ${ep.id}`);
+      console.log(`[ALERTS] All-clear SMS dispatched for ${ep.sector} episode ${ep.id} (${tenantIds.length} tenant(s))`);
     }
 
-    // Mark notified regardless of partial failures to avoid repeated sends
-    await db.execute(sql`UPDATE sector_alert_episodes SET end_notified = true WHERE id = ${ep.id}`);
-    console.log(`[ALERTS] All-clear dispatched for ${ep.sector} episode ${ep.id} (${tenantIds.length} tenant(s))`);
+    // --- Email: across ALL relevant farms for this episode (outbox pattern) ---
+    // Advisors are external contacts (agronomists, vets, consultants) in farm_advisors.
+    // They may cover farms across multiple tenants, so deduplication is episode-wide.
+    // sector_alert_email_deliveries is the outbox: only a row recorded on confirmed send.
+    // Retried each cycle until end_email_notified is set; already-delivered addresses skipped.
+    if (!ep.end_email_notified) {
+      let allDelivered = true;
+      try {
+        const allRelevantFarmIds = relevantFarms.map(f => f.id);
+        if (allRelevantFarmIds.length > 0) {
+          const advisors = await db
+            .select({ email: farmAdvisorsTable.advisorEmail, name: farmAdvisorsTable.advisorName })
+            .from(farmAdvisorsTable)
+            .where(
+              and(
+                sql`${farmAdvisorsTable.farmId} = ANY(ARRAY[${sql.join(allRelevantFarmIds.map(id => sql`${id}`), sql`, `)}]::int[])`,
+                isNull(farmAdvisorsTable.revokedAt),
+              )
+            );
+
+          // Deduplicate to unique normalized addresses across all farms/tenants
+          const unique = new Map<string, string>(); // email_norm → display name
+          for (const a of advisors) {
+            const norm = a.email.toLowerCase();
+            if (!unique.has(norm)) unique.set(norm, a.name ?? "");
+          }
+
+          // Load already-delivered addresses for this episode from the outbox
+          const delivered = await db.execute(sql`
+            SELECT email_norm FROM sector_alert_email_deliveries WHERE episode_id = ${ep.id}
+          `);
+          const alreadyDelivered = new Set<string>(
+            (delivered.rows as { email_norm: string }[]).map(r => r.email_norm)
+          );
+
+          let sentCount = 0;
+          let failCount = 0;
+          for (const [norm, displayName] of unique) {
+            if (alreadyDelivered.has(norm)) continue; // confirmed sent on a prior run
+            const result = await sendSectorAlertAllClearEmail({
+              to: norm,
+              toName: displayName || undefined,
+              sectorLabel,
+              level: ep.level,
+              issuedAt,
+              endedAt,
+              endedReason: ep.ended_reason,
+            }).catch((err) => {
+              console.error(`[ALERTS] All-clear email threw for ${norm}, sector ${ep.sector}:`, err);
+              return { sent: false as const, reason: String(err) };
+            });
+
+            if (result.sent) {
+              // ON CONFLICT DO NOTHING is safe if two job instances race
+              await db.execute(sql`
+                INSERT INTO sector_alert_email_deliveries (episode_id, email_norm, advisor_name)
+                VALUES (${ep.id}, ${norm}, ${displayName || null})
+                ON CONFLICT (episode_id, email_norm) DO NOTHING
+              `);
+              sentCount++;
+            } else {
+              console.warn(`[ALERTS] All-clear email not sent to ${norm} (${result.reason ?? "unknown"}), sector ${ep.sector} — will retry next cycle`);
+              failCount++;
+              allDelivered = false;
+            }
+          }
+          console.log(`[ALERTS] All-clear email: episode ${ep.id} sector ${ep.sector} — sent ${sentCount}, failed ${failCount}, skipped ${alreadyDelivered.size}`);
+        }
+        // No advisors on any relevant farm — nothing to send; mark complete
+      } catch (err) {
+        console.error(`[ALERTS] All-clear email query failed for episode ${ep.id}, sector ${ep.sector}:`, err);
+        allDelivered = false;
+      }
+
+      if (allDelivered) {
+        await db.execute(sql`UPDATE sector_alert_episodes SET end_email_notified = true WHERE id = ${ep.id}`);
+        console.log(`[ALERTS] All-clear email complete for ${ep.sector} episode ${ep.id}`);
+      }
+    }
   }
 }
 
