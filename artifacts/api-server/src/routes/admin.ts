@@ -3078,7 +3078,7 @@ async function resolveAdBrandAssets(): Promise<{ logoUri: string; qrUri: string 
 
 // Simple in-memory cache so rapid successive renders reuse the already-fetched URIs
 let _brandAssetCache: { logoUri: string; qrUri: string; cachedAt: number } | null = null;
-const BRAND_ASSET_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const BRAND_ASSET_CACHE_TTL_MS = 60 * 1000; // 60 seconds — short TTL so stale assets don't linger in PDFs after an upload
 
 /**
  * Cached wrapper around resolveAdBrandAssets(). Use this for PDF renders.
