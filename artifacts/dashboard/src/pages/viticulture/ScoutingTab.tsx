@@ -717,19 +717,28 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               {lightboxPhotos.length > 1 && (
                 <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">
                   {lightboxPhotos.map((ph, idx) => (
-                    <button
-                      key={String(ph.id)}
-                      type="button"
-                      onClick={() => setLightboxPhotoIndex(idx)}
-                      className={`shrink-0 w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === lightboxPhotoIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
-                    >
-                      <img
-                        src={String(ph.downloadUrl ?? "")}
-                        alt={String(ph.fileName ?? "")}
-                        className="w-full h-full object-cover"
-                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    </button>
+                    <div key={String(ph.id)} className="shrink-0 flex flex-col items-center" style={{ width: "3.5rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => setLightboxPhotoIndex(idx)}
+                        className={`w-14 h-14 rounded border-2 overflow-hidden transition-colors ${idx === lightboxPhotoIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
+                      >
+                        <img
+                          src={String(ph.downloadUrl ?? "")}
+                          alt={String(ph.fileName ?? "")}
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </button>
+                      {!!ph.caption && (
+                        <p
+                          title={String(ph.caption)}
+                          className="w-full text-center text-[10px] leading-tight text-muted-foreground mt-0.5 truncate px-0.5"
+                        >
+                          {String(ph.caption)}
+                        </p>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -935,4 +944,3 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
 }
 
 // ─── Winery: Wine Production (shared with Organic Viticulture) ─────────────────
-
