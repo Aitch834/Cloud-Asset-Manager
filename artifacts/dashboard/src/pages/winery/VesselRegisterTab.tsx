@@ -1034,6 +1034,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (vessel) setView(vessel);
   }, [farmId, crud.data, crud.isLoading, lastViewedStorageKey]);
 
+  // Keep the open detail dialog in sync with the vessel list after any mutation
+  // (e.g. a movement PUT/DELETE) re-fetches the winery-vessels query.  Without
+  // this, the `view` snapshot stays stale so the zone badge in the table row
+  // updates but the detail panel (and the currentZone prop fed to
+  // BarrelMovementLog) still shows the pre-movement value.
+  useEffect(() => {
+    if (!view) return;
+    const fresh = crud.data.find(r => r.id === view.id);
+    if (fresh && fresh !== view) setView(fresh);
+  }, [crud.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Opens the vessel detail dialog and persists the vessel ID.
   // Closing the dialog does NOT clear the persisted ID — it stays until a different
   // vessel is opened, so the winemaker can restore it on their next visit.
