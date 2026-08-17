@@ -408,10 +408,18 @@ export default function AgriEnvProjectsScreen() {
       );
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json() as { milestone: AgriEnvMilestone };
-      // Update local milestones state so UI reflects the change immediately.
-      setMilestones(prev =>
-        prev.map(m => m.id === milestoneId ? { ...m, ...data.milestone } : m),
-      );
+      // Update local milestones state so UI reflects the change immediately,
+      // and write the updated list back to the offline cache so a force-quit
+      // before the next background refresh doesn't revert the new status.
+      setMilestones(prev => {
+        const updated = prev.map(m => m.id === milestoneId ? { ...m, ...data.milestone } : m);
+        const now = new Date().toISOString();
+        setItem<AgriEnvCache<AgriEnvMilestone>>(milestonesCacheKey(currentFarm!.id), {
+          data: updated,
+          cachedAt: now,
+        }).catch(() => { /* ignore write failures */ });
+        return updated;
+      });
     } catch {
       Alert.alert("Error", "Could not update milestone status. Please try again.");
     } finally {
