@@ -938,12 +938,13 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     const maintHdr = `Cooperage / Maintenance (${maint.length} record${maint.length !== 1 ? "s" : ""}${totalSpend > 0 ? ` · Total: £${(totalSpend / 100).toFixed(2)}` : ""})`;
     addH2(maintHdr);
     addTable(
-      ["Date", "Work Type", "Cooperage", "Cost (£)", "Notes"],
+      ["Date", "Work Type", "Cooperage", "Cost (£)", "Operator", "Notes"],
       maint.map(m => [
         m.maintenance_date ? fmtDate(m.maintenance_date) : "—",
         String(m.work_type ?? "—"),
         String(m.cooperage_name ?? "—"),
         m.cost_pence != null ? `£${(Number(m.cost_pence) / 100).toFixed(2)}` : "—",
+        String(m.operator_name ?? "—"),
         String(m.notes ?? ""),
       ]),
       "No cooperage or maintenance records logged.",
