@@ -511,6 +511,10 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const [editingMilestone, setEditingMilestone] = useState<AgriEnvMilestone | null>(null);
   const [deletingMilestone, setDeletingMilestone] = useState<AgriEnvMilestone | null>(null);
   const [milestoneForm, setMilestoneForm] = useState({ ...AE_BLANK_MILESTONE });
+  // Inline status update state
+  const [pendingCompletion, setPendingCompletion] = useState<{ milestoneId: number; projectId: number; newStatus: string; date: string } | null>(null);
+  const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const { data: projData, isLoading, isSuccess: projIsSuccess } = useQuery({
     queryKey: ["agri-env-projects", farmId],
@@ -718,6 +722,30 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
       qc.invalidateQueries({ queryKey: ["agri-env-all-milestones", farmId] });
       toast({ title: "Milestone removed" });
       setDeletingMilestone(null);
+    },
+  });
+
+  const updateMilestoneStatusMut = useMutation({
+    mutationFn: async ({ milestoneId, projectId, status, completionDate }: { milestoneId: number; projectId: number; status: string; completionDate?: string | null }) => {
+      const body: Record<string, unknown> = { status };
+      // Include completionDate whenever it is explicitly provided (even null, to clear it)
+      if (completionDate !== undefined) body.completionDate = completionDate ?? null;
+      const r = await fetch(`/api/farms/${farmId}/agri-env-projects/${projectId}/milestones/${milestoneId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text().catch(() => "Update failed"));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agri-env-milestones", farmId, expandedId] });
+      qc.invalidateQueries({ queryKey: ["agri-env-all-milestones", farmId] });
+      setPendingCompletion(null);
+      setUpdatingMilestone(null);
+      toast({ title: "Milestone updated" });
+    },
+    onError: () => {
+      setUpdatingMilestone(null);
     },
   });
 
@@ -1110,12 +1138,55 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {milestones.map(m => (
+                        {milestones.map(m => {
+                          const isPending = pendingCompletion?.milestoneId === m.id;
+                          const isUpdating = updatingMilestone === m.id;
+                          const needsDate = (s: string) => (s === "submitted" || s === "paid") && !m.completionDate;
+                          const msStatusColors: Record<string, { bg: string; color: string; border: string }> = {
+                            pending:   { bg: "#f9fafb", color: "#374151", border: "#e5e7eb" },
+                            submitted: { bg: "#dbeafe", color: "#1e40af", border: "#bfdbfe" },
+                            paid:      { bg: "#dcfce7", color: "#166534", border: "#bbf7d0" },
+                            overdue:   { bg: "#fee2e2", color: "#991b1b", border: "#fecaca" },
+                          };
+                          const sc = msStatusColors[m.status] ?? msStatusColors.pending!;
+                          return (
                           <div key={m.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 10 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const }}>
                                 <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111827" }}>{m.milestoneName}</span>
-                                <AeMilestoneBadge status={m.status} />
+                                {isPending ? (
+                                  <input
+                                    type="date"
+                                    value={pendingCompletion!.date}
+                                    max={todayIso}
+                                    onChange={e => setPendingCompletion(prev => prev ? { ...prev, date: e.target.value } : prev)}
+                                    style={{ fontSize: "0.75rem", padding: "2px 4px", border: "1px solid #93c5fd", borderRadius: 4, background: "#eff6ff", color: "#1e40af", width: 120 }}
+                                  />
+                                ) : (
+                                  <select
+                                    disabled={isUpdating}
+                                    value={m.status ?? "pending"}
+                                    onChange={e => {
+                                      const newStatus = e.target.value;
+                                      if (needsDate(newStatus)) {
+                                        setPendingCompletion({ milestoneId: m.id, projectId: m.projectId, newStatus, date: todayIso });
+                                      } else {
+                                        setUpdatingMilestone(m.id);
+                                        // Clear completionDate when reverting away from claimed statuses
+                                        const isClaimed = (s: string) => s === "submitted" || s === "paid";
+                                        const completionDate = m.completionDate && isClaimed(m.status ?? "") && !isClaimed(newStatus)
+                                          ? null
+                                          : undefined;
+                                        updateMilestoneStatusMut.mutate({ milestoneId: m.id, projectId: m.projectId, status: newStatus, completionDate });
+                                      }
+                                    }}
+                                    style={{ fontSize: "0.7rem", fontWeight: 600, padding: "2px 4px 2px 7px", borderRadius: 20, border: `1px solid ${sc.border}`, background: sc.bg, color: sc.color, cursor: isUpdating ? "wait" : "pointer", opacity: isUpdating ? 0.6 : 1 }}
+                                  >
+                                    {AE_MILESTONE_STATUSES.map(s => (
+                                      <option key={s} value={s}>{AE_MILESTONE_STATUS_CFG[s]?.label ?? s}</option>
+                                    ))}
+                                  </select>
+                                )}
                                 {!!m.claimAmountPence && (
                                   <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#059669" }}>
                                     £{(m.claimAmountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
@@ -1135,12 +1206,38 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                                 {m.evidenceNotes && <span style={{ fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic" }}>{m.evidenceNotes}</span>}
                               </div>
                             </div>
-                            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                              <button onClick={() => openEditMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#6b7280" }}><Pencil size={13} /></button>
-                              <button onClick={() => setDeletingMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#ef4444" }}><Trash2 size={13} /></button>
+                            <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                              {isPending ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      if (!pendingCompletion?.date) return;
+                                      setUpdatingMilestone(m.id);
+                                      updateMilestoneStatusMut.mutate({ milestoneId: m.id, projectId: m.projectId, status: pendingCompletion.newStatus, completionDate: pendingCompletion.date });
+                                    }}
+                                    disabled={isUpdating || !pendingCompletion?.date}
+                                    style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: 20, background: "#1e40af", color: "#fff", border: "none", cursor: isUpdating ? "wait" : "pointer", fontWeight: 600, opacity: (isUpdating || !pendingCompletion?.date) ? 0.6 : 1 }}
+                                  >
+                                    {isUpdating ? "Saving…" : "Save"}
+                                  </button>
+                                  <button
+                                    onClick={() => setPendingCompletion(null)}
+                                    disabled={isUpdating}
+                                    style={{ fontSize: "0.7rem", padding: "2px 7px", borderRadius: 20, background: "#f3f4f6", color: "#374151", border: "none", cursor: "pointer", fontWeight: 600 }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => openEditMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#6b7280" }}><Pencil size={13} /></button>
+                                  <button onClick={() => setDeletingMilestone(m)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, color: "#ef4444" }}><Trash2 size={13} /></button>
+                                </>
+                              )}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

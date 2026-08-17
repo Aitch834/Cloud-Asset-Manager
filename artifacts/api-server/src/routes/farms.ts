@@ -42300,11 +42300,13 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
-  const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = req.body as Record<string, unknown>;
+  const body = req.body as Record<string, unknown>;
+  const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = body;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (milestoneName   != null) updates["milestoneName"]   = String(milestoneName);
   if (dueDate         != null) updates["dueDate"]         = dueDate         ? String(dueDate)         : null;
-  if (completionDate  != null) updates["completionDate"]  = completionDate  ? String(completionDate)  : null;
+  // Allow explicit null to clear the completion date (e.g. when reverting from submitted/paid)
+  if ("completionDate" in body) updates["completionDate"] = completionDate  ? String(completionDate)  : null;
   if (claimAmountPence != null) updates["claimAmountPence"] = claimAmountPence ? Number(claimAmountPence) : null;
   if (status          != null) updates["status"]          = String(status);
   if (evidenceNotes   != null) updates["evidenceNotes"]   = evidenceNotes   ? String(evidenceNotes)   : null;
