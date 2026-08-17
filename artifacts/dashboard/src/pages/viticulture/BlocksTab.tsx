@@ -433,6 +433,24 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
               >
                 <Trash className="w-4 h-4" />
               </button>
+              {/* Set as cover — only shown for non-cover photos */}
+              {!lightbox.isCover && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // Optimistic updates so the UI responds immediately
+                    setLightbox({ ...lightbox, isCover: true });
+                    setOrderedPhotos(prev => prev.map(p => ({ ...p, isCover: p.id === lightbox.id })));
+                    await patchPhoto(lightbox.id, { isCover: true });
+                  }}
+                  disabled={savingId === lightbox.id}
+                  className="absolute top-2 left-12 rounded-full bg-black/50 hover:bg-yellow-500/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100 disabled:opacity-40"
+                  aria-label="Set as cover photo"
+                  title="Set as cover photo"
+                >
+                  <Star className="w-4 h-4" />
+                </button>
+              )}
               {lightbox.caption && (
                 <p className="text-xs text-center text-muted-foreground mt-2 italic">{lightbox.caption}</p>
               )}
