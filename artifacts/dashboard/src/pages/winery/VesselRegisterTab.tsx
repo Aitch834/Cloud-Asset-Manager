@@ -863,6 +863,53 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
+
+  // Persist the last-viewed vessel ID so the detail dialog can be restored on return.
+  // We use the hook for writes only; reads in the restore effect go directly to
+  // localStorage to avoid a stale-state race with usePersistedFilter's own re-sync effect
+  // (which runs in the same commit cycle as ours, so its setState isn't visible yet).
+  const [, setLastViewedVesselId] = usePersistedFilter({
+    page: "vessel-register",
+    filter: "last-viewed-vessel",
+    farmId,
+    defaultValue: "",
+    isValid: v => v === "" || /^\d+$/.test(v),
+  });
+  const lastViewedStorageKey = `vessel-register-last-viewed-vessel-filter-${farmId ?? 0}`;
+
+  // Close dialog and reset restoration flag when the farm changes so the incoming
+  // farm's saved vessel is not shadowed by the outgoing farm's restoration state.
+  const viewRestoredForFarm = useRef<number | null>(null);
+  const prevFarmId = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevFarmId.current !== null && prevFarmId.current !== farmId) {
+      setView(null);
+      viewRestoredForFarm.current = null;
+    }
+    prevFarmId.current = farmId;
+  }, [farmId]);
+
+  // Restore the last-viewed vessel dialog once per farm after data loads.
+  // Read directly from localStorage (not hook state) to avoid the stale-state
+  // race described above — the storage key is already scoped to the current farmId.
+  useEffect(() => {
+    if (viewRestoredForFarm.current === farmId) return;
+    if (crud.isLoading || !crud.data.length) return;
+    viewRestoredForFarm.current = farmId;
+    let savedId = "";
+    try { savedId = localStorage.getItem(lastViewedStorageKey) ?? ""; } catch { /* ignore */ }
+    if (!savedId || !/^\d+$/.test(savedId)) return;
+    const vessel = crud.data.find(r => String(r.id) === savedId);
+    if (vessel) setView(vessel);
+  }, [farmId, crud.data, crud.isLoading, lastViewedStorageKey]);
+
+  // Opens the vessel detail dialog and persists the vessel ID.
+  // Closing the dialog does NOT clear the persisted ID — it stays until a different
+  // vessel is opened, so the winemaker can restore it on their next visit.
+  const openView = (r: Record<string, unknown>) => {
+    setView(r);
+    setLastViewedVesselId(String(r.id));
+  };
   const [form, setForm] = useState<Record<string, string>>({});
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -1489,7 +1536,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <RadixTooltipProvider>
                         <RadixTooltip>
                           <RadixTooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openView(r)}><Eye className="h-4 w-4" /></Button>
                           </RadixTooltipTrigger>
                           <RadixTooltipContent>View details</RadixTooltipContent>
                         </RadixTooltip>
