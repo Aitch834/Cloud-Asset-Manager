@@ -41947,19 +41947,51 @@ router.get("/account/profile", async (req, res) => {
   res.json(user);
 });
 
+const KNOWN_SMS_CATEGORY_KEYS = new Set([
+  "livestock", "dairy", "arable", "viticulture", "tasks", "regulatory", "quality", "stock",
+]);
+
 router.put("/account/profile", async (req, res) => {
   const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
-  const { phoneNumber, smsOptIn, smsCategories } = req.body as { phoneNumber?: string; smsOptIn?: string; smsCategories?: Record<string, boolean> | null };
+  const { phoneNumber, smsOptIn, smsCategories, consentGiven } = req.body as {
+    phoneNumber?: string;
+    smsOptIn?: string;
+    smsCategories?: Record<string, boolean> | null;
+    consentGiven?: boolean;
+  };
   const validOptIn = ["all", "critical", "none"];
-  if (smsOptIn && !validOptIn.includes(smsOptIn)) {
+  if (smsOptIn !== undefined && !validOptIn.includes(smsOptIn)) {
     res.status(400).json({ error: "Invalid smsOptIn value" }); return;
+  }
+  // Require explicit boolean true consent when enabling SMS (validated after enum check above)
+  if (smsOptIn !== undefined && smsOptIn !== "none" && consentGiven !== true) {
+    res.status(400).json({ error: "Explicit consent is required to enable SMS notifications" }); return;
+  }
+  // Validate category keys when provided — must be null or a plain non-array object
+  if (smsCategories !== undefined && smsCategories !== null) {
+    if (typeof smsCategories !== "object" || Array.isArray(smsCategories)) {
+      res.status(400).json({ error: "smsCategories must be null or a plain object" }); return;
+    }
+    const unknownKeys = Object.keys(smsCategories).filter(k => !KNOWN_SMS_CATEGORY_KEYS.has(k));
+    if (unknownKeys.length > 0) {
+      res.status(400).json({ error: `Unknown SMS category keys: ${unknownKeys.join(", ")}` }); return;
+    }
+    const nonBoolValues = Object.values(smsCategories).filter(v => typeof v !== "boolean");
+    if (nonBoolValues.length > 0) {
+      res.status(400).json({ error: "All smsCategories values must be boolean" }); return;
+    }
   }
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber.trim() || null;
   if (smsOptIn !== undefined) {
     updates.smsOptIn = smsOptIn;
-    if (smsOptIn !== "none") updates.smsConsentAt = new Date();
+    // Stamp consent timestamp only on an explicit opt-in; clear it on opt-out
+    if (smsOptIn !== "none" && consentGiven) {
+      updates.smsConsentAt = new Date();
+    } else if (smsOptIn === "none") {
+      updates.smsConsentAt = null;
+    }
   }
   if (smsCategories !== undefined) updates.smsCategories = smsCategories;
   await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));

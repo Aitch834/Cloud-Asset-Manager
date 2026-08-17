@@ -32,19 +32,33 @@ const SMS_CATEGORIES: ReadonlyArray<{
     key: "livestock",
     label: "Livestock & Animals",
     description: "Welfare alerts, withdrawal breaches, notifiable disease, herd health follow-ups.",
-    moduleGates: ["livestock", "poultry", "pigs", "deer"],
+    moduleGates: [
+      "livestock-management", "livestock",
+      "beef-production", "sheep-production", "goat-production", "venison-production",
+      "pig-production", "poultry-production",
+      "organic-livestock",
+    ],
   },
   {
     key: "dairy",
     label: "Dairy",
     description: "ABR test results, mastitis records, mobility scoring alerts.",
-    moduleGates: ["dairy"],
+    moduleGates: [
+      "dairy-management",
+      "sheep-dairy", "goat-dairy",
+      "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy",
+    ],
   },
   {
     key: "arable",
     label: "Arable & Crops",
     description: "IPM pest/disease threshold alerts, irrigation advisories, field scouting flags.",
-    moduleGates: ["arable", "horticulture", "ipm", "irrigation", "crops"],
+    moduleGates: [
+      "field-crop-management", "crop-management",
+      "fresh-produce", "organic-fresh-produce",
+      "water-irrigation",
+      "organic-arable",
+    ],
   },
   {
     key: "viticulture",
@@ -143,6 +157,7 @@ export default function AccountSettings() {
         phoneNumber: phoneNumber.trim(),
         smsOptIn: smsEnabled ? "all" : "none",
         smsCategories: smsEnabled ? categoryStates : null,
+        consentGiven: smsEnabled ? consentChecked : undefined,
       };
       const res = await fetch(apiUrl("account/profile"), {
         method: "PUT",

@@ -32,6 +32,76 @@ import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
 import * as Location from "expo-location";
 
+const SMS_CATEGORIES: ReadonlyArray<{
+  key: string;
+  label: string;
+  description: string;
+  moduleGates: ReadonlyArray<string>;
+}> = [
+  {
+    key: "livestock",
+    label: "Livestock & Animals",
+    description: "Welfare alerts, withdrawal breaches, notifiable disease, herd health follow-ups.",
+    moduleGates: [
+      "livestock-management", "livestock",
+      "beef-production", "sheep-production", "goat-production", "venison-production",
+      "pig-production", "poultry-production",
+      "organic-livestock",
+    ],
+  },
+  {
+    key: "dairy",
+    label: "Dairy",
+    description: "ABR test results, mastitis records, mobility scoring alerts.",
+    moduleGates: [
+      "dairy-management",
+      "sheep-dairy", "goat-dairy",
+      "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy",
+    ],
+  },
+  {
+    key: "arable",
+    label: "Arable & Crops",
+    description: "IPM pest/disease threshold alerts, irrigation advisories, field scouting flags.",
+    moduleGates: [
+      "field-crop-management", "crop-management",
+      "fresh-produce", "organic-fresh-produce",
+      "water-irrigation",
+      "organic-arable",
+    ],
+  },
+  {
+    key: "viticulture",
+    label: "Viticulture & Winery",
+    description: "Vineyard and winery compliance alerts.",
+    moduleGates: ["viticulture"],
+  },
+  {
+    key: "tasks",
+    label: "Task Assignments & Reminders",
+    description: "Notifications when tasks are assigned to you, and timesheet submission reminders.",
+    moduleGates: [],
+  },
+  {
+    key: "regulatory",
+    label: "Regulatory Compliance",
+    description: "Withdrawal period breaches, biosecurity declarations, SSAFO inspections, RIDDOR incidents.",
+    moduleGates: [],
+  },
+  {
+    key: "quality",
+    label: "Quality & Non-conformances",
+    description: "Non-conformance records, corrective actions, feed intake rejections.",
+    moduleGates: [],
+  },
+  {
+    key: "stock",
+    label: "Stock & Supplies",
+    description: "Stock-low and stock-out alerts across feed, medicines, and supplies.",
+    moduleGates: [],
+  },
+];
+
 type LisStatus = {
   configured: boolean;
   sandboxMode?: boolean;
@@ -154,6 +224,74 @@ export default function MoreScreen() {
       setProfileError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  // ── SMS Notification Preferences ────────────────────────────────────────────
+  const [smsMobile, setSmsMobile] = useState("");
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [categoryStates, setCategoryStates] = useState<Record<string, boolean>>({});
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(true);
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsSaved, setSmsSaved] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+
+  const hasSmsModule = activeModuleKeys.includes("sms-alerts");
+  const activeModuleKeySet = new Set(activeModuleKeys);
+  const visibleCategories = SMS_CATEGORIES.filter(
+    cat => cat.moduleGates.length === 0 || cat.moduleGates.some(g => activeModuleKeySet.has(g)),
+  );
+
+  useEffect(() => {
+    setSmsLoading(true);
+    apiFetch("/api/account/profile")
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { phoneNumber?: string | null; smsOptIn?: string; smsConsentAt?: string | null; smsCategories?: Record<string, boolean> | null } | null) => {
+        if (!data) return;
+        setSmsMobile(data.phoneNumber ?? "");
+        setSmsEnabled(data.smsOptIn !== "none");
+        if (data.smsConsentAt) setConsentChecked(true);
+        const saved = data.smsCategories;
+        const initial: Record<string, boolean> = {};
+        for (const cat of SMS_CATEGORIES) {
+          initial[cat.key] = saved == null ? true : (saved[cat.key] ?? true);
+        }
+        setCategoryStates(initial);
+      })
+      .catch(() => {})
+      .finally(() => setSmsLoading(false));
+  }, []);
+
+  async function saveSmsPrefs(): Promise<void> {
+    if (smsEnabled && !consentChecked) {
+      setSmsError("Please tick the consent box before enabling SMS alerts.");
+      return;
+    }
+    setSmsSaving(true);
+    setSmsError(null);
+    setSmsSaved(false);
+    try {
+      const res = await apiFetch("/api/account/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: smsMobile.trim(),
+          smsOptIn: smsEnabled ? "all" : "none",
+          smsCategories: smsEnabled ? categoryStates : null,
+          consentGiven: smsEnabled ? consentChecked : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `Save failed (${res.status})`);
+      }
+      setSmsSaved(true);
+      setTimeout(() => setSmsSaved(false), 3000);
+    } catch (err: unknown) {
+      setSmsError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
+    } finally {
+      setSmsSaving(false);
     }
   }
 
@@ -851,6 +989,144 @@ export default function MoreScreen() {
             icon="info"
             showChevron={false}
           />
+        </View>
+
+        <SectionHeader title="SMS Notifications" />
+        <View style={[styles.section, { padding: spacing.lg }]}>
+          {smsLoading ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : !hasSmsModule ? (
+            <View style={{ alignItems: "center", paddingVertical: spacing.md, gap: spacing.sm }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.borderLight, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="lock" size={18} color={colors.textTertiary} />
+              </View>
+              <Text style={{ fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text, textAlign: "center" }}>
+                SMS Alerts add-on not active
+              </Text>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center", lineHeight: 20 }}>
+                SMS Text Alerts is available as an add-on for £4/month per farm. Contact your BDE Farm Trac account manager to activate.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.md }}>
+                Each team member independently controls which alert categories they receive.
+              </Text>
+
+              {/* Phone number */}
+              <Input
+                label="Mobile Number (for SMS)"
+                placeholder="+447911123456"
+                value={smsMobile}
+                onChangeText={t => { setSmsMobile(t); setSmsSaved(false); }}
+                keyboardType="phone-pad"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: -spacing.sm, marginBottom: spacing.md }}>
+                UK number in international format, e.g. +447911123456
+              </Text>
+
+              {/* Master toggle */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, marginBottom: spacing.md }}>
+                <View style={{ flex: 1, marginRight: spacing.md }}>
+                  <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.md, color: colors.text }}>Enable SMS text notifications</Text>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2, lineHeight: 18 }}>
+                    Turn off to stop all SMS alerts regardless of category settings.
+                  </Text>
+                </View>
+                <Switch
+                  value={smsEnabled}
+                  onValueChange={v => {
+                    setSmsEnabled(v);
+                    if (!v) setConsentChecked(false);
+                    setSmsSaved(false);
+                  }}
+                  disabled={!smsMobile.trim()}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {/* Per-category toggles */}
+              {smsEnabled && (
+                <View style={{ marginBottom: spacing.md }}>
+                  <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.md, color: colors.text, marginBottom: spacing.xs }}>Alert categories</Text>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginBottom: spacing.sm }}>
+                    Only categories relevant to your farm are shown.
+                  </Text>
+                  <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, overflow: "hidden" }}>
+                    {visibleCategories.map((cat, idx) => (
+                      <View key={cat.key}>
+                        {idx > 0 && <View style={{ height: 1, backgroundColor: colors.borderLight }} />}
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: spacing.md }}>
+                          <View style={{ flex: 1, marginRight: spacing.md }}>
+                            <Text style={{ fontFamily: fonts.medium, fontSize: fontSize.sm, color: colors.text }}>{cat.label}</Text>
+                            <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginTop: 2, lineHeight: 18 }}>{cat.description}</Text>
+                          </View>
+                          <Switch
+                            value={categoryStates[cat.key] ?? true}
+                            onValueChange={v => {
+                              setCategoryStates(prev => ({ ...prev, [cat.key]: v }));
+                              setSmsSaved(false);
+                            }}
+                            trackColor={{ false: colors.border, true: colors.primary }}
+                            thumbColor="#fff"
+                          />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: spacing.xs, lineHeight: 18 }}>
+                    Disable categories you're not responsible for. A dairy manager can silence livestock alerts; a cereals manager can silence dairy alerts.
+                  </Text>
+                </View>
+              )}
+
+              {/* Farm Manager note */}
+              <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.md }}>
+                <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 }}>
+                  <Text style={{ fontFamily: fonts.semiBold, color: colors.text }}>Farm Managers</Text> are automatically included in critical alerts when a mobile number is saved. Disabling SMS entirely always overrides this.
+                </Text>
+              </View>
+
+              {/* GDPR consent */}
+              {smsEnabled && (
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, marginBottom: spacing.md }}
+                  onPress={() => { setConsentChecked(v => !v); setSmsSaved(false); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: consentChecked ? colors.primary : colors.border, backgroundColor: consentChecked ? colors.primary : "transparent", alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0 }}>
+                    {consentChecked && <Feather name="check" size={12} color="#fff" />}
+                  </View>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, flex: 1, lineHeight: 18 }}>
+                    I consent to BDE Farm Trac sending me compliance alert text messages to the number above. I understand I can withdraw consent at any time by disabling SMS notifications.
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {!!smsError && (
+                <Text style={styles.profileErrorText}>{smsError}</Text>
+              )}
+              {smsSaved && (
+                <Text style={styles.profileSavedText}>✓ Notification preferences saved</Text>
+              )}
+
+              <TouchableOpacity
+                style={[styles.saveButton, smsSaving && styles.saveButtonDisabled]}
+                onPress={saveSmsPrefs}
+                disabled={smsSaving}
+                activeOpacity={0.8}
+              >
+                {smsSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Preferences</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <SectionHeader title="Account" />
