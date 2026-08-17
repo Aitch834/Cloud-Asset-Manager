@@ -109,6 +109,21 @@ function FarmDrawdownSummary({
   const pct    = Math.min(100, Math.round(paidPence      / totalGrantPence * 100));
   const pctSub = Math.min(100 - pct, Math.round(submittedPence / totalGrantPence * 100));
 
+  // Per-project breakdown — only shown when there are multiple active projects.
+  const perProject = withValue.length > 1
+    ? withValue.map(p => {
+        const projPaid = milestones
+          .filter(m => m.status === "paid" && m.projectId === p.id)
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const projSubmitted = milestones
+          .filter(m => m.status === "submitted" && m.projectId === p.id)
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const total = p.totalGrantValuePence ?? 0;
+        const remaining = total > 0 ? total - projPaid : null;
+        return { project: p, projPaid, projSubmitted, total, remaining };
+      })
+    : [];
+
   return (
     <View style={summaryStyles.card}>
       <Text style={summaryStyles.heading}>
@@ -134,6 +149,38 @@ function FarmDrawdownSummary({
         <Text style={summaryStyles.submittedNote}>
           {fmt(submittedPence)} submitted (awaiting payment)
         </Text>
+      )}
+
+      {/* Per-project sub-rows — only when multiple active projects */}
+      {perProject.length > 0 && (
+        <View style={summaryStyles.projectsWrap}>
+          {perProject.map(({ project, projPaid, projSubmitted, total, remaining }) => (
+            <View key={project.id} style={summaryStyles.projectRow}>
+              <View style={summaryStyles.projectRowLeft}>
+                <Text style={summaryStyles.projectArrow}>↳</Text>
+                <Text style={summaryStyles.projectName} numberOfLines={2}>{project.schemeName}</Text>
+              </View>
+              <View style={summaryStyles.projectRowRight}>
+                {remaining !== null && (
+                  <View style={[
+                    summaryStyles.remainingPill,
+                    remaining <= 0 ? summaryStyles.remainingPillFull : summaryStyles.remainingPillPartial,
+                  ]}>
+                    <Text style={[
+                      summaryStyles.remainingPillText,
+                      remaining <= 0 ? summaryStyles.remainingPillTextFull : summaryStyles.remainingPillTextPartial,
+                    ]}>
+                      {remaining > 0 ? `${fmt(remaining)} left` : "fully claimed"}
+                    </Text>
+                  </View>
+                )}
+                <Text style={summaryStyles.projectAmount}>
+                  {projPaid > 0 ? fmt(projPaid) : projSubmitted > 0 ? `${fmt(projSubmitted)} sub.` : "—"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -1193,6 +1240,75 @@ const summaryStyles = StyleSheet.create({
     fontSize: 11,
     color: colors.textTertiary,
     marginTop: 3,
+  },
+  projectsWrap: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 8,
+    gap: 6,
+  },
+  projectRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+  },
+  projectRowLeft: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
+  },
+  projectArrow: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginRight: 4,
+    lineHeight: 16,
+  },
+  projectName: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+    lineHeight: 16,
+  },
+  projectRowRight: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+  },
+  projectAmount: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: "#15803d",
+    textAlign: "right" as const,
+  },
+  remainingPill: {
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+  },
+  remainingPillPartial: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fcd34d",
+  },
+  remainingPillFull: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
+  },
+  remainingPillText: {
+    fontSize: 10,
+    fontFamily: fonts.regular,
+  },
+  remainingPillTextPartial: {
+    color: "#92400e",
+  },
+  remainingPillTextFull: {
+    color: "#166534",
   },
 });
 
