@@ -61,7 +61,7 @@ export interface ScoutingPhoto {
 // Caption Edit Modal (internal)
 // ---------------------------------------------------------------------------
 
-function CaptionEditModal({
+export function CaptionEditModal({
   visible,
   initialCaption,
   onSave,

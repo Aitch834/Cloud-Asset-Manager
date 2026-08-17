@@ -1,17 +1,23 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -32,7 +38,8 @@ import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
-import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
+import { type ScoutingPhoto, CaptionEditModal, ScoutingPhotoLightbox, ScoutingPhotoThumbnail } from "@/components/ScoutingPhotoSection";
+import { pickPhoto, getApiBase, uploadPhotoToStorage } from "@/lib/uploadPhoto";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 const PRESSURE_LABELS = ["None", "Low", "Medium", "High"];
@@ -888,3 +895,199 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
 });
+
+const SCREEN = Dimensions.get("window");
+
+function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string; scoutingId: number }) {
+  const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<ScoutingPhoto | null>(null);
+  const [captionEditPhoto, setCaptionEditPhoto] = useState<ScoutingPhoto | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`);
+      if (res.ok) {
+        const data: { photos: ScoutingPhoto[] } = await res.json();
+        setPhotos(data.photos ?? []);
+      }
+    } catch {
+      // no-op on silent refresh
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, [farmId, scoutingId]);
+
+  useEffect(() => {
+    loadPhotos();
+    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
+  }, [loadPhotos]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPhotos({ silent: true });
+    }, [loadPhotos]),
+  );
+
+  const handleAddPhoto = async () => {
+    const uri = await pickPhoto("Attach Scouting Photo");
+    if (!uri) return;
+    setUploading(true);
+    try {
+      const apiBase = getApiBase();
+      const fileName = `scouting-${scoutingId}-${Date.now()}.jpg`;
+      const objectPath = await uploadPhotoToStorage(uri, apiBase, fileName);
+      if (!objectPath) {
+        Alert.alert("Upload Failed", "Could not upload the photo. Please try again.");
+        return;
+      }
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPath, fileName }),
+      });
+      if (!res.ok) {
+        Alert.alert("Upload Failed", "Photo was uploaded but could not be saved. Please try again.");
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadPhotos();
+    } catch {
+      Alert.alert("Upload Failed", "An error occurred. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: number) => {
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      } else {
+        Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Delete Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  const handleSaveCaption = async (photoId: number, caption: string) => {
+    const trimmed = caption.trim();
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: trimmed || null }),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, caption: trimmed || null } : p));
+        // Keep lightbox in sync if it's open
+        setLightboxPhoto((prev: ScoutingPhoto | null) => prev?.id === photoId ? { ...prev, caption: trimmed || null } : prev);
+      } else {
+        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+      }
+    } catch {
+      Alert.alert("Save Failed", "An error occurred. Please try again.");
+    }
+  };
+
+  const handleOpenCaptionEdit = (photo: ScoutingPhoto) => {
+    setLightboxPhoto(null);
+    // small delay so lightbox closes before caption modal opens
+    setTimeout(() => setCaptionEditPhoto(photo), 150);
+  };
+
+  return (
+    <View style={editStyles.card}>
+      <View style={photoStyles.photoHeader}>
+        <Text style={editStyles.sectionTitle}>Photos</Text>
+        <Text style={photoStyles.photoHint}>{photos.length} attached</Text>
+      </View>
+      <Text style={editStyles.helperText}>
+        Tap a photo to view or edit its caption. Long-press a thumbnail for quick options.
+      </Text>
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.textSecondary} style={{ marginTop: spacing.sm }} />
+      ) : (
+        <FlatList
+          data={photos}
+          keyExtractor={(item) => String(item.id)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled
+          style={{ marginTop: spacing.sm }}
+          contentContainerStyle={{ gap: spacing.sm }}
+          renderItem={({ item }) => (
+            <ScoutingPhotoThumbnail
+              photo={item}
+              onDelete={handleDeletePhoto}
+              onPress={setLightboxPhoto}
+              onReload={() => loadPhotos({ silent: true })}
+              onEditCaption={handleOpenCaptionEdit}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={photoStyles.emptyPhotos}>
+              <Feather name="image" size={20} color={colors.textSecondary} />
+              <Text style={photoStyles.emptyPhotosText}>No photos yet</Text>
+            </View>
+          }
+        />
+      )}
+      <Pressable
+        style={[photoStyles.addPhotoBtn, uploading && photoStyles.addPhotoBtnDisabled]}
+        onPress={handleAddPhoto}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color={colors.primary ?? colors.success} />
+        ) : (
+          <Feather name="camera" size={16} color={colors.primary ?? colors.success} />
+        )}
+        <Text style={photoStyles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
+      </Pressable>
+      <ScoutingPhotoLightbox
+        photos={lightboxPhoto ? [lightboxPhoto] : []}
+        initialIndex={0}
+        visible={lightboxPhoto !== null}
+        onClose={() => setLightboxPhoto(null)}
+        onDelete={async (id) => {
+          await handleDeletePhoto(id);
+          setLightboxPhoto(null);
+        }}
+        onEditCaption={handleOpenCaptionEdit}
+      />
+      <CaptionEditModal
+        visible={captionEditPhoto !== null}
+        initialCaption={captionEditPhoto?.caption ?? ""}
+        onSave={(caption) => {
+          if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
+        }}
+        onClose={() => setCaptionEditPhoto(null)}
+      />
+    </View>
+  );
+}
+
+const photoStyles = StyleSheet.create({
+  photoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  photoHint: { fontSize: fontSize.xs, color: colors.textSecondary },
+  emptyPhotos: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm },
+  emptyPhotosText: { fontSize: fontSize.sm, color: colors.textSecondary },
+  addPhotoBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.primary ?? colors.success, alignSelf: "flex-start", marginTop: spacing.sm },
+  addPhotoBtnDisabled: { opacity: 0.5 },
+  addPhotoBtnText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.primary ?? colors.success },
+});
+
+const PHOTO_REFRESH_MS = 4 * 60 * 1000;

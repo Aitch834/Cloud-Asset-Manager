@@ -201,6 +201,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<BlockPhoto | null>(null);
+  const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
   const [orderedPhotos, setOrderedPhotos] = useState<BlockPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -321,16 +322,26 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
     }
   };
 
-  const handleDelete = async (photo: BlockPhoto) => {
-    try {
-      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photo.id}`), {
+  const deletePhotoMutation = useMutation({
+    mutationFn: async (photoId: number) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`), {
         method: "DELETE", credentials: "include",
       });
       if (!r.ok) throw new Error("Failed to remove photo");
+    },
+    onSuccess: (_data, photoId) => {
+      // If the deleted photo is open in the lightbox, close it
+      if (lightbox?.id === photoId) setLightbox(null);
+      setDeletePhotoId(null);
       invalidate();
-    } catch (e) {
+    },
+    onError: (e) => {
       setError(e instanceof Error ? e.message : "Remove failed");
-    }
+    },
+  });
+
+  const handleDelete = (photo: BlockPhoto) => {
+    deletePhotoMutation.mutate(photo.id);
   };
 
   const photoSrc = (p: BlockPhoto) =>
@@ -399,20 +410,48 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       {/* Lightbox */}
       <Dialog open={!!lightbox} onOpenChange={o => { if (!o) setLightbox(null); }}>
         <DialogContent className="max-w-3xl p-2">
+          <DialogHeader className="px-1 pb-1">
+            <DialogTitle className="text-sm font-medium truncate">
+              {lightbox?.fileName ?? "Block photo"}
+            </DialogTitle>
+          </DialogHeader>
           {lightbox && (
-            <>
+            <div className="relative group/lightbox">
               <img
                 src={photoSrc(lightbox)}
                 alt={lightbox.fileName ?? "Block photo"}
-                className="w-full max-h-[75vh] object-contain rounded-lg"
+                className="w-full max-h-[70vh] object-contain rounded-lg"
               />
+              {/* Delete button — visible on hover or keyboard focus; positioned top-left
+                  to avoid overlapping the DialogContent close button at top-right */}
+              <button
+                type="button"
+                onClick={() => setDeletePhotoId(lightbox.id)}
+                className="absolute top-2 left-2 rounded-full bg-black/50 hover:bg-red-600/90 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
+                aria-label="Delete photo"
+                title="Delete this photo"
+              >
+                <Trash className="w-4 h-4" />
+              </button>
               {lightbox.caption && (
                 <p className="text-xs text-center text-muted-foreground mt-2 italic">{lightbox.caption}</p>
               )}
-            </>
+            </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete photo confirm */}
+      <ConfirmDialog
+        open={deletePhotoId !== null}
+        title="Delete photo?"
+        message="This photo will be permanently removed from the block. This cannot be undone."
+        confirmLabel="Delete photo"
+        confirmVariant="destructive"
+        onConfirm={() => { if (deletePhotoId !== null) deletePhotoMutation.mutate(deletePhotoId); }}
+        onCancel={() => { setDeletePhotoId(null); deletePhotoMutation.reset(); }}
+        mutation={deletePhotoMutation}
+      />
     </div>
   );
 }

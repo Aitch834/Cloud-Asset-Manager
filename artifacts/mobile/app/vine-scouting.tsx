@@ -2,7 +2,6 @@ import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/compone
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -26,7 +25,10 @@ import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
-import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ScoutingPhotoSection, type ScoutingPhoto } from "@/components/ScoutingPhotoSection";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -328,3 +330,51 @@ const styles = StyleSheet.create({
   savedBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#f0fdf4", borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.success },
   savedBannerText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.success, flex: 1 },
 });
+
+type LightboxPhoto = { id: number; downloadUrl?: string | null; fileName?: string | null; caption?: string | null };
+
+function showRightChevron(len: number, idx: number) { return len > 1 && idx < len - 1; }
+
+const lbStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center" },
+  closeBtn: { position: "absolute", right: 16, zIndex: 10, padding: 8, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.15)" },
+  counter: { position: "absolute", alignSelf: "center", zIndex: 10, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  counterText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  imageWrapper: { flex: 1, justifyContent: "center", alignItems: "center" },
+  image: { width: "100%", height: "100%" },
+  imagePlaceholder: { alignItems: "center", gap: 12 },
+  reloadLabel: { color: "rgba(255,255,255,0.55)", fontSize: 14 },
+  chevron: { position: "absolute", top: "50%", marginTop: -24, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 24, padding: 8 },
+  chevronLeft: { left: 12 },
+  chevronRight: { right: 12 },
+  captionBar: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: "rgba(0,0,0,0.6)" },
+  captionText: { color: "#fff", fontSize: 13, textAlign: "center" },
+  actionBar: { flexDirection: "row", justifyContent: "center", gap: 24, paddingTop: 12, paddingHorizontal: 24, backgroundColor: "rgba(0,0,0,0.7)" },
+  actionBtn: { alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 16 },
+  actionBtnDisabled: { opacity: 0.5 },
+  actionBtnDanger: {},
+  actionBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+});
+
+function showCounter(len: number) { return len > 1; }
+
+function counterText(idx: number, len: number) { return `${idx + 1} / ${len}`; }
+
+const SWIPE_THRESHOLD = 50;
+
+type ScoutingLightboxProps = {
+  photos: LightboxPhoto[];
+  initialIndex: number;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: (photoId: number) => Promise<void>;
+  onReload: () => void;
+};
+
+/** Returns the clamped index after a deletion, or -1 when the array is now empty. */
+function clampIndexAfterDelete(current: number, newLen: number): number {
+  if (newLen === 0) return -1;
+  return Math.min(current, newLen - 1);
+}
+
+function showLeftChevron(len: number, idx: number) { return len > 1 && idx > 0; }
