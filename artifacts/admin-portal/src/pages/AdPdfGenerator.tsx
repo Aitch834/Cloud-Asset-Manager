@@ -162,8 +162,12 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ── Brand assets (logo + QR) ──────────────────────────────────────────────────
-
+interface BrandAssetWarningProps {
+  status: { logoResolvable: boolean; qrResolvable: boolean };
+  /** "full"    – larger card shown below the page header (rounded-lg, py-3, heading + body)
+   *  "compact" – smaller inline banner above the action buttons (rounded-md, py-2, single line) */
+  variant: "full" | "compact";
+}
 async function fetchBrandAssets(): Promise<{ logo: string; qr: string }> {
   const res = await fetch("/api/admin/platform-config", { headers: adminHeaders() });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1158,26 +1162,8 @@ export default function AdPdfGenerator() {
       </div>
 
       {/* Brand-asset missing warning */}
-      {brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable) && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-              {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
-                ? "Logo and QR code cannot be found"
-                : !brandAssetStatus.logoResolvable
-                ? "Logo cannot be found"
-                : "QR code cannot be found"}
-            </p>
-            <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
-              The generated PDF will render {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "these placeholders" : "this placeholder"} blank.
-              Neither the database nor the legacy on-disk template files contain a resolvable asset.{" "}
-              <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                Upload {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "them" : "it"} in Brand Assets ↓
-              </a>
-            </p>
-          </div>
-        </div>
+      {brandAssetStatus && (
+        <BrandAssetWarning status={brandAssetStatus} variant="full" />
       )}
 
       {/* ── Generator section ── */}
@@ -1534,21 +1520,8 @@ export default function AdPdfGenerator() {
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-          {brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable) && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <p className="text-sm text-amber-800 dark:text-amber-300">
-                {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
-                  ? "Logo and QR code are missing"
-                  : !brandAssetStatus.logoResolvable
-                  ? "Logo is missing"
-                  : "QR code is missing"}{" "}
-                — the rendered output will show blank placeholders.{" "}
-                <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
-                  Upload {!brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable ? "them" : "it"} below ↓
-                </a>
-              </p>
-            </div>
+          {brandAssetStatus && (
+            <BrandAssetWarning status={brandAssetStatus} variant="compact" />
           )}
           <div className="flex flex-wrap gap-3">
             <Button
@@ -1870,6 +1843,57 @@ export default function AdPdfGenerator() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function BrandAssetWarning({ status, variant }: BrandAssetWarningProps) {
+  if (status.logoResolvable && status.qrResolvable) return null;
+
+  const bothMissing = !status.logoResolvable && !status.qrResolvable;
+  const uploadPronoun = bothMissing ? "them" : "it";
+
+  if (variant === "full") {
+    const heading = bothMissing
+      ? "Logo and QR code cannot be found"
+      : !status.logoResolvable
+      ? "Logo cannot be found"
+      : "QR code cannot be found";
+    const placeholder = bothMissing ? "these placeholders" : "this placeholder";
+
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+        <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{heading}</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+            The generated PDF will render {placeholder} blank.
+            Neither the database nor the legacy on-disk template files contain a resolvable asset.{" "}
+            <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+              Upload {uploadPronoun} in Brand Assets ↓
+            </a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // compact variant
+  const label = bothMissing
+    ? "Logo and QR code are missing"
+    : !status.logoResolvable
+    ? "Logo is missing"
+    : "QR code is missing";
+
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2">
+      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+      <p className="text-sm text-amber-800 dark:text-amber-300">
+        {label}{" "}— the rendered output will show blank placeholders.{" "}
+        <a href="#brand-assets" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-200">
+          Upload {uploadPronoun} below ↓
+        </a>
+      </p>
     </div>
   );
 }
