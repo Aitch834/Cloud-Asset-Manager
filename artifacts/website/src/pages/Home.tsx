@@ -101,7 +101,7 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="bg-brand-forest hover:bg-brand-sage text-white h-14 px-8 text-base shadow-lg shadow-brand-forest/25" asChild>
-                  <Link href="/contact">Register Your Interest</Link>
+                  <Link href="/register-interest">Register Your Interest</Link>
                 </Button>
                 <Button size="lg" variant="outline" className="h-14 px-8 text-base bg-white border-border text-foreground hover:bg-secondary" asChild>
                   <Link href="/features">View Features</Link>
@@ -289,7 +289,7 @@ export default function Home() {
             {`Family farms and smallholdings across the UK use BDE Farm Trac to stay Red Tractor compliant without the stress. Start for as little as £${MIN_PRICE} a month — no contract, no upfront cost.`}
           </p>
           <Button size="lg" className="bg-earth-brown hover:bg-earth-brown/90 text-white h-14 px-10 text-lg shadow-xl" asChild>
-            <Link href="/contact">Register Your Interest Today</Link>
+            <Link href="/register-interest">Register Your Interest Today</Link>
           </Button>
         </div>
       </section>
