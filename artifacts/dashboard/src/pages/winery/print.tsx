@@ -169,8 +169,8 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     return `${escHtml(trimmed)}${capacityBadge}${fillBadge}${retiredBadge}`;
   };
 
-  const sectionHtml = (title: string, rows: string) =>
-    rows ? `<div class="section"><h2>${escHtml(title)}</h2><table>${rows}</table></div>` : "";
+  const sectionHtml = (id: string, title: string, rows: string) =>
+    rows ? `<div class="section"><h2 id="${id}">${escHtml(title)}</h2><table>${rows}</table></div>` : "";
 
   // ── SO₂ compliance summary (computed client-side, same logic as the dialog) ──
   const s2 = computeSo2Summary(pressing, data);
@@ -999,8 +999,10 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   const sn = (title: string) => `${++_sn}. ${title}`;
   // Patches the <h2> inside an already-assembled section HTML block (used for
   // pressingBlockHtml and barrelProvenanceHtml which are built earlier as strings).
-  const numBlock = (block: string, bareTitle: string) =>
-    block.replace(`<h2>${bareTitle}</h2>`, `<h2>${sn(bareTitle)}</h2>`);
+  const numBlock = (block: string, bareTitle: string) => {
+    const id = `s${_sn + 1}`;
+    return block.replace(`<h2>${bareTitle}</h2>`, `<h2 id="${id}">${sn(bareTitle)}</h2>`);
+  };
 
   // ── Table of contents — dry-run through the same section conditions to
   // collect (number, title) pairs, then reset _sn so the real h2 calls below
@@ -1024,7 +1026,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:14px">
   <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;margin-bottom:5px">Contents</p>
   <div style="display:flex;flex-wrap:wrap;gap:3px 18px">
-    ${_tocEntries.map(e => `<span style="font-size:10px;color:#374151;white-space:nowrap"><span style="font-weight:700;font-family:monospace;color:#6b7280">\u00a7${e.num}</span>\u2002${escHtml(e.title)}</span>`).join("")}
+    ${_tocEntries.map(e => `<a href="#s${e.num}" style="font-size:10px;color:#374151;white-space:nowrap;text-decoration:none"><span style="font-weight:700;font-family:monospace;color:#6b7280">\u00a7${e.num}</span>\u2002${escHtml(e.title)}</a>`).join("")}
   </div>
 </div>` : "";
 
@@ -1049,8 +1051,11 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   tr.header-row th { border-bottom: 1px solid #d1d5db; }
   tr:last-child td { border-bottom: none; }
   .footer { margin-top: 20px; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+  a { color: inherit; text-decoration: none; }
+  a:hover { text-decoration: underline; }
   .signoff { display: none; }
   @media print {
+    a[href]::after { content: none !important; }
     body { padding: 0; }
     @page { margin: 16mm 14mm; }
     .signoff { display: block; page-break-inside: avoid; }
@@ -1072,14 +1077,14 @@ ${vintageComparisonHtml ? numBlock(vintageComparisonHtml, "Vintage pH &amp; TA C
 ${so2SummaryHtml ? numBlock(so2SummaryHtml, "SO₂ Compliance Summary") : ""}
 ${phTaHistoryHtml ? numBlock(phTaHistoryHtml, "pH &amp; TA Analytical History") : ""}
 ${numBlock(pressingBlockHtml, "Pressing Record")}
-${fermRows ? sectionHtml(sn("Fermentation"), fermHeader + fermRows) : ""}
+${fermRows ? sectionHtml(`s${_sn + 1}`, sn("Fermentation"), fermHeader + fermRows) : ""}
 ${fermAttachmentsHtml}
-${cellarRows ? sectionHtml(sn("Cellar operations"), cellarHeader + cellarRows) : ""}
+${cellarRows ? sectionHtml(`s${_sn + 1}`, sn("Cellar operations"), cellarHeader + cellarRows) : ""}
 ${cellarAttachmentsHtml}
-${so2Rows ? sectionHtml(sn("SO₂ tests"), so2Header + so2Rows) : ""}
+${so2Rows ? sectionHtml(`s${_sn + 1}`, sn("SO₂ tests"), so2Header + so2Rows) : ""}
 ${so2Rows && so2HasUnverifiedLimit ? `<p style="font-size:9px;color:#b45309;margin:2px 0 8px">⚠ Limit unverified — one or more SO₂ tests carry an organic ceiling but have no batch reference, so the applicable limit cannot be verified against a batch record.</p>` : ""}
 ${so2AttachmentsHtml}
-${bottlingRows ? sectionHtml(sn("Bottling runs"), bottlingHeader + bottlingRows) : ""}
+${bottlingRows ? sectionHtml(`s${_sn + 1}`, sn("Bottling runs"), bottlingHeader + bottlingRows) : ""}
 ${bottlingAttachmentsHtml}
 ${barrelProvenanceHtml ? numBlock(barrelProvenanceHtml, "Barrel Provenance") : ""}
 
