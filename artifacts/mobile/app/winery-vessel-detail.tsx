@@ -1388,6 +1388,14 @@ export default function WineryVesselDetailScreen() {
         <View style={styles.headerText}>
           <Text style={styles.title} numberOfLines={1}>{params.vesselRef ?? "Vessel"}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
+          {currentZone ? (
+            <View style={styles.zoneBadge}>
+              <Feather name="map-pin" size={10} color={colors.primary} />
+              <Text style={styles.zoneBadgeText} numberOfLines={1}>
+                {[currentZone, currentPosition].filter(Boolean).join(" · ")}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -1590,6 +1598,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.textSecondary,
     marginTop: 1,
+  },
+  zoneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  zoneBadgeText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
   },
   loadingWrap: {
     flex: 1,
