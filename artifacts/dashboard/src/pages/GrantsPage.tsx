@@ -1551,6 +1551,22 @@ export default function GrantsPage() {
     const next = typeof v === "function" ? v(hideArchived) : v;
     _setHideArchivedStr(next ? "true" : "false");
   };
+
+  // ── Export / print filter state for capital grants (persisted per farm) ──
+  const [grantExportScheme, setGrantExportScheme] = usePersistedFilter({
+    page: "grants",
+    filter: "export-scheme",
+    farmId,
+    defaultValue: "all",
+  });
+  const [grantExportStatus, setGrantExportStatus] = usePersistedFilter({
+    page: "grants",
+    filter: "export-status",
+    farmId,
+    defaultValue: "all",
+    validValues: ["all", ...STATUSES] as readonly string[],
+  });
+
   const { uploadFile } = useUpload();
 
   const { data, isLoading } = useQuery({
@@ -1564,6 +1580,55 @@ export default function GrantsPage() {
   });
 
   const records = data?.records ?? [];
+
+  const uniqueGrantSchemeNames = useMemo(
+    () => [...new Set(records.map(r => r.schemeName))].sort(),
+    [records],
+  );
+
+  const exportFilteredRecords = useMemo(() => {
+    return records.filter(r => {
+      if (grantExportScheme !== "all" && r.schemeName !== grantExportScheme) return false;
+      if (grantExportStatus !== "all" && r.status !== grantExportStatus) return false;
+      return true;
+    });
+  }, [records, grantExportScheme, grantExportStatus]);
+
+  function exportGrantsCsv() {
+    const parts: string[] = ["grants"];
+    if (grantExportScheme !== "all") {
+      parts.push(grantExportScheme.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24));
+    }
+    if (grantExportStatus !== "all") parts.push(grantExportStatus);
+    const filename = parts.join("-") + ".csv";
+
+    const header = [
+      "Scheme Name", "Scheme Type", "Item Ref Code", "Item Description",
+      "Application Ref", "Agreement Ref", "Application Date", "Approval Date",
+      "Purchase Deadline", "Claim Deadline", "Grant Amount (£)", "Actual Cost (£)",
+      "Status", "Notes",
+    ];
+    const rows: (string | number | null)[][] = [header];
+    for (const r of exportFilteredRecords) {
+      rows.push([
+        r.schemeName,
+        r.schemeType ?? "",
+        r.itemReferenceCode ?? "",
+        r.itemDescription ?? "",
+        r.applicationReference ?? "",
+        r.approvalAgreementReference ?? "",
+        r.applicationDate ? new Date(r.applicationDate).toLocaleDateString("en-GB") : "",
+        r.approvalDate ? new Date(r.approvalDate).toLocaleDateString("en-GB") : "",
+        r.purchaseDeadline ? new Date(r.purchaseDeadline).toLocaleDateString("en-GB") : "",
+        r.claimDeadline ? new Date(r.claimDeadline).toLocaleDateString("en-GB") : "",
+        r.grantAmountPence != null ? (r.grantAmountPence / 100).toFixed(2) : "",
+        r.actualCostPence != null ? (r.actualCostPence / 100).toFixed(2) : "",
+        STATUS_CONFIG[r.status]?.label ?? r.status,
+        r.notes ?? "",
+      ]);
+    }
+    downloadCsvFile(filename, rows);
+  }
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
@@ -1773,9 +1838,19 @@ export default function GrantsPage() {
             </p>
           </div>
           {mainTab === "capital" && (
-            <Button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Plus size={16} /> Add Grant
-            </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <Button variant="outline" size="sm" onClick={() => window.print()} disabled={records.length === 0}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Printer size={14} /> Print
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportGrantsCsv} disabled={records.length === 0}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Download size={14} /> Export CSV
+              </Button>
+              <Button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Plus size={16} /> Add Grant
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1806,6 +1881,8 @@ export default function GrantsPage() {
         </div>
 
         {mainTab === "capital" && <>
+        <style>{`@media print { .grants-cap-screen { display: none !important; } .grants-cap-print { display: block !important; } }`}</style>
+        <div className="grants-cap-screen">
         {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
           {/* Approved Grant Value */}
@@ -1873,6 +1950,44 @@ export default function GrantsPage() {
             </a>
           </div>
         </div>
+
+        {/* Export / print filter bar */}
+        {records.length > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+            background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 12,
+            flexWrap: "wrap" as const,
+          }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", flexShrink: 0 }}>
+              Export &amp; Print filter:
+            </span>
+            <SchemeNameCombobox
+              value={grantExportScheme}
+              onChange={setGrantExportScheme}
+              schemeNames={uniqueGrantSchemeNames}
+              compact
+            />
+            <select
+              value={grantExportStatus}
+              onChange={e => setGrantExportStatus(e.target.value)}
+              style={{ fontSize: "0.8rem", padding: "4px 8px", borderRadius: 6, border: "1px solid #d1d5db", background: grantExportStatus !== "all" ? "#111827" : "#fff", color: grantExportStatus !== "all" ? "#fff" : "#111827", cursor: "pointer", fontWeight: grantExportStatus !== "all" ? 600 : 400 }}
+            >
+              <option value="all">All statuses</option>
+              {STATUSES.map(s => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+            </select>
+            {(grantExportScheme !== "all" || grantExportStatus !== "all") && (
+              <button
+                onClick={() => { setGrantExportScheme("all"); setGrantExportStatus("all"); }}
+                style={{ fontSize: "0.78rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              >
+                Clear
+              </button>
+            )}
+            <span style={{ fontSize: "0.78rem", color: "#9ca3af", marginLeft: "auto" }}>
+              {exportFilteredRecords.length} of {records.length} grant{records.length !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+        )}
 
         {/* Year & Archive toolbar */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", padding: "8px 12px", background: "#f9fafb", borderRadius: 8, border: "1px solid #f3f4f6" }}>
@@ -2070,6 +2185,50 @@ export default function GrantsPage() {
                           )}
                         </div>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        </div>{/* end grants-cap-screen */}
+
+        {/* Print-only grants report */}
+        {exportFilteredRecords.length > 0 && (
+          <div className="grants-cap-print" style={{ display: "none" }}>
+            <div style={{ fontFamily: "Georgia, serif", color: "#111827", padding: "0 0 24px" }}>
+              <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>Equipment &amp; Capital Grants</h1>
+              <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 24 }}>
+                Exported {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                {grantExportScheme !== "all" && ` · Scheme: ${grantExportScheme}`}
+                {grantExportStatus !== "all" && ` · Status: ${STATUS_CONFIG[grantExportStatus as GrantStatus]?.label ?? grantExportStatus}`}
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                    <th style={{ textAlign: "left", padding: "6px 12px 6px 0", fontWeight: 600 }}>Scheme / Item</th>
+                    <th style={{ textAlign: "left", padding: "6px 12px", fontWeight: 600 }}>Status</th>
+                    <th style={{ textAlign: "right", padding: "6px 0 6px 12px", fontWeight: 600 }}>Grant (£)</th>
+                    <th style={{ textAlign: "right", padding: "6px 0 6px 12px", fontWeight: 600 }}>Actual Cost (£)</th>
+                    <th style={{ textAlign: "left", padding: "6px 0 6px 12px", fontWeight: 600 }}>Purchase Deadline</th>
+                    <th style={{ textAlign: "left", padding: "6px 0", fontWeight: 600 }}>Claim Deadline</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exportFilteredRecords.map(r => (
+                    <tr key={r.id} style={{ borderBottom: "1px solid #f3f4f6", pageBreakInside: "avoid" }}>
+                      <td style={{ padding: "6px 12px 6px 0", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: 600 }}>{r.schemeName}</div>
+                        {r.itemReferenceCode && <div style={{ fontSize: "0.75rem", color: "#7c3aed" }}>{r.itemReferenceCode}</div>}
+                        {r.itemDescription && <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>{r.itemDescription}</div>}
+                        {r.applicationReference && <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>App ref: {r.applicationReference}</div>}
+                      </td>
+                      <td style={{ padding: "6px 12px", verticalAlign: "top" }}>{STATUS_CONFIG[r.status]?.label ?? r.status}</td>
+                      <td style={{ padding: "6px 0 6px 12px", textAlign: "right", verticalAlign: "top", fontWeight: 600 }}>{r.grantAmountPence != null ? `£${(r.grantAmountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}` : "—"}</td>
+                      <td style={{ padding: "6px 0 6px 12px", textAlign: "right", verticalAlign: "top" }}>{r.actualCostPence != null ? `£${(r.actualCostPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}` : "—"}</td>
+                      <td style={{ padding: "6px 0 6px 12px", verticalAlign: "top", whiteSpace: "nowrap" }}>{formatDate(r.purchaseDeadline)}</td>
+                      <td style={{ padding: "6px 0", verticalAlign: "top", whiteSpace: "nowrap" }}>{formatDate(r.claimDeadline)}</td>
                     </tr>
                   ))}
                 </tbody>
