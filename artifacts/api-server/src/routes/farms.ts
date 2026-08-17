@@ -19341,12 +19341,29 @@ router.get("/:farmId/reports/gross-margin", requireAuth, requireTenant, requireM
       )
     : [];
 
+  // All-time claimed milestones (any year) — used to compute remaining grant value
+  const agriEnvAllTimeMilestones = agriEnvProjects.length > 0
+    ? await db.select({
+        projectId: agriEnvMilestonesTable.projectId,
+        claimAmountPence: agriEnvMilestonesTable.claimAmountPence,
+      }).from(agriEnvMilestonesTable)
+      .where(
+        and(
+          inArray(agriEnvMilestonesTable.projectId, agriEnvProjects.map(p => p.id)),
+          inArray(agriEnvMilestonesTable.status, ["submitted", "paid"])
+        )
+      )
+    : [];
+
   // Build a per-project summary: year-claimed amount (milestones only, not total agreement value)
   const agriEnvSummary = agriEnvProjects.map(p => ({
     id: p.id,
     schemeName: p.schemeName,
     totalGrantValuePence: p.totalGrantValuePence,
     yearClaimedPence: agriEnvYearMilestones
+      .filter(m => m.projectId === p.id)
+      .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0),
+    allTimeClaimedPence: agriEnvAllTimeMilestones
       .filter(m => m.projectId === p.id)
       .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0),
   }));

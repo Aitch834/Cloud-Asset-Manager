@@ -587,17 +587,37 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
                     <span style={{ marginLeft: 8, fontSize: "0.7rem", background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
                       from Agri-Env tab · {agriEnvActiveProjects.length} project{agriEnvActiveProjects.length !== 1 ? "s" : ""}
                     </span>
+                    {agriEnvActiveProjects.length === 1 && (() => {
+                      const p = agriEnvActiveProjects[0];
+                      if (p.totalGrantValuePence == null || p.totalGrantValuePence <= 0) return null;
+                      const remaining = p.totalGrantValuePence - (p.allTimeClaimedPence ?? 0);
+                      return (
+                        <span style={{ marginLeft: 8, fontSize: "0.7rem", background: remaining > 0 ? "#fffbeb" : "#f0fdf4", color: remaining > 0 ? "#92400e" : "#166534", border: `1px solid ${remaining > 0 ? "#fcd34d" : "#bbf7d0"}`, borderRadius: 4, padding: "1px 6px", verticalAlign: "middle" }}>
+                          {remaining > 0 ? `${fmt(remaining)} remaining` : "fully claimed"}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: "0.5rem 0.875rem", color: "#166534", textAlign: "right", fontWeight: 500 }}>{fmt(agriEnvYearTotal)}</td>
                 </tr>
-                {agriEnvActiveProjects.length > 1 && agriEnvActiveProjects.map((p: any) => (
-                  <tr key={p.id} style={{ background: "#f7fef9" }}>
-                    <td style={{ padding: "0.35rem 0.875rem", paddingLeft: "3rem", color: "#15803d", fontSize: "0.82rem" }}>
-                      <span style={{ marginRight: 6, opacity: 0.5 }}>↳</span>{p.schemeName}
-                    </td>
-                    <td style={{ padding: "0.35rem 0.875rem", color: "#15803d", textAlign: "right", fontSize: "0.82rem" }}>{fmt(p.yearClaimedPence)}</td>
-                  </tr>
-                ))}
+                {agriEnvActiveProjects.length > 1 && agriEnvActiveProjects.map((p: any) => {
+                  const remaining = p.totalGrantValuePence != null && p.totalGrantValuePence > 0
+                    ? p.totalGrantValuePence - (p.allTimeClaimedPence ?? 0)
+                    : null;
+                  return (
+                    <tr key={p.id} style={{ background: "#f7fef9" }}>
+                      <td style={{ padding: "0.35rem 0.875rem", paddingLeft: "3rem", color: "#15803d", fontSize: "0.82rem" }}>
+                        <span style={{ marginRight: 6, opacity: 0.5 }}>↳</span>{p.schemeName}
+                        {remaining !== null && (
+                          <span style={{ marginLeft: 8, fontSize: "0.68rem", background: remaining > 0 ? "#fffbeb" : "#f0fdf4", color: remaining > 0 ? "#92400e" : "#166534", border: `1px solid ${remaining > 0 ? "#fcd34d" : "#bbf7d0"}`, borderRadius: 4, padding: "1px 5px", verticalAlign: "middle" }}>
+                            {remaining > 0 ? `${fmt(remaining)} remaining` : "fully claimed"}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.35rem 0.875rem", color: "#15803d", textAlign: "right", fontSize: "0.82rem" }}>{fmt(p.yearClaimedPence)}</td>
+                    </tr>
+                  );
+                })}
               </>
             )}
             {agriEnvUnclaimedProjects.length > 0 && agriEnvYearTotal === 0 && (
