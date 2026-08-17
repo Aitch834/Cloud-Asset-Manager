@@ -746,7 +746,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
               type="button"
               variant="outline"
               size="sm"
-              disabled={!htmlBody.trim() || draftPreviewPending}
+              disabled={!htmlBody.trim() || draftPreviewPending || missingPlaceholders.length > 0}
               onClick={handleDraftPreview}
             >
               {draftPreviewPending
@@ -822,12 +822,11 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
 
         {/* Missing-placeholder warning shown independently of the preview image so it
             persists after the admin edits the HTML following a successful preview. */}
-        {hasEverPreviewed && missingPlaceholders.length > 0 && (
+        {missingPlaceholders.length > 0 && (
           <div className="flex items-start gap-2 px-3 py-2 mt-2 rounded-md bg-amber-50 border border-amber-200">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
             <p className="text-xs text-amber-800">
-              <span className="font-medium">Incomplete preview</span> — the following required placeholder{missingPlaceholders.length > 1 ? "s are" : " is"} absent from the template, so{" "}
-              {missingPlaceholders.length > 1 ? "those assets will" : "that asset will"} appear blank:{" "}
+              <span className="font-medium">Preview blocked</span> — the following required placeholder{missingPlaceholders.length > 1 ? "s are" : " is"} missing from the HTML body. Add {missingPlaceholders.length > 1 ? "them" : "it"} to enable the Preview button:{" "}
               {missingPlaceholders.map((p, i) => (
                 <span key={p}>
                   <code className="bg-amber-100 px-1 rounded">{p}</code>
