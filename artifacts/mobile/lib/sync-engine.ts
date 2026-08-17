@@ -534,6 +534,7 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
       inputName: data.productName,
       applicationDate: data.dateOfUse,
       quantityApplied: data.quantityAmount,
+      derogationExpiryDate: data.derogationExpiryDate ?? null,
     };
   }
   if (recordType === "bde_organic_outdoor_access") {

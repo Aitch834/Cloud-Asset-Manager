@@ -128,6 +128,7 @@ function RootLayoutNav() {
         <Stack.Screen name="hive-inspection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-poultry-feed" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-poultry-access" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="organic-fp-inputs-list" options={{ headerShown: false }} />
         <Stack.Screen name="vine-block-photos" options={{ headerShown: false }} />
         <Stack.Screen name="irrigation-history" options={{ headerShown: false }} />
       </Stack>

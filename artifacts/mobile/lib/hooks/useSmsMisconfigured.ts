@@ -1,25 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/apiFetch";
 import { SMS_CATEGORIES } from "@/constants/smsCategories";
+import { useSmsPrefsContext } from "@/lib/context/SmsPrefsContext";
 
 /**
- * Returns [misconfigured, refresh] where:
- * - misconfigured is true when the user has SMS enabled ("all") but every
- *   visible category is explicitly set to false — meaning they'd get no texts
- *   despite thinking they're covered. Visible categories are those whose
- *   moduleGates are satisfied by activeModuleKeys.
- * - refresh is a stable callback that re-fetches the profile on demand
- *   (call it after saving SMS preferences so the badge clears immediately).
+ * Returns true when the user has SMS enabled ("all") but every visible
+ * category is explicitly set to false — meaning they'd get no texts despite
+ * thinking they're covered. Visible categories are those whose moduleGates
+ * are satisfied by activeModuleKeys.
  */
-export function useSmsMisconfigured(
-  activeModuleKeys: string[],
-): [boolean, () => void] {
+export function useSmsMisconfigured(activeModuleKeys: string[]): boolean {
   const [misconfigured, setMisconfigured] = useState(false);
-  const [tick, setTick] = useState(0);
-
-  const refresh = useCallback(() => {
-    setTick(t => t + 1);
-  }, []);
+  const { refreshKey } = useSmsPrefsContext();
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +51,7 @@ export function useSmsMisconfigured(
     return () => {
       cancelled = true;
     };
-  }, [activeModuleKeys.join(","), tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeModuleKeys.join(","), refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return [misconfigured, refresh];
+  return misconfigured;
 }

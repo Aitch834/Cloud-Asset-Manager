@@ -63,6 +63,7 @@ export default function OrganicFpInputScreen() {
   const [quantityUnit, setQuantityUnit] = useState("kg");
   const [cropYear, setCropYear] = useState(currentYear());
   const [certifierApprovalRef, setCertifierApprovalRef] = useState("");
+  const [derogationExpiryDate, setDerogationExpiryDate] = useState("");
   const [appliedBy, setAppliedBy] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -98,6 +99,7 @@ export default function OrganicFpInputScreen() {
       quantityUnit: quantityUnit.trim(),
       cropYear: cropYear.trim(),
       certifierApprovalRef: certifierApprovalRef.trim(),
+      derogationExpiryDate: derogationExpiryDate.trim(),
       appliedBy: appliedBy.trim(),
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
@@ -285,6 +287,14 @@ export default function OrganicFpInputScreen() {
                   placeholder="e.g. SA-DER-2024-001"
                   value={certifierApprovalRef}
                   onChangeText={setCertifierApprovalRef}
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>Derogation Expiry Date</Text>
+                <Input
+                  placeholder="YYYY-MM-DD"
+                  value={derogationExpiryDate}
+                  onChangeText={setDerogationExpiryDate}
                 />
               </View>
             </View>

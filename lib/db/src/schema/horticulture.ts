@@ -196,6 +196,7 @@ export const organicFreshProduceInputLogTable = pgTable("organic_fresh_produce_i
   quantityUnit: text("quantity_unit"),
   purposeOfUse: text("purpose_of_use"),
   appliedBy: text("applied_by"),
+  derogationExpiryDate: date("derogation_expiry_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

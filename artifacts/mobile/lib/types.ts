@@ -2180,6 +2180,7 @@ export interface OrganicFpInput {
   quantityUnit: string;
   cropYear: string;
   certifierApprovalRef: string;
+  derogationExpiryDate: string;
   appliedBy: string;
   notes: string;
   createdAt: string;

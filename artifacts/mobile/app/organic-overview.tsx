@@ -408,11 +408,11 @@ export default function OrganicOverviewScreen() {
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#a7f3d0" }]}
-                onPress={() => router.push("/organic-fp-input")}
+                onPress={() => router.push("/organic-fp-inputs-list")}
               >
                 <Feather name="layers" size={22} color="#059669" />
-                <Text style={[styles.actionLabel, { color: "#059669" }]}>Log FP Input</Text>
-                <Text style={styles.actionSub}>Fresh produce blocks</Text>
+                <Text style={[styles.actionLabel, { color: "#059669" }]}>FP Inputs</Text>
+                <Text style={styles.actionSub}>View &amp; log inputs</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}

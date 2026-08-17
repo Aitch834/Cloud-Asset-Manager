@@ -10,10 +10,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/colors";
 import { useFarm } from "@/lib/context/FarmContext";
+import { SmsPrefsProvider } from "@/lib/context/SmsPrefsContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useBarrelAlertCount } from "@/lib/hooks/useBarrelAlertCount";
 import { useSmsMisconfigured } from "@/lib/hooks/useSmsMisconfigured";
-import { SmsMisconfiguredContext } from "@/lib/context/SmsMisconfiguredContext";
 
 function NativeTabLayout({
   barrelAlertCount,
@@ -171,22 +171,18 @@ export default function TabLayout() {
     currentFarm?.idleBarrelDays,
     currentFarm?.approachingNeutralFills,
   );
-  const [smsMisconfigured, refreshSmsMisconfigured] = useSmsMisconfigured(activeModuleKeys);
+  const smsMisconfigured = useSmsMisconfigured(activeModuleKeys);
 
-  const smsMisconfiguredCtx = React.useMemo(
-    () => ({ misconfigured: smsMisconfigured, refresh: refreshSmsMisconfigured }),
-    [smsMisconfigured, refreshSmsMisconfigured],
-  );
-
-  const layout = isLiquidGlassAvailable() ? (
-    <NativeTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
-  ) : (
-    <ClassicTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
-  );
-
+  if (isLiquidGlassAvailable()) {
+    return (
+      <SmsPrefsProvider>
+        <NativeTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
+      </SmsPrefsProvider>
+    );
+  }
   return (
-    <SmsMisconfiguredContext.Provider value={smsMisconfiguredCtx}>
-      {layout}
-    </SmsMisconfiguredContext.Provider>
+    <SmsPrefsProvider>
+      <ClassicTabLayout barrelAlertCount={barrelAlertCount} smsMisconfigured={smsMisconfigured} />
+    </SmsPrefsProvider>
   );
 }
