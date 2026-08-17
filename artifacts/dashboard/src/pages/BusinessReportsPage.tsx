@@ -173,7 +173,13 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
   const totalYield = Object.values(cropMap).reduce((s, c) => s + c.yield, 0);
   const totalArea = Object.values(cropMap).reduce((s, c) => s + c.area, 0);
 
-  const txIncomeTotal = costs.filter(t => t.transactionType === "income").reduce((s, t) => s + (t.amountPence ?? 0), 0);
+  // Linked agri-env income transactions are already represented by their milestone claim in
+  // agriEnvYearTotal; exclude them from financial income to avoid double-counting (same
+  // pattern as PLTab's unlinkedAgriEnvTxTotal / incomeValues logic).
+  const txIncomeTotal = costs.filter(t =>
+    t.transactionType === "income" &&
+    !(t.category === "Agri-Environment Scheme" && t.agriEnvProjectId)
+  ).reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const cropSales = costs.filter(t => t.category === "Crop Sales").reduce((s, t) => s + (t.amountPence ?? 0), 0);
   const varCostTotal = costs.filter(t => t.transactionType === "expense" && VARIABLE_COST_CATS.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
@@ -184,9 +190,10 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
   const incomeTotal = txIncomeTotal + agriEnvYearTotal;
   const grossMargin = incomeTotal - varCostTotal;
 
-  // Double-count warning: financial "Agri-Environment Scheme" transaction AND milestone claims both present
-  const agriEnvTxIncome = costs.filter(t => t.category === "Agri-Environment Scheme").reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
-  const hasDoubleCountRisk = agriEnvYearTotal > 0 && agriEnvTxIncome > 0;
+  // Double-count warning: only unlinked Agri-Environment Scheme transactions (no agriEnvProjectId) alongside milestone claims.
+  // Linked transactions are already excluded from txIncomeTotal above and should not trigger the warning.
+  const unlinkedAgriEnvTxIncome = costs.filter(t => t.category === "Agri-Environment Scheme" && t.transactionType === "income" && !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+  const hasDoubleCountRisk = agriEnvYearTotal > 0 && unlinkedAgriEnvTxIncome > 0;
 
   const costByCat = useMemo(() => {
     const m: Record<string, number> = {};
