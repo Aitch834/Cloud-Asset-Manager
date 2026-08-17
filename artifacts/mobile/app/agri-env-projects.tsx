@@ -1,3 +1,4 @@
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -5,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -188,9 +190,9 @@ function FarmDrawdownSummary({
     </View>
   );
 }
-// Returns "YYYY-MM-DD" of today.
+// Returns "YYYY-MM-DD" of today in the device's local timezone.
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateToIso(new Date());
 }
 
 /**
@@ -212,12 +214,34 @@ function needsCompletionDate(status: string): boolean {
   return status === "submitted" || status === "paid";
 }
 
-/** Returns true if the string is a real calendar date in YYYY-MM-DD format. */
-function isValidDateString(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(s);
-  // new Date("2024-02-30") creates a Date but shifts the day — check round-trip
-  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+/**
+ * Parse a YYYY-MM-DD string as a local (device-timezone) Date so the
+ * native date picker doesn't show the previous day in UTC-negative zones.
+ */
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Serialise a local Date back to YYYY-MM-DD. */
+function dateToIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/**
+ * Format a YYYY-MM-DD ISO string for display using local date components,
+ * so it always matches what the native picker shows (avoids UTC-offset shift).
+ */
+function formatLocalIsoDate(iso: string): string {
+  if (!iso) return "";
+  return parseIsoDateLocal(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 interface MilestonePickerState {
@@ -769,19 +793,52 @@ export default function AgriEnvProjectsScreen() {
             <Text style={styles.sheetSubtitle}>
               When was this milestone {datePicker.newStatus === "paid" ? "paid" : "submitted"}?
             </Text>
-            <TextInput
-              style={styles.dateInput}
-              value={datePicker.date}
-              onChangeText={v => setDatePicker(prev => prev ? { ...prev, date: v } : prev)}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="numbers-and-punctuation"
-              autoFocus
-              maxLength={10}
-            />
-            {!!datePicker.date && !isValidDateString(datePicker.date) && (
-              <Text style={styles.dateError}>Enter a valid date (YYYY-MM-DD)</Text>
+
+            {Platform.OS === "ios" ? (
+              /* iOS — inline spinner; safe to keep mounted as value drives display only */
+              <DateTimePicker
+                value={parseIsoDateLocal(datePicker.date)}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date()}
+                onChange={(_event: DateTimePickerEvent, selectedDate?: Date) => {
+                  if (selectedDate) {
+                    setDatePicker(prev =>
+                      prev ? { ...prev, date: dateToIso(selectedDate) } : prev,
+                    );
+                  }
+                }}
+                style={styles.nativeDatePicker}
+              />
+            ) : (
+              /* Android — imperative API: never mount the component; open dialog on tap */
+              <Pressable
+                style={styles.androidDateRow}
+                onPress={() => {
+                  void DateTimePickerAndroid.open({
+                    value: parseIsoDateLocal(datePicker.date),
+                    mode: "date",
+                    maximumDate: new Date(),
+                    onChange: (_event: DateTimePickerEvent, selectedDate?: Date) => {
+                      if (selectedDate) {
+                        setDatePicker(prev =>
+                          prev ? { ...prev, date: dateToIso(selectedDate) } : prev,
+                        );
+                      }
+                    },
+                  });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Selected date: ${formatLocalIsoDate(datePicker.date)}. Tap to change.`}
+              >
+                <Feather name="calendar" size={18} color={colors.primary} />
+                <Text style={styles.androidDateText}>
+                  {formatLocalIsoDate(datePicker.date)}
+                </Text>
+                <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+              </Pressable>
             )}
+
             <View style={styles.sheetActions}>
               <Pressable
                 onPress={() => setDatePicker(null)}
@@ -791,20 +848,11 @@ export default function AgriEnvProjectsScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (!datePicker.date) return;
-                  if (!isValidDateString(datePicker.date)) {
-                    Alert.alert("Invalid date", "Please enter a valid date in YYYY-MM-DD format.");
-                    return;
-                  }
                   const { milestoneId, projectId, newStatus, date } = datePicker;
                   setDatePicker(null);
                   void saveMilestoneStatus(milestoneId, projectId, newStatus, date);
                 }}
-                style={[
-                  styles.sheetConfirm,
-                  (!datePicker.date || !isValidDateString(datePicker.date)) && { opacity: 0.4 },
-                ]}
-                disabled={!datePicker.date || !isValidDateString(datePicker.date)}
+                style={styles.sheetConfirm}
               >
                 <Text style={styles.sheetConfirmText}>Save</Text>
               </Pressable>
@@ -1117,24 +1165,27 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
   },
-  dateInput: {
-    fontFamily: fonts.regular,
-    fontSize: fontSize.md,
-    color: colors.text,
+  nativeDatePicker: {
+    marginBottom: spacing.md,
+    alignSelf: "stretch" as const,
+  },
+  androidDateRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     backgroundColor: colors.surface,
     marginBottom: spacing.md,
   },
-  dateError: {
+  androidDateText: {
+    flex: 1,
     fontFamily: fonts.regular,
-    fontSize: fontSize.xs ?? 11,
-    color: "#b91c1c",
-    marginTop: -spacing.xs,
-    marginBottom: spacing.xs,
+    fontSize: fontSize.md,
+    color: colors.text,
   },
   sheetActions: {
     flexDirection: "row" as const,
