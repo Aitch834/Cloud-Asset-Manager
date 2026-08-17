@@ -40,6 +40,7 @@ interface WineryVessel {
   // Derived by the API
   is_full: boolean;
   empty_since: string | null; // ISO date of last rack-out, null if currently full or never filled
+  fill_count: number | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -133,6 +134,13 @@ function VesselRow({ vessel }: { vessel: WineryVessel }) {
           {barrel && vessel.fill_number != null && vessel.fill_number > 0 && (
             <View style={[styles.badge, { backgroundColor: tier.bg }]}>
               <Text style={[styles.badgeText, { color: tier.color }]}>{tier.label}</Text>
+            </View>
+          )}
+
+          {/* No fills logged badge — shown when fill_count is 0 */}
+          {Number(vessel.fill_count ?? 0) === 0 && (
+            <View style={styles.noFillsBadge}>
+              <Text style={styles.noFillsBadgeText}>No fills logged</Text>
             </View>
           )}
 
@@ -446,6 +454,19 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: fontSize.xs,
     fontFamily: fonts.medium,
+  },
+  noFillsBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  noFillsBadgeText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: "#b45309",
   },
   alertBadgeRow: {
     flexDirection: "row",
