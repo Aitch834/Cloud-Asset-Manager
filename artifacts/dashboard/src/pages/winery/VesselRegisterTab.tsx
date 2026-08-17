@@ -388,6 +388,16 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
 
   const totalSpendPence = useMemo(() => (data ?? []).reduce((sum, m) => sum + (m.cost_pence != null ? Number(m.cost_pence) : 0), 0), [data]);
   const recordsWithCost = useMemo(() => (data ?? []).filter(m => m.cost_pence != null).length, [data]);
+  const spendByWorkType = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const m of (data ?? [])) {
+      if (m.cost_pence != null && m.work_type != null) {
+        const wt = String(m.work_type);
+        map[wt] = (map[wt] ?? 0) + Number(m.cost_pence);
+      }
+    }
+    return Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  }, [data]);
 
   return (
     <div className="mt-4">
@@ -395,9 +405,21 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cooperage / Maintenance</p>
           {!isLoading && !isError && recordsWithCost > 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Total spend: <span className="font-medium text-foreground">£{(totalSpendPence / 100).toFixed(2)}</span> across {recordsWithCost} record{recordsWithCost !== 1 ? "s" : ""}
-            </p>
+            <>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Total spend: <span className="font-medium text-foreground">£{(totalSpendPence / 100).toFixed(2)}</span> across {recordsWithCost} record{recordsWithCost !== 1 ? "s" : ""}
+              </p>
+              {spendByWorkType.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {spendByWorkType.map(([wt, pence]) => (
+                    <span key={wt} className="inline-flex items-center gap-1 text-xs bg-muted rounded px-2 py-0.5 text-muted-foreground">
+                      <span className="font-medium text-foreground">{wt}</span>
+                      <span>£{(pence / 100).toFixed(2)}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
         {!readOnly && (
