@@ -38946,7 +38946,7 @@ router.post("/farms/:farmId/winery-bottling-machines/:machineId/maintenance", re
   if (!b.maintenanceDate) { res.status(400).json({ error: "maintenance_date required" }); return; }
   const machineCheck = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${machineId} AND farm_id=${farmId}`);
   if (!machineCheck.rows.length) { res.status(404).json({ error: "Machine not found" }); return; }
-  const r = await db.execute(sql`INSERT INTO winery_bottling_machine_maintenance (farm_id,machine_id,maintenance_date,maintenance_type,description,carried_out_by,next_service_due,notes) VALUES (${farmId},${machineId},${nd(b.maintenanceDate)},${n(b.maintenanceType)},${n(b.description)},${n(b.carriedOutBy)},${nd(b.nextServiceDue)},${n(b.notes)}) RETURNING *`);
+  const r = await db.execute(sql`INSERT INTO winery_bottling_machine_maintenance (farm_id,machine_id,maintenance_date,maintenance_type,description,carried_out_by,operator_name,next_service_due,notes) VALUES (${farmId},${machineId},${nd(b.maintenanceDate)},${n(b.maintenanceType)},${n(b.description)},${n(b.carriedOutBy)},${n(b.operatorName)},${nd(b.nextServiceDue)},${n(b.notes)}) RETURNING *`);
   res.status(201).json({ record: r.rows[0] });
 });
 router.put("/farms/:farmId/winery-bottling-machines/:machineId/maintenance/:entryId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
@@ -38955,7 +38955,7 @@ router.put("/farms/:farmId/winery-bottling-machines/:machineId/maintenance/:entr
   if (!b.maintenanceDate) { res.status(400).json({ error: "maintenance_date required" }); return; }
   const machineCheck = await db.execute(sql`SELECT id FROM winery_bottling_machines WHERE id=${machineId} AND farm_id=${farmId}`);
   if (!machineCheck.rows.length) { res.status(404).json({ error: "Machine not found" }); return; }
-  const r = await db.execute(sql`UPDATE winery_bottling_machine_maintenance SET maintenance_date=${nd(b.maintenanceDate)},maintenance_type=${n(b.maintenanceType)},description=${n(b.description)},carried_out_by=${n(b.carriedOutBy)},next_service_due=${nd(b.nextServiceDue)},notes=${n(b.notes)} WHERE id=${entryId} AND farm_id=${farmId} AND machine_id=${machineId} RETURNING *`);
+  const r = await db.execute(sql`UPDATE winery_bottling_machine_maintenance SET maintenance_date=${nd(b.maintenanceDate)},maintenance_type=${n(b.maintenanceType)},description=${n(b.description)},carried_out_by=${n(b.carriedOutBy)},operator_name=${n(b.operatorName)},next_service_due=${nd(b.nextServiceDue)},notes=${n(b.notes)} WHERE id=${entryId} AND farm_id=${farmId} AND machine_id=${machineId} RETURNING *`);
   if (!r.rows.length) { res.status(404).json({ error: "Record not found" }); return; }
   res.json({ record: r.rows[0] });
 });

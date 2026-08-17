@@ -301,6 +301,7 @@ export function MaintenanceRows({ farmId, machineId }: { farmId: number; machine
       maintenanceType: String(c.maintenance_type ?? "planned-service"),
       description: String(c.description ?? ""),
       carriedOutBy: String(c.carried_out_by ?? ""),
+      operatorName: String(c.operator_name ?? ""),
       nextServiceDue: String(c.next_service_due ?? ""),
       notes: String(c.notes ?? ""),
     });
@@ -318,6 +319,7 @@ export function MaintenanceRows({ farmId, machineId }: { farmId: number; machine
         </div>
         <div className="col-span-2"><Label className="text-xs">Description</Label><Input value={form.description ?? ""} onChange={e => sf("description", e.target.value)} className="h-8 text-xs" placeholder="What was done?" /></div>
         <div><Label className="text-xs">Carried Out By</Label><Input value={form.carriedOutBy ?? ""} onChange={e => sf("carriedOutBy", e.target.value)} className="h-8 text-xs" placeholder="Name or contractor" /></div>
+        <div><Label className="text-xs">Operator Name</Label><Input value={form.operatorName ?? ""} onChange={e => sf("operatorName", e.target.value)} className="h-8 text-xs" /></div>
         <div><Label className="text-xs">Next Service Due</Label><Input type="date" value={form.nextServiceDue ?? ""} onChange={e => sf("nextServiceDue", e.target.value)} className="h-8 text-xs" /></div>
       </div>
       <div><Label className="text-xs">Notes</Label><Input value={form.notes ?? ""} onChange={e => sf("notes", e.target.value)} className="h-8 text-xs" placeholder="Optional" /></div>
@@ -358,6 +360,7 @@ export function MaintenanceRows({ farmId, machineId }: { farmId: number; machine
               {!!c.maintenance_type && <span className="text-muted-foreground capitalize">{MAINTENANCE_TYPE_OPTIONS.find(o => o.value === String(c.maintenance_type))?.label ?? String(c.maintenance_type)}</span>}
               {!!c.description && <span className="truncate max-w-[200px]">{String(c.description)}</span>}
               {!!c.carried_out_by && <span className="text-muted-foreground">{String(c.carried_out_by)}</span>}
+              {!!c.operator_name && <span className="text-muted-foreground">{String(c.operator_name)}</span>}
               {!!c.next_service_due && <span className="text-muted-foreground whitespace-nowrap">Next: {fmtDate(c.next_service_due)}</span>}
               <div className="flex gap-0.5 shrink-0 ml-auto">
                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => startEdit(c)}><Pencil className="h-3 w-3" /></Button>

@@ -848,6 +848,7 @@ export const wineryBottlingMachineMaintenanceTable = pgTable("winery_bottling_ma
   maintenanceType: text("maintenance_type"), // planned-service | filter-change | nozzle-replacement | capper-adjustment | repair | inspection | other
   description: text("description"),
   carriedOutBy: text("carried_out_by"),
+  operatorName: text("operator_name"),
   nextServiceDue: date("next_service_due"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

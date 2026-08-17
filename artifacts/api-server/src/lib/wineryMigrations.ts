@@ -344,6 +344,7 @@ export async function runWineryMigrations(): Promise<void> {
     )
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_bottling_machine_maintenance_machine_idx ON winery_bottling_machine_maintenance(machine_id)`);
+  await db.execute(sql`ALTER TABLE winery_bottling_machine_maintenance ADD COLUMN IF NOT EXISTS operator_name TEXT`);
 
   console.log("[WINERY-MIGRATE] Done.");
 }
