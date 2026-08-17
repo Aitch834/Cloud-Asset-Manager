@@ -416,6 +416,7 @@ const FP_PRINT_CSS = `
   .badge-yellow { background: #fef9c3; color: #854d0e; }
   .badge-red { background: #fee2e2; color: #991b1b; }
   .badge-gray { background: #f3f4f6; color: #374151; }
+  .expiry-expired { font-style: italic; text-decoration: line-through; color: #991b1b; }
   @media print { @page { size: A4 landscape; margin: 1.5cm; } }
 `;
 
@@ -452,13 +453,25 @@ function printFpBlockStatusRegister(blocks: Record<string, unknown>[], farmName:
 
 function printFpInputLog(rows: Record<string, unknown>[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB");
-  const rowsHtml = rows.map(r => `
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const rowsHtml = rows.map(r => {
+    const needsDerogCol = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
+    let derogCell = "—";
+    if (needsDerogCol && r.derogationExpiryDate) {
+      const expiryMs = new Date(r.derogationExpiryDate as string).setHours(0, 0, 0, 0);
+      const formatted = new Date(r.derogationExpiryDate as string).toLocaleDateString("en-GB");
+      derogCell = expiryMs < todayMs
+        ? `<span class="expiry-expired">${formatted}</span>`
+        : formatted;
+    }
+    return `
     <tr>
       <td>${r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—"}</td>
       <td>${String(r.cropYear ?? "—")}</td>
       <td>${String(r.inputName ?? "—")}</td>
       <td>${String(r.inputType ?? "—")}</td>
       <td><span class="badge ${r.approvalStatus === 'permitted' ? 'badge-green' : r.approvalStatus === 'restricted' ? 'badge-yellow' : 'badge-red'}">${String(r.approvalStatus ?? "—")}</span></td>
+      <td>${derogCell}</td>
       <td>${String(r.supplier ?? "—")}</td>
       <td>${r.quantityApplied ? String(r.quantityApplied) + ' ' + String(r.quantityUnit ?? "") : "—"}</td>
       <td>${String(r.purposeOfUse ?? "—")}</td>
@@ -466,11 +479,12 @@ function printFpInputLog(rows: Record<string, unknown>[], farmName: string, year
       <td>${String(r.certifierApprovalRef ?? "—")}</td>
       <td>${String(r.poReference ?? "—")}</td>
       <td>${String(r.grnReference ?? "—")}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Input Log — ${farmName} — ${yearLabel}</title><style>${FP_PRINT_CSS}</style></head><body>
     <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Approved Input Log · ${yearLabel}</div><div class="farm">${farmName}</div></div>
     <div class="hdr-r"><b>Input Log</b><br>${rows.length} record${rows.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-    <table><thead><tr><th>Date</th><th>Crop Year</th><th>Input / Product</th><th>Type</th><th>Approval</th><th>Supplier</th><th>Qty Applied</th><th>Purpose</th><th>Applied By</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
+    <table><thead><tr><th>Date</th><th>Crop Year</th><th>Input / Product</th><th>Type</th><th>Approval</th><th>Derogation Expiry</th><th>Supplier</th><th>Qty Applied</th><th>Purpose</th><th>Applied By</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table></body></html>`);
 }
 
