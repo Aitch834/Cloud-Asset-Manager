@@ -883,6 +883,60 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
         </div>
       </div>
 
+      {/* Farm-wide drawdown summary */}
+      {(() => {
+        const drawdownProjects = projects.filter(p => p.status !== "withdrawn" && (p.totalGrantValuePence ?? 0) > 0);
+        if (drawdownProjects.length === 0) return null;
+        const drawdownProjectIds = new Set(drawdownProjects.map(p => p.id));
+        const totalPence = drawdownProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+        const paidPence = allMilestones
+          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "paid")
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const submittedPence = allMilestones
+          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "submitted")
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const pct = Math.min(100, Math.round(paidPence / totalPence * 100));
+        const pctSub = Math.min(100 - pct, Math.round(submittedPence / totalPence * 100));
+        return (
+          <div style={{
+            background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+            padding: "16px 20px", marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#059669", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+                Farm-wide Drawdown
+              </div>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: pct >= 100 ? "#059669" : "#111827" }}>
+                {pct}% drawn
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: "0.875rem", color: "#374151" }}>
+                <span style={{ fontWeight: 700, color: "#111827" }}>
+                  £{(paidPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                </span>
+                {" of "}
+                <span style={{ fontWeight: 600 }}>
+                  £{(totalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                </span>
+                {" claimed across "}
+                <span style={{ fontWeight: 600 }}>{drawdownProjects.length}</span>
+                {" project"}{drawdownProjects.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div style={{ height: 10, background: "#dcfce7", borderRadius: 6, overflow: "hidden", display: "flex" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: "#059669", transition: "width 0.3s", borderRadius: pct >= 100 ? 6 : "6px 0 0 6px" }} />
+              {pctSub > 0 && <div style={{ height: "100%", width: `${pctSub}%`, background: "#93c5fd", transition: "width 0.3s" }} />}
+            </div>
+            {pctSub > 0 && (
+              <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 5 }}>
+                + £{(submittedPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} submitted (awaiting payment)
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Milestone deadline alert banner */}
       {(overdueMs > 0 || upcomingMs > 0) && (
         <div style={{
