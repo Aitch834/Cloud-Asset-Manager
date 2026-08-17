@@ -520,5 +520,10 @@ export async function runLisMigrations(): Promise<void> {
       ADD COLUMN IF NOT EXISTS agri_env_project_id integer
         REFERENCES agri_env_projects(id) ON DELETE SET NULL
   `);
+
+  // Derogation expiry date on organic_inputs — allows growers to record the exact
+  // expiry date from the certifier's approval letter so the Active/Expired filter
+  // uses this date instead of the crop-year heuristic.
+  await db.execute(sql`ALTER TABLE organic_inputs ADD COLUMN IF NOT EXISTS derogation_expiry_date date`);
 }
 

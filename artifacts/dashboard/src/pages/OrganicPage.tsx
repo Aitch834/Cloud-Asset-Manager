@@ -1182,6 +1182,7 @@ interface OrganicInput {
   cropYear: number | null; dateOfUse: string | null; quantityAmount: string | null;
   quantityUnit: string | null; fieldId: number | null; fieldName: string | null;
   justification: string | null; certifierNotified: boolean; appliedBy: string | null;
+  derogationExpiryDate: string | null;
   notes: string | null; createdAt: string;
 }
 
@@ -1259,6 +1260,14 @@ function SupplierCombobox({ suppliers, value, valueId, onChange }: {
 type DerogationStatusFilter = "active" | "expired" | "pending" | "all";
 
 function derogationStatus(r: OrganicInput): "active" | "expired" | "pending" {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (r.derogationExpiryDate) {
+    const expiry = new Date(r.derogationExpiryDate); expiry.setHours(0, 0, 0, 0);
+    if (expiry < today) return "expired";
+    if (r.certifierApprovalRef && r.certifierApprovalRef.trim() !== "") return "active";
+    return "pending";
+  }
+  // fall back to crop-year heuristic
   const currentYear = new Date().getFullYear();
   const year = r.cropYear ?? (r.dateOfUse ? new Date(r.dateOfUse).getFullYear() : null);
   if (year !== null && year < currentYear) return "expired";
@@ -1381,6 +1390,12 @@ function RestrictedInputsTab({ farmId, farmName }: { farmId: number; farmName: s
                   ) : (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">Certifier not yet notified</span>
                   )}
+                  {r.derogationExpiryDate && (() => {
+                    const d = daysUntil(r.derogationExpiryDate);
+                    if (d !== null && d < 0) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-600 border-gray-300">Expired {fmt(r.derogationExpiryDate)}</span>;
+                    if (d !== null && d <= 30) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Expires {fmt(r.derogationExpiryDate)}</span>;
+                    return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">Expires {fmt(r.derogationExpiryDate)}</span>;
+                  })()}
                 </div>
                 <div className="text-sm text-foreground/60 space-y-0.5">
                   <p className="flex items-center gap-3 flex-wrap">
@@ -1428,6 +1443,7 @@ const EMPTY_ORG_INPUT = {
   justification: "",
   certifierNotified: false,
   appliedBy: "",
+  derogationExpiryDate: "",
   notes: "",
 };
 
@@ -1524,6 +1540,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       justification: r.justification ?? "",
       certifierNotified: r.certifierNotified,
       appliedBy: r.appliedBy ?? "",
+      derogationExpiryDate: r.derogationExpiryDate?.slice(0, 10) ?? "",
       notes: r.notes ?? "",
     });
     const matchedSupplier = suppliers.find(s => s.name === (r.supplier ?? ""));
@@ -1657,6 +1674,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{viewRecord.poReference || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">GRN / Delivery Note</p><p className="font-medium">{viewRecord.grnReference || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{viewRecord.certifierApprovalRef || "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Expiry Date</p><p className="font-medium">{viewRecord.derogationExpiryDate ? fmt(viewRecord.derogationExpiryDate) : "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Crop Year</p><p className="font-medium">{viewRecord.cropYear ?? "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Date of Use</p><p className="font-medium">{fmt(viewRecord.dateOfUse)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Field / Area</p><p className="font-medium">{viewRecord.fieldName || "—"}</p></div>
@@ -1752,6 +1770,13 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                 <div><Label>Certifier Approval Ref</Label><Input className={INPUT_CLS} value={form.certifierApprovalRef} onChange={e => setForm(f => ({ ...f, certifierApprovalRef: e.target.value }))} /></div>
               )}
             </div>
+            {(form.approvalStatus === "restricted" || form.approvalStatus === "derogation") && (
+              <div>
+                <Label>Derogation Expiry Date</Label>
+                <Input type="date" className={INPUT_CLS} value={form.derogationExpiryDate} onChange={e => setForm(f => ({ ...f, derogationExpiryDate: e.target.value }))} />
+                <p className="text-xs text-muted-foreground mt-1">The date this derogation approval expires, as stated on the certifier's approval letter. When set, the Active/Expired filter uses this date instead of the crop year.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Crop Year</Label>
                 <select className={INPUT_CLS} value={form.cropYear} onChange={e => setForm(f => ({ ...f, cropYear: parseInt(e.target.value) }))}>

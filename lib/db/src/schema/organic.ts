@@ -73,6 +73,7 @@ export const organicInputsTable = pgTable("organic_inputs", {
   justification: text("justification"),
   certifierNotified: boolean("certifier_notified").notNull().default(false),
   appliedBy: text("applied_by"),
+  derogationExpiryDate: date("derogation_expiry_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
