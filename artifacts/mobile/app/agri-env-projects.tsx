@@ -3,9 +3,11 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -34,9 +36,22 @@ interface AgriEnvProject {
 interface AgriEnvMilestone {
   id: number;
   projectId: number;
+  milestoneName: string | null;
+  dueDate: string | null;
+  completionDate: string | null;
   claimAmountPence: number | null;
   status: string;
 }
+
+type MilestoneStatus = "pending" | "submitted" | "paid" | "overdue";
+
+const MILESTONE_STATUS_META: Record<MilestoneStatus, { label: string; color: string; bg: string }> = {
+  pending:   { label: "Pending",   color: "#d97706", bg: "#fef3c7" },
+  submitted: { label: "Submitted", color: "#1d4ed8", bg: "#dbeafe" },
+  paid:      { label: "Paid",      color: "#15803d", bg: "#dcfce7" },
+  overdue:   { label: "Overdue",   color: "#b91c1c", bg: "#fee2e2" },
+};
+const MILESTONE_STATUSES: MilestoneStatus[] = ["pending", "submitted", "paid", "overdue"];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active:    { label: "Active",    color: "#15803d", bg: "#dcfce7" },
@@ -123,6 +138,51 @@ function FarmDrawdownSummary({
     </View>
   );
 }
+// Returns "YYYY-MM-DD" of today.
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Default completion date for the prompt when a milestone is marked
+ * submitted/paid. Matches the dashboard logic in BusinessReportsPage.tsx:
+ *   ms.dueDate && ms.dueDate.slice(0,10) <= todayIso ? ms.dueDate.slice(0,10) : todayIso
+ *
+ * A completion date must be ≤ today (you cannot complete something in the
+ * future), so a future due date falls back to today, the same as the
+ * dashboard's max={todayIso} constraint.
+ */
+function defaultCompletionDate(dueDate: string | null | undefined): string {
+  const today = todayIso();
+  if (dueDate && dueDate.slice(0, 10) <= today) return dueDate.slice(0, 10);
+  return today;
+}
+
+function needsCompletionDate(status: string): boolean {
+  return status === "submitted" || status === "paid";
+}
+
+/** Returns true if the string is a real calendar date in YYYY-MM-DD format. */
+function isValidDateString(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s);
+  // new Date("2024-02-30") creates a Date but shifts the day — check round-trip
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+interface MilestonePickerState {
+  milestoneId: number;
+  projectId: number;
+  currentStatus: string;
+}
+
+interface MilestoneDateState {
+  milestoneId: number;
+  projectId: number;
+  newStatus: string;
+  date: string; // YYYY-MM-DD
+}
+
 export default function AgriEnvProjectsScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -136,6 +196,11 @@ export default function AgriEnvProjectsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [cachedAt,    setCachedAt]    = useState<Date | null>(null);
   const cancelRef = useRef(false);
+
+  // Milestone status-change flow
+  const [statusPicker,     setStatusPicker]     = useState<MilestonePickerState | null>(null);
+  const [datePicker,       setDatePicker]       = useState<MilestoneDateState | null>(null);
+  const [savingMilestone,  setSavingMilestone]  = useState<number | null>(null);
 
   // Persist / restore the expanded project ID per farm.
   const persistExpanded = useCallback(
@@ -264,6 +329,59 @@ export default function AgriEnvProjectsScreen() {
     [persistExpanded],
   );
 
+  // Save a milestone status (and optional completion date) to the server.
+  const saveMilestoneStatus = useCallback(async (
+    milestoneId: number,
+    projectId: number,
+    newStatus: string,
+    completionDate?: string,
+  ) => {
+    if (!currentFarm?.id) return;
+    setSavingMilestone(milestoneId);
+    try {
+      const body: Record<string, unknown> = { status: newStatus };
+      if (completionDate) {
+        body.completionDate = completionDate;
+      } else if (newStatus === "pending" || newStatus === "overdue") {
+        // Clear the completion date when reverting away from submitted/paid.
+        body.completionDate = null;
+      }
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones/${milestoneId}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      );
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json() as { milestone: AgriEnvMilestone };
+      // Update local milestones state so UI reflects the change immediately.
+      setMilestones(prev =>
+        prev.map(m => m.id === milestoneId ? { ...m, ...data.milestone } : m),
+      );
+    } catch {
+      Alert.alert("Error", "Could not update milestone status. Please try again.");
+    } finally {
+      setSavingMilestone(null);
+    }
+  }, [currentFarm?.id]);
+
+  // Called when user picks a new status from the status sheet.
+  const handleStatusPick = useCallback((newStatus: string) => {
+    if (!statusPicker) return;
+    const { milestoneId, projectId } = statusPicker;
+    setStatusPicker(null);
+    const ms = milestones.find(m => m.id === milestoneId);
+    if (needsCompletionDate(newStatus) && !ms?.completionDate) {
+      // Prompt for a completion date, defaulting to dueDate if past.
+      setDatePicker({
+        milestoneId,
+        projectId,
+        newStatus,
+        date: defaultCompletionDate(ms?.dueDate),
+      });
+    } else {
+      void saveMilestoneStatus(milestoneId, projectId, newStatus);
+    }
+  }, [statusPicker, milestones, saveMilestoneStatus]);
+
   const filteredProjects = searchQuery.trim()
     ? projects.filter(p =>
         p.schemeName.toLowerCase().includes(searchQuery.trim().toLowerCase())
@@ -365,6 +483,66 @@ export default function AgriEnvProjectsScreen() {
                 )}
               </View>
             )}
+
+            {/* Individual milestone rows */}
+            {projMilestones.length > 0 && (
+              <View style={styles.milestonesWrap}>
+                <Text style={styles.milestonesHeading}>Milestones</Text>
+                {projMilestones.map((ms, idx) => {
+                  const msMeta = MILESTONE_STATUS_META[ms.status as MilestoneStatus]
+                    ?? { label: ms.status, color: "#374151", bg: "#f3f4f6" };
+                  const isSaving = savingMilestone === ms.id;
+                  return (
+                    <View
+                      key={ms.id}
+                      style={[
+                        styles.milestoneRow,
+                        idx < projMilestones.length - 1 && styles.milestoneRowBorder,
+                      ]}
+                    >
+                      <View style={styles.milestoneMain}>
+                        <Text style={styles.milestoneName} numberOfLines={2}>
+                          {ms.milestoneName ?? "Milestone"}
+                        </Text>
+                        {!!ms.dueDate && (
+                          <Text style={styles.milestoneMeta}>
+                            Due {formatDate(ms.dueDate)}
+                          </Text>
+                        )}
+                        {!!ms.completionDate && (
+                          <Text style={styles.milestoneMeta}>
+                            Completed {formatDate(ms.completionDate)}
+                          </Text>
+                        )}
+                        {ms.claimAmountPence != null && (
+                          <Text style={styles.milestoneAmount}>
+                            {fmt(ms.claimAmountPence)}
+                          </Text>
+                        )}
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          if (isSaving) return;
+                          setStatusPicker({ milestoneId: ms.id, projectId: project.id, currentStatus: ms.status });
+                        }}
+                        style={[styles.milestoneStatusPill, { backgroundColor: msMeta.bg }, isSaving && { opacity: 0.5 }]}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Milestone status: ${msMeta.label}. Tap to change.`}
+                      >
+                        {isSaving
+                          ? <ActivityIndicator size="small" color={msMeta.color} style={{ width: 16, height: 16 }} />
+                          : <Text style={[styles.milestoneStatusText, { color: msMeta.color }]}>{msMeta.label}</Text>
+                        }
+                        {!isSaving && (
+                          <Feather name="chevron-down" size={11} color={msMeta.color} />
+                        )}
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </Pressable>
@@ -464,6 +642,97 @@ export default function AgriEnvProjectsScreen() {
           }
           renderItem={renderItem}
         />
+      )}
+
+      {/* ── Milestone status picker sheet ── */}
+      {!!statusPicker && (
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Change Status</Text>
+              <Pressable onPress={() => setStatusPicker(null)} hitSlop={8}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {MILESTONE_STATUSES.map(s => {
+                const meta = MILESTONE_STATUS_META[s];
+                const isCurrent = statusPicker.currentStatus === s;
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => handleStatusPick(s)}
+                    style={[styles.sheetItem, isCurrent && { backgroundColor: meta.bg }]}
+                  >
+                    <View style={[styles.sheetItemDot, { backgroundColor: meta.bg }]}>
+                      <Text style={[styles.sheetItemDotText, { color: meta.color }]}>{meta.label}</Text>
+                    </View>
+                    {isCurrent && <Feather name="check" size={16} color={meta.color} />}
+                  </Pressable>
+                );
+              })}
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* ── Completion date entry sheet ── */}
+      {!!datePicker && (
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Completion Date</Text>
+              <Pressable onPress={() => setDatePicker(null)} hitSlop={8}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              When was this milestone {datePicker.newStatus === "paid" ? "paid" : "submitted"}?
+            </Text>
+            <TextInput
+              style={styles.dateInput}
+              value={datePicker.date}
+              onChangeText={v => setDatePicker(prev => prev ? { ...prev, date: v } : prev)}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="numbers-and-punctuation"
+              autoFocus
+              maxLength={10}
+            />
+            {!!datePicker.date && !isValidDateString(datePicker.date) && (
+              <Text style={styles.dateError}>Enter a valid date (YYYY-MM-DD)</Text>
+            )}
+            <View style={styles.sheetActions}>
+              <Pressable
+                onPress={() => setDatePicker(null)}
+                style={styles.sheetCancel}
+              >
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!datePicker.date) return;
+                  if (!isValidDateString(datePicker.date)) {
+                    Alert.alert("Invalid date", "Please enter a valid date in YYYY-MM-DD format.");
+                    return;
+                  }
+                  const { milestoneId, projectId, newStatus, date } = datePicker;
+                  setDatePicker(null);
+                  void saveMilestoneStatus(milestoneId, projectId, newStatus, date);
+                }}
+                style={[
+                  styles.sheetConfirm,
+                  (!datePicker.date || !isValidDateString(datePicker.date)) && { opacity: 0.4 },
+                ]}
+                disabled={!datePicker.date || !isValidDateString(datePicker.date)}
+              >
+                <Text style={styles.sheetConfirmText}>Save</Text>
+              </Pressable>
+            </View>
+            <View style={{ height: insets.bottom + spacing.md }} />
+          </View>
+        </View>
       )}
     </View>
   );
@@ -651,6 +920,171 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: "#059669",
     marginTop: 6,
+  },
+
+  // Milestone rows
+  milestonesWrap: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  milestonesHeading: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: colors.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+    marginBottom: spacing.xs,
+  },
+  milestoneRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 8,
+    gap: spacing.sm,
+  },
+  milestoneRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight ?? colors.border,
+  },
+  milestoneMain: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  milestoneName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  milestoneMeta: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  milestoneAmount: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: "#059669",
+    marginTop: 2,
+  },
+  milestoneStatusPill: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 99,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  milestoneStatusText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+  },
+
+  // Overlay sheets (status picker + date entry)
+  overlay: {
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end" as const,
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    maxHeight: "75%",
+  },
+  sheetHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    marginBottom: spacing.sm,
+  },
+  sheetTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
+  },
+  sheetSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  sheetItem: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.sm,
+    marginBottom: 2,
+  },
+  sheetItemDot: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 99,
+  },
+  sheetItemDotText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+  },
+  dateInput: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.md,
+  },
+  dateError: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs ?? 11,
+    color: "#b91c1c",
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  sheetActions: {
+    flexDirection: "row" as const,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  sheetCancel: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center" as const,
+  },
+  sheetCancelText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  sheetConfirm: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: "center" as const,
+  },
+  sheetConfirmText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#ffffff",
   },
 
   // Progress bar
