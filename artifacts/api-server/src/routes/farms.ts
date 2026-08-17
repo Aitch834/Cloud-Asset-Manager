@@ -27101,9 +27101,34 @@ router.put("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
-  const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, justification, certifierNotified, appliedBy, derogationExpiryDate, notes } = req.body;
-  await db.update(organicInputsTable).set({ productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, justification: justification ?? null, certifierNotified: certifierNotified ?? false, appliedBy: appliedBy ?? null, derogationExpiryDate: derogationExpiryDate ?? null, notes: notes ?? null }).where(eq(organicInputsTable.id, id));
-  const [record] = await db.select().from(organicInputsTable).where(eq(organicInputsTable.id, id));
+  // Build patch object from only the fields explicitly present in the request body,
+  // so callers that don't know about every column (e.g. mobile) don't clobber existing values.
+  const body = req.body as Record<string, unknown>;
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
+  type OIPatch = Parameters<ReturnType<typeof db.update<typeof organicInputsTable>>["set"]>[0];
+  const patch: OIPatch = {};
+  if (has("productName"))          patch.productName = body.productName as string;
+  if (has("inputType"))            patch.inputType = (body.inputType as string | null) ?? null;
+  if (has("supplier"))             patch.supplier = (body.supplier as string | null) ?? null;
+  if (has("poReference"))          patch.poReference = (body.poReference as string | null) ?? null;
+  if (has("grnReference"))         patch.grnReference = (body.grnReference as string | null) ?? null;
+  if (has("approvalStatus"))       patch.approvalStatus = (body.approvalStatus as string) ?? "permitted";
+  if (has("certifierApprovalRef")) patch.certifierApprovalRef = (body.certifierApprovalRef as string | null) ?? null;
+  if (has("cropYear"))             patch.cropYear = (body.cropYear as number | null) ?? null;
+  if (has("dateOfUse"))            patch.dateOfUse = (body.dateOfUse as string | null) ?? null;
+  if (has("quantityAmount"))       patch.quantityAmount = (body.quantityAmount as string | null) ?? null;
+  if (has("quantityUnit"))         patch.quantityUnit = (body.quantityUnit as string | null) ?? null;
+  if (has("fieldId"))              patch.fieldId = (body.fieldId as number | null) ?? null;
+  if (has("fieldName"))            patch.fieldName = (body.fieldName as string | null) ?? null;
+  if (has("justification"))        patch.justification = (body.justification as string | null) ?? null;
+  if (has("certifierNotified"))    patch.certifierNotified = Boolean(body.certifierNotified);
+  if (has("appliedBy"))            patch.appliedBy = (body.appliedBy as string | null) ?? null;
+  if (has("derogationExpiryDate")) patch.derogationExpiryDate = (body.derogationExpiryDate as string | null) ?? null;
+  if (has("notes"))                patch.notes = (body.notes as string | null) ?? null;
+  // Scope update to the validated farm to prevent cross-farm mutation.
+  await db.update(organicInputsTable).set(patch).where(and(eq(organicInputsTable.id, id), eq(organicInputsTable.farmId, farmId)));
+  const [record] = await db.select().from(organicInputsTable).where(and(eq(organicInputsTable.id, id), eq(organicInputsTable.farmId, farmId)));
+  if (!record) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ record });
 });
 
@@ -27111,7 +27136,8 @@ router.delete("/farms/:farmId/organic/inputs/:id", requireAuth, requireTenant, r
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const id = parseInt(req.params.id as string);
-  await db.delete(organicInputsTable).where(eq(organicInputsTable.id, id));
+  // Scope delete to the validated farm to prevent cross-farm mutation.
+  await db.delete(organicInputsTable).where(and(eq(organicInputsTable.id, id), eq(organicInputsTable.farmId, farmId)));
   res.json({ ok: true });
 });
 

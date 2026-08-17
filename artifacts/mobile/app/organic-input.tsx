@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -23,6 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { kvGet } from "@/lib/database";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicInput } from "@/lib/types";
 
@@ -51,6 +52,30 @@ const APPROVAL_STATUS = [
 
 const QUANTITY_UNITS = ["kg", "g", "tonnes", "L", "mL", "bags", "units", "other"];
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  try {
+    let token: string | null = null;
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      token = await SecureStore.getItemAsync("auth_session_token");
+    } else {
+      try { token = localStorage.getItem("auth_session_token"); } catch { token = null; }
+    }
+    if (!token) {
+      const raw = await kvGet("bde_auth_token");
+      token = raw ? JSON.parse(raw) : null;
+    }
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const farmRaw = await kvGet("bde_current_farm");
+    if (farmRaw) {
+      const farm = JSON.parse(farmRaw);
+      headers["x-tenant-slug"] = farm.tenantSlug || farm.slug || "";
+    }
+  } catch {}
+  return headers;
+}
+
 export default function OrganicInputScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -58,18 +83,40 @@ export default function OrganicInputScreen() {
   const { fields, loading: fieldsLoading } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
-  const [productName, setProductName] = useState("");
-  const [inputType, setInputType] = useState("");
-  const [approvalStatus, setApprovalStatus] = useState("permitted");
-  const [supplier, setSupplier] = useState("");
-  const [dateOfUse, setDateOfUse] = useState(todayDate());
-  const [fieldName, setFieldName] = useState("");
-  const [quantityAmount, setQuantityAmount] = useState("");
-  const [quantityUnit, setQuantityUnit] = useState("kg");
-  const [cropYear, setCropYear] = useState(currentYear());
-  const [certifierApprovalRef, setCertifierApprovalRef] = useState("");
-  const [derogationExpiryDate, setDerogationExpiryDate] = useState("");
-  const [notes, setNotes] = useState("");
+  // Route params — present when editing an existing server record
+  const params = useLocalSearchParams<{
+    id?: string;
+    productName?: string;
+    inputType?: string;
+    approvalStatus?: string;
+    supplier?: string;
+    dateOfUse?: string;
+    quantityAmount?: string;
+    quantityUnit?: string;
+    cropYear?: string;
+    certifierApprovalRef?: string;
+    derogationExpiryDate?: string;
+    fieldName?: string;
+    notes?: string;
+  }>();
+
+  const editId = params.id ? parseInt(params.id) : null;
+  const isEdit = editId != null && !isNaN(editId);
+
+  const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
+
+  const [productName, setProductName] = useState(params.productName ?? "");
+  const [inputType, setInputType] = useState(params.inputType ?? "");
+  const [approvalStatus, setApprovalStatus] = useState(params.approvalStatus ?? "permitted");
+  const [supplier, setSupplier] = useState(params.supplier ?? "");
+  const [dateOfUse, setDateOfUse] = useState(params.dateOfUse ?? todayDate());
+  const [fieldName, setFieldName] = useState(params.fieldName ?? "");
+  const [quantityAmount, setQuantityAmount] = useState(params.quantityAmount ?? "");
+  const [quantityUnit, setQuantityUnit] = useState(params.quantityUnit || "kg");
+  const [cropYear, setCropYear] = useState(params.cropYear ?? currentYear());
+  const [certifierApprovalRef, setCertifierApprovalRef] = useState(params.certifierApprovalRef ?? "");
+  const [derogationExpiryDate, setDerogationExpiryDate] = useState(params.derogationExpiryDate ?? "");
+  const [notes, setNotes] = useState(params.notes ?? "");
 
   const needsApprovalRef = approvalStatus === "restricted" || approvalStatus === "derogation";
 
@@ -86,34 +133,74 @@ export default function OrganicInputScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const record: OrganicInput = {
-      id: generateId(),
-      farmId: currentFarm?.id ?? "",
-      productName: productName.trim(),
-      inputType: inputType.trim(),
-      approvalStatus,
-      supplier: supplier.trim(),
-      dateOfUse: dateOfUse.trim(),
-      fieldName: fieldName.trim(),
-      quantityAmount: quantityAmount.trim(),
-      quantityUnit: quantityUnit.trim(),
-      cropYear: cropYear.trim(),
-      certifierApprovalRef: certifierApprovalRef.trim(),
-      derogationExpiryDate: derogationExpiryDate.trim() || undefined,
-      notes: notes.trim(),
-      createdAt: new Date().toISOString(),
-      synced: false,
-    };
+    if (isEdit) {
+      // ── Edit mode: PUT to server ──────────────────────────────────────────
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(
+          `${apiBase}/api/farms/${currentFarm?.id}/organic/inputs/${editId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({
+              productName: productName.trim(),
+              inputType: inputType.trim() || null,
+              approvalStatus,
+              supplier: supplier.trim() || null,
+              dateOfUse: dateOfUse.trim() || null,
+              fieldName: fieldName.trim() || null,
+              quantityAmount: quantityAmount.trim() || null,
+              quantityUnit: quantityUnit.trim() || null,
+              cropYear: cropYear.trim() ? parseInt(cropYear.trim()) : null,
+              certifierApprovalRef: certifierApprovalRef.trim() || null,
+              derogationExpiryDate: derogationExpiryDate.trim() || null,
+              notes: notes.trim() || null,
+            }),
+          }
+        );
+        setSaving(false);
+        if (!res.ok) {
+          Alert.alert("Error", "Could not save changes. Please try again.");
+          return;
+        }
+        Alert.alert("Changes Saved", "The input record has been updated.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      } catch {
+        setSaving(false);
+        Alert.alert("Error", "Could not save changes. Please check your connection.");
+      }
+    } else {
+      // ── Add mode: queue for sync ──────────────────────────────────────────
+      const record: OrganicInput = {
+        id: generateId(),
+        farmId: currentFarm?.id ?? "",
+        productName: productName.trim(),
+        inputType: inputType.trim(),
+        approvalStatus,
+        supplier: supplier.trim(),
+        dateOfUse: dateOfUse.trim(),
+        fieldName: fieldName.trim(),
+        quantityAmount: quantityAmount.trim(),
+        quantityUnit: quantityUnit.trim(),
+        cropYear: cropYear.trim(),
+        certifierApprovalRef: certifierApprovalRef.trim(),
+        derogationExpiryDate: derogationExpiryDate.trim() || undefined,
+        notes: notes.trim(),
+        createdAt: new Date().toISOString(),
+        synced: false,
+      };
 
-    await appendToList(STORAGE_KEYS.ORGANIC_INPUTS, record);
-    await refreshPendingCount();
-    setSaving(false);
+      await appendToList(STORAGE_KEYS.ORGANIC_INPUTS, record);
+      await refreshPendingCount();
+      setSaving(false);
 
-    Alert.alert(
-      "Input Logged",
-      "Your organic input has been saved and will sync when online.",
-      [{ text: "OK", onPress: () => router.back() }]
-    );
+      Alert.alert(
+        "Input Logged",
+        "Your organic input has been saved and will sync when online.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    }
   };
 
   return (
@@ -122,7 +209,7 @@ export default function OrganicInputScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Feather name="x" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Log Organic Input</Text>
+        <Text style={styles.title}>{isEdit ? "Edit Input Record" : "Log Organic Input"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -133,12 +220,14 @@ export default function OrganicInputScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.infoBox}>
-            <Feather name="package" size={14} color="#2563eb" />
-            <Text style={styles.infoText}>
-              Log any input used on organically-managed land — fertilisers, sprays, seed treatments, feed supplements. Records sync to the Input Register.
-            </Text>
-          </View>
+          {!isEdit && (
+            <View style={styles.infoBox}>
+              <Feather name="package" size={14} color="#2563eb" />
+              <Text style={styles.infoText}>
+                Log any input used on organically-managed land — fertilisers, sprays, seed treatments, feed supplements. Records sync to the Input Register.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Product Details</Text>
@@ -281,7 +370,11 @@ export default function OrganicInputScreen() {
             </View>
           </View>
 
-          <Button title={saving ? "Saving…" : "Save Input Record"} onPress={handleSave} disabled={saving} />
+          <Button
+            title={saving ? (isEdit ? "Saving…" : "Saving…") : (isEdit ? "Save Changes" : "Save Input Record")}
+            onPress={handleSave}
+            disabled={saving}
+          />
           <View style={{ height: 60 }} />
         </ScrollView>
       </KeyboardAvoidingView>

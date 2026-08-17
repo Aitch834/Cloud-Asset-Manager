@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -77,6 +78,8 @@ interface ServerInputRecord {
 /** Unified shape for display — covers both server and local-pending records */
 interface DisplayRecord {
   key: string;
+  /** Numeric server id — present only for synced records */
+  serverId: number | null;
   productName: string;
   inputType: string | null;
   approvalStatus: string;
@@ -87,6 +90,8 @@ interface DisplayRecord {
   certifierApprovalRef: string | null;
   derogationExpiryDate: string | null;
   fieldName: string | null;
+  cropYear: number | null;
+  notes: string | null;
   pending: boolean;
 }
 
@@ -104,6 +109,7 @@ export default function OrganicInputsListScreen() {
   const [records, setRecords] = useState<DisplayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -120,6 +126,7 @@ export default function OrganicInputsListScreen() {
         if (data.farmId !== farmId) return null;
         const rec: DisplayRecord = {
           key: `pending-${item.record_id}`,
+          serverId: null,
           productName: String(data.productName ?? ""),
           inputType: data.inputType ? String(data.inputType) : null,
           approvalStatus: String(data.approvalStatus ?? "permitted"),
@@ -130,6 +137,8 @@ export default function OrganicInputsListScreen() {
           certifierApprovalRef: data.certifierApprovalRef ? String(data.certifierApprovalRef) : null,
           derogationExpiryDate: data.derogationExpiryDate ? String(data.derogationExpiryDate) : null,
           fieldName: data.fieldName ? String(data.fieldName) : null,
+          cropYear: data.cropYear ? Number(data.cropYear) : null,
+          notes: data.notes ? String(data.notes) : null,
           pending: true,
         };
         return rec;
@@ -146,6 +155,7 @@ export default function OrganicInputsListScreen() {
           const data = await res.json();
           server = (data.records as ServerInputRecord[]).map(r => ({
             key: `server-${r.id}`,
+            serverId: r.id,
             productName: r.productName,
             inputType: r.inputType,
             approvalStatus: r.approvalStatus,
@@ -156,6 +166,8 @@ export default function OrganicInputsListScreen() {
             certifierApprovalRef: r.certifierApprovalRef,
             derogationExpiryDate: r.derogationExpiryDate,
             fieldName: r.fieldName,
+            cropYear: r.cropYear,
+            notes: r.notes,
             pending: false,
           }));
         }
@@ -168,13 +180,69 @@ export default function OrganicInputsListScreen() {
     setRefreshing(false);
   }, [farmId, apiBase]);
 
-  // Reload whenever screen comes into focus (e.g. returning from add form)
+  // Reload whenever screen comes into focus (e.g. returning from add/edit form)
   useFocusEffect(useCallback(() => {
     setLoading(true);
     load();
   }, [load]));
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const handleEdit = (r: DisplayRecord) => {
+    if (!r.serverId) return;
+    router.push({
+      pathname: "/organic-input",
+      params: {
+        id: String(r.serverId),
+        productName: r.productName ?? "",
+        inputType: r.inputType ?? "",
+        approvalStatus: r.approvalStatus ?? "permitted",
+        supplier: r.supplier ?? "",
+        dateOfUse: r.dateOfUse ?? "",
+        quantityAmount: r.quantityAmount ?? "",
+        quantityUnit: r.quantityUnit ?? "",
+        cropYear: r.cropYear != null ? String(r.cropYear) : "",
+        certifierApprovalRef: r.certifierApprovalRef ?? "",
+        derogationExpiryDate: r.derogationExpiryDate ?? "",
+        fieldName: r.fieldName ?? "",
+        notes: r.notes ?? "",
+      },
+    });
+  };
+
+  const handleDelete = (r: DisplayRecord) => {
+    if (!r.serverId || !farmId) return;
+    Alert.alert(
+      "Delete Input Record",
+      `Remove "${r.productName}" from the organic input register? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(r.serverId!);
+            try {
+              const headers = await getAuthHeaders();
+              const res = await fetch(
+                `${apiBase}/api/farms/${farmId}/organic/inputs/${r.serverId}`,
+                { method: "DELETE", headers }
+              );
+              if (!res.ok) {
+                Alert.alert("Error", "Could not delete this record. Please try again.");
+              } else {
+                setRecords(prev => prev.filter(x => x.serverId !== r.serverId));
+              }
+            } catch {
+              Alert.alert("Error", "Could not delete this record. Please try again.");
+            } finally {
+              setDeleting(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -212,12 +280,19 @@ export default function OrganicInputsListScreen() {
               const expiryDays = daysUntil(r.derogationExpiryDate);
               const isExpired = expiryDays !== null && expiryDays < 0;
               const isExpiringSoon = expiryDays !== null && expiryDays >= 0 && expiryDays <= 30;
+              const isDeleting = deleting === r.serverId;
 
               return (
                 <View key={r.key}>
                   {i > 0 && <View style={styles.divider} />}
+                  {/* Outer row is a plain View so the delete button sits beside the edit target */}
                   <View style={styles.row}>
-                    <View style={{ flex: 1 }}>
+                    {/* Tappable content area — opens edit form for synced records */}
+                    <Pressable
+                      style={({ pressed }) => [styles.rowContent, pressed && !r.pending && styles.rowPressed]}
+                      onPress={() => { if (!r.pending) handleEdit(r); }}
+                      disabled={r.pending}
+                    >
                       <View style={styles.nameRow}>
                         <Text style={styles.productName} numberOfLines={1}>{r.productName}</Text>
                         <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
@@ -285,7 +360,26 @@ export default function OrganicInputsListScreen() {
                       {r.certifierApprovalRef ? (
                         <Text style={styles.refText}>Ref: {r.certifierApprovalRef}</Text>
                       ) : null}
-                    </View>
+                    </Pressable>
+
+                    {/* Delete + chevron sit OUTSIDE the edit Pressable so taps don't bubble */}
+                    {!r.pending && r.serverId != null && (
+                      <View style={styles.actions}>
+                        <Pressable
+                          style={styles.actionBtn}
+                          onPress={() => handleDelete(r)}
+                          hitSlop={8}
+                          disabled={isDeleting}
+                        >
+                          {isDeleting ? (
+                            <ActivityIndicator size="small" color={colors.textSecondary} />
+                          ) : (
+                            <Feather name="trash-2" size={16} color={colors.textSecondary} />
+                          )}
+                        </Pressable>
+                        <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+                      </View>
+                    )}
                   </View>
                 </View>
               );
@@ -340,7 +434,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   divider: { height: 1, backgroundColor: colors.borderLight },
-  row: { paddingVertical: spacing.md },
+  row: { flexDirection: "row", alignItems: "center" },
+  rowContent: { flex: 1, paddingVertical: spacing.md },
+  rowPressed: { opacity: 0.6 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: 2, flexWrap: "wrap" },
   productName: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text, flex: 1 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.full },
@@ -369,4 +465,6 @@ const styles = StyleSheet.create({
   expiredBadgeText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.textSecondary },
   noExpiryText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#d97706" },
   refText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: 2 },
+  actions: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
+  actionBtn: { padding: 4 },
 });
