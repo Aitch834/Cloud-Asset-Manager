@@ -3358,6 +3358,16 @@ router.get("/admin/ad-pdf/preview", requireAuth, async (req: Request, res: Respo
   // Snapshot the HTML body at request time — no mid-flight re-fetch during the render
   const snapshotHtmlBody = template.htmlBody;
 
+  // Guard: block render when required placeholders are absent — the PDF would be blank otherwise
+  const missingRequiredPlaceholders = detectAdTemplateMissingRequiredPlaceholders(snapshotHtmlBody);
+  if (missingRequiredPlaceholders.length > 0) {
+    res.status(422).json({
+      error: `Cannot render preview: the following required placeholder(s) are missing from the template — ${missingRequiredPlaceholders.join(", ")}. Edit the template to add them before generating.`,
+      missingPlaceholders: missingRequiredPlaceholders,
+    });
+    return;
+  }
+
   // Detect near-miss placeholder typos in the saved template HTML and surface them to the caller
   const previewRenderWarnings = detectAdTemplateNearMissPlaceholders(snapshotHtmlBody);
 
@@ -3441,6 +3451,16 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
 
   // Snapshot the HTML body immediately so a mid-flight archive cannot affect this render
   const snapshotHtmlBody = template.htmlBody;
+
+  // Guard: block render when required placeholders are absent — the PDF would be blank otherwise
+  const missingRequiredPlaceholdersPdf = detectAdTemplateMissingRequiredPlaceholders(snapshotHtmlBody);
+  if (missingRequiredPlaceholdersPdf.length > 0) {
+    res.status(422).json({
+      error: `Cannot generate PDF: the following required placeholder(s) are missing from the template — ${missingRequiredPlaceholdersPdf.join(", ")}. Edit the template to add them before generating.`,
+      missingPlaceholders: missingRequiredPlaceholdersPdf,
+    });
+    return;
+  }
 
   // Detect near-miss placeholder typos in the saved template HTML and surface them to the caller
   const pdfRenderWarnings = detectAdTemplateNearMissPlaceholders(snapshotHtmlBody);

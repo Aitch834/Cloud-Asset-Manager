@@ -45,6 +45,15 @@ class MissingAssetsError extends Error {
   }
 }
 
+class MissingPlaceholdersError extends Error {
+  missingPlaceholders: string[];
+  constructor(message: string, missingPlaceholders: string[]) {
+    super(message);
+    this.name = "MissingPlaceholdersError";
+    this.missingPlaceholders = missingPlaceholders;
+  }
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 function adminHeaders(): Record<string, string> {
@@ -131,7 +140,8 @@ async function generatePdf(templateId: number, bgUrl: string, opts: CustomiseOpt
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[]; missingPlaceholders?: string[] };
+    if (json.missingPlaceholders?.length) throw new MissingPlaceholdersError(json.error ?? `HTTP ${res.status}`, json.missingPlaceholders);
     if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
     throw new Error(json.error ?? `HTTP ${res.status}`);
   }
@@ -156,7 +166,8 @@ async function fetchPreview(templateId: number, bgUrl: string, opts: CustomiseOp
     headers: { "x-admin-secret": getSecret() ?? "" },
   });
   if (!res.ok) {
-    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[] };
+    const json = await res.json().catch(() => ({})) as { error?: string; missingAssets?: string[]; missingPlaceholders?: string[] };
+    if (json.missingPlaceholders?.length) throw new MissingPlaceholdersError(json.error ?? `HTTP ${res.status}`, json.missingPlaceholders);
     if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
     throw new Error(json.error ?? `HTTP ${res.status}`);
   }
@@ -1579,7 +1590,20 @@ export default function AdPdfGenerator() {
           )}
 
           {previewMutation.isError && (
-            previewMutation.error instanceof MissingAssetsError ? (
+            previewMutation.error instanceof MissingPlaceholdersError ? (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Cannot generate preview:</span>{" "}
+                  the selected template is missing required placeholder{previewMutation.error.missingPlaceholders.length > 1 ? "s" : ""}{" "}
+                  {previewMutation.error.missingPlaceholders.map((p, i) => (
+                    <span key={p}>
+                      <code className="bg-destructive/10 px-1 rounded">{p}</code>{i < (previewMutation.error as MissingPlaceholdersError).missingPlaceholders.length - 1 ? ", " : ""}
+                    </span>
+                  ))}. Edit the template in the <span className="font-medium">Template library</span> below to add them.
+                </p>
+              </div>
+            ) : previewMutation.error instanceof MissingAssetsError ? (
               <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
                 <p className="text-sm text-destructive">
@@ -1614,7 +1638,20 @@ export default function AdPdfGenerator() {
           )}
 
           {mutation.isError && (
-            mutation.error instanceof MissingAssetsError ? (
+            mutation.error instanceof MissingPlaceholdersError ? (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Cannot generate PDF:</span>{" "}
+                  the selected template is missing required placeholder{mutation.error.missingPlaceholders.length > 1 ? "s" : ""}{" "}
+                  {mutation.error.missingPlaceholders.map((p, i) => (
+                    <span key={p}>
+                      <code className="bg-destructive/10 px-1 rounded">{p}</code>{i < (mutation.error as MissingPlaceholdersError).missingPlaceholders.length - 1 ? ", " : ""}
+                    </span>
+                  ))}. Edit the template in the <span className="font-medium">Template library</span> below to add them.
+                </p>
+              </div>
+            ) : mutation.error instanceof MissingAssetsError ? (
               <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
                 <p className="text-sm text-destructive">
