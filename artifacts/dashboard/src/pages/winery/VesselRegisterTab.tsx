@@ -1229,7 +1229,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
               { key: "cellar_zone", label: "Cellar Zone", fmt: r => String(r.cellar_zone ?? "") },
               { key: "fill_number", label: "Fill Number", fmt: r => r.fill_number != null ? String(r.fill_number) : "" },
-              { key: "_fill_tier", label: "Fill Tier", fmt: r => (r.fill_number == null || Number(r.fill_number) === 0) ? "No fills logged" : fillOakLabel(Number(r.fill_number)).label },
+              { key: "_fill_tier", label: "Fill Tier", fmt: r => {
+                if (Number(r.fill_count ?? 0) === 0) {
+                  return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
+                }
+                return fillOakLabel(Number(r.fill_number)).label;
+              } },
               { key: "is_full", label: "Is Full", fmt: r => r.is_full ? "Yes" : "No" },
               { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
               { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
@@ -1245,7 +1250,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   String(r.vessel_type ?? ""),
                   String(r.cellar_zone ?? ""),
                   r.fill_number != null ? String(r.fill_number) : "\u2014",
-                  (r.fill_number == null || Number(r.fill_number) === 0) ? "No fills logged" : fillOakLabel(Number(r.fill_number)).label,
+                  (() => {
+                    if (Number(r.fill_count ?? 0) === 0) {
+                      return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
+                    }
+                    return fillOakLabel(Number(r.fill_number)).label;
+                  })(),
                   r.is_full ? "Yes" : "No",
                   r.empty_since ? fmtDate(r.empty_since) : "\u2014",
                   idleDays,
@@ -1280,11 +1290,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
               doc.body.appendChild(meta);
 
-              const noFillsPrintCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
+              const noFillsCooperageCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
+              const noFillsNoneCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
+              const noFillsPrintCount = noFillsCooperageCount + noFillsNoneCount;
               if (noFillsPrintCount > 0) {
                 const note = doc.createElement("div");
                 note.style.cssText = "background:#f3e8ff;border:1px solid #c084fc;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#6b21a8";
-                note.textContent = `Note: ${noFillsPrintCount} barrel${noFillsPrintCount !== 1 ? "s" : ""} have no fill history recorded — Fill Tier shows \u201cNo fills logged\u201d for these rows.`;
+                const parts: string[] = [];
+                if (noFillsCooperageCount > 0) parts.push(`${noFillsCooperageCount} \u201cNo fills \u2014 cooperage only\u201d`);
+                if (noFillsNoneCount > 0) parts.push(`${noFillsNoneCount} \u201cNo records at all\u201d`);
+                note.textContent = `Note: ${parts.join(", ")} barrel${noFillsPrintCount !== 1 ? "s" : ""} have no fill history \u2014 see Fill Tier column for details.`;
                 doc.body.appendChild(note);
               }
 
@@ -1372,7 +1387,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
                         { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
                       ];
-                      const noFillsCount = exportBarrels.filter(r => r.fill_number == null || Number(r.fill_number) === 0).length;
+                      const noFillsCooperageCsvCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
+                      const noFillsNoneCsvCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
+                      const noFillsCsvParts: string[] = [];
+                      if (noFillsCooperageCsvCount > 0) noFillsCsvParts.push(`${noFillsCooperageCsvCount} "No fills — cooperage only"`);
+                      if (noFillsNoneCsvCount > 0) noFillsCsvParts.push(`${noFillsNoneCsvCount} "No records at all"`);
                       exportCSV(
                         exportBarrels,
                         "barrel-health-summary.csv",
@@ -1380,7 +1399,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         [
                           csvComment(`Barrel Health Summary — ${farmNameVessels}`),
                           csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
-                          ...(noFillsCount > 0 ? [csvComment(`Warning: ${noFillsCount} barrel${noFillsCount !== 1 ? "s" : ""} with no fill history logged — Fill Tier shows "No fills logged"`)] : []),
+                          ...(noFillsCsvParts.length > 0 ? [csvComment(`Warning: ${noFillsCsvParts.join(", ")} barrel${(noFillsCooperageCsvCount + noFillsNoneCsvCount) !== 1 ? "s" : ""} have no fill history — see Fill Tier column for details`)] : []),
                         ],
                       );
                     } catch {
