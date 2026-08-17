@@ -516,6 +516,19 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     return { totalKg, picksCount, derivedTha };
   }, [filteredHarvest, blocks]);
 
+  // ── Single-pick detection ──────────────────────────────────────────────────
+  // For each block+vintage combination across all data, count picks.
+  // Used to show the amber "1 pick" badge in the detail table rows.
+  const singlePickKeys = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of data) {
+      if (r.blockId == null) continue;
+      const key = `${r.blockId}_${r.vintageYear}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return new Set(Object.entries(counts).filter(([, n]) => n === 1).map(([k]) => k));
+  }, [data]);
+
   const csvCols = [
     { key: "harvestDate", label: "Harvest Date", fmt: (r: Record<string, unknown>) => fmtDate(r.harvestDate) },
     { key: "vintageYear", label: "Vintage Year" },
@@ -1986,19 +1999,30 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             label: "Block",
             render: r => {
               const linked = blocks.find(b => b.id === r.blockId);
-              if (linked) return (
-                <span className="inline-flex items-center gap-1.5 group">
-                  <span className="text-sm">{String(linked.blockName)}</span>
-                  <button
-                    type="button"
-                    title="Remove block link"
-                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    onClick={e => { e.stopPropagation(); setUnlinkRecordId(r.id as number); }}
-                  >
-                    <Unlink className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              );
+              if (linked) {
+                const isSinglePick = singlePickKeys.has(`${r.blockId}_${r.vintageYear}`);
+                return (
+                  <span className="inline-flex items-center gap-1.5 group">
+                    <span className="text-sm">{String(linked.blockName)}</span>
+                    {isSinglePick && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300 cursor-help"
+                        title="Only one pick recorded for this block and vintage — data may have lower confidence"
+                      >
+                        1 pick
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      title="Remove block link"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={e => { e.stopPropagation(); setUnlinkRecordId(r.id as number); }}
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                );
+              }
               return (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
