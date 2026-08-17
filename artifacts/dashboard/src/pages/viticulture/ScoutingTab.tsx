@@ -117,6 +117,18 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     refetchInterval: 4 * 60 * 1000,
   });
   const lightboxPhotos = lightboxData?.photos ?? [];
+
+  // Fetch photos for the view dialog record
+  const { data: viewPhotosData } = useQuery<{ photos: Record<string, unknown>[] }>({
+    queryKey: ["vineyard-scouting-photos", farmId, viewing?.id ?? null],
+    queryFn: () =>
+      fetch(api(`farms/${farmId}/vineyard-scouting/${(viewing as Record<string, unknown>).id}/photos`), { credentials: "include" })
+        .then(r => { if (!r.ok) throw new Error("Failed to load photos"); return r.json(); }),
+    enabled: viewing !== null,
+    staleTime: 0,
+    refetchInterval: 4 * 60 * 1000,
+  });
+  const viewPhotos = viewPhotosData?.photos ?? [];
   const currentPhoto = lightboxPhotos[lightboxPhotoIndex] ?? null;
 
   // Sync block filter when navigating from a block card
@@ -284,8 +296,8 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       if (!r.ok) throw new Error("Failed to set cover photo");
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
+    onSuccess: (_data, { scoutingId }) => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, scoutingId] });
       queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
       setSettingCoverPhotoId(null);
       toast({ title: "Cover photo updated" });
@@ -666,6 +678,53 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               )}
               {!!viewing.actionTaken && <div className="col-span-2"><ViewField label="Action Taken" value={fmt(viewing.actionTaken)} /></div>}
               {!!viewing.notes && <ViewField label="Notes" value={fmt(viewing.notes)} />}
+              {/* Photo thumbnail grid */}
+              {viewPhotos.length > 0 && (
+                <div className="border-t pt-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Photos</p>
+                  <div className="flex flex-wrap gap-2">
+                    {viewPhotos.map((ph, idx) => (
+                      <div key={String(ph.id)} className="relative group shrink-0" style={{ width: "5rem" }}>
+                        <button
+                          type="button"
+                          onClick={() => { setLightboxScoutingId(viewing.id as number); setLightboxPhotoIndex(idx); }}
+                          className="w-20 h-20 rounded border border-border overflow-hidden bg-muted/40 hover:opacity-90 transition-opacity"
+                        >
+                          <img
+                            src={String(ph.downloadUrl ?? "")}
+                            alt={String(ph.fileName ?? "Photo")}
+                            className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+                          />
+                        </button>
+                        {/* Cover badge (always visible when this is the cover) */}
+                        {!!ph.isCover && (
+                          <span className="absolute bottom-0.5 left-0.5 rounded-full bg-amber-500/90 text-white p-0.5 pointer-events-none">
+                            <Star className="w-3 h-3 fill-current" />
+                          </span>
+                        )}
+                        {/* Set as cover button — hover-only, non-cover photos only */}
+                        {!ph.isCover && (
+                          <button
+                            type="button"
+                            title="Set as cover photo"
+                            disabled={settingCoverPhotoId === (ph.id as number)}
+                            onClick={() => {
+                              setSettingCoverPhotoId(ph.id as number);
+                              setCoverPhotoMutation.mutate({ scoutingId: viewing.id as number, photoId: ph.id as number });
+                            }}
+                            className="absolute bottom-0.5 left-0.5 rounded-full bg-black/60 hover:bg-amber-500/90 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                          >
+                            {settingCoverPhotoId === (ph.id as number)
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <Star className="w-3 h-3" />}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
