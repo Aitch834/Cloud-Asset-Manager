@@ -131,6 +131,7 @@ const TABLE_MAP: Record<string, string> = {
   bde_pig_inventory_records: "pig_inventory_records",
   bde_pig_death_records: "pig_death_records",
   bde_vine_operation: "vine_operation",
+  bde_vine_harvest: "vine_harvest",
   bde_irrigation_applications: "irrigation_applications",
 };
 
@@ -398,7 +399,12 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
 export async function markRecordSynced(table: string, id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
-    await db().runAsync("UPDATE records SET synced = 1 WHERE id = ? AND record_type = ?", [id, table]);
+    // Also strip _pendingSync from the stored JSON so getRecords()-based screens
+    // don't continue treating this record as an unsynced offline entry.
+    await db().runAsync(
+      "UPDATE records SET synced = 1, data_json = json_remove(data_json, '$._pendingSync') WHERE id = ? AND record_type = ?",
+      [id, table],
+    );
     return;
   }
   const storeKey = `bde_record_${table}_${id}`;
@@ -406,6 +412,7 @@ export async function markRecordSynced(table: string, id: string): Promise<void>
   if (raw) {
     const item = JSON.parse(raw);
     item.synced = true;
+    delete item._pendingSync;
     await AsyncStorage.setItem(storeKey, JSON.stringify(item));
   }
 }

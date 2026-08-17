@@ -2444,7 +2444,8 @@ export async function printHarvest(
     .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 11px; margin-bottom: 14px; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5px; page-break-inside: auto; }
     thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
+    h2, h3 { page-break-after: avoid; break-after: avoid; }
     th { background: #7c3d12; color: white; padding: 6px 5px; text-align: left; white-space: nowrap; }
     td { padding: 5px 5px; border: 1px solid #d1d5db; vertical-align: top; }
     tr:nth-child(even) td { background: #fff7ed; }
