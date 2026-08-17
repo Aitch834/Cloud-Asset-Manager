@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -58,6 +59,7 @@ export default function IrrigationHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const reqIdRef = useRef(0);
 
   const load = useCallback(async (isRefresh = false) => {
@@ -82,6 +84,39 @@ export default function IrrigationHistoryScreen() {
   }, [load]);
 
   const refresh = useCallback(() => { void load(true); }, [load]);
+
+  const handleDelete = useCallback((item: IrrigationRecord) => {
+    const label = item.irrigationDate
+      ? formatDate(item.irrigationDate)
+      : "this application";
+    Alert.alert(
+      "Delete Application",
+      `Remove the irrigation application on ${label}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!farmId) return;
+            setDeletingId(item.id);
+            try {
+              const res = await apiFetch(
+                `/api/farms/${farmId}/irrigation-records/${item.id}`,
+                { method: "DELETE" },
+              );
+              if (!res.ok) throw new Error(`Server error ${res.status}`);
+              setRecords(prev => prev.filter(r => r.id !== item.id));
+            } catch {
+              Alert.alert("Delete Failed", "Could not delete the record. Please try again.");
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [farmId]);
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
@@ -195,8 +230,14 @@ export default function IrrigationHistoryScreen() {
             const field = fieldLabel(item);
             const depthNum =
               item.applicationDepthMm != null ? Number(item.applicationDepthMm) : null;
+            const isDeleting = deletingId === item.id;
             return (
-              <View style={styles.card}>
+              <Pressable
+                style={[styles.card, isDeleting && styles.cardDeleting]}
+                onLongPress={() => handleDelete(item)}
+                delayLongPress={400}
+                android_ripple={null}
+              >
                 <View style={styles.cardHeader}>
                   <View style={styles.dateBadge}>
                     <Text style={styles.dateBadgeText}>{formatDate(item.irrigationDate)}</Text>
@@ -206,6 +247,18 @@ export default function IrrigationHistoryScreen() {
                       {item.irrigationMethod}
                     </Text>
                   </View>
+                  <View style={{ flex: 1 }} />
+                  {isDeleting ? (
+                    <ActivityIndicator size="small" color={colors.error} />
+                  ) : (
+                    <Pressable
+                      onPress={() => handleDelete(item)}
+                      hitSlop={12}
+                      style={styles.deleteBtn}
+                    >
+                      <Feather name="trash-2" size={16} color={colors.error} />
+                    </Pressable>
+                  )}
                 </View>
 
                 {field ? (
@@ -246,7 +299,7 @@ export default function IrrigationHistoryScreen() {
                     {item.notes}
                   </Text>
                 ) : null}
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -355,6 +408,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 3,
     elevation: 2,
+  },
+  cardDeleting: {
+    opacity: 0.5,
+  },
+  deleteBtn: {
+    padding: 4,
   },
   cardHeader: {
     flexDirection: "row",
