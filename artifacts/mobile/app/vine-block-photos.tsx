@@ -474,9 +474,10 @@ interface LightboxProps {
   onReorder: (newPhotoIds: number[]) => void;
   onEditCaption: (photo: BlockPhoto) => void;
   onReload: () => void;
+  onSetCover: (photo: BlockPhoto) => void;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload, onSetCover }: LightboxProps) {
   const insets = useSafeAreaInsets();
   const { user } = useFarm();
 
@@ -902,6 +903,17 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
             ) : (
               <Feather name="share-2" size={22} color="#fff" />
             )}
+          </Pressable>
+        ) : null}
+
+        {/* Set as Cover button — only shown for non-cover photos */}
+        {photo && !photo.isCover ? (
+          <Pressable
+            style={[styles.lbSetCoverBtn, { top: insets.top + 12 }]}
+            hitSlop={16}
+            onPress={() => onSetCover(photo)}
+          >
+            <Text style={styles.lbSetCoverIcon}>★</Text>
           </Pressable>
         ) : null}
 
@@ -1742,6 +1754,7 @@ export default function VineBlockPhotosScreen() {
         onReorder={handleReorder}
         onEditCaption={handleEditCaption}
         onReload={() => loadPhotos({ silent: true })}
+        onSetCover={handleSetCover}
       />
 
       {/* Caption editor */}
@@ -1950,6 +1963,22 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  lbSetCoverBtn: {
+    position: "absolute",
+    right: 64,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lbSetCoverIcon: {
+    color: "#fff",
+    fontSize: 20,
+    lineHeight: 24,
   },
   lbCounter: {
     position: "absolute",
