@@ -1,7 +1,6 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -328,5 +327,4 @@ const styles = StyleSheet.create({
   // Saved state
   savedBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#f0fdf4", borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.success },
   savedBannerText: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: colors.success, flex: 1 },
-
 });

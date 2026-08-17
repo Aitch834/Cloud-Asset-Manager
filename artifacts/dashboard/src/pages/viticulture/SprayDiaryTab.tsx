@@ -162,6 +162,8 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   const [photoOnlyRecordId, setPhotoOnlyRecordId] = useState<number | null>(null);
   // Photo id awaiting delete-confirm in the standalone lightbox
   const [confirmDeleteLightboxPhotoId, setConfirmDeleteLightboxPhotoId] = useState<number | null>(null);
+  // Photo id awaiting delete-confirm in the view dialog thumbnail grid
+  const [confirmDeleteThumbnailPhotoId, setConfirmDeleteThumbnailPhotoId] = useState<number | null>(null);
   // Caption editing state (view dialog thumbnails + lightbox)
   const [editingCaptionPhotoId, setEditingCaptionPhotoId] = useState<number | null>(null);
   const [editingCaptionValue, setEditingCaptionValue] = useState("");
@@ -867,7 +869,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                               type="button"
                               title="Remove photo"
                               disabled={deletingPhotoId === (ph.id as number)}
-                              onClick={() => void handlePhotoDelete(ph.id as number)}
+                              onClick={() => setConfirmDeleteThumbnailPhotoId(ph.id as number)}
                               className="absolute top-0.5 right-0.5 rounded-full bg-black/60 hover:bg-black/80 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                             >
                               {deletingPhotoId === (ph.id as number)
@@ -1094,6 +1096,23 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
           </Dialog>
         );
       })()}
+
+      {/* Thumbnail grid delete confirm (view dialog) */}
+      <ConfirmDialog
+        open={confirmDeleteThumbnailPhotoId !== null}
+        title="Delete photo?"
+        message="This photo will be permanently removed from the spray diary record. This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (confirmDeleteThumbnailPhotoId !== null) {
+            void handlePhotoDelete(confirmDeleteThumbnailPhotoId).then(() => {
+              setConfirmDeleteThumbnailPhotoId(null);
+            });
+          }
+        }}
+        onCancel={() => setConfirmDeleteThumbnailPhotoId(null)}
+      />
 
       {/* Lightbox delete confirm */}
       <ConfirmDialog
