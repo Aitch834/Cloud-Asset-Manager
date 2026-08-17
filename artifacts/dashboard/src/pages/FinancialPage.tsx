@@ -1631,6 +1631,8 @@ const PIE_COLOURS = ["#16a34a","#3b82f6","#f59e0b","#ef4444","#8b5cf6","#14b8a6"
 
 function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-analytics", filter: "year", farmId, defaultValue: String(new Date().getFullYear()), isValid: v => v === "all" || /^\d{4}$/.test(v) });
+  // Share the enterprise filter key with TransactionsTab so switching tabs preserves the selection
+  const [enterpriseFilter, setEnterpriseFilter] = usePersistedFilter({ page: "financial-transactions", filter: "enterprise", farmId, defaultValue: "all" });
   const txQ = useQuery({
     queryKey: ["financial-transactions", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/financial-transactions`).then(r => r.json()),
@@ -1643,8 +1645,11 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
 
   const yearTx = yearFilter === "all" ? allTx : allTx.filter((r: any) => r.transactionDate && String(new Date(r.transactionDate).getFullYear()) === yearFilter);
 
+  // Apply enterprise filter on top of year filter
+  const filteredTx = enterpriseFilter === "all" ? yearTx : yearTx.filter((r: any) => (r.enterprise ?? "") === enterpriseFilter);
+
   const monthMap = new Map<string, { month: string; label: string; income: number; expense: number }>();
-  yearTx.forEach((r: any) => {
+  filteredTx.forEach((r: any) => {
     if (!r.transactionDate) return;
     const d = new Date(r.transactionDate);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -1658,7 +1663,7 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
   const monthData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => ({ ...v, income: parseFloat(v.income.toFixed(2)), expense: parseFloat(v.expense.toFixed(2)), net: parseFloat((v.income - v.expense).toFixed(2)) }));
 
   const catMap = new Map<string, { category: string; income: number; expense: number }>();
-  yearTx.forEach((r: any) => {
+  filteredTx.forEach((r: any) => {
     const cat = r.category || "Uncategorised";
     if (!catMap.has(cat)) catMap.set(cat, { category: cat, income: 0, expense: 0 });
     const b = catMap.get(cat)!;
@@ -1673,15 +1678,15 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
   let runningNet = 0;
   const cumulData = monthData.map(m => { runningNet += m.net; return { label: m.label, cumulative: parseFloat(runningNet.toFixed(2)) }; });
 
-  const totalIncome = yearTx.filter((r: any) => r.transactionType === "income").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
-  const totalExpense = yearTx.filter((r: any) => r.transactionType === "expense").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
+  const totalIncome = filteredTx.filter((r: any) => r.transactionType === "income").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
+  const totalExpense = filteredTx.filter((r: any) => r.transactionType === "expense").reduce((s: number, r: any) => s + (r.amountPence ?? 0), 0) / 100;
   const netBalance = totalIncome - totalExpense;
 
   if (txQ.isLoading) return <p className="text-sm text-gray-400 text-center py-16">Loading financial data…</p>;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <label className="text-sm font-medium text-gray-700 shrink-0">Year</label>
         <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
@@ -1690,6 +1695,25 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
             {yearOptions.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
           </SelectContent>
         </Select>
+        <label className="text-sm font-medium text-gray-700 shrink-0 ml-2">Enterprise</label>
+        <Select value={enterpriseFilter} onValueChange={setEnterpriseFilter}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Enterprises</SelectItem>
+            <SelectItem value="Viticulture">Viticulture</SelectItem>
+            <SelectItem value="Arable">Arable</SelectItem>
+            <SelectItem value="Livestock">Livestock</SelectItem>
+            <SelectItem value="Dairy">Dairy</SelectItem>
+            <SelectItem value="Horticulture">Horticulture</SelectItem>
+            <SelectItem value="Diversification">Diversification</SelectItem>
+            <SelectItem value="Other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+        {enterpriseFilter !== "all" && (
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "#dcfce7", color: "#166534" }}>
+            {enterpriseFilter} only
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
