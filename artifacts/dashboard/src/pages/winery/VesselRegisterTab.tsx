@@ -491,6 +491,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
   });
 
   const [showAdd, setShowAdd] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ movedDate: today, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" });
   const sf = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -503,33 +504,67 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
     }
   }, [currentZone, currentPosition, showAdd]);
 
+  const openAdd = () => {
+    setEditingRecord(null);
+    setForm({ movedDate: today, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" });
+    setShowAdd(true);
+  };
+
+  const openEdit = (m: Record<string, unknown>) => {
+    setEditingRecord(m);
+    setForm({
+      movedDate:     m.moved_date    != null ? String(m.moved_date).slice(0, 10)    : today,
+      fromZone:      m.from_zone     != null ? String(m.from_zone)     : "",
+      fromPosition:  m.from_position != null ? String(m.from_position) : "",
+      toZone:        m.to_zone       != null ? String(m.to_zone)       : "",
+      toPosition:    m.to_position   != null ? String(m.to_position)   : "",
+      reason:        m.reason        != null ? String(m.reason)        : "",
+      operatorName:  m.operator_name != null ? String(m.operator_name) : "",
+      notes:         m.notes         != null ? String(m.notes)         : "",
+    });
+    addMut.reset();
+    setShowAdd(true);
+  };
+
   const addMut = useMutation({
     // Accept a snapshot of the form so onSuccess can safely read the submitted
     // destination values even if the user edits fields while the request is in-flight.
     mutationFn: async (snapshot: Record<string, string>) => {
-      const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements`), {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(snapshot),
+      const isEdit = !!editingRecord;
+      const url = isEdit
+        ? api(`farms/${farmId}/winery-vessels/${vesselId}/movements/${editingRecord!.id}`)
+        : api(`farms/${farmId}/winery-vessels/${vesselId}/movements`);
+      const r = await fetch(url, {
+        method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(snapshot),
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
     },
     onSuccess: (_data, snapshot) => {
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
-      // Keep the panel open so the winemaker can log a second consecutive move.
-      // Use snapshot (the values that were actually sent) — not live form state —
-      // to advance fromZone/fromPosition to the confirmed destination.
-      setForm(f => ({
-        movedDate: today,
-        fromZone: snapshot.toZone ?? "",
-        fromPosition: snapshot.toPosition ?? "",
-        operatorName: f.operatorName ?? "",
-        toZone: "",
-        toPosition: "",
-        reason: "",
-        notes: "",
-      }));
+      if (editingRecord) {
+        // After an edit, close the form and reset.
+        setShowAdd(false);
+        setEditingRecord(null);
+        setForm({ movedDate: today, fromZone: currentZone ?? "", fromPosition: currentPosition ?? "" });
+        toast({ title: "Movement updated" });
+      } else {
+        // Keep the panel open so the winemaker can log a second consecutive move.
+        // Use snapshot (the values that were actually sent) — not live form state —
+        // to advance fromZone/fromPosition to the confirmed destination.
+        setForm(f => ({
+          movedDate: today,
+          fromZone: snapshot.toZone ?? "",
+          fromPosition: snapshot.toPosition ?? "",
+          operatorName: f.operatorName ?? "",
+          toZone: "",
+          toPosition: "",
+          reason: "",
+          notes: "",
+        }));
+        toast({ title: "Movement logged" });
+      }
       addMut.reset();
-      toast({ title: "Movement logged" });
     },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
   });
@@ -548,13 +583,14 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Location History</p>
         {!readOnly && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(s => !s)}>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openAdd}>
             <Plus className="w-3 h-3 mr-1" />Log Move
           </Button>
         )}
       </div>
       {!readOnly && showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{editingRecord ? "Edit movement record" : "Log new move"}</p>
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">Date *</Label><Input type="date" max={today} value={form.movedDate ?? ""} onChange={e => sf("movedDate", e.target.value)} className="h-8 text-xs" /></div>
             <div><Label className="text-xs">Reason</Label>
@@ -573,9 +609,9 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
           <DialogMutationError mutation={addMut} />
           <div className="flex gap-2">
             <Button size="sm" className="h-7 text-xs" onClick={() => addMut.mutate({ ...form })} disabled={!form.movedDate || !form.toZone || addMut.isPending}>
-              {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save Move
+              {addMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}{editingRecord ? "Save Changes" : "Save Move"}
             </Button>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(false); setEditingRecord(null); addMut.reset(); }}>Cancel</Button>
           </div>
         </div>
       )}
@@ -597,7 +633,12 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
                 {!!m.operator_name && <div className="text-muted-foreground">By: {String(m.operator_name)}</div>}
                 {!!m.notes && <div className="italic text-muted-foreground">{String(m.notes)}</div>}
               </div>
-              {!readOnly && <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500 shrink-0" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>}
+              {!readOnly && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button>
+                  <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
