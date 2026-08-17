@@ -1102,6 +1102,7 @@ function PhotoThumbnail({
   onShowTooltip,
   onHideTooltip,
   onReload,
+  reloading,
 }: {
   photo: BlockPhoto;
   photosCount: number;
@@ -1111,6 +1112,7 @@ function PhotoThumbnail({
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
   onReload: () => void;
+  reloading?: boolean;
 }) {
   const uri = photo.downloadUrl ?? null;
   const [imgError, setImgError] = useState(false);
@@ -1174,9 +1176,20 @@ function PhotoThumbnail({
             onError={() => setImgError(true)}
           />
         ) : imgError ? (
-          <Pressable style={styles.thumbPlaceholder} onPress={onReload}>
-            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+          <Pressable
+            style={styles.thumbPlaceholder}
+            onPress={(e) => { e.stopPropagation(); if (!reloading) onReload(); }}
+            hitSlop={8}
+            disabled={reloading}
+          >
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+              </>
+            )}
           </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
@@ -1226,6 +1239,9 @@ export default function VineBlockPhotosScreen() {
 
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
+
+  // Which thumbnail's reload is currently in-flight (null = none)
+  const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
 
   // Generation counter — incremented at the start of every loadPhotos call AND
   // synchronously on block selection change and unmount.  applyPhotoUpdateIfCurrent
@@ -1289,6 +1305,26 @@ export default function VineBlockPhotosScreen() {
     setPhotos([]);
     loadPhotos();
   }, [selectedBlock?.id, loadPhotos]);
+
+  // User-initiated reload from a broken thumbnail: shows a spinner on that
+  // thumbnail while in-flight and an Alert if the server request fails.
+  const handleReload = useCallback(async (photoId: number) => {
+    if (!currentFarm?.id || !selectedBlock) return;
+    setReloadingPhotoId(photoId);
+    const gen = ++loadGenRef.current;
+    try {
+      const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id);
+      if (fetched === null) {
+        Alert.alert("Reload Failed", "Could not reload photos. Please check your connection and try again.");
+        return;
+      }
+      applyPhotoUpdateIfCurrent(gen, () => loadGenRef.current, fetched, (p) => setPhotos(p as BlockPhoto[]));
+    } catch {
+      Alert.alert("Reload Failed", "Could not reload photos. Please check your connection and try again.");
+    } finally {
+      setReloadingPhotoId(null);
+    }
+  }, [currentFarm?.id, selectedBlock]);
 
   // Re-fetch photos whenever the screen comes back into focus so that
   // short-lived presigned URLs are always fresh after the grower returns from
@@ -1614,7 +1650,8 @@ export default function VineBlockPhotosScreen() {
               onEditCaption={handleEditCaption}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
-              onReload={() => loadPhotos({ silent: true })}
+              onReload={() => handleReload(item.id)}
+              reloading={reloadingPhotoId === item.id}
             />
           )}
           ListFooterComponent={
