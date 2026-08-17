@@ -211,6 +211,10 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
       <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) save.reset(); }}>
         <DialogContent style={{ maxWidth: "52rem" }} className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Biosecurity Checklist</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+            <strong>Save at any stage:</strong> enter the start date and house now to open this record, then tick checklist items and add the end date as the cleanout is completed. Change the status to <em>Complete</em> once all steps are done and the house is ready to restock.
+          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-1 mb-1">Cleanout start</p>
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Cleanout Start Date *</Label><Input type="date" value={String(form.cleanoutStartDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutStartDate: e.target.value }))} /></div>
             <div><Label>Poultry House *</Label>
@@ -228,6 +232,9 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3 mb-1">Cleanout completion — fill in when the process is done</p>
+          <div className="grid grid-cols-3 gap-3">
             <div><Label>Cleanout End Date</Label><Input type="date" value={String(form.cleanoutEndDate ?? "")} onChange={e => setForm(f => ({ ...f, cleanoutEndDate: e.target.value }))} /></div>
             <div><Label>Downtime Days</Label><Input type="number" min="0" value={String(form.downtimeDays ?? "")} onChange={e => setForm(f => ({ ...f, downtimeDays: e.target.value }))} /></div>
             <div><Label>Overall Status</Label>
