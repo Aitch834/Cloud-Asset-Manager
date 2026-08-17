@@ -408,7 +408,14 @@ export default function VineHarvestHistoryScreen() {
 
     const weightedTonnesPerHa = totalAreaHa > 0 ? (yieldKgForArea / 1000) / totalAreaHa : null;
     const avgBrix = brixCount > 0 ? brixSum / brixCount : null;
-    return { totalKg, weightedTonnesPerHa, avgBrix, count: vintageRecords.length };
+    // True when at least one record is linked to a block whose area is absent or
+    // non-positive — i.e. the grower needs to set block area for t/ha to appear.
+    const hasBlockWithMissingArea = vintageRecords.some(r => {
+      if (r.blockId == null) return false;
+      const area = blockAreaMap.get(r.blockId);
+      return area == null || area <= 0;
+    });
+    return { totalKg, weightedTonnesPerHa, avgBrix, count: vintageRecords.length, hasBlockWithMissingArea };
   }, [vintageRecords, blocks]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
@@ -534,6 +541,20 @@ export default function VineHarvestHistoryScreen() {
                 {totals.weightedTonnesPerHa != null ? `${totals.weightedTonnesPerHa.toFixed(2)}` : "—"}
               </Text>
               <Text style={styles.totalsStatLabel}>t / ha</Text>
+              {totals.weightedTonnesPerHa == null && totals.hasBlockWithMissingArea && (
+                <Pressable
+                  onPress={() =>
+                    Alert.alert(
+                      "Block area not set",
+                      "t/ha is calculated from each block's area. Open Vineyard Blocks and enter the area (ha) for each block to see this figure.",
+                      [{ text: "OK" }],
+                    )
+                  }
+                  hitSlop={8}
+                >
+                  <Text style={styles.totalsHint}>Set block area to calculate</Text>
+                </Pressable>
+              )}
             </View>
             <View style={styles.totalsDivider} />
             <View style={styles.totalsStat}>
@@ -826,6 +847,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
+  },
+  totalsHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    textDecorationLine: "underline",
+    textAlign: "center",
+    marginTop: 2,
   },
   totalsDivider: {
     width: 1,
