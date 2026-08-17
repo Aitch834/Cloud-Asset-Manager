@@ -1675,6 +1675,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                             <span className="text-xs rounded px-1 py-0.5 bg-sky-50 text-sky-700 border border-sky-200 font-medium">
                               {Number(r.clean_count ?? 0)} clean{Number(r.clean_count ?? 0) !== 1 ? "s" : ""}
                             </span>
+                            {!!r.last_cleaned_date && (
+                              <span className="text-xs text-muted-foreground">
+                                Last cleaned {fmtDate(String(r.last_cleaned_date))}
+                              </span>
+                            )}
                             {isApproaching && <span className="text-xs rounded px-1 py-0.5 bg-orange-50 text-orange-700 font-medium">⚠ Approaching neutral</span>}
                             {isIdle && <span className="text-xs rounded px-1 py-0.5 bg-red-50 text-red-700 font-medium">⚠ Idle</span>}
                           </div>

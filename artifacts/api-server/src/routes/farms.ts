@@ -38199,7 +38199,8 @@ router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireM
       ) ELSE NULL END AS empty_since,
       (SELECT COUNT(*) FROM winery_barrel_maintenance m WHERE m.vessel_id = v.id) AS maintenance_count,
       (SELECT COUNT(*)::int FROM winery_barrel_fills f WHERE f.vessel_id = v.id) AS fill_count,
-      (SELECT COUNT(*)::int FROM winery_vessel_cleans c WHERE c.vessel_id = v.id) AS clean_count
+      (SELECT COUNT(*)::int FROM winery_vessel_cleans c WHERE c.vessel_id = v.id) AS clean_count,
+      (SELECT MAX(c.clean_date) FROM winery_vessel_cleans c WHERE c.vessel_id = v.id) AS last_cleaned_date
     FROM winery_vessels v
     WHERE v.farm_id = ${farmId}
     ORDER BY v.vessel_ref ASC
