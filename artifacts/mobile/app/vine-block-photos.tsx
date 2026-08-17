@@ -39,7 +39,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useApiVineBlocks, setCachedBlockCoverUrl, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
@@ -1103,6 +1103,7 @@ function PhotoThumbnail({
   onDelete,
   onPress,
   onEditCaption,
+  onSetCover,
   onShowTooltip,
   onHideTooltip,
   onReload,
@@ -1114,6 +1115,7 @@ function PhotoThumbnail({
   onDelete: (id: number) => void;
   onPress: (uri: string | null, photo: BlockPhoto) => void;
   onEditCaption: (photo: BlockPhoto) => void;
+  onSetCover?: (photo: BlockPhoto) => void;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
   onReload: () => void;
@@ -1149,6 +1151,9 @@ function PhotoThumbnail({
     onHideTooltip();
     Alert.alert("Photo Options", undefined, [
       { text: "Edit Caption", onPress: () => onEditCaption(photo) },
+      ...(!photo.isCover && onSetCover
+        ? [{ text: "Set as Cover", onPress: () => onSetCover(photo) }]
+        : []),
       {
         text: "Delete",
         style: "destructive",
@@ -1499,6 +1504,35 @@ export default function VineBlockPhotosScreen() {
     }
   };
 
+  const handleSetCover = useCallback(async (photo: BlockPhoto) => {
+    if (!currentFarm?.id || !selectedBlock) return;
+    try {
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/${photo.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCover: true }),
+        },
+      );
+      if (res.ok) {
+        // Update local photos state: clear isCover on all photos, set it on the promoted one
+        setPhotos((prev) =>
+          prev.map((p) => ({ ...p, isCover: p.id === photo.id })),
+        );
+        // Update the in-session URL cache so the block list shows the new
+        // cover thumbnail immediately when the grower navigates back, without
+        // waiting for the next background API refresh.
+        setCachedBlockCoverUrl(selectedBlock.id, photo.downloadUrl);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert("Error", "Could not set the cover photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not set the cover photo.");
+    }
+  }, [currentFarm?.id, selectedBlock]);
+
   const handleDelete = async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
     try {
@@ -1665,6 +1699,7 @@ export default function VineBlockPhotosScreen() {
               onDelete={handleDelete}
               onPress={openLightbox}
               onEditCaption={handleEditCaption}
+              onSetCover={handleSetCover}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
               onReload={() => handleReload(item.id)}
