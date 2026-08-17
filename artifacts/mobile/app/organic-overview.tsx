@@ -400,11 +400,11 @@ export default function OrganicOverviewScreen() {
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}
-                onPress={() => router.push("/organic-input")}
+                onPress={() => router.push("/organic-inputs-list")}
               >
                 <Feather name="package" size={22} color="#2563eb" />
-                <Text style={[styles.actionLabel, { color: "#2563eb" }]}>Log Livestock Input</Text>
-                <Text style={styles.actionSub}>Feeds &amp; amendments</Text>
+                <Text style={[styles.actionLabel, { color: "#2563eb" }]}>Organic Inputs</Text>
+                <Text style={styles.actionSub}>View &amp; log inputs</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#a7f3d0" }]}

@@ -68,6 +68,7 @@ export default function OrganicInputScreen() {
   const [quantityUnit, setQuantityUnit] = useState("kg");
   const [cropYear, setCropYear] = useState(currentYear());
   const [certifierApprovalRef, setCertifierApprovalRef] = useState("");
+  const [derogationExpiryDate, setDerogationExpiryDate] = useState("");
   const [notes, setNotes] = useState("");
 
   const needsApprovalRef = approvalStatus === "restricted" || approvalStatus === "derogation";
@@ -98,6 +99,7 @@ export default function OrganicInputScreen() {
       quantityUnit: quantityUnit.trim(),
       cropYear: cropYear.trim(),
       certifierApprovalRef: certifierApprovalRef.trim(),
+      derogationExpiryDate: derogationExpiryDate.trim() || undefined,
       notes: notes.trim(),
       createdAt: new Date().toISOString(),
       synced: false,
@@ -242,6 +244,16 @@ export default function OrganicInputScreen() {
                 <Text style={styles.label}>Certifier Approval / Reference</Text>
                 <Input placeholder="e.g. SA-DER-2024-001" value={certifierApprovalRef} onChangeText={setCertifierApprovalRef} />
               </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>Derogation Expiry Date</Text>
+                <Input
+                  placeholder="YYYY-MM-DD"
+                  value={derogationExpiryDate}
+                  onChangeText={setDerogationExpiryDate}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <Text style={styles.fieldHint}>Leave blank if no fixed expiry date</Text>
+              </View>
               {approvalStatus === "derogation" && inputType === "Feed Supplement / Additive" && (
                 <Pressable
                   style={styles.derogationLink}
@@ -362,6 +374,7 @@ const styles = StyleSheet.create({
   },
   warningText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: "#92400e", flex: 1 },
   textarea: { minHeight: 90, textAlignVertical: "top" },
+  fieldHint: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: spacing.xs },
   derogationLink: {
     flexDirection: "row",
     alignItems: "center",

@@ -27064,7 +27064,35 @@ router.get("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireM
 router.post("/farms/:farmId/organic/inputs", requireAuth, requireTenant, requireModuleByKey("organic-compliance", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, justification, certifierNotified, appliedBy, derogationExpiryDate, notes } = req.body;
+  const { productName, inputType, supplier, poReference, grnReference, approvalStatus, certifierApprovalRef, cropYear, dateOfUse, quantityAmount, quantityUnit, fieldId, fieldName, justification, certifierNotified, appliedBy, derogationExpiryDate, notes, mobileRecordId } = req.body;
+  const mobId: string | null = typeof mobileRecordId === "string" && mobileRecordId ? mobileRecordId : null;
+
+  if (mobId) {
+    // Idempotent mobile insert: INSERT … ON CONFLICT DO NOTHING, then SELECT.
+    // If the server committed on a previous attempt but the response was lost,
+    // the retry hits the conflict, skips the insert, and returns the existing row —
+    // guaranteeing exactly one record regardless of network failures.
+    await db.execute(sql`
+      INSERT INTO organic_inputs
+        (farm_id, product_name, input_type, supplier, po_reference, grn_reference,
+         approval_status, certifier_approval_ref, crop_year, date_of_use,
+         quantity_amount, quantity_unit, field_id, field_name, justification,
+         certifier_notified, applied_by, derogation_expiry_date, notes, mobile_record_id)
+      VALUES
+        (${farmId}, ${productName ?? null}, ${inputType ?? null}, ${supplier ?? null},
+         ${poReference ?? null}, ${grnReference ?? null}, ${approvalStatus ?? "permitted"},
+         ${certifierApprovalRef ?? null}, ${cropYear ?? null}, ${dateOfUse ?? null},
+         ${quantityAmount ?? null}, ${quantityUnit ?? null}, ${fieldId ?? null},
+         ${fieldName ?? null}, ${justification ?? null}, ${certifierNotified ?? false},
+         ${appliedBy ?? null}, ${derogationExpiryDate ?? null}, ${notes ?? null}, ${mobId})
+      ON CONFLICT (farm_id, mobile_record_id) WHERE mobile_record_id IS NOT NULL
+      DO NOTHING
+    `);
+    const rows = await db.execute(sql`SELECT * FROM organic_inputs WHERE farm_id = ${farmId} AND mobile_record_id = ${mobId} LIMIT 1`);
+    res.json({ record: rows.rows[0] });
+    return;
+  }
+
   const [record] = await db.insert(organicInputsTable).values({ farmId, productName, inputType: inputType ?? null, supplier: supplier ?? null, poReference: poReference ?? null, grnReference: grnReference ?? null, approvalStatus: approvalStatus ?? "permitted", certifierApprovalRef: certifierApprovalRef ?? null, cropYear: cropYear ?? null, dateOfUse: dateOfUse ?? null, quantityAmount: quantityAmount ?? null, quantityUnit: quantityUnit ?? null, fieldId: fieldId ?? null, fieldName: fieldName ?? null, justification: justification ?? null, certifierNotified: certifierNotified ?? false, appliedBy: appliedBy ?? null, derogationExpiryDate: derogationExpiryDate ?? null, notes: notes ?? null }).returning();
   res.json({ record });
 });

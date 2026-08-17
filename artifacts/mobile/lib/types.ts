@@ -2161,6 +2161,7 @@ export interface OrganicInput {
   quantityUnit: string;
   cropYear: string;
   certifierApprovalRef: string;
+  derogationExpiryDate?: string;
   notes: string;
   createdAt: string;
   synced: boolean;

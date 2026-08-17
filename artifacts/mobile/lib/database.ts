@@ -120,6 +120,7 @@ const TABLE_MAP: Record<string, string> = {
   bde_water_quality_records: "water_quality_records",
   bde_fly_tipping_reports: "fly_tipping_reports",
   bde_haulage_confirmations: "haulage_confirmations",
+  bde_organic_inputs: "organic_inputs",
   bde_organic_fp_inputs: "organic_fp_inputs",
   bde_organic_outdoor_access: "organic_outdoor_access",
   bde_organic_treatments: "organic_treatments",

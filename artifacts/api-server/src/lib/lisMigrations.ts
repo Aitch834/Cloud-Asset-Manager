@@ -526,6 +526,16 @@ export async function runLisMigrations(): Promise<void> {
   // uses this date instead of the crop-year heuristic.
   await db.execute(sql`ALTER TABLE organic_inputs ADD COLUMN IF NOT EXISTS derogation_expiry_date date`);
 
+  // Mobile idempotency key on organic_inputs — stores the stable UUID assigned by
+  // the mobile client so that POST retries after a dropped response do not insert
+  // duplicates.  The unique partial index enforces exactly-once delivery per farm.
+  await db.execute(sql`ALTER TABLE organic_inputs ADD COLUMN IF NOT EXISTS mobile_record_id text`);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS organic_inputs_farm_mobile_uniq
+    ON organic_inputs (farm_id, mobile_record_id)
+    WHERE mobile_record_id IS NOT NULL
+  `);
+
   // One-time incident notification log — records each support-portal incident that
   // required an automatic closure email once a production milestone was reached.
   //

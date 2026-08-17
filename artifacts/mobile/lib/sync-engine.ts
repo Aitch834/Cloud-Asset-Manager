@@ -248,6 +248,66 @@ async function migrateVineHarvestKey(): Promise<void> {
   }
 }
 
+// One-time migration: move any entries stored under the flat KV key
+// (bde_organic_inputs) into the TABLE_MAP-backed SQLite records table and the
+// sync queue, so records saved before this key was wired up are uploaded.
+//
+// Delivery semantics:
+//   At-least-once  — OLD_KEY is kept until every entry is confirmed migrated.
+//   Exactly-once server records — the server POST uses INSERT … ON CONFLICT
+//                    (farm_id, mobile_record_id) DO NOTHING, so a retry after a
+//                    lost response returns the existing row rather than inserting
+//                    a duplicate.  MARKER_KEY tracks already-enqueued IDs to
+//                    prevent multiple queue entries for the same record.
+async function migrateOrganicInputsKey(): Promise<void> {
+  const OLD_KEY = "bde_organic_inputs";
+  const MARKER_KEY = "bde_organic_inputs_migration_v1";
+  try {
+    const raw = await kvGet(OLD_KEY);
+    if (!raw) return;
+    let entries: Array<Record<string, unknown>>;
+    try {
+      entries = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(entries) || entries.length === 0) {
+      await kvDelete(OLD_KEY);
+      return;
+    }
+
+    const markerRaw = await kvGet(MARKER_KEY);
+    const migratedIds: Set<string> = markerRaw
+      ? new Set(JSON.parse(markerRaw) as string[])
+      : new Set();
+
+    for (const entry of entries) {
+      const id = String(entry.id ?? "");
+      const farmId = String(entry.farmId ?? "");
+      const createdAt = String(entry.createdAt ?? new Date().toISOString());
+      if (!id || migratedIds.has(id)) continue;
+
+      await insertRecord("organic_inputs", id, farmId, entry, createdAt);
+
+      // Only enqueue if not already pending and not already synced to the server.
+      if (!entry.synced) {
+        const alreadyQueued = await hasPendingSyncItem("bde_organic_inputs", id);
+        if (!alreadyQueued) {
+          await enqueueSyncItem("bde_organic_inputs", id, entry);
+        }
+      }
+
+      migratedIds.add(id);
+      await kvSet(MARKER_KEY, JSON.stringify(Array.from(migratedIds)));
+    }
+
+    await kvDelete(OLD_KEY);
+    await kvDelete(MARKER_KEY);
+  } catch (err) {
+    console.warn("migrateOrganicInputsKey:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function initialize(): Promise<void> {
   if (isInitialized) return;
   isInitialized = true;
@@ -255,6 +315,7 @@ export async function initialize(): Promise<void> {
   await migrateVineOperationsKey();
   await migrateIrrigationApplicationsKey();
   await migrateVineHarvestKey();
+  await migrateOrganicInputsKey();
   await refreshPendingCount();
 
   try {
@@ -462,6 +523,11 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
       isActive: data.isActive !== undefined ? data.isActive : !data.returned,
     };
   }
+  if (recordType === "bde_organic_inputs") {
+    // Include the stable mobile UUID as mobileRecordId so the server-side
+    // ON CONFLICT DO NOTHING upsert can deduplicate retries after a lost response.
+    return { ...data, mobileRecordId: data.id };
+  }
   if (recordType === "bde_organic_fp_inputs") {
     return {
       ...data,
@@ -608,6 +674,7 @@ function getSyncEndpoint(recordType: string, farmId: string, data?: Record<strin
     bde_seed_drilling_records: `/farms/${farmId}/seed-drilling`,
     bde_haulage_confirmations: `/farms/${farmId}/haulage-mobile`,
     bde_third_party_grain_intakes: `/farms/${farmId}/grain-intakes`,
+    bde_organic_inputs: `/farms/${farmId}/organic/inputs`,
     bde_organic_fp_inputs: `/farms/${farmId}/organic-fp-input-log`,
     bde_organic_outdoor_access: `/farms/${farmId}/organic-livestock/outdoor-access`,
     bde_organic_treatments: `/farms/${farmId}/organic-livestock/treatments`,
