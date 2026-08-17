@@ -126,6 +126,26 @@ function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, y
   ]);
 }
 
+function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
+  const fmtDate = (v: string | null | undefined) => {
+    if (!v) return "";
+    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
+  };
+  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  downloadCsvFile(`field-status-register-${safeName}.csv`, [
+    ["Field Name", "Status", "Conversion Start", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
+    ...records.map(r => [
+      r.fieldName,
+      STATUS_LABELS[r.status] ?? r.status,
+      fmtDate(r.conversionStartDate),
+      fmtDate(r.certificationDate),
+      r.certifierRef ?? "",
+      r.parallelProduction ? "Yes" : "No",
+      r.notes ?? "",
+    ]),
+  ]);
+}
+
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const rows = records.map(r => `<tr>
@@ -702,9 +722,14 @@ function FieldsTab({ farmId, farmName }: { farmId: number; farmName: string }) {
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />{conventional.length} conventional</span>
           </div>
           {records.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => printFieldStatusRegister(records, farmName)} className="gap-2">
-              <Printer className="w-4 h-4" />Print Register
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => printFieldStatusRegister(records, farmName)} className="gap-2">
+                <Printer className="w-4 h-4" />Print Register
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => downloadFieldStatusCsv(records, farmName)} className="gap-2">
+                <Download className="w-4 h-4" />Download CSV
+              </Button>
+            </div>
           )}
         </div>
         <Button onClick={() => { setEditing(null); setForm(EMPTY_FIELD); setFormOpen(true); }} className="gap-2"><Plus className="w-4 h-4" />Add Field</Button>
