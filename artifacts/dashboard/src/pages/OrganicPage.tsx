@@ -468,6 +468,11 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
                         <ClipboardList className="w-4 h-4 text-amber-600" />
                       </Button>
                     )}
+                    {record.expiryDate && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Raise expiry reminder task" onClick={() => setRaiseTaskFor({ title: `Certificate Expiry — ${record.certifier}`, description: `Your organic certificate issued by ${record.certifier} is due to expire. Check with your certifier and update the record in Organic Compliance → Certification.`, dueDate: record.expiryDate ?? undefined })}>
+                        <ClipboardList className="w-4 h-4 text-red-600" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="View" onClick={() => setViewRecord(record)}><Eye className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit" onClick={() => openEdit(record)}><Pencil className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Remove" onClick={() => setDeleteId(record.id)}><Trash2 className="w-4 h-4" /></Button>
