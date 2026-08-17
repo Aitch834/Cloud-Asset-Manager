@@ -2654,7 +2654,8 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "Batch Ref": "Barrel",
       "Date": "Date",
       "Type / Additive": "Work Type",
-      "Operator": "Cooperage",
+      "Detail": "Cooperage",
+      "Operator": "Operator",
       "SO₂ / Dose": "Cost (£)",
       "Notes": "Notes",
     });
@@ -2665,7 +2666,8 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
         "Batch Ref": String(m.vessel_ref ?? ""),
         "Date": m.maintenance_date ? fmtDate(m.maintenance_date) : "",
         "Type / Additive": String(m.work_type ?? ""),
-        "Operator": String(m.cooperage_name ?? ""),
+        "Detail": String(m.cooperage_name ?? ""),
+        "Operator": String(m.operator_name ?? "—"),
         "SO₂ / Dose": costPence != null ? (costPence / 100).toFixed(2) : "",
         "Notes": String(m.notes ?? ""),
       });
