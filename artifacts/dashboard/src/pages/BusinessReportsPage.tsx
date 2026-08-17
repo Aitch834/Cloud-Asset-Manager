@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { sanitiseCsvCell } from "@/lib/csv";
+import { agriEnvDoubleCountRisk, calcGrossMarginTxIncomeTotal, AGRI_ENV_CATS } from "@/lib/agri-env-double-count";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
@@ -179,32 +180,20 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
   const totalYield = Object.values(cropMap).reduce((s, c) => s + c.yield, 0);
   const totalArea = Object.values(cropMap).reduce((s, c) => s + c.area, 0);
 
-  // Individual Agri-Env Scheme income transactions, split by linked vs unlinked.
-  // Covers both standard and vineyard agri-env categories since both are linkable.
-  const agriEnvSchemeTxs: any[] = costs.filter((t: any) =>
-    (t.category === "Agri-Environment Scheme" || t.category === "Vineyard Agri-Environment Scheme") &&
-    t.transactionType === "income"
-  );
-  // Linked agri-env income transactions are already represented by their milestone claim in
-  // agriEnvYearTotal; exclude them from financial income to avoid double-counting.
-  // Both "Agri-Environment Scheme" and "Vineyard Agri-Environment Scheme" are linkable categories.
-  const txIncomeTotal = costs.filter((t: any) =>
-    t.transactionType === "income" &&
-    !((t.category === "Agri-Environment Scheme" || t.category === "Vineyard Agri-Environment Scheme") && t.agriEnvProjectId)
-  ).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
-  const varCostTotal = costs.filter(t => t.transactionType === "expense" && VARIABLE_COST_CATS.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
-
   // Agri-env milestone claims earned in the selected year (same logic as P&L tab)
   const agriEnvYearTotal = agriEnvSummary.reduce((s: number, p: any) => s + (p.yearClaimedPence ?? 0), 0);
   const agriEnvActiveProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) > 0);
 
+  // Double-count detection: unlinked agri-env income txs alongside milestone claims.
+  // Linked transactions are excluded from the financial income total and must not trigger the warning.
+  const { agriEnvSchemeTxs, hasDoubleCountRisk } = agriEnvDoubleCountRisk(costs, agriEnvYearTotal);
+
+  // Financial income total: linked agri-env txs are excluded (already in agriEnvYearTotal).
+  const txIncomeTotal = calcGrossMarginTxIncomeTotal(costs);
+  const varCostTotal = costs.filter(t => t.transactionType === "expense" && VARIABLE_COST_CATS.includes(t.category ?? "")).reduce((s, t) => s + (t.amountPence ?? 0), 0);
+
   const incomeTotal = txIncomeTotal + agriEnvYearTotal;
   const grossMargin = incomeTotal - varCostTotal;
-
-  // Double-count warning: only unlinked Agri-Environment Scheme transactions (no agriEnvProjectId) alongside milestone claims.
-  // Linked transactions are already excluded from txIncomeTotal above and should not trigger the warning.
-  const unlinkedAgriEnvTxIncome = agriEnvSchemeTxs.filter(t => !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
-  const hasDoubleCountRisk = agriEnvYearTotal > 0 && unlinkedAgriEnvTxIncome > 0;
 
   const costByCat = useMemo(() => {
     const m: Record<string, number> = {};
@@ -510,13 +499,14 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   const sumCat = (cat: string) => costs.filter(t => t.category === cat).reduce((s, t) => s + (t.amountPence ?? 0), 0);
 
   // Individual Agri-Env Scheme income transactions, split by linked vs unlinked.
-  // Covers both "Agri-Environment Scheme" and "Vineyard Agri-Environment Scheme" since both are linkable.
-  // Must be computed before incomeValues so linked transactions can be excluded from totals.
-  const AGRI_ENV_CATS = ["Agri-Environment Scheme", "Vineyard Agri-Environment Scheme"] as const;
-  const agriEnvSchemeTxs: any[] = costs.filter((t: any) => AGRI_ENV_CATS.includes(t.category) && t.transactionType === "income");
-  // Linked transactions are already represented by the milestone claim in agriEnvYearTotal;
-  // only unlinked transactions contribute to the financial income total.
-  const unlinkedAgriEnvTxTotal = agriEnvSchemeTxs.filter((t: any) => !t.agriEnvProjectId).reduce((s: number, t: any) => s + (t.amountPence ?? 0), 0);
+  // Only count milestones actually claimed (completed) in the selected year — never the full agreement value
+  const agriEnvYearTotal = agriEnvSummary.reduce((s: number, p: any) => s + (p.yearClaimedPence ?? 0), 0);
+  const agriEnvActiveProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) > 0);
+  // Projects active in year but with no milestone claims yet recorded
+  const agriEnvUnclaimedProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) === 0);
+
+  // Double-count detection: unlinked agri-env income txs alongside milestone claims.
+  const { agriEnvSchemeTxs, hasDoubleCountRisk } = agriEnvDoubleCountRisk(costs, agriEnvYearTotal);
 
   // Income by category (financial transactions only).
   // For both agri-env categories we use only unlinked transactions so linked ones are not
@@ -528,15 +518,6 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
     return m;
   }, {} as Record<string, number>);
   const txIncomeTotal = Object.values(incomeValues).reduce((s, v) => s + v, 0);
-
-  // Only count milestones actually claimed (completed) in the selected year — never the full agreement value
-  const agriEnvYearTotal = agriEnvSummary.reduce((s: number, p: any) => s + (p.yearClaimedPence ?? 0), 0);
-  const agriEnvActiveProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) > 0);
-  // Projects active in year but with no milestone claims yet recorded
-  const agriEnvUnclaimedProjects = agriEnvSummary.filter((p: any) => (p.yearClaimedPence ?? 0) === 0);
-
-  // Double-count warning: only triggered when there are UNLINKED agri-env scheme transactions alongside milestone claims
-  const hasDoubleCountRisk = agriEnvYearTotal > 0 && unlinkedAgriEnvTxTotal > 0;
 
   // Total output = financial income (linked agri-env excluded) + milestone claims this year.
   // A linked transaction contributes 0 to txIncomeTotal; its value is represented exactly once
