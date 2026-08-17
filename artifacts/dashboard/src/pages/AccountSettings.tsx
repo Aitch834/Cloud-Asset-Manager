@@ -312,6 +312,14 @@ export default function AccountSettings() {
                   <p className="text-xs text-muted-foreground pt-0.5">
                     Disable categories you're not responsible for. A dairy manager can silence livestock alerts; a cereals manager can silence dairy and livestock alerts.
                   </p>
+                  {visibleCategories.length > 0 && visibleCategories.every(cat => categoryStates[cat.key] === false) && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-3 text-amber-800">
+                      <span className="mt-0.5 text-base leading-none flex-shrink-0">⚠</span>
+                      <p className="text-xs leading-relaxed">
+                        SMS is enabled but every category is off — you won't receive any text alerts.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
