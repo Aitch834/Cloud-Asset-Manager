@@ -8,6 +8,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
+import * as MediaLibrary from "expo-media-library";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -196,6 +197,7 @@ export function ScoutingPhotoLightbox({
 }) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -206,6 +208,7 @@ export function ScoutingPhotoLightbox({
     if (visible) {
       setCurrentIndex(Math.min(initialIndex, Math.max(0, photos.length - 1)));
     }
+    setSaving(false);
     setSharing(false);
     setDeleting(false);
     setReloading(false);
@@ -222,6 +225,7 @@ export function ScoutingPhotoLightbox({
 
   // Reset in-flight flags and image error when displayed photo changes
   useEffect(() => {
+    setSaving(false);
     setSharing(false);
     setDeleting(false);
     setImgError(false);
@@ -273,6 +277,30 @@ export function ScoutingPhotoLightbox({
       },
     }),
   ).current;
+
+  const handleSaveToRoll = useCallback(async () => {
+    if (!photo?.downloadUrl || saving) return;
+    setSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library in Settings to save photos.",
+        );
+        return;
+      }
+      const ext = photo.fileName?.split(".").pop()?.toLowerCase() ?? "jpg";
+      const tmpUri = `${FileSystem.cacheDirectory}scouting_save_${photo.id}.${ext}`;
+      const dl = await FileSystem.downloadAsync(photo.downloadUrl, tmpUri);
+      await MediaLibrary.saveToLibraryAsync(dl.uri);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert("Save Failed", "Could not save the photo. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [photo, saving]);
 
   const handleShare = useCallback(async () => {
     if (!photo?.downloadUrl || sharing) return;
@@ -409,6 +437,20 @@ export function ScoutingPhotoLightbox({
 
         {/* Action bar */}
         <View style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+          {/* Save to camera roll */}
+          <Pressable
+            style={[lbStyles.actionBtn, saving && lbStyles.actionBtnDisabled]}
+            onPress={handleSaveToRoll}
+            disabled={saving || !uri}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Feather name="download" size={22} color="#fff" />
+            )}
+            <Text style={lbStyles.actionBtnText}>{saving ? "Saving…" : "Save"}</Text>
+          </Pressable>
+
           {/* Share */}
           <Pressable
             style={[lbStyles.actionBtn, sharing && lbStyles.actionBtnDisabled]}
