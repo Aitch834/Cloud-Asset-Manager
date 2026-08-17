@@ -1417,10 +1417,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 <div key={tbl.label} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                          <th className="text-left px-3 py-1.5 font-medium">
+                          <th className="text-left px-3 py-1.5 font-medium sticky left-0 z-10 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
                             <button
                               type="button"
                               className={`inline-flex items-center justify-start hover:text-foreground transition-colors ${chemSort?.col === "name" ? "text-foreground" : ""}`}
@@ -1431,7 +1431,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                             </button>
                           </th>
                           {uniqueVintages.map(vy => (
-                            <th key={vy} className="text-right px-3 py-1.5 font-medium">
+                            <th key={vy} className="text-right px-3 py-1.5 font-medium whitespace-nowrap">
                               <button
                                 type="button"
                                 className={`inline-flex items-center justify-end hover:text-foreground transition-colors ${chemSort?.col === vy ? "text-foreground" : ""}`}
@@ -1442,22 +1442,22 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                               </button>
                             </th>
                           ))}
-                          <th className="text-right px-3 py-1.5 font-medium border-l">
+                          <th className="text-right px-3 py-1.5 font-medium border-l sticky right-0 z-10 bg-card shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
                             <button
                               type="button"
                               className={`inline-flex items-center justify-end hover:text-foreground transition-colors ${chemSort?.col === "avg" ? "text-foreground" : ""}`}
                               onClick={() => handleChemSortCol("avg")}
                               title="Sort by row average"
                             >
-                              Avg<ChemSortIcon col="avg" />
+                              Avg All<ChemSortIcon col="avg" />
                             </button>
                           </th>
                         </tr>
                       </thead>
                       <tbody>
                         {sortedRows.map((row, ri) => (
-                          <tr key={ri} className="border-b last:border-0 hover:bg-muted/20">
-                            <td className="px-3 py-1.5 font-medium">{row.bname}</td>
+                          <tr key={ri} className="border-b last:border-0 hover:bg-muted/20 group">
+                            <td className="px-3 py-1.5 font-medium sticky left-0 z-10 bg-card group-hover:bg-muted/20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">{row.bname}</td>
                             {row.vintageCells.map((val, vi) => {
                               const pickCount = row.vintageCounts[vi] ?? 0;
                               const lowPick = val != null && pickCount === 1;
@@ -1482,21 +1482,21 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                                 </td>
                               );
                             })}
-                            <td className={`text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground ${chemSort?.col === "avg" ? "bg-muted/30" : ""}`}>
+                            <td className={`text-right px-3 py-1.5 tabular-nums border-l text-muted-foreground sticky right-0 z-10 bg-card group-hover:bg-muted/20 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] ${chemSort?.col === "avg" ? "!bg-muted/30" : ""}`}>
                               {row.rowAvg != null ? row.rowAvg.toFixed(tbl.precision) : "—"}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t-2 bg-muted/40 font-semibold text-xs">
-                          <td className="px-3 py-1.5">All blocks</td>
+                        <tr className="border-t-2 bg-muted/40 font-semibold text-xs group">
+                          <td className="px-3 py-1.5 sticky left-0 z-10 bg-muted/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">All blocks</td>
                           {tbl.colAvgs.map((val, vi) => (
                             <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
                               {val != null ? val.toFixed(tbl.precision) : "—"}
                             </td>
                           ))}
-                          <td className={`text-right px-3 py-1.5 tabular-nums border-l ${chemSort?.col === "avg" ? "bg-muted/30" : ""}`}>
+                          <td className={`text-right px-3 py-1.5 tabular-nums border-l sticky right-0 z-10 bg-muted/40 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] ${chemSort?.col === "avg" ? "!bg-muted/30" : ""}`}>
                             {tbl.grandAvg != null ? tbl.grandAvg.toFixed(tbl.precision) : "—"}
                           </td>
                         </tr>
