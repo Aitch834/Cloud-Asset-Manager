@@ -18,7 +18,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 
 interface AgriEnvProject {
   id: number;
@@ -58,6 +58,10 @@ function formatDate(d: string | null | undefined): string {
 
 function expandedKey(farmId: string | number): string {
   return `bde_agri_env_expanded_${farmId}`;
+}
+
+function projectsCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
 }
 
 function FarmDrawdownSummary({
@@ -127,6 +131,7 @@ export default function AgriEnvProjectsScreen() {
   const [error,       setError]       = useState<string | null>(null);
   const [expandedId,  setExpandedId]  = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [cachedAt,    setCachedAt]    = useState<Date | null>(null);
   const cancelRef = useRef(false);
 
   // Persist / restore the expanded project ID per farm.
@@ -140,11 +145,70 @@ export default function AgriEnvProjectsScreen() {
     [currentFarm?.id],
   );
 
+  // Restore the expanded project ID from storage, validating against a project list.
+  const restoreExpanded = useCallback(
+    async (loadedProjects: AgriEnvProject[]) => {
+      if (!currentFarm?.id) return;
+      const stored = await getItem<number | null>(expandedKey(currentFarm.id));
+      if (
+        stored !== null &&
+        typeof stored === "number" &&
+        loadedProjects.some((p) => p.id === stored)
+      ) {
+        setExpandedId(stored);
+      } else {
+        // Project was deleted or no stored value — start fully collapsed.
+        setExpandedId(null);
+      }
+    },
+    [currentFarm?.id],
+  );
+
+  // Persist fresh data to the local cache.
+  const persistCache = useCallback(
+    async (loadedProjects: AgriEnvProject[], loadedMilestones: AgriEnvMilestone[]) => {
+      if (!currentFarm?.id) return;
+      const now = new Date().toISOString();
+      await Promise.all([
+        setItem<AgriEnvCache<AgriEnvProject>>(projectsCacheKey(currentFarm.id), {
+          data: loadedProjects,
+          cachedAt: now,
+        }),
+        setItem<AgriEnvCache<AgriEnvMilestone>>(milestonesCacheKey(currentFarm.id), {
+          data: loadedMilestones,
+          cachedAt: now,
+        }),
+      ]);
+    },
+    [currentFarm?.id],
+  );
+
   const load = useCallback(async (isRefresh = false) => {
     if (!currentFarm?.id) { setLoading(false); return; }
     cancelRef.current = false;
-    if (isRefresh) setRefreshing(true); else setLoading(true);
+
+    // --- Cache-first: read stored data and show it immediately ---
+    if (!isRefresh) {
+      const [projCache, milCache] = await Promise.all([
+        getItem<AgriEnvCache<AgriEnvProject>>(projectsCacheKey(currentFarm.id)),
+        getItem<AgriEnvCache<AgriEnvMilestone>>(milestonesCacheKey(currentFarm.id)),
+      ]);
+      if (projCache && milCache && !cancelRef.current) {
+        setProjects(projCache.data);
+        setMilestones(milCache.data);
+        setCachedAt(new Date(projCache.cachedAt));
+        await restoreExpanded(projCache.data);
+        setLoading(false);
+        // Fall through to background refresh (no spinner, just silent update).
+      } else {
+        setLoading(true);
+      }
+    } else {
+      setRefreshing(true);
+    }
+
     setError(null);
+
     try {
       const [projRes, milRes] = await Promise.all([
         apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`),
@@ -155,30 +219,29 @@ export default function AgriEnvProjectsScreen() {
       const projData = await projRes.json() as { projects: AgriEnvProject[] };
       const milData  = await milRes.json()  as { milestones: AgriEnvMilestone[] };
       if (!cancelRef.current) {
-        const loadedProjects = projData.projects ?? [];
+        const loadedProjects   = projData.projects   ?? [];
+        const loadedMilestones = milData.milestones  ?? [];
         setProjects(loadedProjects);
-        setMilestones(milData.milestones ?? []);
-
-        // Restore the last-expanded project for this farm, but only if it
-        // still exists in the freshly loaded list.
-        const stored = await getItem<number | null>(expandedKey(currentFarm.id));
-        if (
-          stored !== null &&
-          typeof stored === "number" &&
-          loadedProjects.some((p) => p.id === stored)
-        ) {
-          setExpandedId(stored);
-        } else {
-          // Project was deleted or no stored value — start fully collapsed.
-          setExpandedId(null);
-        }
+        setMilestones(loadedMilestones);
+        setCachedAt(null); // now showing live data — suppress the banner
+        await restoreExpanded(loadedProjects);
+        // Persist in the background; ignore write failures.
+        persistCache(loadedProjects, loadedMilestones).catch(() => { /* ignore */ });
       }
     } catch (err) {
-      if (!cancelRef.current) setError(err instanceof Error ? err.message : "Failed to load");
+      if (!cancelRef.current) {
+        // Only show the error state when we have no cached data to fall back on.
+        setProjects((prev) => {
+          if (prev.length === 0) {
+            setError(err instanceof Error ? err.message : "Failed to load");
+          }
+          return prev;
+        });
+      }
     } finally {
       if (!cancelRef.current) { setLoading(false); setRefreshing(false); }
     }
-  }, [currentFarm?.id]);
+  }, [currentFarm?.id, restoreExpanded, persistCache]);
 
   useEffect(() => {
     void load();
@@ -315,6 +378,17 @@ export default function AgriEnvProjectsScreen() {
         <Text style={styles.title}>Agri-Environment Grants</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {/* Cached-data banner */}
+      {!loading && cachedAt && (
+        <View style={styles.cacheBanner}>
+          <Feather name="clock" size={12} color={colors.textTertiary} />
+          <Text style={styles.cacheBannerText}>
+            Showing data from {cachedAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}{" "}
+            at {cachedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} — updating…
+          </Text>
+        </View>
+      )}
 
       {/* Search bar */}
       {!loading && !error && (
@@ -456,6 +530,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textInverse,
+  },
+
+  // Cached-data banner
+  cacheBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    backgroundColor: "#fef9c3",
+    borderBottomWidth: 1,
+    borderBottomColor: "#fde68a",
+  },
+  cacheBannerText: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: "#92400e",
+    flexShrink: 1,
   },
 
   // Search
@@ -666,3 +758,12 @@ const summaryStyles = StyleSheet.create({
     marginTop: 3,
   },
 });
+
+interface AgriEnvCache<T> {
+  data: T[];
+  cachedAt: string; // ISO timestamp
+}
+
+function milestonesCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_MILESTONES_CACHE}_${farmId}`;
+}
