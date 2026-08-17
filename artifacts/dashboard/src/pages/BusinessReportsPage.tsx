@@ -215,6 +215,11 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
       rows.push(["Financial income", fmt(txIncomeTotal)]);
       if (agriEnvYearTotal > 0) {
         rows.push([`Agri-env schemes (from Agri-Env tab, ${agriEnvActiveProjects.length} project${agriEnvActiveProjects.length !== 1 ? "s" : ""})`, fmt(agriEnvYearTotal), hasDoubleCountRisk ? "WARNING: also recorded as financial transaction — possible double-count" : ""]);
+        if (agriEnvActiveProjects.length > 1) {
+          for (const p of agriEnvActiveProjects) {
+            rows.push([`  ↳ ${p.schemeName}`, fmt(p.yearClaimedPence), ""]);
+          }
+        }
       }
       rows.push(["Total Farm Output", fmt(incomeTotal)]);
       rows.push(["Total Variable Costs", fmt(varCostTotal)]);
@@ -246,6 +251,37 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
         <StatCard label="Total Farm Output" value={fmt(incomeTotal)} bg="#eff6ff" border="#bfdbfe" color="#1e40af" sub={agriEnvYearTotal > 0 ? `Incl. ${fmt(agriEnvYearTotal)} agri-env schemes (from Agri-Env tab)` : undefined} />
         <StatCard label="Gross Margin" value={fmt(grossMargin)} bg={grossMargin >= 0 ? "#f0fdf4" : "#fef2f2"} border={grossMargin >= 0 ? "#bbf7d0" : "#fecaca"} color={grossMargin >= 0 ? "#166534" : "#991b1b"} />
       </div>
+
+      {agriEnvActiveProjects.length > 1 && (
+        <div>
+          <h3 style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: 8, color: "#374151" }}>Agri-Environment Scheme Breakdown</h3>
+          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: "0.6rem 0.875rem", textAlign: "left", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Project</th>
+                  <th style={{ padding: "0.6rem 0.875rem", textAlign: "right", fontWeight: 600, color: "#374151", fontSize: "0.75rem" }}>Claimed in {year}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agriEnvActiveProjects.map((p: any, i: number, arr: any[]) => (
+                  <tr key={p.id} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <td style={{ padding: "0.5rem 0.875rem", paddingLeft: "1.75rem", color: "#374151" }}>↳ {p.schemeName}</td>
+                    <td style={{ padding: "0.5rem 0.875rem", color: "#374151", textAlign: "right" }}>{fmt(p.yearClaimedPence)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid #d1fae5", background: "#f0fdf4" }}>
+                  <td style={{ padding: "0.6rem 0.875rem", fontWeight: 700 }}>Total agri-env schemes</td>
+                  <td style={{ padding: "0.6rem 0.875rem", fontWeight: 700, color: "#166534", textAlign: "right" }}>{fmt(agriEnvYearTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: 6 }}>
+            * Drawn from milestone claims in the Agri-Env tab. Amounts reflect milestones completed in {year} only.
+          </p>
+        </div>
+      )}
 
       {Object.keys(cropMap).length > 0 && (
         <div>
