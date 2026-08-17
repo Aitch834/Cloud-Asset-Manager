@@ -382,6 +382,9 @@ export async function runLisMigrations(): Promise<void> {
   await db.execute(sql`
     ALTER TABLE organic_certification ADD COLUMN IF NOT EXISTS scope text
   `);
+  await db.execute(sql`
+    ALTER TABLE organic_certification ADD COLUMN IF NOT EXISTS expiry_date date
+  `);
 
   // ─── EIDCymru (Wales — sheep & goat movement reporting) ───────────────────
   await db.execute(sql`

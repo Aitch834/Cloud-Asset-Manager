@@ -163,13 +163,14 @@ function printCertificationSummary(records: Certification[], farmName: string) {
     <td>${escHtml(r.operatorNumber)}</td>
     <td style="white-space:nowrap">${r.certificationDate ? new Date(r.certificationDate).toLocaleDateString("en-GB") : "—"}</td>
     <td style="white-space:nowrap">${r.renewalDate ? new Date(r.renewalDate).toLocaleDateString("en-GB") : "—"}</td>
+    <td style="white-space:nowrap">${r.expiryDate ? new Date(r.expiryDate).toLocaleDateString("en-GB") : "—"}</td>
     <td><span style="font-weight:600;color:${statusColor(r.status)}">${escHtml(STATUS_LABELS[r.status] ?? r.status)}</span></td>
     <td>${escHtml(r.notes)}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Organic Certification Summary — ${safeFarmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${safeFarmName}</h1><p class="sub">Organic Certification Summary · Complementary Record</p></div>
 <div class="hdr-r"><b>Certification Summary</b>${records.length} registration${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Certifying Body</th><th>Scope / Enterprise</th><th>Certificate No.</th><th>Operator No.</th><th>Certification Date</th><th>Annual Renewal</th><th>Status</th><th>Notes</th></tr></thead>
+<table><thead><tr><th>Certifying Body</th><th>Scope / Enterprise</th><th>Certificate No.</th><th>Operator No.</th><th>Certification Date</th><th>Annual Renewal</th><th>Expiry Date</th><th>Status</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Organic Certification Summary — Complementary record for Soil Association / OF&amp;G portal. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
@@ -205,7 +206,7 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
 interface Certification {
   id: number; farmId: number; certifier: string; scope: string | null;
   certificateNumber: string | null; certificationDate: string | null;
-  renewalDate: string | null; status: string; operatorNumber: string | null; notes: string | null;
+  renewalDate: string | null; expiryDate: string | null; status: string; operatorNumber: string | null; notes: string | null;
 }
 interface FieldStatus {
   id: number; farmId: number; fieldId: number | null; fieldName: string; status: string;
@@ -296,7 +297,7 @@ function FieldPicker({
 
 // ─── Certification Tab ───────────────────────────────────────────────────────
 
-const EMPTY_CERT = { certifier: "Soil Association", scope: "All enterprises", certificateNumber: "", certificationDate: "", renewalDate: "", status: "certified", operatorNumber: "", notes: "" };
+const EMPTY_CERT = { certifier: "Soil Association", scope: "All enterprises", certificateNumber: "", certificationDate: "", renewalDate: "", expiryDate: "", status: "certified", operatorNumber: "", notes: "" };
 
 function CertificationTab({ farmId, farmName }: { farmId: number; farmName: string }) {
   const { toast } = useToast();
@@ -334,7 +335,7 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
 
   function openAdd() { setForm(EMPTY_CERT); setAdding(true); }
   function openEdit(r: Certification) {
-    setForm({ certifier: r.certifier, scope: r.scope ?? "All enterprises", certificateNumber: r.certificateNumber ?? "", certificationDate: r.certificationDate ?? "", renewalDate: r.renewalDate ?? "", status: r.status, operatorNumber: r.operatorNumber ?? "", notes: r.notes ?? "" });
+    setForm({ certifier: r.certifier, scope: r.scope ?? "All enterprises", certificateNumber: r.certificateNumber ?? "", certificationDate: r.certificationDate ?? "", renewalDate: r.renewalDate ?? "", expiryDate: r.expiryDate ?? "", status: r.status, operatorNumber: r.operatorNumber ?? "", notes: r.notes ?? "" });
     setEditRecord(r);
   }
 
@@ -402,6 +403,7 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
                   {record.certificateNumber && <><span className="text-foreground/60">Certificate No.</span><span className="font-medium">{record.certificateNumber}</span></>}
                   {record.operatorNumber && <><span className="text-foreground/60">Operator No.</span><span className="font-medium">{record.operatorNumber}</span></>}
                   {record.certificationDate && <><span className="text-foreground/60">Certified Since</span><span className="font-medium">{fmt(record.certificationDate)}</span></>}
+                  {record.expiryDate && <><span className="text-foreground/60">Expiry Date</span><span className="font-medium">{fmt(record.expiryDate)}</span></>}
                   {record.renewalDate && (
                     <>
                       <span className="text-foreground/60">Annual Renewal</span>
@@ -432,6 +434,7 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Operator Number</p><p className="font-medium">{viewRecord.operatorNumber || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certification Date</p><p className="font-medium">{fmt(viewRecord.certificationDate)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Annual Renewal Date</p><p className="font-medium">{fmt(viewRecord.renewalDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certificate Expiry Date</p><p className="font-medium">{fmt(viewRecord.expiryDate)}</p></div>
               <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRecord.notes || "—"}</p></div>
             </div>
             <DialogFooter>
@@ -487,6 +490,11 @@ function CertificationTab({ farmId, farmName }: { farmId: number; farmName: stri
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Certification Date</Label><Input type="date" className={INPUT_CLS} max={new Date().toISOString().slice(0, 10)} value={form.certificationDate} onChange={e => setForm(f => ({ ...f, certificationDate: e.target.value }))} /></div>
               <div><Label>Annual Renewal Date</Label><Input type="date" min={new Date().toISOString().slice(0, 10)} className={INPUT_CLS} value={form.renewalDate} onChange={e => setForm(f => ({ ...f, renewalDate: e.target.value }))} /></div>
+            </div>
+            <div>
+              <Label>Certificate Expiry Date <span className="text-foreground/40 font-normal">(optional)</span></Label>
+              <Input type="date" className={INPUT_CLS} value={form.expiryDate} onChange={e => setForm(f => ({ ...f, expiryDate: e.target.value }))} />
+              <p className="text-xs text-foreground/50 mt-1">The date on which the certificate itself expires, if different from the annual renewal date.</p>
             </div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} /></div>
             <DialogMutationError mutation={editRecord ? updateMut : createMut} message="Failed to save — your entries are still here." />

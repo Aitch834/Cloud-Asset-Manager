@@ -13,6 +13,7 @@ export const organicCertificationTable = pgTable("organic_certification", {
   certificateNumber: text("certificate_number"),
   certificationDate: date("certification_date"),
   renewalDate: date("renewal_date"),
+  expiryDate: date("expiry_date"),
   status: text("status").notNull().default("certified"),
   operatorNumber: text("operator_number"),
   notes: text("notes"),
