@@ -31,6 +31,8 @@ import { runViticultureMigrations } from "./lib/viticultureMigrations";
 import { runSectorAlertMigrations } from "./lib/sectorAlertMigrations";
 import { runHelpArticleMigrations } from "./lib/helpArticleMigrations";
 import { runFpInputMigrations } from "./lib/fpInputMigrations";
+import { runAhdbMigrations } from "./lib/ahdbMigrations";
+import { runTradeBodiesMigrations } from "./lib/tradeBodiesMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -190,5 +192,11 @@ app.listen(port, () => {
   });
   runFpInputMigrations().catch((err) => {
     console.error("[FP-INPUT-MIGRATE] Failed:", err);
+  });
+  runAhdbMigrations().catch((err) => {
+    console.error("[AHDB-MIGRATE] Failed:", err);
+  });
+  runTradeBodiesMigrations().catch((err) => {
+    console.error("[TRADE-BODIES-MIGRATE] Failed:", err);
   });
 });

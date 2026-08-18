@@ -54,7 +54,6 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FarmSettingsWarning, FsaCompletenessBar, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 import { FrostEventsSection } from "./FrostEventsSection";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FsaCompletenessBar, FarmSettingsWarning, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Phenology = Record<string, unknown>;
 
@@ -243,7 +242,6 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const farmName = useFarmName(farmId);
   const [, setLocation] = useLocation();
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
-  const [, setLocation] = useLocation();
   const { displayName } = useUserRole();
   const { toast } = useToast();
   const queryClient = useQueryClient();

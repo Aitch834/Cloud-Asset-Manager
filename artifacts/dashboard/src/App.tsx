@@ -98,6 +98,8 @@ const WaterIrrigationPage = React.lazy(() => import("@/pages/WaterIrrigationPage
 const InsurancePage = React.lazy(() => import("@/pages/InsurancePage"));
 const FarmServicesPage = React.lazy(() => import("@/pages/FarmServicesPage"));
 const GrantsPage = React.lazy(() => import("@/pages/GrantsPage"));
+const AhdbLevyPage = React.lazy(() => import("@/pages/AhdbLevyPage"));
+const TradeBodiesPage = React.lazy(() => import("@/pages/TradeBodiesPage"));
 const SFIPage = React.lazy(() => import("@/pages/SFIPage"));
 const FuelEnergyPage = React.lazy(() => import("@/pages/FuelEnergyPage"));
 const FeedManagementPage = React.lazy(() => import("@/pages/FeedManagementPage"));
@@ -334,6 +336,8 @@ function AppRoutes() {
         <Route path="/insurance" component={InsurancePage} />
         <Route path="/farm-services" component={FarmServicesPage} />
         <Route path="/grants" component={GrantsPage} />
+        <Route path="/ahdb-levy" component={AhdbLevyPage} />
+        <Route path="/trade-levies" component={TradeBodiesPage} />
         <Route path="/sfi" component={SFIPage} />
         <Route path="/fuel-energy" component={FuelEnergyPage} />
         <Route path="/feed" component={FeedManagementPage} />
