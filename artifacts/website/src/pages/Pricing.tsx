@@ -49,6 +49,42 @@ const SECTOR_MODULES: Partial<Record<Sector, string[]>> = {
   ],
 };
 
+// Encode farms state as a JSON string suitable for a URL query parameter.
+// Compact format: [["Farm Name", ["mod1","mod2"]], ["Farm 2", ["mod3"]]]
+function encodeFarmsParam(farms: Farm[]): string {
+  return JSON.stringify(farms.map(f => [f.name, f.selectedModules]));
+}
+
+// Pure parsing function (no window access) — exported for tests.
+// Returns null when raw is null/empty/unparseable or the result is empty.
+export function parseFarmsParam(raw: string | null, validModuleIds: Set<string>): Farm[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    const farms: Farm[] = parsed.map((entry: unknown, i: number) => {
+      if (!Array.isArray(entry) || entry.length < 2) {
+        return { id: i + 1, name: `Farm ${i + 1}`, selectedModules: ["red-tractor-compliance"] };
+      }
+      const [rawName, rawModules] = entry;
+      const name = typeof rawName === "string" && rawName.trim() ? rawName : `Farm ${i + 1}`;
+      const moduleIds: string[] = Array.isArray(rawModules)
+        ? rawModules.filter((m): m is string => typeof m === "string" && m !== "red-tractor-compliance" && validModuleIds.has(m))
+        : [];
+      return { id: i + 1, name, selectedModules: ["red-tractor-compliance", ...moduleIds] };
+    });
+    return farms;
+  } catch {
+    return null;
+  }
+}
+
+// Restore farms from the "farms" URL param.
+function parseFarmsFromUrl(): Farm[] | null {
+  const raw = new URLSearchParams(window.location.search).get("farms");
+  return parseFarmsParam(raw, new Set(MODULES.map(m => m.id)));
+}
+
 // Returns a Map of bundledModuleId → name of the parent module providing it.
 // If two parents bundle the same module, the first one wins (e.g. both viticulture and organic-viticulture bundle sprays-inputs).
 function getBundledModules(selectedModules: string[]): Map<string, string> {
@@ -112,20 +148,29 @@ function getFarmBundleSaving(farm: Farm): number {
 }
 
 export default function Pricing() {
-  const [farms, setFarms] = useState<Farm[]>([
-    { id: 1, name: "Farm 1", selectedModules: ["red-tractor-compliance", "field-crop-management", "equipment-workshop"] },
-  ]);
-  const [activeFarmId, setActiveFarmId] = useState(1);
+  const [farms, setFarms] = useState<Farm[]>(() => {
+    return parseFarmsFromUrl() ?? [
+      { id: 1, name: "Farm 1", selectedModules: ["red-tractor-compliance", "field-crop-management", "equipment-workshop"] },
+    ];
+  });
+  const [activeFarmId, setActiveFarmId] = useState(() => {
+    const restored = parseFarmsFromUrl();
+    return restored ? restored[0].id : 1;
+  });
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
   const [sectorFilter, setSectorFilter] = useState<Sector>(() => {
     const param = new URLSearchParams(window.location.search).get("sector") as Sector | null;
     return param && (SECTORS as readonly string[]).includes(param) ? param : "All";
   });
   const [linkCopied, setLinkCopied] = useState(false);
-  const nextFarmIdRef = useRef(2);
+  const nextFarmIdRef = useRef(
+    (() => { const r = parseFarmsFromUrl(); return r ? r.length + 1 : 2; })()
+  );
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("farms", encodeFarmsParam(farms));
+    navigator.clipboard.writeText(url.toString()).then(() => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     });
