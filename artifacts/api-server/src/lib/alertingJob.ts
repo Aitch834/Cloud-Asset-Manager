@@ -6,7 +6,7 @@ import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/sc
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
-import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, type WeeklyDigestItem } from "./mailer";
+import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, sendSectorAlertIssuedEmail, type WeeklyDigestItem } from "./mailer";
 
 const ESCALATION_DAYS = 7;
 
@@ -1951,9 +1951,10 @@ async function runSectorAlertAllClearNotifications() {
             if (!unique.has(norm)) unique.set(norm, a.name ?? "");
           }
 
-          // Load already-delivered addresses for this episode from the outbox
+          // Load already-delivered addresses for this episode from the outbox (clear kind only)
           const delivered = await db.execute(sql`
-            SELECT email_norm FROM sector_alert_email_deliveries WHERE episode_id = ${ep.id}
+            SELECT email_norm FROM sector_alert_email_deliveries
+            WHERE episode_id = ${ep.id} AND kind = 'clear'
           `);
           const alreadyDelivered = new Set<string>(
             (delivered.rows as { email_norm: string }[]).map(r => r.email_norm)
@@ -1979,9 +1980,9 @@ async function runSectorAlertAllClearNotifications() {
             if (result.sent) {
               // ON CONFLICT DO NOTHING is safe if two job instances race
               await db.execute(sql`
-                INSERT INTO sector_alert_email_deliveries (episode_id, email_norm, advisor_name)
-                VALUES (${ep.id}, ${norm}, ${displayName || null})
-                ON CONFLICT (episode_id, email_norm) DO NOTHING
+                INSERT INTO sector_alert_email_deliveries (episode_id, email_norm, advisor_name, kind)
+                VALUES (${ep.id}, ${norm}, ${displayName || null}, 'clear')
+                ON CONFLICT (episode_id, email_norm, kind) DO NOTHING
               `);
               sentCount++;
             } else {
@@ -2002,6 +2003,104 @@ async function runSectorAlertAllClearNotifications() {
         await db.execute(sql`UPDATE sector_alert_episodes SET end_email_notified = true WHERE id = ${ep.id}`);
         console.log(`[ALERTS] All-clear email complete for ${ep.sector} episode ${ep.id}`);
       }
+    }
+  }
+}
+
+async function runSectorAlertIssueNotifications() {
+  const pending = await db.execute(sql`
+    SELECT id, sector, level, message, counties, issued_at
+    FROM sector_alert_episodes
+    WHERE issue_email_notified = false
+      AND ended_at IS NULL
+  `);
+  if (pending.rows.length === 0) return;
+
+  const allFarms = await db.execute(sql`SELECT id, tenant_id, county FROM farms`);
+  const farmRows = allFarms.rows as { id: number; tenant_id: number; county: string | null }[];
+
+  for (const ep of pending.rows as {
+    id: number; sector: string; level: string; message: string; counties: string;
+    issued_at: string;
+  }[]) {
+    const counties = ep.counties
+      ? ep.counties.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean)
+      : [];
+    const relevantFarms = counties.length === 0
+      ? farmRows
+      : farmRows.filter(f => f.county && counties.includes(f.county.toLowerCase()));
+
+    const sectorLabel = SECTOR_ALERT_LABELS[ep.sector] ?? ep.sector;
+    const issuedAt = new Date(ep.issued_at);
+    let allDelivered = true;
+
+    try {
+      const allRelevantFarmIds = relevantFarms.map(f => f.id);
+      if (allRelevantFarmIds.length > 0) {
+        const advisors = await db
+          .select({ email: farmAdvisorsTable.advisorEmail, name: farmAdvisorsTable.advisorName })
+          .from(farmAdvisorsTable)
+          .where(and(
+            sql`${farmAdvisorsTable.farmId} = ANY(ARRAY[${sql.join(allRelevantFarmIds.map(id => sql`${id}`), sql`, `)}]::int[])`,
+            isNull(farmAdvisorsTable.revokedAt),
+          ));
+
+        const unique = new Map<string, string>(); // email_norm → display name
+        for (const a of advisors) {
+          const norm = a.email.toLowerCase();
+          if (!unique.has(norm)) unique.set(norm, a.name ?? "");
+        }
+
+        // Load already-delivered addresses for this episode+kind from the outbox
+        const delivered = await db.execute(sql`
+          SELECT email_norm FROM sector_alert_email_deliveries
+          WHERE episode_id = ${ep.id} AND kind = 'issue'
+        `);
+        const alreadyDelivered = new Set<string>(
+          (delivered.rows as { email_norm: string }[]).map(r => r.email_norm)
+        );
+
+        let sentCount = 0;
+        let failCount = 0;
+        for (const [norm, displayName] of unique) {
+          if (alreadyDelivered.has(norm)) continue;
+          const result = await sendSectorAlertIssuedEmail({
+            to: norm,
+            toName: displayName || undefined,
+            sectorLabel,
+            level: ep.level,
+            counties: ep.counties || null,
+            message: ep.message || null,
+            issuedAt,
+          }).catch((err) => {
+            console.error(`[ALERTS] Issue email threw for ${norm}, sector ${ep.sector}:`, err);
+            return { sent: false as const, reason: String(err) };
+          });
+
+          if (result.sent) {
+            await db.execute(sql`
+              INSERT INTO sector_alert_email_deliveries (episode_id, email_norm, advisor_name, kind)
+              VALUES (${ep.id}, ${norm}, ${displayName || null}, 'issue')
+              ON CONFLICT (episode_id, email_norm, kind) DO NOTHING
+            `);
+            sentCount++;
+          } else {
+            console.warn(`[ALERTS] Issue email not sent to ${norm} (${result.reason ?? "unknown"}), sector ${ep.sector} — will retry next cycle`);
+            failCount++;
+            allDelivered = false;
+          }
+        }
+        console.log(`[ALERTS] Issue email: episode ${ep.id} sector ${ep.sector} — sent ${sentCount}, failed ${failCount}, skipped ${alreadyDelivered.size}`);
+      }
+      // No advisors on any relevant farm — nothing to send; mark complete
+    } catch (err) {
+      console.error(`[ALERTS] Issue email query failed for episode ${ep.id}, sector ${ep.sector}:`, err);
+      allDelivered = false;
+    }
+
+    if (allDelivered) {
+      await db.execute(sql`UPDATE sector_alert_episodes SET issue_email_notified = true WHERE id = ${ep.id}`);
+      console.log(`[ALERTS] Issue email complete for ${ep.sector} episode ${ep.id}`);
     }
   }
 }
@@ -2028,6 +2127,7 @@ export async function runAlertingJob() {
     await checkPigTailBitingOutbreaks();
     await checkLivestockMedicineWithdrawal();
     await checkAgriEnvMilestoneDeadlines();
+    await runSectorAlertIssueNotifications();
     await runSectorAlertAllClearNotifications();
     console.log("[ALERTS] Alerting job completed");
   } catch (err) {

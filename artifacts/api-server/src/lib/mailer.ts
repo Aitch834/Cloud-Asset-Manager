@@ -460,6 +460,83 @@ export interface WeeklyDigestItem {
   severity: "critical" | "warning";
 }
 
+export async function sendSectorAlertIssuedEmail(opts: {
+  to: string;
+  toName?: string;
+  sectorLabel: string;
+  level: string;
+  counties?: string | null;
+  message?: string | null;
+  issuedAt: Date;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const levelLabel = opts.level.charAt(0).toUpperCase() + opts.level.slice(1);
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const levelColor = opts.level === "critical" ? "#dc2626" : opts.level === "high" ? "#d97706" : "#1a6b3a";
+
+  const countiesRow = opts.counties?.trim()
+    ? `<tr>
+        <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">County scope</td>
+        <td style="padding:8px 12px;font-size:14px;color:#374151;">${opts.counties.trim()}</td>
+       </tr>`
+    : `<tr>
+        <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">County scope</td>
+        <td style="padding:8px 12px;font-size:14px;color:#374151;">All counties</td>
+       </tr>`;
+
+  const messageBlock = opts.message?.trim()
+    ? `<p style="margin:16px 0;font-size:14px;color:#1a1a1a;line-height:1.6;background:#fff8ec;border-left:4px solid ${levelColor};padding:12px 16px;border-radius:0 4px 4px 0;">${opts.message.trim()}</p>`
+    : "";
+
+  const greeting = opts.toName ? `Hi ${opts.toName.split(" ")[0]},` : "Hello,";
+
+  const body = `
+    <p>${greeting}</p>
+    <p>A new <strong>${opts.sectorLabel}</strong> sector alert has been issued on the BDE Farm Trac platform. Please review the details below and take any appropriate action.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3cd;border-radius:6px;margin:20px 0;border:1px solid #fbbf24;">
+      <tr>
+        <td style="padding:16px 20px 4px;">
+          <p style="margin:0;font-size:11px;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;">New sector alert</p>
+          <p style="margin:4px 0 0;font-size:22px;font-weight:bold;color:#1a1a1a;">${opts.sectorLabel}</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 20px 16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Alert level</td>
+              <td style="padding:8px 12px;font-size:14px;font-weight:bold;color:${levelColor};">${levelLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Issued</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)}</td>
+            </tr>
+            ${countiesRow}
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    ${messageBlock}
+
+    <p>Please log in to your BDE Farm Trac dashboard to view the full alert details and any recommended actions. You will receive a separate notification when this alert is lifted.</p>
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
+    </p>
+    <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd</small></p>
+  `;
+
+  return sendAdminEmail({
+    to: opts.to,
+    toName: opts.toName,
+    subject: `Sector Alert Issued — ${opts.sectorLabel}`,
+    body,
+  });
+}
+
 export async function sendSectorAlertAllClearEmail(opts: {
   to: string;
   toName?: string;

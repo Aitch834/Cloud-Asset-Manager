@@ -68,5 +68,30 @@ export async function runSectorAlertMigrations(): Promise<void> {
     ON sector_alert_email_deliveries(episode_id)
   `);
 
+  // Add a kind column to distinguish issue vs all-clear deliveries so the same
+  // recipient can receive both emails for a single episode without hitting the
+  // unique constraint.
+  await db.execute(sql`
+    ALTER TABLE sector_alert_email_deliveries
+    ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'clear'
+  `);
+
+  // The original UNIQUE(episode_id, email_norm) constraint is now too narrow —
+  // drop it (if still present) and replace with a three-column unique index.
+  await db.execute(sql`
+    ALTER TABLE sector_alert_email_deliveries
+    DROP CONSTRAINT IF EXISTS sector_alert_email_deliveries_episode_id_email_norm_key
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_saed_ep_email_kind
+    ON sector_alert_email_deliveries(episode_id, email_norm, kind)
+  `);
+
+  // Episode-level flag set once all issue emails for an episode have been sent.
+  await db.execute(sql`
+    ALTER TABLE sector_alert_episodes
+    ADD COLUMN IF NOT EXISTS issue_email_notified boolean NOT NULL DEFAULT false
+  `);
+
   console.log("[SECTOR-ALERT-MIGRATE] Done.");
 }
