@@ -72,6 +72,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   // Rack-out quick action state
   const [rackOutFillId, setRackOutFillId] = useState<number | null>(null);
   const [rackOutDate, setRackOutDate] = useState<string>(today);
+  const [rackOutNote, setRackOutNote] = useState<string>("");
 
   // Delete confirm state
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
@@ -84,9 +85,13 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   };
 
   const rackOutMut = useMutation({
-    mutationFn: async ({ fill, date }: { fill: Record<string, unknown>; date: string }) => {
+    mutationFn: async ({ fill, date, note }: { fill: Record<string, unknown>; date: string; note: string }) => {
       // The PUT endpoint does a full-row overwrite and requires fillNumber.
       // Mirror the same camelCase mapping that openEdit uses so all fields are preserved.
+      const existingNotes = fill.notes != null ? String(fill.notes) : "";
+      const notesValue = note.trim()
+        ? (existingNotes ? `${existingNotes}\n${note.trim()}` : note.trim())
+        : existingNotes;
       const payload = {
         fillNumber:    fill.fill_number   != null ? String(fill.fill_number)   : "",
         wineName:      fill.wine_name     != null ? String(fill.wine_name)     : "",
@@ -96,7 +101,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
         fillDate:      fill.fill_date     != null ? String(fill.fill_date).slice(0, 10) : "",
         batchRef:      fill.batch_ref     != null ? String(fill.batch_ref)     : "",
         operatorName:  fill.operator_name != null ? String(fill.operator_name) : "",
-        notes:         fill.notes         != null ? String(fill.notes)         : "",
+        notes:         notesValue,
         rackOutDate:   date,
       };
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/fills/${Number(fill.id)}`), {
@@ -112,6 +117,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       setRackOutFillId(null);
       setRackOutDate(today);
+      setRackOutNote("");
       toast({ title: "Rack-out date recorded" });
     },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message, variant: "destructive" }),
@@ -235,6 +241,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                             } else {
                               setRackOutFillId(fillId);
                               setRackOutDate(today);
+                              setRackOutNote("");
                               rackOutMut.reset();
                             }
                           }}
@@ -270,7 +277,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                         size="sm"
                         className="h-7 text-xs"
                         disabled={!rackOutDate || rackOutMut.isPending}
-                        onClick={() => rackOutMut.mutate({ fill: f, date: rackOutDate })}
+                        onClick={() => rackOutMut.mutate({ fill: f, date: rackOutDate, note: rackOutNote })}
                       >
                         {rackOutMut.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Save
                       </Button>
@@ -278,10 +285,20 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
-                        onClick={() => { setRackOutFillId(null); rackOutMut.reset(); }}
+                        onClick={() => { setRackOutFillId(null); setRackOutNote(""); rackOutMut.reset(); }}
                       >
                         Cancel
                       </Button>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-amber-800">Notes (optional)</Label>
+                      <Textarea
+                        value={rackOutNote}
+                        onChange={e => setRackOutNote(e.target.value)}
+                        placeholder="e.g. blending trial, bottling ahead of schedule…"
+                        rows={2}
+                        className="text-xs mt-0.5"
+                      />
                     </div>
                     <DialogMutationError mutation={rackOutMut} />
                   </div>
