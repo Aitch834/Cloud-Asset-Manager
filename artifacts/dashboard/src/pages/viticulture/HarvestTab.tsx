@@ -691,26 +691,62 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       };
 
       // ── Yield cross-tab ──────────────────────────────────────────────────
-      const yieldHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell("Total Yield (kg)")].join(",");
+      // Build block area lookup for t/ha calculation
+      const blockAreaHaMap: Record<string, number | null> = {};
+      for (const bid of uniqueBlockIds) {
+        const bidStr = String(bid);
+        const block = blocks.find(b => String(b.id) === bidStr);
+        const ha = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
+        blockAreaHaMap[bidStr] = !isNaN(ha) && ha > 0 ? ha : null;
+      }
+
+      const yieldHeader = [
+        cell("Block"),
+        ...crossVintages.flatMap(v => [cell(`${v} (kg)`), cell(`${v} (t/ha)`)]),
+        cell("Total (kg)"),
+        cell("Total (t/ha)"),
+      ].join(",");
       const yieldRows = uniqueBlockIds.map(bid => {
         const bidStr = String(bid);
-        const vintageCells = crossVintages.map(vy => {
+        const areaHa = blockAreaHaMap[bidStr] ?? null;
+        const vintageCells = crossVintages.flatMap(vy => {
           const grp = lookup[bidStr]?.[vy] ?? [];
-          const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-          return cell(total > 0 ? total.toFixed(1) : "");
+          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          const tha = areaHa && kg > 0 ? kg / 1000 / areaHa : null;
+          return [cell(kg > 0 ? kg.toFixed(1) : ""), cell(tha != null ? tha.toFixed(3) : "")];
         });
         const allRows = Object.values(lookup[bidStr] ?? {}).flat();
         const rowTotal = allRows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : "")].join(",");
+        const rowTha = areaHa && rowTotal > 0 ? rowTotal / 1000 / areaHa : null;
+        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : ""), cell(rowTha != null ? rowTha.toFixed(3) : "")].join(",");
       });
-      const yieldFooterCells = crossVintages.map(vy => {
-        const total = rows
+      const yieldFooterCells = crossVintages.flatMap(vy => {
+        const vyKg = rows
           .filter(r => String(r.vintageYear ?? "") === vy)
           .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        return cell(total > 0 ? total.toFixed(1) : "");
+        // Weighted t/ha: sum of areas of blocks that had yield in this vintage
+        let vyArea = 0;
+        for (const bid of uniqueBlockIds) {
+          const bidStr = String(bid);
+          const areaHa = blockAreaHaMap[bidStr];
+          const grp = lookup[bidStr]?.[vy] ?? [];
+          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          if (areaHa && kg > 0) vyArea += areaHa;
+        }
+        const vyTha = vyArea > 0 && vyKg > 0 ? vyKg / 1000 / vyArea : null;
+        return [cell(vyKg > 0 ? vyKg.toFixed(1) : ""), cell(vyTha != null ? vyTha.toFixed(3) : "")];
       });
       const grandTotal = rows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : "")].join(",");
+      // Grand weighted t/ha: areas of blocks that have any yield across all vintages
+      const grandArea = uniqueBlockIds.reduce<number>((s, bid) => {
+        const bidStr = String(bid);
+        const areaHa = blockAreaHaMap[bidStr];
+        const allRows = Object.values(lookup[bidStr] ?? {}).flat();
+        const kg = allRows.reduce<number>((sum, r) => sum + (parseFloat(String((r as Record<string, unknown>).yieldKg ?? 0)) || 0), 0);
+        return areaHa && kg > 0 ? s + areaHa : s;
+      }, 0);
+      const grandTha = grandArea > 0 && grandTotal > 0 ? grandTotal / 1000 / grandArea : null;
+      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : ""), cell(grandTha != null ? grandTha.toFixed(3) : "")].join(",");
 
       // ── Chemistry sub-tables ─────────────────────────────────────────────
       const brixTable = chemSubTable(
