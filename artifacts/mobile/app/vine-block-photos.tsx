@@ -1253,6 +1253,11 @@ export default function VineBlockPhotosScreen() {
   const [photosLoading, setPhotosLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Local photo count overrides — updated whenever photos are loaded or deleted
+  // so that the block list badge stays accurate without waiting for the next
+  // full blocks re-fetch from useApiVineBlocks.
+  const [localPhotoCountOverrides, setLocalPhotoCountOverrides] = useState<Record<number, number>>({});
+
   // Lightbox state
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxVisible, setLightboxVisible] = useState(false);
@@ -1309,6 +1314,7 @@ export default function VineBlockPhotosScreen() {
     // Capture and advance the generation token before any async work so that
     // a concurrent or later call gets a higher token and wins.
     const gen = ++loadGenRef.current;
+    const blockId = selectedBlock.id;
     if (!options?.silent) setPhotosLoading(true);
     try {
       const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id);
@@ -1316,7 +1322,11 @@ export default function VineBlockPhotosScreen() {
         gen,
         () => loadGenRef.current,
         fetched,
-        (photos) => setPhotos(photos as BlockPhoto[]),
+        (photos) => {
+          setPhotos(photos as BlockPhoto[]);
+          // Keep the block list badge in sync with the authoritative server count.
+          setLocalPhotoCountOverrides((prev) => ({ ...prev, [blockId]: (photos as BlockPhoto[]).length }));
+        },
       );
     } finally {
       // Clear the spinner whenever this is the current/latest request —
@@ -1528,6 +1538,7 @@ export default function VineBlockPhotosScreen() {
 
   const handleDelete = async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
+    const blockId = selectedBlock.id;
     try {
       const res = await apiFetch(
         `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/${photoId}`,
@@ -1535,7 +1546,13 @@ export default function VineBlockPhotosScreen() {
       );
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+        setPhotos((prev) => {
+          const updated = prev.filter((p) => p.id !== photoId);
+          // Update the block list badge count immediately so it stays accurate
+          // when the grower navigates back to the block list without re-fetching.
+          setLocalPhotoCountOverrides((overrides) => ({ ...overrides, [blockId]: updated.length }));
+          return updated;
+        });
       } else {
         Alert.alert("Error", "Could not delete the photo.");
       }
@@ -1646,23 +1663,30 @@ export default function VineBlockPhotosScreen() {
                     </Text>
                   ) : null}
                   <View style={styles.blockListPhotoChip}>
-                    <Feather
-                      name="camera"
-                      size={11}
-                      color={(b.photoCount ?? 0) === 0 ? "#b45309" : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.blockListPhotoCount,
-                        (b.photoCount ?? 0) === 0 && styles.blockListPhotoCountZero,
-                      ]}
-                    >
-                      {(b.photoCount ?? 0) === 0
-                        ? "No photos"
-                        : b.photoCount === 1
-                        ? "1 photo"
-                        : `${b.photoCount} photos`}
-                    </Text>
+                    {(() => {
+                      const count = localPhotoCountOverrides[b.id] ?? (b.photoCount ?? 0);
+                      return (
+                        <>
+                          <Feather
+                            name="camera"
+                            size={11}
+                            color={count === 0 ? "#b45309" : colors.textSecondary}
+                          />
+                          <Text
+                            style={[
+                              styles.blockListPhotoCount,
+                              count === 0 && styles.blockListPhotoCountZero,
+                            ]}
+                          >
+                            {count === 0
+                              ? "No photos"
+                              : count === 1
+                              ? "1 photo"
+                              : `${count} photos`}
+                          </Text>
+                        </>
+                      );
+                    })()}
                   </View>
                 </View>
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} />
