@@ -400,6 +400,7 @@ export default function VineRegisterScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(farmIdStr);
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "removed">("active");
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
   // Track blocks whose ref has been saved this session so the banner hides
   // them immediately without needing a full re-fetch of the blocks list.
@@ -462,12 +463,19 @@ export default function VineRegisterScreen() {
     return sum + (isNaN(area) ? 0 : area);
   }, 0);
 
+  const statusFiltered =
+    statusFilter === "active"
+      ? records.filter(r => !r.isRemovedFromRegister)
+      : statusFilter === "removed"
+      ? records.filter(r => !!r.isRemovedFromRegister)
+      : records;
+
   const filtered = search.trim()
-    ? records.filter(r =>
+    ? statusFiltered.filter(r =>
         (r.registeredVariety ?? "").toLowerCase().includes(search.toLowerCase()) ||
         (r.fsaVineRegisterRef ?? "").toLowerCase().includes(search.toLowerCase()),
       )
-    : records;
+    : statusFiltered;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -536,6 +544,24 @@ export default function VineRegisterScreen() {
         />
       </View>
 
+      {/* Status filter chips */}
+      <View style={styles.chipRow}>
+        {(["all", "active", "removed"] as const).map(opt => (
+          <Pressable
+            key={opt}
+            onPress={() => setStatusFilter(opt)}
+            style={[styles.chip, statusFilter === opt && styles.chipActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: statusFilter === opt }}
+            accessibilityLabel={opt === "all" ? "All entries" : opt === "active" ? "Active entries" : "Removed entries"}
+          >
+            <Text style={[styles.chipText, statusFilter === opt && styles.chipTextActive]}>
+              {opt === "all" ? "All" : opt === "active" ? "Active" : "Removed"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       {loading && !refreshing ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       ) : error ? (
@@ -560,6 +586,10 @@ export default function VineRegisterScreen() {
               <Text style={styles.emptyText}>
                 {search.trim()
                   ? "No entries match your search."
+                  : statusFilter === "active"
+                  ? "No active entries found."
+                  : statusFilter === "removed"
+                  ? "No removed entries found."
                   : "Add vine register entries from the dashboard to see them here."}
               </Text>
             </View>
@@ -817,6 +847,32 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  chipTextActive: {
+    color: "#fff",
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
