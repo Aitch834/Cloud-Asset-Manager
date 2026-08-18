@@ -155,6 +155,30 @@ export function clampIndexAfterDelete(
 }
 
 // ---------------------------------------------------------------------------
+// Share / Delete photo targeting
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the id of the photo that Share / Delete should target.
+ *
+ * Always resolves from the current display index so that navigating between
+ * photos before confirming an action targets the shown photo, not the one
+ * originally tapped to open the lightbox.
+ *
+ * Used by PhotoLightbox's delete and share handlers (vine-block-photos.tsx)
+ * so the captured ID stays in sync with the displayed photo even if the user
+ * swipes mid-gesture before lifting their finger.
+ *
+ * Returns null when the photos array is empty or the index is out of range.
+ */
+export function currentPhotoId(
+  photos: ReadonlyArray<{ id: number }>,
+  currentIndex: number,
+): number | null {
+  return photos[currentIndex]?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Pinch-to-zoom boundary
 // ---------------------------------------------------------------------------
 

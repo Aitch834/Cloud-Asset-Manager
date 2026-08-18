@@ -54,6 +54,7 @@ import {
   DIR_NONE,
   DIR_HORIZ,
   DIR_VERT,
+  currentPhotoId as resolveCurrentPhotoId,
 } from "@/lib/vineBlockLightboxHelpers";
 import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
 interface BlockPhoto {
@@ -922,7 +923,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
             style={[styles.lbDeleteBtn, { top: insets.top + 12 }]}
             hitSlop={16}
             onPress={() => {
-              const photoId = photo.id;
+              const photoId = resolveCurrentPhotoId(photos, currentIndex) ?? photo.id;
               const message = buildLightboxDeleteMessage(photos.length, photo.isCover);
               Alert.alert(
                 "Delete Photo",
