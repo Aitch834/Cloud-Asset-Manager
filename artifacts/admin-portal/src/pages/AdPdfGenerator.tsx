@@ -581,7 +581,7 @@ export function TemplatePlaceholderPreview({
   );
 }
 
-function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewHeadline = "", previewBody = "", previewAccentColor = "" }: TemplateFormProps) {
+export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewHeadline = "", previewBody = "", previewAccentColor = "" }: TemplateFormProps) {
   const [name,     setName]     = useState(initial?.name     ?? "");
   const [slug,     setSlug]     = useState(initial?.slug     ?? "");
   const [widthMm,  setWidthMm]  = useState(String(initial?.widthMm  ?? "190"));
