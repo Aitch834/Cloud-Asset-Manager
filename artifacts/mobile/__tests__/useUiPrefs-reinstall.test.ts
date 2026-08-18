@@ -533,6 +533,188 @@ describe("useIdentifierBannerDismiss — dismissed formula", () => {
 });
 
 // ===========================================================================
+// 7. dismissHint — write-side durability
+//
+// The three scenarios below cover what actually happens when a grower taps
+// "Dismiss" on the banner:
+//
+//   a. Cache + pending queue are written BEFORE the PATCH completes so a
+//      crash or network failure immediately after the tap doesn't lose the
+//      dismissal.
+//   b. A failed PATCH leaves the pending entry intact so it is retried the
+//      next time the grower has connectivity.
+//   c. After a successful dismissal, a fresh app load reads the cache without
+//      waiting for a server round-trip — the banner stays hidden instantly.
+// ===========================================================================
+
+describe("dismissHint — cache and pending queue updated before PATCH completes", () => {
+  /**
+   * Helper: returns a mockApiFetch implementation where GET resolves
+   * immediately with `getPrefs` and PATCH never resolves (stalled forever),
+   * so we can inspect AsyncStorage state before the network responds.
+   */
+  function makeStalledPatchFetch(getPrefs: PrefsMap = {}) {
+    return (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+      if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+        return Promise.resolve(makeServerResponse(getPrefs));
+      }
+      // Stall the PATCH forever so we can inspect storage in-between.
+      return new Promise(() => { /* never resolves */ });
+    };
+  }
+
+  it("writes the dismissed key to the AsyncStorage cache before PATCH completes", async () => {
+    const uid = nextUid();
+    mockApiFetch.mockImplementation(makeStalledPatchFetch());
+
+    const { dismissHint } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    dismissHint("winery_winegb_banner");
+    // Drain microtasks for the enqueueWrite cache/pending slot, not the PATCH.
+    await drain(4);
+
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    expect(cacheJson).toBeDefined();
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+    expect(cache["winery_winegb_banner"]).toBe(true);
+  });
+
+  it("writes the dismissed key to the AsyncStorage pending queue before PATCH completes", async () => {
+    const uid = nextUid();
+    mockApiFetch.mockImplementation(makeStalledPatchFetch());
+
+    const { dismissHint } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    dismissHint("winery_winegb_banner");
+    await drain(4);
+
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending["winery_winegb_banner"]).toBe(true);
+  });
+});
+
+describe("dismissHint — failed PATCH retains pending entry for next flush attempt", () => {
+  it("keeps the key in the pending queue when the server returns a non-ok response", async () => {
+    const uid = nextUid();
+    mockApiFetch.mockImplementation(
+      (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse({}));
+        }
+        // PATCH fails (e.g. server error, network timeout handled by the catch).
+        return Promise.resolve({ ok: false } as Partial<Response>);
+      },
+    );
+
+    const { dismissHint } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    dismissHint("winery_winegb_banner");
+    await drain(); // let the full PATCH attempt complete
+
+    // Pending queue must still contain the key so it is retried on the next
+    // successful write (reconnect-flush pattern).
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending["winery_winegb_banner"]).toBe(true);
+  });
+
+  it("clears the key from the pending queue only after a successful PATCH", async () => {
+    const uid = nextUid();
+    mockApiFetch.mockImplementation(
+      (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse({}));
+        }
+        return Promise.resolve({ ok: true } as Partial<Response>);
+      },
+    );
+
+    const { dismissHint } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    dismissHint("winery_winegb_banner");
+    await drain();
+
+    // Pending queue must now be empty — the key has been flushed to the server.
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    // Either the key is absent from the store (removed) or the entry is empty.
+    if (pendingJson !== undefined) {
+      const pending = JSON.parse(pendingJson) as PrefsMap;
+      expect(pending["winery_winegb_banner"]).toBeUndefined();
+    }
+    // Cache must still hold the dismissed key.
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    expect(cacheJson).toBeDefined();
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+    expect(cache["winery_winegb_banner"]).toBe(true);
+  });
+});
+
+describe("dismissHint — fresh app load after dismissal confirms dismissed=true from cache (no server wait)", () => {
+  it("shows the pref as dismissed immediately from cache before the server responds", async () => {
+    const uid = nextUid();
+    // Pre-populate cache — this is the state left behind by a prior
+    // successful dismissHint (cache written first, then PATCH confirmed).
+    asyncStore.set(
+      `ui_prefs_cache_${uid}`,
+      JSON.stringify({ winery_winegb_banner: true }),
+    );
+
+    // Server responds slowly (simulates slow network on app restart).
+    let resolveServer!: (v: Partial<Response>) => void;
+    mockApiFetch.mockReturnValue(
+      new Promise<Partial<Response>>((res) => { resolveServer = res; }),
+    );
+
+    useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap effect
+
+    // Drain just the cache load (fast, synchronous I/O path); server is still in-flight.
+    await drain(4);
+
+    // prefsReady must be true already — returned user path, cache hit.
+    expect(mockSlots[1]).toBe(true);
+    // The dismissed key must be in prefs without having waited for the server.
+    const prefs = mockSlots[0] as PrefsMap;
+    expect(prefs["winery_winegb_banner"]).toBe(true);
+
+    // Clean up: let the server respond so the bootstrap can finish normally.
+    resolveServer(makeServerResponse({ winery_winegb_banner: true }));
+    await drain();
+  });
+
+  it("does not need a server response to know the banner is dismissed (apiFetch GET may still be pending)", async () => {
+    const uid = nextUid();
+    asyncStore.set(
+      `ui_prefs_cache_${uid}`,
+      JSON.stringify({ winery_winegb_banner: true }),
+    );
+
+    // Stall the server indefinitely.
+    mockApiFetch.mockReturnValue(new Promise(() => { /* never resolves */ }));
+
+    useUiPrefs(uid);
+    mockEffects[2]?.();
+    await drain(4);
+
+    // Even with the server permanently unreachable, the cache provides the answer.
+    expect(mockSlots[1]).toBe(true);
+    const prefs = mockSlots[0] as PrefsMap;
+    expect(prefs["winery_winegb_banner"]).toBe(true);
+  });
+});
+
+// ===========================================================================
 // 6. Ordering guarantee: migration waits for bootstrap (prefsReady first)
 //    runUiPrefMigration awaits s.fetchPromise before writing, which ensures
 //    migrationChecked transitions to true ONLY after prefsReady is already
