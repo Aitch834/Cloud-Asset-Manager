@@ -3276,7 +3276,7 @@ export default function Movements() {
 
           {/* Stale sandbox token — platform moved to production, farm must re-authorise.
               Condition mirrors the server-side enforcement: token.sandboxMode=true && !isLisOAuthSandbox(). */}
-          {lisConfigured && (lisCredsData as any)?.tokenSandboxMode === true && (lisCredsData as any)?.platformOAuthSandbox === false && (
+          {lisConfigured && (lisCredsData as any)?.tokenScopeMismatch && (
             <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
               <AlertTriangle size={16} style={{ color: "#92400e", flexShrink: 0, marginTop: 2 }} />
               <div>

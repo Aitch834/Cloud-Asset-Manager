@@ -755,7 +755,7 @@ function LisConnectionCard({ farmId }: { farmId: number }) {
             via the sandbox OAuth scope but the platform has since moved to production.
             Uses platformOAuthSandbox (not subscriptionKeyConfigured) to match the exact
             condition the server enforces: token.sandboxMode=true && !isLisOAuthSandbox(). */}
-        {creds?.configured && (creds as any)?.tokenSandboxMode === true && (creds as any)?.platformOAuthSandbox === false && (
+        {creds?.configured && (creds as any)?.tokenScopeMismatch && (
           <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "0.875rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
             <div style={{ marginTop: 2, flexShrink: 0 }}><AlertTriangle size={15} color="#92400e" /></div>
             <div style={{ flex: 1 }}>

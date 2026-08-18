@@ -28075,6 +28075,10 @@ router.get("/farms/:farmId/lis-credentials", requireAuth, requireTenant, async (
     // farm connected under the old sandbox OAuth scope and must re-authorise.
     platformOAuthSandbox: isLisOAuthSandbox(),
     tokenSandboxMode: token.sandboxMode,
+    // tokenScopeMismatch: single computed flag — true when the stored token was obtained
+    // under the sandbox OAuth scope but the platform is now in production mode.
+    // Clients should surface a re-authorisation banner whenever this is true.
+    tokenScopeMismatch: token.sandboxMode === true && !isLisOAuthSandbox(),
     lisUsername: token.lisUsername,
     lastTestedAt: token.lastTestedAt,
     testStatus: token.testStatus,
