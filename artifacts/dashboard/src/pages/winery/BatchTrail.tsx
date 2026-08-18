@@ -554,9 +554,9 @@ export interface BatchTrailData {
   barrelVessels?: Record<string, unknown>[];
 }
 
-export function TrailSection({ icon: Icon, title, count, children }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode }) {
+export function TrailSection({ icon: Icon, title, count, children, id }: { icon: React.ElementType; title: string; count: number; children: React.ReactNode; id?: string }) {
   return (
-    <div>
+    <div id={id}>
       <div className="flex items-center gap-2 mb-2">
         <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="font-semibold text-sm">{title}</span>
@@ -1199,6 +1199,69 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   const [highlightedBatch, setHighlightedBatch] = useState<string | null>(null);
   const batchRowRefs = useRef<Map<string, HTMLElement>>(new Map());
 
+  // ── Last-viewed section persistence ─────────────────────────────────────────
+  // Stable localStorage key scoped per farm + batch (or vintage scope).
+  const sectionKey = `bt-trail-section:${farmId}:${batchRef ?? `vintage:${vintageYear}`}`;
+  // Ordered list of all section IDs in the dialog (top → bottom). Only IDs
+  // that exist in the DOM at a given time contribute to detection, so sections
+  // that are absent (e.g. no SO₂ data) are silently skipped.
+  const TRAIL_SECTION_IDS = ["bt-pressing", "bt-so2", "bt-phta", "bt-fermentation", "bt-cellar", "bt-so2tests", "bt-bottling", "bt-barrel"];
+  // Ref placed on the inner content wrapper so we can walk up to the
+  // DialogContent's scrollable container without importing Radix internals.
+  const contentBodyRef = useRef<HTMLDivElement>(null);
+  const getScrollContainer = (): HTMLElement | null => {
+    let el: HTMLElement | null = contentBodyRef.current;
+    while (el) {
+      const ov = window.getComputedStyle(el).overflowY;
+      if (ov === "auto" || ov === "scroll") return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+
+  // Persist the closest-to-top visible section while the user scrolls.
+  useEffect(() => {
+    if (!data) return;
+    const container = getScrollContainer();
+    if (!container) return;
+    const handleScroll = () => {
+      const cTop = container.getBoundingClientRect().top;
+      let bestId: string | null = null;
+      let bestDist = Infinity;
+      for (const id of TRAIL_SECTION_IDS) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        // Distance of the section's top edge from the container's top edge.
+        const dist = Math.abs(el.getBoundingClientRect().top - cTop);
+        if (dist < bestDist) { bestDist = dist; bestId = id; }
+      }
+      if (bestId) { try { localStorage.setItem(sectionKey, bestId); } catch { /* quota */ } }
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, sectionKey]);
+
+  // On open, restore scroll to the last-viewed section (after the dialog
+  // finishes animating in — hence the short timeout).
+  useEffect(() => {
+    if (!data) return;
+    let cancelled = false;
+    const tid = setTimeout(() => {
+      if (cancelled) return;
+      let savedId: string | null = null;
+      try { savedId = localStorage.getItem(sectionKey); } catch { /* unavailable */ }
+      if (!savedId) return;
+      const container = getScrollContainer();
+      const target = document.getElementById(savedId);
+      if (!container || !target) return;
+      const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
+      container.scrollBy({ top: offset, behavior: "instant" });
+    }, 160);
+    return () => { cancelled = true; clearTimeout(tid); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, sectionKey]);
+
   const handleBatchHighlight = (ref: string) => {
     setHighlightedBatch(prev => {
       const next = prev === ref ? null : ref;
@@ -1350,7 +1413,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
         )}
 
         {data && (
-          <div className="space-y-5 text-sm">
+          <div className="space-y-5 text-sm" ref={contentBodyRef}>
 
             {/* Pressing details + attachments + additives (grouped per pressing, mirroring the PDF) */}
             {(() => {
@@ -1410,7 +1473,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               });
               if (!hasDetails && !pressId && additiveGroups.length === 0 && !pressing.notes && !hasOtherPressingFiles) return null;
               return (
-                <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
+                <div id="bt-pressing" className="rounded-lg border bg-muted/20 px-4 py-3 space-y-3">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                     <Wine className="h-3.5 w-3.5" />Pressing Record
                   </span>
@@ -1592,7 +1655,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             })()}
 
             {/* SO₂ cumulative summary */}
-            <So2SummaryBlock summary={computeSo2Summary(pressing, data)} />
+            <div id="bt-so2"><So2SummaryBlock summary={computeSo2Summary(pressing, data)} /></div>
 
             {/* pH & TA analytical history — stage merge logic shared via lib/ph-ta-stages */}
             {(() => {
@@ -1612,7 +1675,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               if (!hasAny) return null;
               const showTrend = trendStages.length >= 2;
               return (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
+                <div id="bt-phta" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 space-y-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                     <FlaskConical className="h-3.5 w-3.5" />pH &amp; TA Analytical History
                   </span>
@@ -1685,7 +1748,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
 
             {/* Fermentation */}
             {data.fermentation.length > 0 && (
-              <TrailSection icon={FlaskConical} title="Fermentation" count={data.fermentation.length}>
+              <TrailSection id="bt-fermentation" icon={FlaskConical} title="Fermentation" count={data.fermentation.length}>
                 <div className="rounded border divide-y">
                   {data.fermentation.map(r => {
                     const rowRef = r.batch_ref ? String(r.batch_ref).trim() : null;
@@ -1728,7 +1791,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
 
             {/* Cellar Ops */}
             {data.cellarOps.length > 0 && (
-              <TrailSection icon={Wrench} title="Cellar Operations" count={data.cellarOps.length}>
+              <TrailSection id="bt-cellar" icon={Wrench} title="Cellar Operations" count={data.cellarOps.length}>
                 <div className="rounded border divide-y">
                   {(() => {
                     // Per-op running SO₂ totals, computed in chronological order so
@@ -1786,7 +1849,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
 
             {/* SO₂ Tests */}
             {data.so2Tests.length > 0 && (
-              <TrailSection icon={Gauge} title="SO₂ Tests" count={data.so2Tests.length}>
+              <TrailSection id="bt-so2tests" icon={Gauge} title="SO₂ Tests" count={data.so2Tests.length}>
                 <div className="rounded border divide-y">
                   {data.so2Tests.map(r => (
                     <div key={String(r.id)} className="px-3 py-2.5 space-y-1">
@@ -1816,7 +1879,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
 
             {/* Bottling */}
             {data.bottling.length > 0 && (
-              <TrailSection icon={Package} title="Bottling Runs" count={data.bottling.length}>
+              <TrailSection id="bt-bottling" icon={Package} title="Bottling Runs" count={data.bottling.length}>
                 <div className="rounded border divide-y">
                   {data.bottling.map(r => {
                     const rowRef = r.batch_ref ? String(r.batch_ref).trim() : null;
@@ -1934,7 +1997,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               }
 
               return (
-                <TrailSection icon={Package} title="Barrel Provenance" count={vesselMap.size + barrelVesselsWithoutFills.length}>
+                <TrailSection id="bt-barrel" icon={Package} title="Barrel Provenance" count={vesselMap.size + barrelVesselsWithoutFills.length}>
                   {barrelFills.length > 0 && (
                     <p className="text-xs text-muted-foreground -mt-1 mb-2">
                       Fill history for each oak barrel used as a source vessel in a bottling run for this batch. Fill numbers reflect how many times the barrel has been used — influencing oak extraction and wine character.
