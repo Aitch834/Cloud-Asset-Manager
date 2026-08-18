@@ -407,6 +407,17 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
   );
 }
 
+// ─── Irrigation method persistence (shared key with Advisor tab) ──────────────
+const LS_IRRIG_METHOD_KEY = (farmId: number) => `irrigation-advisor-method-${farmId}`;
+const DEFAULT_IRRIG_METHOD = "Overhead sprinkler";
+function loadLastMethod(farmId: number): string {
+  try { return localStorage.getItem(LS_IRRIG_METHOD_KEY(farmId)) ?? DEFAULT_IRRIG_METHOD; } catch { /* ignore */ }
+  return DEFAULT_IRRIG_METHOD;
+}
+function saveLastMethod(farmId: number, method: string) {
+  try { localStorage.setItem(LS_IRRIG_METHOD_KEY(farmId), method); } catch { /* ignore */ }
+}
+
 function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -463,7 +474,10 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
       const url = editing ? api(`farms/${farmId}/irrigation-records/${editing.id}`) : api(`farms/${farmId}/irrigation-records`);
       return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]); },
+    onSuccess: () => {
+      if (form.irrigationMethod && form.irrigationMethod !== "__none__") saveLastMethod(farmId, String(form.irrigationMethod));
+      qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]);
+    },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
 
@@ -498,7 +512,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   function openAdd() {
     setEditing(null);
     setLicenceManuallySelected(false);
-    setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open" });
+    setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open", irrigationMethod: loadLastMethod(farmId) });
     setEquipmentIds([]);
     setOpen(true);
   }
