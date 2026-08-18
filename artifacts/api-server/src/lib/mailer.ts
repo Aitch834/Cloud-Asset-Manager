@@ -460,6 +460,12 @@ export interface WeeklyDigestItem {
   severity: "critical" | "warning";
 }
 
+function formatAlertAge(issuedAt: Date): string {
+  const days = Math.floor((Date.now() - issuedAt.getTime()) / 86_400_000);
+  if (days <= 0) return "Issued today";
+  return `Issued ${days} day${days !== 1 ? "s" : ""} ago`;
+}
+
 export async function sendSectorAlertIssuedEmail(opts: {
   to: string;
   toName?: string;
@@ -473,6 +479,8 @@ export async function sendSectorAlertIssuedEmail(opts: {
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const alertAgeLabel = formatAlertAge(opts.issuedAt);
 
   const levelColor = opts.level === "critical" ? "#dc2626" : opts.level === "high" ? "#d97706" : "#1a6b3a";
 
@@ -512,7 +520,7 @@ export async function sendSectorAlertIssuedEmail(opts: {
             </tr>
             <tr>
               <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Issued</td>
-              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)}</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)} <span style="color:#6b7280;font-size:12px;">(${alertAgeLabel.toLowerCase()})</span></td>
             </tr>
             ${countiesRow}
           </table>
@@ -551,6 +559,8 @@ export async function sendSectorAlertAllClearEmail(opts: {
   const formatDate = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+  const alertAgeAtLift = formatAlertAge(opts.issuedAt);
+
   const durationMs = opts.endedAt.getTime() - opts.issuedAt.getTime();
   const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
   const durationMins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -587,7 +597,7 @@ export async function sendSectorAlertAllClearEmail(opts: {
             </tr>
             <tr>
               <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Issued</td>
-              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)}</td>
+              <td style="padding:8px 12px;font-size:14px;color:#374151;">${formatDate(opts.issuedAt)} <span style="color:#6b7280;font-size:12px;">(${alertAgeAtLift.toLowerCase()})</span></td>
             </tr>
             <tr>
               <td style="padding:8px 12px;font-size:12px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;vertical-align:top;">Lifted</td>

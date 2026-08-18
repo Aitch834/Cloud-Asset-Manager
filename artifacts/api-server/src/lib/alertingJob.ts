@@ -1905,11 +1905,12 @@ async function runSectorAlertAllClearNotifications() {
     const tenantIds = [...new Set(relevantFarms.map(f => f.tenant_id))];
     const sectorLabel = SECTOR_ALERT_LABELS[ep.sector] ?? ep.sector;
     const title = `${sectorLabel} — Alert Lifted`;
-    const reasonPart = ep.ended_reason ? ` Reason: ${ep.ended_reason}.` : "";
-    const smsMessage = `The ${sectorLabel} alert has now been resolved.${reasonPart} Normal operations may resume. Thank you for your vigilance.`;
-
     const issuedAt = new Date(ep.issued_at);
     const endedAt = new Date(ep.ended_at);
+    const issuedDaysAgo = Math.floor((Date.now() - issuedAt.getTime()) / 86_400_000);
+    const alertAgeLabel = issuedDaysAgo <= 0 ? "issued today" : `issued ${issuedDaysAgo} day${issuedDaysAgo !== 1 ? "s" : ""} ago`;
+    const reasonPart = ep.ended_reason ? ` Reason: ${ep.ended_reason}.` : "";
+    const smsMessage = `The ${sectorLabel} alert has now been resolved.${reasonPart} Alert was ${alertAgeLabel}. Normal operations may resume. Thank you for your vigilance.`;
 
     // --- SMS: per-tenant, dispatched once (end_notified guards repeat sends) ---
     if (!ep.end_notified) {
