@@ -11,6 +11,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -385,8 +386,14 @@ function EditParcelRefModal({
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
-
+interface AddEntryForm {
+  registeredVariety: string;
+  registeredAreaHa: string;
+  giClassification: string;
+  wineColour: string;
+  fsaVineRegisterRef: string;
+  dateRegistered: string;
+}
 export default function VineRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -401,6 +408,7 @@ export default function VineRegisterScreen() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "removed">("active");
+  const [addEntryVisible, setAddEntryVisible] = useState(false);
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
   // Track blocks whose ref has been saved this session so the banner hides
   // them immediately without needing a full re-fetch of the blocks list.
@@ -433,7 +441,7 @@ export default function VineRegisterScreen() {
     if (isTruncated) {
       Alert.alert(
         "Email may be cut off",
-        "Your vine register has too many entries to fit in a single email \u2014 the message body may be truncated by your email app.\n\nFor a complete record, use the dashboard on desktop to export a CSV instead.",
+        "Your vine register has too many entries to fit in a single email — the message body may be truncated by your email app.\n\nFor a complete record, use the dashboard on desktop to export a CSV instead.",
         [
           {
             text: "Open email anyway",
@@ -496,6 +504,15 @@ export default function VineRegisterScreen() {
             <Feather name="mail" size={20} color={colors.primary} />
           </Pressable>
         )}
+        <Pressable
+          onPress={() => setAddEntryVisible(true)}
+          style={styles.addBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Add register entry"
+          hitSlop={8}
+        >
+          <Feather name="plus" size={20} color={colors.primary} />
+        </Pressable>
       </View>
 
       {/* RPA missing-fields warning */}
@@ -536,7 +553,7 @@ export default function VineRegisterScreen() {
         <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search variety or FSA ref\u2026"
+          placeholder="Search variety or FSA ref…"
           placeholderTextColor={colors.textSecondary}
           value={search}
           onChangeText={setSearch}
@@ -587,10 +604,10 @@ export default function VineRegisterScreen() {
                 {search.trim()
                   ? "No entries match your search."
                   : statusFilter === "active"
-                  ? "No active entries found."
+                  ? "No active entries. Tap + to add one."
                   : statusFilter === "removed"
                   ? "No removed entries found."
-                  : "Add vine register entries from the dashboard to see them here."}
+                  : "Tap the + button above to add your first vine register entry."}
               </Text>
             </View>
           }
@@ -603,6 +620,14 @@ export default function VineRegisterScreen() {
         farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
         onClose={() => setEditingBlock(null)}
         onSaved={handleBlockSaved}
+      />
+
+      {/* Add Entry Modal */}
+      <AddEntryModal
+        visible={addEntryVisible}
+        farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
+        onClose={() => setAddEntryVisible(false)}
+        onSaved={refresh}
       />
     </View>
   );
@@ -623,7 +648,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
-  emailBtn: { padding: 4, marginLeft: "auto" as const },
+  addBtn: { padding: 4 },
+  emailBtn: { padding: 4 },
   title: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.lg,
@@ -973,6 +999,169 @@ const styles = StyleSheet.create({
   },
 });
 
+const addStyles = StyleSheet.create({
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sheetTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  cancelBtn: { paddingVertical: 4, paddingHorizontal: 4 },
+  cancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    minWidth: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveBtnDisabled: { opacity: 0.6 },
+  saveText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: "#fef2f2",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  errorBannerText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  fieldGroup: {
+    marginBottom: spacing.md,
+  },
+  fieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  required: {
+    color: colors.error,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  chipTextSelected: {
+    fontFamily: fonts.medium,
+    color: "#fff",
+  },
+  varietySelected: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  varietySelectedText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
+  varietyList: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    maxHeight: 200,
+    overflow: "hidden",
+  },
+  varietyItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  varietyItemText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  backToList: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: spacing.xs,
+    paddingVertical: 4,
+  },
+  backToListText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
+});
 function useFarmVitiMeta(farmId: string | undefined): FarmVitiMeta {
   const [meta, setMeta] = useState<FarmVitiMeta>({
     fsaVineRegisterRef: null,
@@ -1018,3 +1207,375 @@ function useFarmVitiMeta(farmId: string | undefined): FarmVitiMeta {
 }
 
 const MAILTO_BODY_LIMIT = 1800;
+
+const UK_GRAPE_VARIETIES = [
+  "Bacchus", "Chardonnay", "Dornfelder", "Huxelrebe",
+  "Madeleine Angevine", "Müller-Thurgau", "Ortega", "Phoenix",
+  "Pinot Blanc", "Pinot Gris", "Pinot Meunier", "Pinot Noir",
+  "Regent", "Reichensteiner", "Rondo", "Seyval Blanc",
+  "Siegerrebe", "Solaris", "Auxerrois", "Cabernet Cortis",
+  "Cabernet Blanc", "Johanniter", "Lakhta", "Sauvignon Blanc",
+  "Other",
+];
+
+const COLOUR_OPTIONS = [
+  "White", "Red", "Rosé",
+  "Sparkling White", "Sparkling Rosé", "Sparkling Red",
+];
+
+const GI_OPTIONS = [
+  "English Wine PDO", "English Wine PGI",
+  "Welsh Wine PDO", "Welsh Wine PGI",
+  "UK Table Wine", "No GI",
+];
+
+function AddEntryModal({
+  visible,
+  farmId,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  farmId: number | undefined;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [form, setForm] = useState<AddEntryForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const sf = (k: keyof AddEntryForm, v: string) =>
+    setForm(prev => ({ ...prev, [k]: v }));
+
+  const reset = useCallback(() => {
+    setForm(EMPTY_FORM);
+    setError(null);
+    setSaving(false);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    reset();
+    onClose();
+  }, [reset, onClose]);
+
+  const handleSave = useCallback(async () => {
+    if (!farmId) return;
+    if (!form.registeredVariety.trim()) {
+      setError("Variety is required.");
+      return;
+    }
+    const areaRaw = form.registeredAreaHa.trim();
+    const area = parseFloat(areaRaw);
+    if (!areaRaw || isNaN(area) || area <= 0) {
+      setError("Registered Area (ha) is required and must be a positive number.");
+      return;
+    }
+    const dateStr = form.dateRegistered.trim();
+    if (dateStr) {
+      const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && !isNaN(new Date(dateStr).getTime());
+      if (!isValidDate) {
+        setError("Date Registered must be in YYYY-MM-DD format (e.g. 2024-06-15).");
+        return;
+      }
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        registeredVariety: form.registeredVariety.trim() || null,
+        registeredAreaHa: areaRaw || null,
+        giClassification: form.giClassification || null,
+        wineColour: form.wineColour || null,
+        fsaVineRegisterRef: form.fsaVineRegisterRef.trim() || null,
+        dateRegistered: dateStr || null,
+      };
+      const res = await apiFetch(`/api/farms/${farmId}/vine-register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      onSaved();
+      reset();
+      onClose();
+    } catch {
+      setError("Failed to save entry. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [farmId, form, onSaved, onClose, reset]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <View style={[addStyles.sheet, { paddingTop: insets.top || 16 }]}>
+          {/* Sheet header */}
+          <View style={addStyles.sheetHeader}>
+            <Pressable
+              onPress={handleClose}
+              style={addStyles.cancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              disabled={saving}
+            >
+              <Text style={addStyles.cancelText}>Cancel</Text>
+            </Pressable>
+            <Text style={addStyles.sheetTitle}>Add Register Entry</Text>
+            <Pressable
+              onPress={handleSave}
+              style={[addStyles.saveBtn, saving && addStyles.saveBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Save entry"
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={addStyles.saveText}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Error banner */}
+          {!!error && (
+            <View style={addStyles.errorBanner}>
+              <Feather name="alert-circle" size={14} color={colors.error} />
+              <Text style={addStyles.errorBannerText}>{error}</Text>
+            </View>
+          )}
+
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={addStyles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Variety */}
+            <VarietyPicker
+              value={form.registeredVariety}
+              onChange={v => sf("registeredVariety", v)}
+            />
+
+            {/* Area */}
+            <View style={addStyles.fieldGroup}>
+              <Text style={addStyles.fieldLabel}>
+                Registered Area (ha) <Text style={addStyles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={addStyles.input}
+                value={form.registeredAreaHa}
+                onChangeText={v => sf("registeredAreaHa", v)}
+                placeholder="e.g. 0.50"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            {/* GI Classification */}
+            <ChipPicker
+              label="GI Classification"
+              options={GI_OPTIONS}
+              value={form.giClassification}
+              onChange={v => sf("giClassification", v)}
+            />
+
+            {/* Wine Colour */}
+            <ChipPicker
+              label="Wine Colour"
+              options={COLOUR_OPTIONS}
+              value={form.wineColour}
+              onChange={v => sf("wineColour", v)}
+            />
+
+            {/* FSA Ref */}
+            <View style={addStyles.fieldGroup}>
+              <Text style={addStyles.fieldLabel}>FSA Vine Register Ref</Text>
+              <TextInput
+                style={addStyles.input}
+                value={form.fsaVineRegisterRef}
+                onChangeText={v => sf("fsaVineRegisterRef", v)}
+                placeholder="e.g. VR123456"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            {/* Date Registered */}
+            <View style={[addStyles.fieldGroup, { marginBottom: spacing.xl }]}>
+              <Text style={addStyles.fieldLabel}>Date Registered</Text>
+              <TextInput
+                style={addStyles.input}
+                value={form.dateRegistered}
+                onChangeText={v => sf("dateRegistered", v)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numbers-and-punctuation"
+                maxLength={10}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function VarietyPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [otherMode, setOtherMode] = useState(false);
+
+  const handleClear = () => {
+    setOtherMode(false);
+    setQuery("");
+    onChange("");
+  };
+
+  const filtered = query.trim()
+    ? UK_GRAPE_VARIETIES.filter(v =>
+        v.toLowerCase().includes(query.toLowerCase()),
+      )
+    : UK_GRAPE_VARIETIES;
+
+  // "Other" selected — show free-text input for the actual variety name
+  if (otherMode) {
+    return (
+      <View style={addStyles.fieldGroup}>
+        <Text style={addStyles.fieldLabel}>
+          Variety <Text style={addStyles.required}>*</Text>
+        </Text>
+        <TextInput
+          style={addStyles.input}
+          value={value}
+          onChangeText={onChange}
+          placeholder="Enter variety name"
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="words"
+          autoFocus
+        />
+        <Pressable
+          onPress={handleClear}
+          style={addStyles.backToList}
+          accessibilityRole="button"
+          accessibilityLabel="Back to variety list"
+        >
+          <Feather name="arrow-left" size={12} color={colors.primary} />
+          <Text style={addStyles.backToListText}>Back to list</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // Standard variety selected — show pill
+  if (value) {
+    return (
+      <View style={addStyles.fieldGroup}>
+        <Text style={addStyles.fieldLabel}>
+          Variety <Text style={addStyles.required}>*</Text>
+        </Text>
+        <Pressable
+          style={addStyles.varietySelected}
+          onPress={handleClear}
+          accessibilityRole="button"
+          accessibilityLabel={`Selected: ${value}. Tap to clear.`}
+        >
+          <Text style={addStyles.varietySelectedText}>{value}</Text>
+          <Feather name="x" size={14} color={colors.primary} />
+        </Pressable>
+      </View>
+    );
+  }
+
+  // Default — searchable list
+  return (
+    <View style={addStyles.fieldGroup}>
+      <Text style={addStyles.fieldLabel}>
+        Variety <Text style={addStyles.required}>*</Text>
+      </Text>
+      <TextInput
+        style={addStyles.input}
+        placeholder="Search variety…"
+        placeholderTextColor={colors.textSecondary}
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="words"
+      />
+      <View style={addStyles.varietyList}>
+        {filtered.map(v => (
+          <Pressable
+            key={v}
+            style={addStyles.varietyItem}
+            onPress={() => {
+              if (v === "Other") {
+                setOtherMode(true);
+                onChange("");
+              } else {
+                onChange(v);
+                setQuery("");
+              }
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={addStyles.varietyItemText}>{v}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ChipPicker({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+}) {
+  return (
+    <View style={addStyles.fieldGroup}>
+      <Text style={addStyles.fieldLabel}>{label}</Text>
+      <View style={addStyles.chipWrap}>
+        {options.map(opt => (
+          <Pressable
+            key={opt}
+            style={[addStyles.chip, value === opt && addStyles.chipSelected]}
+            onPress={() => onChange(value === opt ? "" : opt)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: value === opt }}
+          >
+            <Text style={[addStyles.chipText, value === opt && addStyles.chipTextSelected]}>
+              {opt}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const EMPTY_FORM: AddEntryForm = {
+  registeredVariety: "",
+  registeredAreaHa: "",
+  giClassification: "",
+  wineColour: "",
+  fsaVineRegisterRef: "",
+  dateRegistered: "",
+};
