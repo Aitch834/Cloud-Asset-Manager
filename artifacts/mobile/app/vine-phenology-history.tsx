@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +30,185 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
+
+// ─── WineGB Survey Panel ──────────────────────────────────────────────────────
+
+type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
+
+interface WinegbSurvey {
+  key: WinegbSurveyKey;
+  label: string;
+  months: number[];
+}
+
+const WINEGB_SURVEYS: WinegbSurvey[] = [
+  { key: "bud_burst",    label: "Bud Burst",   months: [3, 4]    },
+  { key: "frost_damage", label: "Frost Damage", months: [3, 4, 5] },
+  { key: "flowering",    label: "Flowering",    months: [6, 7]    },
+  { key: "veraison",     label: "Véraison",     months: [8, 9]    },
+  { key: "harvest",      label: "Harvest",      months: [9, 10]   },
+];
+
+interface WinegbSubmission {
+  submitted: boolean;
+  submittedAt: string | null;
+}
+
+function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
+  const seasonYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+
+  const [collapsed, setCollapsed] = useState(false);
+  const [submissions, setSubmissions] = useState<Record<string, WinegbSubmission>>({});
+  const [loadingPanel, setLoadingPanel] = useState(true);
+  const [toggling, setToggling] = useState<WinegbSurveyKey | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const fetchSubmissions = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/winegb-submissions?year=${seasonYear}`);
+      if (!mountedRef.current) return;
+      if (res.ok) {
+        const json = await res.json() as { submissions: Record<string, WinegbSubmission> };
+        setSubmissions(json.submissions ?? {});
+      }
+    } catch {
+      // silently ignore network errors for the panel
+    } finally {
+      if (mountedRef.current) setLoadingPanel(false);
+    }
+  }, [farmId, seasonYear]);
+
+  useEffect(() => {
+    void fetchSubmissions();
+  }, [fetchSubmissions]);
+
+  const handleToggle = async (survey: WinegbSurvey) => {
+    if (toggling) return;
+    const current = submissions[survey.key]?.submitted ?? false;
+    setToggling(survey.key);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/winegb-submissions/${survey.key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submitted: !current, year: seasonYear }),
+      });
+      if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSubmissions(prev => ({
+          ...prev,
+          [survey.key]: { submitted: !current, submittedAt: !current ? new Date().toISOString() : null },
+        }));
+      } else {
+        Alert.alert("Save Failed", "Could not update the survey status. Please try again.");
+      }
+    } catch {
+      Alert.alert("Save Failed", "Could not reach the server. Please try again.");
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const doneCount = WINEGB_SURVEYS.filter(s => submissions[s.key]?.submitted).length;
+  const allDone = doneCount === WINEGB_SURVEYS.length;
+
+  return (
+    <View style={wgStyles.container}>
+      {/* Header row */}
+      <Pressable
+        style={wgStyles.headerRow}
+        onPress={() => setCollapsed(c => !c)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={collapsed ? "Expand WineGB survey checklist" : "Collapse WineGB survey checklist"}
+      >
+        <View style={wgStyles.headerLeft}>
+          <Feather name="globe" size={14} color="#059669" />
+          <Text style={wgStyles.headerTitle}>WineGB Surveys — {seasonYear}</Text>
+          {allDone ? (
+            <View style={wgStyles.allDoneBadge}>
+              <Feather name="check-circle" size={11} color="#15803d" />
+              <Text style={wgStyles.allDoneText}>All submitted</Text>
+            </View>
+          ) : doneCount > 0 ? (
+            <View style={wgStyles.countBadge}>
+              <Text style={wgStyles.countBadgeText}>{doneCount}/{WINEGB_SURVEYS.length}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Feather name={collapsed ? "chevron-down" : "chevron-up"} size={16} color="#059669" />
+      </Pressable>
+
+      {!collapsed && (
+        <>
+          {loadingPanel ? (
+            <View style={wgStyles.loadingRow}>
+              <ActivityIndicator size="small" color="#059669" />
+              <Text style={wgStyles.loadingText}>Loading…</Text>
+            </View>
+          ) : (
+            <View style={wgStyles.surveyList}>
+              {WINEGB_SURVEYS.map(survey => {
+                const state = submissions[survey.key];
+                const isSubmitted = state?.submitted ?? false;
+                const isOverdue = !isSubmitted && currentMonth > Math.max(...survey.months);
+                const isInSeason = !isSubmitted && survey.months.includes(currentMonth);
+                const isPending = toggling === survey.key;
+
+                let rowStyle = wgStyles.surveyRowDefault;
+                let labelStyle = wgStyles.surveyLabelDefault;
+                let iconColor = "#6b7280";
+                if (isSubmitted) { rowStyle = wgStyles.surveyRowSubmitted; labelStyle = wgStyles.surveyLabelSubmitted; iconColor = "#16a34a"; }
+                else if (isOverdue) { rowStyle = wgStyles.surveyRowOverdue; labelStyle = wgStyles.surveyLabelOverdue; iconColor = "#dc2626"; }
+                else if (isInSeason) { rowStyle = wgStyles.surveyRowInSeason; labelStyle = wgStyles.surveyLabelInSeason; iconColor = "#d97706"; }
+
+                return (
+                  <Pressable
+                    key={survey.key}
+                    style={[wgStyles.surveyRow, rowStyle]}
+                    onPress={() => { void handleToggle(survey); }}
+                    disabled={isPending}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isSubmitted }}
+                    accessibilityLabel={`${isSubmitted ? "Unmark" : "Mark"} ${survey.label} as submitted`}
+                  >
+                    {isPending ? (
+                      <ActivityIndicator size="small" color={iconColor} style={wgStyles.surveyIcon} />
+                    ) : isSubmitted ? (
+                      <Feather name="check-circle" size={15} color={iconColor} style={wgStyles.surveyIcon} />
+                    ) : isOverdue ? (
+                      <Feather name="alert-triangle" size={15} color={iconColor} style={wgStyles.surveyIcon} />
+                    ) : isInSeason ? (
+                      <Feather name="alert-triangle" size={15} color={iconColor} style={wgStyles.surveyIcon} />
+                    ) : (
+                      <View style={[wgStyles.surveyCheckbox, wgStyles.surveyIcon]} />
+                    )}
+                    <Text style={[wgStyles.surveyLabel, labelStyle]}>{survey.label}</Text>
+                    {isOverdue && (
+                      <View style={wgStyles.overdueBadge}>
+                        <Text style={wgStyles.overdueBadgeText}>Overdue</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+          <Text style={wgStyles.hint}>
+            Tap a row to mark it as submitted. Tick each survey once you've submitted your data to WineGB.
+          </Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── Phenology Record ─────────────────────────────────────────────────────────
 
 interface PhenologyRecord {
   id: number;
@@ -333,6 +512,10 @@ export default function VinePhenologyHistoryScreen() {
         <Text style={styles.title}>Phenology History</Text>
       </View>
 
+      {currentFarm?.id && (
+        <WinegbSubmissionsPanel farmId={String(currentFarm.id)} />
+      )}
+
       {unlinkedCount > 0 && (
         <View style={styles.unlinkedBanner}>
           <Feather name="alert-triangle" size={15} color="#92400e" />
@@ -575,4 +758,138 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+});
+
+// ─── WineGB Panel Styles ──────────────────────────────────────────────────────
+
+const wgStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    backgroundColor: "#ecfdf5",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#6ee7b7",
+    overflow: "hidden",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
+    flexWrap: "wrap",
+  },
+  headerTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#065f46",
+  },
+  allDoneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#dcfce7",
+    borderRadius: 100,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "#86efac",
+  },
+  allDoneText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#15803d",
+  },
+  countBadge: {
+    backgroundColor: "#d1fae5",
+    borderRadius: 100,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "#6ee7b7",
+  },
+  countBadgeText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#047857",
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  loadingText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#059669",
+  },
+  surveyList: {
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+  },
+  surveyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  surveyIcon: {
+    marginRight: spacing.xs,
+  },
+  surveyCheckbox: {
+    width: 15,
+    height: 15,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#6ee7b7",
+    backgroundColor: "transparent",
+  },
+  surveyLabel: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+  },
+  // State variants
+  surveyRowDefault: { borderColor: "#6ee7b7", backgroundColor: "#ffffff" },
+  surveyLabelDefault: { color: "#065f46" },
+  surveyRowSubmitted: { borderColor: "#86efac", backgroundColor: "#f0fdf4" },
+  surveyLabelSubmitted: { color: "#15803d" },
+  surveyRowOverdue: { borderColor: "#fca5a5", backgroundColor: "#fef2f2" },
+  surveyLabelOverdue: { color: "#b91c1c" },
+  surveyRowInSeason: { borderColor: "#fcd34d", backgroundColor: "#fffbeb" },
+  surveyLabelInSeason: { color: "#92400e" },
+  overdueBadge: {
+    backgroundColor: "#fee2e2",
+    borderRadius: 100,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    marginLeft: spacing.xs,
+  },
+  overdueBadgeText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 10,
+    color: "#b91c1c",
+  },
+  hint: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: "#047857",
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    lineHeight: 16,
+  },
 });
