@@ -107,10 +107,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
   const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
-  const [yieldSortCol, setYieldSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortCol", farmId, defaultValue: "" });
-  const [yieldSortDir, setYieldSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
-  const yieldSort = yieldSortCol ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" } : null;
-  const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
   const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -362,12 +358,22 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const bidsWithYield = blockRows.filter(r => r.totalKg > 0 && r.areaHa);
     footerTotalArea = bidsWithYield.reduce((s, r) => s + (r.areaHa ?? 0), 0);
 
+    // Picks per vintage: count of harvest records for that vintage across all linked blocks
+    const picksByVintage: Record<string, number> = {};
+    for (const r of linkedRows) {
+      const vy = String(r.vintageYear ?? "");
+      if (vy) picksByVintage[vy] = (picksByVintage[vy] ?? 0) + 1;
+    }
+    const grandTotalPicks = linkedRows.length;
+
     return {
       uniqueVintages,
       blockRows,
       footerCells,
       footerTotalKg,
       footerTotalTha: footerTotalArea > 0 && footerTotalKg > 0 ? footerTotalKg / 1000 / footerTotalArea : null,
+      picksByVintage,
+      grandTotalPicks,
     };
   }, [yearFilter, filteredHarvest, blocks]);
 
@@ -444,20 +450,19 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     // Separate bucket for records with no usable variety (unlinked or blank variety on block)
     const UNKNOWN_KEY = "Unknown / Not linked";
-    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; hasBlocksWithNoArea: boolean; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
     for (const r of filteredHarvest) {
       const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
       const variety = block ? String(block.variety ?? "").trim() : "";
       // Use the variety name if available; fall back to the unknown bucket
       const key = variety || UNKNOWN_KEY;
-      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), hasBlocksWithNoArea: false, brixVals: [], phVals: [], taVals: [], paVals: [] };
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
       const entry = varietyMap[key];
       entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
         entry.blockIds.add(r.blockId);
         const ha = parseFloat(String((block.areaHa ?? block.area ?? "")));
         if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
-        else entry.hasBlocksWithNoArea = true;
       }
       const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
       const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
@@ -482,7 +487,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           areaHa: e.totalHa > 0 ? e.totalHa : null,
           totalKg: e.totalKg,
           kgPerHa,
-          hasBlocksWithNoArea: e.hasBlocksWithNoArea,
           avgBrix: avg(e.brixVals),
           avgPh: avg(e.phVals),
           avgTa: avg(e.taVals),
@@ -495,14 +499,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const grandHa = rowsWithArea.reduce((s, r) => s + (r.areaHa ?? 0), 0);
     const grandKgForArea = rowsWithArea.reduce((s, r) => s + r.totalKg, 0);
     const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
-    const grandHasBlocksWithNoArea = rows.some(r => r.hasBlocksWithNoArea);
 
     const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
     const grandAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
     const grandAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
     const grandAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
     const grandAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-    return { rows, grandKg, grandHa, grandKgPerHa, grandHasBlocksWithNoArea, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
+    return { rows, grandKg, grandHa, grandKgPerHa, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, blocks]);
 
@@ -691,62 +694,26 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       };
 
       // ── Yield cross-tab ──────────────────────────────────────────────────
-      // Build block area lookup for t/ha calculation
-      const blockAreaHaMap: Record<string, number | null> = {};
-      for (const bid of uniqueBlockIds) {
-        const bidStr = String(bid);
-        const block = blocks.find(b => String(b.id) === bidStr);
-        const ha = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
-        blockAreaHaMap[bidStr] = !isNaN(ha) && ha > 0 ? ha : null;
-      }
-
-      const yieldHeader = [
-        cell("Block"),
-        ...crossVintages.flatMap(v => [cell(`${v} (kg)`), cell(`${v} (t/ha)`)]),
-        cell("Total (kg)"),
-        cell("Total (t/ha)"),
-      ].join(",");
+      const yieldHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell("Total Yield (kg)")].join(",");
       const yieldRows = uniqueBlockIds.map(bid => {
         const bidStr = String(bid);
-        const areaHa = blockAreaHaMap[bidStr] ?? null;
-        const vintageCells = crossVintages.flatMap(vy => {
+        const vintageCells = crossVintages.map(vy => {
           const grp = lookup[bidStr]?.[vy] ?? [];
-          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-          const tha = areaHa && kg > 0 ? kg / 1000 / areaHa : null;
-          return [cell(kg > 0 ? kg.toFixed(1) : ""), cell(tha != null ? tha.toFixed(3) : "")];
+          const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          return cell(total > 0 ? total.toFixed(1) : "");
         });
         const allRows = Object.values(lookup[bidStr] ?? {}).flat();
         const rowTotal = allRows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        const rowTha = areaHa && rowTotal > 0 ? rowTotal / 1000 / areaHa : null;
-        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : ""), cell(rowTha != null ? rowTha.toFixed(3) : "")].join(",");
+        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : "")].join(",");
       });
-      const yieldFooterCells = crossVintages.flatMap(vy => {
-        const vyKg = rows
+      const yieldFooterCells = crossVintages.map(vy => {
+        const total = rows
           .filter(r => String(r.vintageYear ?? "") === vy)
           .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        // Weighted t/ha: sum of areas of blocks that had yield in this vintage
-        let vyArea = 0;
-        for (const bid of uniqueBlockIds) {
-          const bidStr = String(bid);
-          const areaHa = blockAreaHaMap[bidStr];
-          const grp = lookup[bidStr]?.[vy] ?? [];
-          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-          if (areaHa && kg > 0) vyArea += areaHa;
-        }
-        const vyTha = vyArea > 0 && vyKg > 0 ? vyKg / 1000 / vyArea : null;
-        return [cell(vyKg > 0 ? vyKg.toFixed(1) : ""), cell(vyTha != null ? vyTha.toFixed(3) : "")];
+        return cell(total > 0 ? total.toFixed(1) : "");
       });
       const grandTotal = rows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-      // Grand weighted t/ha: areas of blocks that have any yield across all vintages
-      const grandArea = uniqueBlockIds.reduce<number>((s, bid) => {
-        const bidStr = String(bid);
-        const areaHa = blockAreaHaMap[bidStr];
-        const allRows = Object.values(lookup[bidStr] ?? {}).flat();
-        const kg = allRows.reduce<number>((sum, r) => sum + (parseFloat(String((r as Record<string, unknown>).yieldKg ?? 0)) || 0), 0);
-        return areaHa && kg > 0 ? s + areaHa : s;
-      }, 0);
-      const grandTha = grandArea > 0 && grandTotal > 0 ? grandTotal / 1000 / grandArea : null;
-      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : ""), cell(grandTha != null ? grandTha.toFixed(3) : "")].join(",");
+      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : "")].join(",");
 
       // ── Chemistry sub-tables ─────────────────────────────────────────────
       const brixTable = chemSubTable(
@@ -1397,42 +1364,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       {/* Yield cross-tab: block × vintage, kg + t/ha */}
       {yieldCrossTabData && (() => {
-        const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha } = yieldCrossTabData;
-
-        const handleYieldSort = (col: string) => {
-          if (yieldSort?.col === col) {
-            setYieldSort({ col, dir: yieldSort.dir === "asc" ? "desc" : "asc" });
-          } else {
-            setYieldSort({ col, dir: "desc" });
-          }
-        };
-
-        const yieldSortIcon = (col: string) => {
-          if (!yieldSort || yieldSort.col !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30 inline-block" />;
-          return yieldSort.dir === "asc"
-            ? <ArrowUp className="w-3 h-3 ml-1 text-primary inline-block" />
-            : <ArrowDown className="w-3 h-3 ml-1 text-primary inline-block" />;
-        };
-
-        const sortedYieldRows = (() => {
-          if (!yieldSort) return [...blockRows].sort((a, b) => a.bname.localeCompare(b.bname));
-          const d = yieldSort.dir === "asc" ? 1 : -1;
-          return [...blockRows].sort((a, b) => {
-            if (yieldSort.col === "name") return a.bname.localeCompare(b.bname) * d;
-            if (yieldSort.col === "total:kg") return ((a.totalKg ?? 0) - (b.totalKg ?? 0)) * d;
-            if (yieldSort.col === "total:tha") return ((a.totalTha ?? 0) - (b.totalTha ?? 0)) * d;
-            // vintage-specific: "vy:kg:{year}" or "vy:tha:{year}"
-            const m = yieldSort.col.match(/^vy:(kg|tha):(.+)$/);
-            if (m) {
-              const [, metric, vy] = m;
-              const av = metric === "kg" ? (a.cells[vy]?.kg ?? 0) : (a.cells[vy]?.tha ?? 0);
-              const bv = metric === "kg" ? (b.cells[vy]?.kg ?? 0) : (b.cells[vy]?.tha ?? 0);
-              return (av - bv) * d;
-            }
-            return a.bname.localeCompare(b.bname);
-          });
-        })();
-
+        const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha, picksByVintage, grandTotalPicks } = yieldCrossTabData;
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
@@ -1447,97 +1379,45 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             </button>
             {yieldCrossTabOpen && (
               <div className="overflow-x-auto">
-                {yieldSort && (
-                  <div className="px-4 py-1.5 border-b bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Sorted by column</span>
-                    <button
-                      type="button"
-                      className="text-primary underline underline-offset-2 hover:opacity-70"
-                      onClick={() => setYieldSort(null)}
-                    >
-                      Clear sort
-                    </button>
-                  </div>
-                )}
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="text-left px-4 py-2 font-medium sticky left-0 bg-card">
-                        <button
-                          type="button"
-                          className={`inline-flex items-center justify-start hover:text-foreground transition-colors ${yieldSort?.col === "name" ? "text-foreground" : ""}`}
-                          onClick={() => handleYieldSort("name")}
-                        >
-                          Block{yieldSortIcon("name")}
-                        </button>
-                      </th>
+                      <th className="text-left px-4 py-2 font-medium sticky left-0 bg-card">Block</th>
                       {uniqueVintages.map(vy => (
-                        <th key={vy} colSpan={2} className={`text-center px-3 py-2 font-medium border-l ${yieldSort?.col === `vy:kg:${vy}` || yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>{vy}</th>
+                        <th key={vy} colSpan={2} className="text-center px-3 py-2 font-medium border-l">{vy}</th>
                       ))}
-                      <th colSpan={2} className={`text-center px-3 py-2 font-medium border-l ${yieldSort?.col === "total:kg" || yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>Total</th>
+                      <th colSpan={2} className="text-center px-3 py-2 font-medium border-l">Total</th>
                     </tr>
                     <tr className="border-b text-xs text-muted-foreground">
                       <th className="sticky left-0 bg-card" />
                       {uniqueVintages.map(vy => (
                         <React.Fragment key={vy}>
-                          <th className={`text-right px-3 py-1 font-normal border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === `vy:kg:${vy}` ? "text-foreground" : ""}`}
-                              onClick={() => handleYieldSort(`vy:kg:${vy}`)}
-                            >
-                              kg{yieldSortIcon(`vy:kg:${vy}`)}
-                            </button>
-                          </th>
-                          <th className={`text-right px-3 py-1 font-normal ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === `vy:tha:${vy}` ? "text-foreground" : ""}`}
-                              onClick={() => handleYieldSort(`vy:tha:${vy}`)}
-                            >
-                              t/ha{yieldSortIcon(`vy:tha:${vy}`)}
-                            </button>
-                          </th>
+                          <th className="text-right px-3 py-1 font-normal border-l">kg</th>
+                          <th className="text-right px-3 py-1 font-normal">t/ha</th>
                         </React.Fragment>
                       ))}
-                      <th className={`text-right px-3 py-1 font-normal border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
-                        <button
-                          type="button"
-                          className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === "total:kg" ? "text-foreground" : ""}`}
-                          onClick={() => handleYieldSort("total:kg")}
-                        >
-                          kg{yieldSortIcon("total:kg")}
-                        </button>
-                      </th>
-                      <th className={`text-right px-3 py-1 font-normal ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
-                        <button
-                          type="button"
-                          className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === "total:tha" ? "text-foreground" : ""}`}
-                          onClick={() => handleYieldSort("total:tha")}
-                        >
-                          t/ha{yieldSortIcon("total:tha")}
-                        </button>
-                      </th>
+                      <th className="text-right px-3 py-1 font-normal border-l">kg</th>
+                      <th className="text-right px-3 py-1 font-normal">t/ha</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedYieldRows.map((row, i) => (
+                    {blockRows.map((row, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-2 font-medium sticky left-0 bg-card">{row.bname}</td>
                         {uniqueVintages.map(vy => (
                           <React.Fragment key={vy}>
-                            <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
+                            <td className="text-right px-3 py-2 tabular-nums border-l">
                               {row.cells[vy]?.kg ? row.cells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                             </td>
-                            <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
+                            <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
                               {row.cells[vy]?.tha != null ? row.cells[vy].tha!.toFixed(2) : "—"}
                             </td>
                           </React.Fragment>
                         ))}
-                        <td className={`text-right px-3 py-2 tabular-nums font-medium border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
+                        <td className="text-right px-3 py-2 tabular-nums font-medium border-l">
                           {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                         </td>
-                        <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
+                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
                           {row.totalTha != null ? row.totalTha.toFixed(2) : "—"}
                         </td>
                       </tr>
@@ -1548,19 +1428,38 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       <td className="px-4 py-2 sticky left-0 bg-muted/40">Total</td>
                       {uniqueVintages.map(vy => (
                         <React.Fragment key={vy}>
-                          <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
+                          <td className="text-right px-3 py-2 tabular-nums border-l">
                             {footerCells[vy]?.kg ? footerCells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                           </td>
-                          <td className={`text-right px-3 py-2 tabular-nums ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
+                          <td className="text-right px-3 py-2 tabular-nums">
                             {footerCells[vy]?.tha != null ? footerCells[vy].tha!.toFixed(2) : "—"}
                           </td>
                         </React.Fragment>
                       ))}
-                      <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
+                      <td className="text-right px-3 py-2 tabular-nums border-l">
                         {footerTotalKg > 0 ? footerTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                       </td>
-                      <td className={`text-right px-3 py-2 tabular-nums ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
+                      <td className="text-right px-3 py-2 tabular-nums">
                         {footerTotalTha != null ? footerTotalTha.toFixed(2) : "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-t text-xs">
+                      <td className="px-4 py-1.5 sticky left-0 bg-stone-50 font-medium text-muted-foreground">Picks</td>
+                      {uniqueVintages.map(vy => {
+                        const picks = picksByVintage[vy] ?? 0;
+                        const single = picks === 1;
+                        return (
+                          <td
+                            key={vy}
+                            colSpan={2}
+                            className={`text-center px-3 py-1.5 tabular-nums font-medium border-l ${single ? "bg-amber-50 text-amber-800" : "bg-stone-50 text-muted-foreground"}`}
+                          >
+                            {single && <span className="mr-1">⚠</span>}{picks > 0 ? picks : "—"}
+                          </td>
+                        );
+                      })}
+                      <td colSpan={2} className="text-center px-3 py-1.5 tabular-nums font-medium bg-stone-50 text-muted-foreground border-l">
+                        {grandTotalPicks > 0 ? grandTotalPicks : "—"}
                       </td>
                     </tr>
                   </tfoot>
@@ -2027,116 +1926,87 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${blockSummaryOpen ? "rotate-90" : ""}`} />
             </button>
             {blockSummaryOpen && (
-              <>
-                <div className="px-4 py-2 border-b flex items-center justify-end gap-2 bg-background">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
-                        <Beaker className="w-3.5 h-3.5" />
-                        Columns
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
                       {([
-                        { key: "avgBrix", label: "Avg Brix °",     val: showVintageBrix, set: setShowVintageBrix },
-                        { key: "avgPh",   label: "Avg pH",          val: showVintagePh,   set: setShowVintagePh   },
-                        { key: "avgTa",   label: "Avg TA (g/L)",    val: showVintageTa,   set: setShowVintageTa   },
-                        { key: "avgPa",   label: "Avg Pot. Alc %",  val: showVintagePa,   set: setShowVintagePa   },
-                      ] as { key: string; label: string; val: string; set: (v: string) => void }[]).map(({ key, label, val, set }) => (
-                        <DropdownMenuItem
-                          key={key}
-                          onSelect={e => { e.preventDefault(); set(val === "true" ? "false" : "true"); }}
-                          className="flex items-center gap-2 cursor-pointer"
+                        { col: "name",         label: "Block",            align: "left"  },
+                        { col: "variety",      label: "Variety",          align: "left"  },
+                        { col: "areaHa",       label: "Area (ha)",        align: "right" },
+                        { col: "picks",        label: "Picks",            align: "right" },
+                        { col: "totalYieldKg", label: "Total Yield (kg)", align: "right" },
+                        { col: "derivedTha",   label: "t/ha",             align: "right" },
+                        { col: "avgBrix",      label: "Avg Brix °",       align: "right" },
+                        { col: "avgPh",        label: "Avg pH",           align: "right" },
+                        { col: "avgTa",        label: "Avg TA (g/L)",     align: "right" },
+                        { col: "avgPa",        label: "Avg Pot. Alc %",   align: "right" },
+                      ] as { col: string; label: string; align: "left" | "right" }[]).map(({ col, label, align }) => (
+                        <th
+                          key={col}
+                          className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
                         >
-                          <Checkbox checked={val === "true"} className="pointer-events-none" />
-                          <span>{label}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                        {([
-                          { col: "name",         label: "Block",            align: "left",  show: true },
-                          { col: "variety",      label: "Variety",          align: "left",  show: true },
-                          { col: "areaHa",       label: "Area (ha)",        align: "right", show: true },
-                          { col: "picks",        label: "Picks",            align: "right", show: true },
-                          { col: "totalYieldKg", label: "Total Yield (kg)", align: "right", show: true },
-                          { col: "derivedTha",   label: "t/ha",             align: "right", show: true },
-                          { col: "avgBrix",      label: "Avg Brix °",       align: "right", show: vintageChemCols.avgBrix },
-                          { col: "avgPh",        label: "Avg pH",           align: "right", show: vintageChemCols.avgPh   },
-                          { col: "avgTa",        label: "Avg TA (g/L)",     align: "right", show: vintageChemCols.avgTa   },
-                          { col: "avgPa",        label: "Avg Pot. Alc %",   align: "right", show: vintageChemCols.avgPa   },
-                        ] as { col: string; label: string; align: "left" | "right"; show: boolean }[]).filter(c => c.show).map(({ col, label, align }) => (
-                          <th
-                            key={col}
-                            className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(col)}
+                            className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${summarySort.col === col ? "text-foreground" : ""}`}
                           >
-                            <button
-                              type="button"
-                              onClick={() => toggleSort(col)}
-                              className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${summarySort.col === col ? "text-foreground" : ""}`}
-                            >
-                              {label}<SortIcon col={col} />
-                            </button>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedSummaryRows.map((row, i) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                          <td className="px-4 py-2 font-medium">{row.name}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {row.picks === 1 ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
-                            ) : row.picks <= 3 ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
-                            ) : (
-                              <span className="text-muted-foreground">{row.picks}</span>
-                            )}
-                          </td>
-                          <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.linkedButNoArea ? (
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
-                            ) : "—"}
-                          </td>
-                          {vintageChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>}
-                          {vintageChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPh   != null ? row.avgPh.toFixed(2)   : "—"}</td>}
-                          {vintageChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgTa   != null ? row.avgTa.toFixed(2)   : "—"}</td>}
-                          {vintageChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPa   != null ? row.avgPa.toFixed(2)   : "—"}</td>}
-                        </tr>
+                            {label}<SortIcon col={col} />
+                          </button>
+                        </th>
                       ))}
-                    </tbody>
-                    {summaryRows.length > 0 && (
-                      <tfoot>
-                        <tr className="border-t-2 bg-muted/40 font-semibold">
-                          <td className="px-4 py-2">Season Totals</td>
-                          <td className="px-3 py-2" />
-                          <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalArea > 0 ? bFooterTotalArea.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalPicks}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalKg > 0 ? bFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {bFooterDerivedTha != null ? bFooterDerivedTha.toFixed(2) : bFooterHasLinkedNoArea ? (
-                              <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
-                            ) : "—"}
-                          </td>
-                          {vintageChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgBrix != null ? bFooterAvgBrix.toFixed(1) : "—"}</td>}
-                          {vintageChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPh   != null ? bFooterAvgPh.toFixed(2)   : "—"}</td>}
-                          {vintageChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgTa   != null ? bFooterAvgTa.toFixed(2)   : "—"}</td>}
-                          {vintageChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPa   != null ? bFooterAvgPa.toFixed(2)   : "—"}</td>}
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              </>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSummaryRows.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-4 py-2 font-medium">{row.name}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {row.picks === 1 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
+                          ) : row.picks <= 3 ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5">{row.picks} picks</span>
+                          ) : (
+                            <span className="text-muted-foreground">{row.picks}</span>
+                          )}
+                        </td>
+                        <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalYieldKg > 0 ? row.totalYieldKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {row.derivedTha != null ? row.derivedTha.toFixed(2) : row.linkedButNoArea ? (
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                          ) : "—"}
+                        </td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {summaryRows.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/40 font-semibold">
+                        <td className="px-4 py-2">Season Totals</td>
+                        <td className="px-3 py-2" />
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalArea > 0 ? bFooterTotalArea.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalPicks}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterTotalKg > 0 ? bFooterTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">
+                          {bFooterDerivedTha != null ? bFooterDerivedTha.toFixed(2) : bFooterHasLinkedNoArea ? (
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see t/ha">—</span>
+                          ) : "—"}
+                        </td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgBrix != null ? bFooterAvgBrix.toFixed(1) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPh != null ? bFooterAvgPh.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgTa != null ? bFooterAvgTa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{bFooterAvgPa != null ? bFooterAvgPa.toFixed(2) : "—"}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             )}
           </div>
         );
@@ -2241,13 +2111,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           </td>
                           <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">
-                            {row.kgPerHa != null
-                              ? Math.round(row.kgPerHa).toLocaleString("en-GB")
-                              : row.hasBlocksWithNoArea
-                                ? <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see yield per hectare">—</span>
-                                : "—"}
-                          </td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
@@ -2261,13 +2125,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       <td className="px-4 py-2">Total / Average</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">
-                        {varietySummaryData.grandKgPerHa != null
-                          ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB")
-                          : varietySummaryData.grandHasBlocksWithNoArea
-                            ? <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see yield per hectare">—</span>
-                            : "—"}
-                      </td>
+                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKgPerHa != null ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB") : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh != null ? varietySummaryData.grandAvgPh.toFixed(2) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa != null ? varietySummaryData.grandAvgTa.toFixed(2) : "—"}</td>
