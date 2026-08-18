@@ -3624,14 +3624,14 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
     },
     enabled: !!farmId,
   });
-  const invalidate = () => qc.invalidateQueries({ queryKey: [key, farmId] });
+  const refetch = () => qc.refetchQueries({ queryKey: [key, farmId] });
   const add = useMutation({
     mutationFn: async (body: Partial<T>) => {
       const r = await fetch(api(`farms/${farmId}/${endpoint}`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
       if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
-    onSuccess: invalidate,
+    onSuccess: refetch,
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const edit = useMutation({
@@ -3640,7 +3640,7 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
       if (!r.ok) throw new Error("Save failed");
       return r.json();
     },
-    onSuccess: invalidate,
+    onSuccess: refetch,
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
   });
   const remove = useMutation({
@@ -3648,7 +3648,7 @@ export function useCrud<T extends Record<string, unknown>>(farmId: number, endpo
       const r = await fetch(api(`farms/${farmId}/${endpoint}/${id}`), { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error("Delete failed");
     },
-    onSuccess: invalidate,
+    onSuccess: refetch,
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
   return { data: q.data ?? [], isLoading: q.isLoading, add, edit, remove };
