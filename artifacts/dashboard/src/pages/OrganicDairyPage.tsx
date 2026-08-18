@@ -838,6 +838,7 @@ function CalvingTab({ farmId, farmName }: { farmId: number; farmName: string }) 
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => downloadCalvingCsv(calvingRecords, farmName, monthLabelC)} disabled={calvingRecords.length === 0} className="gap-1.5"><FileDown className="w-4 h-4" />Download CSV</Button>
           <Button variant="outline" size="sm" onClick={() => printCalvingRecords(calvingRecords, farmName, monthLabelC)} disabled={calvingRecords.length === 0} className="gap-1.5"><Printer className="w-4 h-4" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Calving</Button>
         </div>
@@ -3241,6 +3242,31 @@ export default function OrganicDairyPage() {
   );
 }
 
+function downloadCalvingCsv(records: OrgCalvingRecord[], farmName: string, monthLabel: string) {
+  const easeLabel = ["", "Unassisted", "Easy pull", "Hard pull", "Mech. assist", "C-section"];
+  const headers = [
+    "Calving Date", "Dam Tag", "Calves",
+    "Calf Tag", "Calf Sex", "Outcome",
+    "Ease Score", "Colostrum ≤2h", "Organic Colostrum",
+    "Organic Status", "BCMS Passport", "Notes",
+  ];
+  const dataRows = records.map(r => [
+    r.calvingDate ? new Date(r.calvingDate).toLocaleDateString("en-GB") : "",
+    r.cowEarTag ?? "",
+    r.numberOfCalves != null ? String(r.numberOfCalves) : "1",
+    r.calfEarTag ?? "",
+    r.calfSex ?? "",
+    r.calfOutcome ?? "",
+    r.calvingEaseScore != null ? `${r.calvingEaseScore} — ${easeLabel[r.calvingEaseScore] ?? ""}` : "",
+    r.colostrumGivenWithin2Hours === true ? "Yes" : r.colostrumGivenWithin2Hours === false ? "No" : "",
+    r.colostrumFromOrganicDam === true ? "Yes" : r.colostrumFromOrganicDam === false ? "No" : "",
+    r.organicStatusConfirmed ? "Confirmed" : "Pending",
+    r.bcmsPassportApplied ? "Yes" : "No",
+    r.notes ?? "",
+  ]);
+  const filename = `Calving_${farmName.replace(/[^a-z0-9]/gi, "_")}_${monthLabel.replace(/[^a-z0-9]/gi, "_")}.csv`;
+  downloadCsvFile(filename, [headers, ...dataRows]);
+}
 function printCalvingRecords(records: OrgCalvingRecord[], farmName: string, monthLabel: string) {
   const today = new Date().toLocaleDateString("en-GB");
   const easeLabel = ["", "Unassisted", "Easy pull", "Hard pull", "Mech. assist", "C-section"];
