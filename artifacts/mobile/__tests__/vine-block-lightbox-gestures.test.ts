@@ -1,16 +1,19 @@
 /**
- * Unit tests for VineBlockPhotoLightbox gesture and counter logic.
+ * Unit tests for photo lightbox gesture and counter logic.
  *
- * All assertions target pure helpers in lib/vineBlockLightboxHelpers.ts so
- * there is no React Native dependency and the tests run in the plain Node/Jest
- * environment.
+ * All assertions target pure helpers so there is no React Native dependency
+ * and the tests run in the plain Node/Jest environment.
  *
- * Covered behaviours (mirroring the component constants in vine-block-photos.tsx):
+ * Gesture threshold constants come from lib/lightboxGestureConstants.ts —
+ * the single source of truth shared by vine-block-photos.tsx,
+ * vine-spray-diary.tsx, and these tests.  Changing a threshold there
+ * simultaneously updates every lightbox implementation and these expectations,
+ * so divergence between viewers is impossible.
  *
- *   SWIPE_DOWN_THRESHOLD  = 120 px
- *   SWIPE_HORIZ_THRESHOLD =  60 px
+ *   SWIPE_DOWN_THRESHOLD  = 120 px  (lib/lightboxGestureConstants.ts)
+ *   SWIPE_HORIZ_THRESHOLD =  60 px  (lib/lightboxGestureConstants.ts)
  *   Direction-lock threshold =  8 px
- *   MIN_SCALE = 1, MAX_SCALE = 5
+ *   MIN_SCALE = 1, MAX_SCALE = 5    (lib/lightboxGestureConstants.ts)
  *
  * Sections:
  *   1. Counter display (showCounter / counterText)
@@ -22,6 +25,18 @@
  *   7. End-to-end swipe sequences
  */
 
+// Threshold constants — imported directly from the shared constants file so
+// that any future tuning here automatically applies to vine-block-photos.tsx
+// and vine-spray-diary.tsx at the same time.
+import {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+} from "../lib/lightboxGestureConstants";
+
+// Pure gesture/counter helpers live in vineBlockLightboxHelpers (which
+// re-exports the constants above for backward compatibility).
 import {
   showCounter,
   counterText,
@@ -34,15 +49,7 @@ import {
   navigationIndexAfterSwipe,
   clampIndexAfterDelete,
   clampScale,
-  SWIPE_DOWN_THRESHOLD,
-  SWIPE_HORIZ_THRESHOLD,
-  MIN_SCALE,
-  MAX_SCALE,
 } from "../lib/vineBlockLightboxHelpers";
-// NOTE: vine-block-photos.tsx imports these same constants from this module.
-// Changing SWIPE_DOWN_THRESHOLD, SWIPE_HORIZ_THRESHOLD, MIN_SCALE, or
-// MAX_SCALE in vineBlockLightboxHelpers.ts therefore updates both the
-// component behaviour and these test expectations simultaneously.
 
 // ===========================================================================
 // 1. Counter display

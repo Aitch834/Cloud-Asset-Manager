@@ -4,28 +4,31 @@
  * Kept in a separate file so they can be unit-tested without importing any
  * React Native or Expo modules.
  *
- * IMPORTANT: vine-block-photos.tsx imports the threshold constants and
- * direction-lock values from this file.  The unit tests in
- * __tests__/vine-block-lightbox-gestures.test.ts also import from here.
- * Changing a constant here therefore simultaneously updates both the
- * component's runtime behaviour and the test expectations — no silent drift.
+ * IMPORTANT: gesture threshold constants (SWIPE_DOWN_THRESHOLD etc.) now live
+ * in lib/lightboxGestureConstants.ts and are re-exported from here so that
+ * existing imports in vine-block-photos.tsx and the unit tests continue to
+ * work unchanged.  vine-spray-diary.tsx imports directly from
+ * lightboxGestureConstants.ts so that both viewers always share the same values.
  */
 
 // ---------------------------------------------------------------------------
-// Gesture threshold constants (imported by vine-block-photos.tsx)
+// Gesture threshold constants — canonical source is lightboxGestureConstants.ts
+// Imported for use by the helpers below and re-exported so that
+// vine-block-photos.tsx and the unit tests need no import-path change.
 // ---------------------------------------------------------------------------
+import {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+} from "./lightboxGestureConstants";
 
-/** Minimum downward translation (px) required to dismiss the lightbox. */
-export const SWIPE_DOWN_THRESHOLD = 120;
-
-/** Minimum horizontal translation (px) required to navigate between photos. */
-export const SWIPE_HORIZ_THRESHOLD = 60;
-
-/** Minimum scale factor (identity / no zoom). */
-export const MIN_SCALE = 1;
-
-/** Maximum pinch-to-zoom scale factor. */
-export const MAX_SCALE = 5;
+export {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+};
 
 // ---------------------------------------------------------------------------
 // Counter display
