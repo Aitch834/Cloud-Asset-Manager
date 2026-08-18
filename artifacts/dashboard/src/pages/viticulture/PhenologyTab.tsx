@@ -171,6 +171,7 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; season
             const state = submissions[survey.key];
             const isSubmitted = state?.submitted ?? false;
             const isInSeason = isCurrentSeason && survey.months.includes(currentMonth);
+            const isOverdue = !isSubmitted && isCurrentSeason && currentMonth > Math.max(...survey.months);
             const isPending = toggleMutation.isPending && toggleMutation.variables?.key === survey.key;
 
             return (
@@ -183,6 +184,8 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; season
                   "flex items-center gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
                   isSubmitted
                     ? "border-green-300 bg-green-50 text-green-800 hover:bg-green-100"
+                    : isOverdue
+                    ? "border-red-300 bg-red-50 text-red-800 hover:bg-red-100"
                     : isInSeason
                     ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
                     : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50",
@@ -193,21 +196,42 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; season
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                 ) : isSubmitted ? (
                   <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                ) : isOverdue ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                 ) : isInSeason ? (
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 ) : (
                   <div className="w-3.5 h-3.5 rounded-sm border border-emerald-300 shrink-0" />
                 )}
-                <span className="font-medium leading-tight">{survey.label}</span>
+                <div className="min-w-0">
+                  <span className="font-medium leading-tight">{survey.label}</span>
+                  {isOverdue && (
+                    <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 border border-red-200 px-1.5 py-px text-[10px] font-semibold text-red-700 leading-none">
+                      Overdue
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
         </div>
       )}
-      <p className="mt-2 text-[11px] text-emerald-700 leading-snug">
-        Tick each survey once you've submitted your data to WineGB.
-        {isCurrentSeason && !allDone && " Surveys highlighted in amber are currently in season."}
-      </p>
+      {(() => {
+        const overdueCount = isCurrentSeason
+          ? WINEGB_SURVEYS.filter(s => !submissions[s.key]?.submitted && currentMonth > Math.max(...s.months)).length
+          : 0;
+        const inSeasonCount = isCurrentSeason
+          ? WINEGB_SURVEYS.filter(s => !submissions[s.key]?.submitted && s.months.includes(currentMonth)).length
+          : 0;
+        return (
+          <p className="mt-2 text-[11px] text-emerald-700 leading-snug">
+            Tick each survey once you've submitted your data to WineGB.
+            {isCurrentSeason && !allDone && overdueCount > 0 && inSeasonCount > 0 && " Surveys in red are overdue — their collection window has passed. Surveys in amber are currently in season."}
+            {isCurrentSeason && !allDone && overdueCount > 0 && inSeasonCount === 0 && " Surveys marked Overdue had their collection window pass without a submission being recorded."}
+            {isCurrentSeason && !allDone && overdueCount === 0 && inSeasonCount > 0 && " Surveys highlighted in amber are currently in season."}
+          </p>
+        );
+      })()}
     </div>
   );
 }
