@@ -1224,7 +1224,8 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                                     onChange={e => {
                                       const newStatus = e.target.value;
                                       if (needsDate(newStatus)) {
-                                        setPendingCompletion({ milestoneId: m.id, projectId: m.projectId, newStatus, date: todayIso });
+                                        const defaultDate = m.dueDate && m.dueDate.slice(0, 10) <= todayIso ? m.dueDate.slice(0, 10) : todayIso;
+                                        setPendingCompletion({ milestoneId: m.id, projectId: m.projectId, newStatus, date: defaultDate });
                                       } else {
                                         setUpdatingMilestone(m.id);
                                         // Clear completionDate when reverting away from claimed statuses
