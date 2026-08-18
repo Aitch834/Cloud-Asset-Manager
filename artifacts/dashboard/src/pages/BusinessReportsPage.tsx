@@ -1062,6 +1062,14 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
   const activeSchemes = schemes.filter(s => s.status === "active");
   const totalAnnualSchemes = activeSchemes.reduce((s, sc) => s + (sc.annualPaymentPence ?? 0), 0);
   const totalSubsidyReceived = subsidyTx.reduce((s, t) => s + (t.amountPence ?? 0), 0);
+
+  // Double-count detection: use the shared helper with the full unfiltered transaction list so
+  // both "Agri-Environment Scheme" and "Vineyard Agri-Environment Scheme" are covered.
+  // agriEnvYearClaimed = milestone claims (submitted/paid) whose completion date falls in this year.
+  const agriEnvYearClaimed = agriEnvMilestones
+    .filter((m: any) => (m.status === "submitted" || m.status === "paid") && m.completionDate && dateIsInYear(m.completionDate))
+    .reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
+  const { hasDoubleCountRisk } = agriEnvDoubleCountRisk(data?.subsidyTransactions ?? [], agriEnvYearClaimed);
   const totalAgriEnvGrantValue = agriEnvProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
   // Canonical milestone statuses: pending | submitted | paid | overdue
   const totalMilestonesDrawnDown = agriEnvMilestones.filter(m => m.status === "submitted" || m.status === "paid").reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
@@ -1142,6 +1150,18 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
 
   return (
     <div className="space-y-6">
+      {hasDoubleCountRisk && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "0.75rem 1rem", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.1rem", lineHeight: 1.3 }}>⚠️</span>
+          <div>
+            <p style={{ fontWeight: 600, color: "#92400e", fontSize: "0.875rem", marginBottom: 2 }}>Possible double-count detected</p>
+            <p style={{ color: "#78350f", fontSize: "0.8rem" }}>
+              You have both an <strong>Agri-Environment Scheme</strong> financial transaction and agri-env milestone claims in {year}.
+              The same payment may be recorded twice. Go to the <strong>Gross Margin</strong> tab and use <strong>Link to project</strong> on the transaction to confirm it is the milestone payment, or remove either the financial transaction or the milestone claim.
+            </p>
+          </div>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <StatCard label="Active Schemes" value={String(activeSchemes.length)} />
         <StatCard label="Annual Scheme Value" value={fmt(totalAnnualSchemes)} sub="Expected annual total" />
