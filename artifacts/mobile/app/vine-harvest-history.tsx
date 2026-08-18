@@ -45,6 +45,9 @@ interface HarvestRecord {
   harvestMethod: string | null;
   yieldKg: number | null;
   brix: number | null;
+  ph: number | null;
+  titratableAcidityGl: number | null;
+  potentialAlcohol: number | null;
   grapeCondition: string | null;
   operatorName: string | null;
   notes: string | null;
@@ -59,6 +62,9 @@ interface OfflineHarvestEntry {
   blockName?: string;
   yieldKg?: number;
   brix?: number;
+  ph?: number;
+  titratableAcidityGl?: number;
+  potentialAlcohol?: number;
   grapeCondition?: string;
   operatorName?: string;
   notes?: string;
@@ -518,8 +524,10 @@ export default function VineHarvestHistoryScreen() {
     let totalKg = 0;
     let yieldKgForArea = 0;
     let totalAreaHa = 0;
-    let brixSum = 0;
-    let brixCount = 0;
+    let brixSum = 0; let brixCount = 0;
+    let phSum = 0;   let phCount = 0;
+    let taSum = 0;   let taCount = 0;
+    let paSum = 0;   let paCount = 0;
     const seenBlockIds = new Set<number>();
 
     for (const r of vintageRecords) {
@@ -537,10 +545,10 @@ export default function VineHarvestHistoryScreen() {
           }
         }
       }
-      if (r.brix != null) {
-        brixSum += Number(r.brix);
-        brixCount += 1;
-      }
+      if (r.brix != null)               { brixSum += Number(r.brix);                 brixCount++; }
+      if (r.ph != null)                  { phSum   += Number(r.ph);                   phCount++;   }
+      if (r.titratableAcidityGl != null) { taSum   += Number(r.titratableAcidityGl); taCount++;   }
+      if (r.potentialAlcohol != null)    { paSum   += Number(r.potentialAlcohol);     paCount++;   }
     }
 
     // Merge offline pending records into totals
@@ -558,14 +566,17 @@ export default function VineHarvestHistoryScreen() {
           }
         }
       }
-      if (r.brix != null) {
-        brixSum += Number(r.brix);
-        brixCount += 1;
-      }
+      if (r.brix != null)               { brixSum += Number(r.brix);                 brixCount++; }
+      if (r.ph != null)                  { phSum   += Number(r.ph);                   phCount++;   }
+      if (r.titratableAcidityGl != null) { taSum   += Number(r.titratableAcidityGl); taCount++;   }
+      if (r.potentialAlcohol != null)    { paSum   += Number(r.potentialAlcohol);     paCount++;   }
     }
 
     const weightedTonnesPerHa = totalAreaHa > 0 ? (yieldKgForArea / 1000) / totalAreaHa : null;
-    const avgBrix = brixCount > 0 ? brixSum / brixCount : null;
+    const avgBrix    = brixCount > 0 ? brixSum / brixCount : null;
+    const avgPh      = phCount   > 0 ? phSum   / phCount   : null;
+    const avgTa      = taCount   > 0 ? taSum   / taCount   : null;
+    const avgPotAlc  = paCount   > 0 ? paSum   / paCount   : null;
     // True when at least one record is linked to a block whose area is absent or
     // non-positive — i.e. the grower needs to set block area for t/ha to appear.
     const hasBlockWithMissingArea = vintageRecords.some(r => {
@@ -578,6 +589,9 @@ export default function VineHarvestHistoryScreen() {
       totalKg,
       weightedTonnesPerHa,
       avgBrix,
+      avgPh,
+      avgTa,
+      avgPotAlc,
       count: vintageRecords.length + offlinePendingForVintage.length,
       hasBlockWithMissingArea,
       hasUnsynced,
@@ -939,6 +953,40 @@ export default function VineHarvestHistoryScreen() {
               </View>
             </ScrollView>
           )}
+        </View>
+      )}
+
+      {/* Must Chemistry summary card */}
+      {!loading && !error && totals.count > 0 &&
+        (totals.avgBrix != null || totals.avgPh != null || totals.avgTa != null || totals.avgPotAlc != null) && (
+        <View style={styles.chemCard}>
+          <Text style={styles.chemCardLabel}>Must Chemistry</Text>
+          <View style={styles.chemGrid}>
+            <View style={styles.chemStat}>
+              <Text style={styles.chemValue}>
+                {totals.avgBrix != null ? `${totals.avgBrix.toFixed(1)}°` : "—"}
+              </Text>
+              <Text style={styles.chemStatLabel}>Avg Brix °</Text>
+            </View>
+            <View style={styles.chemStat}>
+              <Text style={styles.chemValue}>
+                {totals.avgPh != null ? totals.avgPh.toFixed(2) : "—"}
+              </Text>
+              <Text style={styles.chemStatLabel}>Avg pH</Text>
+            </View>
+            <View style={styles.chemStat}>
+              <Text style={[styles.chemValue, styles.chemValueTa]}>
+                {totals.avgTa != null ? totals.avgTa.toFixed(2) : "—"}
+              </Text>
+              <Text style={styles.chemStatLabel}>Avg TA (g/L)</Text>
+            </View>
+            <View style={styles.chemStat}>
+              <Text style={styles.chemValue}>
+                {totals.avgPotAlc != null ? `${totals.avgPotAlc.toFixed(1)}%` : "—"}
+              </Text>
+              <Text style={styles.chemStatLabel}>Avg Pot. Alc %</Text>
+            </View>
+          </View>
         </View>
       )}
 
@@ -1414,5 +1462,48 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  // Must Chemistry card
+  chemCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  chemCardLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: spacing.sm,
+  },
+  chemGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  chemStat: {
+    width: "50%",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+    gap: 2,
+  },
+  chemValue: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  chemValueTa: {
+    color: "#ef4444",
+  },
+  chemStatLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
   },
 });
