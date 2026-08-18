@@ -1356,16 +1356,18 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   // Hide line series from tooltip (they duplicate the bar values)
                   if (name.endsWith(" trend")) return [null, null];
                   const areaHa = yieldChartData.blockAreaByName[name] ?? 0;
+                  const variety = yieldChartData.blockVarietyByName[name] ?? "";
+                  const seriesLabel = variety ? `${name} (${variety})` : name;
                   if (yieldChartUnit === "kg") {
                     const thaStr = areaHa > 0 && v > 0
                       ? ` (${(v / 1000 / areaHa).toFixed(2)} t/ha)`
                       : "";
-                    return [`${v.toLocaleString()} kg${thaStr}`, name];
+                    return [`${v.toLocaleString()} kg${thaStr}`, seriesLabel];
                   } else {
                     const kgStr = areaHa > 0 && v > 0
                       ? ` (${Math.round(v * 1000 * areaHa).toLocaleString()} kg)`
                       : "";
-                    return [`${v.toFixed(2)} t/ha${kgStr}`, name];
+                    return [`${v.toFixed(2)} t/ha${kgStr}`, seriesLabel];
                   }
                 }}
               />
