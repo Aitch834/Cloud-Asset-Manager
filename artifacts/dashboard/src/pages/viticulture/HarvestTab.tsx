@@ -1801,7 +1801,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       </thead>
                       <tbody>
                         {sortedVintageRows.map((row, i) => (
-                          <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                          <tr
+                            key={i}
+                            className={`border-b last:border-0 ${row.picks === 1 ? "bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30" : "hover:bg-muted/20"}`}
+                            title={row.picks === 1 ? "Only one pick recorded for this vintage — treat data with lower confidence" : undefined}
+                          >
                             <td className="px-4 py-2 font-medium">{row.vintage}</td>
                             <td className="text-right px-3 py-2 tabular-nums">
                               {row.picks === 1 ? (
