@@ -1915,6 +1915,7 @@ export async function printHarvest(
       `<th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">${escHtml(vy)} (t/ha)</th>`
     ).join("");
 
+    let anyLowPickYield = false;
     const crossBodyRows = uniqueBlockIdsForCross.map(bid => {
       const bidStr = String(bid);
       const bidNum = Number(bidStr);
@@ -1925,8 +1926,13 @@ export async function printHarvest(
         const grp = crossLookup[bidStr]?.[vy] ?? [];
         const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
         const tha = total > 0 && areaHa > 0 ? (total / 1000 / areaHa) : null;
-        return `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${total > 0 ? total.toFixed(0) : "\u2014"}</td>` +
-               `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace;color:#555">${tha != null ? tha.toFixed(2) : "\u2014"}</td>`;
+        const singlePick = grp.length === 1 && total > 0;
+        if (singlePick) anyLowPickYield = true;
+        const cellBg = singlePick ? ";background:#fffbeb" : "";
+        const kgVal = total > 0 ? total.toFixed(0) + (singlePick ? "\u00a0*" : "") : "\u2014";
+        const thaVal = tha != null ? tha.toFixed(2) + (singlePick ? "\u00a0*" : "") : "\u2014";
+        return `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace${cellBg}">${kgVal}</td>` +
+               `<td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace;color:#555${cellBg}">${thaVal}</td>`;
       }).join("");
       const allForBlock = Object.values(crossLookup[bidStr] ?? {}).flat();
       const rowTotal = allForBlock.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -2053,7 +2059,8 @@ export async function printHarvest(
       <td colspan="4" style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-size:${yieldFontPx - 1}px;color:#888">&#9888; = single pick &mdash; treat totals with caution</td>
     </tr>
     </tfoot>
-  </table>`;
+  </table>
+  ${anyLowPickYield ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 18px;background:#fffbeb;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;display:inline-block"><strong>*</strong> Based on a single harvest pick &mdash; treat yield figures with caution</p>` : ""}`;
 
   }
 
