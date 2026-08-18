@@ -782,13 +782,50 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     });
   }, [cropProfile, todaySmd, todayEtC, defaults, areaHa, fieldCapacity, criticalThreshold]);
 
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const chartData = useMemo(() => smdSeries.slice(-30).map(d => ({
-    date: d.date.slice(5), // MM-DD
-    smd: parseFloat(d.smd.toFixed(1)),
-    rain: parseFloat(d.rainfall.toFixed(1)),
-    etC: parseFloat(d.etC.toFixed(2)),
-  })), [smdSeries]);
+  // ── Chart data (30-day history + 7-day SMD projection) ─────────────────────
+  const chartData = useMemo(() => {
+    const historical = smdSeries.slice(-30).map((d, i, arr) => ({
+      date: d.date.slice(5), // MM-DD
+      smd: parseFloat(d.smd.toFixed(1)),
+      rain: parseFloat(d.rainfall.toFixed(1)),
+      etC: parseFloat(d.etC.toFixed(2)),
+      // Anchor the projection line at today so it connects without a gap
+      smdProjected: i === arr.length - 1 ? parseFloat(d.smd.toFixed(1)) : (null as number | null),
+    }));
+
+    // Build a per-day forecast array for the projection
+    const forecastDays = data?.forecastDailyMm;
+    const forecastTotal = data?.forecastRainfall7dMm;
+    let dailyForecast: Array<{ date: string; mm: number }> | null = null;
+    if (forecastDays && forecastDays.length > 0) {
+      dailyForecast = forecastDays.slice(0, 7);
+    } else if (forecastTotal != null) {
+      // Fall back to spreading the 7-day total uniformly
+      const dailyMm = forecastTotal / 7;
+      dailyForecast = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() + i + 1);
+        return { date: d.toISOString().slice(0, 10), mm: dailyMm };
+      });
+    }
+
+    if (!dailyForecast) return historical;
+
+    // Project SMD forward using the same water-balance model
+    let smd = todaySmd;
+    const projected = dailyForecast.map(day => {
+      smd = Math.max(0, Math.min(fieldCapacity, smd + todayEtC - day.mm));
+      return {
+        date: day.date.slice(5),
+        smd: null as number | null,
+        rain: null as number | null,
+        etC: null as number | null,
+        smdProjected: parseFloat(smd.toFixed(1)),
+      };
+    });
+
+    return [...historical, ...projected];
+  }, [smdSeries, data, todaySmd, todayEtC, fieldCapacity]);
 
   const statusStyle = statusColour[smdStatus];
 
@@ -1027,13 +1064,24 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
             <SmdGauge smd={todaySmd} fc={fieldCapacity} critical={criticalThreshold} />
           </div>
 
-          {/* ── 30-day SMD chart ── */}
+          {/* ── 30-day SMD chart + 7-day projection ── */}
           {chartData.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-blue-500" />
-                30-day Soil Moisture Deficit
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-500" />
+                  30-day Soil Moisture Deficit
+                </p>
+                {data?.forecastDailyMm || data?.forecastRainfall7dMm != null ? (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span
+                      className="inline-block w-6 border-t-2 border-dashed border-blue-400"
+                      style={{ borderStyle: "dashed" }}
+                    />
+                    7-day forecast projection
+                  </span>
+                ) : null}
+              </div>
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -1041,10 +1089,13 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                   <YAxis tick={{ fontSize: 10 }} unit=" mm" />
                   <Tooltip
                     contentStyle={{ fontSize: 11 }}
-                    formatter={(val, name) => [
-                      `${Number(val).toFixed(1)} mm`,
-                      name === "smd" ? "SMD" : name === "rain" ? "Rainfall" : "ETc",
-                    ]}
+                    formatter={(val, name) => {
+                      if (val === null || val === undefined) return [null, null];
+                      if (name === "smdProjected") return [`${Number(val).toFixed(1)} mm`, "Projected (with forecast rain)"];
+                      if (name === "smd") return [`${Number(val).toFixed(1)} mm`, "SMD"];
+                      if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
+                      return [`${Number(val).toFixed(2)} mm`, "ETc"];
+                    }}
                   />
                   {/* Critical threshold line */}
                   <ReferenceLine
@@ -1053,9 +1104,17 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                     strokeDasharray="4 2"
                     label={{ value: `Critical ${criticalThreshold}mm`, position: "insideTopRight", fontSize: 9, fill: "#f97316" }}
                   />
+                  {/* Historical SMD */}
                   <Area
                     type="monotone" dataKey="smd" stroke="#3b82f6" fill="#93c5fd"
                     fillOpacity={0.3} name="smd" strokeWidth={1.5}
+                  />
+                  {/* 7-day projected SMD — dashed, lighter fill */}
+                  <Area
+                    type="monotone" dataKey="smdProjected" stroke="#3b82f6" fill="#93c5fd"
+                    fillOpacity={0.12} name="smdProjected" strokeWidth={1.5}
+                    strokeDasharray="5 3" strokeOpacity={0.65}
+                    connectNulls
                   />
                 </AreaChart>
               </ResponsiveContainer>
