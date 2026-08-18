@@ -554,25 +554,37 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
 
   useEffect(() => {
     onRegisterExport(() => {
-      const rows: (string | number)[][] = [
-        ["Line Item", "Amount", "Note"],
-        ["INCOME", "", ""],
-        ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c]), ""]),
+      const rows: (string | number | null | undefined)[][] = [
+        ["Line Item", "Claimed this year", "Total grant value", "All-time claimed", "Remaining grant value", "Note"],
+        ["INCOME", "", "", "", "", ""],
+        ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c]), "", "", "", ""]),
         ...(agriEnvYearTotal > 0 ? [
-          ["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`],
-          ...(agriEnvActiveProjects.length > 1 ? agriEnvActiveProjects.map((p: any) => [`  ↳ ${p.schemeName}`, fmt(p.yearClaimedPence), ""]) : []),
+          ["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), "", "", "", `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`],
+          ...agriEnvActiveProjects.map((p: any) => {
+            const remaining = p.totalGrantValuePence != null
+              ? (p.totalGrantValuePence ?? 0) - (p.allTimeClaimedPence ?? 0)
+              : null;
+            return [
+              `  ↳ ${p.schemeName}`,
+              fmt(p.yearClaimedPence),
+              p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—",
+              p.allTimeClaimedPence != null ? fmt(p.allTimeClaimedPence) : "—",
+              remaining != null ? fmt(remaining) : "—",
+              "",
+            ];
+          }),
         ] : []),
-        ["Total Farm Output", fmt(totalOutput), ""],
+        ["Total Farm Output", fmt(totalOutput), "", "", "", ""],
         [],
-        ["VARIABLE COSTS", "", ""],
-        ...VARIABLE_COST_CATS.filter(c => varCosts[c] > 0).map(c => [c, fmt(varCosts[c]), ""]),
-        ["Total Variable Costs", `(${fmt(totalVarCosts)})`, ""],
-        ["Gross Margin", fmt(grossMargin), ""],
+        ["VARIABLE COSTS", "", "", "", "", ""],
+        ...VARIABLE_COST_CATS.filter(c => varCosts[c] > 0).map(c => [c, fmt(varCosts[c]), "", "", "", ""]),
+        ["Total Variable Costs", `(${fmt(totalVarCosts)})`, "", "", "", ""],
+        ["Gross Margin", fmt(grossMargin), "", "", "", ""],
         [],
-        ["FIXED COSTS / OVERHEADS", "", ""],
-        ...FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => [c, fmt(fixedCosts[c]), ""]),
-        ["Total Fixed Costs", `(${fmt(totalFixed)})`, ""],
-        ["Net Farm Income", fmt(netFarmIncome), ""],
+        ["FIXED COSTS / OVERHEADS", "", "", "", "", ""],
+        ...FIXED_COST_CATS.filter(c => fixedCosts[c] > 0).map(c => [c, fmt(fixedCosts[c]), "", "", "", ""]),
+        ["Total Fixed Costs", `(${fmt(totalFixed)})`, "", "", "", ""],
+        ["Net Farm Income", fmt(netFarmIncome), "", "", "", ""],
       ];
       downloadCsv(`pl-statement-${year}.csv`, rows);
     });
