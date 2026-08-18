@@ -13,6 +13,7 @@ export const leadsTable = pgTable("registration_leads", {
   message: text("message"),
   source: text("source"),
   status: text("status").notNull().default("new"),
+  sector: text("sector"),
   notes: text("notes"),
   lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

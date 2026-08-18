@@ -69,15 +69,6 @@ const SECTOR_COLORS: Record<string, string> = {
   "Agricultural Contracting":  "bg-sky-100 text-sky-700",
 };
 
-/** Extract "Sector: X" from the packed notes field (returns null if absent). */
-function parseSector(notes: string | null | undefined): string | null {
-  if (!notes) return null;
-  for (const line of notes.split("\n")) {
-    const m = line.match(/^Sector:\s*(.+)$/);
-    if (m) return m[1].trim();
-  }
-  return null;
-}
 
 function SectorBadge({ sector }: { sector: string }) {
   const color = SECTOR_COLORS[sector] ?? "bg-gray-100 text-gray-700";
@@ -130,12 +121,12 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const sector = parseSector(lead.notes);
+  const [sector, setSector] = useState(lead.sector ?? "");
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const result = await api.updateLead(lead.id, { status, notes, source: source || undefined }, secret);
+      const result = await api.updateLead(lead.id, { status, notes, source: source || undefined, sector: sector || null }, secret);
       onSaved(result.lead);
       setDirty(false);
     } catch (e) {
@@ -162,16 +153,6 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-          {sector && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Sprout className="w-3 h-3" />
-                Sector of Interest
-              </p>
-              <SectorBadge sector={sector} />
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact</p>
@@ -215,12 +196,27 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
             )}
           </div>
 
-          {parseSector(lead.notes) && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Sector</p>
-              <SectorBadge sector={parseSector(lead.notes)!} />
-            </div>
-          )}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Sprout className="w-3 h-3" />
+              Sector of Interest
+            </p>
+            <select
+              value={sector}
+              onChange={(e) => { setSector(e.target.value); setDirty(true); }}
+              className="w-full h-10 px-3 pr-8 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— Not set —</option>
+              {SECTORS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {sector && (
+              <div className="mt-2">
+                <SectorBadge sector={sector} />
+              </div>
+            )}
+          </div>
 
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Modules Interested In</p>
@@ -335,7 +331,7 @@ export default function Leads() {
   const filtered = useMemo(() => {
     let list = leads;
     if (filterStatus !== "all") list = list.filter((l) => l.status === filterStatus);
-    if (filterSector !== "all") list = list.filter((l) => parseSector(l.notes) === filterSector);
+    if (filterSector !== "all") list = list.filter((l) => l.sector === filterSector);
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter((l) =>
@@ -450,11 +446,11 @@ export default function Leads() {
                   {lead.contactName} · {lead.email}
                 </p>
               </div>
-              {(() => { const s = parseSector(lead.notes); return s ? (
+              {lead.sector ? (
                 <span className="hidden lg:block shrink-0">
-                  <SectorBadge sector={s} />
+                  <SectorBadge sector={lead.sector} />
                 </span>
-              ) : null; })()}
+              ) : null}
               {lead.source && (
                 <span className="hidden lg:inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
                   <Tag className="w-3 h-3" />

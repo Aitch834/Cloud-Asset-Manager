@@ -303,6 +303,7 @@ export interface Lead {
   message?: string | null;
   source?: string | null;
   status: string;
+  sector?: string | null;
   notes?: string | null;
   lastContactedAt?: string | null;
   createdAt: string;
@@ -498,7 +499,7 @@ export const api = {
   getLeads: (secret: string) =>
     get<{ leads: Lead[] }>("/admin/leads", secret),
 
-  updateLead: (id: number, data: { status?: string; notes?: string; source?: string }, secret: string) =>
+  updateLead: (id: number, data: { status?: string; notes?: string; source?: string; sector?: string | null }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
 
   updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) =>

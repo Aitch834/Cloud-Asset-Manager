@@ -159,6 +159,7 @@ router.post("/register-interest", async (req, res): Promise<void> => {
       modulesInterested: d.modules,
       message: d.message || null,
       source: d.heardVia || null,
+      sector: d.sector || null,
       notes,
     }).returning();
 

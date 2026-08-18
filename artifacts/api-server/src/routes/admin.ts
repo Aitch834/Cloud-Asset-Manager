@@ -1131,10 +1131,18 @@ router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<vo
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid lead ID" }); return; }
 
-  const { status, notes, source } = req.body as { status?: string; notes?: string; source?: string };
+  const { status, notes, source, sector } = req.body as { status?: string; notes?: string; source?: string; sector?: string | null };
   const allowed = ["new", "contacted", "demo-booked", "signed-up", "not-interested"];
   if (status && !allowed.includes(status)) {
     res.status(400).json({ error: "Invalid status" });
+    return;
+  }
+  const VALID_SECTORS = new Set([
+    "Beef & Dairy", "Sheep & Goat", "Arable", "Viticulture",
+    "Mixed Farming", "Agricultural Contracting",
+  ]);
+  if (sector !== undefined && sector !== null && !VALID_SECTORS.has(sector)) {
+    res.status(400).json({ error: "Invalid sector" });
     return;
   }
 
@@ -1145,6 +1153,7 @@ router.patch("/admin/leads/:id", async (req: Request, res: Response): Promise<vo
   }
   if (notes !== undefined) updates.notes = notes;
   if (source !== undefined) updates.source = source || null;
+  if (sector !== undefined) updates.sector = sector || null;
 
   const [updated] = await db.update(leadsTable).set(updates).where(eq(leadsTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Lead not found" }); return; }

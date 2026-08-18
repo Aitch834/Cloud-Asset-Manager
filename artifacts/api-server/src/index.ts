@@ -33,6 +33,7 @@ import { runHelpArticleMigrations } from "./lib/helpArticleMigrations";
 import { runFpInputMigrations } from "./lib/fpInputMigrations";
 import { runAhdbMigrations } from "./lib/ahdbMigrations";
 import { runTradeBodiesMigrations } from "./lib/tradeBodiesMigrations";
+import { runLeadsMigrations } from "./lib/leadsMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -198,5 +199,8 @@ app.listen(port, () => {
   });
   runTradeBodiesMigrations().catch((err) => {
     console.error("[TRADE-BODIES-MIGRATE] Failed:", err);
+  });
+  runLeadsMigrations().catch((err) => {
+    console.error("[LEADS-MIGRATE] Failed:", err);
   });
 });
