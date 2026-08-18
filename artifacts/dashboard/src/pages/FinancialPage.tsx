@@ -1970,6 +1970,8 @@ function FinancialAnalyticsTab({ farmId }: { farmId: number }) {
 // ── Accountant's Pack Tab ─────────────────────────────────────────────────────
 function AccountantPackTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-accountant-pack", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
+  // Share the enterprise filter key with TransactionsTab/AnalyticsTab so switching tabs preserves the selection
+  const [enterpriseFilter, setEnterpriseFilter] = usePersistedFilter({ page: "financial-transactions", filter: "enterprise", farmId, defaultValue: "all" });
 
   const farmQ = useQuery({
     queryKey: ["farm-detail", farmId],
@@ -1998,6 +2000,9 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   const isLoading = txQ.isLoading || purchasesQ.isLoading || farmQ.isLoading;
 
+  // Derive available enterprise options from all transactions
+  const enterprises = Array.from(new Set(allTx.map((r: any) => r.enterprise).filter(Boolean))).sort() as string[];
+
   const yearTx = allTx.filter(r => {
     if (yearFilter === "all") return true;
     return r.transactionDate && new Date(r.transactionDate).getFullYear() === parseInt(yearFilter);
@@ -2008,8 +2013,13 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     return d && new Date(d).getFullYear() === parseInt(yearFilter);
   });
 
-  const incomeTx = yearTx.filter(r => r.transactionType === "income");
-  const expenseTx = yearTx.filter(r => r.transactionType === "expense");
+  // Apply enterprise filter on top of year filter.
+  // Livestock purchases have no enterprise tag, so exclude them when a specific enterprise is selected.
+  const filteredTx = enterpriseFilter === "all" ? yearTx : yearTx.filter((r: any) => (r.enterprise ?? "") === enterpriseFilter);
+  const filteredPurchases = enterpriseFilter === "all" ? yearPurchases : [];
+
+  const incomeTx = filteredTx.filter(r => r.transactionType === "income");
+  const expenseTx = filteredTx.filter(r => r.transactionType === "expense");
 
   const incomeByCategory = INCOME_CATEGORIES
     .map(cat => ({ cat, total: incomeTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
@@ -2022,9 +2032,9 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     .map(cat => ({ cat, total: expenseTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
     .filter(r => r.total > 0);
 
-  const lsPurchaseTotal = yearPurchases.reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
-  const lsPurchaseVat   = yearPurchases.reduce((s, r) => s + (Number(r.vatAmountPence)   || 0), 0);
-  const txVatTotal      = yearTx.reduce((s, r) => s + (r.vatAmountPence ?? 0), 0);
+  const lsPurchaseTotal = filteredPurchases.reduce((s, r) => s + (Number(r.totalAmountPence) || 0), 0);
+  const lsPurchaseVat   = filteredPurchases.reduce((s, r) => s + (Number(r.vatAmountPence)   || 0), 0);
+  const txVatTotal      = filteredTx.reduce((s, r) => s + (r.vatAmountPence ?? 0), 0);
 
   if (lsPurchaseTotal > 0) {
     expenseByCategory.unshift({ cat: "Livestock Purchases", total: lsPurchaseTotal });
@@ -2039,10 +2049,11 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
   const totalVat     = txVatTotal + lsPurchaseVat;
 
   const periodLabel = yearFilter === "all" ? "All Years" : yearFilter;
+  const enterpriseLabel = enterpriseFilter === "all" ? null : enterpriseFilter;
 
   // ── By-enterprise gross margin summary ──────────────────────────────────────
   const enterpriseMap = new Map<string, { income: number; sprayCost: number; labourCost: number; otherCost: number }>();
-  yearTx.forEach(r => {
+  filteredTx.forEach(r => {
     if (!r.enterprise) return;
     if (!enterpriseMap.has(r.enterprise)) {
       enterpriseMap.set(r.enterprise, { income: 0, sprayCost: 0, labourCost: 0, otherCost: 0 });
@@ -2115,7 +2126,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Accountant's Financial Pack — ${farmName} — ${periodLabel}</title>
+  <title>Accountant's Financial Pack — ${farmName} — ${periodLabel}${enterpriseLabel ? ` — ${enterpriseLabel}` : ""}</title>
   <style>
     @page { size: A4 portrait; margin: 18mm 18mm 16mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2160,7 +2171,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     <div class="header-right">
       <strong>Accountant's Financial Pack</strong>
       Period: ${esc(periodLabel)}<br>
-      Produced: ${generated}<br>
+      ${enterpriseLabel ? `Enterprise: ${esc(enterpriseLabel)}<br>` : ""}Produced: ${generated}<br>
       <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:8pt;font-weight:700;">Barnett Davies Enterprises Ltd</span>
     </div>
   </div>
@@ -2228,8 +2239,13 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
           <p style={{ fontSize: "0.825rem", color: "#6b7280" }}>
             Income &amp; expenditure summary across all modules — ready to send to your accountant.
           </p>
+          {enterpriseLabel && (
+            <span style={{ display: "inline-block", marginTop: 4, fontSize: "0.75rem", fontWeight: 600, background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "2px 8px" }}>
+              {enterpriseLabel} only — livestock purchases excluded
+            </span>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <Select value={yearFilter} onValueChange={setYearFilter}>
             <SelectTrigger style={{ width: 120 }}><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -2237,7 +2253,16 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
               {YEARS.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          {enterpriseSummaries.length > 0 && (
+          {enterprises.length > 0 && (
+            <Select value={enterpriseFilter} onValueChange={setEnterpriseFilter}>
+              <SelectTrigger style={{ width: 170 }}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Enterprises</SelectItem>
+                {enterprises.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {enterpriseSummaries.length > 0 && enterpriseFilter === "all" && (
             <Button variant="outline" onClick={handleDownloadCsv} disabled={isLoading}>
               <Download size={14} className="mr-2" />Download CSV
             </Button>
