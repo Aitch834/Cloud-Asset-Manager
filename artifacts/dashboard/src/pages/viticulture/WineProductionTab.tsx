@@ -230,6 +230,16 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
           <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
         </div>
       </div>
+      {records.length > 0 && farmMeta && !farmMeta.address && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+          <span>Farm address is not set — the printed register will have a blank address header.{" "}
+            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => setLocation("/settings/farm")}>
+              Add in Farm Settings → Contact &amp; Address
+            </button>
+          </span>
+        </div>
+      )}
       <FarmSettingsWarning
         missingFields={organicMissingFields}
         settingsSection="Basic Details / Viticulture &amp; Wine"

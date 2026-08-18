@@ -565,6 +565,18 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         </div>
       </div>
 
+      {/* Compact address nudge near print buttons */}
+      {farmRecord && !farmRecord.address && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+          <span>Farm address is not set — printed reports will have a blank address header.{" "}
+            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => setLocation("/settings/farm")}>
+              Add in Farm Settings → Contact &amp; Address
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* FSA / APPA completeness bar */}
       <FsaCompletenessBar farmId={farmId} />
 
