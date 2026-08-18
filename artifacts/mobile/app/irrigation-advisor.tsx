@@ -23,6 +23,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -585,16 +586,20 @@ export default function IrrigationAdvisorScreen() {
   // Independent counter used to force a re-fetch on Retry without relying on
   // setState bail-out behaviour (React bails out of setState(same value)).
   const [reloadToken, setReloadToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   // ── Cost defaults ────────────────────────────────────────────────────────
   const [costPerMmHa, setCostPerMmHa] = useState("3.50");
   const [irrigateMm, setIrrigateMm] = useState("25");
   const [cropPricePerTonne, setCropPricePerTonne] = useState("220");
-  // Rainfall is seeded from the API forecast after the first successful load;
-  // the user can override it afterwards.  We track whether it has been seeded
-  // so a field change that clears `data` doesn't reset a deliberate override.
+  // Rainfall is seeded from the API forecast on every successful load unless
+  // the grower has manually edited the field.  forecastUserEdited tracks that
+  // override so a pull-to-refresh picks up a fresh forecast while still
+  // respecting deliberate changes.
   const [expectedRainfall, setExpectedRainfall] = useState<string | null>(null);
-  const forecastSeeded = React.useRef(false);
+  const forecastUserEdited = React.useRef(false);
+  /** Mark the field as user-edited, then propagate the new value. */
+  const handleRainfallChange = (v: string) => { forecastUserEdited.current = true; setExpectedRainfall(v); };
 
   // ── Log modal ────────────────────────────────────────────────────────────
   const [logPrefill, setLogPrefill] = useState<LogPrefill | null>(null);
@@ -617,21 +622,24 @@ export default function IrrigationAdvisorScreen() {
         if (!selectedFieldId && d.fields.length > 0) {
           setSelectedFieldId(d.fields[0].id);
         }
-        // Seed expected-rainfall from the API forecast exactly once.
+        // Re-seed expected-rainfall from the API on every successful load,
+        // but only when the grower has not manually edited the field.
         // null means "no location set"; 0 is a valid forecast so we must
         // preserve it — use Number.isFinite, not a falsy check.
-        if (!forecastSeeded.current && Number.isFinite(d.forecastRainfall7dMm)) {
-          setExpectedRainfall(String(d.forecastRainfall7dMm));
-          forecastSeeded.current = true;
-        } else if (!forecastSeeded.current) {
-          // No forecast available — fall back to the conventional default.
-          setExpectedRainfall("5");
-          forecastSeeded.current = true;
+        if (!forecastUserEdited.current) {
+          if (Number.isFinite(d.forecastRainfall7dMm)) {
+            setExpectedRainfall(String(d.forecastRainfall7dMm));
+          } else {
+            // No forecast available — fall back to the conventional default.
+            setExpectedRainfall("5");
+          }
         }
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load advisor data"))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setRefreshing(false); });
   }, [farmId, selectedFieldId, reloadToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRefresh = () => { setRefreshing(true); setError(""); setReloadToken(t => t + 1); };
 
   // ── Compute SMD and scenarios ─────────────────────────────────────────────
   const { smdSeries, currentSmd, fieldCapacity, cropProfile, scenarios, selectedField } = useMemo(() => {
@@ -740,7 +748,19 @@ export default function IrrigationAdvisorScreen() {
           <Button title="Retry" style={{ marginTop: 16 }} onPress={() => { setError(""); setReloadToken(t => t + 1); }} />
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+        >
 
           {/* Field selector */}
           {data && data.fields.length > 0 && (
@@ -824,7 +844,7 @@ export default function IrrigationAdvisorScreen() {
               </View>
               <View style={styles.inputCell}>
                 <Text style={styles.label}>Expected rainfall 7d (mm)</Text>
-                <Input value={expectedRainfall ?? ""} onChangeText={setExpectedRainfall} keyboardType="decimal-pad" placeholder="5" />
+                <Input value={expectedRainfall ?? ""} onChangeText={handleRainfallChange} keyboardType="decimal-pad" placeholder="5" />
               </View>
             </View>
           </View>

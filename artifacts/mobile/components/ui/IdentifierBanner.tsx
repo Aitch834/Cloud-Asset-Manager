@@ -82,14 +82,6 @@ export function IdentifierBanner({
   warningMessage,
   loading,
 }: IdentifierBannerProps) {
-  if (__DEV__ && loading === undefined) {
-    console.warn(
-      "[IdentifierBanner] The `loading` prop was not provided. " +
-        "Pass `loading={identifiersLoading}` to prevent the 'Saved' nudge " +
-        "from flashing before the identifier refetch completes.",
-    );
-  }
-
   if (loading) return null;
 
   if (justSaved && !missingIdentifiers) {
