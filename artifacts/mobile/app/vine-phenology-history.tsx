@@ -29,6 +29,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
+import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 interface PhenologyRecord {
   id: number;
@@ -303,6 +304,7 @@ export default function VinePhenologyHistoryScreen() {
 
   const handleSaved = useCallback((recordId: number, updated: Partial<PhenologyRecord>) => {
     setLocalUpdates(prev => ({ ...prev, [recordId]: { ...(prev[recordId] ?? {}), ...updated } }));
+    vineyardCountEvents.emit();
     setEditingRecord(null);
   }, []);
 

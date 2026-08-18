@@ -36,6 +36,7 @@ import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { getItem, getList, setItem } from "@/lib/storage";
 import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
+import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 interface HarvestRecord {
   id: number;
@@ -676,6 +677,7 @@ export default function VineHarvestHistoryScreen() {
 
   const handleSaved = useCallback((recordId: number, updated: Partial<HarvestRecord>) => {
     setLocalUpdates(prev => ({ ...prev, [recordId]: { ...(prev[recordId] ?? {}), ...updated } }));
+    vineyardCountEvents.emit();
     setEditingRecord(null);
   }, []);
 
