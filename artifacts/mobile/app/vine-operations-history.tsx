@@ -38,6 +38,10 @@ interface OperationRecord {
   blockId: number | null;
   blockName: string | null;
   operationType: string | null;
+  pruningSystem: string | null;
+  budsPerVineTarget: number | null;
+  budsPerVineActual: number | null;
+  pruningWeightKgPerVine: number | null;
   operatorName: string | null;
   hoursWorked: number | null;
   notes: string | null;
@@ -78,6 +82,26 @@ function canonicaliseDate(raw: string): string | null {
   return `${y}-${m}-${d}`;
 }
 
+// ─── Operation type / pruning constants ──────────────────────────────────────
+
+const OPERATION_TYPES = [
+  { key: "Winter Pruning", icon: "scissors" as const, group: "Pruning" },
+  { key: "Spur Thinning", icon: "git-branch" as const, group: "Pruning" },
+  { key: "Cane Laying / Tie Down", icon: "link" as const, group: "Pruning" },
+  { key: "Bud Rubbing", icon: "circle" as const, group: "Spring" },
+  { key: "Shoot Thinning", icon: "sliders" as const, group: "Spring" },
+  { key: "Wire Lifting", icon: "arrow-up" as const, group: "Canopy" },
+  { key: "Leaf Removal", icon: "wind" as const, group: "Canopy" },
+  { key: "Topping / Hedging", icon: "minus-square" as const, group: "Canopy" },
+  { key: "Green Harvest (Crop Thinning)", icon: "scissors" as const, group: "Summer" },
+  { key: "Soil Cultivation", icon: "layers" as const, group: "Soil" },
+  { key: "Mulching", icon: "box" as const, group: "Soil" },
+  { key: "Other", icon: "more-horizontal" as const, group: "Other" },
+];
+
+const PRUNING_SYSTEMS = ["Double Guyot", "Single Guyot", "Cordon Spur", "Scott Henry", "Cane Replacement", "Other"];
+const PRUNING_TYPES = ["Winter Pruning", "Spur Thinning", "Cane Laying / Tie Down"];
+
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 function EditOperationModal({
@@ -101,13 +125,28 @@ function EditOperationModal({
   const [operationDate, setOperationDate] = useState("");
   const [operatorName, setOperatorName] = useState("");
   const [notes, setNotes] = useState("");
+  const [operationType, setOperationType] = useState<string | null>(null);
+  const [pruningSystem, setPruningSystem] = useState<string | null>(null);
+  const [budsPerVineTarget, setBudsPerVineTarget] = useState("");
+  const [budsPerVineActual, setBudsPerVineActual] = useState("");
+  const [pruningWeightKg, setPruningWeightKg] = useState("");
+  const [hoursWorked, setHoursWorked] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const isPruning = operationType !== null && PRUNING_TYPES.includes(operationType);
 
   React.useEffect(() => {
     if (visible && record) {
+      setSaving(false);
       setOperationDate(record.operationDate ?? "");
       setOperatorName(record.operatorName ?? "");
       setNotes(record.notes ?? "");
+      setOperationType(record.operationType ?? null);
+      setPruningSystem(record.pruningSystem ?? null);
+      setBudsPerVineTarget(record.budsPerVineTarget != null ? String(record.budsPerVineTarget) : "");
+      setBudsPerVineActual(record.budsPerVineActual != null ? String(record.budsPerVineActual) : "");
+      setPruningWeightKg(record.pruningWeightKgPerVine != null ? String(record.pruningWeightKgPerVine) : "");
+      setHoursWorked(record.hoursWorked != null ? String(record.hoursWorked) : "");
       setSelectedBlock(record.blockId ? (blocks.find(b => b.id === record.blockId) ?? null) : null);
     }
   }, [visible, record, blocks]);
@@ -116,12 +155,18 @@ function EditOperationModal({
     if (!record) return;
     setSaving(true);
     try {
-      const body = {
+      const body: Partial<OperationRecord> & { blockId: number | null; blockName: string | null } = {
         operationDate: operationDate || null,
         operatorName: operatorName.trim() || null,
         notes: notes.trim() || null,
         blockId: selectedBlock?.id ?? null,
         blockName: selectedBlock?.blockName ?? null,
+        operationType: operationType || null,
+        pruningSystem: isPruning && pruningSystem ? pruningSystem : null,
+        budsPerVineTarget: isPruning && budsPerVineTarget ? Number(budsPerVineTarget) : null,
+        budsPerVineActual: isPruning && budsPerVineActual ? Number(budsPerVineActual) : null,
+        pruningWeightKgPerVine: isPruning && pruningWeightKg ? Number(pruningWeightKg) : null,
+        hoursWorked: hoursWorked ? Number(hoursWorked) : null,
       };
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-operations/${record.id}`, {
         method: "PUT",
@@ -134,6 +179,7 @@ function EditOperationModal({
         setSaving(false);
         return;
       }
+      setSaving(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved(record.id, body);
     } catch {
@@ -141,6 +187,14 @@ function EditOperationModal({
       setSaving(false);
     }
   };
+
+  const opTypeGroups = useMemo(() => {
+    return OPERATION_TYPES.reduce<Record<string, typeof OPERATION_TYPES>>((acc, op) => {
+      if (!acc[op.group]) acc[op.group] = [];
+      acc[op.group]!.push(op);
+      return acc;
+    }, {});
+  }, []);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
@@ -154,15 +208,106 @@ function EditOperationModal({
           </View>
 
           <ScrollView style={editStyles.scroll} contentContainerStyle={editStyles.scrollContent} keyboardShouldPersistTaps="handled">
-            {record?.operationType ? (
-              <View style={editStyles.typeBadge}>
-                <Feather name="scissors" size={15} color={colors.primary} />
-                <Text style={editStyles.typeBadgeLabel}>{record.operationType}</Text>
+
+            {/* Operation Type */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Operation Type</Text>
+              {Object.entries(opTypeGroups).map(([group, ops]) => (
+                <View key={group} style={editStyles.opGroup}>
+                  <Text style={editStyles.opGroupLabel}>{group}</Text>
+                  <View style={editStyles.opGroupChips}>
+                    {ops.map(op => (
+                      <Pressable
+                        key={op.key}
+                        style={[editStyles.typeChip, operationType === op.key && editStyles.typeChipSelected]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setOperationType(operationType === op.key ? null : op.key);
+                          if (!PRUNING_TYPES.includes(op.key)) {
+                            setPruningSystem(null);
+                            setBudsPerVineTarget("");
+                            setBudsPerVineActual("");
+                            setPruningWeightKg("");
+                          }
+                        }}
+                      >
+                        <Feather
+                          name={op.icon}
+                          size={13}
+                          color={operationType === op.key ? colors.primary : colors.textSecondary}
+                        />
+                        <Text style={[editStyles.typeChipText, operationType === op.key && editStyles.typeChipTextSelected]}>
+                          {op.key}
+                        </Text>
+                        {operationType === op.key && (
+                          <Feather name="check" size={12} color={colors.primary} />
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            {/* Pruning details — shown only for pruning operation types */}
+            {isPruning && (
+              <View style={editStyles.card}>
+                <Text style={editStyles.sectionTitle}>Pruning Details</Text>
+
+                <Text style={editStyles.fieldLabel}>Pruning System</Text>
+                <View style={editStyles.chipRow}>
+                  {PRUNING_SYSTEMS.map(s => (
+                    <Pressable
+                      key={s}
+                      style={[editStyles.chip, pruningSystem === s && editStyles.chipSelected]}
+                      onPress={() => { Haptics.selectionAsync(); setPruningSystem(pruningSystem === s ? null : s); }}
+                    >
+                      <Text style={[editStyles.chipText, pruningSystem === s && editStyles.chipTextSelected]}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View style={editStyles.twoCol}>
+                  <View style={editStyles.twoColField}>
+                    <Text style={editStyles.fieldLabel}>Target Buds/Vine</Text>
+                    <Input
+                      placeholder="e.g. 8"
+                      value={budsPerVineTarget}
+                      onChangeText={setBudsPerVineTarget}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={editStyles.twoColField}>
+                    <Text style={editStyles.fieldLabel}>Actual Buds/Vine</Text>
+                    <Input
+                      placeholder="e.g. 7"
+                      value={budsPerVineActual}
+                      onChangeText={setBudsPerVineActual}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                <Text style={editStyles.fieldLabel}>Pruning Weight (kg/vine)</Text>
+                <Input
+                  placeholder="e.g. 0.45"
+                  value={pruningWeightKg}
+                  onChangeText={setPruningWeightKg}
+                  keyboardType="decimal-pad"
+                />
               </View>
-            ) : null}
+            )}
 
             <View style={editStyles.card}>
               <Text style={editStyles.sectionTitle}>Record Details</Text>
+
+              <Text style={editStyles.fieldLabel}>Hours Worked</Text>
+              <Input
+                placeholder="e.g. 6.5"
+                value={hoursWorked}
+                onChangeText={setHoursWorked}
+                keyboardType="decimal-pad"
+              />
 
               <Text style={editStyles.fieldLabel}>Operation Date</Text>
               <Input
@@ -561,15 +706,6 @@ const editStyles = StyleSheet.create({
   closeBtn: { padding: spacing.xs },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  typeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: "#ede9fe",
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  typeBadgeLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.primary },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -590,6 +726,60 @@ const editStyles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
+  // Operation type chip grid
+  opGroup: { gap: 4 },
+  opGroupLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  opGroupChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  typeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  typeChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#ede9fe",
+  },
+  typeChipText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  typeChipTextSelected: {
+    fontFamily: fonts.medium,
+    color: colors.primary,
+  },
+  // Pruning system chip row
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  chip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#ede9fe",
+  },
+  chipText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.text },
+  chipTextSelected: { fontFamily: fonts.medium, color: colors.primary },
+  // Two-column numeric inputs
+  twoCol: { flexDirection: "row", gap: spacing.sm },
+  twoColField: { flex: 1 },
+  // Block link
   clearBlockBtn: {
     flexDirection: "row",
     alignItems: "center",
