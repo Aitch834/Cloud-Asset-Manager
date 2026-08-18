@@ -312,12 +312,22 @@ export function ScoutingPhotoLightbox({
   const photosLenRef = useRef(photos.length);
   photosLenRef.current = photos.length;
 
+  // Keep a ref to deleting so the PanResponder closure can block swipes
+  // while a delete is in flight, preventing a race where a fast swipe
+  // advances to a photo that is about to be removed.
+  const deletingRef = useRef(deleting);
+  deletingRef.current = deleting;
+
   // Horizontal swipe navigation
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gs) =>
+        !deletingRef.current &&
         Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
       onPanResponderRelease: (_evt, gs) => {
+        // Guard here too: a gesture that began before deletion started
+        // must not advance the index after the delete is confirmed.
+        if (deletingRef.current) return;
         if (gs.dx < -SWIPE_THRESHOLD) {
           setCurrentIndex((i) => Math.min(i + 1, photosLenRef.current - 1));
         } else if (gs.dx > SWIPE_THRESHOLD) {
@@ -382,6 +392,10 @@ export function ScoutingPhotoLightbox({
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            // Set the ref synchronously so PanResponder closures see it
+            // immediately — before the next React render propagates the
+            // setDeleting(true) state change.
+            deletingRef.current = true;
             setDeleting(true);
             try {
               await onDelete(photo.id);
@@ -394,6 +408,7 @@ export function ScoutingPhotoLightbox({
               // Delete failed — keep lightbox open so the grower can retry.
               Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
             } finally {
+              deletingRef.current = false;
               setDeleting(false);
             }
           },
