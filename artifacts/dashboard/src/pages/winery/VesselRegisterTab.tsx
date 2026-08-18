@@ -1230,6 +1230,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [zoneFilter, setZoneFilter] = usePersistedArrayFilter({ page: "vessel-register", filter: "zone", farmId });
   const [fillTierFilter, setFillTierFilter] = usePersistedFilter({ page: "vessel-register", filter: "fill-tier", farmId, defaultValue: "", validValues: FILL_TIER_VALUES });
   const [alertFlagFilter, setAlertFlagFilter] = usePersistedFilter({ page: "vessel-register", filter: "alert-flag", farmId, defaultValue: "", validValues: ALERT_FLAG_VALUES });
+
+  // Context menu state for zone chips (right-click / long-press)
+  const [zoneMenu, setZoneMenu] = useState<{ zone: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!zoneMenu) return;
+    const close = () => setZoneMenu(null);
+    document.addEventListener("click", close);
+    document.addEventListener("contextmenu", close);
+    return () => { document.removeEventListener("click", close); document.removeEventListener("contextmenu", close); };
+  }, [!!zoneMenu]);
   // isFullFilter: "" = show all, "true" = full only, "false" = empty only
   const [isFullFilter, setIsFullFilter] = usePersistedFilter({ page: "vessel-register", filter: "is-full", farmId, defaultValue: "", validValues: IS_FULL_VALUES });
 
@@ -1759,6 +1769,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                             <button
                               key={zone}
                               onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
+                              onContextMenu={e => { e.preventDefault(); setZoneMenu({ zone, x: e.clientX, y: e.clientY }); }}
+                              title="Right-click for quick zone options"
                               className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"} ${isDimmed ? "opacity-40" : ""}`}
                             >
                               <span className="font-semibold">{zone}</span>
@@ -2106,6 +2118,46 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Zone chip context menu — right-click to drill down */}
+      {zoneMenu && (
+        <div
+          role="menu"
+          aria-label="Zone options"
+          style={{ position: "fixed", top: zoneMenu.y, left: zoneMenu.x, zIndex: 9999 }}
+          className="min-w-[210px] rounded-md border bg-popover shadow-md py-1 text-xs"
+          onClick={e => e.stopPropagation()}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <p className="px-3 py-1.5 font-semibold text-muted-foreground text-[11px] uppercase tracking-wide border-b mb-1">{zoneMenu.zone}</p>
+          {/* Primary action: jump to zone and dismiss any active flag filter so all barrels in that zone are visible */}
+          <button
+            role="menuitem"
+            className="w-full text-left px-3 py-1.5 hover:bg-muted/60 flex items-center gap-2 font-medium"
+            onClick={() => { setZoneFilter([zoneMenu.zone]); setAlertFlagFilter(""); setZoneMenu(null); }}
+          >
+            Show all barrels in this zone
+          </button>
+          {/* Secondary action: keep the active flag filter and narrow to just this zone */}
+          {alertFlagFilter && (
+            <button
+              role="menuitem"
+              className="w-full text-left px-3 py-1.5 hover:bg-muted/60 flex items-center gap-2 text-amber-800"
+              onClick={() => { setZoneFilter([zoneMenu.zone]); setZoneMenu(null); }}
+            >
+              <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+              Show flagged in this zone only
+            </button>
+          )}
+          <button
+            role="menuitem"
+            className="w-full text-left px-3 py-1.5 hover:bg-muted/60 flex items-center gap-2 text-muted-foreground border-t mt-1"
+            onClick={() => { setZoneFilter([]); setZoneMenu(null); }}
+          >
+            Clear zone filter
+          </button>
+        </div>
+      )}
     </div>
   );
 }
