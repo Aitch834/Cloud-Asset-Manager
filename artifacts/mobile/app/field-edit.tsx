@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -95,17 +95,23 @@ export default function FieldEditScreen() {
 
   useEffect(() => { loadFields(); }, [loadFields]);
 
-  // ── Auto-expand field from route param ────────────────────────────────────
+  // ── Auto-expand field from route param (one-shot per param value) ──────────
+  // Track which fieldId param value we have already consumed so that subsequent
+  // `fields` updates (e.g. from setFields inside saveSoilType) do not re-open
+  // a row the user or a save just intentionally closed.
+  const autoExpandedForParam = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!fieldIdParam || fields.length === 0) return;
+    // Already handled this param value — don't re-expand on local field updates
+    if (autoExpandedForParam.current === fieldIdParam) return;
     const targetId = Number(fieldIdParam);
     if (isNaN(targetId)) return;
     const match = fields.find(f => f.id === targetId);
-    if (match && expandedId !== targetId) {
+    if (match) {
+      autoExpandedForParam.current = fieldIdParam;
       setExpandedId(targetId);
       setSelectedSoilType(match.soilType ?? "");
     }
-  // Only run when fields first load or the param changes — not on every expandedId change
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldIdParam, fields]);
 

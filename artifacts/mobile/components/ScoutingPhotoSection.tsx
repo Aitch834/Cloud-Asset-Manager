@@ -771,7 +771,16 @@ export function ScoutingPhotoThumbnail({
 // ScoutingPhotoSection
 // ---------------------------------------------------------------------------
 
-export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | number; scoutingId: number }) {
+export function ScoutingPhotoSection({
+  farmId,
+  scoutingId,
+  onPhotoCountChange,
+}: {
+  farmId: string | number;
+  scoutingId: number;
+  /** Called whenever the local photo list grows or shrinks. */
+  onPhotoCountChange?: (count: number) => void;
+}) {
   const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -788,6 +797,18 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
   // Synchronous guard so rapid / multi-touch presses on different broken thumbnails
   // cannot start two concurrent reloads before React commits the first state update.
   const reloadInFlightRef = useRef(false);
+
+  // Notify parent whenever the local photo count changes (add or delete).
+  // We skip the very first render (when photos is still the initial []) so we
+  // don't override a badge that was already correct from the server-fetched list.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    onPhotoCountChange?.(photos.length);
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);

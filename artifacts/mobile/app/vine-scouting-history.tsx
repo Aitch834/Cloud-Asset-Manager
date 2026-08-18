@@ -146,9 +146,10 @@ interface EditScoutingModalProps {
   blocksLoading: boolean;
   onClose: () => void;
   onSaved: (recordId: number, updated: Partial<ScoutingRecord>) => void;
+  onPhotoCountChange: (recordId: number, count: number) => void;
 }
 
-function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: EditScoutingModalProps) {
+function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved, onPhotoCountChange }: EditScoutingModalProps) {
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -346,7 +347,11 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
 
             {/* ── Photos ── */}
             {record && (
-              <ScoutingPhotoSection farmId={farmId} scoutingId={record.id} />
+              <ScoutingPhotoSection
+                farmId={farmId}
+                scoutingId={record.id}
+                onPhotoCountChange={(count) => onPhotoCountChange(record.id, count)}
+              />
             )}
 
             {/* ── Quick Links ── */}
@@ -681,6 +686,15 @@ export default function VineScoutingHistoryScreen() {
     }
   };
 
+  // Called by ScoutingPhotoSection (via EditScoutingModal) whenever a photo is
+  // added or deleted so the badge on the row updates without a full list reload.
+  const handlePhotoCountChange = useCallback((recordId: number, count: number) => {
+    setLocalUpdates(prev => ({
+      ...prev,
+      [recordId]: { ...(prev[recordId] ?? {}), photoCount: count },
+    }));
+  }, []);
+
   const handleDelete = async (id: number) => {
     // Optimistically remove from the list
     setDeletedIds(prev => new Set(prev).add(id));
@@ -858,6 +872,7 @@ export default function VineScoutingHistoryScreen() {
         blocksLoading={blocksLoading}
         onClose={() => setEditingRecord(null)}
         onSaved={handleSaved}
+        onPhotoCountChange={handlePhotoCountChange}
       />
     </View>
   );
@@ -1265,4 +1280,3 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 });
-
