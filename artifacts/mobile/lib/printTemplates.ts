@@ -952,6 +952,95 @@ export function vineSprayDiaryHtml(
   return wrap(body, extraCss);
 }
 
+export interface VineOperationsRow {
+  id: number;
+  operationDate: string | null;
+  blockName: string | null;
+  operationType: string | null;
+  operatorName: string | null;
+  hoursWorked: number | null;
+  notes: string | null;
+}
+
+export function vineOperationsHtml(
+  records: VineOperationsRow[],
+  farmName: string | null,
+  dateFrom?: string,
+  dateTo?: string,
+): string {
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const eFarmName = efmt(farmName);
+
+  const fmtDateRange = (d: string) => {
+    const parts = d.split("-");
+    if (parts.length !== 3) return escHtml(d);
+    const [y, m, day] = parts;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mIdx = parseInt(m, 10) - 1;
+    return `${day} ${months[mIdx] ?? m} ${y}`;
+  };
+  const hasDateRange = (dateFrom && dateFrom.trim()) || (dateTo && dateTo.trim());
+  const dateRangeParts: string[] = [];
+  if (dateFrom && dateFrom.trim()) dateRangeParts.push(`From: <strong>${fmtDateRange(dateFrom.trim())}</strong>`);
+  if (dateTo && dateTo.trim()) dateRangeParts.push(`To: <strong>${fmtDateRange(dateTo.trim())}</strong>`);
+  const dateRangeStr = dateRangeParts.join(" &nbsp;&middot;&nbsp; ");
+
+  const header = `
+    <div class="header">
+      <div class="logo-block">
+        <h1>BDE Farm Trac</h1>
+        <p>Vineyard Compliance Platform</p>
+      </div>
+      <div class="doc-title">
+        <h2>Vine Operations History</h2>
+        <p>Date: ${safeDate}</p>
+        <p>${records.length} record${records.length === 1 ? "" : "s"}</p>
+      </div>
+    </div>
+    <div class="farm-bar" style="flex-direction:column;gap:4px;">
+      <div style="display:flex;gap:28px;">
+        <span>Farm: <strong>${eFarmName}</strong></span>
+        <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
+      </div>
+      ${hasDateRange ? `<div style="margin-top:2px;"><span style="color:#1e3a5f;">&#128197; Date range: ${dateRangeStr}</span></div>` : ""}
+    </div>`;
+
+  const tableRows = records.map((r) => {
+    return `
+      <tr>
+        <td>${fmtDate(r.operationDate)}</td>
+        <td>${efmt(r.blockName)}</td>
+        <td>${efmt(r.operationType)}</td>
+        <td>${efmt(r.operatorName)}</td>
+        <td>${r.hoursWorked != null ? `${r.hoursWorked} hr${r.hoursWorked === 1 ? "" : "s"}` : "—"}</td>
+        <td style="font-size:8.5pt">${efmt(r.notes)}</td>
+      </tr>`;
+  }).join("");
+
+  const tableEmpty = `<tr><td colspan="6" style="text-align:center;color:#888;padding:16px 8px;">No operation records match the current filter.</td></tr>`;
+
+  const body = `
+    ${header}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Block</th>
+          <th>Operation Type</th>
+          <th>Operator</th>
+          <th>Hours</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${records.length > 0 ? tableRows : tableEmpty}
+      </tbody>
+    </table>
+    ${docFooter("Vine Operations History")}`;
+
+  return wrap(body);
+}
+
 export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobile, farmName: string): string {
   const lotLabel = record.intakeLotRef || (record.intakeId ? `Intake #${record.intakeId}` : "—");
   const ref = `OUT-${record.id.slice(-8).toUpperCase()}`;
