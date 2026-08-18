@@ -257,8 +257,9 @@ export function MaintenanceRows({ farmId, machineId }: { farmId: number; machine
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance`)).records ?? []) as Record<string, unknown>[],
     enabled: !!machineId && viticultureActive,
   });
+  const MAINT_OPERATOR_KEY = "winery-maintenance-operator";
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState<Record<string, string>>({ maintenanceDate: today, maintenanceType: "planned-service" });
+  const [addForm, setAddForm] = useState<Record<string, string>>({ maintenanceDate: today, maintenanceType: "planned-service", operatorName: localStorage.getItem(MAINT_OPERATOR_KEY) ?? "" });
   const sfa = (k: string, v: string) => setAddForm(f => ({ ...f, [k]: v }));
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -274,7 +275,10 @@ export function MaintenanceRows({ farmId, machineId }: { farmId: number; machine
       const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/maintenance`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(addForm) });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
     },
-    onSuccess: () => { invalidate(); setShowAdd(false); setAddForm({ maintenanceDate: today, maintenanceType: "planned-service" }); toast({ title: "Maintenance entry logged" }); },
+    onSuccess: () => {
+      if (addForm.operatorName) localStorage.setItem(MAINT_OPERATOR_KEY, addForm.operatorName);
+      invalidate(); setShowAdd(false); setAddForm({ maintenanceDate: today, maintenanceType: "planned-service", operatorName: addForm.operatorName }); toast({ title: "Maintenance entry logged" });
+    },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
   const editMut = useMutation({
