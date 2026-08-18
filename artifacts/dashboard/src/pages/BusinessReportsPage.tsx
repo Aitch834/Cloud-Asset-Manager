@@ -1800,6 +1800,7 @@ function AssetRegisterTab({ farmId, onRegisterExport }: { farmId: number; onRegi
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function BusinessReportsPage() {
   const { farmId } = useAppStore();
+  const queryClient = useQueryClient();
   const [tab, setTab] = usePersistedTab<Tab>({ page: "business-reports", farmId, validIds: ["gross-margin", "pl", "input-costs", "grain-position", "subsidies", "year-on-year", "assets", "benchmarking"], defaultTab: "gross-margin" });
   const [year, setYear] = usePersistedNumberFilter({ page: "business-reports", filter: "year", farmId, defaultValue: new Date().getFullYear() });
   const currentYear = new Date().getFullYear();
@@ -1810,6 +1811,16 @@ export default function BusinessReportsPage() {
   const onRegisterExport = useCallback((fn: ExportFn) => {
     setExportFn(() => fn);
   }, []);
+
+  // When switching to either tab that uses the gross-margin query, invalidate it
+  // so link status always reflects the latest milestone claims (even if the other
+  // tab was visited first and the result was cached from that earlier visit).
+  const switchTab = useCallback((next: Tab) => {
+    if ((next === "gross-margin" || next === "pl") && farmId) {
+      queryClient.invalidateQueries({ queryKey: ["report-gross-margin", farmId, year] });
+    }
+    setTab(next);
+  }, [queryClient, farmId, year, setTab]);
 
   // Reset export fn when tab changes so the button isn't stale
   useEffect(() => { setExportFn(null); }, [tab]);
@@ -1846,8 +1857,8 @@ export default function BusinessReportsPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", flex: 1 }}>
           <TabBar>
-            <TabButton active={tab === "gross-margin"} onClick={() => setTab("gross-margin")}>Gross Margin</TabButton>
-            <TabButton active={tab === "pl"} onClick={() => setTab("pl")}>P&amp;L Statement</TabButton>
+            <TabButton active={tab === "gross-margin"} onClick={() => switchTab("gross-margin")}>Gross Margin</TabButton>
+            <TabButton active={tab === "pl"} onClick={() => switchTab("pl")}>P&amp;L Statement</TabButton>
             <TabButton active={tab === "input-costs"} onClick={() => setTab("input-costs")}>Input Costs</TabButton>
             <TabButton active={tab === "grain-position"} onClick={() => setTab("grain-position")}>Grain Position</TabButton>
             <TabButton active={tab === "subsidies"} onClick={() => setTab("subsidies")}>Subsidies</TabButton>
