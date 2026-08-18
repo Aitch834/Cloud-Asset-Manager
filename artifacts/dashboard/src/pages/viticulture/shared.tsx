@@ -623,7 +623,7 @@ export function buildRpaMailtoHref(
 
   const headerLine = [
     col("Block Name", 20),
-    col("Parcel / Field Ref", 20),
+    col("Parcel / Field Ref", 34),
     col("Variety", 22),
     col("Area (ha)", 10),
     col("Year", 6),
@@ -632,19 +632,28 @@ export function buildRpaMailtoHref(
   ].join("  ");
   const separator = "-".repeat(headerLine.length);
 
-  const dataLines = blocks.map(b => [
-    col(b.blockName, 20),
-    col(b.fieldParcelRef ?? "", 20),
-    col(b.variety ?? "", 22),
-    col(parseFloat(String(b.areaHa ?? 0)).toFixed(2), 10),
-    col(b.plantingYear ?? "", 6),
-    col(b.rootstock ?? "", 18),
-    col(sbi, 14),
-  ].join("  "));
+  const missingRefBlocks = blocks.filter(b => !b.fieldParcelRef || String(b.fieldParcelRef).trim() === "");
+
+  const PARCEL_REF_MISSING = "(NOT SET — add before RPA entry)";
+
+  const dataLines = blocks.map(b => {
+    const parcelRef = (!b.fieldParcelRef || String(b.fieldParcelRef).trim() === "")
+      ? PARCEL_REF_MISSING
+      : String(b.fieldParcelRef);
+    return [
+      col(b.blockName, 20),
+      col(parcelRef, 34),
+      col(b.variety ?? "", 22),
+      col(parseFloat(String(b.areaHa ?? 0)).toFixed(2), 10),
+      col(b.plantingYear ?? "", 6),
+      col(b.rootstock ?? "", 18),
+      col(sbi, 14),
+    ].join("  ");
+  });
 
   const totalLine = [
     col("TOTAL", 20),
-    col("", 20),
+    col("", 34),
     col("", 22),
     col(totalHa.toFixed(2) + " ha", 10),
     col("", 6),
@@ -660,6 +669,13 @@ export function buildRpaMailtoHref(
     ...(sbi ? [`SBI Number: ${sbi}`] : [`SBI Number: (not set — add in Farm Settings)`]),
     `Date: ${printed}`,
     `Blocks: ${blocks.length}   Total area: ${totalHa.toFixed(2)} ha`,
+    ...(missingRefBlocks.length > 0
+      ? [
+          ``,
+          `⚠ ${missingRefBlocks.length} block${missingRefBlocks.length === 1 ? "" : "s"} missing Parcel / Field Ref: ${missingRefBlocks.map(b => String(b.blockName ?? "")).join(", ")}`,
+          `  Add these in the Vineyard Blocks section before submitting to the Rural Payments portal.`,
+        ]
+      : []),
     ``,
     `NOTE: For manual reference only — not a direct RPA submission.`,
     `Use this data when entering information into the Rural Payments portal at`,
