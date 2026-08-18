@@ -268,6 +268,7 @@ export default function AgriEnvProjectsScreen() {
   const [error,       setError]       = useState<string | null>(null);
   const [expandedId,  setExpandedId]  = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [cachedAt,    setCachedAt]    = useState<Date | null>(null);
   const cancelRef = useRef(false);
 
@@ -470,11 +471,19 @@ export default function AgriEnvProjectsScreen() {
     }
   }, [statusPicker, milestones, saveMilestoneStatus]);
 
-  const filteredProjects = searchQuery.trim()
-    ? projects.filter(p =>
-        p.schemeName.toLowerCase().includes(searchQuery.trim().toLowerCase())
-      )
-    : projects;
+  const STATUS_CHIPS: { key: string | null; label: string }[] = [
+    { key: null,        label: "All" },
+    { key: "active",    label: "Active" },
+    { key: "pending",   label: "Pending" },
+    { key: "completed", label: "Completed" },
+  ];
+
+  const filteredProjects = projects.filter(p => {
+    const nameOk = !searchQuery.trim() ||
+      p.schemeName.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const statusOk = statusFilter === null || p.status === statusFilter;
+    return nameOk && statusOk;
+  });
 
   const renderItem = ({ item: project }: { item: AgriEnvProject }) => {
     const isExpanded = expandedId === project.id;
@@ -730,6 +739,34 @@ export default function AgriEnvProjectsScreen() {
         </View>
       )}
 
+      {/* Status chip toggles */}
+      {!loading && !error && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipRow}
+          contentContainerStyle={styles.chipRowContent}
+        >
+          {STATUS_CHIPS.map(chip => {
+            const active = statusFilter === chip.key;
+            return (
+              <Pressable
+                key={chip.key ?? "__all__"}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setStatusFilter(active ? null : chip.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Filter by ${chip.label}`}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {chip.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {loading ? (
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -755,11 +792,15 @@ export default function AgriEnvProjectsScreen() {
             <View style={styles.emptyWrap}>
               <Feather name="file-text" size={36} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>
-                {searchQuery.trim() ? "No matching projects" : "No agri-env projects"}
+                {(searchQuery.trim() || statusFilter !== null) ? "No matching projects" : "No agri-env projects"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {searchQuery.trim()
+                {searchQuery.trim() && statusFilter !== null
+                  ? "Try a different name or status filter."
+                  : searchQuery.trim()
                   ? "Try a different scheme name."
+                  : statusFilter !== null
+                  ? "No projects with this status."
                   : "Add projects and milestones from the dashboard Grants tab."}
               </Text>
             </View>
@@ -769,7 +810,7 @@ export default function AgriEnvProjectsScreen() {
               <View>
                 <FarmDrawdownSummary projects={projects} milestones={milestones} />
                 <Text style={styles.countLabel}>
-                  {searchQuery.trim()
+                  {(searchQuery.trim() || statusFilter !== null)
                     ? `${filteredProjects.length} of ${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`
                     : `${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`}
                 </Text>
@@ -980,6 +1021,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#92400e",
     flexShrink: 1,
+  },
+
+  // Status chip row
+  chipRow: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    flexGrow: 0,
+  },
+  chipRowContent: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  chipTextActive: {
+    color: colors.textInverse ?? "#ffffff",
   },
 
   // Search
