@@ -325,8 +325,13 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
 
   const openAddForm = () => {
     const savedCooperage = localStorage.getItem("last_cooperage_name") ?? "";
+    const savedOperator  = localStorage.getItem("last_operator_name")  ?? "";
     setEditingRecord(null);
-    setForm({ maintenanceDate: today, ...(savedCooperage ? { cooperageName: savedCooperage } : {}) });
+    setForm({
+      maintenanceDate: today,
+      ...(savedCooperage ? { cooperageName: savedCooperage } : {}),
+      ...(savedOperator  ? { operatorName:  savedOperator  } : {}),
+    });
     setShowAdd(true);
   };
 
@@ -363,6 +368,9 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
     onSuccess: () => {
       if (form.cooperageName?.trim()) {
         localStorage.setItem("last_cooperage_name", form.cooperageName.trim());
+      }
+      if (form.operatorName?.trim()) {
+        localStorage.setItem("last_operator_name", form.operatorName.trim());
       }
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
