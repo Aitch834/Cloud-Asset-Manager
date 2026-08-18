@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { downloadCsvFile } from "@/lib/csv";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics" | "accountant-pack";
 
@@ -2063,6 +2064,24 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     grossMargin: v.income - v.sprayCost - v.labourCost - v.otherCost,
   }));
 
+  function handleDownloadCsv() {
+    if (enterpriseSummaries.length === 0) return;
+    const toGbp = (pence: number) => (pence / 100).toFixed(2);
+    const rows: unknown[][] = [
+      ["Enterprise", "Revenue (£)", "Spray Costs (£)", "Labour Costs (£)", "Other Costs (£)", "Gross Margin (£)", "Period"],
+      ...enterpriseSummaries.map(ent => [
+        ent.name,
+        toGbp(ent.income),
+        toGbp(ent.sprayCost),
+        toGbp(ent.labourCost),
+        toGbp(ent.otherCost),
+        toGbp(ent.grossMargin),
+        periodLabel,
+      ]),
+    ];
+    downloadCsvFile(`enterprise-breakdown-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`, rows);
+  }
+
   function handlePrint() {
     const farmName = farm?.name ?? "Farm";
     const address = [farm?.addressLine1, farm?.addressTown, farm?.addressCounty, farm?.addressPostcode].filter(Boolean).join(", ");
@@ -2218,6 +2237,11 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
               {YEARS.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
+          {enterpriseSummaries.length > 0 && (
+            <Button variant="outline" onClick={handleDownloadCsv} disabled={isLoading}>
+              <Download size={14} className="mr-2" />Download CSV
+            </Button>
+          )}
           <Button onClick={handlePrint} disabled={isLoading} className="bg-green-800 hover:bg-green-900 text-white">
             <FileText size={14} className="mr-2" />Generate &amp; Print Pack
           </Button>
