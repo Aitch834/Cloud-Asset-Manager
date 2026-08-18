@@ -609,6 +609,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["dairy"],
   },
   {
+    id: "mastitis-history",
+    title: "Mastitis History",
+    description: "View 12-month case trend and browse past mastitis records by month",
+    icon: "bar-chart-2",
+    color: "#2563eb",
+    bgColor: "#dbeafe",
+    route: "/mastitis-history",
+    moduleKeys: ["dairy-management"],
+    requiresSectors: ["dairy"],
+  },
+  {
     id: "dry-cow-therapy",
     title: "Dry Cow Therapy Record",
     description: "Log DCT treatments at dry-off — antibiotic tube, teat sealant, POM-V authorisation, and withdrawal periods",
