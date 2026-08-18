@@ -27,6 +27,14 @@ const CHROMIUM_PATH =
   "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
 
 async function main() {
+  if (!fs.existsSync(CHROMIUM_PATH)) {
+    console.warn(
+      `⚠  Leaflet PDF generation skipped: Chromium not found at ${CHROMIUM_PATH}.\n` +
+      "   Pre-generated PDFs in the repo remain in place."
+    );
+    return;
+  }
+
   console.log("Launching Chromium...");
   const browser = await chromium.launch({
     executablePath: CHROMIUM_PATH,
