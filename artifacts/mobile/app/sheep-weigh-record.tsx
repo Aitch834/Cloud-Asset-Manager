@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
@@ -13,6 +14,8 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiSheepFlocks } from "@/lib/hooks/useApiSheepFlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 function todayDate() { return new Date().toISOString().split("T")[0]; }
@@ -30,10 +33,17 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
 
 export default function SheepWeighRecordScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { flocks, loading: flocksLoading } = useApiSheepFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
+
+  const farmId = currentFarm?.id;
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(farmId);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("sheep-weigh", farmId, user?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [flockId, setFlockId] = useState("");
   const [weighDate, setWeighDate] = useState(todayDate());
@@ -97,6 +107,17 @@ export default function SheepWeighRecordScreen() {
         <Text style={styles.headerTitle}>Sheep Weigh-In Record</Text>
         <View style={{ width: 36 }} />
       </View>
+      <IdentifierBanner
+        justSaved={justSaved}
+        loading={identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="weighing records"
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <Text style={styles.sectionTitle}>Flock</Text>
