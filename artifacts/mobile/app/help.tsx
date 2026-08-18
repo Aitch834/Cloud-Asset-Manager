@@ -1,7 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import React, { useState } from "react";
 import {
   Pressable,
@@ -14,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { openExternalUrl } from "@/utils/openExternalUrl";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -422,7 +421,7 @@ export default function HelpScreen() {
             </Text>
             <TouchableOpacity
               style={styles.webButton}
-              onPress={() => WebBrowser.openBrowserAsync("https://bdefarmtrac.co.uk/help")}
+              onPress={() => openExternalUrl("https://bdefarmtrac.co.uk/help")}
             >
               <Feather name="external-link" size={15} color="#fff" />
               <Text style={styles.webButtonText}>Open Full Help Centre</Text>
@@ -455,7 +454,7 @@ export default function HelpScreen() {
             </Text>
             <TouchableOpacity
               style={styles.webButton}
-              onPress={() => WebBrowser.openBrowserAsync("https://bdefarmtrac.co.uk/help")}
+              onPress={() => openExternalUrl("https://bdefarmtrac.co.uk/help")}
             >
               <Feather name="external-link" size={15} color="#fff" />
               <Text style={styles.webButtonText}>Open Full Help Centre</Text>
@@ -469,7 +468,7 @@ export default function HelpScreen() {
             Can't find what you need?{" "}
             <Text
               style={styles.footerLink}
-              onPress={() => Linking.openURL("mailto:support@bdefarmtrac.co.uk")}
+              onPress={() => openExternalUrl("mailto:support@bdefarmtrac.co.uk")}
             >
               Contact support
             </Text>

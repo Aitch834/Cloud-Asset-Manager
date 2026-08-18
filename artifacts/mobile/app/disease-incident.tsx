@@ -6,7 +6,6 @@ import React, { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -27,6 +26,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 type IncidentType = "disease-suspicion" | "notifiable-disease" | "welfare-concern" | "injury" | "environmental-incident";
 
@@ -94,7 +94,7 @@ export default function DiseaseIncidentScreen() {
   };
 
   const callAPHA = () => {
-    Linking.openURL("tel:03000200301");
+    openExternalUrl("tel:03000200301");
   };
 
   const handleSave = async () => {
