@@ -1,5 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -51,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FsaCompletenessBar, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FarmSettingsWarning, FsaCompletenessBar, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 import { FrostEventsSection } from "./FrostEventsSection";
 
 type Phenology = Record<string, unknown>;
@@ -239,6 +240,7 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; season
 export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Phenology>(farmId, "vineyard-phenology", "vineyard-phenology");
   const farmName = useFarmName(farmId);
+  const [, setLocation] = useLocation();
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
   const { displayName } = useUserRole();
   const { toast } = useToast();
@@ -568,6 +570,12 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
       </div>
+      {/* Farm address missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmMeta && !String(farmMeta.address ?? "").trim() ? ["Farm address"] : []}
+        settingsSection="Contact & Address"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
       <DataTable
         cols={[
           { key: "observationDate", label: "Date", render: r => fmtDate(r.observationDate) },
