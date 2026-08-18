@@ -25,6 +25,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
@@ -47,6 +48,8 @@ export default function HomeScreen() {
   const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
   const { data: taskSummary, loading: taskSummaryLoading } = useApiMyTasksSummary(currentFarm?.id);
   const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference(user?.id);
+  const { activeModuleKeys } = useApiModules(currentFarm?.id);
+  const isViticultureActive = activeModuleKeys.includes("viticulture") || activeModuleKeys.includes("organic-viticulture");
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -126,7 +129,7 @@ export default function HomeScreen() {
   }, [currentFarm?.id]);
 
   const fetchUnlinkedCounts = useCallback(async () => {
-    if (!currentFarm?.id) return;
+    if (!currentFarm?.id || !isViticultureActive) return;
     try {
       const [scoutRes, sprayRes, phenologyRes, harvestRes, opsRes] = await Promise.all([
         apiFetch(`/api/farms/${currentFarm.id}/vineyard-scouting`),
@@ -153,7 +156,15 @@ export default function HomeScreen() {
         operations: opsRecords.filter(r => r.blockId == null).length,
       });
     } catch { /* ignore */ }
-  }, [currentFarm?.id]);
+  }, [currentFarm?.id, isViticultureActive]);
+
+  // Clear any stale viticulture compliance-gap counts when the farm doesn't
+  // have the module, so banners never appear for non-viticulture farms.
+  useEffect(() => {
+    if (!isViticultureActive) {
+      setUnlinkedCounts({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
+    }
+  }, [isViticultureActive]);
 
   useFocusEffect(
     useCallback(() => {
