@@ -475,9 +475,11 @@ interface LightboxProps {
   onEditCaption: (photo: BlockPhoto) => void;
   onReload: () => void;
   onSetCover: (photo: BlockPhoto) => void;
+  /** True while a silent URL refresh triggered by "Tap to reload" is in-flight. */
+  reloading?: boolean;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload, onSetCover }: LightboxProps) {
+function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload, onSetCover, reloading = false }: LightboxProps) {
   const insets = useSafeAreaInsets();
   const { user } = useFarm();
 
@@ -955,7 +957,9 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {/* Zoomable image */}
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
-            {uri ? (
+            {reloading ? (
+              <ActivityIndicator size="large" color="#fff" />
+            ) : uri ? (
               (() => {
                 // Reset error flag whenever the URI changes (new photo navigated to,
                 // or URLs refreshed after a successful reload).
@@ -1271,6 +1275,9 @@ export default function VineBlockPhotosScreen() {
 
   // Which thumbnail's reload is currently in-flight (null = none)
   const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
+
+  // True while a silent URL refresh triggered by "Tap to reload" in the lightbox is in-flight
+  const [lightboxReloading, setLightboxReloading] = useState(false);
   // Synchronous guard so rapid / multi-touch taps on different broken thumbnails
   // cannot start two concurrent reloads before React commits the first state update.
   const reloadInFlightRef = useRef(false);
@@ -1777,8 +1784,16 @@ export default function VineBlockPhotosScreen() {
         onDelete={handleDelete}
         onReorder={handleReorder}
         onEditCaption={handleEditCaption}
-        onReload={() => loadPhotos({ silent: true })}
+        onReload={async () => {
+          setLightboxReloading(true);
+          try {
+            await loadPhotos({ silent: true });
+          } finally {
+            setLightboxReloading(false);
+          }
+        }}
         onSetCover={handleSetCover}
+        reloading={lightboxReloading}
       />
 
       {/* Caption editor */}
