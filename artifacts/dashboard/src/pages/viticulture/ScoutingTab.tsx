@@ -218,6 +218,9 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       setBulkLinkOpen(false);
       toast({ title: `${count} ${count === 1 ? "record" : "records"} linked`, description: "Block links saved successfully." });
     },
+    onError: () => {
+      toast({ title: "Failed to save block links — please try again", variant: "destructive" });
+    },
   });
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
