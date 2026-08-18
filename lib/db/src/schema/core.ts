@@ -88,6 +88,8 @@ export const farmsTable = pgTable("farms", {
   hpaiZoneDate: text("hpai_zone_date"),
   hpaiHousingRequiredSince: text("hpai_housing_required_since"),
   irrigationCostPerMmHa: numeric("irrigation_cost_per_mm_ha", { precision: 8, scale: 2 }),
+  irrigationCropPricePerTonne: numeric("irrigation_crop_price_per_tonne", { precision: 10, scale: 2 }),
+  irrigationApplicationRateMm: numeric("irrigation_application_rate_mm", { precision: 8, scale: 2 }),
   irrigationAbstractionSource: text("irrigation_abstraction_source"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

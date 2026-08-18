@@ -540,7 +540,7 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   const [logPrefill, setLogPrefill] = useState<LogAppPrefill | null>(null);
 
   // ── Platform config (provides server-side fallback defaults) ───────────────
-  const { data: platformConfig } = useQuery<Record<string, string>>({
+  const { data: platformConfig, isFetched: platformConfigFetched } = useQuery<Record<string, string>>({
     queryKey: ["platform-config"],
     queryFn: () =>
       fetch(api("platform-config")).then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
@@ -548,7 +548,7 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   });
 
   // ── Farm-level irrigation settings (DB-persisted, preferred over platform config) ──
-  const { data: farmRecord } = useQuery<Record<string, unknown>>({
+  const { data: farmRecord, isFetched: farmRecordFetched } = useQuery<Record<string, unknown>>({
     queryKey: ["farm-detail", farmId],
     queryFn: () => fetch(api(`farms/${farmId}`), { credentials: "include" }).then(r => r.json()).then(d => d.record ?? d),
     staleTime: 5 * 60 * 1000,
@@ -573,28 +573,45 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     forecastSeededForFarmRef.current = null; // eslint-disable-line no-use-before-define
   }, [farmId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Seed costPerMmHa from farm DB first, then platform config, then leave at
-  // localStorage value. Re-runs when farmId changes or either data source loads.
+  // Seed costPerMmHa / cropPricePerTonne / irrigateMm from farm DB first,
+  // then platform config (cost only), then leave at localStorage value.
+  // Each field is seeded independently so a missing cost value still receives
+  // its platform-config fallback even when crop price or app rate have DB values.
+  // We must wait until farmRecord has settled (isFetched) before marking done —
+  // platformConfig often resolves first and must never permanently block DB values.
   const configSeededForFarmRef = useRef<number | null>(null);
   useEffect(() => {
     if (configSeededForFarmRef.current === farmId) return;
-    // Wait until at least one source has loaded
-    if (!farmRecord && !platformConfig) return;
+    // Wait for BOTH queries to have settled: farm-detail supplies crop price and
+    // app rate; platform config is the fallback source for cost. Marking done
+    // before either has resolved means one source silently wins and the other
+    // is permanently ignored.
+    if (!farmRecordFetched || !platformConfigFetched) return;
     configSeededForFarmRef.current = farmId;
 
-    // 1. Farm-level DB setting (strongest preference)
-    const farmCost = farmRecord?.irrigationCostPerMmHa as string | undefined;
-    if (farmCost) {
-      setDefaultsState(prev => ({ ...prev, costPerMmHa: farmCost }));
-      return;
-    }
-    // 2. Platform config fallback (only if no farm override and no localStorage override)
-    if (localStorage.getItem(LS_KEY(farmId))) return;
-    const serverCost = platformConfig?.["irrigation.costPerMmHa"];
-    if (serverCost) {
-      setDefaultsState(prev => ({ ...prev, costPerMmHa: serverCost }));
-    }
-  }, [farmRecord, platformConfig, farmId]);
+    setDefaultsState(prev => {
+      const next = { ...prev };
+
+      // 1a. Farm-level DB cost → platform config fallback → leave as-is
+      const farmCost = farmRecord?.irrigationCostPerMmHa as string | undefined;
+      if (farmCost) {
+        next.costPerMmHa = farmCost;
+      } else if (!localStorage.getItem(LS_KEY(farmId))) {
+        const serverCost = platformConfig?.["irrigation.costPerMmHa"];
+        if (serverCost) next.costPerMmHa = serverCost;
+      }
+
+      // 1b. Farm-level DB crop price → leave as-is (no platform fallback for this field)
+      const farmCropPrice = farmRecord?.irrigationCropPricePerTonne as string | undefined;
+      if (farmCropPrice) next.cropPricePerTonne = farmCropPrice;
+
+      // 1c. Farm-level DB application rate → leave as-is (no platform fallback for this field)
+      const farmAppRate = farmRecord?.irrigationApplicationRateMm as string | undefined;
+      if (farmAppRate) next.irrigateMm = farmAppRate;
+
+      return next;
+    });
+  }, [farmRecord, farmRecordFetched, platformConfig, platformConfigFetched, farmId]);
 
   const qc = useQueryClient();
 
@@ -615,15 +632,59 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     },
   });
 
+  // ── Save crop price as farm default ───────────────────────────────────────
+  const saveCropPriceDefault = useMutation({
+    mutationFn: (cropPricePerTonne: string) =>
+      fetch(api(`farms/${farmId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ irrigationCropPricePerTonne: cropPricePerTonne }),
+      }).then(async r => {
+        if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["farm-detail", farmId] });
+    },
+  });
+
+  // ── Save application rate as farm default ──────────────────────────────────
+  const saveAppRateDefault = useMutation({
+    mutationFn: (irrigateMm: string) =>
+      fetch(api(`farms/${farmId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ irrigationApplicationRateMm: irrigateMm }),
+      }).then(async r => {
+        if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["farm-detail", farmId] });
+    },
+  });
+
   // Derived: does the session value differ from what's stored in the DB?
   // Uses numeric comparison so "3.5" == "3.50" (Postgres numeric(8,2)) and empty == null.
+  function numericDiffersFromDb(session: string, dbVal: string | undefined): boolean {
+    const s = session.trim();
+    const sEmpty = s === "";
+    const dEmpty = dbVal == null || dbVal === "";
+    if (sEmpty !== dEmpty) return true;
+    if (sEmpty && dEmpty) return false;
+    return parseFloat(s) !== parseFloat(dbVal!);
+  }
+
   const dbCost = farmRecord?.irrigationCostPerMmHa as string | undefined;
-  const _sessionCost = defaults.costPerMmHa.trim();
-  const _sessionEmpty = _sessionCost === "";
-  const _dbEmpty = dbCost == null || dbCost === "";
-  const costDiffersFromDb =
-    _sessionEmpty !== _dbEmpty ||
-    (!_sessionEmpty && !_dbEmpty && parseFloat(_sessionCost) !== parseFloat(dbCost!));
+  const costDiffersFromDb = numericDiffersFromDb(defaults.costPerMmHa, dbCost);
+
+  const dbCropPrice = farmRecord?.irrigationCropPricePerTonne as string | undefined;
+  const cropPriceDiffersFromDb = numericDiffersFromDb(defaults.cropPricePerTonne, dbCropPrice);
+
+  const dbAppRate = farmRecord?.irrigationApplicationRateMm as string | undefined;
+  const appRateDiffersFromDb = numericDiffersFromDb(defaults.irrigateMm, dbAppRate);
 
   function updateDefault(key: keyof IrrigDefaults, value: string) {
     const next = { ...defaults, [key]: value };
@@ -1164,22 +1225,64 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Crop price (£/t)</Label>
-                <Input
-                  type="number" step="1" min="0"
-                  value={defaults.cropPricePerTonne}
-                  onChange={e => updateDefault("cropPricePerTonne", e.target.value)}
-                  className="h-8 text-sm"
-                />
+                <div className="flex gap-1.5 items-center">
+                  <Input
+                    type="number" step="1" min="0"
+                    value={defaults.cropPricePerTonne}
+                    onChange={e => { saveCropPriceDefault.reset(); updateDefault("cropPricePerTonne", e.target.value); }}
+                    className="h-8 text-sm"
+                  />
+                  {cropPriceDiffersFromDb && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs whitespace-nowrap shrink-0"
+                      onClick={() => saveCropPriceDefault.mutate(defaults.cropPricePerTonne)}
+                      disabled={saveCropPriceDefault.isPending}
+                      title="Save this value as the farm default (persists across devices)"
+                    >
+                      {saveCropPriceDefault.isPending
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : saveCropPriceDefault.isSuccess
+                          ? "Saved ✓"
+                          : "Save as default"}
+                    </Button>
+                  )}
+                </div>
+                {saveCropPriceDefault.isError && (
+                  <p className="text-xs text-red-600">Failed to save — please try again.</p>
+                )}
                 <p className="text-xs text-muted-foreground">Current market price</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Application rate (mm)</Label>
-                <Input
-                  type="number" step="1" min="0"
-                  value={defaults.irrigateMm}
-                  onChange={e => updateDefault("irrigateMm", e.target.value)}
-                  className="h-8 text-sm"
-                />
+                <div className="flex gap-1.5 items-center">
+                  <Input
+                    type="number" step="1" min="0"
+                    value={defaults.irrigateMm}
+                    onChange={e => { saveAppRateDefault.reset(); updateDefault("irrigateMm", e.target.value); }}
+                    className="h-8 text-sm"
+                  />
+                  {appRateDiffersFromDb && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs whitespace-nowrap shrink-0"
+                      onClick={() => saveAppRateDefault.mutate(defaults.irrigateMm)}
+                      disabled={saveAppRateDefault.isPending}
+                      title="Save this value as the farm default (persists across devices)"
+                    >
+                      {saveAppRateDefault.isPending
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : saveAppRateDefault.isSuccess
+                          ? "Saved ✓"
+                          : "Save as default"}
+                    </Button>
+                  )}
+                </div>
+                {saveAppRateDefault.isError && (
+                  <p className="text-xs text-red-600">Failed to save — please try again.</p>
+                )}
                 <p className="text-xs text-muted-foreground">mm per irrigation run</p>
               </div>
               <div className="space-y-1">
