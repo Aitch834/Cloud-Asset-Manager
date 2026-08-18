@@ -28,6 +28,8 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
   const [name, setName] = useState(farm.name);
   const [address, setAddress] = useState(farm.address ?? "");
   const [postcode, setPostcode] = useState(farm.postcode ?? "");
+  const [cphNumber, setCphNumber] = useState(farm.cphNumber ?? "");
+  const [sbiNumber, setSbiNumber] = useState(farm.sbiNumber ?? "");
   const [postcodeBlurred, setPostcodeBlurred] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,8 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
         name: name.trim(),
         address: address.trim() || null,
         postcode: normalisedPostcode || null,
+        cphNumber: cphNumber.trim() || null,
+        sbiNumber: sbiNumber.trim() || null,
       }, secret);
       onSaved(result.farm);
       onClose();
@@ -126,6 +130,31 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
                 This doesn't look like a valid UK postcode (e.g. DT1 1AA). You can still save if you're sure.
               </p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                CPH Number
+              </label>
+              <input
+                value={cphNumber}
+                onChange={(e) => setCphNumber(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g. 12/345/6789"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                SBI Number
+              </label>
+              <input
+                value={sbiNumber}
+                onChange={(e) => setSbiNumber(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g. 123456789"
+              />
+            </div>
           </div>
 
           {error && (
@@ -821,6 +850,16 @@ export default function CustomerDetail() {
                         {[farm.address, farm.postcode].filter(Boolean).join(", ")}
                       </p>
                     )}
+                    {(farm.cphNumber || farm.sbiNumber) && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                        {farm.cphNumber && (
+                          <span><span className="font-medium">CPH:</span> {farm.cphNumber}</span>
+                        )}
+                        {farm.sbiNumber && (
+                          <span><span className="font-medium">SBI:</span> {farm.sbiNumber}</span>
+                        )}
+                      </p>
+                    )}
                     {farmSubs.length > 0 && (
                       <p className="text-xs text-muted-foreground mt-1">
                         {farmSubs.filter(s => s.status === "active").length > 0 && (
@@ -986,7 +1025,7 @@ export default function CustomerDetail() {
           tenantId={tenantId}
           onClose={() => setEditingFarm(null)}
           onSaved={(updated) => {
-            setFarms((prev) => prev.map((f) => (f.id === updated.id ? { ...f, name: updated.name, address: updated.address, postcode: updated.postcode } : f)));
+            setFarms((prev) => prev.map((f) => (f.id === updated.id ? { ...f, name: updated.name, address: updated.address, postcode: updated.postcode, cphNumber: updated.cphNumber, sbiNumber: updated.sbiNumber } : f)));
             setEditingFarm(null);
           }}
         />
