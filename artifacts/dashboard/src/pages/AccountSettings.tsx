@@ -292,7 +292,7 @@ export default function AccountSettings() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">SMS Alerts add-on not active</p>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-xs mx-auto">
-                    SMS Text Alerts is available as an add-on for £4/month per farm. Once activated, each team member chooses which alert categories they receive.
+                    SMS Text Alerts is available as a paid add-on per farm. Once activated, each team member chooses which alert categories they receive.
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">

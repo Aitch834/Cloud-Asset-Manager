@@ -7,6 +7,9 @@
 
 export const BASE_FEE = 15;
 
+/** Price for the SMS Alerts add-on (standalone, per farm per month). */
+export const SMS_ADDON_PRICE = 4;
+
 export interface PricingModule {
   id: string;
   name: string;
