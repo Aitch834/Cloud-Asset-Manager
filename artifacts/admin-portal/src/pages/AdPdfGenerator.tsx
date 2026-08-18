@@ -588,6 +588,10 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
   const [htmlBody, setHtmlBody] = useState(initial?.htmlBody ?? "");
   const [isDefault, setIsDefault] = useState(initial?.isDefault ?? false);
 
+  // Typo-placeholder confirmation — true when the form is waiting for the admin
+  // to acknowledge detected near-miss typos before the save proceeds.
+  const [awaitingTypoConfirm, setAwaitingTypoConfirm] = useState(false);
+
   // Draft preview state
   const [draftBgUrl, setDraftBgUrl] = useState("");
   const [draftPreviewUrl,          setDraftPreviewUrl]          = useState<string | null>(null);
@@ -642,6 +646,12 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // If there are near-miss typo placeholders and the admin hasn't yet
+    // acknowledged them, pause and show the inline confirmation instead of saving.
+    if (typoPlaceholders.length > 0 && !awaitingTypoConfirm) {
+      setAwaitingTypoConfirm(true);
+      return;
+    }
     onSave({ name, slug, widthMm: Number(widthMm), heightMm: Number(heightMm), htmlBody, isDefault });
   }
 
@@ -760,7 +770,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
           className={`${inputCls} font-mono text-xs resize-y`}
           rows={16}
           value={htmlBody}
-          onChange={(e) => { setHtmlBody(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); }}
+          onChange={(e) => { setHtmlBody(e.target.value); setDraftPreviewUrl(null); setDraftPreviewError(null); setAwaitingTypoConfirm(false); }}
           placeholder={"<!DOCTYPE html>\n<html lang=\"en\">\n<head>...</head>\n<body>...</body>\n</html>"}
           spellCheck={false}
         />
@@ -903,7 +913,7 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
         </div>
       )}
 
-      {typoPlaceholders.length > 0 && (
+      {typoPlaceholders.length > 0 && !awaitingTypoConfirm && (
         <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 border border-amber-200">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
           <div className="text-sm text-amber-800 space-y-1">
@@ -926,8 +936,55 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
         </div>
       )}
 
+      {awaitingTypoConfirm && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+            <div className="text-sm text-amber-900 space-y-1">
+              <p className="font-semibold">
+                Confirm save with typo placeholder{typoPlaceholders.length > 1 ? "s" : ""}
+              </p>
+              <p className="text-xs text-amber-800">
+                The following token{typoPlaceholders.length > 1 ? "s don't" : " doesn't"} match any recognised placeholder and will render as blank in live PDFs:
+              </p>
+              <ul className="text-xs space-y-0.5 mt-1">
+                {typoPlaceholders.map(({ found, expected }) => (
+                  <li key={found} className="flex items-center gap-1.5">
+                    <code className="bg-amber-100 px-1 rounded">{found}</code>
+                    <span className="text-amber-600">→ did you mean</span>
+                    <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                    <span className="text-amber-600">?</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSaving}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isSaving
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>
+                : <><Save className="w-4 h-4 mr-2" />Save anyway</>}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSaving}
+              onClick={() => setAwaitingTypoConfirm(false)}
+            >
+              Go back and fix
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={isSaving} size="sm">
+        <Button type="submit" disabled={isSaving || awaitingTypoConfirm} size="sm">
           {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : <><Save className="w-4 h-4 mr-2" />Save template</>}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
