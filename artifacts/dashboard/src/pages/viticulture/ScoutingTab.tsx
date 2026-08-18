@@ -101,6 +101,8 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
+  const [editingCaptionPhotoId, setEditingCaptionPhotoId] = useState<number | null>(null);
+  const [captionEditValue, setCaptionEditValue] = useState("");
   const photoFileRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -305,6 +307,28 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
     onError: () => {
       setSettingCoverPhotoId(null);
       toast({ title: "Failed to set cover photo", variant: "destructive" });
+    },
+  });
+
+  // ── Update photo caption ──────────────────────────────────────────────────
+  const updateCaptionMutation = useMutation({
+    mutationFn: async ({ scoutingId, photoId, caption }: { scoutingId: number; photoId: number; caption: string }) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: caption.trim() || null }),
+      });
+      if (!r.ok) throw new Error("Failed to update caption");
+      return r.json();
+    },
+    onSuccess: (_data, { scoutingId }) => {
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, scoutingId] });
+      setEditingCaptionPhotoId(null);
+      setCaptionEditValue("");
+    },
+    onError: () => {
+      toast({ title: "Failed to save caption", variant: "destructive" });
     },
   });
 
@@ -756,7 +780,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       {/* Scouting Photo Lightbox */}
       <Dialog
         open={lightboxScoutingId !== null}
-        onOpenChange={o => { if (!o) { setLightboxScoutingId(null); setLightboxPhotoIndex(0); setPendingPhotoFile(null); setPendingPhotoCaption(""); } }}
+        onOpenChange={o => { if (!o) { setLightboxScoutingId(null); setLightboxPhotoIndex(0); setPendingPhotoFile(null); setPendingPhotoCaption(""); setEditingCaptionPhotoId(null); setCaptionEditValue(""); } }}
       >
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-2 pt-2 pb-1">
@@ -826,7 +850,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                 <>
                   <button
                     type="button"
-                    onClick={() => setLightboxPhotoIndex(i => (i - 1 + lightboxPhotos.length) % lightboxPhotos.length)}
+                    onClick={() => { setLightboxPhotoIndex(i => (i - 1 + lightboxPhotos.length) % lightboxPhotos.length); setEditingCaptionPhotoId(null); setCaptionEditValue(""); }}
                     className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
                     aria-label="Previous photo"
                   >
@@ -834,7 +858,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLightboxPhotoIndex(i => (i + 1) % lightboxPhotos.length)}
+                    onClick={() => { setLightboxPhotoIndex(i => (i + 1) % lightboxPhotos.length); setEditingCaptionPhotoId(null); setCaptionEditValue(""); }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
                     aria-label="Next photo"
                   >
@@ -843,12 +867,57 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                 </>
               )}
 
-              {/* Caption */}
-              {!!currentPhoto.caption && (
-                <p className="text-xs text-center text-muted-foreground mt-2 italic px-4">
-                  {String(currentPhoto.caption)}
-                </p>
-              )}
+              {/* Caption — inline editable */}
+              <div className="mt-2 px-4">
+                {editingCaptionPhotoId === (currentPhoto.id as number) ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={captionEditValue}
+                      onChange={e => setCaptionEditValue(e.target.value)}
+                      placeholder="Add a caption…"
+                      className="h-7 text-xs flex-1"
+                      autoFocus
+                      disabled={updateCaptionMutation.isPending}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { e.preventDefault(); updateCaptionMutation.mutate({ scoutingId: lightboxScoutingId!, photoId: currentPhoto.id as number, caption: captionEditValue }); }
+                        if (e.key === "Escape") { setEditingCaptionPhotoId(null); setCaptionEditValue(""); }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => updateCaptionMutation.mutate({ scoutingId: lightboxScoutingId!, photoId: currentPhoto.id as number, caption: captionEditValue })}
+                      disabled={updateCaptionMutation.isPending}
+                    >
+                      {updateCaptionMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => { setEditingCaptionPhotoId(null); setCaptionEditValue(""); }}
+                      disabled={updateCaptionMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-1.5 group/caption">
+                    {currentPhoto.caption
+                      ? <p className="text-xs text-muted-foreground italic">{String(currentPhoto.caption)}</p>
+                      : <p className="text-xs text-muted-foreground/50 italic">No caption</p>}
+                    <button
+                      type="button"
+                      title="Edit caption"
+                      onClick={() => { setEditingCaptionPhotoId(currentPhoto.id as number); setCaptionEditValue(String(currentPhoto.caption ?? "")); }}
+                      className="opacity-0 group-hover/caption:opacity-100 focus:opacity-100 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-opacity"
+                      aria-label="Edit caption"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Thumbnail strip */}
               {lightboxPhotos.length > 1 && (
