@@ -54,7 +54,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, printVineSprayDiaryReport, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, printVineSprayDiaryReport, downloadVineSprayDiaryPdf, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 const SPRAY_PRODUCT_TYPES = [
   "Fungicide", "Herbicide", "Insecticide", "Acaricide",
@@ -578,7 +578,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => { exportCSV(filteredSpray, "spray-diary.csv", csvCols, buildViticultureUnlinkedWarning(filteredSpray)); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
-          <Button size="sm" variant="outline" onClick={() => { printVineSprayDiaryReport(filteredSpray, blocks, farmName, farmMeta, searchText.trim() || undefined); }} disabled={!filteredSpray.length}><Printer className="w-4 h-4 mr-1" />Diary Export</Button>
+          <Button size="sm" variant="outline" onClick={() => { void downloadVineSprayDiaryPdf(filteredSpray, blocks, farmName, farmMeta, searchText.trim() || undefined); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />Diary Export</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
             <SelectContent>

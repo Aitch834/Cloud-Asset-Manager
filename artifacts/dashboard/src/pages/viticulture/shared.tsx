@@ -3281,6 +3281,157 @@ export function printVineSprayDiaryReport(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export async function downloadVineSprayDiaryPdf(
+  records: Record<string, unknown>[],
+  blocks: Record<string, unknown>[],
+  farmName: string,
+  farmMeta: Record<string, unknown> | null | undefined,
+  searchQuery?: string,
+) {
+  const [jsPDFModule, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  // jspdf 4.x ESM: named export `jsPDF` is the constructor; `.default` is a plain object
+  const jsPDF = (jsPDFModule.jsPDF ?? jsPDFModule.default) as unknown as new (...args: unknown[]) => InstanceType<typeof import("jspdf").jsPDF>;
+  const autoTable = autoTableModule.default;
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const safeDateTime = new Date().toLocaleString("en-GB");
+
+  const blockLookup: Record<number, string> = {};
+  blocks.forEach(b => { blockLookup[b.id as number] = String(b.blockName ?? b.id); });
+  const resolveBlock = (id: unknown): string => {
+    const bid = Number(id);
+    return !isNaN(bid) && bid > 0 ? (blockLookup[bid] ?? "—") : "—";
+  };
+
+  const addressValue = String(farmMeta?.address ?? "").trim();
+  const postcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const addressParts = [addressValue, postcodeValue].filter(Boolean).join(", ");
+  const missingFarmName = !farmName || !farmName.trim();
+  const missingAddress = !addressValue;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  doc.setFillColor(14, 79, 138); // #0e4f8a
+  doc.rect(0, 0, pageW, 22, "F");
+  doc.setFontSize(15); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255);
+  doc.text("BDE Farm Trac", 14, 10);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Vineyard Compliance Platform", 14, 16);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text("Vine Spray Diary", pageW - 14, 10, { align: "right" });
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text(`Date: ${safeDate}`, pageW - 14, 16, { align: "right" });
+
+  // ── Farm info bar ──────────────────────────────────────────────────────────
+  let y = 26;
+  doc.setFillColor(240, 244, 255);
+  doc.roundedRect(14, y, pageW - 28, 10, 1, 1, "F");
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(30, 30, 30);
+  const farmLabel = `Farm: ${farmName || "—"}`;
+  const printedLabel = `Printed: ${safeDateTime}`;
+  const addrLabel = addressParts ? `Address: ${addressParts}` : "";
+  doc.text(farmLabel, 17, y + 7);
+  doc.text(printedLabel, pageW / 2, y + 7, { align: "center" });
+  if (addrLabel) doc.text(addrLabel, pageW - 17, y + 7, { align: "right" });
+  y += 14;
+
+  // ── Missing-fields warning ─────────────────────────────────────────────────
+  if (missingFarmName || missingAddress) {
+    const missing = [missingFarmName ? "Farm name" : "", missingAddress ? "Farm address" : ""].filter(Boolean).join(" and ");
+    doc.setFillColor(255, 251, 235);
+    doc.setDrawColor(252, 211, 77);
+    doc.roundedRect(14, y, pageW - 28, 8, 1, 1, "FD");
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120, 53, 15);
+    doc.text(`⚠ ${missing} not set — update Farm Settings to populate the header.`, 17, y + 5.5);
+    y += 12;
+  }
+
+  // ── Record count / filter ─────────────────────────────────────────────────
+  doc.setFillColor(240, 249, 255);
+  doc.setDrawColor(125, 211, 252);
+  doc.roundedRect(14, y, pageW - 28, 8, 1, 1, "FD");
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(7, 89, 133);
+  const countLine = `ℹ ${records.length} record${records.length === 1 ? "" : "s"}${searchQuery ? ` · Filter: "${searchQuery}"` : ""} — This spray diary must be retained for a minimum of 3 years.`;
+  doc.text(countLine, 17, y + 5.5);
+  y += 12;
+
+  // ── Main table ────────────────────────────────────────────────────────────
+  const nv = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+  const tableBody = records.map(r => {
+    const rate = r.ratePerHectare != null ? `${nv(r.ratePerHectare)} ${String(r.rateUnit ?? "")}`.trim() : "—";
+    const weatherParts: string[] = [];
+    if (r.windSpeedMph != null && r.windSpeedMph !== "") weatherParts.push(`${nv(r.windSpeedMph)} mph`);
+    if (r.temperatureCelsius != null && r.temperatureCelsius !== "") weatherParts.push(`${nv(r.temperatureCelsius)} °C`);
+    if (r.weatherConditions) weatherParts.push(String(r.weatherConditions));
+    const weather = weatherParts.join(" · ") || "—";
+    const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
+    const productLine = String(r.productName ?? "—");
+    const productType = r.productType ? `\n(${String(r.productType)})` : "";
+    const operatorLine = String(r.operatorName ?? "—");
+    const certLine = r.operatorCertificateNo ? `\n${String(r.operatorCertificateNo)}` : "";
+    const area = r.areaTreatedHa != null && r.areaTreatedHa !== "" ? `${parseFloat(String(r.areaTreatedHa)).toFixed(2)} ha` : "—";
+    return [appDate, `${productLine}${productType}`, String(r.mappNumber ?? "—"), String(r.activeIngredient ?? "—"), rate, area, resolveBlock(r.blockId), weather, `${operatorLine}${certLine}`];
+  });
+
+  autoTable(doc, {
+    head: [["Date", "Product", "MAPP No.", "Active Ingredient", "Rate", "Area", "Block", "Weather", "Operator"]],
+    body: tableBody.length ? tableBody : [["", "No records match the current filter.", "", "", "", "", "", "", ""]],
+    startY: y,
+    styles: { fontSize: 7.5, cellPadding: 2.5, overflow: "linebreak" },
+    headStyles: { fillColor: [14, 79, 138], textColor: 255, fontStyle: "bold", fontSize: 7.5 },
+    alternateRowStyles: { fillColor: [245, 248, 255] },
+    columnStyles: {
+      0: { cellWidth: 20 },
+      1: { cellWidth: 40 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 32 },
+      4: { cellWidth: 22 },
+      5: { cellWidth: 16, halign: "right" },
+      6: { cellWidth: 22 },
+      7: { cellWidth: 30 },
+      8: { cellWidth: 28 },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // ── Notes section ─────────────────────────────────────────────────────────
+  const notesRows = records.filter(r => r.notes).map(r => {
+    const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
+    return [`${appDate} — ${String(r.productName ?? "")}`, String(r.notes ?? "")];
+  });
+  if (notesRows.length) {
+    const afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(14, 79, 138);
+    doc.text("NOTES", 14, afterTable);
+    autoTable(doc, {
+      head: [["Application", "Notes"]],
+      body: notesRows,
+      startY: afterTable + 3,
+      styles: { fontSize: 7.5, cellPadding: 2.5, overflow: "linebreak" },
+      headStyles: { fillColor: [14, 79, 138], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 255] },
+      columnStyles: { 0: { cellWidth: 55 }, 1: { cellWidth: "auto" as unknown as number } },
+      margin: { left: 14, right: 14 },
+    });
+  }
+
+  // ── Footer on each page ───────────────────────────────────────────────────
+  const pageCount = (doc as unknown as { internal: { getNumberOfPages(): number } }).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(150, 150, 150);
+    doc.text("Prepared by BDE Farm Trac  ·  Vine Spray Diary  ·  Plant Protection Products Regulations 2011  ·  Retain for 3 years", 14, pageH - 5);
+    doc.text(`Page ${i} of ${pageCount}`, pageW - 14, pageH - 5, { align: "right" });
+  }
+
+  doc.save("vine-spray-diary.pdf");
+}
+
 export const PRESSURE_LABELS: Record<number, { label: string; color: string }> = {
   0: { label: "None", color: "text-gray-400" },
   1: { label: "Low", color: "text-green-600" },
