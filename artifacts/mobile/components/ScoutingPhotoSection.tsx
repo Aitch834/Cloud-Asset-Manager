@@ -68,11 +68,17 @@ export function CaptionEditModal({
   initialCaption,
   onSave,
   onClose,
+  title = "Edit Caption",
+  cancelLabel = "Cancel",
 }: {
   visible: boolean;
   initialCaption: string;
   onSave: (caption: string) => void;
   onClose: () => void;
+  /** Modal heading. Defaults to "Edit Caption". */
+  title?: string;
+  /** Label for the dismiss button. Defaults to "Cancel". */
+  cancelLabel?: string;
 }) {
   const [text, setText] = useState(initialCaption);
   const insets = useSafeAreaInsets();
@@ -86,7 +92,7 @@ export function CaptionEditModal({
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <Pressable style={captionStyles.backdrop} onPress={onClose}>
           <Pressable style={[captionStyles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
-            <Text style={captionStyles.title}>Edit Caption</Text>
+            <Text style={captionStyles.title}>{title}</Text>
             <TextInput
               style={captionStyles.input}
               value={text}
@@ -100,7 +106,7 @@ export function CaptionEditModal({
             />
             <View style={captionStyles.actions}>
               <Pressable style={captionStyles.cancelBtn} onPress={onClose}>
-                <Text style={captionStyles.cancelBtnText}>Cancel</Text>
+                <Text style={captionStyles.cancelBtnText}>{cancelLabel}</Text>
               </Pressable>
               <Pressable style={captionStyles.saveBtn} onPress={() => { onSave(text); onClose(); }}>
                 <Text style={captionStyles.saveBtnText}>Save</Text>
@@ -729,6 +735,8 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
   const [uploading, setUploading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [captionEditPhoto, setCaptionEditPhoto] = useState<ScoutingPhoto | null>(null);
+  // ID of a freshly-uploaded photo awaiting an optional caption before the list reloads
+  const [pendingCaptionPhotoId, setPendingCaptionPhotoId] = useState<number | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
@@ -790,12 +798,40 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
         return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await loadPhotos();
+      // Show the caption prompt before reloading; loadPhotos() is called after
+      // the grower saves or skips (handlePendingCaptionSave / handlePendingCaptionSkip).
+      const data: { photo?: { id?: number } } = await res.json().catch(() => ({}));
+      const newId = data?.photo?.id;
+      if (newId) {
+        setPendingCaptionPhotoId(newId);
+      } else {
+        // Fallback: no ID returned — just reload immediately
+        await loadPhotos();
+      }
     } catch {
       Alert.alert("Upload Failed", "An error occurred. Please try again.");
     } finally {
       setUploading(false);
     }
+  };
+
+  const handlePendingCaptionSave = async (caption: string) => {
+    const photoId = pendingCaptionPhotoId;
+    setPendingCaptionPhotoId(null);
+    if (photoId && caption.trim()) {
+      // Best-effort PATCH — don't block the list reload if it fails
+      await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: caption.trim() }),
+      }).catch(() => null);
+    }
+    await loadPhotos();
+  };
+
+  const handlePendingCaptionSkip = async () => {
+    setPendingCaptionPhotoId(null);
+    await loadPhotos();
   };
 
   /**
@@ -938,6 +974,16 @@ export function ScoutingPhotoSection({ farmId, scoutingId }: { farmId: string | 
           if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
         }}
         onClose={() => setCaptionEditPhoto(null)}
+      />
+
+      {/* Post-upload caption prompt — shown immediately after a successful upload */}
+      <CaptionEditModal
+        visible={pendingCaptionPhotoId !== null}
+        initialCaption=""
+        title="Add a Caption?"
+        cancelLabel="Skip"
+        onSave={handlePendingCaptionSave}
+        onClose={handlePendingCaptionSkip}
       />
     </View>
   );
