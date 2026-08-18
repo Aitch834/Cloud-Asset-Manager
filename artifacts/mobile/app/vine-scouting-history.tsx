@@ -30,6 +30,7 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
@@ -493,6 +494,7 @@ export default function VineScoutingHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
+  const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -507,15 +509,36 @@ export default function VineScoutingHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  // Blocks that have at least one record — used to populate the block filter chips
+  const recordBlockIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const r of displayRecords) {
+      if (r.blockId != null) ids.add(r.blockId);
+    }
+    return ids;
+  }, [displayRecords]);
+
+  const filterBlocks = useMemo(
+    () => blocks.filter(b => recordBlockIds.has(b.id)),
+    [blocks, recordBlockIds],
+  );
+
+  // Block-filtered records (applied before free-text search)
+  const blockFilteredRecords = useMemo(() => {
+    if (selectedBlockIds.length === 0) return displayRecords;
+    const idSet = new Set(selectedBlockIds);
+    return displayRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
+  }, [displayRecords, selectedBlockIds]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return displayRecords;
+    if (!search.trim()) return blockFilteredRecords;
     const q = search.toLowerCase();
-    return displayRecords.filter(r =>
+    return blockFilteredRecords.filter(r =>
       (r.blockName ?? "").toLowerCase().includes(q) ||
       (r.scoutedBy ?? "").toLowerCase().includes(q) ||
       (r.scoutDate ?? "").includes(q),
     );
-  }, [displayRecords, search]);
+  }, [blockFilteredRecords, search]);
 
   const handleSaved = (recordId: number, updated: Partial<ScoutingRecord>) => {
     setLocalUpdates(prev => ({
@@ -582,6 +605,46 @@ export default function VineScoutingHistoryScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      {/* Block filter chips */}
+      {filterBlocks.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.blockFilterScroll}
+          contentContainerStyle={styles.blockFilterScrollContent}
+        >
+          <Pressable
+            style={[styles.blockChip, selectedBlockIds.length === 0 && styles.blockChipActive]}
+            onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
+          >
+            <Text style={[styles.blockChipText, selectedBlockIds.length === 0 && styles.blockChipTextActive]}>
+              All blocks
+            </Text>
+          </Pressable>
+          {filterBlocks.map(b => {
+            const active = selectedBlockIds.includes(b.id);
+            return (
+              <Pressable
+                key={b.id}
+                style={[styles.blockChip, active && styles.blockChipActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedBlockIds(
+                    active
+                      ? selectedBlockIds.filter(id => id !== b.id)
+                      : [...selectedBlockIds, b.id],
+                  );
+                }}
+              >
+                <Text style={[styles.blockChipText, active && styles.blockChipTextActive]}>
+                  {b.blockName}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {missingAddressFields.length > 0 && (
         <Pressable
@@ -887,5 +950,34 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  // Block filter chips
+  blockFilterScroll: { flexGrow: 0 },
+  blockFilterScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  blockChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  blockChipActive: {
+    backgroundColor: "#ede9fe",
+    borderColor: colors.primary,
+  },
+  blockChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  blockChipTextActive: {
+    color: colors.primary,
+  },
 });
 

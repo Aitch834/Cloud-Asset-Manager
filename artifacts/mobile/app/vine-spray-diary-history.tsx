@@ -44,6 +44,7 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
@@ -1398,6 +1399,7 @@ export default function VineSprayDiaryHistoryScreen() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<SprayDiaryRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<SprayDiaryRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -1413,6 +1415,27 @@ export default function VineSprayDiaryHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  // Blocks that have at least one record — used to populate the block filter chips
+  const recordBlockIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const r of displayRecords) {
+      if (r.blockId != null) ids.add(r.blockId);
+    }
+    return ids;
+  }, [displayRecords]);
+
+  const filterBlocks = useMemo(
+    () => blocks.filter(b => recordBlockIds.has(b.id)),
+    [blocks, recordBlockIds],
+  );
+
+  // Block-filtered records (applied before date/text filters)
+  const blockFilteredRecords = useMemo(() => {
+    if (selectedBlockIds.length === 0) return displayRecords;
+    const idSet = new Set(selectedBlockIds);
+    return displayRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
+  }, [displayRecords, selectedBlockIds]);
+
   const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
   const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
 
@@ -1422,7 +1445,7 @@ export default function VineSprayDiaryHistoryScreen() {
   const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
 
   const filtered = useMemo(() => {
-    let result = displayRecords;
+    let result = blockFilteredRecords;
 
     // Date range filter — only apply when canonical form is valid
     if (canonFrom) {
@@ -1448,7 +1471,7 @@ export default function VineSprayDiaryHistoryScreen() {
     }
 
     return result;
-  }, [displayRecords, search, canonFrom, canonTo, blocks]);
+  }, [blockFilteredRecords, search, canonFrom, canonTo, blocks]);
 
   const handleSaved = (recordId: number, updated: Partial<SprayDiaryRecord>) => {
     setLocalUpdates(prev => ({
@@ -1638,6 +1661,46 @@ export default function VineSprayDiaryHistoryScreen() {
           </Pressable>
         </View>
       ) : null}
+
+      {/* Block filter chips */}
+      {filterBlocks.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.blockFilterScroll}
+          contentContainerStyle={styles.blockFilterScrollContent}
+        >
+          <Pressable
+            style={[styles.blockChip, selectedBlockIds.length === 0 && styles.blockChipActive]}
+            onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
+          >
+            <Text style={[styles.blockChipText, selectedBlockIds.length === 0 && styles.blockChipTextActive]}>
+              All blocks
+            </Text>
+          </Pressable>
+          {filterBlocks.map(b => {
+            const active = selectedBlockIds.includes(b.id);
+            return (
+              <Pressable
+                key={b.id}
+                style={[styles.blockChip, active && styles.blockChipActive]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedBlockIds(
+                    active
+                      ? selectedBlockIds.filter(id => id !== b.id)
+                      : [...selectedBlockIds, b.id],
+                  );
+                }}
+              >
+                <Text style={[styles.blockChipText, active && styles.blockChipTextActive]}>
+                  {b.blockName}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {missingAddressFields.length > 0 && (
         <Pressable
@@ -2186,6 +2249,35 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: "rgba(255,215,0,0.9)",
     lineHeight: 11,
+  },
+  // Block filter chips
+  blockFilterScroll: { flexGrow: 0 },
+  blockFilterScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  blockChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  blockChipActive: {
+    backgroundColor: "#ede9fe",
+    borderColor: colors.primary,
+  },
+  blockChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  blockChipTextActive: {
+    color: colors.primary,
   },
 });
 
