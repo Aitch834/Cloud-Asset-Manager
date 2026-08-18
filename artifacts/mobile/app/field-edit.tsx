@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -64,6 +64,7 @@ export default function FieldEditScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id;
+  const { fieldId: fieldIdParam } = useLocalSearchParams<{ fieldId?: string }>();
 
   const [fields, setFields] = useState<ApiField[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +94,20 @@ export default function FieldEditScreen() {
   }, [farmId]);
 
   useEffect(() => { loadFields(); }, [loadFields]);
+
+  // ── Auto-expand field from route param ────────────────────────────────────
+  useEffect(() => {
+    if (!fieldIdParam || fields.length === 0) return;
+    const targetId = Number(fieldIdParam);
+    if (isNaN(targetId)) return;
+    const match = fields.find(f => f.id === targetId);
+    if (match && expandedId !== targetId) {
+      setExpandedId(targetId);
+      setSelectedSoilType(match.soilType ?? "");
+    }
+  // Only run when fields first load or the param changes — not on every expandedId change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldIdParam, fields]);
 
   // ── Expand a field row ─────────────────────────────────────────────────────
   const toggleExpand = (field: ApiField) => {

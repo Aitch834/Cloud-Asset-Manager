@@ -814,7 +814,7 @@ export default function IrrigationAdvisorScreen() {
           {selectedField && !selectedField.soilType && (
             <Pressable
               style={styles.soilWarningBanner}
-              onPress={() => router.push("/field-edit")}
+              onPress={() => router.push({ pathname: "/field-edit", params: { fieldId: String(selectedField.id) } })}
             >
               <Feather name="alert-triangle" size={16} color="#a16207" />
               <Text style={styles.soilWarningText}>
