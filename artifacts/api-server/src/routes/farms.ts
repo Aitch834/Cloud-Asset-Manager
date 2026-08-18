@@ -7418,7 +7418,7 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
       return s;
     };
 
-    const xeroHeaders = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount"];
+    const xeroHeaders = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise"];
     const rows = filtered.map((t) => {
       const date = new Date(t.transactionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
       const amount = (t.amountPence / 100).toFixed(2);
@@ -7427,7 +7427,8 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
       const reference = t.reference || "";
       const taxType = mapVatRateToXeroTax(t.vatRate);
       const taxAmount = t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "";
-      return [date, amount, accountCode, description, reference, taxType, taxAmount].map(csvEscape).join(",");
+      const enterprise = t.enterprise ?? "";
+      return [date, amount, accountCode, description, reference, taxType, taxAmount, enterprise].map(csvEscape).join(",");
     });
 
     const csvContent = [xeroHeaders.join(","), ...rows].join("\n");
