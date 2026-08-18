@@ -34,7 +34,7 @@ import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
-import { getList } from "@/lib/storage";
+import { getItem, getList, setItem } from "@/lib/storage";
 
 interface HarvestRecord {
   id: number;
@@ -348,7 +348,41 @@ export default function VineHarvestHistoryScreen() {
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [varietySort, setVarietySort] = useState<{ col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; dir: "asc" | "desc" }>({ col: "variety", dir: "asc" });
-  const [varietyTableOpen, setVarietyTableOpen] = useState(true);
+
+  // Persisted open/closed state for the Yield by Variety panel, scoped per farm.
+  // Default: open (true). Loaded from storage on mount / farm switch.
+  const [varietyTableOpen, setVarietyTableOpenRaw] = useState(true);
+  const loadedVarietyOpenForFarm = React.useRef<string | undefined>(undefined);
+  // Set to true when the user explicitly toggles the panel so a stale async
+  // storage read cannot overwrite a choice they made before hydration finished.
+  const varietyUserToggledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!currentFarm?.id) return;
+    const farmId = String(currentFarm.id);
+    if (loadedVarietyOpenForFarm.current === farmId) return;
+    // Reset to default immediately on farm switch so a farm with no stored
+    // preference never inherits the previous farm's collapsed state.
+    setVarietyTableOpenRaw(true);
+    varietyUserToggledRef.current = false;
+    let cancelled = false;
+    getItem<boolean>(`bde_vine_variety_table_open_${farmId}`).then((stored) => {
+      if (cancelled || varietyUserToggledRef.current) return;
+      if (typeof stored === "boolean") setVarietyTableOpenRaw(stored);
+      loadedVarietyOpenForFarm.current = farmId;
+    });
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
+
+  const setVarietyTableOpen = useCallback((next: boolean | ((prev: boolean) => boolean)) => {
+    varietyUserToggledRef.current = true;
+    setVarietyTableOpenRaw(prev => {
+      const value = typeof next === "function" ? next(prev) : next;
+      if (currentFarm?.id) {
+        setItem(`bde_vine_variety_table_open_${currentFarm.id}`, value).catch(() => { /* best-effort */ });
+      }
+      return value;
+    });
+  }, [currentFarm?.id]);
 
   // Offline-pending records that haven't synced yet
   const [offlinePending, setOfflinePending] = useState<OfflineHarvestEntry[]>([]);
