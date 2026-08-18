@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { RFIDTagInput } from "@/components/ui/RFIDTagInput";
 import { colors } from "@/constants/colors";
@@ -22,6 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyCalvingRecord } from "@/lib/types";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
@@ -96,6 +98,7 @@ export default function CalvingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const dairyAlert = useDiseaseAlert("dairy");
 
   const [cowEarTag, setCowEarTag] = useState("");
   const [calvingDate, setCalvingDate] = useState(new Date().toISOString().split("T")[0]);
@@ -213,6 +216,8 @@ export default function CalvingRecordScreen() {
           <Text style={styles.dairyBadgeText}>Dairy</Text>
         </View>
       </View>
+
+      <DiseaseAlertBanner alert={dairyAlert} sector="Dairy" />
 
       <ScrollView
         style={{ flex: 1 }}

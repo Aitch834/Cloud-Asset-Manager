@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
@@ -12,6 +13,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
@@ -33,6 +35,7 @@ export default function GoatDiseaseMonitoringScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const goatAlert = useDiseaseAlert("goat");
   const { flocks, loading: flocksLoading } = useApiGoatFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +97,7 @@ export default function GoatDiseaseMonitoringScreen() {
         <Text style={styles.headerTitle}>Goat Disease Monitoring</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={goatAlert} sector="Goat" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <Text style={styles.sectionTitle}>Herd</Text>

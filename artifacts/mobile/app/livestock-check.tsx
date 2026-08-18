@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { colors } from "@/constants/colors";
@@ -24,6 +25,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import {
   getCachedStaffMembers,
   getRefCacheSyncedMinsAgo,
@@ -47,6 +49,7 @@ export default function LivestockCheckScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const beefAlert = useDiseaseAlert("beef");
   const { print, savePdf } = usePrint();
   const [saving, setSaving] = useState(false);
 
@@ -132,6 +135,8 @@ export default function LivestockCheckScreen() {
         <Text style={styles.title}>Livestock Health Check</Text>
         <View style={{ width: 36 }} />
       </View>
+
+      <DiseaseAlertBanner alert={beefAlert} sector="Cattle" />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView

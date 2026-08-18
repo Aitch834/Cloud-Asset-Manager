@@ -15,12 +15,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyDctRecord } from "@/lib/types";
 
@@ -79,6 +81,7 @@ export default function DryCowtTherapyScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const dairyAlert = useDiseaseAlert("dairy");
 
   const [cowEarTag, setCowEarTag] = useState("");
   const [dryOffDate, setDryOffDate] = useState(today());
@@ -198,6 +201,8 @@ export default function DryCowtTherapyScreen() {
           <Text style={styles.dctBadgeText}>DCT</Text>
         </View>
       </View>
+
+      <DiseaseAlertBanner alert={dairyAlert} sector="Dairy" />
 
       <ScrollView
         style={{ flex: 1 }}

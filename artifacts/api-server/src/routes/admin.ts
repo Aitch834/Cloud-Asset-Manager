@@ -2062,19 +2062,14 @@ router.get("/version", async (_req: Request, res: Response): Promise<void> => {
 });
 
 // County filter: empty list = national (show to all); farm with no county = fail-open (show alert)
-function alertAppliesForCounty(alertCounties: string, farmCounty: string): boolean {
-  const list = alertCounties.split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
-  if (list.length === 0) return true;
-  if (!farmCounty.trim()) return true;
-  return list.includes(farmCounty.trim().toLowerCase());
-}
+import { alertAppliesForCounty } from "../lib/alertUtils.js";
 
 async function resolveFarmCounty(farmId: string | undefined): Promise<string> {
   if (!farmId) return "";
   const id = parseInt(farmId, 10);
   if (isNaN(id)) return "";
-  const rows = await db.select({ country: farmsTable.country }).from(farmsTable).where(eq(farmsTable.id, id));
-  return rows[0]?.country ?? "";
+  const rows = await db.select({ county: farmsTable.county }).from(farmsTable).where(eq(farmsTable.id, id));
+  return rows[0]?.county ?? "";
 }
 
 // ─── Sector alert episode helper ──────────────────────────────────────────────

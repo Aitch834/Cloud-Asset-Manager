@@ -22,8 +22,10 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { STORAGE_KEYS, appendToList, generateId } from "@/lib/storage";
 import type { LambingRecord } from "@/lib/types";
@@ -149,6 +151,7 @@ export default function LambingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { triggerSync } = useSync();
+  const sheepAlert = useDiseaseAlert("sheep");
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("lambing", currentFarm?.id, user?.id);
@@ -284,6 +287,8 @@ export default function LambingRecordScreen() {
         sbiMissing={!sbiNumber}
         context="lambing submissions"
       />
+
+      <DiseaseAlertBanner alert={sheepAlert} sector="Sheep" />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}
