@@ -1377,7 +1377,7 @@ export async function printVineRegister(
     ? `WineGB Membership No: <strong>${escHtml(winegbMembershipNumber)}</strong><br>`
     : "";
 
-  const anyMissingRef = !addressRaw || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef;
+  const anyMissingRef = !addressRaw || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef || !winegbMembershipNumber;
   const missingRefWarningBlock = anyMissingRef
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing header information</strong> &mdash;
@@ -1386,6 +1386,7 @@ export async function printVineRegister(
           !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
           !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
           !appaRef ? "APPA Ref" : "",
+          !winegbMembershipNumber ? "WineGB Membership No" : "",
         ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
         Add them before submitting this register to the FSA.
       </div>`
@@ -1812,12 +1813,13 @@ export async function printHarvest(
     ? `WineGB Membership No: <strong>${escHtml(harvestWinegbNumber)}</strong>`
     : "";
 
-  const harvestAnyMissingRef = !harvestAddressValue || !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef;
+  const harvestAnyMissingRef = !harvestAddressValue || !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef || !harvestWinegbNumber;
   const harvestMissingFields = [
     !harvestAddressValue ? "Farm Address" : "",
     !harvestFsaVineRegisterRef ? "FSA Vine Register Ref" : "",
     !harvestFsaWineProductionRef ? "FSA Wine Production Ref" : "",
     !harvestAppaRef ? "APPA Ref" : "",
+    !harvestWinegbNumber ? "WineGB Membership No" : "",
   ].filter(Boolean).join(", ");
   const harvestMissingRefWarningBlock = harvestAnyMissingRef
     ? `<div class="missing-refs-notice">
