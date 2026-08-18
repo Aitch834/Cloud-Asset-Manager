@@ -545,6 +545,7 @@ router.get("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requi
     .select({
       ...getTableColumns(vineyardScoutingTable),
       photoCount: sql<number>`count(${vineyardScoutingPhotosTable.id})::int`,
+      captionCount: sql<number>`count(${vineyardScoutingPhotosTable.id}) filter (where ${vineyardScoutingPhotosTable.caption} is not null and ${vineyardScoutingPhotosTable.caption} <> '')::int`,
     })
     .from(vineyardScoutingTable)
     .leftJoin(

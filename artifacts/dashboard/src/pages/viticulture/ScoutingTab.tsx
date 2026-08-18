@@ -495,7 +495,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               return [e.label, String(e.visits), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", pLbl(e.maxDowny), pLbl(e.maxPowdery), pLbl(e.maxBotrytis), pLbl(e.maxPhomopsis), String(e.totalPhotos), alerts || "None"];
             });
             // ── Build per-record rows ─────────────────────────────────────────────────
-            const recordRows = filteredScouting.map(r => [fmtDate(r.scoutDate), String(blockName(r.blockId)), r.blockId ? "Yes" : "No", String(r.scoutedBy ?? ""), pLbl(Number(r.downyMildewPressure) || 0), pLbl(Number(r.powderyMildewPressure) || 0), pLbl(Number(r.botrytisPressure) || 0), pLbl(Number(r.phomopsisPressure) || 0), pLbl(Number(r.leafhopperPressure) || 0), pLbl(Number(r.spiderMitePressure) || 0), r.vineWeevilSighted ? "Yes" : "No", r.eutypaDiebackSighted ? "Yes" : "No", r.xylellaFastidiosa ? "ALERT" : "No", r.phytophthoraViticola ? "ALERT" : "No", fmtDate(r.nextScoutDate), String(r.actionTaken ?? ""), String(r.notes ?? ""), String(Number(r.photoCount) || 0)]);
+            const recordRows = filteredScouting.map(r => [fmtDate(r.scoutDate), String(blockName(r.blockId)), r.blockId ? "Yes" : "No", String(r.scoutedBy ?? ""), pLbl(Number(r.downyMildewPressure) || 0), pLbl(Number(r.powderyMildewPressure) || 0), pLbl(Number(r.botrytisPressure) || 0), pLbl(Number(r.phomopsisPressure) || 0), pLbl(Number(r.leafhopperPressure) || 0), pLbl(Number(r.spiderMitePressure) || 0), r.vineWeevilSighted ? "Yes" : "No", r.eutypaDiebackSighted ? "Yes" : "No", r.xylellaFastidiosa ? "ALERT" : "No", r.phytophthoraViticola ? "ALERT" : "No", fmtDate(r.nextScoutDate), String(r.actionTaken ?? ""), String(r.notes ?? ""), String(Number(r.photoCount) || 0), String(Number(r.captionCount) || 0)]);
             const unlinkedCount2 = filteredScouting.filter(r => !r.blockId).length;
             downloadCsvFile("vineyard-scouting.csv", [
               ...(unlinkedCount2 > 0 ? [[`WARNING: ${unlinkedCount2} record${unlinkedCount2 === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`]] : []),
@@ -504,7 +504,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               ...summaryRows,
               [],
               ["DETAILED SCOUTING RECORDS"],
-              ["Scout Date", "Block", "Block Linked", "Scouted By", "Downy Mildew", "Powdery Mildew", "Botrytis", "Phomopsis", "Leafhopper", "Spider Mite", "Vine Weevil", "Eutypa Dieback", "Xylella", "Phytophthora viticola", "Next Scout Date", "Action Taken", "Notes", "Photos"],
+              ["Scout Date", "Block", "Block Linked", "Scouted By", "Downy Mildew", "Powdery Mildew", "Botrytis", "Phomopsis", "Leafhopper", "Spider Mite", "Vine Weevil", "Eutypa Dieback", "Xylella", "Phytophthora viticola", "Next Scout Date", "Action Taken", "Notes", "Photos", "Captioned Photos"],
               ...recordRows,
             ]);
           }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
