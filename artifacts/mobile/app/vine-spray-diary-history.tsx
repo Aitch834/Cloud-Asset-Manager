@@ -1626,6 +1626,19 @@ export default function VineSprayDiaryHistoryScreen() {
         </View>
       )}
 
+      {(search.trim() || dateFrom.trim() || dateTo.trim()) ? (
+        <View style={styles.clearFiltersRow}>
+          <Pressable
+            onPress={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+            style={styles.clearFiltersChip}
+            hitSlop={6}
+          >
+            <Feather name="x" size={13} color={colors.primary} />
+            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {missingAddressFields.length > 0 && (
         <Pressable
           onPress={() => router.push("/(tabs)/more")}
@@ -1980,6 +1993,27 @@ const styles = StyleSheet.create({
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
   deleteBtn: { padding: 4 },
+  clearFiltersRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  clearFiltersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  clearFiltersText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
   addressWarning: {
     flexDirection: "row",
     alignItems: "flex-start",
