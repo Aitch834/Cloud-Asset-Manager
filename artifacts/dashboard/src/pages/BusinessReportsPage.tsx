@@ -1000,15 +1000,16 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
     milestoneId: number; projectId: number; newStatus: string; date: string;
   } | null>(null);
   const [pendingPnlWarning, setPendingPnlWarning] = useState<{
-    milestoneId: number; projectId: number; newStatus: string; completionDate?: string; claimAmountPence: number; direction: "add" | "remove";
+    milestoneId: number; projectId: number; newStatus: string; completionDate?: string | null; claimAmountPence: number; direction: "add" | "remove";
   } | null>(null);
 
   const dateIsInYear = (dateStr: string) => new Date(dateStr).getFullYear() === year;
 
   const updateMilestoneStatus = useMutation({
-    mutationFn: async ({ milestoneId, projectId, status, completionDate }: { milestoneId: number; projectId: number; status: string; completionDate?: string }) => {
-      const body: Record<string, string> = { status };
-      if (completionDate) body.completionDate = completionDate;
+    mutationFn: async ({ milestoneId, projectId, status, completionDate }: { milestoneId: number; projectId: number; status: string; completionDate?: string | null }) => {
+      const body: Record<string, string | null> = { status };
+      // Always include completionDate when explicitly provided (even as null) so the API clears it.
+      if (completionDate !== undefined) body.completionDate = completionDate ?? null;
       const res = await fetch(apiUrl(`farms/${farmId}/agri-env-projects/${projectId}/milestones/${milestoneId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1413,10 +1414,14 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                                 const defaultDate = ms.dueDate && ms.dueDate.slice(0, 10) <= todayIso ? ms.dueDate.slice(0, 10) : todayIso;
                                                 setPendingCompletion({ milestoneId: ms.id, projectId: p.id, newStatus, date: defaultDate });
                                               } else if (pnlChanges(newStatus, ms.completionDate)) {
-                                                setPendingPnlWarning({ milestoneId: ms.id, projectId: p.id, newStatus, completionDate: ms.completionDate, claimAmountPence: ms.claimAmountPence, direction: pnlChangeDir(newStatus, ms.completionDate) });
+                                                // When reverting to pending/overdue the completion date must be cleared too
+                                                const nextDate = (newStatus === "pending" || newStatus === "overdue") ? null : ms.completionDate;
+                                                setPendingPnlWarning({ milestoneId: ms.id, projectId: p.id, newStatus, completionDate: nextDate, claimAmountPence: ms.claimAmountPence, direction: pnlChangeDir(newStatus, ms.completionDate) });
                                               } else {
                                                 setUpdatingMilestone(ms.id);
-                                                updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus });
+                                                // Clear completionDate when reverting to pending or overdue
+                                                const completionDate = (newStatus === "pending" || newStatus === "overdue") ? null : undefined;
+                                                updateMilestoneStatus.mutate({ milestoneId: ms.id, projectId: p.id, status: newStatus, completionDate });
                                               }
                                             }}
                                             style={{
