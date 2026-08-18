@@ -50,9 +50,15 @@ interface IdentifierBannerProps {
  *   2. Warning banner — while `missingIdentifiers` is true and the grower has
  *                       not dismissed it for this screen.
  *
+ * **Always pass `loading`** — set it to the loading state of whichever query
+ * provides the identifier values (e.g. `identifiersLoading` from
+ * `useIdentifiers`). Without it, the success nudge can flash briefly before
+ * the refetch confirms identifiers are present.
+ *
  * Usage:
  * ```tsx
  * <IdentifierBanner
+ *   loading={identifiersLoading}
  *   justSaved={justSaved}
  *   missingIdentifiers={missingIdentifiers}
  *   bannerDismissed={bannerDismissed}
@@ -76,6 +82,14 @@ export function IdentifierBanner({
   warningMessage,
   loading,
 }: IdentifierBannerProps) {
+  if (__DEV__ && loading === undefined) {
+    console.warn(
+      "[IdentifierBanner] The `loading` prop was not provided. " +
+        "Pass `loading={identifiersLoading}` to prevent the 'Saved' nudge " +
+        "from flashing before the identifier refetch completes.",
+    );
+  }
+
   if (loading) return null;
 
   if (justSaved && !missingIdentifiers) {
