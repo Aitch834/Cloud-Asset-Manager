@@ -3319,13 +3319,17 @@ export default function FarmSettings() {
                   <Input
                     id="settings-ec-phone"
                     type="tel"
-                    className="pl-8"
+                    className={`pl-8${formData.emergencyContactPhone.trim() && (formData.emergencyContactPhone.replace(/\D/g, "").length < 10) ? " border-amber-400 focus-visible:ring-amber-400" : ""}`}
                     placeholder="e.g. 07700 900123"
                     value={formData.emergencyContactPhone}
                     onChange={e => updateField("emergencyContactPhone", e.target.value)}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Include country code if outside the UK</p>
+                {formData.emergencyContactPhone.trim() && (formData.emergencyContactPhone.replace(/\D/g, "").length < 10) ? (
+                  <p className="text-xs text-amber-600 mt-1">This doesn't look like a valid phone number — fewer than 10 digits. You can still save if you're sure.</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Include country code if outside the UK</p>
+                )}
               </div>
 
               <div>
