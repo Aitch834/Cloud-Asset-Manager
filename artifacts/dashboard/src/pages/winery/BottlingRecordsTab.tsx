@@ -390,6 +390,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   // export-only derived columns the import simply ignores.
   const bottlingCsvCols = [
     ...BOTTLING_COLUMNS.map(c => ({ key: c.dbKey, label: c.header, fmt: c.exportValue })),
+    // Export-only: machine linkage is dashboard-only; this column is not part of the import template.
+    { key: "bottling_machine_ref", label: "Bottling Machine", fmt: (r: Record<string, unknown>) => r.bottling_machine_ref != null ? String(r.bottling_machine_ref) : "" },
     { key: "so2_ceiling", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
       const v = bottlingSo2Verdict(r);
       return v ? String(v.ceiling) : "";
