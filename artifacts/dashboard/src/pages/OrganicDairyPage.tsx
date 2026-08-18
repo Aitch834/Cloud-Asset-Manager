@@ -575,7 +575,30 @@ function MastitisTab({ farmId, farmName }: { farmId: number; farmName: string })
       {/* 12-month trend chart */}
       {!isLoading && allRecords.length > 0 && (
         <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">12-Month Case Trend</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">12-Month Case Trend</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-7 text-xs"
+              onClick={() => {
+                const rows = [["Month", "Total Cases", "Chronic Cases"]];
+                for (const m of trendData) {
+                  rows.push([m.label, String(m.regular + m.chronic), String(m.chronic)]);
+                }
+                const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\r\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `mastitis-trend-${farmName.replace(/[^a-z0-9]/gi, "-")}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <FileDown className="w-3.5 h-3.5" />Download CSV
+            </Button>
+          </div>
           <div className="flex items-center gap-4 mb-2">
             <span className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />Standard</span>
             <span className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />Chronic</span>
