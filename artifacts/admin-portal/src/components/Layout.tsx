@@ -1,5 +1,6 @@
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { clearSecret } from "@/lib/auth";
+import { checkNavGuard, setNavGuard } from "@/lib/nav-guard";
 import { LayoutDashboard, Users, MessageSquare, LogOut, ShieldCheck, Database, Mail, TrendingUp, FileText, Gift, Settings2, List, BookOpen, Building2, FileSignature, Tag, Megaphone, Bird, AlertTriangle, CheckSquare } from "lucide-react";
 
 const nav = [
@@ -24,11 +25,26 @@ const nav = [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
 
   function handleLogout() {
+    // Check any active navigation guard (e.g. unsaved preset edit) before
+    // clearing credentials. If the user cancels, abort the logout entirely.
+    if (!checkNavGuard()) return;
+    // Guard confirmed — clear it immediately so the page reload doesn't
+    // re-trigger the beforeunload prompt a second time.
+    setNavGuard(null);
     clearSecret();
     window.location.reload();
+  }
+
+  function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    // Let ctrl/cmd/shift+click and middle-click open in a new tab/window as normal.
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    // Let any registered page guard confirm before navigating away.
+    if (!checkNavGuard()) return;
+    navigate(href);
   }
 
   return (
@@ -48,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {nav.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
             return (
-              <Link key={href} href={href}>
+              <a key={href} href={href} onClick={(e) => handleNavClick(e, href)}>
                 <div
                   className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-pointer transition-colors ${
                     active
@@ -59,7 +75,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Icon className="w-4 h-4 shrink-0" />
                   {label}
                 </div>
-              </Link>
+              </a>
             );
           })}
         </nav>

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getSecret } from "@/lib/auth";
+import { setNavGuard } from "@/lib/nav-guard";
 import {
   Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
   Plus, Pencil, Trash2, ChevronDown, X, Save, ChevronRight, Palette,
@@ -1265,6 +1266,33 @@ export default function AdPdfGenerator() {
     setBgUrl(p.bgUrl ?? "");
     resetRendering();
   }
+
+  // Protect unsaved preset edits — compute dirty state once and use it to
+  // register/clear all navigation guards (sidebar, Back/Forward, beforeunload).
+  // nav-guard.ts installs and tears down all three event handlers atomically so
+  // there is no window where one guard fires after another has already confirmed.
+  const editIsDirty = (() => {
+    if (editingPresetId === null) return false;
+    const orig = presets.find((x) => x.id === editingPresetId);
+    return (
+      !orig ||
+      editName !== orig.name ||
+      editHeadline !== orig.headline ||
+      editBody !== orig.body ||
+      editAccentColor !== orig.accentColor ||
+      editBgUrl !== (orig.bgUrl ?? "")
+    );
+  })();
+
+  useEffect(() => {
+    if (editIsDirty) {
+      setNavGuard(() => window.confirm("Discard unsaved changes to this preset?"));
+    } else {
+      setNavGuard(null);
+    }
+    // Clear on unmount (save / cancel / navigate away) so no stale guard remains.
+    return () => { setNavGuard(null); };
+  }, [editIsDirty]);
 
   return (
     <div className="p-8 max-w-3xl space-y-8">
