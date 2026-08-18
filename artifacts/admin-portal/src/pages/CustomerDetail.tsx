@@ -182,6 +182,123 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
   );
 }
 
+interface TenantContactEditDialogProps {
+  tenant: Tenant;
+  onClose: () => void;
+  onSaved: (updated: Tenant) => void;
+}
+
+function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantContactEditDialogProps) {
+  const secret = getSecret()!;
+  const [contactName, setContactName] = useState(tenant.name);
+  const [contactEmail, setContactEmail] = useState(tenant.contactEmail);
+  const [contactPhone, setContactPhone] = useState(tenant.contactPhone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!contactName.trim()) { setError("Contact name cannot be empty"); return; }
+    if (!contactEmail.trim()) { setError("Contact email cannot be empty"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await api.updateTenant(tenant.id, {
+        contactName: contactName.trim(),
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim() || null,
+      }, secret);
+      onSaved(result.tenant);
+      onClose();
+    } catch (e) {
+      setError("Failed to save. Please try again.");
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Mail className="w-4 h-4 text-primary" />
+            </div>
+            <h3 className="font-bold text-foreground">Edit Contact Details</h3>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Contact Name
+            </label>
+            <input
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g. John Smith"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Email
+            </label>
+            <input
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g. john@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Phone
+            </label>
+            <input
+              type="tel"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g. 07700 900000"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-destructive">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 h-10 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -412,6 +529,7 @@ export default function CustomerDetail() {
   const [savingAddFarmId, setSavingAddFarmId] = useState<number | null>(null);
   const [removingSubId, setRemovingSubId] = useState<number | null>(null);
   const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
+  const [editingTenantContact, setEditingTenantContact] = useState(false);
 
   const activeModules = subscriptions.filter((s) => s.status === "active" || s.status === "trial");
 
@@ -599,6 +717,14 @@ export default function CustomerDetail() {
               {tenant.contactPhone && (
                 <p className="text-sm text-muted-foreground">{tenant.contactPhone}</p>
               )}
+              <button
+                onClick={() => setEditingTenantContact(true)}
+                className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title="Edit contact details"
+              >
+                <Pencil className="w-3 h-3" />
+                Edit contact
+              </button>
             </div>
             <div className="text-right text-xs text-muted-foreground shrink-0">
               <p className="font-mono bg-muted px-2 py-1 rounded mb-1">{tenant.slug}</p>
@@ -1028,6 +1154,14 @@ export default function CustomerDetail() {
             setFarms((prev) => prev.map((f) => (f.id === updated.id ? { ...f, name: updated.name, address: updated.address, postcode: updated.postcode, cphNumber: updated.cphNumber, sbiNumber: updated.sbiNumber } : f)));
             setEditingFarm(null);
           }}
+        />
+      )}
+
+      {editingTenantContact && tenant && (
+        <TenantContactEditDialog
+          tenant={tenant}
+          onClose={() => setEditingTenantContact(false)}
+          onSaved={(updated) => setTenant(updated)}
         />
       )}
     </div>

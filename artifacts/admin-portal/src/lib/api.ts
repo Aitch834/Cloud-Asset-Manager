@@ -501,7 +501,7 @@ export const api = {
   updateLead: (id: number, data: { status?: string; notes?: string; source?: string }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
 
-  updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null }, secret: string) =>
+  updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) =>
     patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret),
 
   updateFarm: (tenantId: number, farmId: number, data: { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null }, secret: string) =>

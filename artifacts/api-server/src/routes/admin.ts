@@ -1168,11 +1168,14 @@ router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: 
   const tenantId = parseInt(req.params.tenantId as string, 10);
   if (isNaN(tenantId)) { res.status(400).json({ error: "Invalid tenant ID" }); return; }
 
-  const { isActive, cancelReason, cancelledAt, referredBy } = req.body as {
+  const { isActive, cancelReason, cancelledAt, referredBy, contactName, contactEmail, contactPhone } = req.body as {
     isActive?: boolean;
     cancelReason?: string;
     cancelledAt?: string | null;
     referredBy?: string | null;
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string | null;
   };
 
   const updates: Record<string, unknown> = {};
@@ -1180,6 +1183,15 @@ router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: 
   if (cancelReason !== undefined) updates.cancelReason = cancelReason || null;
   if (cancelledAt !== undefined) updates.cancelledAt = cancelledAt ? new Date(cancelledAt) : null;
   if (referredBy !== undefined) updates.referredBy = referredBy || null;
+  if (contactName !== undefined) {
+    if (!contactName.trim()) { res.status(400).json({ error: "Contact name cannot be empty" }); return; }
+    updates.name = contactName.trim();
+  }
+  if (contactEmail !== undefined) {
+    if (!contactEmail.trim()) { res.status(400).json({ error: "Contact email cannot be empty" }); return; }
+    updates.contactEmail = contactEmail.trim();
+  }
+  if (contactPhone !== undefined) updates.contactPhone = contactPhone?.trim() || null;
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No valid fields to update" });
