@@ -1107,13 +1107,18 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   // We use the hook for writes only; reads in the restore effect go directly to
   // localStorage to avoid a stale-state race with usePersistedFilter's own re-sync effect
   // (which runs in the same commit cycle as ours, so its setState isn't visible yet).
-  const [, setLastViewedVesselId] = usePersistedFilter({
+  const [lastViewedVesselIdStr, setLastViewedVesselId] = usePersistedFilter({
     page: "vessel-register",
     filter: "last-viewed-vessel",
     farmId,
     defaultValue: "",
     isValid: v => v === "" || /^\d+$/.test(v),
   });
+  // Derive the shortcut vessel — only show when the dialog is closed and the
+  // persisted ID maps to a known vessel in the current farm's data.
+  const lastViewedVessel = !view && lastViewedVesselIdStr
+    ? (crud.data.find(r => String(r.id) === lastViewedVesselIdStr) ?? null)
+    : null;
   const lastViewedStorageKey = `vessel-register-last-viewed-vessel-filter-${farmId ?? 0}`;
 
   // Close dialog and reset restoration flag when the farm changes so the incoming
@@ -1344,6 +1349,23 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         <div>
           <p className="font-semibold text-sm">Tank & Vessel Register</p>
           <p className="text-xs text-muted-foreground mt-0.5">Register all winery vessels — tanks, barrels, amphorae — with capacity, current contents, and cleaning history. Used as a reference in fermentation, cellar ops, SO₂ testing, and bottling records.</p>
+          {lastViewedVessel && (
+            <div className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-xs text-violet-800">
+              <button
+                className="font-medium hover:underline focus:outline-none"
+                onClick={() => openView(lastViewedVessel)}
+              >
+                ↩ Return to {String(lastViewedVessel.vessel_ref ?? "last barrel")}
+              </button>
+              <button
+                className="ml-1 text-violet-500 hover:text-violet-800 focus:outline-none leading-none"
+                aria-label="Dismiss return shortcut"
+                onClick={() => setLastViewedVesselId("")}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 items-center">
           <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols, [
