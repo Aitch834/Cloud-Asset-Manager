@@ -683,9 +683,11 @@ function SprayPhotoThumbnail({
 function SprayDiaryPhotoSection({
   farmId,
   sprayDiaryId,
+  onPhotosChanged,
 }: {
   farmId: string | number;
   sprayDiaryId: number;
+  onPhotosChanged?: (count: number) => void;
 }) {
   const [photos, setPhotos] = useState<SprayDiaryPhoto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -699,16 +701,24 @@ function SprayDiaryPhotoSection({
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
 
+  // Stable ref so loadPhotos (memoised) can call the callback without it as a dep
+  const onPhotosChangedRef = useRef(onPhotosChanged);
+  onPhotosChangedRef.current = onPhotosChanged;
+
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`);
       if (res.ok) {
         const data: { photos: SprayDiaryPhoto[] } = await res.json();
-        setPhotos(data.photos ?? []);
+        const fetched = data.photos ?? [];
+        setPhotos(fetched);
+        // Only notify after a confirmed successful response — never on mount before
+        // the request completes, so we don't overwrite a valid count with 0
+        onPhotosChangedRef.current?.(fetched.length);
       }
     } catch {
-      // no-op on silent refresh
+      // no-op on silent refresh; leave parent count unchanged on failure
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -773,7 +783,9 @@ function SprayDiaryPhotoSection({
       });
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+        const next = photos.filter((p) => p.id !== photoId);
+        setPhotos(next);
+        onPhotosChangedRef.current?.(next.length);
       } else {
         Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
       }
@@ -974,9 +986,10 @@ interface EditSprayDiaryModalProps {
   blocksLoading: boolean;
   onClose: () => void;
   onSaved: (recordId: number, updated: Partial<SprayDiaryRecord>) => void;
+  onPhotosChanged?: (count: number) => void;
 }
 
-function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved }: EditSprayDiaryModalProps) {
+function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved, onPhotosChanged }: EditSprayDiaryModalProps) {
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -1238,7 +1251,7 @@ function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, o
 
             {/* ── Photos ── */}
             {record && (
-              <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} />
+              <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} onPhotosChanged={onPhotosChanged} />
             )}
 
             {/* ── Quick Links ── */}
@@ -1351,6 +1364,14 @@ function SprayDiaryRow({
               <Text style={styles.unlinkTagText}>No block linked</Text>
             </View>
           )}
+          {(item.photoCount ?? 0) > 0 ? (
+            <View style={styles.photoBadge}>
+              <Feather name="camera" size={11} color={colors.primary} />
+              <Text style={styles.photoBadgeText}>
+                {item.photoCount} {item.photoCount === 1 ? "photo" : "photos"}
+              </Text>
+            </View>
+          ) : null}
           {item.operatorName ? (
             <Text style={styles.rowSub} numberOfLines={1}>{item.operatorName}</Text>
           ) : null}
@@ -1761,6 +1782,13 @@ export default function VineSprayDiaryHistoryScreen() {
         blocksLoading={blocksLoading}
         onClose={() => setEditingRecord(null)}
         onSaved={handleSaved}
+        onPhotosChanged={(count) => {
+          if (!editingRecord) return;
+          setLocalUpdates(prev => ({
+            ...prev,
+            [editingRecord.id]: { ...(prev[editingRecord.id] ?? {}), photoCount: count },
+          }));
+        }}
       />
     </View>
   );
@@ -2193,6 +2221,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   areaBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary },
+  photoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: colors.primaryLight ?? `${colors.primary}18`,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: `${colors.primary}40`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  photoBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
