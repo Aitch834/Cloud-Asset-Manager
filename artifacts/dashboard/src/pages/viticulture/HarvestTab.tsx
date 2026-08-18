@@ -75,8 +75,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yieldChartUnit, setYieldChartUnit] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldChartUnit", farmId, defaultValue: "kg" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
-  const [blockSummaryOpen, setBlockSummaryOpen] = useState(true);
-  const [varietySummaryOpen, setVarietySummaryOpen] = useState(true);
+  const [blockSummaryOpenStr, setBlockSummaryOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "blockSummaryOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const blockSummaryOpen = blockSummaryOpenStr === "true";
+  const setBlockSummaryOpen = (val: boolean | ((prev: boolean) => boolean)) => setBlockSummaryOpenStr(typeof val === "function" ? (val(blockSummaryOpen) ? "true" : "false") : (val ? "true" : "false"));
+  const [varietySummaryOpenStr, setVarietySummaryOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "varietySummaryOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const varietySummaryOpen = varietySummaryOpenStr === "true";
+  const setVarietySummaryOpen = (val: boolean | ((prev: boolean) => boolean)) => setVarietySummaryOpenStr(typeof val === "function" ? (val(varietySummaryOpen) ? "true" : "false") : (val ? "true" : "false"));
   const [summarySortCol, setSummarySortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "summarySortCol", farmId, defaultValue: "name" });
   const [summarySortDir, setSummarySortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "summarySortDir", farmId, defaultValue: "asc", validValues: ["asc", "desc"] as const });
   const summarySort = { col: summarySortCol, dir: summarySortDir as "asc" | "desc" };
