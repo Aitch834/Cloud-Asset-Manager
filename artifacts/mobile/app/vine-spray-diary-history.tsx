@@ -447,7 +447,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
           </Pressable>
 
           {/* Save to camera roll button */}
-          {photo ? (
+          {photo && !imgError ? (
             <Pressable
               style={[lbStyles.saveBtn, { top: insets.top + 12 }]}
               hitSlop={24}
@@ -463,7 +463,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
           ) : null}
 
           {/* Share button */}
-          {photo ? (
+          {photo && !imgError ? (
             <Pressable
               style={[lbStyles.shareBtn, { top: insets.top + 12 }]}
               hitSlop={24}
