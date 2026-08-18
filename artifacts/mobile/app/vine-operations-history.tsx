@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useState, useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
@@ -28,6 +28,9 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineOperationsHtml, type VineOperationsRow } from "@/lib/printTemplates";
@@ -493,7 +496,11 @@ function OperationRow({
 
 export default function VineOperationsHistoryScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-operations-history", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const { records, loading, refreshing, error, refresh } = useApiFetch<OperationRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-operations",
@@ -620,6 +627,17 @@ export default function VineOperationsHistoryScreen() {
           <Feather name="plus" size={20} color={colors.primary} />
         </Pressable>
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={!cphNumber}
+        sbiMissing={!sbiNumber}
+        context="operations records"
+      />
 
       {unlinkedCount > 0 && (
         <View style={styles.unlinkedBanner}>

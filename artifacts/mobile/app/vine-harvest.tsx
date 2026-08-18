@@ -1,8 +1,8 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -27,6 +27,9 @@ import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -101,6 +104,10 @@ function ConditionPicker({ value, onChange }: { value: string; onChange: (v: str
 export default function VineHarvestScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-harvest", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
@@ -201,6 +208,17 @@ export default function VineHarvestScreen() {
           </Pressable>
           <Text style={styles.title}>Vine Harvest Record</Text>
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="harvest records"
+        />
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Harvest Details</Text>
