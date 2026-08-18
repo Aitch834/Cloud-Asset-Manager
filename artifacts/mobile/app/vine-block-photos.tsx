@@ -45,7 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
-import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl } from "@/lib/vineBlockPhotosApi";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl, applyOptimisticReorder, executePhotoReorder } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -1386,24 +1386,10 @@ export default function VineBlockPhotosScreen() {
   const handleReorder = useCallback(async (newPhotoIds: number[]) => {
     if (!currentFarm?.id || !selectedBlock) return;
     // Optimistic update: reorder photos state by the new ID order
-    setPhotos((prev) => {
-      const map = new Map(prev.map((p) => [p.id, p]));
-      return newPhotoIds.map((id) => map.get(id)).filter(Boolean) as BlockPhoto[];
-    });
-    try {
-      const res = await apiFetch(
-        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/reorder`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ photoIds: newPhotoIds }),
-        },
-      );
-      if (!res.ok) {
-        // Revert by reloading from server
-        loadPhotos();
-      }
-    } catch {
+    setPhotos((prev) => applyOptimisticReorder(prev as BlockPhoto[], newPhotoIds) as BlockPhoto[]);
+    // PUT to server; revert via loadPhotos() if it fails
+    const ok = await executePhotoReorder(currentFarm.id, selectedBlock.id, newPhotoIds);
+    if (!ok) {
       loadPhotos();
     }
   }, [currentFarm?.id, selectedBlock, loadPhotos]);

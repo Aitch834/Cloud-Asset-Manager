@@ -102,6 +102,51 @@ export async function fetchBlockPhotoUrl(
   }
 }
 
+/**
+ * Pure helper: returns a new array of photos sorted by `newPhotoIds`, dropping
+ * any ID not present in `prev`.  Mirrors the `setPhotos` updater inside
+ * `handleReorder` in vine-block-photos.tsx and is exported so tests can verify
+ * the optimistic step without re-implementing it.
+ */
+export function applyOptimisticReorder(
+  prev: BlockPhotoRecord[],
+  newPhotoIds: number[],
+): BlockPhotoRecord[] {
+  const map = new Map(prev.map((p) => [p.id, p]));
+  return newPhotoIds.map((id) => map.get(id)).filter(Boolean) as BlockPhotoRecord[];
+}
+
+/**
+ * Sends the reorder PUT to the server and returns whether it succeeded.
+ *
+ * Returns `true` when the server accepted the new order (2xx).
+ * Returns `false` when the PUT fails (non-ok response or network error) — the
+ * caller should revert state by reloading from the server via `loadPhotos()`.
+ *
+ * Extracted from `handleReorder` in vine-block-photos.tsx so the network path
+ * (PUT URL, method, body shape, and ok-check) can be tested directly without
+ * rendering the full React Native component tree.
+ */
+export async function executePhotoReorder(
+  farmId: number | string,
+  blockId: number | string,
+  newPhotoIds: number[],
+): Promise<boolean> {
+  try {
+    const res = await apiFetch(
+      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/reorder`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoIds: newPhotoIds }),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function applyPhotoUpdateIfCurrent(
   gen: number,
   getLatestGen: () => number,
