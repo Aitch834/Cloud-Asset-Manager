@@ -63,16 +63,6 @@ const WINEGB_SURVEYS_LIST = [
   { key: "harvest",      label: "Harvest",       months: [9, 10]   },
 ] as const;
 
-interface WinegbNudgeStorage {
-  expanded: boolean;
-  /** Survey keys that were pending when the user last set the expanded state. */
-  pendingKeys: string[];
-}
-
-function winegbNudgeStorageKey(farmId: number, year: number) {
-  return `winegb-nudge-${farmId}-${year}`;
-}
-
 function WinegbOverviewNudge({
   farmId,
   onNavigateToPhenology,
@@ -83,46 +73,7 @@ function WinegbOverviewNudge({
   const year = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1; // 1-based
   const queryClient = useQueryClient();
-  const storageKey = winegbNudgeStorageKey(farmId, year);
-
-  const [expanded, setExpandedState] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed: WinegbNudgeStorage = JSON.parse(raw);
-        return parsed.expanded;
-      }
-    } catch { /* ignore */ }
-    return false;
-  });
-
-  /** Persist expanded state with a snapshot of which surveys were pending at the time. */
-  const setExpanded = (nextExpanded: boolean, pendingKeys: string[]) => {
-    setExpandedState(nextExpanded);
-    try {
-      const payload: WinegbNudgeStorage = { expanded: nextExpanded, pendingKeys };
-      localStorage.setItem(storageKey, JSON.stringify(payload));
-    } catch { /* storage unavailable */ }
-  };
-
-  /**
-   * Re-read localStorage whenever the farm or year changes (storageKey changes).
-   * The useState initializer only runs on first mount, so without this effect a grower
-   * switching farms would inherit the previous farm's in-memory expanded state.
-   */
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed: WinegbNudgeStorage = JSON.parse(raw);
-        setExpandedState(parsed.expanded);
-      } else {
-        setExpandedState(false);
-      }
-    } catch {
-      setExpandedState(false);
-    }
-  }, [storageKey]);
+  const [expanded, setExpanded] = useState(false);
 
   const { data, isLoading } = useQuery<{
     submissions: Record<string, { submitted: boolean; submittedAt: string | null }>;
@@ -134,30 +85,6 @@ function WinegbOverviewNudge({
     enabled: !!farmId,
     staleTime: 60_000,
   });
-
-  /**
-   * When data loads, check whether any survey has been un-ticked since the grower
-   * last collapsed the nudge. If so, clear the stored state so the nudge reappears
-   * (header visible, collapsed) — the grower can't silently ignore a newly-pending item.
-   */
-  useEffect(() => {
-    if (!data) return;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      const stored: WinegbNudgeStorage = JSON.parse(raw);
-      if (stored.expanded) return; // Already expanded — nothing to reset
-      const currentPendingKeys = WINEGB_SURVEYS_LIST
-        .filter(s => !data.submissions[s.key]?.submitted)
-        .map(s => s.key);
-      const newlyPending = currentPendingKeys.filter(k => !stored.pendingKeys.includes(k));
-      if (newlyPending.length > 0) {
-        // A survey was un-ticked — remove the stored state so nudge reverts to default
-        localStorage.removeItem(storageKey);
-        setExpandedState(false);
-      }
-    } catch { /* ignore */ }
-  }, [data, storageKey]);
 
   const toggleMutation = useMutation({
     mutationFn: async ({ key, submitted }: { key: string; submitted: boolean }) => {
@@ -228,7 +155,7 @@ function WinegbOverviewNudge({
         </div>
         <button
           type="button"
-          onClick={() => setExpanded(!expanded, pending.map(s => s.key))}
+          onClick={() => setExpanded(v => !v)}
           className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           aria-label={expanded ? "Collapse survey checklist" : "Expand survey checklist"}
         >
