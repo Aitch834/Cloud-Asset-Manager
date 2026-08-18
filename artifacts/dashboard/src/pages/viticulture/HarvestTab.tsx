@@ -744,6 +744,89 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ];
     }
 
+    // ── Yield by Variety section (only when ≥2 distinct named varieties) ──
+    const varietyLines: string[] = [];
+    {
+      const avgOf = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      const UNKNOWN_KEY = "Unknown / Not linked";
+      const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+      for (const r of rows) {
+        const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
+        const variety = block ? String(block.variety ?? "").trim() : "";
+        const key = variety || UNKNOWN_KEY;
+        if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+        const entry = varietyMap[key];
+        entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+        if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
+          entry.blockIds.add(r.blockId);
+          const ha = parseFloat(String((block.areaHa ?? block.area ?? "") as string));
+          if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
+        }
+        const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
+        const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
+        const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
+        const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
+      }
+
+      const namedVarietyKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
+      if (namedVarietyKeys.length >= 2) {
+        const sortedEntries = Object.entries(varietyMap).sort(([a], [b]) => {
+          if (a === UNKNOWN_KEY) return 1;
+          if (b === UNKNOWN_KEY) return -1;
+          return a.localeCompare(b);
+        });
+
+        const varietyHeader = [
+          cell("Variety"), cell("Area (ha)"), cell("Total Yield (kg)"), cell("Yield (kg/ha)"),
+          cell("Avg Brix °"), cell("Avg pH"), cell("Avg TA (g/L)"), cell("Avg Pot. Alc %"),
+        ].join(",");
+
+        const varietyDataRows = sortedEntries.map(([variety, e]) => {
+          const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+          return [
+            cell(variety),
+            cell(e.totalHa > 0 ? e.totalHa.toFixed(2) : ""),
+            cell(e.totalKg > 0 ? e.totalKg.toFixed(1) : ""),
+            cell(kgPerHa != null ? Math.round(kgPerHa).toString() : ""),
+            cell(avgOf(e.brixVals) != null ? avgOf(e.brixVals)!.toFixed(1) : ""),
+            cell(avgOf(e.phVals) != null ? avgOf(e.phVals)!.toFixed(2) : ""),
+            cell(avgOf(e.taVals) != null ? avgOf(e.taVals)!.toFixed(2) : ""),
+            cell(avgOf(e.paVals) != null ? avgOf(e.paVals)!.toFixed(2) : ""),
+          ].join(",");
+        });
+
+        // Grand totals footer
+        const rowsWithArea = sortedEntries.filter(([, e]) => e.totalHa > 0);
+        const grandHa = rowsWithArea.reduce((s, [, e]) => s + e.totalHa, 0);
+        const grandKgForArea = rowsWithArea.reduce((s, [, e]) => s + e.totalKg, 0);
+        const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+        const grandKg = sortedEntries.reduce((s, [, e]) => s + e.totalKg, 0);
+        const allBrix = rows.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+        const allPh = rows.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+        const allTa = rows.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+        const allPa = rows.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+
+        const varietyFooter = [
+          cell("TOTAL"),
+          cell(grandHa > 0 ? grandHa.toFixed(2) : ""),
+          cell(grandKg > 0 ? grandKg.toFixed(1) : ""),
+          cell(grandKgPerHa != null ? Math.round(grandKgPerHa).toString() : ""),
+          cell(avgOf(allBrix) != null ? avgOf(allBrix)!.toFixed(1) : ""),
+          cell(avgOf(allPh) != null ? avgOf(allPh)!.toFixed(2) : ""),
+          cell(avgOf(allTa) != null ? avgOf(allTa)!.toFixed(2) : ""),
+          cell(avgOf(allPa) != null ? avgOf(allPa)!.toFixed(2) : ""),
+        ].join(",");
+
+        varietyLines.push(
+          "",
+          cell("Yield by Variety"),
+          varietyHeader,
+          ...varietyDataRows,
+          varietyFooter,
+        );
+      }
+    }
+
     const _w0 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w0 ? _w0 + "\n" : "";
 
@@ -777,6 +860,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         summaryHeader,
         ...summaryRows,
         ...crossTabLines,
+        ...varietyLines,
       ].join("\n");
       filename = "vineyard-harvest-summary.csv";
     } else {
@@ -800,6 +884,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         summaryHeader,
         ...summaryRows,
         ...crossTabLines,
+        ...varietyLines,
         "",
         cell("Detail Records"),
         detailHeader,
