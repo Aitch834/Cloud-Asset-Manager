@@ -3156,6 +3156,7 @@ export function printVineSprayDiaryReport(
     ? `<div class="warning-box">&#9888; ${missingFields.join(" and ")} not set — update Farm Settings to populate the header.</div>`
     : "";
 
+  const todayMs = new Date().setHours(0, 0, 0, 0);
   const tableRows = records.map(r => {
     const nv = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
     const rate = r.ratePerHectare != null
@@ -3168,16 +3169,33 @@ export function printVineSprayDiaryReport(
     const weather = weatherParts.length > 0 ? weatherParts.join(" &middot; ") : "—";
     const appDate = r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—";
 
+    // Harvest-interval expiry check
+    const hiDays = r.harvestIntervalDays != null && r.harvestIntervalDays !== "" ? Number(r.harvestIntervalDays) : null;
+    let hiActive = false;
+    let hiCell = "—";
+    if (hiDays != null && !isNaN(hiDays) && r.applicationDate) {
+      const appMs = new Date(r.applicationDate as string).setHours(0, 0, 0, 0);
+      const expiryMs = appMs + hiDays * 86400000;
+      hiActive = expiryMs > todayMs;
+      const expiryStr = new Date(expiryMs).toLocaleDateString("en-GB");
+      hiCell = hiActive
+        ? `<span style="font-weight:700;color:#92400e">${hiDays}d &#9888;<br><span style="font-size:7.5pt;font-weight:400">Expires ${expiryStr}</span></span>`
+        : `${hiDays}d<br><span style="font-size:7.5pt;color:#555">Expired ${expiryStr}</span>`;
+    }
+    // Apply amber background to td directly so it overrides the zebra-stripe td selector
+    const cellBg = hiActive ? "background:#fffbeb;" : "";
+
     return `<tr>
-      <td>${appDate}</td>
-      <td><strong>${escHtml(r.productName)}</strong>${r.productType ? `<br><span style="color:#555;font-size:8.5pt">${escHtml(r.productType)}</span>` : ""}</td>
-      <td>${escHtml(r.mappNumber)}</td>
-      <td>${escHtml(r.activeIngredient)}</td>
-      <td>${rate}</td>
-      <td style="text-align:right">${r.areaTreatedHa != null && r.areaTreatedHa !== "" ? `${parseFloat(String(r.areaTreatedHa)).toFixed(2)} ha` : "—"}</td>
-      <td>${escHtml(resolveBlock(r.blockId))}</td>
-      <td style="font-size:8.5pt">${weather}</td>
-      <td>${escHtml(r.operatorName)}${r.operatorCertificateNo ? `<br><span style="color:#555;font-size:8pt">${escHtml(r.operatorCertificateNo)}</span>` : ""}</td>
+      <td style="${cellBg}">${appDate}</td>
+      <td style="${cellBg}"><strong>${escHtml(r.productName)}</strong>${r.productType ? `<br><span style="color:#555;font-size:8.5pt">${escHtml(r.productType)}</span>` : ""}</td>
+      <td style="${cellBg}">${escHtml(r.mappNumber)}</td>
+      <td style="${cellBg}">${escHtml(r.activeIngredient)}</td>
+      <td style="${cellBg}">${rate}</td>
+      <td style="text-align:right;${cellBg}">${r.areaTreatedHa != null && r.areaTreatedHa !== "" ? `${parseFloat(String(r.areaTreatedHa)).toFixed(2)} ha` : "—"}</td>
+      <td style="${cellBg}">${escHtml(resolveBlock(r.blockId))}</td>
+      <td style="font-size:8.5pt;${cellBg}">${weather}</td>
+      <td style="${cellBg}">${escHtml(r.operatorName)}${r.operatorCertificateNo ? `<br><span style="color:#555;font-size:8pt">${escHtml(r.operatorCertificateNo)}</span>` : ""}</td>
+      <td style="text-align:center;font-size:8.5pt;${cellBg}">${hiCell}</td>
     </tr>`;
   }).join("");
 
@@ -3246,10 +3264,11 @@ export function printVineSprayDiaryReport(
         <th>Block</th>
         <th>Weather</th>
         <th>Operator</th>
+        <th style="text-align:center">HI (days)</th>
       </tr>
     </thead>
     <tbody>
-      ${tableRows || `<tr><td colspan="9" style="text-align:center;color:#888;padding:14px">No spray diary records match the current filter.</td></tr>`}
+      ${tableRows || `<tr><td colspan="10" style="text-align:center;color:#888;padding:14px">No spray diary records match the current filter.</td></tr>`}
     </tbody>
   </table>
   ${notesRows ? `<div class="section-heading">Notes</div><table><tbody>${notesRows}</tbody></table>` : ""}

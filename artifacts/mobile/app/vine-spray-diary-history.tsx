@@ -81,6 +81,7 @@ interface SprayDiaryRecord {
   ratePerHectare: number | null;
   rateUnit: string | null;
   areaTreatedHa: number | null;
+  harvestIntervalDays: number | null;
   windSpeedMph: number | null;
   temperatureCelsius: number | null;
   weatherConditions: string | null;
@@ -1498,6 +1499,7 @@ export default function VineSprayDiaryHistoryScreen() {
         ratePerHectare: r.ratePerHectare,
         rateUnit: r.rateUnit,
         areaTreatedHa: r.areaTreatedHa,
+        harvestIntervalDays: r.harvestIntervalDays ?? null,
         windSpeedMph: r.windSpeedMph,
         temperatureCelsius: r.temperatureCelsius,
         weatherConditions: r.weatherConditions,
