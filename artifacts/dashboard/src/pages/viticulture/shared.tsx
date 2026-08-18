@@ -2327,7 +2327,7 @@ export async function printHarvest(
       return a.localeCompare(b);
     });
     const varietyBodyRows = sortedVarietyEntries.map(([variety, e]) => {
-      const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+      const tPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / 1000 / e.totalHa : null;
       const avgBrix = e.brixCount > 0 ? e.brixSum / e.brixCount : null;
       const avgPh = e.phCount > 0 ? e.phSum / e.phCount : null;
       const avgTa = e.taCount > 0 ? e.taSum / e.taCount : null;
@@ -2336,7 +2336,7 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(variety)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${e.totalHa > 0 ? e.totalHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${e.totalKg > 0 ? e.totalKg.toFixed(0) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${kgPerHa != null ? kgPerHa.toFixed(0) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tPerHa != null ? tPerHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPh != null ? avgPh.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTa != null ? avgTa.toFixed(1) : "\u2014"}</td>
@@ -2348,7 +2348,9 @@ export async function printHarvest(
     const vsGrandHa2 = sortedVarietyEntries.filter(([k]) => k !== VARIETY_UNKNOWN_KEY).reduce((s, [, e]) => s + e.totalHa, 0);
     const rowsWithArea2 = sortedVarietyEntries.filter(([, e]) => e.totalHa > 0);
     const vsGrandKgForArea2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalKg, 0);
-    const vsGrandKgPerHa2 = vsGrandHa2 > 0 && vsGrandKgForArea2 > 0 ? vsGrandKgForArea2 / vsGrandHa2 : null;
+    // Use the same population (rowsWithArea2) for both kg and ha so the footer t/ha is internally consistent
+    const vsGrandHaForTha2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalHa, 0);
+    const vsGrandKgPerHa2 = vsGrandHaForTha2 > 0 && vsGrandKgForArea2 > 0 ? vsGrandKgForArea2 / 1000 / vsGrandHaForTha2 : null;
     const vsBrixAll2 = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
     const vsGrandBrix2 = vsBrixAll2.length > 0 ? vsBrixAll2.reduce((a, b) => a + b, 0) / vsBrixAll2.length : null;
     const vsPhAll2 = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
@@ -2364,7 +2366,7 @@ export async function printHarvest(
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (kg/ha)</th>
+      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (t/ha)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
@@ -2375,7 +2377,7 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Varieties</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandHa2 > 0 ? vsGrandHa2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKg2 > 0 ? vsGrandKg2.toFixed(0) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKgPerHa2 != null ? vsGrandKgPerHa2.toFixed(0) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKgPerHa2 != null ? vsGrandKgPerHa2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandBrix2 != null ? vsGrandBrix2.toFixed(1) + " \xb0" : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPh2 != null ? vsGrandPh2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandTa2 != null ? vsGrandTa2.toFixed(1) : "\u2014"}</td>
