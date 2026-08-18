@@ -1093,6 +1093,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
 
+  const VESSEL_DETAIL_TABS = ["fills", "maintenance", "location", "cleaning"] as const;
+  type VesselDetailTab = typeof VESSEL_DETAIL_TABS[number];
+  const [detailTab, setDetailTab] = usePersistedFilter({
+    page: "vessel-register",
+    filter: "detail-tab",
+    farmId,
+    defaultValue: "fills",
+    validValues: VESSEL_DETAIL_TABS,
+  });
+
   // Persist the last-viewed vessel ID so the detail dialog can be restored on return.
   // We use the hook for writes only; reads in the restore effect go directly to
   // localStorage to avoid a stale-state race with usePersistedFilter's own re-sync effect
@@ -1968,14 +1978,45 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <ViewField label="Current Volume" value={view.current_volume_litres ? `${fmtNum(view.current_volume_litres, 0)} L` : "—"} />
               {!!view.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(view.notes)} /></div>}
             </div>
-            {isBarrelVessel(view.vessel_type) && (
+            {isBarrelVessel(view.vessel_type) ? (
               <>
-                <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} onMoveLogged={(toZone, toPosition) => setView(v => v ? { ...v, cellar_zone: toZone, cellar_position: toPosition } : v)} />
-                <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
-                <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
+                {/* Tab bar */}
+                <div className="flex border-b mt-4 gap-0">
+                  {(["fills", "maintenance", "location", "cleaning"] as VesselDetailTab[]).map(tab => {
+                    const labels: Record<VesselDetailTab, string> = {
+                      fills: "Fill History",
+                      maintenance: "Maintenance",
+                      location: "Location",
+                      cleaning: "Cleaning",
+                    };
+                    const isActive = detailTab === tab;
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setDetailTab(tab)}
+                        className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${isActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"}`}
+                      >
+                        {labels[tab]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {detailTab === "fills" && (
+                  <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
+                )}
+                {detailTab === "maintenance" && (
+                  <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
+                )}
+                {detailTab === "location" && (
+                  <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} onMoveLogged={(toZone, toPosition) => setView(v => v ? { ...v, cellar_zone: toZone, cellar_position: toPosition } : v)} />
+                )}
+                {detailTab === "cleaning" && (
+                  <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
+                )}
               </>
+            ) : (
+              <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             )}
-            <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {isBarrelVessel(view.vessel_type) && (
                 <Button variant="outline" size="sm" onClick={() => handleBarrelPrint(view)}>
