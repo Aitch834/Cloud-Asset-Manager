@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,11 +19,13 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { getList, STORAGE_KEYS } from "@/lib/storage";
+import type { DairyMastitisRecord } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MastitisRecord {
-  id: number;
+  id: number | string;
   onsetDate: string;
   earTagNumber?: string | null;
   quartersAffected?: string | null;
@@ -37,6 +39,8 @@ interface MastitisRecord {
   chronicCase?: boolean | null;
   attendingVet?: string | null;
   notes?: string | null;
+  /** True for records saved on-device that have not yet synced to the server */
+  _offline?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -143,7 +147,7 @@ function MastitisTrendChart({
             {regularH > 0 && (
               <Rect
                 x={x}
-                y={PAD_TOP + plotH - totalH}
+                y={PAD_TOP + plotH - regularH}
                 width={barW}
                 height={regularH}
                 fill={BAR_COLOR_REGULAR}
@@ -198,8 +202,47 @@ export default function MastitisHistoryScreen() {
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id != null ? String(currentFarm.id) : undefined;
 
-  const { records, loading, refreshing, error, refresh } =
+  const { records: serverRecords, loading, refreshing, error, refresh } =
     useApiFetch<MastitisRecord>(farmId, "/api/farms/:farmId/dairy/mastitis-records");
+
+  // Merge unsynced offline records so records entered on-device appear immediately
+  const [offlineRecords, setOfflineRecords] = useState<MastitisRecord[]>([]);
+  useEffect(() => {
+    if (!farmId) return;
+    getList<DairyMastitisRecord>(STORAGE_KEYS.DAIRY_MASTITIS_RECORDS, farmId)
+      .then((local) => {
+        const unsynced = local
+          .filter((r) => !r.synced && String(r.farmId) === String(farmId))
+          .map<MastitisRecord>((r) => ({
+            id: r.id,
+            onsetDate: r.onsetDate,
+            earTagNumber: r.cowEarTag || null,
+            quartersAffected: r.quartersAffected || null,
+            clinicalGrade: r.clinicalGrade || null,
+            treatmentProduct: r.treatmentProduct || null,
+            standardWithdrawalDays: null,
+            doubledWithdrawalDays: null,
+            withdrawalEndDate: null,
+            certifierNotified: null,
+            outcome: null,
+            chronicCase: null,
+            attendingVet: r.vetName || null,
+            notes: r.notes || null,
+            _offline: true,
+          }));
+        setOfflineRecords(unsynced);
+      })
+      .catch(() => { /* storage read failure is non-fatal */ });
+  }, [farmId, refreshing]);
+
+  // Combined list: offline-only records + server records, sorted newest first
+  const records = useMemo<MastitisRecord[]>(() => {
+    const serverIds = new Set(serverRecords.map((r) => String(r.id)));
+    const pendingOffline = offlineRecords.filter((r) => !serverIds.has(String(r.id)));
+    return [...pendingOffline, ...serverRecords].sort((a, b) =>
+      (b.onsetDate ?? "").localeCompare(a.onsetDate ?? ""),
+    );
+  }, [serverRecords, offlineRecords]);
 
   // Month navigator (defaults to current month)
   const now = new Date();
@@ -283,7 +326,7 @@ export default function MastitisHistoryScreen() {
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : error ? (
+      ) : error && records.length === 0 ? (
         <View style={styles.centre}>
           <Feather name="wifi-off" size={32} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>Could not load records</Text>
@@ -309,6 +352,16 @@ export default function MastitisHistoryScreen() {
           ListHeaderComponent={
             <View>
               {/* 12-month trend chart */}
+              {/* Server error banner — shown when we have offline records but couldn't reach the server */}
+              {!!error && (
+                <View style={styles.offlineBanner}>
+                  <Feather name="wifi-off" size={14} color="#92400e" />
+                  <Text style={styles.offlineBannerText}>
+                    Couldn't reach the server — showing saved offline records only.
+                  </Text>
+                </View>
+              )}
+
               {hasAnyRecords && (
                 <View style={styles.chartCard}>
                   <Text style={styles.chartTitle}>12-Month Case Trend</Text>
@@ -433,6 +486,11 @@ function MastitisCard({ record: r }: { record: MastitisRecord }) {
         {isChronic && (
           <View style={styles.chronicBadge}>
             <Text style={styles.chronicText}>Chronic</Text>
+          </View>
+        )}
+        {r._offline && (
+          <View style={styles.offlineBadge}>
+            <Text style={styles.offlineText}>Pending sync</Text>
           </View>
         )}
         {certStatus && (
@@ -677,5 +735,36 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginTop: spacing.xs,
     fontStyle: "italic",
+  },
+  offlineBadge: {
+    backgroundColor: "#e0f2fe",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+  },
+  offlineText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#0369a1",
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  offlineBannerText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    flex: 1,
   },
 });

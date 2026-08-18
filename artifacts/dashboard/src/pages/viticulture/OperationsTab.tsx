@@ -284,6 +284,13 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
         onNavigate={() => setLocation("/settings/farm")}
       />
 
+      {/* APPA Ref missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
+        settingsSection="Viticulture & Wine"
+        onNavigate={() => setLocation("/settings/farm")}
+      />
+
       {/* FSA / APPA registration pre-flight check */}
       <FsaCompletenessBar farmId={farmId} />
 
