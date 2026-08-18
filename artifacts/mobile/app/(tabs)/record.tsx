@@ -1218,6 +1218,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-harvest-history",
+    title: "Harvest History",
+    description: "View, edit block links, and delete past harvest records — review yield and must chemistry across all vintages",
+    icon: "clock",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-harvest-history",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-block-photos",
     title: "Block Photo Gallery",
     description: "View and add photos for a vineyard block — take a new shot in the field or pick from your camera roll to build a visual record of each block",
