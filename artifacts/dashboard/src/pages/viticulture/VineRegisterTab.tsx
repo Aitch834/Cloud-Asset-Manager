@@ -543,6 +543,18 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                             );
                           })}
                         </ul>
+                        <div className="mt-3 pt-2 border-t">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full h-7 text-xs"
+                            onClick={() => printRpaReference(blocks, farmName, farmRecord)}
+                            disabled={!blocks.length}
+                          >
+                            <Printer className="w-3 h-3 mr-1" />
+                            Print now ({missingRefBlocks.length} ref{missingRefBlocks.length === 1 ? "" : "s"} still missing)
+                          </Button>
+                        </div>
                       </PopoverContent>
                     </Popover>
                   )}
