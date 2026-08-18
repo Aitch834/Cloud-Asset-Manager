@@ -532,7 +532,7 @@ export function TemplatePlaceholderPreview({
             <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
             <span>
               <span className="font-medium">Sample text shown.</span>{" "}
-              Fill in the <span className="font-medium">Customise</span> fields above to preview real values.
+              Fill in the <span className="font-medium">Preview values</span> fields above to see real values.
             </span>
           </div>
         )}
@@ -592,6 +592,12 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
   // Typo-placeholder confirmation — true when the form is waiting for the admin
   // to acknowledge detected near-miss typos before the save proceeds.
   const [awaitingTypoConfirm, setAwaitingTypoConfirm] = useState(false);
+
+  // Local preview values — filled by the author inside this form so they can
+  // test specific copy without leaving and filling the page-level Customise section.
+  const [localPreviewHeadline,    setLocalPreviewHeadline]    = useState("");
+  const [localPreviewBody,        setLocalPreviewBody]        = useState("");
+  const [localPreviewAccentColor, setLocalPreviewAccentColor] = useState("");
 
   // Draft preview state
   const [draftBgUrl, setDraftBgUrl] = useState("");
@@ -784,11 +790,70 @@ function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewH
           <strong>Customise</strong> fields on this page; they fall back to built-in defaults when those fields are left blank.
         </p>
 
+        {/* ── Preview values sub-section ───────────────────────────────── */}
+        {(htmlBody.includes("{{headline}}") || htmlBody.includes("{{body}}") || htmlBody.includes("{{accent_color}}")) && (
+          <div className="mt-3 rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground">Preview values <span className="font-normal">— fill these to test specific copy without leaving this form</span></p>
+            <div className="grid gap-3" style={{ gridTemplateColumns: [htmlBody.includes("{{headline}}") && "1fr", htmlBody.includes("{{body}}") && "1fr", htmlBody.includes("{{accent_color}}") && "auto"].filter(Boolean).join(" ") }}>
+              {htmlBody.includes("{{headline}}") && (
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                    Headline <code className="bg-muted px-1 rounded font-normal">{"{{headline}}"}</code>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={localPreviewHeadline}
+                    onChange={(e) => setLocalPreviewHeadline(e.target.value)}
+                    placeholder="Your vineyard. Audit-ready."
+                  />
+                </div>
+              )}
+              {htmlBody.includes("{{body}}") && (
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                    Body <code className="bg-muted px-1 rounded font-normal">{"{{body}}"}</code>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={localPreviewBody}
+                    onChange={(e) => setLocalPreviewBody(e.target.value)}
+                    placeholder="Vine register, spray logs — all in one place."
+                  />
+                </div>
+              )}
+              {htmlBody.includes("{{accent_color}}") && (
+                <div>
+                  <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                    Accent <code className="bg-muted px-1 rounded font-normal">{"{{accent_color}}"}</code>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      className="h-9 w-9 rounded border border-input bg-background cursor-pointer p-0.5 shrink-0"
+                      value={localPreviewAccentColor || "#C49A6C"}
+                      onChange={(e) => setLocalPreviewAccentColor(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className="w-28 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                      value={localPreviewAccentColor}
+                      onChange={(e) => setLocalPreviewAccentColor(e.target.value)}
+                      placeholder="#C49A6C"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <TemplatePlaceholderPreview
           htmlBody={htmlBody}
-          headline={previewHeadline}
-          body={previewBody}
-          accentColor={previewAccentColor}
+          headline={localPreviewHeadline || previewHeadline}
+          body={localPreviewBody || previewBody}
+          accentColor={localPreviewAccentColor || previewAccentColor}
         />
 
         {draftPreviewMissingPlaceholders && draftPreviewMissingPlaceholders.length > 0 && (
