@@ -4,7 +4,7 @@ import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
-  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout,
+  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout, BarChart3,
 } from "lucide-react";
 
 const STATUSES = [
@@ -69,6 +69,15 @@ const SECTOR_COLORS: Record<string, string> = {
   "Agricultural Contracting":  "bg-sky-100 text-sky-700",
 };
 
+const SECTOR_BAR_COLORS: Record<string, string> = {
+  "Beef & Dairy":              "bg-orange-500",
+  "Sheep & Goat":              "bg-amber-500",
+  "Arable":                    "bg-yellow-500",
+  "Viticulture":               "bg-purple-500",
+  "Mixed Farming":             "bg-teal-500",
+  "Agricultural Contracting":  "bg-sky-500",
+};
+
 
 function SectorBadge({ sector }: { sector: string }) {
   const color = SECTOR_COLORS[sector] ?? "bg-gray-100 text-gray-700";
@@ -80,6 +89,12 @@ function SectorBadge({ sector }: { sector: string }) {
   );
 }
 
+interface SectorStat {
+  sector: string;
+  total: number;
+  converted: number;
+  conversionPct: number;
+}
 function statusMeta(status: string) {
   return STATUSES.find((s) => s.value === status) ?? STATUSES[0];
 }
@@ -348,6 +363,26 @@ export default function Leads() {
     converted: leads.filter((l) => l.status === "signed-up").length,
   }), [leads]);
 
+  const sectorBreakdown = useMemo<SectorStat[]>(() => {
+    const map = new Map<string, { total: number; converted: number }>();
+    for (const lead of leads) {
+      const sector = parseSector(lead.notes);
+      if (!sector) continue;
+      if (!map.has(sector)) map.set(sector, { total: 0, converted: 0 });
+      const entry = map.get(sector)!;
+      entry.total++;
+      if (lead.status === "signed-up") entry.converted++;
+    }
+    return Array.from(map.entries())
+      .map(([sector, { total, converted }]) => ({
+        sector,
+        total,
+        converted,
+        conversionPct: total > 0 ? Math.round((converted / total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [leads]);
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
@@ -375,6 +410,8 @@ export default function Leads() {
           </div>
         ))}
       </div>
+
+      <SectorBreakdown rows={sectorBreakdown} loading={loading} />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
@@ -479,6 +516,79 @@ export default function Leads() {
           onSaved={handleSaved}
         />
       )}
+    </div>
+  );
+}
+
+function SectorBreakdown({ rows, loading }: { rows: SectorStat[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 mb-8">
+        <div className="h-4 w-40 bg-muted rounded animate-pulse mb-5" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-7 bg-muted rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 mb-8">
+        <div className="flex items-center gap-2 mb-2">
+          <BarChart3 className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Sector Breakdown</h2>
+        </div>
+        <p className="text-sm text-muted-foreground text-center py-6">
+          No sector data yet — sectors are set when leads register on the website.
+        </p>
+      </div>
+    );
+  }
+
+  const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 mb-8">
+      <div className="flex items-center gap-2 mb-5">
+        <BarChart3 className="w-4 h-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-foreground">Sector Breakdown</h2>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {rows.reduce((s, r) => s + r.total, 0)} leads with sector set
+        </span>
+      </div>
+      <div className="space-y-3">
+        {rows.map((row) => {
+          const widthPct = Math.round((row.total / maxTotal) * 100);
+          const barColor = SECTOR_BAR_COLORS[row.sector] ?? "bg-gray-400";
+          return (
+            <div key={row.sector}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <div className="flex items-center gap-2">
+                  <SectorBadge sector={row.sector} />
+                </div>
+                <div className="flex items-center gap-3 text-muted-foreground shrink-0 ml-3">
+                  <span>{row.total} lead{row.total !== 1 ? "s" : ""}</span>
+                  {row.converted > 0 && (
+                    <span className="inline-flex items-center gap-1 text-green-600 font-semibold">
+                      <CheckCircle className="w-3 h-3" />
+                      {row.converted} signed up ({row.conversionPct}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${barColor} transition-all`}
+                  style={{ width: `${widthPct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
