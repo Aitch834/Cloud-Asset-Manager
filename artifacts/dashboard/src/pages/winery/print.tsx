@@ -635,8 +635,10 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
     <td style="text-align:right">${r.actual_abv_pct != null ? `${parseFloat(String(r.actual_abv_pct)).toFixed(1)}%` : "—"}</td>
     <td>${escHtml(r.closure_type)}</td>
     <td>${isOrg ? "Yes — organic" : "No — conventional"}</td>
+    <td style="font-family:monospace;font-size:10px">${escHtml(r.bottling_machine_ref ?? "—")}</td>
+    <td>${escHtml(r.operator_name ?? "—")}</td>
     <td>${batchRefBadge(r as Record<string, unknown>)}</td>
-  </tr>${editHistoryPdfRow(r as Record<string, unknown>, 15)}`;
+  </tr>${editHistoryPdfRow(r as Record<string, unknown>, 17)}`;
   }).join("");
 
   // Per-stage attachment blocks — rendered under the stage's own table, styled
@@ -668,7 +670,7 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   const so2AttachmentsHtml = stageAttachmentsHtml(data.so2Tests, so2Attachments, "test_date");
   const bottlingAttachmentsHtml = stageAttachmentsHtml(data.bottling, bottlingAttachments, "bottling_date");
 
-  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th><th>Batch Ref</th></tr>`;
+  const bottlingHeader = `<tr class="header-row"><th>Date</th><th>Lot Code</th><th>Colour</th><th style="text-align:right">Volume (L)</th><th style="text-align:right">Bottles</th><th style="text-align:right">Free SO₂ (mg/L)</th><th style="text-align:right">Total SO₂ (mg/L)</th><th style="text-align:right">SO₂ ceiling</th><th>Compliance</th><th style="text-align:right">pH</th><th style="text-align:right">TA (g/L)</th><th style="text-align:right">ABV</th><th>Closure</th><th>Organic limits</th><th>Machine</th><th>Operator</th><th>Batch Ref</th></tr>`;
 
   // ── Barrel Provenance Section ─────────────────────────────────────────────
   // Shown only when the batch used an oak barrel as a source vessel for bottling.
