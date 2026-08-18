@@ -29,6 +29,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
+import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
@@ -334,14 +335,14 @@ export default function VineHarvestHistoryScreen() {
     : [];
   const missingIdentifiers = missingAddressFields.length > 0;
 
-  const { records, loading, refreshing, error, refresh } = useApiFetch<HarvestRecord>(
+  const { records, loading, refreshing, error, refresh, recordsFarmId } = useApiFetch<HarvestRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-harvest",
   );
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
   const [search, setSearch] = useState("");
-  const [selectedVintage, setSelectedVintage] = useState<number | null>(null);
+  const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
@@ -387,20 +388,53 @@ export default function VineHarvestHistoryScreen() {
     return Array.from(years).sort((a, b) => b - a);
   }, [displayRecords]);
 
-  // Auto-select the most recent vintage when data first loads
-  const didAutoSelect = React.useRef(false);
+  // Once both the persisted value AND the current farm's records are confirmed
+  // loaded, apply the stored selection — or fall back to the most recent if
+  // it's no longer valid.
+  //
+  // Guards:
+  //   vintageLoadedForFarmId === currentFarm?.id  — AsyncStorage read is for THIS farm
+  //   recordsFarmId === currentFarm?.id           — records come from a SUCCESSFUL fetch
+  //                                                 for THIS farm (useApiFetch retains
+  //                                                 prior-farm records while loading and
+  //                                                 on error, so !loading alone is not
+  //                                                 sufficient)
+  //
+  // selectedVintage semantics (from usePersistedVintage):
+  //   undefined → no preference stored; apply default (most recent)
+  //   null      → user explicitly chose "All vintages"; keep it
+  //   number    → specific year; keep if still available, else fall back
+  const resolvedForFarm = React.useRef<string | undefined>(undefined);
   React.useEffect(() => {
-    if (!didAutoSelect.current && vintages.length > 0) {
-      setSelectedVintage(vintages[0]);
-      didAutoSelect.current = true;
+    // Only proceed once AsyncStorage has finished reading for THIS farm
+    if (vintageLoadedForFarmId !== currentFarm?.id) return;
+    // Only proceed once records are confirmed from a successful fetch for THIS farm
+    if (recordsFarmId !== currentFarm?.id) return;
+    if (vintages.length === 0) return;
+    // Already resolved for this farm — don't override manual selections mid-session
+    if (resolvedForFarm.current === currentFarm?.id) return;
+    resolvedForFarm.current = currentFarm?.id;
+    if (selectedVintage === null) {
+      // Explicit "All vintages" stored — nothing to change
+      return;
     }
-  }, [vintages]);
+    if (selectedVintage !== undefined && vintages.includes(selectedVintage)) {
+      // Stored vintage year is still available — keep it
+      return;
+    }
+    // No preference (undefined) or stored year has no data — default to most recent
+    setSelectedVintage(vintages[0]);
+  }, [vintageLoadedForFarmId, recordsFarmId, vintages, selectedVintage, setSelectedVintage, currentFarm?.id]);
+
+  // Coerce undefined (loading / pre-resolution) to null so filtering always works.
+  // After the resolution effect above fires, selectedVintage is always null | number.
+  const displayVintage = selectedVintage ?? null;
 
   // Records for the selected vintage (all vintages if null)
   const vintageRecords = useMemo(() => {
-    if (selectedVintage === null) return displayRecords;
-    return displayRecords.filter(r => r.vintageYear === selectedVintage);
-  }, [displayRecords, selectedVintage]);
+    if (displayVintage === null) return displayRecords;
+    return displayRecords.filter(r => r.vintageYear === displayVintage);
+  }, [displayRecords, displayVintage]);
 
   // Blocks that have at least one record — used to populate the block filter chips
   const recordBlockIds = useMemo(() => {
@@ -437,9 +471,9 @@ export default function VineHarvestHistoryScreen() {
   // Offline pending records that match the current vintage filter
   const offlinePendingForVintage = useMemo(() => {
     if (offlinePending.length === 0) return [];
-    if (selectedVintage === null) return offlinePending;
-    return offlinePending.filter(r => r.vintageYear === selectedVintage);
-  }, [offlinePending, selectedVintage]);
+    if (displayVintage === null) return offlinePending;
+    return offlinePending.filter(r => r.vintageYear === displayVintage);
+  }, [offlinePending, displayVintage]);
 
   // Farm-wide totals for the selected vintage (server + offline pending merged)
   const totals = useMemo(() => {
@@ -641,20 +675,20 @@ export default function VineHarvestHistoryScreen() {
           contentContainerStyle={styles.vintageScrollContent}
         >
           <Pressable
-            style={[styles.vintageChip, selectedVintage === null && styles.vintageChipActive]}
+            style={[styles.vintageChip, displayVintage === null && styles.vintageChipActive]}
             onPress={() => setSelectedVintage(null)}
           >
-            <Text style={[styles.vintageChipText, selectedVintage === null && styles.vintageChipTextActive]}>
+            <Text style={[styles.vintageChipText, displayVintage === null && styles.vintageChipTextActive]}>
               All
             </Text>
           </Pressable>
           {vintages.map(y => (
             <Pressable
               key={y}
-              style={[styles.vintageChip, selectedVintage === y && styles.vintageChipActive]}
+              style={[styles.vintageChip, displayVintage === y && styles.vintageChipActive]}
               onPress={() => setSelectedVintage(y)}
             >
-              <Text style={[styles.vintageChipText, selectedVintage === y && styles.vintageChipTextActive]}>
+              <Text style={[styles.vintageChipText, displayVintage === y && styles.vintageChipTextActive]}>
                 {y}
               </Text>
             </Pressable>
@@ -706,7 +740,7 @@ export default function VineHarvestHistoryScreen() {
       {!loading && !error && totals.count > 0 && (
         <View style={styles.totalsCard}>
           <Text style={styles.totalsLabel}>
-            {selectedVintage != null ? `${selectedVintage} Vintage` : "All Vintages"} · {totals.count} record{totals.count !== 1 ? "s" : ""}
+            {displayVintage != null ? `${displayVintage} Vintage` : "All Vintages"} · {totals.count} record{totals.count !== 1 ? "s" : ""}
           </Text>
           <View style={styles.totalsRow}>
             <View style={styles.totalsStat}>
