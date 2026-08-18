@@ -1607,6 +1607,14 @@ export default function GrantsPage() {
     _setHideArchivedStr(next ? "true" : "false");
   };
 
+  // ── On-screen scheme filter for capital grants (persisted per farm) ──
+  const [screenScheme, setScreenScheme] = usePersistedFilter({
+    page: "grants",
+    filter: "screen-scheme",
+    farmId,
+    defaultValue: "all",
+  });
+
   // ── Export / print filter state for capital grants (persisted per farm) ──
   const [grantExportScheme, setGrantExportScheme] = usePersistedFilter({
     page: "grants",
@@ -1695,8 +1703,9 @@ export default function GrantsPage() {
     let rs = records;
     if (yearFilter !== "all") rs = rs.filter(r => grantYear(r) === Number(yearFilter));
     if (hideArchived) rs = rs.filter(r => !["claimed","rejected","withdrawn"].includes(r.status));
+    if (screenScheme !== "all") rs = rs.filter(r => r.schemeName === screenScheme);
     return rs;
-  }, [records, yearFilter, hideArchived]);
+  }, [records, yearFilter, hideArchived, screenScheme]);
 
   const archivedCount = useMemo(() => {
     let rs = records;
@@ -2059,6 +2068,17 @@ export default function GrantsPage() {
               {availableYears.length === 0 && <option disabled>No years available</option>}
             </select>
           </div>
+          {uniqueGrantSchemeNames.length > 1 && (
+            <>
+              <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
+              <SchemeNameCombobox
+                value={screenScheme}
+                onChange={v => { setScreenScheme(v); setQuickFilter(""); setStatusFilter("all"); }}
+                schemeNames={uniqueGrantSchemeNames}
+                compact
+              />
+            </>
+          )}
           {(archivedCount > 0 || !hideArchived) && (
             <>
               <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
@@ -2071,9 +2091,9 @@ export default function GrantsPage() {
               </button>
             </>
           )}
-          {(yearFilter !== "all" || !hideArchived) && (
+          {(yearFilter !== "all" || !hideArchived || screenScheme !== "all") && (
             <button
-              onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(""); setStatusFilter("all"); }}
+              onClick={() => { setYearFilter("all"); setHideArchived(true); setQuickFilter(""); setStatusFilter("all"); setScreenScheme("all"); }}
               style={{ fontSize: "0.78rem", color: "#6366f1", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginLeft: 2 }}
             >
               Reset filters
