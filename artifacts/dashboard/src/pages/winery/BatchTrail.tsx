@@ -2575,6 +2575,7 @@ export async function exportBatchTrailCsv(farmId: number, pressing: Record<strin
       "pH": r.ph != null ? fmtNum(r.ph, 2) : "",
       "TA (g/L)": r.titratable_acidity_gl != null ? fmtNum(r.titratable_acidity_gl, 1) : "",
       "Vessel": String(r.source_vessel_ref ?? ""),
+      "Vessel capacity (L)": vesselCapacityStr(r.source_vessel_ref),
       "Operator": String(r.operator_name ?? ""),
       "Notes": String(r.notes ?? ""),
     });
