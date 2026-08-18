@@ -1362,14 +1362,23 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                             <button
                                               onClick={() => {
                                                 if (!pendingCompletion?.date) return;
-                                                if (pnlChanges(pendingCompletion.newStatus, pendingCompletion.date)) {
+                                                // Also warn when the grower changes the date so it falls outside the
+                                                // report year: msIsIncluded(ms.status, ms.completionDate) is already
+                                                // false (milestone was reverted to pending/overdue), so pnlChanges()
+                                                // alone won't detect the removal.  We additionally check whether the
+                                                // existing completionDate would have been in-year with the new status
+                                                // (i.e. P&L previously counted it) while the new typed date would not.
+                                                const newDateWouldBeIncluded = msIsIncluded(pendingCompletion.newStatus, pendingCompletion.date);
+                                                const existingDateWouldBeIncluded = msIsIncluded(pendingCompletion.newStatus, ms.completionDate);
+                                                const pendingDateRemovesFromPnl = ms.claimAmountPence != null && existingDateWouldBeIncluded && !newDateWouldBeIncluded;
+                                                if (pnlChanges(pendingCompletion.newStatus, pendingCompletion.date) || pendingDateRemovesFromPnl) {
                                                   setPendingPnlWarning({
                                                     milestoneId: ms.id,
                                                     projectId: p.id,
                                                     newStatus: pendingCompletion.newStatus,
                                                     completionDate: pendingCompletion.date,
                                                     claimAmountPence: ms.claimAmountPence,
-                                                    direction: pnlChangeDir(pendingCompletion.newStatus, pendingCompletion.date),
+                                                    direction: newDateWouldBeIncluded ? "add" : "remove",
                                                   });
                                                 } else {
                                                   setUpdatingMilestone(ms.id);
