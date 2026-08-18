@@ -39,6 +39,24 @@ import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 const PRESSURE_LABELS = ["None", "Low", "Medium", "High"];
 const PRESSURE_COLORS = [colors.textSecondary, colors.success, colors.warning ?? "#f59e0b", colors.error];
 
+// Disease keyword → field mapping (mirrors dashboard ScoutingTab)
+const SCOUTING_DISEASE_KEYWORDS: Array<{ terms: string[]; field: keyof ScoutingRecord; isBoolean?: boolean }> = [
+  { terms: ["downy", "downy mildew", "plasmopara"], field: "downyMildewPressure" },
+  { terms: ["powdery", "powdery mildew", "erysiphe"], field: "powderyMildewPressure" },
+  { terms: ["botrytis", "grey mould", "gray mould", "bunch rot"], field: "botrytisPressure" },
+  { terms: ["phomopsis", "cane blight"], field: "phomopsisPressure" },
+  { terms: ["leafhopper"], field: "leafhopperPressure" },
+  { terms: ["spider mite", "mite"], field: "spiderMitePressure" },
+  { terms: ["vine weevil", "weevil"], field: "vineWeevilSighted", isBoolean: true },
+  { terms: ["eutypa", "dieback"], field: "eutypaDiebackSighted", isBoolean: true },
+  { terms: ["xylella"], field: "xylellaFastidiosa", isBoolean: true },
+  { terms: ["phytophthora"], field: "phytophthoraViticola", isBoolean: true },
+];
+const PRESSURE_NUMERIC_FIELDS: (keyof ScoutingRecord)[] = [
+  "downyMildewPressure", "powderyMildewPressure", "botrytisPressure",
+  "phomopsisPressure", "leafhopperPressure", "spiderMitePressure",
+];
+
 interface ScoutingRecord {
   id: number;
   scoutDate: string | null;
@@ -568,6 +586,7 @@ export default function VineScoutingHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
+  const [pressureFilter, setPressureFilter] = useState<"__all__" | "1" | "2" | "3">("__all__");
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
@@ -605,14 +624,33 @@ export default function VineScoutingHistoryScreen() {
   }, [displayRecords, selectedBlockIds]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return blockFilteredRecords;
-    const q = search.toLowerCase();
-    return blockFilteredRecords.filter(r =>
-      (r.blockName ?? "").toLowerCase().includes(q) ||
-      (r.scoutedBy ?? "").toLowerCase().includes(q) ||
-      (r.scoutDate ?? "").includes(q),
-    );
-  }, [blockFilteredRecords, search]);
+    let rows = blockFilteredRecords;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const matchedDiseases = SCOUTING_DISEASE_KEYWORDS.filter(d =>
+        d.terms.some(t => t.includes(q) || q.includes(t)),
+      );
+      rows = rows.filter(r => {
+        if (
+          (r.blockName ?? "").toLowerCase().includes(q) ||
+          (r.scoutedBy ?? "").toLowerCase().includes(q) ||
+          (r.scoutDate ?? "").includes(q)
+        ) return true;
+        for (const d of matchedDiseases) {
+          if (d.isBoolean) { if (r[d.field]) return true; }
+          else { if (Number(r[d.field] ?? 0) > 0) return true; }
+        }
+        return false;
+      });
+    }
+    if (pressureFilter !== "__all__") {
+      const minLevel = Number(pressureFilter);
+      rows = rows.filter(r =>
+        PRESSURE_NUMERIC_FIELDS.some(f => Number(r[f] ?? 0) >= minLevel),
+      );
+    }
+    return rows;
+  }, [blockFilteredRecords, search, pressureFilter]);
 
   const handleSaved = (recordId: number, updated: Partial<ScoutingRecord>) => {
     setLocalUpdates(prev => ({
@@ -679,6 +717,37 @@ export default function VineScoutingHistoryScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      {/* Pressure filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.pressureFilterScroll}
+        contentContainerStyle={styles.pressureFilterScrollContent}
+      >
+        {(["__all__", "1", "2", "3"] as const).map((value) => {
+          const label = value === "__all__" ? "All pressure" : value === "1" ? "Low+" : value === "2" ? "Medium+" : "High";
+          const active = pressureFilter === value;
+          const chipColor = value === "1" ? colors.success : value === "2" ? (colors.warning ?? "#f59e0b") : value === "3" ? colors.error : undefined;
+          return (
+            <Pressable
+              key={value}
+              style={[
+                styles.pressureChip,
+                active && (chipColor ? { backgroundColor: chipColor + "22", borderColor: chipColor } : styles.pressureChipActive),
+              ]}
+              onPress={() => { Haptics.selectionAsync(); setPressureFilter(value); }}
+            >
+              {value !== "__all__" && (
+                <View style={[styles.pressureChipDot, { backgroundColor: active ? chipColor : colors.textSecondary }]} />
+              )}
+              <Text style={[styles.pressureChipText, active && (chipColor ? { color: chipColor } : styles.pressureChipTextActive)]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {/* Block filter chips */}
       {filterBlocks.length > 0 && (
@@ -757,7 +826,9 @@ export default function VineScoutingHistoryScreen() {
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
               <Text style={styles.emptyTitle}>No scouting records</Text>
               <Text style={styles.emptyText}>
-                {search.trim() ? "No records match your search." : "Scouting records you create will appear here."}
+                {search.trim() || pressureFilter !== "__all__"
+                  ? "No records match your search or filter."
+                  : "Scouting records you create will appear here."}
               </Text>
             </View>
           }
@@ -1113,6 +1184,42 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  // Pressure filter chips
+  pressureFilterScroll: { flexGrow: 0 },
+  pressureFilterScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  pressureChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressureChipActive: {
+    backgroundColor: "#ede9fe",
+    borderColor: colors.primary,
+  },
+  pressureChipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  pressureChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  pressureChipTextActive: {
+    color: colors.primary,
+  },
   // Block filter chips
   blockFilterScroll: { flexGrow: 0 },
   blockFilterScrollContent: {
