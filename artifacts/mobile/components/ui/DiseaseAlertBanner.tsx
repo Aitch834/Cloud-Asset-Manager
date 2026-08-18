@@ -12,18 +12,26 @@ interface Props {
   sector: string;
 }
 
-function formatDate(issuedAt?: string, date?: string): string {
-  const d = issuedAt ?? date;
-  if (!d) return "";
-  try {
-    return new Date(d).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return d;
+/**
+ * Returns a relative "Issued today" / "Issued yesterday" / "Issued X days ago"
+ * label matching the dashboard banner. Prefers the episode `issuedAt` ISO
+ * timestamp; falls back to the legacy `date` string for pre-episode alerts.
+ * Returns null when neither field is present or parseable.
+ */
+function formatAlertIssuedAt(issuedAt?: string, date?: string): string | null {
+  if (issuedAt) {
+    const issued = new Date(issuedAt);
+    if (!isNaN(issued.getTime())) {
+      const diffDays = Math.floor(
+        (Date.now() - issued.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (diffDays === 0) return "Issued today";
+      if (diffDays === 1) return "Issued yesterday";
+      return `Issued ${diffDays} days ago`;
+    }
   }
+  if (date) return `Issued ${date}`;
+  return null;
 }
 
 /**
@@ -48,7 +56,7 @@ export function DiseaseAlertBanner({ alert, sector }: Props) {
     ? `Regional ${sector} Disease Alert`
     : `${sector} Disease Notice`;
 
-  const dateStr = formatDate(alert.issuedAt, alert.date);
+  const dateStr = formatAlertIssuedAt(alert.issuedAt, alert.date);
 
   return (
     <View style={[styles.banner, { backgroundColor: bg, borderColor: border }]}>
