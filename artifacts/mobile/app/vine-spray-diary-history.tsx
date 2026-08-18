@@ -51,20 +51,26 @@ import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineSprayDiaryHtml, type VineSprayDiaryRow } from "@/lib/printTemplates";
+import {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+  DIR_NONE,
+  DIR_HORIZ,
+  DIR_VERT,
+  showCounter,
+  counterText,
+} from "@/lib/vineSprayDiaryLightboxHelpers";
 
 // 4-minute background refresh for presigned URLs
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
 
 // ─── Lightbox constants ───────────────────────────────────────────────────────
+// Thresholds and direction constants are imported from vineSprayDiaryLightboxHelpers
+// so that a single change propagates to both the runtime behaviour and the unit tests.
 
 const SCREEN = Dimensions.get("window");
-const LB_SWIPE_DOWN_THRESHOLD = 120;
-const LB_SWIPE_HORIZ_THRESHOLD = 60;
-const LB_MIN_SCALE = 1;
-const LB_MAX_SCALE = 5;
-const LB_DIR_NONE = 0;
-const LB_DIR_HORIZ = 1;
-const LB_DIR_VERT = 2;
 
 function lbClamp(value: number, min: number, max: number) {
   "worklet";
@@ -169,7 +175,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
   const slideX = useSharedValue(0);
-  const gestureDir = useSharedValue(LB_DIR_NONE);
+  const gestureDir = useSharedValue(DIR_NONE);
   const bgOpacity = useSharedValue(0);
 
   // Keep totalSv in sync
@@ -313,13 +319,13 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   // Pinch-to-zoom
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
-      scale.value = lbClamp(savedScale.value * e.scale, LB_MIN_SCALE, LB_MAX_SCALE);
+      scale.value = lbClamp(savedScale.value * e.scale, MIN_SCALE, MAX_SCALE);
     })
     .onEnd(() => {
       savedScale.value = scale.value;
-      if (scale.value < LB_MIN_SCALE) {
-        scale.value = withSpring(LB_MIN_SCALE);
-        savedScale.value = LB_MIN_SCALE;
+      if (scale.value < MIN_SCALE) {
+        scale.value = withSpring(MIN_SCALE);
+        savedScale.value = MIN_SCALE;
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
         savedTranslateX.value = 0;
@@ -330,7 +336,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   // Pan: zoom-pan + swipe-down dismiss + horizontal navigation
   const panGesture = Gesture.Pan()
     .onBegin(() => {
-      gestureDir.value = LB_DIR_NONE;
+      gestureDir.value = DIR_NONE;
     })
     .onUpdate((e) => {
       if (scale.value > 1) {
@@ -338,16 +344,16 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
         translateY.value = savedTranslateY.value + e.translationY;
         return;
       }
-      if (gestureDir.value === LB_DIR_NONE) {
+      if (gestureDir.value === DIR_NONE) {
         if (Math.abs(e.translationX) > 8 || Math.abs(e.translationY) > 8) {
           gestureDir.value =
             Math.abs(e.translationX) >= Math.abs(e.translationY)
-              ? LB_DIR_HORIZ
-              : LB_DIR_VERT;
+              ? DIR_HORIZ
+              : DIR_VERT;
         }
         return;
       }
-      if (gestureDir.value === LB_DIR_HORIZ) {
+      if (gestureDir.value === DIR_HORIZ) {
         slideX.value = e.translationX;
       } else {
         translateY.value = Math.max(0, e.translationY);
@@ -359,15 +365,15 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
         savedTranslateY.value = translateY.value;
         return;
       }
-      if (gestureDir.value === LB_DIR_HORIZ) {
+      if (gestureDir.value === DIR_HORIZ) {
         const dx = e.translationX;
-        if (dx < -LB_SWIPE_HORIZ_THRESHOLD && indexSv.value < totalSv.value - 1) {
+        if (dx < -SWIPE_HORIZ_THRESHOLD && indexSv.value < totalSv.value - 1) {
           const next = indexSv.value + 1;
           indexSv.value = next;
           slideX.value = withTiming(-SCREEN.width, { duration: 220 }, () => {
             runOnJS(goToIndex)(next);
           });
-        } else if (dx > LB_SWIPE_HORIZ_THRESHOLD && indexSv.value > 0) {
+        } else if (dx > SWIPE_HORIZ_THRESHOLD && indexSv.value > 0) {
           const prev = indexSv.value - 1;
           indexSv.value = prev;
           slideX.value = withTiming(SCREEN.width, { duration: 220 }, () => {
@@ -376,8 +382,8 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
         } else {
           slideX.value = withSpring(0);
         }
-      } else if (gestureDir.value === LB_DIR_VERT) {
-        if (e.translationY > LB_SWIPE_DOWN_THRESHOLD) {
+      } else if (gestureDir.value === DIR_VERT) {
+        if (e.translationY > SWIPE_DOWN_THRESHOLD) {
           translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
             runOnJS(onClose)();
           });
@@ -424,7 +430,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   const photo = photos[currentIndex];
   const uri = photo?.downloadUrl ?? null;
   const caption = photo?.caption ?? null;
-  const hasMultiple = photos.length > 1;
+  const hasMultiple = showCounter(photos.length);
 
   return (
     <Modal
@@ -482,7 +488,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
           {hasMultiple ? (
             <View style={[lbStyles.counter, { top: insets.top + 20 }]}>
               <Text style={lbStyles.counterText}>
-                {currentIndex + 1} / {photos.length}
+                {counterText(currentIndex, photos.length)}
               </Text>
             </View>
           ) : null}
