@@ -26,6 +26,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
 import { useUiPrefs, runUiPrefBatchMigration, dismissHintDurable } from "@/lib/hooks/useUiPrefs";
+import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
@@ -259,11 +260,12 @@ export default function VinePhenologyScreen() {
                       text: "Mark as Submitted",
                       onPress: async () => {
                         try {
-                          await apiFetch(`/api/farms/${currentFarm?.id}/winegb-submissions/${survey.surveyKey}`, {
+                          const putRes = await apiFetch(`/api/farms/${currentFarm?.id}/winegb-submissions/${survey.surveyKey}`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ submitted: true, year: obsYear }),
                           });
+                          if (putRes.ok) winegbSubmissionEvents.emit();
                         } catch { /* best-effort */ }
                         router.back();
                       },

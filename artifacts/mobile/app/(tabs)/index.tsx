@@ -31,6 +31,7 @@ import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
+import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
 
 interface RecentActivity {
   id: string;
@@ -62,6 +63,7 @@ export default function HomeScreen() {
   });
 
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
+  const [winegbPendingCount, setWinegbPendingCount] = useState(0);
   const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
   const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
   const [upcomingMilestones, setUpcomingMilestones] = useState<Array<{
@@ -158,11 +160,31 @@ export default function HomeScreen() {
     } catch { /* ignore */ }
   }, [currentFarm?.id, isViticultureActive]);
 
+  const WINEGB_SURVEY_KEYS = ["bud_burst", "flowering", "veraison", "harvest"] as const;
+
+  const fetchWinegbSubmissions = useCallback(async () => {
+    if (!currentFarm?.id || !isViticultureActive) {
+      setWinegbPendingCount(0);
+      return;
+    }
+    try {
+      const year = new Date().getFullYear();
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/winegb-submissions?year=${year}`);
+      if (!res.ok) return;
+      const payload = await res.json() as { submissions: Record<string, { submitted: boolean }> };
+      const pending = WINEGB_SURVEY_KEYS.filter(
+        key => !(payload.submissions?.[key]?.submitted ?? false),
+      ).length;
+      setWinegbPendingCount(pending);
+    } catch { /* ignore */ }
+  }, [currentFarm?.id, isViticultureActive]);
+
   // Clear any stale viticulture compliance-gap counts when the farm doesn't
   // have the module, so banners never appear for non-viticulture farms.
   useEffect(() => {
     if (!isViticultureActive) {
       setUnlinkedCounts({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
+      setWinegbPendingCount(0);
     }
   }, [isViticultureActive]);
 
@@ -171,7 +193,8 @@ export default function HomeScreen() {
       fetchUnlinkedCounts();
       fetchFPInputDerogAlerts();
       fetchUpcomingMilestones();
-    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones])
+      fetchWinegbSubmissions();
+    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchWinegbSubmissions])
   );
 
   // Also re-fetch immediately when a history screen changes a block link inline
@@ -181,6 +204,14 @@ export default function HomeScreen() {
       fetchUnlinkedCounts();
     });
   }, [fetchUnlinkedCounts]);
+
+  // Re-fetch WineGB submission counts immediately when phenology marks a survey
+  // submitted, without waiting for a pull-to-refresh or focus cycle.
+  useEffect(() => {
+    return winegbSubmissionEvents.subscribe(() => {
+      fetchWinegbSubmissions();
+    });
+  }, [fetchWinegbSubmissions]);
 
   const [liveWeather, setLiveWeather] = useState<{
     temperature: string;
@@ -300,9 +331,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchWinegbSubmissions()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts]);
+  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchWinegbSubmissions]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -556,6 +587,31 @@ export default function HomeScreen() {
                 <Feather name="chevron-right" size={18} color={colors.textSecondary} />
               </Pressable>
             )}
+          </>
+        )}
+
+        {winegbPendingCount > 0 && (
+          <>
+            <SectionHeader title="WineGB Surveys" />
+            <Pressable
+              style={styles.winegbNudgeBanner}
+              onPress={() => router.push("/vine-phenology")}
+            >
+              <View style={styles.winegbNudgeIconWrap}>
+                <Feather name="globe" size={18} color="#059669" />
+              </View>
+              <View style={styles.unlinkedContent}>
+                <Text style={styles.unlinkedTitle}>
+                  {winegbPendingCount === 1
+                    ? "1 WineGB survey to submit"
+                    : `${winegbPendingCount} WineGB surveys to submit`}
+                </Text>
+                <Text style={styles.unlinkedSubtitle}>
+                  Record a phenology observation to mark as submitted
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+            </Pressable>
           </>
         )}
 
@@ -869,5 +925,26 @@ const styles = StyleSheet.create({
   milestoneBanner: {
     backgroundColor: "#F0FDFA",
     borderColor: "#0D948855",
+  },
+  winegbNudgeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: "#ecfdf5",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#6ee7b755",
+    gap: spacing.md,
+  },
+  winegbNudgeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#d1fae5",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
