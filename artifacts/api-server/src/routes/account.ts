@@ -145,15 +145,45 @@ router.patch("/api/account/ui-prefs", requireAuth, async (req: Request, res: Res
     return;
   }
 
+  // Strip stale WineGB dismissal keys from the incoming patch before writing.
+  // Keys follow the pattern winegb_<survey-name>_<YYYY> (survey names may contain
+  // accented characters such as "véraison").  Any key whose trailing year is older
+  // than the current year is dropped here so that neither the INSERT (new-user)
+  // path nor the UPDATE (existing-user) path can re-introduce stale entries.
+  const currentYear = new Date().getFullYear();
+  const staleWineGbKey = (k: string): boolean => {
+    const m = /^winegb_.+_(\d{4})$/.exec(k);
+    return m !== null && parseInt(m[1], 10) < currentYear;
+  };
+  for (const key of Object.keys(patch)) {
+    if (staleWineGbKey(key)) delete patch[key];
+  }
+
+  // Note: patch may now be empty if all keys were stale WineGB entries.
+  // We still proceed with the upsert so the UPDATE expression runs its
+  // SQL-side pruning on any stale keys already persisted in the JSONB
+  // column for this user.  For a brand-new user (INSERT path) an empty
+  // patch stores '{}' which is correct — they have no prior stale entries.
+
   // Upsert: create the row if it doesn't exist yet, then merge the patch into
-  // the existing JSONB column using the || operator so untouched keys are preserved.
+  // the existing JSONB column, also pruning any stale WineGB keys that were
+  // already persisted in the JSONB (same regex applied via SQL).
   await db
     .insert(usersTable)
     .values({ id: userId, uiPrefs: patch })
     .onConflictDoUpdate({
       target: usersTable.id,
       set: {
-        uiPrefs: sql`COALESCE(users.ui_prefs, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+        uiPrefs: sql`(
+          SELECT COALESCE(jsonb_object_agg(kv.key, kv.value), '{}'::jsonb)
+          FROM jsonb_each(
+            COALESCE(users.ui_prefs, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb
+          ) AS kv(key, value)
+          WHERE NOT (
+            kv.key ~ '^winegb_.+_[0-9]{4}$'
+            AND (regexp_match(kv.key, '_([0-9]{4})$'))[1]::int < ${currentYear}
+          )
+        )`,
       },
     });
 
