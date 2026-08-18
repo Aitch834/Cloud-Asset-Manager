@@ -1712,8 +1712,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           {cellarZones.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Filter by cellar zone</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(() => {
+              {(() => {
                   // Build zone data rows first so we can sort when a flag filter is active
                   const zoneRows = cellarZones.map(zone => {
                     const zoneBarrels = barrels.filter(r => String(r.cellar_zone || "Unassigned") === zone);
@@ -1740,28 +1739,43 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     : alertFlagFilter === "idle" ? "idle"
                     : null;
 
-                  return sortedRows.map(({ zone, full, empty, flaggedCount }) => {
-                    const isSelected = zoneFilter.includes(zone);
-                    const isDimmed = alertFlagFilter && flaggedCount === 0 && !isSelected;
-                    return (
-                      <button
-                        key={zone}
-                        onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
-                        className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"} ${isDimmed ? "opacity-40" : ""}`}
-                      >
-                        <span className="font-semibold">{zone}</span>
-                        {flaggedCount !== null
-                          ? <span className={`font-bold ${flaggedCount > 0 ? "text-amber-700" : "text-slate-400"}`}>{flaggedCount} {flagLabel}</span>
-                          : isFullFilter === "false"
-                          ? <span className="text-slate-500">○ {empty}</span>
-                          : isFullFilter === "true"
-                          ? <span className="text-green-700 font-medium">● {full}</span>
-                          : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
-                      </button>
-                    );
-                  });
+                  // Ranked summary: zones with flagged matches, shown above chips when a flag filter is active
+                  const flaggedZones = alertFlagFilter
+                    ? sortedRows.filter(r => (r.flaggedCount ?? 0) > 0)
+                    : [];
+
+                  return (
+                    <>
+                      {flaggedZones.length >= 2 && (
+                        <p className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-1.5 leading-snug">
+                          {flaggedZones.map(r => `${r.zone} ${r.flaggedCount}`).join(" · ")}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {sortedRows.map(({ zone, full, empty, flaggedCount }) => {
+                          const isSelected = zoneFilter.includes(zone);
+                          const isDimmed = alertFlagFilter && flaggedCount === 0 && !isSelected;
+                          return (
+                            <button
+                              key={zone}
+                              onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
+                              className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"} ${isDimmed ? "opacity-40" : ""}`}
+                            >
+                              <span className="font-semibold">{zone}</span>
+                              {flaggedCount !== null
+                                ? <span className={`font-bold ${flaggedCount > 0 ? "text-amber-700" : "text-slate-400"}`}>{flaggedCount} {flagLabel}</span>
+                                : isFullFilter === "false"
+                                ? <span className="text-slate-500">○ {empty}</span>
+                                : isFullFilter === "true"
+                                ? <span className="text-green-700 font-medium">● {full}</span>
+                                : <><span className="text-green-700 font-medium">● {full}</span><span className="text-slate-400">○ {empty}</span></>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
                 })()}
-              </div>
             </div>
           )}
 
