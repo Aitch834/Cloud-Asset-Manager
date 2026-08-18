@@ -38,13 +38,15 @@ interface OperationRecord {
   blockId: number | null;
   blockName: string | null;
   operationType: string | null;
+  operatorName: string | null;
+  hoursWorked: number | null;
+  notes: string | null;
   pruningSystem: string | null;
   budsPerVineTarget: number | null;
   budsPerVineActual: number | null;
   pruningWeightKgPerVine: number | null;
-  operatorName: string | null;
-  hoursWorked: number | null;
-  notes: string | null;
+  shootsRemovedPct: number | null;
+  leavesRemovedZone: string | null;
 }
 
 function formatDate(d: string | null | undefined): string {
@@ -100,7 +102,30 @@ const OPERATION_TYPES = [
 ];
 
 const PRUNING_SYSTEMS = ["Double Guyot", "Single Guyot", "Cordon Spur", "Scott Henry", "Cane Replacement", "Other"];
-const PRUNING_TYPES = ["Winter Pruning", "Spur Thinning", "Cane Laying / Tie Down"];
+// Matches dashboard canonical spelling ("Tie Down / Cane Laying")
+const PRUNING_TYPES = ["Winter Pruning", "Spur Thinning", "Tie Down / Cane Laying"];
+
+/**
+ * Normalize an operation type for variant-tolerant comparison:
+ * lowercase + alphabetically sort any "/" separated parts so
+ * "Cane Laying / Tie Down" and "Tie Down / Cane Laying" compare equal.
+ */
+function normalizeOpType(s: string): string {
+  return s.split(" / ").map(p => p.trim().toLowerCase()).sort().join(" / ");
+}
+
+/** Map a raw server operationType to the closest canonical OPERATION_TYPES key. */
+function findCanonicalOpType(raw: string): string {
+  const n = normalizeOpType(raw);
+  return OPERATION_TYPES.find(op => normalizeOpType(op.key) === n)?.key ?? raw;
+}
+
+/** True when the operation type (any casing / word order) is a pruning operation. */
+function opTypeIsPruning(opType: string | null): boolean {
+  if (!opType) return false;
+  const n = normalizeOpType(opType);
+  return PRUNING_TYPES.some(t => normalizeOpType(t) === n);
+}
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
@@ -129,11 +154,13 @@ function EditOperationModal({
   const [pruningSystem, setPruningSystem] = useState<string | null>(null);
   const [budsPerVineTarget, setBudsPerVineTarget] = useState("");
   const [budsPerVineActual, setBudsPerVineActual] = useState("");
-  const [pruningWeightKg, setPruningWeightKg] = useState("");
+  const [pruningWeightKgPerVine, setPruningWeightKgPerVine] = useState("");
+  const [shootsRemovedPct, setShootsRemovedPct] = useState("");
+  const [leavesRemovedZone, setLeavesRemovedZone] = useState("");
   const [hoursWorked, setHoursWorked] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const isPruning = operationType !== null && PRUNING_TYPES.includes(operationType);
+  const isPruning = opTypeIsPruning(operationType);
 
   React.useEffect(() => {
     if (visible && record) {
@@ -141,11 +168,13 @@ function EditOperationModal({
       setOperationDate(record.operationDate ?? "");
       setOperatorName(record.operatorName ?? "");
       setNotes(record.notes ?? "");
-      setOperationType(record.operationType ?? null);
+      setOperationType(record.operationType ? findCanonicalOpType(record.operationType) : null);
       setPruningSystem(record.pruningSystem ?? null);
       setBudsPerVineTarget(record.budsPerVineTarget != null ? String(record.budsPerVineTarget) : "");
       setBudsPerVineActual(record.budsPerVineActual != null ? String(record.budsPerVineActual) : "");
-      setPruningWeightKg(record.pruningWeightKgPerVine != null ? String(record.pruningWeightKgPerVine) : "");
+      setPruningWeightKgPerVine(record.pruningWeightKgPerVine != null ? String(record.pruningWeightKgPerVine) : "");
+      setShootsRemovedPct(record.shootsRemovedPct != null ? String(record.shootsRemovedPct) : "");
+      setLeavesRemovedZone(record.leavesRemovedZone ?? "");
       setHoursWorked(record.hoursWorked != null ? String(record.hoursWorked) : "");
       setSelectedBlock(record.blockId ? (blocks.find(b => b.id === record.blockId) ?? null) : null);
     }
@@ -153,6 +182,10 @@ function EditOperationModal({
 
   const handleSave = async () => {
     if (!record) return;
+    if (!operationType) {
+      Alert.alert("Operation Type Required", "Please select an operation type before saving.");
+      return;
+    }
     setSaving(true);
     try {
       const body: Partial<OperationRecord> & { blockId: number | null; blockName: string | null } = {
@@ -161,11 +194,13 @@ function EditOperationModal({
         notes: notes.trim() || null,
         blockId: selectedBlock?.id ?? null,
         blockName: selectedBlock?.blockName ?? null,
-        operationType: operationType || null,
+        operationType,
         pruningSystem: isPruning && pruningSystem ? pruningSystem : null,
         budsPerVineTarget: isPruning && budsPerVineTarget ? Number(budsPerVineTarget) : null,
         budsPerVineActual: isPruning && budsPerVineActual ? Number(budsPerVineActual) : null,
-        pruningWeightKgPerVine: isPruning && pruningWeightKg ? Number(pruningWeightKg) : null,
+        pruningWeightKgPerVine: isPruning && pruningWeightKgPerVine ? Number(pruningWeightKgPerVine) : null,
+        shootsRemovedPct: shootsRemovedPct ? Number(shootsRemovedPct) : null,
+        leavesRemovedZone: leavesRemovedZone.trim() || null,
         hoursWorked: hoursWorked ? Number(hoursWorked) : null,
       };
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-operations/${record.id}`, {
@@ -216,34 +251,33 @@ function EditOperationModal({
                 <View key={group} style={editStyles.opGroup}>
                   <Text style={editStyles.opGroupLabel}>{group}</Text>
                   <View style={editStyles.opGroupChips}>
-                    {ops.map(op => (
-                      <Pressable
-                        key={op.key}
-                        style={[editStyles.typeChip, operationType === op.key && editStyles.typeChipSelected]}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setOperationType(operationType === op.key ? null : op.key);
-                          if (!PRUNING_TYPES.includes(op.key)) {
-                            setPruningSystem(null);
-                            setBudsPerVineTarget("");
-                            setBudsPerVineActual("");
-                            setPruningWeightKg("");
-                          }
-                        }}
-                      >
-                        <Feather
-                          name={op.icon}
-                          size={13}
-                          color={operationType === op.key ? colors.primary : colors.textSecondary}
-                        />
-                        <Text style={[editStyles.typeChipText, operationType === op.key && editStyles.typeChipTextSelected]}>
-                          {op.key}
-                        </Text>
-                        {operationType === op.key && (
-                          <Feather name="check" size={12} color={colors.primary} />
-                        )}
-                      </Pressable>
-                    ))}
+                    {ops.map(op => {
+                      const selected = operationType === op.key;
+                      return (
+                        <Pressable
+                          key={op.key}
+                          style={[editStyles.typeChip, selected && editStyles.typeChipSelected]}
+                          onPress={() => {
+                            if (selected) return; // operation type is required — cannot deselect
+                            Haptics.selectionAsync();
+                            setOperationType(op.key);
+                            // Clear pruning fields only when switching to a non-pruning type
+                            if (!opTypeIsPruning(op.key)) {
+                              setPruningSystem(null);
+                              setBudsPerVineTarget("");
+                              setBudsPerVineActual("");
+                              setPruningWeightKgPerVine("");
+                            }
+                          }}
+                        >
+                          <Feather name={op.icon} size={13} color={selected ? colors.primary : colors.textSecondary} />
+                          <Text style={[editStyles.typeChipText, selected && editStyles.typeChipTextSelected]} numberOfLines={2}>
+                            {op.key}
+                          </Text>
+                          {selected && <Feather name="check" size={12} color={colors.primary} />}
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
               ))}
@@ -291,13 +325,34 @@ function EditOperationModal({
                 <Text style={editStyles.fieldLabel}>Pruning Weight (kg/vine)</Text>
                 <Input
                   placeholder="e.g. 0.45"
-                  value={pruningWeightKg}
-                  onChangeText={setPruningWeightKg}
+                  value={pruningWeightKgPerVine}
+                  onChangeText={setPruningWeightKgPerVine}
                   keyboardType="decimal-pad"
                 />
               </View>
             )}
 
+            {/* Canopy Details */}
+            <View style={editStyles.card}>
+              <Text style={editStyles.sectionTitle}>Canopy Details</Text>
+
+              <Text style={editStyles.fieldLabel}>Shoots Removed (%)</Text>
+              <Input
+                placeholder="e.g. 30"
+                value={shootsRemovedPct}
+                onChangeText={setShootsRemovedPct}
+                keyboardType="numeric"
+              />
+
+              <Text style={editStyles.fieldLabel}>Leaves Removed Zone</Text>
+              <Input
+                placeholder="e.g. Fruit zone, both sides"
+                value={leavesRemovedZone}
+                onChangeText={setLeavesRemovedZone}
+              />
+            </View>
+
+            {/* Record Details */}
             <View style={editStyles.card}>
               <Text style={editStyles.sectionTitle}>Record Details</Text>
 
