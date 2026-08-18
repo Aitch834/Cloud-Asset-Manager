@@ -75,10 +75,17 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkEntryId, setUnlinkEntryId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+  const [printFsaWarnOpen, setPrintFsaWarnOpen] = useState(false);
   const [emailTruncatedOpen, setEmailTruncatedOpen] = useState(false);
   const [pendingMailtoHref, setPendingMailtoHref] = useState("");
 
   const isSbiInvalid = !!farmRecord && !!String(farmRecord.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmRecord.sbiNumber ?? "").trim());
+  const isFsaIncomplete = !!farmRecord && (
+    !farmRecord.fsaVineRegisterRef || String(farmRecord.fsaVineRegisterRef).trim() === "" ||
+    !farmRecord.fsaWineProductionRef || String(farmRecord.fsaWineProductionRef).trim() === "" ||
+    !farmRecord.appaRef || String(farmRecord.appaRef).trim() === "" ||
+    !farmRecord.winegbMembershipNumber || String(farmRecord.winegbMembershipNumber).trim() === ""
+  );
   const [changingBlockEntryId, setChangingBlockEntryId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [editingRefBlockId, setEditingRefBlockId] = useState<number | null>(null);
@@ -552,7 +559,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               </>
             );
           })()}
-          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else if (isFsaIncomplete) { setPrintFsaWarnOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => emailVineRegister(displayRows, farmName, farmRecord)} disabled={!displayRows.length} title="Open your email client with a pre-filled Vine Register summary ready to send to an advisor or certifier"><Mail className="w-4 h-4 mr-1" />Email Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
@@ -923,6 +930,28 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           <FsaCompletenessBar farmId={farmId} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setPrintConfirmOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print — FSA/APPA refs incomplete soft-warn dialog */}
+      <Dialog open={printFsaWarnOpen} onOpenChange={o => { if (!o) setPrintFsaWarnOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Registration refs incomplete
+            </DialogTitle>
+            <DialogDescription>
+              Some FSA / APPA / WineGB reference numbers are missing. They will appear blank in the printed register. You can still print now and add them later.
+            </DialogDescription>
+          </DialogHeader>
+          <FsaCompletenessBar farmId={farmId} />
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setPrintFsaWarnOpen(false)}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => { setPrintFsaWarnOpen(false); void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); }}>
+              <Printer className="w-4 h-4 mr-1" />Print anyway
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
