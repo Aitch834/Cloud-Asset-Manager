@@ -27,6 +27,9 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 
@@ -345,6 +348,16 @@ export default function VineSprayDiaryScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-spray-entry", currentFarm?.id, user?.id);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchIdentifiers();
+    }, [refetchIdentifiers]),
+  );
+
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
   const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
   const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
@@ -436,6 +449,17 @@ export default function VineSprayDiaryScreen() {
           </Pressable>
           <Text style={styles.title}>Vineyard Spray Diary</Text>
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="spray records"
+        />
 
         {/* ── Form (hidden once saved) ── */}
         {savedRecordId === null ? (
