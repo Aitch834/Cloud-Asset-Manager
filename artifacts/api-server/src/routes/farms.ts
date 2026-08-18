@@ -7206,7 +7206,10 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       vatAmountPence: financialTransactionsTable.vatAmountPence,
       vatRate: financialTransactionsTable.vatRate,
       enterprise: financialTransactionsTable.enterprise,
-    }).from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)),
+      agriEnvProjectName: agriEnvProjectsTable.schemeName,
+    }).from(financialTransactionsTable)
+      .leftJoin(agriEnvProjectsTable, eq(financialTransactionsTable.agriEnvProjectId, agriEnvProjectsTable.id))
+      .where(eq(financialTransactionsTable.farmId, farmId)),
     db.select().from(grainSalesTable).where(and(eq(grainSalesTable.farmId, farmId), isNotNull(grainSalesTable.grossValuePence))),
     db.select().from(livestockDeadweightSalesTable).where(and(eq(livestockDeadweightSalesTable.farmId, farmId), isNotNull(livestockDeadweightSalesTable.grossValuePence))),
     db.select().from(livestockMartSalesTable).where(and(eq(livestockMartSalesTable.farmId, farmId), isNotNull(livestockMartSalesTable.grossValuePence))),
@@ -7241,6 +7244,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     vatAmountPence: number | null;
     vatRate: string | null;
     enterprise: string | null;
+    agriEnvProject: string | null;
   };
 
   const all: any[] = [
@@ -7255,6 +7259,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
       vatAmountPence: r.vatAmountPence,
       vatRate: r.vatRate,
       enterprise: r.enterprise ?? null,
+      agriEnvProject: r.agriEnvProjectName ?? null,
     })),
     ...grainSales.map(r => ({
       transactionType: "income",
@@ -7375,7 +7380,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     return signed.toFixed(2);
   };
 
-  const headers = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise"];
+  const headers = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise", "Agri-Env Project"];
   const rows = filtered.map(t => [
     dateLabel(t.transactionDate),
     xeroAmount(t),
@@ -7385,6 +7390,7 @@ router.get("/farms/:farmId/financial-transactions/export", requireAuth, requireT
     mapVatRateToXeroTax(t.vatRate),
     t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "",
     t.enterprise ?? "",
+    t.agriEnvProject ?? "",
   ].map(csvEscape).join(","));
 
   const csvContent = [headers.join(","), ...rows].join("\n");
