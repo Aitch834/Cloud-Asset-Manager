@@ -209,6 +209,21 @@ export function ScoutingPhotoLightbox({
   const [deleting, setDeleting] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [reloading, setReloading] = useState(false);
+  /** True while the 2 s auto-retry timer is counting down (before the reload fires). */
+  const [autoRetryPending, setAutoRetryPending] = useState(false);
+  /** Tracks whether we have already fired one automatic retry for the current photo view. */
+  const autoRetried = useRef(false);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Cancel any scheduled auto-retry and reset related state. */
+  const cancelAutoRetry = useCallback(() => {
+    if (autoRetryTimer.current !== null) {
+      clearTimeout(autoRetryTimer.current);
+      autoRetryTimer.current = null;
+    }
+    setAutoRetryPending(false);
+    autoRetried.current = false;
+  }, []);
 
   // Sync index when lightbox opens; reset in-flight flags
   useEffect(() => {
@@ -219,6 +234,7 @@ export function ScoutingPhotoLightbox({
     setSharing(false);
     setDeleting(false);
     setReloading(false);
+    cancelAutoRetry();
   }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clamp when photos array shrinks (e.g. a delete from outside)
@@ -237,7 +253,33 @@ export function ScoutingPhotoLightbox({
     setDeleting(false);
     setImgError(false);
     setReloading(false);
-  }, [currentIndex]);
+    cancelAutoRetry();
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-retry: when imgError fires and onReload is available, silently reload
+  // after a short delay.  Only one automatic attempt is made per photo view;
+  // if it fails the "Tap to reload" UI appears as the manual fallback.
+  useEffect(() => {
+    if (!imgError || !onReload || autoRetried.current) return;
+    autoRetried.current = true;
+    setAutoRetryPending(true);
+    autoRetryTimer.current = setTimeout(async () => {
+      autoRetryTimer.current = null;
+      setAutoRetryPending(false);
+      setReloading(true);
+      try {
+        await onReload();
+      } finally {
+        setReloading(false);
+      }
+    }, 2000);
+    return () => {
+      if (autoRetryTimer.current !== null) {
+        clearTimeout(autoRetryTimer.current);
+        autoRetryTimer.current = null;
+      }
+    };
+  }, [imgError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear image error (and reloading) when the URL is refreshed (e.g. after onReload)
   const photo = photos[currentIndex] ?? null;
@@ -402,7 +444,7 @@ export function ScoutingPhotoLightbox({
               resizeMode="contain"
               onError={() => setImgError(true)}
             />
-          ) : reloading ? (
+          ) : reloading || autoRetryPending ? (
             <View style={lbStyles.imagePlaceholder}>
               <ActivityIndicator size="large" color="rgba(255,255,255,0.75)" />
             </View>
