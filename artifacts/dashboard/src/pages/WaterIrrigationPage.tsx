@@ -177,10 +177,35 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [licenceManuallySelected, setLicenceManuallySelected] = useState(false);
   const { data: readings = [], isLoading } = useQuery({ queryKey: ["water-readings", farmId], queryFn: () => fetch(api(`farms/${farmId}/water-meter-readings`), { credentials: "include" }).then(r => r.json()) });
   const save = useMutation({ mutationFn: (b: Record<string, unknown>) => fetch(api(`farms/${farmId}/water-meter-readings`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["water-readings", farmId] }); setOpen(false); setForm({}); }, onError: () => toast({ title: "Save failed", variant: "destructive" }) });
   const del = useMutation({ mutationFn: (id: number) => fetch(api(`farms/${farmId}/water-meter-readings/${id}`), { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }), onSuccess: () => qc.invalidateQueries({ queryKey: ["water-readings", farmId] }), onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   const allReadings = readings as Record<string, unknown>[];
+
+  // MRU licence: most recently used across all meter readings, or single-licence shortcut
+  const derivedLicenceId = useMemo(() => {
+    const licArr = licences as Record<string, unknown>[];
+    const recs = allReadings as Record<string, unknown>[];
+    const mru = [...recs].sort((a, b) => String(b.readingDate ?? "").localeCompare(String(a.readingDate ?? ""))).find(r => r.licenceId != null);
+    if (mru?.licenceId != null && licArr.some(l => String(l.id) === String(mru.licenceId))) return String(mru.licenceId);
+    if (licArr.length === 1) return String(licArr[0].id);
+    return null;
+  }, [licences, allReadings]);
+
+  // Auto-fill licence when the dialog opens for a new reading
+  useEffect(() => {
+    if (!open || licenceManuallySelected) return;
+    if (derivedLicenceId) setForm(f => ({ ...f, licenceId: derivedLicenceId }));
+  }, [derivedLicenceId, open, licenceManuallySelected]);
+
+  // Hint label shown under the select when auto-filled
+  const licenceHint = useMemo(() => {
+    if (!derivedLicenceId || !form.licenceId || form.licenceId !== derivedLicenceId || licenceManuallySelected) return null;
+    const recs = allReadings as Record<string, unknown>[];
+    const hasMru = recs.some(r => r.licenceId != null && String(r.licenceId) === derivedLicenceId);
+    return hasMru ? "pre-filled from last use" : "pre-filled — only licence on farm";
+  }, [derivedLicenceId, form.licenceId, licenceManuallySelected, allReadings]);
 
   useEffect(() => {
     const licId = form.licenceId;
@@ -211,8 +236,9 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   const filteredReadings = yearFilter === "all" ? allReadings : allReadings.filter(r => String(r.readingDate ?? "").startsWith(yearFilter));
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><div className="flex items-center gap-2"><Select value={yearFilter} onValueChange={setYearFilter}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><div className="flex items-center gap-2"><Select value={yearFilter} onValueChange={setYearFilter}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setLicenceManuallySelected(false); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div></div>
       {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
+
       
       {viewRecord && (
         <Dialog open onOpenChange={() => setViewRecord(null)}>
@@ -240,10 +266,11 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Reading Date *</Label><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.readingDate ?? ""} onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))} /></div>
             <div><Label>Licence *</Label>
-              <Select value={form.licenceId ?? ""} onValueChange={v => setForm(f => ({ ...f, licenceId: v }))}>
+              <Select value={form.licenceId ?? ""} onValueChange={v => { setLicenceManuallySelected(true); setForm(f => ({ ...f, licenceId: v })); }}>
                 <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
                 <SelectContent>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}</SelectItem>)}</SelectContent>
               </Select>
+              {licenceHint && <p className="text-[11px] text-blue-600 mt-1">{licenceHint}</p>}
             </div>
             <div><Label>Meter Reading *</Label><Input type="number" step="0.01" value={form.meterReading ?? ""} onChange={e => setForm(f => ({ ...f, meterReading: e.target.value }))} /></div>
             <div><Label>Volume Abstracted (m³) <span className="text-xs text-muted-foreground">(auto)</span></Label><Input type="number" step="0.01" value={form.volumeAbstractedM3 ?? ""} onChange={e => setForm(f => ({ ...f, volumeAbstractedM3: e.target.value }))} placeholder="Auto-calculated from reading" /></div>
