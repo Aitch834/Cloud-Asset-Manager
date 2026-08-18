@@ -47,6 +47,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
   const [bottlingSearch, setBottlingSearch] = useState("");
   const [bottlingSignedFilter, setBottlingSignedFilter] = usePersistedFilter({ page: "bottling-records", filter: "signed", farmId, defaultValue: "all" });
+  const BOTTLING_SORT_COLS = ["bottling_date", "lot_code", "batch_ref", "wine_colour", "volume_bottled_litres", "bottles_produced"] as const;
+  type BottlingSortCol = typeof BOTTLING_SORT_COLS[number];
+  const [sortCol, setSortCol] = usePersistedFilter({ page: "bottling-records", filter: "sort-col", farmId, defaultValue: "bottling_date", validValues: BOTTLING_SORT_COLS });
+  const [sortDir, setSortDir] = usePersistedFilter({ page: "bottling-records", filter: "sort-dir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] });
   const [nonCompliantOnly, setNonCompliantOnly] = useState(false);
   const [so2FromTest, setSo2FromTest] = useState(false);
   const [phTaFromAnalysis, setPhTaFromAnalysis] = useState<"fermentation" | "pressing" | null>(null);
@@ -347,7 +351,39 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     bottlingSo2Verdict(r)?.compliant === false;
 
   const nonCompliantCount = filtered.filter(isBottlingRowNonCompliant).length;
-  const displayRows = nonCompliantOnly ? filtered.filter(isBottlingRowNonCompliant) : filtered;
+  const baseRows = nonCompliantOnly ? filtered.filter(isBottlingRowNonCompliant) : filtered;
+
+  const toggleSort = (col: BottlingSortCol) => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir(col === "bottling_date" ? "desc" : "asc");
+    }
+  };
+  const SortIcon = ({ col }: { col: BottlingSortCol }) => {
+    if (sortCol !== col) return <ArrowUpDown className="w-3 h-3 ml-1 text-muted-foreground/50" />;
+    return sortDir === "asc" ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
+  const thSort = (col: BottlingSortCol, label: string, align: "left" | "right" = "left") => (
+    <th
+      className={`${align === "right" ? "text-right" : "text-left"} p-3 font-medium cursor-pointer select-none hover:bg-muted/60 transition-colors whitespace-nowrap`}
+      onClick={() => toggleSort(col)}
+    >
+      <span className="inline-flex items-center gap-0.5">{label}<SortIcon col={col} /></span>
+    </th>
+  );
+
+  const displayRows = [...baseRows].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const col = sortCol as BottlingSortCol;
+    if (col === "volume_bottled_litres" || col === "bottles_produced") {
+      const av = parseFloat(String(a[col] ?? "")) || 0;
+      const bv = parseFloat(String(b[col] ?? "")) || 0;
+      return (av - bv) * dir;
+    }
+    return String(a[col] ?? "").localeCompare(String(b[col] ?? "")) * dir;
+  });
 
   // Import-compatible columns derived from BOTTLING_COLUMNS (exact import
   // headers + re-import-safe values: ISO dates, Yes/No booleans), followed by
@@ -471,12 +507,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40"><tr>
-              <th className="text-left p-3 font-medium">Date</th>
-              <th className="text-left p-3 font-medium">Lot Code</th>
-              <th className="text-left p-3 font-medium">Batch</th>
-              <th className="text-left p-3 font-medium">Colour</th>
-              <th className="text-right p-3 font-medium">Volume (L)</th>
-              <th className="text-right p-3 font-medium">Bottles</th>
+              {thSort("bottling_date", "Date")}
+              {thSort("lot_code", "Lot Code")}
+              {thSort("batch_ref", "Batch")}
+              {thSort("wine_colour", "Colour")}
+              {thSort("volume_bottled_litres", "Volume (L)", "right")}
+              {thSort("bottles_produced", "Bottles", "right")}
               {crud.data.some(r => r.bottling_machine_id != null) && <th className="text-left p-3 font-medium">Machine</th>}
               <th className="text-left p-3 font-medium">Closure</th>
               <th className="text-right p-3 font-medium">Free SO₂</th>
