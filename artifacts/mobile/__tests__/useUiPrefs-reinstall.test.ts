@@ -117,6 +117,7 @@ jest.mock("expo-secure-store", () => ({
 // ---------------------------------------------------------------------------
 
 import {
+  runUiPrefBatchMigration,
   runUiPrefMigration,
   useUiPrefs,
 } from "../lib/hooks/useUiPrefs";
@@ -759,5 +760,221 @@ describe("runUiPrefMigration ordering — waits for in-flight bootstrap to settl
     expect(result).toBe("absent");
     // Now migration reads the legacy key (confirmed absent).
     expect(mockGetItem).toHaveBeenCalledWith("absent-legacy-key");
+  });
+});
+
+// ===========================================================================
+// 7. runUiPrefBatchMigration — absent path
+//    Missing key, malformed JSON, and an empty parsed list must all produce
+//    "absent" without writing any new storage entries.
+// ===========================================================================
+
+describe("runUiPrefBatchMigration — absent (no legacy key or unparseable)", () => {
+  it('returns "absent" when the legacy key does not exist in AsyncStorage', async () => {
+    const uid = nextUid();
+    const result = await runUiPrefBatchMigration(
+      uid,
+      "winegb-multi-dismissed-farm1",
+      (raw) => JSON.parse(raw) as string[],
+    );
+    expect(result).toBe("absent");
+  });
+
+  it("does not write to AsyncStorage when there is nothing to migrate", async () => {
+    const uid = nextUid();
+    await runUiPrefBatchMigration(
+      uid,
+      "winegb-multi-dismissed-farm1",
+      (raw) => JSON.parse(raw) as string[],
+    );
+    expect(mockSetItem).not.toHaveBeenCalled();
+    expect(mockRemoveItem).not.toHaveBeenCalled();
+  });
+
+  it('returns "absent" and cleans up when parseKeys throws (malformed JSON)', async () => {
+    const uid = nextUid();
+    asyncStore.set("winegb-multi-dismissed-farm1", "NOT_VALID_JSON{{{");
+
+    const result = await runUiPrefBatchMigration(
+      uid,
+      "winegb-multi-dismissed-farm1",
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    expect(result).toBe("absent");
+    // Best-effort cleanup of the malformed key should have run.
+    expect(mockRemoveItem).toHaveBeenCalledWith("winegb-multi-dismissed-farm1");
+    // No new pref keys should have been written.
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+
+  it('returns "absent" and cleans up when parseKeys returns an empty array', async () => {
+    const uid = nextUid();
+    asyncStore.set("winegb-multi-dismissed-farm1", "[]");
+
+    const result = await runUiPrefBatchMigration(
+      uid,
+      "winegb-multi-dismissed-farm1",
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    expect(result).toBe("absent");
+    expect(mockRemoveItem).toHaveBeenCalledWith("winegb-multi-dismissed-farm1");
+    expect(mockSetItem).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// 8. runUiPrefBatchMigration — promoted path
+//    The legacy entry holds multiple screen identifiers.  Every one of them
+//    must be written to both the cache and the pending queue, and the legacy
+//    key must be removed — all before the function resolves.
+// ===========================================================================
+
+describe("runUiPrefBatchMigration — promoted (multiple keys in one legacy entry)", () => {
+  const LEGACY_KEY = "winegb-multi-dismissed-farm42";
+  // Simulates a legacy entry that encodes dismissals for three separate screens.
+  const DISMISSED_SCREENS = [
+    "winegb_banner_dismissed_excise_farm42",
+    "winegb_banner_dismissed_membership_farm42",
+    "winegb_banner_dismissed_harvest_farm42",
+  ];
+
+  function parseKeys(raw: string): string[] {
+    return JSON.parse(raw) as string[];
+  }
+
+  beforeEach(() => {
+    asyncStore.set(LEGACY_KEY, JSON.stringify(DISMISSED_SCREENS));
+  });
+
+  it('returns "promoted"', async () => {
+    const uid = nextUid();
+    const result = await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+    expect(result).toBe("promoted");
+  });
+
+  it("writes every parsed key (= true) to the per-user cache", async () => {
+    const uid = nextUid();
+    await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    expect(cacheJson).toBeDefined();
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+
+    for (const key of DISMISSED_SCREENS) {
+      expect(cache[key]).toBe(true);
+    }
+  });
+
+  it("writes every parsed key (= true) to the pending queue", async () => {
+    const uid = nextUid();
+    await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+
+    for (const key of DISMISSED_SCREENS) {
+      expect(pending[key]).toBe(true);
+    }
+  });
+
+  it("removes the legacy key after both durable writes succeed", async () => {
+    const uid = nextUid();
+    await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+
+    expect(mockRemoveItem).toHaveBeenCalledWith(LEGACY_KEY);
+    expect(asyncStore.has(LEGACY_KEY)).toBe(false);
+  });
+
+  it("does not write any extra keys beyond those returned by parseKeys", async () => {
+    const uid = nextUid();
+    await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+    const writtenKeys = Object.keys(cache);
+
+    // The cache should only contain exactly the keys from DISMISSED_SCREENS
+    // (singleton starts empty for this fresh uid).
+    expect(writtenKeys.sort()).toEqual([...DISMISSED_SCREENS].sort());
+  });
+
+  it("preserves pre-existing singleton prefs when merging new keys", async () => {
+    const uid = nextUid();
+    // Pre-populate the singleton with an unrelated dismissal.
+    asyncStore.set(
+      `ui_prefs_cache_${uid}`,
+      JSON.stringify({ some_other_banner_dismissed: true }),
+    );
+    // Also put it in AsyncStorage pending so loadPending picks it up.
+    asyncStore.set(
+      `ui_prefs_pending_${uid}`,
+      JSON.stringify({ some_other_banner_dismissed: true }),
+    );
+
+    await runUiPrefBatchMigration(uid, LEGACY_KEY, parseKeys);
+
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+
+    // All new keys written.
+    for (const key of DISMISSED_SCREENS) {
+      expect(cache[key]).toBe(true);
+    }
+    // Pre-existing key preserved in the pending queue.
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending["some_other_banner_dismissed"]).toBe(true);
+  });
+});
+
+// ===========================================================================
+// 9. runUiPrefBatchMigration — retry path
+//    When a durable write fails (e.g. storage quota exceeded) the legacy key
+//    must be retained so the migration can be retried on the next mount.
+//    None of the new keys should be durably stored (the cache write is the
+//    first durable operation and it throws before any removal).
+// ===========================================================================
+
+describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
+  const LEGACY_KEY = "winegb-multi-dismissed-farm99";
+  const DISMISSED_SCREENS = [
+    "winegb_banner_dismissed_excise_farm99",
+    "winegb_banner_dismissed_membership_farm99",
+  ];
+
+  beforeEach(() => {
+    asyncStore.set(LEGACY_KEY, JSON.stringify(DISMISSED_SCREENS));
+  });
+
+  it('returns "retry" when the cache setItem throws, and retains the legacy key', async () => {
+    const uid = nextUid();
+    mockSetItem.mockRejectedValueOnce(new Error("QuotaExceededError"));
+
+    const result = await runUiPrefBatchMigration(
+      uid,
+      LEGACY_KEY,
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    expect(result).toBe("retry");
+    // Legacy key must still be in storage for the next attempt.
+    expect(asyncStore.has(LEGACY_KEY)).toBe(true);
+  });
+
+  it("does not remove the legacy key when a write fails", async () => {
+    const uid = nextUid();
+    mockSetItem.mockRejectedValueOnce(new Error("QuotaExceededError"));
+
+    await runUiPrefBatchMigration(
+      uid,
+      LEGACY_KEY,
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    expect(mockRemoveItem).not.toHaveBeenCalledWith(LEGACY_KEY);
+    expect(asyncStore.has(LEGACY_KEY)).toBe(true);
   });
 });
