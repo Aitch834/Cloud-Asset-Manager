@@ -24,7 +24,8 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
-import { openExternalUrl } from "@/utils/openExternalUrl";
+import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
+import { kvGet } from "@/lib/database";
 
 interface VineRegisterEntry {
   id: number;
@@ -37,6 +38,12 @@ interface VineRegisterEntry {
   isRemovedFromRegister: boolean | null;
 }
 
+interface FarmVitiMeta {
+  fsaVineRegisterRef: string | null;
+  fsaWineProductionRef: string | null;
+  winegbMembershipNumber: string | null;
+  appaRef: string | null;
+}
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -127,27 +134,38 @@ function buildVineRegisterMailto(
   farmName: string,
   sbi: string | null,
   address: string | null,
-  farmMeta: Record<string, unknown> | null,
-): string {
-  const fsaRef = String(farmMeta?.fsaVineRegisterRef ?? "").trim();
-  const fsaWineRef = String(farmMeta?.fsaWineProductionRef ?? "").trim();
-  const winegbNo = String(farmMeta?.winegbMembershipNumber ?? "").trim();
-  const appaRef = String(farmMeta?.appaRef ?? "").trim();
+  vitiMeta: FarmVitiMeta,
+): { href: string; isTruncated: boolean } {
+  const fsaRef = vitiMeta.fsaVineRegisterRef?.trim() ?? "";
+  const fsaWineRef = vitiMeta.fsaWineProductionRef?.trim() ?? "";
+  const winegbNo = vitiMeta.winegbMembershipNumber?.trim() ?? "";
+  const appaRef = vitiMeta.appaRef?.trim() ?? "";
+  const sbiStr = sbi?.trim() ?? "";
+  const addressStr = address?.trim() ?? "";
   const printed = new Date().toLocaleDateString("en-GB");
 
   const activeRecords = records.filter(r => !r.isRemovedFromRegister);
   const removedRecords = records.filter(r => !!r.isRemovedFromRegister);
-  const totalHa = records.reduce((sum, r) => sum + (parseFloat(r.registeredAreaHa ?? "") || 0), 0);
+  const totalHa = records.reduce((sum, r) => {
+    const n = parseFloat(r.registeredAreaHa ?? "");
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
 
   const col = (v: string | null | undefined, width: number) => {
-    const s = v == null ? "—" : String(v);
+    const s = v == null || v === "" ? "—" : v;
     return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
   };
-  const d = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString("en-GB") : "—");
+  const d = (v: string | null | undefined) =>
+    v ? new Date(v).toLocaleDateString("en-GB") : "—";
 
   const headerLine = [
-    col("Variety", 24), col("FSA Ref", 16), col("Area (ha)", 10),
-    col("GI", 22), col("Wine Colour", 16), col("Date Reg.", 12), col("Status", 8),
+    col("Variety", 24),
+    col("FSA Ref", 16),
+    col("Area (ha)", 10),
+    col("GI", 22),
+    col("Wine Colour", 16),
+    col("Date Reg.", 12),
+    col("Status", 8),
   ].join("  ");
   const separator = "-".repeat(headerLine.length);
 
@@ -166,8 +184,8 @@ function buildVineRegisterMailto(
     `FSA Vine Register — ${farmName}`,
     ``,
     `Farm: ${farmName}`,
-    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
-    sbi ? `SBI Number: ${sbi}` : `SBI Number: (not set — add in Farm Settings)`,
+    addressStr ? `Address: ${addressStr}` : `Address: (not set — add in Farm Settings)`,
+    sbiStr ? `SBI Number: ${sbiStr}` : `SBI Number: (not set — add in Farm Settings)`,
     fsaRef ? `FSA Vine Register Ref: ${fsaRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
     fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
     ...(winegbNo ? [`WineGB Membership No: ${winegbNo}`] : []),
@@ -188,7 +206,9 @@ function buildVineRegisterMailto(
   const subject = encodeURIComponent(
     `FSA Vine Register — ${farmName}${fsaRef ? ` (Ref: ${fsaRef})` : ""}`,
   );
-  return `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+  const encodedBody = encodeURIComponent(body);
+  const href = `mailto:?subject=${subject}&body=${encodedBody}`;
+  return { href, isTruncated: encodedBody.length > MAILTO_BODY_LIMIT };
 }
 
 // ─── Missing Parcel Ref Banner ─────────────────────────────────────────────────
@@ -368,7 +388,8 @@ function EditParcelRefModal({
 export default function VineRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { sbiNumber, address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { farmName, sbiNumber, address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const vitiMeta = useFarmVitiMeta(currentFarm?.id);
   const { records, loading, refreshing, error, refresh } = useApiFetch<VineRegisterEntry>(
     currentFarm?.id,
     "/api/farms/:farmId/vine-register",
@@ -381,20 +402,6 @@ export default function VineRegisterScreen() {
   // Track blocks whose ref has been saved this session so the banner hides
   // them immediately without needing a full re-fetch of the blocks list.
   const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
-
-  // Fetch extra farm meta (FSA refs, WineGB, APPA) not covered by useFarmIdentifiers
-  const [farmMeta, setFarmMeta] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => {
-    if (!currentFarm?.id) return;
-    let cancelled = false;
-    apiFetch(`/api/farms/${currentFarm.id}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { record?: Record<string, unknown> } | null) => {
-        if (!cancelled && d) setFarmMeta(d.record ?? d as Record<string, unknown>);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentFarm?.id]);
 
   const sbiMissing = !identifiersLoading && !sbiNumber;
   const sectorMissing = !currentFarm?.sectorViticulture;
@@ -410,6 +417,43 @@ export default function VineRegisterScreen() {
       )
     : [];
 
+  const handleEmailPress = useCallback(() => {
+    if (!records.length) return;
+    const name = farmName ?? currentFarm?.name ?? "Farm";
+    const { href, isTruncated } = buildVineRegisterMailto(
+      records,
+      name,
+      sbiNumber,
+      address,
+      vitiMeta,
+    );
+    if (isTruncated) {
+      Alert.alert(
+        "Email may be cut off",
+        "Your vine register has too many entries to fit in a single email \u2014 the message body may be truncated by your email app.\n\nFor a complete record, use the dashboard on desktop to export a CSV instead.",
+        [
+          {
+            text: "Open email anyway",
+            onPress: () => {
+              Linking.openURL(href).catch(() => {
+                Alert.alert("Could not open email", "No email app was found on this device.");
+              });
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
+    }
+    Linking.openURL(href).catch(() => {
+      Alert.alert("Could not open email", "No email app was found on this device.");
+    });
+  }, [records, farmName, currentFarm?.name, sbiNumber, address, vitiMeta]);
+
+  const handleBlockSaved = useCallback((blockId: number) => {
+    setSavedBlockIds(prev => new Set([...prev, blockId]));
+  }, []);
+
   const activeRecords = records.filter(r => !r.isRemovedFromRegister);
   const totalAreaHa = activeRecords.reduce((sum, r) => {
     const area = parseFloat(r.registeredAreaHa ?? "");
@@ -423,22 +467,6 @@ export default function VineRegisterScreen() {
       )
     : records;
 
-  const handleBlockSaved = useCallback((blockId: number) => {
-    setSavedBlockIds(prev => new Set([...prev, blockId]));
-  }, []);
-
-  const handleEmail = () => {
-    if (!records.length) return;
-    const mailto = buildVineRegisterMailto(
-      records,
-      currentFarm?.name ?? "Farm",
-      sbiNumber,
-      address,
-      farmMeta,
-    );
-    openExternalUrl(mailto);
-  };
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -449,7 +477,7 @@ export default function VineRegisterScreen() {
         <Text style={styles.title}>FSA Vine Register</Text>
         {records.length > 0 && (
           <Pressable
-            onPress={handleEmail}
+            onPress={handleEmailPress}
             style={styles.emailBtn}
             hitSlop={12}
             accessibilityLabel="Email vine register"
@@ -498,7 +526,7 @@ export default function VineRegisterScreen() {
         <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search variety or FSA ref…"
+          placeholder="Search variety or FSA ref\u2026"
           placeholderTextColor={colors.textSecondary}
           value={search}
           onChangeText={setSearch}
@@ -563,6 +591,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
+  emailBtn: { padding: 4, marginLeft: "auto" },
   title: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.lg,
@@ -886,3 +915,49 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+function useFarmVitiMeta(farmId: string | undefined): FarmVitiMeta {
+  const [meta, setMeta] = useState<FarmVitiMeta>({
+    fsaVineRegisterRef: null,
+    fsaWineProductionRef: null,
+    winegbMembershipNumber: null,
+    appaRef: null,
+  });
+
+  const fetch_ = useCallback(async () => {
+    if (!farmId) return;
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) return;
+      const token = await getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      // x-tenant-slug is required by the API; read it the same way useFarmIdentifiers does.
+      try {
+        const farmRaw = await kvGet("bde_current_farm");
+        if (farmRaw) {
+          const farm = JSON.parse(farmRaw) as { tenantSlug?: string; slug?: string };
+          headers["x-tenant-slug"] = farm.tenantSlug ?? farm.slug ?? "";
+        }
+      } catch { /* best-effort */ }
+      const res = await fetch(`${apiBase}/api/farms/${farmId}`, { headers });
+      if (!res.ok) return;
+      const data = await res.json() as { record?: Record<string, unknown> };
+      const r = data.record ?? {};
+      setMeta({
+        fsaVineRegisterRef: r.fsaVineRegisterRef != null ? String(r.fsaVineRegisterRef) : null,
+        fsaWineProductionRef: r.fsaWineProductionRef != null ? String(r.fsaWineProductionRef) : null,
+        winegbMembershipNumber: r.winegbMembershipNumber != null ? String(r.winegbMembershipNumber) : null,
+        appaRef: r.appaRef != null ? String(r.appaRef) : null,
+      });
+    } catch {
+      // best-effort — viticulture meta not critical for viewing the list
+    }
+  }, [farmId]);
+
+  useEffect(() => { fetch_(); }, [fetch_]);
+
+  return meta;
+}
+
+const MAILTO_BODY_LIMIT = 1800;
