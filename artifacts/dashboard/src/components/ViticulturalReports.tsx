@@ -652,69 +652,63 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   }, [year, harvests, blockMap]);
 
   // Block filter for per-block yield trend (all-vintages mode only)
-  // Persisted as JSON array in localStorage; empty string = "all blocks" (null)
+  // Persisted as JSON array of block IDs in localStorage; empty string = "all blocks" (null)
+  // Legacy format was a JSON array of block-name strings — migrated automatically on first load.
   const [_storedBlocks, _setStoredBlocks] = usePersistedFilter({
     page: "vintage-season-report",
     filter: "block-selection",
     farmId,
     defaultValue: "",
   });
-  const selectedBlockNames: Set<string> | null = useMemo(() => {
+
+  // One-time migration: if stored value is a legacy string array (block names), convert to IDs.
+  useEffect(() => {
+    if (!_storedBlocks || !blocks.length) return;
+    try {
+      const arr = JSON.parse(_storedBlocks) as unknown[];
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      if (typeof arr[0] !== "string") return; // already numeric IDs — nothing to do
+      // Map legacy block names to current block IDs; drop any that no longer exist
+      const ids = (arr as string[])
+        .map(name => blocks.find(b => b.blockName === name)?.id)
+        .filter((id): id is number => id != null);
+      _setStoredBlocks(ids.length > 0 ? JSON.stringify(ids) : "");
+    } catch { /* unparseable — leave as-is */ }
+  // _setStoredBlocks is a stable setter; omit to avoid spurious re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_storedBlocks, blocks]);
+
+  const selectedBlockIds: Set<number> | null = useMemo(() => {
     if (!_storedBlocks) return null;
     try {
-      const arr = JSON.parse(_storedBlocks) as string[];
+      const arr = JSON.parse(_storedBlocks) as unknown[];
       if (!Array.isArray(arr)) return null;
+      // Legacy string arrays: return null (show all) while the migration effect runs
+      if (arr.length > 0 && typeof arr[0] === "string") return null;
+      // Validate all entries are numbers before constructing the Set
+      if (!arr.every(x => typeof x === "number")) return null;
       // Empty array is a valid "none selected" state — keep it as an empty Set
-      return new Set(arr);
+      return new Set(arr as number[]);
     } catch {
       return null;
     }
   }, [_storedBlocks]);
-  const _persistBlockNames = (v: Set<string> | null) => {
+  const _persistBlockIds = (v: Set<number> | null) => {
     _setStoredBlocks(v == null ? "" : JSON.stringify([...v]));
   };
 
   // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
   const [chartInTha, setChartInTha] = useState(false);
 
-  // Block filter strip — search and group-by-variety state (used by the per-block yield trend chart)
-  const [blockSearch, setBlockSearch] = useState("");
-  const [_groupByVarietyStored, _setGroupByVarietyStored] = usePersistedFilter({
-    page: "vintage-season-report",
-    filter: "group-by-variety",
-    farmId,
-    defaultValue: "false",
-    validValues: ["true", "false"],
-  });
-  const groupByVariety = _groupByVarietyStored === "true";
-  const setGroupByVariety = (v: boolean) => _setGroupByVarietyStored(v ? "true" : "false");
-
-  // Block filter state for spray diary, scouting, and canopy ops sections (null = all blocks shown)
+  // Block filter state for spray diary and scouting sections (null = all blocks shown)
   const [selectedSprayBlocks, setSelectedSprayBlocks] = useState<Set<number> | null>(null);
   const [selectedScoutBlocks, setSelectedScoutBlocks] = useState<Set<number> | null>(null);
-  const [selectedOpsBlocks, setSelectedOpsBlocks] = useState<Set<number> | null>(null);
 
-  // Reset spray/scout/ops block filters when the vintage year changes
+  // Reset spray/scout block filters when the vintage year changes
   useEffect(() => {
     setSelectedSprayBlocks(null);
     setSelectedScoutBlocks(null);
-    setSelectedOpsBlocks(null);
   }, [year]);
-
-  const toggleBlock = (name: string) => {
-    // When null, all blocks are shown — expand to full set before toggling
-    const allKeys = blockYieldTrendData.blockLines.map(b => b.key);
-    const current = selectedBlockNames ?? new Set(allKeys);
-    const next = new Set(current);
-    if (next.has(name)) {
-      next.delete(name);
-      // allow the set to become empty — chart will show an empty-state prompt
-    } else {
-      next.add(name);
-      if (next.size === allKeys.length) { _persistBlockNames(null); return; } // back to "all"
-    }
-    _persistBlockNames(next);
-  };
 
   // Per-block yield trend across all vintages (all-vintages mode only)
   const blockYieldTrendData = useMemo(() => {
@@ -736,8 +730,6 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         const totKg = recs.reduce((s, r) => s + n(r.yieldKg), 0);
         const areaHa = n(bl.areaHa);
         row[bl.blockName] = areaHa > 0 ? parseFloat((totKg / 1000 / areaHa).toFixed(2)) : null;
-        // Store pick count so the cross-tab can flag low-confidence cells
-        row[`${bl.blockName}__picks`] = recs.length;
       });
       return row;
     });
@@ -748,6 +740,24 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     }));
     return { chartData, blockLines };
   }, [year, harvests, blocks]);
+
+  // BlockInfo[] for the trend chart filter strip — maps blockLines to block IDs
+  const trendBlockInfos: BlockInfo[] = useMemo(() => {
+    return blockYieldTrendData.blockLines
+      .map(bl => {
+        const block = blocks.find(b => b.blockName === bl.key);
+        return block ? { id: block.id, name: bl.key, variety: bl.variety } : null;
+      })
+      .filter((bi): bi is BlockInfo => bi !== null);
+  }, [blockYieldTrendData.blockLines, blocks]);
+
+  // Derive visible block names from selected IDs (null = all visible)
+  const visibleBlockNames: Set<string> | null = useMemo(() => {
+    if (selectedBlockIds == null) return null;
+    const nameSet = new Set<string>();
+    trendBlockInfos.forEach(bi => { if (selectedBlockIds.has(bi.id)) nameSet.add(bi.name); });
+    return nameSet;
+  }, [selectedBlockIds, trendBlockInfos]);
 
   // Totals
   const totalYieldKg = useMemo(() => vintageHarvest.reduce((s, h) => s + n(h.yieldKg), 0), [vintageHarvest]);
@@ -820,17 +830,6 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [seasonScouts, blockMap]);
 
-  const opsBlockInfos: BlockInfo[] = useMemo(() => {
-    const seen = new Map<number, BlockInfo>();
-    seasonOps.forEach(o => {
-      if (o.blockId != null && !seen.has(o.blockId)) {
-        const bl = blockMap[o.blockId];
-        if (bl) seen.set(o.blockId, { id: o.blockId, name: bl.blockName, variety: bl.variety ?? "" });
-      }
-    });
-    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [seasonOps, blockMap]);
-
   // Rows filtered by block selection
   const visibleSprays = useMemo(
     () => selectedSprayBlocks == null
@@ -854,12 +853,6 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       ? seasonScouts
       : seasonScouts.filter(sc => sc.blockId != null && selectedScoutBlocks.has(sc.blockId)),
     [seasonScouts, selectedScoutBlocks],
-  );
-  const visibleOps = useMemo(
-    () => selectedOpsBlocks == null
-      ? seasonOps
-      : seasonOps.filter(o => o.blockId != null && selectedOpsBlocks.has(o.blockId)),
-    [seasonOps, selectedOpsBlocks],
   );
 
   if (loading) {
@@ -1079,195 +1072,13 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             <p className="text-xs text-foreground/40">Yield (t/ha) per vintage for each block — spot which blocks are improving or declining</p>
           </div>
           {/* Block filter toggles — shown when there are 2+ blocks, hidden on print */}
-          {blockYieldTrendData.blockLines.length >= 2 && (() => {
-            const lines = blockYieldTrendData.blockLines;
-            const showSearch = lines.length >= 8;
-            const searchLower = blockSearch.trim().toLowerCase();
-            const filtered = searchLower
-              ? lines.filter(bl =>
-                  bl.key.toLowerCase().includes(searchLower) ||
-                  bl.variety.toLowerCase().includes(searchLower),
-                )
-              : lines;
-
-            // Helper: toggle all blocks of a given variety
-            const toggleVariety = (variety: string) => {
-              const varietyKeys = lines.filter(bl => bl.variety === variety).map(bl => bl.key);
-              const allKeys = lines.map(b => b.key);
-              const current = selectedBlockNames ?? new Set(allKeys);
-              const allActive = varietyKeys.every(k => current.has(k));
-              const next = new Set(current);
-              if (allActive) {
-                // deselect all in variety — allow empty (chart shows empty-state prompt)
-                varietyKeys.forEach(k => next.delete(k));
-              } else {
-                varietyKeys.forEach(k => next.add(k));
-                if (next.size === allKeys.length) { _persistBlockNames(null); return; }
-              }
-              _persistBlockNames(next);
-            };
-
-            // Group by variety
-            const varietyGroups: { variety: string; blocks: typeof lines }[] = [];
-            if (groupByVariety) {
-              const seen = new Map<string, typeof lines>();
-              filtered.forEach(bl => {
-                const v = bl.variety || "Unknown variety";
-                if (!seen.has(v)) seen.set(v, []);
-                seen.get(v)!.push(bl);
-              });
-              seen.forEach((blocks, variety) => varietyGroups.push({ variety, blocks }));
-              varietyGroups.sort((a, b) => a.variety.localeCompare(b.variety));
-            }
-
-            return (
-              <div className="border-b border-border bg-muted/10 no-print">
-                {/* Toolbar row */}
-                <div className="px-4 py-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-foreground/50 shrink-0">Show blocks:</span>
-
-                  {/* Search input — only when 8+ blocks */}
-                  {showSearch && (
-                    <div className="relative shrink-0">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-foreground/40 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={blockSearch}
-                        onChange={e => setBlockSearch(e.target.value)}
-                        placeholder="Search blocks or varieties…"
-                        className="h-6 pl-6 pr-2 rounded-full border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 w-48"
-                      />
-                      {blockSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setBlockSearch("")}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/70 text-xs leading-none"
-                          aria-label="Clear search"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Group by variety toggle — only when 8+ blocks and multiple varieties exist */}
-                  {showSearch && new Set(lines.map(bl => bl.variety)).size > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setGroupByVariety(!groupByVariety)}
-                      className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
-                        groupByVariety
-                          ? "bg-purple-600 border-purple-600 text-white"
-                          : "border-border bg-background text-foreground/60 hover:text-foreground"
-                      }`}
-                    >
-                      By variety
-                    </button>
-                  )}
-
-                  {/* Show all link */}
-                  {selectedBlockNames != null && (
-                    <button
-                      type="button"
-                      onClick={() => _persistBlockNames(null)}
-                      className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
-                    >
-                      Show all
-                    </button>
-                  )}
-
-                  {/* Select none link — clears all blocks so growers can pick just what they want */}
-                  {(selectedBlockNames == null || selectedBlockNames.size > 0) && (
-                    <button
-                      type="button"
-                      onClick={() => _persistBlockNames(new Set())}
-                      className="text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2 shrink-0"
-                    >
-                      Select none
-                    </button>
-                  )}
-                </div>
-
-                {/* Pills row */}
-                <div className="px-4 pb-2.5 flex flex-wrap gap-1.5">
-                  {groupByVariety ? (
-                    varietyGroups.map(({ variety, blocks: vBlocks }) => {
-                      const allActive = vBlocks.every(
-                        bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
-                      );
-                      const someActive = !allActive && vBlocks.some(
-                        bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
-                      );
-                      return (
-                        <div key={variety} className="flex flex-wrap items-center gap-1.5">
-                          {/* Variety header pill */}
-                          <button
-                            type="button"
-                            onClick={() => toggleVariety(variety)}
-                            className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-xs font-semibold border transition-colors ${
-                              allActive
-                                ? "bg-purple-100 border-purple-300 text-purple-800 hover:bg-purple-200"
-                                : someActive
-                                ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
-                                : "border-border bg-background text-foreground/40 hover:text-foreground/70"
-                            }`}
-                            title={allActive ? `Hide all ${variety}` : `Show all ${variety}`}
-                          >
-                            <Grape className="w-3 h-3" />
-                            {variety}
-                          </button>
-                          {/* Individual block pills */}
-                          {vBlocks.map(bl => {
-                            const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
-                            return (
-                              <button
-                                key={bl.key}
-                                type="button"
-                                onClick={() => toggleBlock(bl.key)}
-                                className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
-                                  active
-                                    ? "border-transparent text-white"
-                                    : "border-border bg-background text-foreground/40 hover:text-foreground/70"
-                                }`}
-                                style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
-                                title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
-                              >
-                                {bl.key}
-                              </button>
-                            );
-                          })}
-                          <span className="w-px h-4 bg-border mx-0.5 self-center" />
-                        </div>
-                      );
-                    })
-                  ) : (
-                    filtered.map(bl => {
-                      const active = selectedBlockNames == null || selectedBlockNames.has(bl.key);
-                      return (
-                        <button
-                          key={bl.key}
-                          type="button"
-                          onClick={() => toggleBlock(bl.key)}
-                          className={`inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
-                            active
-                              ? "border-transparent text-white"
-                              : "border-border bg-background text-foreground/40 hover:text-foreground/70"
-                          }`}
-                          style={active ? { backgroundColor: bl.color, borderColor: bl.color } : {}}
-                          title={active ? `Hide ${bl.key}` : `Show ${bl.key}`}
-                        >
-                          {bl.key}
-                        </button>
-                      );
-                    })
-                  )}
-                  {filtered.length === 0 && (
-                    <p className="text-xs text-foreground/40 italic">No blocks match "{blockSearch}"</p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {blockYieldTrendData.blockLines.length >= 2 && (
+            <BlockFilterStrip
+              blockInfos={trendBlockInfos}
+              selectedIds={selectedBlockIds}
+              onChangeIds={_persistBlockIds}
+            />
+          )}
           <div className="p-4 print-block-chart-cap">
             {blockYieldTrendData.chartData.length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">
@@ -1275,7 +1086,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               </p>
             ) : (() => {
               const visibleLines = blockYieldTrendData.blockLines.filter(
-                bl => selectedBlockNames == null || selectedBlockNames.has(bl.key),
+                bl => visibleBlockNames == null || visibleBlockNames.has(bl.key),
               );
               if (visibleLines.length === 0) {
                 return (
@@ -1329,15 +1140,15 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                 <h3 className="text-sm font-semibold">Block × Vintage Yield (t/ha)</h3>
                 <p className="text-xs text-foreground/40">
                   Yield per hectare for each block across all vintages
-                  {selectedBlockNames != null && (
-                    <> · <span className="text-purple-600 font-medium">filtered to {selectedBlockNames.size} block{selectedBlockNames.size !== 1 ? "s" : ""}</span></>
+                  {visibleBlockNames != null && (
+                    <> · <span className="text-purple-600 font-medium">filtered to {visibleBlockNames.size} block{visibleBlockNames.size !== 1 ? "s" : ""}</span></>
                   )}
                 </p>
               </div>
-              {selectedBlockNames != null && (
+              {visibleBlockNames != null && (
                 <button
                   type="button"
-                  onClick={() => _persistBlockNames(null)}
+                  onClick={() => _persistBlockIds(null)}
                   className="no-print shrink-0 text-xs text-foreground/40 hover:text-foreground/70 underline underline-offset-2"
                 >
                   Show all
@@ -1354,7 +1165,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                       <th
                         key={bl.key}
                         className={`px-4 py-2 text-right min-w-[80px]${
-                          selectedBlockNames != null && !selectedBlockNames.has(bl.key)
+                          visibleBlockNames != null && !visibleBlockNames.has(bl.key)
                             ? " hidden print:table-cell"
                             : ""
                         }`}
@@ -1369,39 +1180,20 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                   {vintageRows.map(row => (
                     <tr key={String(row.vintage)} className="border-t border-border/40 hover:bg-muted/20">
                       <td className="px-4 py-2 font-semibold text-purple-700 sticky left-0 bg-card">{String(row.vintage)}</td>
-                      {allLines.map(bl => {
-                        const tha = row[bl.key];
-                        const picks = tha != null ? (row[`${bl.key}__picks`] as number | undefined) ?? 0 : 0;
-                        return (
-                          <td
-                            key={bl.key}
-                            className={`px-4 py-2 text-right font-mono${
-                              selectedBlockNames != null && !selectedBlockNames.has(bl.key)
-                                ? " hidden print:table-cell"
-                                : ""
-                            }`}
-                          >
-                            {tha != null ? (
-                              <span className="inline-flex items-center justify-end gap-1.5">
-                                <span>{Number(tha).toFixed(2)}</span>
-                                {picks === 1 ? (
-                                  <span
-                                    className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold px-1.5 py-0.5 ring-1 ring-inset ring-amber-300 print:bg-amber-100 print:text-amber-800"
-                                    title="Only one pick recorded — low-confidence data"
-                                  >1 pick</span>
-                                ) : picks >= 2 && picks <= 3 ? (
-                                  <span
-                                    className="inline-block w-1.5 h-1.5 rounded-full bg-amber-300 print:bg-amber-300"
-                                    title={`${picks} picks — treat with some caution`}
-                                  />
-                                ) : null}
-                              </span>
-                            ) : (
-                              <span className="text-foreground/30">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
+                      {allLines.map(bl => (
+                        <td
+                          key={bl.key}
+                          className={`px-4 py-2 text-right font-mono${
+                            visibleBlockNames != null && !visibleBlockNames.has(bl.key)
+                              ? " hidden print:table-cell"
+                              : ""
+                          }`}
+                        >
+                          {row[bl.key] != null
+                            ? <span>{Number(row[bl.key]).toFixed(2)}</span>
+                            : <span className="text-foreground/30">—</span>}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -1688,11 +1480,9 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         const summAvgTha = summTotalArea > 0 ? summTotalKg / 1000 / summTotalArea : 0;
         const summBrixAll = summaryRows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
         const summPhAll = summaryRows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
-        const summTaAll = summaryRows.flatMap(r => r.taCount > 0 ? [r.taSum / r.taCount] : []);
         const summPotAlcAll = summaryRows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
         const summAvgBrix = summBrixAll.length > 0 ? summBrixAll.reduce((a, b) => a + b, 0) / summBrixAll.length : null;
         const summAvgPh = summPhAll.length > 0 ? summPhAll.reduce((a, b) => a + b, 0) / summPhAll.length : null;
-        const summAvgTa = summTaAll.length > 0 ? summTaAll.reduce((a, b) => a + b, 0) / summTaAll.length : null;
         const summAvgPotAlc = summPotAlcAll.length > 0 ? summPotAlcAll.reduce((a, b) => a + b, 0) / summPotAlcAll.length : null;
 
         return (
@@ -1742,7 +1532,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgTha > 0 ? summAvgTha.toFixed(2) : "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgBrix != null ? summAvgBrix.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPh != null ? summAvgPh.toFixed(2) : "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgTa != null ? summAvgTa.toFixed(1) : "—"}</td>
+                    <td className="px-4 py-2" />
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPotAlc != null ? summAvgPotAlc.toFixed(1) : "—"}</td>
                   </tr>
                 </tfoot>
@@ -1857,56 +1647,45 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             No canopy operations recorded for {year}. Add records in the Pruning &amp; Canopy tab.
           </p>
         ) : (
-          <>
-            {opsBlockInfos.length >= 8 && (
-              <BlockFilterStrip
-                blockInfos={opsBlockInfos}
-                selectedIds={selectedOpsBlocks}
-                onChangeIds={setSelectedOpsBlocks}
-              />
-            )}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/20 text-foreground/60 text-xs">
-                    <th className="px-4 py-2 text-left">Date</th>
-                    <th className="px-4 py-2 text-left">Block</th>
-                    <th className="px-4 py-2 text-left">Operation</th>
-                    <th className="px-4 py-2 text-left">System</th>
-                    <th className="px-4 py-2 text-right">Pruning Wt (kg/vine)</th>
-                    <th className="px-4 py-2 text-right">Bud Count/vine</th>
-                    <th className="px-4 py-2 text-right">Hours</th>
-                    <th className="px-4 py-2 text-left">Operator</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/20 text-foreground/60 text-xs">
+                  <th className="px-4 py-2 text-left">Date</th>
+                  <th className="px-4 py-2 text-left">Block</th>
+                  <th className="px-4 py-2 text-left">Operation</th>
+                  <th className="px-4 py-2 text-left">System</th>
+                  <th className="px-4 py-2 text-right">Pruning Wt (kg/vine)</th>
+                  <th className="px-4 py-2 text-right">Bud Count/vine</th>
+                  <th className="px-4 py-2 text-right">Hours</th>
+                  <th className="px-4 py-2 text-left">Operator</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonOps.map(o => (
+                  <tr key={o.id} className="border-t border-border/40 hover:bg-muted/20">
+                    <td className="px-4 py-2 text-xs">{fmtDate(o.operationDate)}</td>
+                    <td className="px-4 py-2">{blockName(o.blockId)}</td>
+                    <td className="px-4 py-2">{fmt(o.operationType)}</td>
+                    <td className="px-4 py-2 text-xs text-foreground/60">{fmt(o.pruningSystem)}</td>
+                    <td className="px-4 py-2 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
+                    <td className="px-4 py-2 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
+                    <td className="px-4 py-2 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
+                    <td className="px-4 py-2 text-xs text-foreground/60">{fmt(o.operatorName)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visibleOps.map(o => (
-                    <tr key={o.id} className="border-t border-border/40 hover:bg-muted/20">
-                      <td className="px-4 py-2 text-xs">{fmtDate(o.operationDate)}</td>
-                      <td className="px-4 py-2">{blockName(o.blockId)}</td>
-                      <td className="px-4 py-2">{fmt(o.operationType)}</td>
-                      <td className="px-4 py-2 text-xs text-foreground/60">{fmt(o.pruningSystem)}</td>
-                      <td className="px-4 py-2 text-right font-mono">{fmtN(o.pruningWeightKgPerVine, 3)}</td>
-                      <td className="px-4 py-2 text-right font-mono">{fmtN(o.budCountPerVine, 1)}</td>
-                      <td className="px-4 py-2 text-right font-mono font-medium">{fmtN(o.hoursWorked, 1)}</td>
-                      <td className="px-4 py-2 text-xs text-foreground/60">{fmt(o.operatorName)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
-                    <td className="px-4 py-2" colSpan={6}>
-                      {selectedOpsBlocks != null ? "Filtered Total" : "Season Total"}
-                    </td>
-                    <td className="px-4 py-2 text-right font-mono font-bold">
-                      {visibleOps.reduce((s, o) => s + n(o.hoursWorked), 0).toFixed(1)} h
-                    </td>
-                    <td className="px-4 py-2" />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
+                  <td className="px-4 py-2" colSpan={6}>Season Total</td>
+                  <td className="px-4 py-2 text-right font-mono font-bold">
+                    {totalOpsHours.toFixed(1)} h
+                  </td>
+                  <td className="px-4 py-2" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>}
 
