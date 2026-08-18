@@ -45,7 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
-import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl, applyOptimisticReorder, executePhotoReorder } from "@/lib/vineBlockPhotosApi";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl, applyOptimisticReorder, executePhotoReorder, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -56,7 +56,6 @@ import {
   DIR_VERT,
 } from "@/lib/vineBlockLightboxHelpers";
 import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
-
 interface BlockPhoto {
   id: number;
   blockId: number;
@@ -1477,26 +1476,21 @@ export default function VineBlockPhotosScreen() {
     if (!currentFarm?.id || !selectedBlock || !captionPhoto) return;
     setCaptionSaving(true);
     try {
-      const res = await apiFetch(
-        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/${captionPhoto.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ caption: caption.trim() || null }),
-        },
+      const result = await patchPhotoCaption(
+        currentFarm.id,
+        selectedBlock.id,
+        captionPhoto.id,
+        caption,
       );
-      if (res.ok) {
-        const trimmed = caption.trim() || null;
+      if (result.ok) {
         setPhotos((prev) =>
-          prev.map((p) => (p.id === captionPhoto.id ? { ...p, caption: trimmed } : p)),
+          prev.map((p) => (p.id === captionPhoto.id ? { ...p, caption: result.trimmedCaption } : p)),
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCaptionPhoto(null);
       } else {
         Alert.alert("Error", "Could not save the caption. Please try again.");
       }
-    } catch {
-      Alert.alert("Error", "Could not save the caption.");
     } finally {
       setCaptionSaving(false);
     }

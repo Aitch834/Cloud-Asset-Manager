@@ -103,6 +103,19 @@ export async function fetchBlockPhotoUrl(
 }
 
 /**
+ * Result type returned by patchPhotoCaption.
+ *
+ * `ok: true`  — the server accepted the save; `trimmedCaption` holds the
+ *               normalised value that should be written to local state.
+ * `ok: false` — a non-2xx HTTP response or a network error occurred; the
+ *               caller must leave the caption sheet open so the grower can
+ *               see the error and retry.
+ */
+export type PatchCaptionResult =
+  | { ok: true; trimmedCaption: string | null }
+  | { ok: false };
+
+/**
  * Pure helper: returns a new array of photos sorted by `newPhotoIds`, dropping
  * any ID not present in `prev`.  Mirrors the `setPhotos` updater inside
  * `handleReorder` in vine-block-photos.tsx and is exported so tests can verify
@@ -158,5 +171,39 @@ export function applyPhotoUpdateIfCurrent(
   // Null = error path — keep the existing list rather than flashing empty state.
   if (fetched !== null) {
     setPhotos(fetched);
+  }
+}
+
+/**
+ * PATCHes a single photo's caption on the server.
+ *
+ * Returns a discriminated union so the component can decide whether to close
+ * the caption sheet (on success) or keep it open (on failure) without
+ * duplicating the fetch/error-handling logic inline.
+ *
+ * Extracted here — rather than kept inline in handleSaveCaption — so the
+ * fetch → parse → result pipeline can be integration-tested by mocking the
+ * apiFetch module without rendering the full React Native component tree.
+ */
+export async function patchPhotoCaption(
+  farmId: number | string,
+  blockId: number | string,
+  photoId: number | string,
+  caption: string,
+): Promise<PatchCaptionResult> {
+  try {
+    const trimmed = caption.trim() || null;
+    const res = await apiFetch(
+      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: trimmed }),
+      },
+    );
+    if (res.ok) return { ok: true, trimmedCaption: trimmed };
+    return { ok: false };
+  } catch {
+    return { ok: false };
   }
 }

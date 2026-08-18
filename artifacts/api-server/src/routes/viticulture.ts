@@ -1692,8 +1692,14 @@ router.patch("/farms/:farmId/vineyard-blocks/:blockId/photos/:photoId", requireA
 
   const [photo] = await (db.update(vineyardBlockPhotosTable) as any)
     .set(updateFields)
-    .where(and(eq(vineyardBlockPhotosTable.id, photoId), eq(vineyardBlockPhotosTable.farmId, farmId)))
+    .where(and(eq(vineyardBlockPhotosTable.id, photoId), eq(vineyardBlockPhotosTable.blockId, blockId), eq(vineyardBlockPhotosTable.farmId, farmId)))
     .returning();
+
+  // Guard against the concurrent-delete race: if another device deleted the
+  // photo between our SELECT (ownership check) and this UPDATE, returning()
+  // yields an empty array.  Return 404 so the client knows the record is gone
+  // rather than silently succeeding with an undefined photo.
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
 
   res.json({ photo });
 });
