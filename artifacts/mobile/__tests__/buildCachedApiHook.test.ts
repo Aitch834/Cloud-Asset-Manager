@@ -283,6 +283,108 @@ describe('buildCachedApiHook — live state after API response', () => {
 });
 
 // ---------------------------------------------------------------------------
+// (e) Cancellation guard — no state updates after cleanup fires
+// ---------------------------------------------------------------------------
+
+describe('buildCachedApiHook — cancellation guard', () => {
+  it('does not call setItems or setFromCache when cleanup fires before fetch resolves', async () => {
+    // Keep kvGet permanently pending so no cache hit fires before we cancel.
+    let resolveKvGet!: (v: string | null) => void;
+    mockKvGet.mockReturnValue(
+      new Promise<string | null>((res) => { resolveKvGet = res; })
+    );
+
+    // Keep the fetch permanently pending too.
+    let resolveFetch!: (v: Response) => void;
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((res) => { resolveFetch = res; })
+    );
+
+    // Initialise the hook — captures the effect callback but does NOT run it.
+    mockSlotCounter = 0;
+    mockStore.reset([[], true, false, null]);
+    useTestHook(FARM_ID);
+
+    // Fire the effect synchronously.  The hook body runs up to the async IIFE
+    // and then returns the cleanup function immediately.
+    let cleanup: (() => void) | undefined;
+    if (mockCapturedEffect) {
+      const result = mockCapturedEffect();
+      if (typeof result === 'function') cleanup = result as () => void;
+    }
+
+    expect(cleanup).toBeDefined(); // sanity — hook must return cleanup
+
+    // Cancel before any async work has had a chance to settle.
+    cleanup!();
+
+    // Now let both the cache read and the fetch complete.
+    resolveKvGet(null);
+    resolveFetch({
+      ok: true,
+      json: async () => ({ records: [RAW_ITEM] }),
+    } as unknown as Response);
+
+    // Drain all microtask queues so the async IIFE has every opportunity to
+    // call the state setters — which it must NOT do once cancelled === true.
+    await drainAsync();
+
+    const [items, , fromCache] = mockStore.values as [TestItem[], boolean, boolean, string | null];
+
+    // State must remain at the initial values because every setter in the
+    // async IIFE is guarded by `if (!cancelled)`.
+    expect(items).toHaveLength(0);
+    expect(fromCache).toBe(false);
+    // fetch was invoked (the IIFE started) but its result was discarded.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call setItems when cleanup fires between cache read and fetch resolve', async () => {
+    // Cache returns data immediately so the fromCache branch runs first.
+    const cachedItems: TestItem[] = [{ ...RAW_ITEM, photoUrl: null }];
+    mockKvGet.mockResolvedValue(JSON.stringify(cachedItems));
+
+    // Hold the fetch pending so we can cancel after the cache branch fires.
+    let resolveFetch!: (v: Response) => void;
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((res) => { resolveFetch = res; })
+    );
+
+    mockSlotCounter = 0;
+    mockStore.reset([[], true, false, null]);
+    useTestHook(FARM_ID);
+
+    let cleanup: (() => void) | undefined;
+    if (mockCapturedEffect) {
+      const result = mockCapturedEffect();
+      if (typeof result === 'function') cleanup = result as () => void;
+    }
+
+    // Let the cache read settle (sets fromCache to true via setFromCache).
+    await drainAsync(4);
+
+    // Now cancel — the fetch result must be discarded.
+    cleanup!();
+
+    // Let the fetch complete with a different item.
+    const freshItem: TestItem = { id: 99, name: 'Should not appear', photoUrl: 'https://s3.example.com/new.jpg' };
+    resolveFetch({
+      ok: true,
+      json: async () => ({ records: [freshItem] }),
+    } as unknown as Response);
+
+    await drainAsync();
+
+    const [items] = mockStore.values as [TestItem[], boolean, boolean, string | null];
+
+    // The fresh item from the API must NOT have overwritten the state
+    // (or there must be no items with the fresh id).
+    const hasFreshItem = items.some((i) => (i as TestItem).id === 99);
+    expect(hasFreshItem).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // (d) useApiVineBlocks — coverPhotoUrl specifically
 // ---------------------------------------------------------------------------
 
