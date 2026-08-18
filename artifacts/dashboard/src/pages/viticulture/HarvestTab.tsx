@@ -1,4 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
+import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap } from "@/lib/variety-colors";
 import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -252,7 +253,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
   // ── Yield by Block × Vintage chart data ───────────────────────────────────
   // X-axis = vintages (chronological), series per block (Bar + Line overlay)
-  const YIELD_CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
+  // Palette imported from shared utility — do not redefine here; see lib/variety-colors.ts
   const yieldChartData = useMemo(() => {
     if (yearFilter !== "all") return null;
     const uniqueVintages = [...new Set(filteredHarvest.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
@@ -297,26 +298,19 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       blockAreaByName[String(blockName(bid))] = blockAreaHa[String(bid)] ?? 0;
     }
 
-    // Build variety → colour map so same-variety blocks share a hue
+    // Build variety → colour map using the shared deterministic utility so the
+    // same variety always gets the same hue as in the on-screen Recharts charts.
     const blockVarietyByName: Record<string, string> = {};
     for (const bid of uniqueBlockIds) {
       const block = blocks.find(b => b.id === bid);
       const variety = block ? String((block as Record<string, unknown>).variety ?? "").trim() : "";
       blockVarietyByName[String(blockName(bid))] = variety;
     }
-    const uniqueVarieties = [...new Set(Object.values(blockVarietyByName).filter(Boolean))];
-    const varietyColorMap: Record<string, string> = {};
-    uniqueVarieties.forEach((v, i) => { varietyColorMap[v] = YIELD_CHART_COLORS[i % YIELD_CHART_COLORS.length]; });
-    const usedColors = new Set(Object.values(varietyColorMap));
-    const fallbackPalette = YIELD_CHART_COLORS.filter(c => !usedColors.has(c));
-    let fbIdx = 0;
-    const blockColorByName: Record<string, string> = {};
-    for (const bname of blockNames) {
-      const v = blockVarietyByName[bname] ?? "";
-      blockColorByName[bname] = v
-        ? (varietyColorMap[v] ?? YIELD_CHART_COLORS[0])
-        : (fallbackPalette[fbIdx++ % (fallbackPalette.length || YIELD_CHART_COLORS.length)] ?? YIELD_CHART_COLORS[fbIdx % YIELD_CHART_COLORS.length]);
-    }
+    // Derive variety universe from ALL farm blocks, not just those with harvest records,
+    // so the colour key is stable and consistent with the print SVG charts.
+    const allFarmVarieties = blocks.map(b => String((b as Record<string, unknown>).variety ?? "").trim());
+    const varietyColorMap = buildVarietyColorMap(allFarmVarieties);
+    const blockColorByName = buildBlockColorMap(blockNames, blockVarietyByName, varietyColorMap);
 
     return { kgData, thaData, blockNames, blockAreaByName, varietyColorMap, blockVarietyByName, blockColorByName };
   // eslint-disable-next-line react-hooks/exhaustive-deps

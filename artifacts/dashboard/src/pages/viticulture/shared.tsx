@@ -1,4 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
+import { YIELD_CHART_COLORS, buildVarietyColorMap } from "@/lib/variety-colors";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -781,70 +782,37 @@ function escHtml(v: unknown): string {
 // ─── Yield-by-Block × Vintage chart SVG builder (for print) ──────────────────
 
 /**
- * Builds a per-block colour map that guarantees a distinct HSL value for
- * every block regardless of how many blocks share a variety.
+ * Builds a per-block colour map keyed by block ID (as string), using the
+ * same YIELD_CHART_COLORS palette and deterministic variety-first assignment
+ * as the shared utility in lib/variety-colors.ts.  This ensures the printed
+ * SVG charts produce the same variety→colour mapping as the on-screen
+ * Recharts charts.
  *
- * Strategy:
- *  - Each variety gets its own hue slot (evenly distributed around the
- *    colour wheel across all variety + no-variety-block slots).
- *  - No-variety blocks each get their own dedicated hue slot too.
- *  - Within a variety group the blocks are spread across the lightness
- *    range [28 %, 62 %] using linear interpolation, so every block's
- *    lightness value is unique for that group regardless of group size.
- *  - Saturation alternates (72 % / 60 %) for additional separation.
- *
- * This ensures a distinct colour for every block even when a farm has
- * dozens of blocks sharing one variety.
+ * The variety universe is taken from the supplied blockIds so that the
+ * same set of blocks drives colour assignment in both the kg and t/ha SVG
+ * charts.  For a truly stable key across filter changes, callers should pass
+ * ALL farm block IDs (not only those visible in the current filtered view).
  */
 function buildBlockColorMap(
   blockIds: unknown[],
   bvarietyFn: (id: unknown) => string,
 ): Record<string, string> {
-  // Group by variety (stable insertion order)
-  const varietyGroups: Record<string, unknown[]> = {};
-  const noVarietyBlocks: unknown[] = [];
+  // Derive variety names for all blocks then delegate to the shared helper.
+  const blockVarietyByName: Record<string, string> = {};
   for (const id of blockIds) {
-    const v = bvarietyFn(id);
-    if (v) {
-      if (!varietyGroups[v]) varietyGroups[v] = [];
-      varietyGroups[v].push(id);
-    } else {
-      noVarietyBlocks.push(id);
-    }
+    blockVarietyByName[String(id)] = bvarietyFn(id).trim();
   }
-
-  const varieties = Object.keys(varietyGroups).sort();
-
-  // Each variety gets one hue slot; each no-variety block gets its own hue
-  // slot — this guarantees no two no-variety blocks share a hue.
-  const totalHueSlots = Math.max(varieties.length + noVarietyBlocks.length, 1);
-  const hueStep = 360 / totalHueSlots;
-
+  const varietyColorMap = buildVarietyColorMap(Object.values(blockVarietyByName));
+  const usedColors = new Set(Object.values(varietyColorMap));
+  const fallbackPalette = YIELD_CHART_COLORS.filter(c => !usedColors.has(c));
+  let fbIdx = 0;
   const colorMap: Record<string, string> = {};
-
-  // Variety groups — unique hue per variety, unique lightness per block
-  varieties.forEach((v, vi) => {
-    const baseHue = Math.round(vi * hueStep) % 360;
-    const ids = varietyGroups[v];
-    const n = ids.length;
-    ids.forEach((id, bi) => {
-      // Linear interpolation across [28 %, 62 %] using fractional values so
-      // every block in the group gets a provably unique lightness regardless
-      // of group size (integer rounding is deliberately avoided — it would
-      // cap uniqueness at 35 distinct values per saturation band).
-      const lit = n === 1 ? 44 : 28 + (bi / (n - 1)) * 34;
-      // Alternating saturation adds a second dimension of visual separation
-      const sat = bi % 2 === 0 ? 72 : 60;
-      colorMap[String(id)] = `hsl(${baseHue},${sat}%,${lit.toFixed(4)}%)`;
-    });
-  });
-
-  // No-variety blocks — each gets its own unique hue slot
-  noVarietyBlocks.forEach((id, i) => {
-    const hue = Math.round((varieties.length + i) * hueStep) % 360;
-    colorMap[String(id)] = `hsl(${hue},72%,44%)`;
-  });
-
+  for (const id of blockIds) {
+    const v = bvarietyFn(id).trim();
+    colorMap[String(id)] = v
+      ? (varietyColorMap[v] ?? YIELD_CHART_COLORS[0])
+      : (fallbackPalette[fbIdx++ % (fallbackPalette.length || YIELD_CHART_COLORS.length)] ?? YIELD_CHART_COLORS[0]);
+  }
   return colorMap;
 }
 
@@ -2217,21 +2185,16 @@ export async function printHarvest(
 
   // ── 3e. Build yield-by-block × vintage chart SVG ─────────────────────────
 
-  // Build a single shared variety→colour map from ALL linked blocks so that
-  // the kg chart and t/ha chart always assign the same hue to each variety,
-  // even though the t/ha chart excludes blocks that have no recorded area.
-  const _allLinkedBlockIds = [...new Set(
-    records.filter(r => r.blockId != null && r.blockId !== "").map(r => r.blockId),
-  )];
+  // Build a shared colour map from ALL farm blocks (not just those appearing
+  // in the filtered records) so the variety→colour key is stable and matches
+  // the on-screen Recharts charts, which also derive their palette from all
+  // farm blocks.
+  const _allFarmBlockIds = Object.keys(blockLookup2).map(Number).filter(id => !isNaN(id) && id > 0);
   const _bvariety = (id: unknown) => {
     const bid = Number(id);
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.variety ?? "") : "";
   };
-  // Build a shared per-block colour map from ALL linked blocks so both charts
-  // (kg and t/ha) assign the same colour to each block.  Each block gets a
-  // unique colour: variety groups get distinct base hues, and blocks within a
-  // group step through lightness/saturation variants.
-  const sharedBlockColorMap = buildBlockColorMap(_allLinkedBlockIds, _bvariety);
+  const sharedBlockColorMap = buildBlockColorMap(_allFarmBlockIds, _bvariety);
 
   const yieldChartSvgHtml = showCrossTab
     ? buildYieldTrendChartSvg(records, blockLookup2, sharedBlockColorMap)

@@ -49,6 +49,7 @@ type SprayRec = {
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 import { apiUrl as api } from "@/lib/api";
+import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap } from "@/lib/variety-colors";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtN = (v: unknown, dp = 1) =>
@@ -733,10 +734,23 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       });
       return row;
     });
-    const blockLines = blocksWithData.map((bl, i) => ({
+    // Assign colours by variety using the shared deterministic utility so the
+    // same variety always gets the same hue as in the printed SVG charts.
+    const blockVarietyByName: Record<string, string> = {};
+    for (const bl of blocksWithData) {
+      blockVarietyByName[bl.blockName] = (bl.variety ?? "").trim();
+    }
+    // Derive variety universe from ALL farm blocks, not just blocks with harvest data,
+    // so the colour key is stable regardless of vintage filter or block filter.
+    const allFarmVarieties = blocks.map(bl => (bl.variety ?? "").trim());
+    const varietyColorMap = buildVarietyColorMap(allFarmVarieties);
+    const allBlockNames = blocksWithData.map(bl => bl.blockName);
+    const blockColorByName = buildBlockColorMap(allBlockNames, blockVarietyByName, varietyColorMap);
+
+    const blockLines = blocksWithData.map(bl => ({
       key: bl.blockName,
-      variety: bl.variety ?? "",
-      color: BLOCK_COLORS[i % BLOCK_COLORS.length],
+      variety: blockVarietyByName[bl.blockName] ?? "",
+      color: blockColorByName[bl.blockName] ?? YIELD_CHART_COLORS[0],
     }));
     return { chartData, blockLines };
   }, [year, harvests, blocks]);
