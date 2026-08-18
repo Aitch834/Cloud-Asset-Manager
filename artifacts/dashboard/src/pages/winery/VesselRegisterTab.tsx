@@ -1224,7 +1224,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const cellarZones = Array.from(new Set(barrels.map(r => String(r.cellar_zone || "Unassigned")))).sort();
   // Persisted barrel filters — "" = show all; restored when the winemaker returns to this tab
   const FILL_TIER_VALUES = ["fill-1", "fill-2", "fill-3", "fill-4", "fill-5plus"] as const;
-  const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills-maintenance", "no-fills-none"] as const;
+  const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills-maintenance", "no-fills-none", "never-cleaned"] as const;
   const IS_FULL_VALUES = ["true", "false"] as const;
 
   const [zoneFilter, setZoneFilter] = usePersistedArrayFilter({ page: "vessel-register", filter: "zone", farmId });
@@ -1273,6 +1273,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     let idle = 0;
     let noFillsWithMaintenance = 0; // fill_count=0 but has cooperage records
     let noFillsNoRecords = 0;       // fill_count=0 and no cooperage records either
+    let neverCleaned = 0;           // clean_count=0
     for (const r of barrels) {
       if (String(r.status ?? "active") !== "active") continue;
       const fill = Number(r.fill_number ?? 0);
@@ -1291,8 +1292,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         const since = daysSince(r.empty_since);
         if (since !== null && since > idleBarrelDays) idle++;
       }
+      if (Number(r.clean_count ?? 0) === 0) neverCleaned++;
     }
-    return { tier, approaching, idle, noFillsWithMaintenance, noFillsNoRecords };
+    return { tier, approaching, idle, noFillsWithMaintenance, noFillsNoRecords, neverCleaned };
   }, [barrels, idleBarrelDays, approachingNeutralFills]);
 
   // Check if a barrel matches the active fill-tier filter
@@ -1317,6 +1319,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (alertFlagFilter === "idle") return isEmpty && since !== null && since > idleBarrelDays;
     if (alertFlagFilter === "no-fills-maintenance") return Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0;
     if (alertFlagFilter === "no-fills-none") return Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0;
+    if (alertFlagFilter === "never-cleaned") return Number(r.clean_count ?? 0) === 0;
     return true;
   }
 
@@ -1422,6 +1425,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             else if (alertFlagFilter === "idle") scopeParts.push(`Flag: idle >${idleBarrelDays} days`);
             else if (alertFlagFilter === "no-fills-maintenance") scopeParts.push("Flag: no fills — cooperage only");
             else if (alertFlagFilter === "no-fills-none") scopeParts.push("Flag: no records at all");
+            else if (alertFlagFilter === "never-cleaned") scopeParts.push("Flag: never cleaned");
             if (isFullFilter === "true") scopeParts.push("Is Full: Yes");
             else if (isFullFilter === "false") scopeParts.push("Is Full: No (empty)");
             const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
@@ -1646,10 +1650,20 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           </div>
 
           {/* Alert flags */}
-          {(barrelStats.approaching > 0 || barrelStats.idle > 0 || barrelStats.noFillsWithMaintenance > 0 || barrelStats.noFillsNoRecords > 0) && (
+          {(barrelStats.approaching > 0 || barrelStats.idle > 0 || barrelStats.noFillsWithMaintenance > 0 || barrelStats.noFillsNoRecords > 0 || barrelStats.neverCleaned > 0) && (
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Flags requiring attention</p>
               <div className="flex flex-wrap gap-1.5">
+                {barrelStats.neverCleaned > 0 && (
+                  <button
+                    onClick={() => setAlertFlagFilter(alertFlagFilter === "never-cleaned" ? "" : "never-cleaned")}
+                    className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-red-50 text-red-700 border-red-200 ${alertFlagFilter === "never-cleaned" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-red-100"}`}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Never cleaned</span>
+                    <span className="font-bold">{barrelStats.neverCleaned}</span>
+                  </button>
+                )}
                 {barrelStats.noFillsWithMaintenance > 0 && (
                   <button
                     onClick={() => setAlertFlagFilter(alertFlagFilter === "no-fills-maintenance" ? "" : "no-fills-maintenance")}
