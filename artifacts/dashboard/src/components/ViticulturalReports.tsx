@@ -838,6 +838,17 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       : seasonSprays.filter(sp => sp.blockId != null && selectedSprayBlocks.has(sp.blockId)),
     [seasonSprays, selectedSprayBlocks],
   );
+  const seasonSprayByProduct = useMemo(() => {
+    const m: Record<string, { applications: number; totalAreaHa: number; totalQty: number }> = {};
+    visibleSprays.forEach(sp => {
+      const p = sp.productName ?? "Unknown";
+      if (!m[p]) m[p] = { applications: 0, totalAreaHa: 0, totalQty: 0 };
+      m[p].applications++;
+      m[p].totalAreaHa += n(sp.areaTreatedHa);
+      m[p].totalQty += n(sp.totalQuantityApplied);
+    });
+    return Object.entries(m).sort(([, a], [, b]) => b.applications - a.applications);
+  }, [visibleSprays]);
   const visibleScouts = useMemo(
     () => selectedScoutBlocks == null
       ? seasonScouts
@@ -1916,40 +1927,66 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               onChangeIds={setSelectedSprayBlocks}
             />
           )}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/20 text-foreground/60 text-xs">
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Block</th>
-                  <th className="px-4 py-2 text-left">Product</th>
-                  <th className="px-4 py-2 text-right">Area (ha)</th>
-                  <th className="px-4 py-2 text-right">Rate (per ha)</th>
-                  <th className="px-4 py-2 text-right">Qty Used</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleSprays.map(sp => (
-                  <tr key={sp.id} className="border-t border-border/40 hover:bg-muted/20">
-                    <td className="px-4 py-2 text-xs">{fmtDate(sp.applicationDate)}</td>
-                    <td className="px-4 py-2">{blockName(sp.blockId)}</td>
-                    <td className="px-4 py-2">{fmt(sp.productName)}</td>
-                    <td className="px-4 py-2 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
-                    <td className="px-4 py-2 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
-                    <td className="px-4 py-2 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
+          <div className="p-4 space-y-3">
+            {/* Product summary */}
+            <div className="overflow-x-auto rounded-lg border border-border/50">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60">
+                    <th className="px-3 py-2 text-left">Product</th>
+                    <th className="px-3 py-2 text-right">Applications</th>
+                    <th className="px-3 py-2 text-right">Total Area (ha)</th>
+                    <th className="px-3 py-2 text-right">Total Qty Used</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
-                  <td className="px-4 py-2" colSpan={3}>Season Total</td>
-                  <td className="px-4 py-2 text-right font-mono font-bold">
-                    {visibleSprays.reduce((s, sp) => s + n(sp.areaTreatedHa), 0).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2" colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody>
+                  {seasonSprayByProduct.map(([product, stats]) => (
+                    <tr key={product} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-3 py-1.5 font-medium">{product}</td>
+                      <td className="px-3 py-1.5 text-right">{stats.applications}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{stats.totalAreaHa.toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{stats.totalQty.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Full application log */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/20 text-foreground/60 text-xs">
+                    <th className="px-4 py-2 text-left">Date</th>
+                    <th className="px-4 py-2 text-left">Block</th>
+                    <th className="px-4 py-2 text-left">Product</th>
+                    <th className="px-4 py-2 text-right">Area (ha)</th>
+                    <th className="px-4 py-2 text-right">Rate (per ha)</th>
+                    <th className="px-4 py-2 text-right">Qty Used</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleSprays.map(sp => (
+                    <tr key={sp.id} className="border-t border-border/40 hover:bg-muted/20">
+                      <td className="px-4 py-2 text-xs">{fmtDate(sp.applicationDate)}</td>
+                      <td className="px-4 py-2">{blockName(sp.blockId)}</td>
+                      <td className="px-4 py-2">{fmt(sp.productName)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmtN(sp.areaTreatedHa, 2)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmtN(sp.ratePerHectare, 2)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmtN(sp.totalQuantityApplied, 2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-muted/20 font-semibold text-xs">
+                    <td className="px-4 py-2" colSpan={3}>Season Total</td>
+                    <td className="px-4 py-2 text-right font-mono font-bold">
+                      {visibleSprays.reduce((s, sp) => s + n(sp.areaTreatedHa), 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2" colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         </div>
       )}

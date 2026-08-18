@@ -763,20 +763,6 @@ export default function VineHarvestHistoryScreen() {
               Show all
             </Text>
           </Pressable>
-          {filterBlocks.length > 1 && (
-            <Pressable
-              style={styles.blockChip}
-              onPress={() => {
-                Haptics.selectionAsync();
-                // Pick the first block that has records in the current vintage
-                // view so the chart is never left empty after tapping.
-                const firstInVintage = vintageRecords.find(r => r.blockId != null)?.blockId;
-                setSelectedBlockIds([firstInVintage ?? filterBlocks[0].id]);
-              }}
-            >
-              <Text style={styles.blockChipText}>Select none</Text>
-            </Pressable>
-          )}
           {filterBlocks.map(b => {
             const active = selectedBlockIds.includes(b.id);
             return (
