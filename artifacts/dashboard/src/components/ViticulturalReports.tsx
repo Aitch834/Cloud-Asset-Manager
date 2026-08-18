@@ -141,6 +141,29 @@ const ChartTooltip = ({ active, payload, label }: {
   );
 };
 
+// ─── Analytics chart-card wrapper ────────────────────────────────────────────
+// Applies the analytics-chart-cap class (print-height limit) automatically so
+// any future chart added here cannot silently miss it.
+function AnalyticsChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border bg-muted/30">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {subtitle && <p className="text-xs text-foreground/40">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // ─── Analytics Tab ────────────────────────────────────────────────────────────
 export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
@@ -328,13 +351,10 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
       {/* ── Vintage yield & Brix ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Yield */}
-        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h3 className="text-sm font-semibold">
-              Vintage Yield{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
-            </h3>
-            <p className="text-xs text-foreground/40">Total tonnes picked per vintage</p>
-          </div>
+        <AnalyticsChartCard
+          title={compareYear ? `Vintage Yield — ${selectedYear} vs ${compareYear}` : `Vintage Yield — ${selectedYear}`}
+          subtitle="Total tonnes picked per vintage"
+        >
           <div className="p-4">
             {vintageData.length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">No harvest records for {selectedYear}</p>
@@ -353,16 +373,13 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
               </ResponsiveContainer>
             )}
           </div>
-        </div>
+        </AnalyticsChartCard>
 
         {/* Brix & chemistry */}
-        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h3 className="text-sm font-semibold">
-              Must Chemistry{compareYear ? ` — ${selectedYear} vs ${compareYear}` : ` — ${selectedYear}`}
-            </h3>
-            <p className="text-xs text-foreground/40">Average Brix, pH, potential alcohol, and TA per vintage</p>
-          </div>
+        <AnalyticsChartCard
+          title={compareYear ? `Must Chemistry — ${selectedYear} vs ${compareYear}` : `Must Chemistry — ${selectedYear}`}
+          subtitle="Average Brix, pH, potential alcohol, and TA per vintage"
+        >
           <div className="p-4">
             {vintageData.filter(d => d["Avg Brix °"] != null || d["Avg pH"] != null || d["Potential Alcohol %"] != null || d["Avg TA (g/L)"] != null).length === 0 ? (
               <p className="text-sm text-foreground/40 text-center py-6">No chemistry data recorded for {selectedYear}</p>
@@ -383,15 +400,14 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
               </ResponsiveContainer>
             )}
           </div>
-        </div>
+        </AnalyticsChartCard>
       </div>
 
       {/* ── Disease pressure ─── */}
-      <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border bg-muted/30">
-          <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {selectedYear}</h3>
-          <p className="text-xs text-foreground/40">0 = None · 1 = Low · 2 = Medium · 3 = High</p>
-        </div>
+      <AnalyticsChartCard
+        title={`Disease & Pest Pressure — ${selectedYear}`}
+        subtitle="0 = None · 1 = Low · 2 = Medium · 3 = High"
+      >
         <div className="p-4">
           {diseaseData.length === 0 ? (
             <p className="text-sm text-foreground/40 text-center py-6">
@@ -441,7 +457,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
             </div>
           </div>
         )}
-      </div>
+      </AnalyticsChartCard>
 
       {/* ── Block performance table ─── */}
       {blockPerfData.rows.length > 0 && blockPerfData.vintages.length > 0 && (
@@ -484,12 +500,9 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
 
       {/* ── Operations hours by type ─── */}
       {opsHoursData.length > 0 && (
-        <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h3 className="text-sm font-semibold">
-              Canopy Operations — Hours by Type{compareYear ? ` · ${selectedYear} vs ${compareYear}` : ` · ${selectedYear}`}
-            </h3>
-          </div>
+        <AnalyticsChartCard
+          title={compareYear ? `Canopy Operations — Hours by Type · ${selectedYear} vs ${compareYear}` : `Canopy Operations — Hours by Type · ${selectedYear}`}
+        >
           <div className="p-4">
             <ResponsiveContainer width="100%" height={Math.max(180, opsHoursData.length * 28)}>
               <BarChart
@@ -507,7 +520,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </AnalyticsChartCard>
       )}
     </div>
   );
