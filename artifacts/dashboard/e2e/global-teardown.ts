@@ -11,12 +11,14 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATE_FILE = path.join(__dirname, ".test-user-id");
+const EMAIL_FILE = path.join(__dirname, ".test-user-email");
 
 export default async function globalTeardown() {
   if (!fs.existsSync(STATE_FILE)) return;
 
   const clerkUserId = fs.readFileSync(STATE_FILE, "utf-8").trim();
   fs.rmSync(STATE_FILE, { force: true });
+  fs.rmSync(EMAIL_FILE, { force: true });
 
   if (!clerkUserId) return;
 

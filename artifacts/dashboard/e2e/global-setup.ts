@@ -21,6 +21,7 @@ export { TENANT_SLUG, FARM_ID };
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATE_FILE = path.join(__dirname, ".test-user-id");
+const EMAIL_FILE = path.join(__dirname, ".test-user-email");
 
 export default async function globalSetup() {
   // ── 1. Configure Clerk for testing mode ──────────────────────────────────
@@ -31,6 +32,7 @@ export default async function globalSetup() {
   if (!clerkSecretKey) throw new Error("CLERK_SECRET_KEY must be set");
 
   // Create a new test user in Clerk
+  const testEmail = `e2e-1277-${Date.now()}@bde-test.example.com`;
   const createRes = await fetch("https://api.clerk.com/v1/users", {
     method: "POST",
     headers: {
@@ -38,9 +40,9 @@ export default async function globalSetup() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email_address: [`e2e-882-${Date.now()}@bde-test.example.com`],
+      email_address: [testEmail],
       first_name: "E2E",
-      last_name: "Tester882",
+      last_name: "Tester1277",
       skip_password_requirement: true,
     }),
   });
@@ -53,8 +55,9 @@ export default async function globalSetup() {
   const clerkUser = await createRes.json() as { id: string };
   const clerkUserId = clerkUser.id;
 
-  // Persist the Clerk user ID for tests and teardown
+  // Persist the Clerk user ID and email for tests and teardown
   fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
+  fs.writeFileSync(EMAIL_FILE, testEmail, "utf-8");
 
   // ── 3. Map the Clerk user to the development tenant in Postgres ───────────
   const db = new Client({ connectionString: process.env.DATABASE_URL });
