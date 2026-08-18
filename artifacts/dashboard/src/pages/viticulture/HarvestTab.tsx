@@ -103,6 +103,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     avgTa:   showVintageTa   === "true",
     avgPa:   showVintagePa   === "true",
   };
+  const [showVarietyBrix, setShowVarietyBrix] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVarietyBrix", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVarietyPh, setShowVarietyPh] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVarietyPh", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVarietyTa, setShowVarietyTa] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVarietyTa", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const [showVarietyPa, setShowVarietyPa] = usePersistedFilter({ page: "viticulture-harvest", filter: "showVarietyPa", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const varietyChemCols = {
+    avgBrix: showVarietyBrix === "true",
+    avgPh:   showVarietyPh   === "true",
+    avgTa:   showVarietyTa   === "true",
+    avgPa:   showVarietyPa   === "true",
+  };
   const [chemSortCol, setChemSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortCol", farmId, defaultValue: "" });
   const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
@@ -2061,79 +2071,108 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${varietySummaryOpen ? "rotate-90" : ""}`} />
             </button>
             {varietySummaryOpen && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+              <>
+                <div className="px-4 py-2 border-b flex items-center justify-end gap-2 bg-background">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                        <Beaker className="w-3.5 h-3.5" />
+                        Columns
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
                       {([
-                        { col: "variety",   label: "Variety",          align: "left"  },
-                        { col: "areaHa",    label: "Area (ha)",        align: "right" },
-                        { col: "totalKg",   label: "Total Yield (kg)", align: "right" },
-                        { col: "kgPerHa",   label: "Yield (kg/ha)",    align: "right" },
-                        { col: "avgBrix",   label: "Avg Brix °",       align: "right" },
-                        { col: "avgPh",     label: "Avg pH",           align: "right" },
-                        { col: "avgTa",     label: "Avg TA (g/L)",     align: "right" },
-                        { col: "avgPa",     label: "Avg Pot. Alc %",   align: "right" },
-                      ] as { col: string; label: string; align: "left" | "right" }[]).map(({ col, label, align }) => (
-                        <th
-                          key={col}
-                          className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
+                        { key: "avgBrix", label: "Avg Brix °",     val: showVarietyBrix, set: setShowVarietyBrix },
+                        { key: "avgPh",   label: "Avg pH",          val: showVarietyPh,   set: setShowVarietyPh   },
+                        { key: "avgTa",   label: "Avg TA (g/L)",    val: showVarietyTa,   set: setShowVarietyTa   },
+                        { key: "avgPa",   label: "Avg Pot. Alc %",  val: showVarietyPa,   set: setShowVarietyPa   },
+                      ] as { key: string; label: string; val: string; set: (v: string) => void }[]).map(({ key, label, val, set }) => (
+                        <DropdownMenuItem
+                          key={key}
+                          onSelect={e => { e.preventDefault(); set(val === "true" ? "false" : "true"); }}
+                          className="flex items-center gap-2 cursor-pointer"
                         >
-                          <button
-                            type="button"
-                            onClick={() => toggleVarietySort(col)}
-                            className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${varietySort.col === col ? "text-foreground" : ""}`}
-                          >
-                            {label}<VarietySortIcon col={col} />
-                          </button>
-                        </th>
+                          <Checkbox checked={val === "true"} className="pointer-events-none" />
+                          <span>{label}</span>
+                        </DropdownMenuItem>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedVarietyRows.map((row, i) => {
-                      const isTopRow = topVariety !== null && row.variety === topVariety;
-                      return (
-                        <tr
-                          key={i}
-                          className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : "hover:bg-muted/20"}`}
-                        >
-                          <td className="px-4 py-2 font-medium">
-                            <span className="inline-flex items-center gap-2">
-                              {row.variety}
-                              {isTopRow && (
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-emerald-300">
-                                  <Award className="w-3 h-3 shrink-0" />
-                                  Top
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                          <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 bg-muted/40 font-semibold">
-                      <td className="px-4 py-2">Total / Average</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKgPerHa != null ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB") : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh != null ? varietySummaryData.grandAvgPh.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa != null ? varietySummaryData.grandAvgTa.toFixed(2) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPa != null ? varietySummaryData.grandAvgPa.toFixed(2) : "—"}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
+                        {([
+                          { col: "variety",   label: "Variety",          align: "left",  show: true },
+                          { col: "areaHa",    label: "Area (ha)",        align: "right", show: true },
+                          { col: "totalKg",   label: "Total Yield (kg)", align: "right", show: true },
+                          { col: "kgPerHa",   label: "Yield (kg/ha)",    align: "right", show: true },
+                          { col: "avgBrix",   label: "Avg Brix °",       align: "right", show: varietyChemCols.avgBrix },
+                          { col: "avgPh",     label: "Avg pH",           align: "right", show: varietyChemCols.avgPh   },
+                          { col: "avgTa",     label: "Avg TA (g/L)",     align: "right", show: varietyChemCols.avgTa   },
+                          { col: "avgPa",     label: "Avg Pot. Alc %",   align: "right", show: varietyChemCols.avgPa   },
+                        ] as { col: string; label: string; align: "left" | "right"; show: boolean }[]).filter(c => c.show).map(({ col, label, align }) => (
+                          <th
+                            key={col}
+                            className={`${align === "left" ? "text-left px-4" : "text-right px-3"} py-2 font-medium`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleVarietySort(col)}
+                              className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${varietySort.col === col ? "text-foreground" : ""}`}
+                            >
+                              {label}<VarietySortIcon col={col} />
+                            </button>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedVarietyRows.map((row, i) => {
+                        const isTopRow = topVariety !== null && row.variety === topVariety;
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : "hover:bg-muted/20"}`}
+                          >
+                            <td className="px-4 py-2 font-medium">
+                              <span className="inline-flex items-center gap-2">
+                                {row.variety}
+                                {isTopRow && (
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-emerald-300">
+                                    <Award className="w-3 h-3 shrink-0" />
+                                    Top
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
+                            <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
+                            {varietyChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>}
+                            {varietyChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPh   != null ? row.avgPh.toFixed(2)   : "—"}</td>}
+                            {varietyChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgTa   != null ? row.avgTa.toFixed(2)   : "—"}</td>}
+                            {varietyChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPa   != null ? row.avgPa.toFixed(2)   : "—"}</td>}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/40 font-semibold">
+                        <td className="px-4 py-2">Total / Average</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKgPerHa != null ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB") : "—"}</td>
+                        {varietyChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>}
+                        {varietyChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh   != null ? varietySummaryData.grandAvgPh.toFixed(2)   : "—"}</td>}
+                        {varietyChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa   != null ? varietySummaryData.grandAvgTa.toFixed(2)   : "—"}</td>}
+                        {varietyChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPa   != null ? varietySummaryData.grandAvgPa.toFixed(2)   : "—"}</td>}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         );
