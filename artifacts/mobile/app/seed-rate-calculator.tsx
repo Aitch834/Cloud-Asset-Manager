@@ -79,11 +79,19 @@ export default function SeedRateCalculatorScreen() {
   const [blackgrassRisk, setBlackgrassRisk] = useState(false);
   const [targetPopulation, setTargetPopulation] = useState(String(STANDARD_TARGET_POPULATION_M2));
   const [tgwGrams, setTgwGrams] = useState("");
+  const [showNoSoilHint, setShowNoSoilHint] = useState(false);
 
   const handleFieldChange = (field: ApiField) => {
     if (field.soilType) {
       const chip = mapFieldSoilTypeToChip(field.soilType);
-      if (chip) setSoilType(chip);
+      if (chip) {
+        setSoilType(chip);
+        setShowNoSoilHint(false);
+      } else {
+        setShowNoSoilHint(true);
+      }
+    } else {
+      setShowNoSoilHint(true);
     }
   };
 
@@ -145,6 +153,18 @@ export default function SeedRateCalculatorScreen() {
               allowScan={false}
             />
 
+            {showNoSoilHint && (
+              <View style={styles.noSoilHint}>
+                <Feather name="alert-circle" size={13} color="#92400e" style={{ marginTop: 1 }} />
+                <Text style={styles.noSoilHintText}>
+                  No soil type on record — set it in the Field Register to auto-fill next time
+                </Text>
+                <Pressable onPress={() => setShowNoSoilHint(false)} hitSlop={8}>
+                  <Feather name="x" size={14} color="#92400e" />
+                </Pressable>
+              </View>
+            )}
+
             <View style={styles.field}>
               <Text style={styles.label}>Soil Type</Text>
               <View style={styles.chipWrap}>
@@ -152,7 +172,7 @@ export default function SeedRateCalculatorScreen() {
                   <Pressable
                     key={s}
                     style={[styles.chip, soilType === s && styles.chipSelected]}
-                    onPress={() => setSoilType(soilType === s ? "" : s)}
+                    onPress={() => { setSoilType(soilType === s ? "" : s); setShowNoSoilHint(false); }}
                   >
                     <Text style={[styles.chipText, soilType === s && styles.chipTextSelected]}>{s}</Text>
                   </Pressable>
@@ -348,4 +368,15 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   placeholderText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textTertiary, textAlign: "center" },
+  noSoilHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    backgroundColor: "#fffbeb",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+  },
+  noSoilHintText: { flex: 1, fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", lineHeight: 16 },
 });
