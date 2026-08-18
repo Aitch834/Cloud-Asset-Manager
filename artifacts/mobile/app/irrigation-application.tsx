@@ -22,7 +22,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
-import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { appendToList, generateId, getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 import type { IrrigationApplication } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
@@ -37,6 +37,9 @@ const METHODS = [
   "Sub-surface Drip",
   "Micro-jet",
 ];
+
+const DEFAULT_IRRIGATION_METHOD = "Overhead Sprinkler";
+const irrigMethodKey = (farmId: string | number) => `bde_irrigation_method_${farmId}`;
 
 const GROWTH_STAGES = [
   "Germination / Establishment",
@@ -92,6 +95,21 @@ export default function IrrigationApplicationScreen() {
     getCachedStaffMembers(String(currentFarm.id)).then((members: RefStaffMember[]) => {
       setStaffOptions(members.map((m) => ({ id: m.id, label: m.label, sublabel: m.role || undefined })));
     });
+  }, [currentFarm?.id]);
+
+  // Load last-used irrigation method for this farm.
+  // Reset to empty immediately so a prior farm's value never leaks in,
+  // then apply the stored value only if the farm hasn't changed again.
+  useEffect(() => {
+    setIrrigationMethod("");
+    if (!currentFarm?.id) return;
+    let cancelled = false;
+    getItem<string>(irrigMethodKey(currentFarm.id)).then((saved) => {
+      if (!cancelled && saved && METHODS.includes(saved)) {
+        setIrrigationMethod(saved);
+      }
+    });
+    return () => { cancelled = true; };
   }, [currentFarm?.id]);
   const [rainfallLast7DaysMm, setRainfallLast7DaysMm] = useState("");
   const [notes, setNotes] = useState("");
@@ -157,6 +175,9 @@ export default function IrrigationApplicationScreen() {
     };
 
     await appendToList(STORAGE_KEYS.IRRIGATION_APPLICATIONS, record);
+    if (currentFarm?.id) {
+      await setItem(irrigMethodKey(currentFarm.id), irrigationMethod);
+    }
     await refreshPendingCount();
     setSaving(false);
 
