@@ -392,6 +392,11 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     ...BOTTLING_COLUMNS.map(c => ({ key: c.dbKey, label: c.header, fmt: c.exportValue })),
     // Export-only: machine linkage is dashboard-only; this column is not part of the import template.
     { key: "bottling_machine_ref", label: "Bottling Machine", fmt: (r: Record<string, unknown>) => r.bottling_machine_ref != null ? String(r.bottling_machine_ref) : "" },
+    { key: "vessel_capacity_litres", label: "Vessel capacity (L)", fmt: (r: Record<string, unknown>) => {
+      if (r.vessel_capacity_litres == null || r.vessel_capacity_litres === "") return "";
+      const cap = parseFloat(String(r.vessel_capacity_litres));
+      return isNaN(cap) ? "" : String(Math.round(cap));
+    } },
     { key: "so2_ceiling", label: "SO₂ ceiling (mg/L)", fmt: (r: Record<string, unknown>) => {
       const v = bottlingSo2Verdict(r);
       return v ? String(v.ceiling) : "";

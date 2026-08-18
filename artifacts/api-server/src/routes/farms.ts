@@ -38898,7 +38898,7 @@ router.delete("/farms/:farmId/winery-cellar-ops/:id", requireAuth, requireTenant
 // ── Bottling Records ───────────────────────────────────────────────────────────
 router.get("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const rows = await db.execute(sql`SELECT b.*, v.vessel_ref AS source_vessel_ref, m.machine_ref AS bottling_machine_ref, m.machine_type AS bottling_machine_type FROM winery_bottling_records b LEFT JOIN winery_vessels v ON v.id=b.source_vessel_id LEFT JOIN winery_bottling_machines m ON m.id=b.bottling_machine_id AND m.farm_id=${farmId} WHERE b.farm_id=${farmId} ORDER BY b.bottling_date DESC, b.created_at DESC`);
+  const rows = await db.execute(sql`SELECT b.*, v.vessel_ref AS source_vessel_ref, v.capacity_litres AS vessel_capacity_litres, m.machine_ref AS bottling_machine_ref, m.machine_type AS bottling_machine_type FROM winery_bottling_records b LEFT JOIN winery_vessels v ON v.id=b.source_vessel_id LEFT JOIN winery_bottling_machines m ON m.id=b.bottling_machine_id AND m.farm_id=${farmId} WHERE b.farm_id=${farmId} ORDER BY b.bottling_date DESC, b.created_at DESC`);
   res.json({ records: rows.rows });
 });
 router.post("/farms/:farmId/winery-bottling", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
