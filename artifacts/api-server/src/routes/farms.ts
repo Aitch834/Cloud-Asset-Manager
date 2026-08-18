@@ -23625,15 +23625,45 @@ router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTen
 
 // Simple in-memory cache for Open-Meteo forecasts.
 // Key: "lat,lng" (4 dp precision). TTL: 90 minutes.
-// The cache is bounded: expired entries are pruned on every write so that a
-// server handling thousands of distinct farm locations never accumulates
-// unbounded memory over time.
+// The cache is doubly bounded:
+//   1. Expired entries are pruned on every write (TTL eviction).
+//   2. A hard cap of 500 live entries with LRU eviction ensures the Map
+//      can never grow without bound even within a single TTL window (e.g.
+//      when thousands of distinct farm coordinates are requested at once).
 const _openMeteoCacheTtlMs = 90 * 60 * 1000;
-const _openMeteoCache = new Map<string, {
+const _openMeteoCacheMaxSize = 500;
+
+/** Minimal LRU cache backed by a Map (insertion-order → LRU is Map.keys().next()). */
+class _LruCache<K, V> {
+  private readonly _max: number;
+  private readonly _map: Map<K, V>;
+  constructor(max: number) { this._max = max; this._map = new Map(); }
+  get(key: K): V | undefined {
+    if (!this._map.has(key)) return undefined;
+    // Promote to most-recently-used by moving to end of insertion order.
+    const val = this._map.get(key)!;
+    this._map.delete(key);
+    this._map.set(key, val);
+    return val;
+  }
+  set(key: K, value: V): void {
+    if (this._map.has(key)) {
+      this._map.delete(key);
+    } else if (this._map.size >= this._max) {
+      // Evict the least-recently-used entry (first in insertion order).
+      this._map.delete(this._map.keys().next().value!);
+    }
+    this._map.set(key, value);
+  }
+  delete(key: K): void { this._map.delete(key); }
+  [Symbol.iterator](): IterableIterator<[K, V]> { return this._map[Symbol.iterator](); }
+}
+
+const _openMeteoCache = new _LruCache<string, {
   fetchedAt: number;
   forecastRainfall7dMm: number;
   forecastDailyMm: Array<{ date: string; mm: number }>;
-}>();
+}>(_openMeteoCacheMaxSize);
 
 /** Remove all entries whose TTL has elapsed. Called on every cache write. */
 function _pruneOpenMeteoCache(): void {
