@@ -244,6 +244,7 @@ export function printExciseReturn(
   farmName: string,
   licenceNo?: string,
   farmMeta?: Record<string, unknown> | null,
+  ratesLastUpdated?: string | null,
 ) {
   const d = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
@@ -337,6 +338,7 @@ export function printExciseReturn(
     <tr><td>Small Producer Relief (SPR)</td><td>${spr ? '<span class="badge badge-spr">&#10003; SPR Claimed &mdash; Reduced Rate</span>' : '<span class="badge badge-std">Not Claimed &mdash; Standard Rate</span>'}</td></tr>
     <tr><td>Dutiable Litres <em>(UK removals + domestic + tastings)</em></td><td><strong>${dutiableL.toFixed(1)} L</strong></td></tr>
     <tr><td>Effective Duty Rate</td><td>&pound;${n(record.dutyRatePer100L, 2)} per 100 L</td></tr>
+    <tr><td>Duty Rates Reviewed</td><td>${ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "HMRC August 2023"}</td></tr>
     <tr class="duty-row"><td>TOTAL ALCOHOL DUTY PAYABLE</td><td>&pound;${n(record.totalDutyPayable, 2)}</td></tr>
   </table>
 

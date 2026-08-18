@@ -317,7 +317,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
               </div>
             )}
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta)}>
+              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated)}>
                 <Printer className="w-3.5 h-3.5 mr-1.5" />Print Return
               </Button>
               <Button onClick={() => setView(null)}>Close</Button>
