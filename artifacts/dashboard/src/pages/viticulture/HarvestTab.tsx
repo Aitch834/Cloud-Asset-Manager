@@ -444,19 +444,20 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     // Separate bucket for records with no usable variety (unlinked or blank variety on block)
     const UNKNOWN_KEY = "Unknown / Not linked";
-    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; blockIds: Set<unknown>; hasBlocksWithNoArea: boolean; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
     for (const r of filteredHarvest) {
       const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
       const variety = block ? String(block.variety ?? "").trim() : "";
       // Use the variety name if available; fall back to the unknown bucket
       const key = variety || UNKNOWN_KEY;
-      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), hasBlocksWithNoArea: false, brixVals: [], phVals: [], taVals: [], paVals: [] };
       const entry = varietyMap[key];
       entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       if (block && r.blockId != null && !entry.blockIds.has(r.blockId)) {
         entry.blockIds.add(r.blockId);
         const ha = parseFloat(String((block.areaHa ?? block.area ?? "")));
         if (!isNaN(ha) && ha > 0) entry.totalHa += ha;
+        else entry.hasBlocksWithNoArea = true;
       }
       const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
       const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
@@ -481,6 +482,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           areaHa: e.totalHa > 0 ? e.totalHa : null,
           totalKg: e.totalKg,
           kgPerHa,
+          hasBlocksWithNoArea: e.hasBlocksWithNoArea,
           avgBrix: avg(e.brixVals),
           avgPh: avg(e.phVals),
           avgTa: avg(e.taVals),
@@ -493,13 +495,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const grandHa = rowsWithArea.reduce((s, r) => s + (r.areaHa ?? 0), 0);
     const grandKgForArea = rowsWithArea.reduce((s, r) => s + r.totalKg, 0);
     const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+    const grandHasBlocksWithNoArea = rows.some(r => r.hasBlocksWithNoArea);
 
     const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
     const grandAvgBrix = avg(filteredHarvest.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
     const grandAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
     const grandAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
     const grandAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-    return { rows, grandKg, grandHa, grandKgPerHa, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
+    return { rows, grandKg, grandHa, grandKgPerHa, grandHasBlocksWithNoArea, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, blocks]);
 
@@ -2173,7 +2176,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           </td>
                           <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                          <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">
+                            {row.kgPerHa != null
+                              ? Math.round(row.kgPerHa).toLocaleString("en-GB")
+                              : row.hasBlocksWithNoArea
+                                ? <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see yield per hectare">—</span>
+                                : "—"}
+                          </td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
                           <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
@@ -2187,7 +2196,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       <td className="px-4 py-2">Total / Average</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                      <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKgPerHa != null ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB") : "—"}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {varietySummaryData.grandKgPerHa != null
+                          ? Math.round(varietySummaryData.grandKgPerHa).toLocaleString("en-GB")
+                          : varietySummaryData.grandHasBlocksWithNoArea
+                            ? <span className="cursor-help border-b border-dotted border-muted-foreground/50" title="Block area not set — add it in Block Settings to see yield per hectare">—</span>
+                            : "—"}
+                      </td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh != null ? varietySummaryData.grandAvgPh.toFixed(2) : "—"}</td>
                       <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa != null ? varietySummaryData.grandAvgTa.toFixed(2) : "—"}</td>
