@@ -37,6 +37,11 @@ export interface CachedHookResult<T> {
   loading: boolean;
   fromCache: boolean;
   lastError: string | null;
+  /** The farmId that the currently returned `items` were loaded for.
+   *  `undefined` while a farm-switch is in progress and items are stale.
+   *  Callers that validate items against the active farm should gate on
+   *  `loadedForFarmId === farmId` to avoid acting on the previous farm's data. */
+  loadedForFarmId: string | undefined;
 }
 
 export function buildCachedApiHook<T>(
@@ -52,18 +57,26 @@ export function buildCachedApiHook<T>(
     const [loading, setLoading] = useState(true);
     const [fromCache, setFromCache] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
+    // Tracks which farmId the currently returned `items` belong to.
+    // Reset to undefined when a new farmId is requested so callers can detect
+    // the one-render lag where items are still from the previous farm.
+    const [loadedForFarmId, setLoadedForFarmId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
       if (!farmId) {
         setItems([]);
         setLoading(false);
         setLastError(null);
+        setLoadedForFarmId(undefined);
         return;
       }
 
-      // Reset to loading state whenever farmId becomes available
+      // Reset to loading state whenever farmId changes.
+      // Clearing loadedForFarmId here signals to callers that items are now stale;
+      // it will be set again once cache or API data arrives for the new farmId.
       setLoading(true);
       setLastError(null);
+      setLoadedForFarmId(undefined);
 
       let cancelled = false;
 
@@ -83,6 +96,7 @@ export function buildCachedApiHook<T>(
             const parsed: T[] = JSON.parse(cached);
             const hydrated = cacheTransform ? parsed.map(cacheTransform) : parsed;
             setItems(hydrated);
+            setLoadedForFarmId(farmId);
             setLoading(false);
             setFromCache(true);
           }
@@ -123,6 +137,7 @@ export function buildCachedApiHook<T>(
 
           if (!cancelled) {
             setItems(fresh);
+            setLoadedForFarmId(farmId);
             setFromCache(false);
             setLastError(null);
             setLoading(false);
@@ -145,6 +160,6 @@ export function buildCachedApiHook<T>(
       return () => { cancelled = true; };
     }, [farmId]);
 
-    return { items, loading, fromCache, lastError };
+    return { items, loading, fromCache, lastError, loadedForFarmId };
   };
 }

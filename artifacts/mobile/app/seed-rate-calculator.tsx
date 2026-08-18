@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -71,7 +72,7 @@ export default function SeedRateCalculatorScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
-  const { fields, loading: fieldsLoading, fromCache: fieldsFromCache, error: fieldsError } = useApiFields(farmId);
+  const { fields, loading: fieldsLoading, fromCache: fieldsFromCache, error: fieldsError, loadedForFarmId: fieldsLoadedForFarmId } = useApiFields(farmId);
 
   const [selectedFieldName, setSelectedFieldName] = useState("");
   const [soilType, setSoilType] = useState("");
@@ -80,6 +81,81 @@ export default function SeedRateCalculatorScreen() {
   const [targetPopulation, setTargetPopulation] = useState(String(STANDARD_TARGET_POPULATION_M2));
   const [tgwGrams, setTgwGrams] = useState("");
   const [showNoSoilHint, setShowNoSoilHint] = useState(false);
+
+  // `restoredForFarmId` tracks which farm's AsyncStorage read has fully completed.
+  // Using state (not a ref) ensures the persist effect only activates in the same
+  // render cycle where restoration is confirmed done for the active farm.
+  const [restoredForFarmId, setRestoredForFarmId] = useState<string | undefined>(undefined);
+
+  // EFFECT 1: Reset — fires synchronously on every farmId transition.
+  // Clears the selection and invalidates the restoration marker so the restore
+  // effect will unconditionally re-run for the new (or returned-to) farm.
+  // Keeping this separate from the restore effect guarantees that even an
+  // A → B → A switch resets the marker before the restore for A re-checks it.
+  useEffect(() => {
+    setRestoredForFarmId(undefined);
+    setSelectedFieldName("");
+    setSoilType("");
+  }, [farmId]); // farmId only — intentionally excludes restore state
+
+  // EFFECT 2: Restore — reads AsyncStorage once the fields list is ready.
+  // Runs on every render where restoredForFarmId !== farmId (i.e. after every
+  // reset), but exits early if we are still waiting on fields.
+  // A cancellation flag discards the result if farmId changes mid-read.
+  useEffect(() => {
+    if (!farmId || fieldsLoading) return;
+    // restoredForFarmId was cleared by the reset effect on every farm change,
+    // so this guard only skips a re-run caused by an unrelated fields reload
+    // after restoration has already completed for the current farm.
+    if (restoredForFarmId === farmId) return;
+    // Wait until the hook confirms the returned fields belong to the active
+    // farm.  On a farm switch `useApiFields` can serve the previous farm's
+    // stale items for one render before its effect runs; validating against
+    // those items would silently reject a valid saved field for the new farm.
+    if (fieldsLoadedForFarmId !== farmId) return;
+
+    let cancelled = false;
+    const targetFarmId = farmId;
+    const storageKey = `bde_seed_calc_last_field_${targetFarmId}`;
+
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (cancelled) return; // farmId changed while we were reading — discard
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw) as { fieldName?: string; soilType?: string };
+          if (saved.fieldName) {
+            const isValid = fields.some((f) => f.name === saved.fieldName);
+            if (isValid) {
+              setSelectedFieldName(saved.fieldName);
+              if (saved.soilType) setSoilType(saved.soilType);
+            }
+          }
+        } catch {
+          // Ignore malformed stored values.
+        }
+      }
+      setRestoredForFarmId(targetFarmId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [farmId, fieldsLoading, fields, restoredForFarmId, fieldsLoadedForFarmId]);
+
+  // EFFECT 3: Persist — writes to AsyncStorage whenever the selection changes,
+  // but only after restoration is confirmed complete for the current farm.
+  // This prevents the empty initial state (or the cleared state during a farm
+  // switch) from overwriting a key before the async read has had a chance to
+  // restore it.
+  useEffect(() => {
+    if (!farmId || restoredForFarmId !== farmId) return;
+    const storageKey = `bde_seed_calc_last_field_${farmId}`;
+    if (selectedFieldName) {
+      AsyncStorage.setItem(storageKey, JSON.stringify({ fieldName: selectedFieldName, soilType }));
+    } else {
+      AsyncStorage.removeItem(storageKey);
+    }
+  }, [farmId, restoredForFarmId, selectedFieldName, soilType]);
 
   const handleFieldChange = (field: ApiField) => {
     if (field.soilType) {
