@@ -200,13 +200,39 @@ export default function Contact() {
                 </p>
               </div>
 
-              {sectorParam && (
-                <div className="mb-6 flex items-center gap-3 rounded-xl border border-brand-forest/20 bg-brand-pale/40 px-4 py-3">
-                  <Tag className="w-4 h-4 text-brand-forest shrink-0" />
-                  <p className="text-sm text-brand-forest">
-                    <span className="font-semibold">Sector: {sectorParam}</span>
-                    {" "}— we've pre-selected the most relevant modules below. Feel free to adjust them.
-                  </p>
+              {(sectorParam || modulesParam) && (
+                <div className="mb-6 flex items-start gap-3 rounded-xl border border-brand-forest/20 bg-brand-pale/40 px-4 py-3">
+                  <Tag className="w-4 h-4 text-brand-forest shrink-0 mt-0.5" />
+                  <div className="text-sm text-brand-forest space-y-1.5">
+                    {modulesParam ? (
+                      <>
+                        <p className="font-semibold">
+                          {sectorParam
+                            ? `Sector: ${sectorParam} — from your Pricing calculator selection:`
+                            : "From your Pricing calculator selection:"}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {modulesParam.map(id => {
+                            const mod = AVAILABLE_MODULES.find(m => m.id === id);
+                            return mod ? (
+                              <span
+                                key={id}
+                                className="inline-flex items-center rounded-full bg-brand-forest/10 px-2.5 py-0.5 text-xs font-medium text-brand-forest"
+                              >
+                                {mod.label}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                        <p className="text-xs text-brand-forest/70">Feel free to adjust the selection below.</p>
+                      </>
+                    ) : (
+                      <p>
+                        <span className="font-semibold">Sector: {sectorParam}</span>
+                        {" "}— we've pre-selected the most relevant modules below. Feel free to adjust them.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
