@@ -381,7 +381,7 @@ export function OverviewTab({
             { label: "All active blocks on vine register", ok: register.data.filter(r => !r.isRemovedFromRegister).length >= activeBlocks.length },
             { label: "Disease scouting undertaken this season", ok: scouting.data.length > 0 },
             { label: "Vintage harvest records complete", ok: harvest.data.length > 0 },
-            { label: "Pruning / canopy records logged", ok: false },
+            { label: "Pruning / canopy records logged", ok: operations.data.length > 0 },
             { label: "No Xylella suspicion outstanding", ok: !xylellaAlert },
             { label: "All scouting records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "scouting")!.count === 0, tabId: "scouting", unlinkedCount: unlinkedItems.find(i => i.tabId === "scouting")!.count },
             { label: "All spray diary records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "spray-diary")!.count === 0, tabId: "spray-diary", unlinkedCount: unlinkedItems.find(i => i.tabId === "spray-diary")!.count },
