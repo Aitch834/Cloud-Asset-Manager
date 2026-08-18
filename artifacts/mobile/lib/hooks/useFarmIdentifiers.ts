@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
 
-const JUST_SAVED_TTL_MS = 10_000; // 10 s — long enough to survive navigation back
+const JUST_SAVED_TTL_MS = 30_000; // 10 s — long enough to survive navigation back
 
 export function identifierJustSavedKey(farmId: string | undefined): string {
   return `identifier-just-saved-${farmId ?? "unknown"}`;
