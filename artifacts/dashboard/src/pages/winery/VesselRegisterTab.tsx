@@ -1,4 +1,5 @@
 import { fetchWineryJson, today, CLEAN_TYPE_OPTIONS, fmtDate, fmt, useWineryCrud, useIsViticultureActive, exportCSV, csvComment, QueryErrorNotice, EmptyState, fmtNum, NotesCell, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, SectionLabel, TOASTING_OPTIONS, ViewField } from "./shared";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePersistedFilter, usePersistedArrayFilter } from "@/hooks/use-persisted-filter";
 import { useFarmName } from "@/hooks/use-farm-name";
@@ -71,6 +72,9 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   // Rack-out quick action state
   const [rackOutFillId, setRackOutFillId] = useState<number | null>(null);
   const [rackOutDate, setRackOutDate] = useState<string>(today);
+
+  // Delete confirm state
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const openAdd = () => { setEditingFill(null); setForm({ fillNumber: String(nextFill) }); setShowAdd(true); };
   const openEdit = (r: Record<string, unknown>) => {
@@ -239,7 +243,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                         </Button>
                       )}
                       <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
-                      <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(f.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                      <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(f.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                     </div>
                   )}
                 </div>
@@ -287,6 +291,17 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete fill record"
+        message="This fill record will be permanently deleted and cannot be recovered."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
     </div>
   );
 }
