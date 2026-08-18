@@ -582,7 +582,12 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
           <span>Farm address is not set — printed reports will have a blank address header.{" "}
-            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => setLocation("/settings/farm")}>
+            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => {
+              setLocation("/settings/farm");
+              setTimeout(() => {
+                document.getElementById("settings-address")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 400);
+            }}>
               Add in Farm Settings → Contact &amp; Address
             </button>
           </span>
@@ -597,6 +602,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         missingFields={farmRecord && !farmRecord.address ? ["Farm address"] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-address"
       />
 
       {/* APPA Ref missing warning */}
@@ -604,6 +610,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         missingFields={farmRecord && !farmRecord.appaRef ? ["APPA Ref"] : []}
         settingsSection="Viticulture & Wine"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
       />
 
       {/* RPA Export unavailable warning */}
@@ -622,7 +629,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
             <button
               type="button"
               className="underline underline-offset-2 hover:text-amber-900 font-medium"
-              onClick={() => setLocation("/settings/farm")}
+              onClick={() => {
+                setLocation("/settings/farm");
+                const targetId = !farmRecord.sbiNumber ? "settings-sbi" : "settings-sector-sectorViticulture";
+                setTimeout(() => {
+                  document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 400);
+              }}
             >
               Add in Farm Settings
             </button>
@@ -949,7 +962,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           </DialogHeader>
           <div className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>SBI <span className="font-mono font-semibold">{String(farmRecord?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); }}>Fix in Farm Settings</button></span>
+            <span>SBI <span className="font-mono font-semibold">{String(farmRecord?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); setTimeout(() => { document.getElementById("settings-sbi")?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 400); }}>Fix in Farm Settings</button></span>
           </div>
           <FsaCompletenessBar farmId={farmId} />
           <DialogFooter>

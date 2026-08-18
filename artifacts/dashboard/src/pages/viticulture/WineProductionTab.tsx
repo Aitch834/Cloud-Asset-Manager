@@ -245,7 +245,12 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
           <span>Farm address is not set — the printed register will have a blank address header.{" "}
-            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => setLocation("/settings/farm")}>
+            <button type="button" className="underline underline-offset-2 hover:text-amber-900 font-medium" onClick={() => {
+              setLocation("/settings/farm");
+              setTimeout(() => {
+                document.getElementById("settings-address")?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }, 400);
+            }}>
               Add in Farm Settings → Contact &amp; Address
             </button>
           </span>
@@ -255,6 +260,11 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         missingFields={organicMissingFields}
         settingsSection="Basic Details / Viticulture &amp; Wine"
         onNavigate={() => setLocation("/settings/farm")}
+        fieldTargetIds={{
+          "Company / farm name": "settings-name",
+          "Farm address": "settings-address",
+          "WineGB Membership No": "settings-winegb-number",
+        }}
       />
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-900">
         <strong>SO₂ limits for organic wine (UK-retained Reg 203/2012):</strong> Red wine — 100 mg/L total SO₂. White and rosé wine — 150 mg/L. Organic sparkling — 185 mg/L. These limits are lower than for conventional wine. Selecting a wine colour will auto-fill the maximum permitted SO₂. All SO₂ values should be total SO₂ tested at bottling (or latest analysis).
@@ -486,4 +496,3 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Winery: Licensing ─────────────────────────────────────────────────────────
-

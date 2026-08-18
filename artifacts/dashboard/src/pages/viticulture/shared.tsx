@@ -78,18 +78,39 @@ export function useFarmMeta(farmId: number) {
  * @param missingFields - human-readable names of the fields that are blank
  * @param settingsSection - the Farm Settings section label shown in the link text
  * @param onNavigate - navigate to the settings page
+ * @param targetId - element id to scroll to (use for single-field warnings)
+ * @param fieldTargetIds - map of field label → element id; the first matching
+ *   missing field wins. Use this for warnings that cover multiple fields so the
+ *   scroll always lands on the field that is actually missing.
  */
 export function FarmSettingsWarning({
   missingFields,
   settingsSection,
   onNavigate,
+  targetId,
+  fieldTargetIds,
 }: {
   missingFields: string[];
   settingsSection: string;
   onNavigate: () => void;
+  targetId?: string;
+  fieldTargetIds?: Record<string, string>;
 }) {
   if (missingFields.length === 0) return null;
   const fieldList = missingFields.join(", ");
+  const handleClick = () => {
+    onNavigate();
+    // Derive the scroll target: fieldTargetIds picks the first actually-missing
+    // field's anchor; targetId is the fallback for single-field warnings.
+    const effectiveTargetId = fieldTargetIds
+      ? missingFields.reduce<string | undefined>((found, f) => found ?? fieldTargetIds[f], undefined)
+      : targetId;
+    if (effectiveTargetId) {
+      setTimeout(() => {
+        document.getElementById(effectiveTargetId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 400);
+    }
+  };
   return (
     <div className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
@@ -99,7 +120,7 @@ export function FarmSettingsWarning({
         <button
           type="button"
           className="underline underline-offset-2 hover:text-amber-900 font-medium"
-          onClick={onNavigate}
+          onClick={handleClick}
         >
           Add in Farm Settings → {settingsSection}
         </button>
@@ -153,8 +174,13 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
               className="underline underline-offset-2 hover:text-amber-900 font-medium"
               onClick={() => {
                 navigate("/settings/farm");
+                // Scroll to the first field that is actually missing, not always APPA
+                const firstMissingTargetId = fields
+                  .filter(f => !f.value || String(f.value).trim() === "")
+                  .map(f => FIELD_TARGET_IDS[f.label])
+                  .find(Boolean);
                 setTimeout(() => {
-                  document.getElementById("settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  document.getElementById(firstMissingTargetId ?? "settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
                 }, 400);
               }}
             >

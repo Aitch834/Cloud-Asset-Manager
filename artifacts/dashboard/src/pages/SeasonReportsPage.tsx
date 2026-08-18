@@ -709,6 +709,11 @@ export default function SeasonReportsPage() {
                   ]}
                   settingsSection="Livestock"
                   onNavigate={() => navigateTo("/settings/farm")}
+                  fieldTargetIds={{
+                    "CPH Number": "settings-cph",
+                    "SBI Number": "settings-sbi",
+                    "Herd / Flock Mark": "settings-herd-mark",
+                  }}
                 />
                 {livestockHerds.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "3rem 1rem", color: "#9ca3af" }}>

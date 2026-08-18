@@ -228,16 +228,17 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
         missingFields={exciseMissingFields}
         settingsSection="Basic Details"
         onNavigate={() => setLocation("/settings/farm")}
+        fieldTargetIds={{
+          "Company / farm name": "settings-name",
+          "Farm address": "settings-address",
+          "VAT number": "inv-vat-number",
+        }}
       />
       <FarmSettingsWarning
         missingFields={appaRefMissingFields}
         settingsSection="Viticulture Registrations"
-        onNavigate={() => {
-          setLocation("/settings/farm");
-          setTimeout(() => {
-            document.getElementById("settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }, 400);
-        }}
+        onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
       />
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
@@ -302,7 +303,13 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
                   <button
                     type="button"
                     className="underline underline-offset-2 hover:text-amber-900 font-medium"
-                    onClick={() => { setView(null); setLocation("/settings/farm"); }}
+                    onClick={() => {
+                      setView(null);
+                      setLocation("/settings/farm");
+                      setTimeout(() => {
+                        document.getElementById("settings-address")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }, 400);
+                    }}
                   >
                     Add in Farm Settings → Basic Details
                   </button>

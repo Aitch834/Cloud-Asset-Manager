@@ -524,6 +524,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         missingFields={farmMeta && !String(farmMeta.address ?? "").trim() ? ["Farm address"] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-address"
       />
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">

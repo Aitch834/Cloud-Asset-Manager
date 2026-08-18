@@ -282,6 +282,11 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
         ] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
+        fieldTargetIds={{
+          "SBI Number": "settings-sbi",
+          "SBI Number (invalid — must be exactly 9 digits)": "settings-sbi",
+          "Farm address": "settings-address",
+        }}
       />
 
       {/* APPA Ref missing warning */}
@@ -289,6 +294,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
         missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
         settingsSection="Viticulture & Wine"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
       />
 
       {/* FSA / APPA registration pre-flight check */}
@@ -450,7 +456,7 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
               {isSbiInvalid && (
                 <div className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>SBI <span className="font-mono font-semibold">{String(farmMeta?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); }}>Fix in Farm Settings</button></span>
+                  <span>SBI <span className="font-mono font-semibold">{String(farmMeta?.sbiNumber ?? "")}</span> is not valid — must be exactly 9 digits. <button type="button" className="underline underline-offset-2 hover:opacity-80 font-medium" onClick={() => { setPrintConfirmOpen(false); setLocation("/settings/farm"); setTimeout(() => { document.getElementById("settings-sbi")?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 400); }}>Fix in Farm Settings</button></span>
                 </div>
               )}
               {!isSbiInvalid && <FsaCompletenessBar farmId={farmId} />}

@@ -2940,6 +2940,7 @@ export default function FarmSettings() {
               {SECTORS.map(s => (
                 <label
                   key={s.key}
+                  id={`settings-sector-${s.key}`}
                   className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-black/5 transition-colors"
                 >
                   <Checkbox

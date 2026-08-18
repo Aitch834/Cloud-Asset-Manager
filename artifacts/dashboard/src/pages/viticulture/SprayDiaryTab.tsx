@@ -598,6 +598,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
         missingFields={farmMeta && !String(farmMeta.address ?? "").trim() ? ["Farm address"] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-address"
       />
 
       {/* Filter bar */}

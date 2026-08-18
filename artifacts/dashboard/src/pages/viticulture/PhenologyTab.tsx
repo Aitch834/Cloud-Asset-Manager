@@ -584,6 +584,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
         settingsSection="Viticulture & Wine"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
       />
 
       <div className="flex items-center justify-between">
@@ -630,6 +631,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         missingFields={farmMeta && !String(farmMeta.address ?? "").trim() ? ["Farm address"] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-address"
       />
       <DataTable
         cols={[
