@@ -610,10 +610,12 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
   // the missing-placeholder warning visible even after subsequent HTML edits clear
   // the preview image.
   const [hasEverPreviewed, setHasEverPreviewed] = useState(false);
+
   const prevDraftObjectUrl = useRef<string | null>(null);
   // Monotonic revision counter — completed fetches whose revision doesn't match the
   // current one are discarded, preventing stale responses from overwriting a newer preview.
   const previewRevision = useRef(0);
+
 
   function handleNameChange(v: string) {
     setName(v);
@@ -2032,6 +2034,7 @@ export default function AdPdfGenerator() {
             </div>
             {panel === "create" ? (
               <TemplateForm
+                key="create"
                 onSave={(data) => createMutation.mutate(data)}
                 onCancel={() => setPanel("none")}
                 isSaving={createMutation.isPending}
@@ -2042,6 +2045,7 @@ export default function AdPdfGenerator() {
               />
             ) : (
               <TemplateForm
+                key={(panel as { edit: AdTemplate }).edit.id}
                 initial={(panel as { edit: AdTemplate }).edit}
                 onSave={(data) => updateMutation.mutate({ id: (panel as { edit: AdTemplate }).edit.id, data })}
                 onCancel={() => setPanel("none")}
