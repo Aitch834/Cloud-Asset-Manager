@@ -222,6 +222,12 @@ export default function FieldEditScreen() {
                         </Pressable>
                       ))}
                     </ScrollView>
+                    {(() => {
+                      const sel = SOIL_TYPE_OPTIONS.find(o => o.value === selectedSoilType);
+                      return sel ? (
+                        <Text style={styles.awcHint}>Holds ~{sel.awcMm} mm available water</Text>
+                      ) : null;
+                    })()}
                     <View style={styles.editActions}>
                       <Button
                         title="Cancel"
@@ -402,6 +408,13 @@ const styles = StyleSheet.create({
   },
   soilChipMetaSelected: {
     color: colors.primary + "cc",
+  },
+  awcHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    marginBottom: spacing.md,
+    marginTop: -spacing.xs,
   },
   editActions: {
     flexDirection: "row",
