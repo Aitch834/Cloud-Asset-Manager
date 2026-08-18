@@ -69,15 +69,47 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const FOREGROUND_POLL_INTERVAL_MS = 30_000;
+
 function FarmRefresher() {
   const { refreshFarms } = useFarm();
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    function startPolling() {
+      if (intervalId !== null) return;
+      intervalId = setInterval(() => {
+        refreshFarms().catch(() => {});
+      }, FOREGROUND_POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    // Start polling immediately if app is already in the foreground
+    if (AppState.currentState === "active") {
+      startPolling();
+    }
+
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
+        // Refresh immediately on foreground, then start interval
         refreshFarms().catch(() => {});
+        startPolling();
+      } else {
+        // Pause polling when backgrounded or inactive to save battery
+        stopPolling();
       }
     });
-    return () => sub.remove();
+
+    return () => {
+      sub.remove();
+      stopPolling();
+    };
   }, [refreshFarms]);
   return null;
 }

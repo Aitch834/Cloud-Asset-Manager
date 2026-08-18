@@ -3,8 +3,10 @@ import { router } from "expo-router";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -591,14 +593,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
-  emailBtn: { padding: 4, marginLeft: "auto" },
+  emailBtn: { padding: 4, marginLeft: "auto" as const },
   title: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.lg,
     color: colors.text,
     flex: 1,
   },
-  emailBtn: { padding: 4 },
   rpaBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
