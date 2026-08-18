@@ -1997,6 +1997,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             ? <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
             : <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />;
         };
+        // Find the top-yielding variety (max totalKg, excluding Unknown bucket) — fixed regardless of sort
+        const eligibleRows = varietySummaryData.rows.filter(r => r.variety !== UNKNOWN_KEY);
+        const maxKg = eligibleRows.length > 0 ? Math.max(...eligibleRows.map(r => r.totalKg)) : -Infinity;
+        const topVariety = maxKg > 0 ? eligibleRows.find(r => r.totalKg === maxKg)?.variety ?? null : null;
+
         const sortedVarietyRows = [...varietySummaryData.rows].sort((a, b) => {
           // Unknown bucket always last regardless of sort direction
           if (a.variety === UNKNOWN_KEY) return 1;
@@ -2057,18 +2062,34 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedVarietyRows.map((row, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-2 font-medium">{row.variety}</td>
-                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
-                      </tr>
-                    ))}
+                    {sortedVarietyRows.map((row, i) => {
+                      const isTopRow = topVariety !== null && row.variety === topVariety;
+                      return (
+                        <tr
+                          key={i}
+                          className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : "hover:bg-muted/20"}`}
+                        >
+                          <td className="px-4 py-2 font-medium">
+                            <span className="inline-flex items-center gap-2">
+                              {row.variety}
+                              {isTopRow && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-emerald-300">
+                                  <Award className="w-3 h-3 shrink-0" />
+                                  Top
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
+                          <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 bg-muted/40 font-semibold">
