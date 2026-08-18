@@ -3272,9 +3272,15 @@ export default function FarmSettings() {
                   value={formData.irrigationAbstractionSource}
                   onChange={e => updateField("irrigationAbstractionSource", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Shown alongside field summary cards in the Irrigation Advisor. Leave blank to use the platform default.
-                </p>
+                {!formData.irrigationAbstractionSource && platformConfig?.["irrigation.abstractionSource"] ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                    Using platform default: {platformConfig["irrigation.abstractionSource"]}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Shown alongside field summary cards in the Irrigation Advisor. Leave blank to use the platform default.
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
