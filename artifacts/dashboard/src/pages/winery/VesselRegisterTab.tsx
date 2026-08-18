@@ -1412,6 +1412,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
               { key: "cellar_zone", label: "Cellar Zone", fmt: r => String(r.cellar_zone ?? "") },
               { key: "fill_number", label: "Fill Number", fmt: r => r.fill_number != null ? String(r.fill_number) : "" },
+              { key: "fill_count", label: "Fill Count", fmt: r => String(Number(r.fill_count ?? 0)) },
               { key: "_fill_tier", label: "Fill Tier", fmt: r => {
                 if (Number(r.fill_count ?? 0) === 0) {
                   return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
@@ -1425,7 +1426,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             ];
             const handlePrint = () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
-              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Approaching Neutral"];
+              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Approaching Neutral"];
               const rows = exportBarrels.map(r => {
                 const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
                 return [
@@ -1433,6 +1434,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   String(r.vessel_type ?? ""),
                   String(r.cellar_zone ?? ""),
                   r.fill_number != null ? String(r.fill_number) : "\u2014",
+                  String(Number(r.fill_count ?? 0)),
                   (() => {
                     if (Number(r.fill_count ?? 0) === 0) {
                       return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
