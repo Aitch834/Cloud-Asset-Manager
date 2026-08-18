@@ -9,7 +9,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Mail,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -52,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, emailOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
 
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ADDITIVE_TYPE_OPTIONS = [
@@ -104,6 +104,8 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [emailTruncatedOpen, setEmailTruncatedOpen] = useState(false);
+  const [pendingMailtoHref, setPendingMailtoHref] = useState("");
   const [vintageFilter, setVintageFilter] = usePersistedFilter({ page: "viticulture-wine-production", filter: "vintage", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const { data, isLoading } = useQuery<{ records: Record<string, unknown>[] }>({
@@ -223,9 +225,18 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
         </div>
         <div className="flex gap-2 shrink-0">
           {records.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta)}>
-              <Printer className="h-3.5 w-3.5 mr-1.5" />Print Register
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => {
+                const { href, isTruncated } = emailOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta);
+                if (isTruncated) { setPendingMailtoHref(href); setEmailTruncatedOpen(true); }
+                else { window.location.href = href; }
+              }} title="Open your email client with a pre-filled organic wine production register ready to send to your certifying body or advisor">
+                <Mail className="h-3.5 w-3.5 mr-1.5" />Email Register
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta)}>
+                <Printer className="h-3.5 w-3.5 mr-1.5" />Print Register
+              </Button>
+            </>
           )}
           <Button size="sm" onClick={openAdd}><Plus className="h-4 w-4 mr-1" />Add Record</Button>
         </div>
@@ -441,6 +452,32 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteMutation.mutate(Number(deleting!.id))} disabled={deleteMutation.isPending}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email body too long — blocking confirmation */}
+      <Dialog open={emailTruncatedOpen} onOpenChange={o => { if (!o) { setEmailTruncatedOpen(false); setPendingMailtoHref(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Email may be cut off
+            </DialogTitle>
+            <DialogDescription>
+              Your organic wine register has many records and the email body exceeds the limit most email clients support (~2,000 characters). The draft will open but your email client may silently truncate the text.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Use <span className="font-medium">Print Register</span> to produce a complete record with no character limit.
+          </p>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta); }}>
+              <Printer className="w-4 h-4 mr-1" />Print instead
+            </Button>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); window.location.href = pendingMailtoHref; setPendingMailtoHref(""); }}>
+              <Mail className="w-4 h-4 mr-1" />Open email anyway
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

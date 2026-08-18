@@ -160,7 +160,7 @@ export default function HomeScreen() {
     } catch { /* ignore */ }
   }, [currentFarm?.id, isViticultureActive]);
 
-  const WINEGB_SURVEY_KEYS = ["bud_burst", "flowering", "veraison", "harvest"] as const;
+  const WINEGB_SURVEY_KEYS = ["bud_burst", "frost_damage", "flowering", "veraison", "harvest"] as const;
 
   const fetchWinegbSubmissions = useCallback(async () => {
     if (!currentFarm?.id || !isViticultureActive) {

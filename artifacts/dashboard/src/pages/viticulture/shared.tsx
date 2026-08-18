@@ -3783,3 +3783,94 @@ export function emailHarvestReport(
   );
   window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
 }
+
+export function emailOrganicWineRecords(
+  records: Record<string, unknown>[],
+  farmName: string,
+  farmMeta?: Record<string, unknown> | null,
+): { href: string; isTruncated: boolean } {
+  const address = (farmMeta?.address ? String(farmMeta.address) : "").trim();
+  const fsaVineRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
+  const fsaWineRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const winegbNo = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const vintages = [...new Set(records.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort().reverse().join(", ");
+
+  const col = (v: unknown, width: number) => {
+    const s = v == null || v === "" ? "—" : String(v);
+    return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
+  };
+  const nf = (v: unknown, dp: number) => {
+    const f = parseFloat(String(v ?? ""));
+    return isNaN(f) ? "—" : f.toFixed(dp);
+  };
+
+  const headerLine = [
+    col("Vintage", 8),
+    col("Colour", 8),
+    col("Volume (L)", 11),
+    col("Organic", 8),
+    col("Certifier Ref", 14),
+    col("Additive", 18),
+    col("Type", 14),
+    col("Quantity", 12),
+    col("SO2 Actual", 11),
+    col("SO2 Max", 8),
+    col("SO2 Status", 12),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const dataLines = records.map(r => {
+    const isOrganic = r.certifiedOrganic === 1 || r.certifiedOrganic === "1";
+    const isSo2Compliant = r.so2Compliant === 1 || r.so2Compliant === "1";
+    const volumeStr = r.volumeLitres ? nf(r.volumeLitres, 0) : "—";
+    const quantityStr = r.quantityUsed ? `${String(r.quantityUsed)} ${String(r.quantityUnit ?? "")}`.trim() : "—";
+    return [
+      col(r.vintageYear ?? "", 8),
+      col(r.wineColour ?? "", 8),
+      col(volumeStr, 11),
+      col(isOrganic ? "Yes" : "No", 8),
+      col(r.certifierRef ?? "", 14),
+      col(r.additiveName ?? "", 18),
+      col(r.additiveType ?? "", 14),
+      col(quantityStr, 12),
+      col(r.actualSO2MgL ? nf(r.actualSO2MgL, 0) : "—", 11),
+      col(r.maxSO2MgL ? nf(r.maxSO2MgL, 0) : "—", 8),
+      col(isSo2Compliant ? "Compliant" : "Exceeds", 12),
+    ].join("  ");
+  });
+
+  const body = [
+    `Organic Wine Production Register — ${farmName}`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
+    fsaVineRef ? `FSA Vine Register Ref: ${fsaVineRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
+    fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
+    appaRef ? `APPA Ref: ${appaRef}` : `APPA Ref: (not set — add in Farm Settings)`,
+    ...(winegbNo ? [`WineGB Membership No: ${winegbNo}`] : []),
+    `Date: ${printed}`,
+    `Vintages: ${vintages || "All"}   Records: ${records.length}`,
+    ``,
+    `SO2 limits for organic wine (UK-retained Reg 203/2012):`,
+    `  Red wine — 100 mg/L total SO2. White & rose — 150 mg/L.`,
+    `  These limits are lower than for conventional wine.`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...(dataLines.length > 0 ? dataLines : [`(no records)`]),
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac. UK-retained EU Reg 203/2012. Retain for certification audit purposes.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `Organic Wine Production Register — ${farmName}${vintages ? ` (${vintages})` : ""}`,
+  );
+  const encodedBody = encodeURIComponent(body);
+  const href = `mailto:?subject=${subject}&body=${encodedBody}`;
+  return { href, isTruncated: encodedBody.length > MAILTO_BODY_LIMIT };
+}
