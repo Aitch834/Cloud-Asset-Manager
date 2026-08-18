@@ -236,7 +236,7 @@ async function fetchPresets(): Promise<AdCopyPreset[]> {
   return res.json();
 }
 
-async function savePreset(data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string }): Promise<AdCopyPreset> {
+async function savePreset(data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string; overwrite?: boolean }): Promise<AdCopyPreset> {
   const res = await fetch("/api/admin/ad-copy-presets", {
     method: "POST",
     headers: adminHeaders(),
@@ -1155,10 +1155,11 @@ export default function AdPdfGenerator() {
     queryFn: fetchPresets,
   });
 
-  const [presetName, setPresetName]   = useState("");
-  const [savingPreset, setSavingPreset] = useState(false);
-  const [presetSaveErr, setPresetSaveErr] = useState<string | null>(null);
-  const [presetSaved, setPresetSaved]   = useState(false);
+  const [presetName, setPresetName]         = useState("");
+  const [overwritePreset, setOverwritePreset] = useState(false);
+  const [savingPreset, setSavingPreset]     = useState(false);
+  const [presetSaveErr, setPresetSaveErr]   = useState<string | null>(null);
+  const [presetSaved, setPresetSaved]       = useState(false);
 
   const savePresetMutation = useMutation({
     mutationFn: savePreset,
@@ -1243,7 +1244,7 @@ export default function AdPdfGenerator() {
     if (!presetName.trim()) return;
     setPresetSaveErr(null);
     setSavingPreset(true);
-    savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor, bgUrl });
+    savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor, bgUrl, overwrite: overwritePreset });
   }
 
   function handleLoadPreset(id: number) {
@@ -1471,6 +1472,15 @@ export default function AdPdfGenerator() {
                     )}
                   </Button>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={overwritePreset}
+                    onChange={(e) => setOverwritePreset(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-primary"
+                  />
+                  <span className="text-xs text-muted-foreground">Overwrite existing preset with this name</span>
+                </label>
                 {presetSaveErr && (
                   <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />{presetSaveErr}

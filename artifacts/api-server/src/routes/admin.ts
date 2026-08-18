@@ -2929,26 +2929,43 @@ router.get("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Resp
 
 router.post("/admin/ad-copy-presets", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const { name, headline, body, accentColor, bgUrl } = req.body as {
-    name?: string; headline?: string; body?: string; accentColor?: string; bgUrl?: string;
+  const { name, headline, body, accentColor, bgUrl, overwrite } = req.body as {
+    name?: string; headline?: string; body?: string; accentColor?: string; bgUrl?: string; overwrite?: boolean;
   };
   if (!name?.trim()) {
     res.status(400).json({ error: "name is required" });
     return;
   }
+  const trimmedName = name.trim();
+  const values = {
+    name: trimmedName,
+    headline: headline?.trim() ?? "",
+    body: body?.trim() ?? "",
+    accentColor: accentColor?.trim() ?? "",
+    bgUrl: bgUrl?.trim() ?? "",
+  };
+  // When overwrite is requested, update the existing preset if the name matches.
+  if (overwrite) {
+    const [existing] = await db.select({ id: adCopyPresetsTable.id })
+      .from(adCopyPresetsTable)
+      .where(eq(adCopyPresetsTable.name, trimmedName))
+      .limit(1);
+    if (existing) {
+      const [row] = await db.update(adCopyPresetsTable)
+        .set(values)
+        .where(eq(adCopyPresetsTable.id, existing.id))
+        .returning();
+      res.json(row);
+      return;
+    }
+  }
   try {
-    const [row] = await db.insert(adCopyPresetsTable).values({
-      name: name.trim(),
-      headline: headline?.trim() ?? "",
-      body: body?.trim() ?? "",
-      accentColor: accentColor?.trim() ?? "",
-      bgUrl: bgUrl?.trim() ?? "",
-    }).returning();
+    const [row] = await db.insert(adCopyPresetsTable).values(values).returning();
     res.status(201).json(row);
   } catch (err: unknown) {
     const pgCode = (err as { cause?: { code?: string } }).cause?.code;
     if (pgCode === "23505") {
-      res.status(409).json({ error: `A preset called '${name.trim()}' already exists — choose a different name or delete the old one first` });
+      res.status(409).json({ error: `A preset called '${trimmedName}' already exists — choose a different name or tick "Overwrite" to replace it` });
       return;
     }
     throw err;
