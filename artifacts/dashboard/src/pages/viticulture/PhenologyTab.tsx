@@ -264,13 +264,24 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   };
   const readStoredOffers = (): StoredOffer[] => {
     const prefix = `winegb-offer:${farmId}:`;
+    const currentYear = new Date().getFullYear();
     const results: StoredOffer[] = [];
     try {
-      for (let i = 0; i < localStorage.length; i++) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         if (k && k.startsWith(prefix)) {
           const raw = localStorage.getItem(k);
-          if (raw) { try { results.push(JSON.parse(raw) as StoredOffer); } catch { localStorage.removeItem(k ?? ""); } }
+          if (raw) {
+            try {
+              const offer = JSON.parse(raw) as StoredOffer;
+              if (currentYear > offer.year) {
+                // Stale — from a previous season (more than 12 months in the past); discard silently
+                localStorage.removeItem(k);
+              } else {
+                results.push(offer);
+              }
+            } catch { localStorage.removeItem(k ?? ""); }
+          }
         }
       }
     } catch { /* ignore */ }
