@@ -117,6 +117,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
   const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
+  const [yieldSortCol, setYieldSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortCol", farmId, defaultValue: "" });
+  const [yieldSortDir, setYieldSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
+  const yieldSort = yieldSortCol ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" } : null;
+  const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
   const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -704,26 +708,61 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       };
 
       // ── Yield cross-tab ──────────────────────────────────────────────────
-      const yieldHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell("Total Yield (kg)")].join(",");
+      // Build block area lookup for t/ha calculation
+      const blockAreaHaMap: Record<string, number | null> = {};
+      for (const bid of uniqueBlockIds) {
+        const bidStr = String(bid);
+        const block = blocks.find(b => String(b.id) === bidStr);
+        const ha = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
+        blockAreaHaMap[bidStr] = !isNaN(ha) && ha > 0 ? ha : null;
+      }
+      const yieldHeader = [
+        cell("Block"),
+        ...crossVintages.flatMap(v => [cell(`${v} (kg)`), cell(`${v} (t/ha)`)]),
+        cell("Total (kg)"),
+        cell("Total (t/ha)"),
+      ].join(",");
       const yieldRows = uniqueBlockIds.map(bid => {
         const bidStr = String(bid);
-        const vintageCells = crossVintages.map(vy => {
+        const areaHa = blockAreaHaMap[bidStr] ?? null;
+        const vintageCells = crossVintages.flatMap(vy => {
           const grp = lookup[bidStr]?.[vy] ?? [];
-          const total = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-          return cell(total > 0 ? total.toFixed(1) : "");
+          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          const tha = areaHa && kg > 0 ? kg / 1000 / areaHa : null;
+          return [cell(kg > 0 ? kg.toFixed(1) : ""), cell(tha != null ? tha.toFixed(3) : "")];
         });
         const allRows = Object.values(lookup[bidStr] ?? {}).flat();
         const rowTotal = allRows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : "")].join(",");
+        const rowTha = areaHa && rowTotal > 0 ? rowTotal / 1000 / areaHa : null;
+        return [cell(blockLabel(bid)), ...vintageCells, cell(rowTotal > 0 ? rowTotal.toFixed(1) : ""), cell(rowTha != null ? rowTha.toFixed(3) : "")].join(",");
       });
-      const yieldFooterCells = crossVintages.map(vy => {
-        const total = rows
+      const yieldFooterCells = crossVintages.flatMap(vy => {
+        const vyKg = rows
           .filter(r => String(r.vintageYear ?? "") === vy)
           .reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-        return cell(total > 0 ? total.toFixed(1) : "");
+        // Weighted t/ha: sum of areas of blocks that had yield in this vintage
+        let vyArea = 0;
+        for (const bid of uniqueBlockIds) {
+          const bidStr = String(bid);
+          const areaHa = blockAreaHaMap[bidStr];
+          const grp = lookup[bidStr]?.[vy] ?? [];
+          const kg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+          if (areaHa && kg > 0) vyArea += areaHa;
+        }
+        const vyTha = vyArea > 0 && vyKg > 0 ? vyKg / 1000 / vyArea : null;
+        return [cell(vyKg > 0 ? vyKg.toFixed(1) : ""), cell(vyTha != null ? vyTha.toFixed(3) : "")];
       });
       const grandTotal = rows.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
-      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : "")].join(",");
+      // Grand weighted t/ha
+      const grandArea = uniqueBlockIds.reduce<number>((s, bid) => {
+        const bidStr = String(bid);
+        const areaHa = blockAreaHaMap[bidStr];
+        const allRows = Object.values(lookup[bidStr] ?? {}).flat();
+        const kg = allRows.reduce<number>((sum, r) => sum + (parseFloat(String((r as Record<string, unknown>).yieldKg ?? 0)) || 0), 0);
+        return areaHa && kg > 0 ? s + areaHa : s;
+      }, 0);
+      const grandTha = grandArea > 0 && grandTotal > 0 ? grandTotal / 1000 / grandArea : null;
+      const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : ""), cell(grandTha != null ? grandTha.toFixed(3) : "")].join(",");
 
       // ── Chemistry sub-tables ─────────────────────────────────────────────
       const brixTable = chemSubTable(
@@ -1375,6 +1414,38 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       {/* Yield cross-tab: block × vintage, kg + t/ha */}
       {yieldCrossTabData && (() => {
         const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha, picksByVintage, grandTotalPicks } = yieldCrossTabData;
+
+        const handleYieldSort = (col: string) => {
+          if (yieldSort?.col === col) {
+            setYieldSort({ col, dir: yieldSort.dir === "asc" ? "desc" : "asc" });
+          } else {
+            setYieldSort({ col, dir: "desc" });
+          }
+        };
+        const yieldSortIcon = (col: string) => {
+          if (!yieldSort || yieldSort.col !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30 inline-block" />;
+          return yieldSort.dir === "asc"
+            ? <ArrowUp className="w-3 h-3 ml-1 text-primary inline-block" />
+            : <ArrowDown className="w-3 h-3 ml-1 text-primary inline-block" />;
+        };
+        const sortedYieldRows = (() => {
+          if (!yieldSort) return [...blockRows].sort((a, b) => a.bname.localeCompare(b.bname));
+          const d = yieldSort.dir === "asc" ? 1 : -1;
+          return [...blockRows].sort((a, b) => {
+            if (yieldSort.col === "name") return a.bname.localeCompare(b.bname) * d;
+            if (yieldSort.col === "total:kg") return ((a.totalKg ?? 0) - (b.totalKg ?? 0)) * d;
+            if (yieldSort.col === "total:tha") return ((a.totalTha ?? 0) - (b.totalTha ?? 0)) * d;
+            const m = yieldSort.col.match(/^vy:(kg|tha):(.+)$/);
+            if (m) {
+              const [, metric, vy] = m;
+              const av = metric === "kg" ? (a.cells[vy]?.kg ?? 0) : (a.cells[vy]?.tha ?? 0);
+              const bv = metric === "kg" ? (b.cells[vy]?.kg ?? 0) : (b.cells[vy]?.tha ?? 0);
+              return (av - bv) * d;
+            }
+            return a.bname.localeCompare(b.bname);
+          });
+        })();
+
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
@@ -1389,45 +1460,97 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             </button>
             {yieldCrossTabOpen && (
               <div className="overflow-x-auto">
+                {yieldSort && (
+                  <div className="px-4 py-1.5 border-b bg-muted/10 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Sorted by column</span>
+                    <button
+                      type="button"
+                      className="text-primary underline underline-offset-2 hover:opacity-70"
+                      onClick={() => setYieldSort(null)}
+                    >
+                      Clear sort
+                    </button>
+                  </div>
+                )}
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="text-left px-4 py-2 font-medium sticky left-0 bg-card">Block</th>
+                      <th className={`text-left px-4 py-2 font-medium sticky left-0 bg-card ${yieldSort?.col === "name" ? "bg-muted/30" : ""}`}>
+                        <button
+                          type="button"
+                          className={`inline-flex items-center justify-start hover:text-foreground transition-colors ${yieldSort?.col === "name" ? "text-foreground" : ""}`}
+                          onClick={() => handleYieldSort("name")}
+                        >
+                          Block{yieldSortIcon("name")}
+                        </button>
+                      </th>
                       {uniqueVintages.map(vy => (
-                        <th key={vy} colSpan={2} className="text-center px-3 py-2 font-medium border-l">{vy}</th>
+                        <th key={vy} colSpan={2} className={`text-center px-3 py-2 font-medium border-l ${yieldSort?.col === `vy:kg:${vy}` || yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>{vy}</th>
                       ))}
-                      <th colSpan={2} className="text-center px-3 py-2 font-medium border-l">Total</th>
+                      <th colSpan={2} className={`text-center px-3 py-2 font-medium border-l ${yieldSort?.col === "total:kg" || yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>Total</th>
                     </tr>
                     <tr className="border-b text-xs text-muted-foreground">
                       <th className="sticky left-0 bg-card" />
                       {uniqueVintages.map(vy => (
                         <React.Fragment key={vy}>
-                          <th className="text-right px-3 py-1 font-normal border-l">kg</th>
-                          <th className="text-right px-3 py-1 font-normal">t/ha</th>
+                          <th className={`text-right px-3 py-1 font-normal border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
+                            <button
+                              type="button"
+                              className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === `vy:kg:${vy}` ? "text-foreground" : ""}`}
+                              onClick={() => handleYieldSort(`vy:kg:${vy}`)}
+                            >
+                              kg{yieldSortIcon(`vy:kg:${vy}`)}
+                            </button>
+                          </th>
+                          <th className={`text-right px-3 py-1 font-normal ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
+                            <button
+                              type="button"
+                              className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === `vy:tha:${vy}` ? "text-foreground" : ""}`}
+                              onClick={() => handleYieldSort(`vy:tha:${vy}`)}
+                            >
+                              t/ha{yieldSortIcon(`vy:tha:${vy}`)}
+                            </button>
+                          </th>
                         </React.Fragment>
                       ))}
-                      <th className="text-right px-3 py-1 font-normal border-l">kg</th>
-                      <th className="text-right px-3 py-1 font-normal">t/ha</th>
+                      <th className={`text-right px-3 py-1 font-normal border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
+                        <button
+                          type="button"
+                          className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === "total:kg" ? "text-foreground" : ""}`}
+                          onClick={() => handleYieldSort("total:kg")}
+                        >
+                          kg{yieldSortIcon("total:kg")}
+                        </button>
+                      </th>
+                      <th className={`text-right px-3 py-1 font-normal ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
+                        <button
+                          type="button"
+                          className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === "total:tha" ? "text-foreground" : ""}`}
+                          onClick={() => handleYieldSort("total:tha")}
+                        >
+                          t/ha{yieldSortIcon("total:tha")}
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {blockRows.map((row, i) => (
+                    {sortedYieldRows.map((row, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-2 font-medium sticky left-0 bg-card">{row.bname}</td>
                         {uniqueVintages.map(vy => (
                           <React.Fragment key={vy}>
-                            <td className="text-right px-3 py-2 tabular-nums border-l">
+                            <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
                               {row.cells[vy]?.kg ? row.cells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                             </td>
-                            <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+                            <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
                               {row.cells[vy]?.tha != null ? row.cells[vy].tha!.toFixed(2) : "—"}
                             </td>
                           </React.Fragment>
                         ))}
-                        <td className="text-right px-3 py-2 tabular-nums font-medium border-l">
+                        <td className={`text-right px-3 py-2 tabular-nums font-medium border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
                           {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                         </td>
-                        <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+                        <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
                           {row.totalTha != null ? row.totalTha.toFixed(2) : "—"}
                         </td>
                       </tr>
