@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiUrl } from "@/lib/api";
 import { useState, useEffect } from "react";
-import { Smartphone, Loader2, Lock, Info } from "lucide-react";
+import { Smartphone, Loader2, Lock, Info, Mail } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useQuery } from "@tanstack/react-query";
 
@@ -20,6 +20,7 @@ interface AccountProfile {
   smsOptIn: string;
   smsConsentAt: string | null;
   smsCategories: Record<string, boolean> | null;
+  emailSectorAlerts: boolean;
 }
 
 const SMS_CATEGORIES: ReadonlyArray<{
@@ -106,11 +107,13 @@ export default function AccountSettings() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [categoryStates, setCategoryStates] = useState<Record<string, boolean>>({});
   const [consentChecked, setConsentChecked] = useState(false);
+  const [emailSectorAlerts, setEmailSectorAlerts] = useState(true);
 
   const activeModules = (dashboardData?.activeSubscriptions ?? []) as Array<Record<string, unknown>>;
   const hasSmsModule = activeModules.some((m) => m.moduleKey === "sms-alerts");
@@ -137,6 +140,7 @@ export default function AccountSettings() {
           initial[cat.key] = saved == null ? true : (saved[cat.key] ?? true);
         }
         setCategoryStates(initial);
+        setEmailSectorAlerts(data.emailSectorAlerts ?? true);
       } catch {
         toast({ title: "Could not load account profile", variant: "destructive" });
       } finally {
@@ -145,6 +149,26 @@ export default function AccountSettings() {
     }
     void fetchProfile();
   }, [toast]);
+
+  async function handleSaveEmailPrefs() {
+    setSavingEmail(true);
+    try {
+      const res = await fetch(apiUrl("account/profile"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailSectorAlerts }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        throw new Error(err.error ?? "Save failed");
+      }
+      toast({ title: "Email preferences saved" });
+    } catch (err) {
+      toast({ title: String(err instanceof Error ? err.message : err), variant: "destructive" });
+    } finally {
+      setSavingEmail(false);
+    }
+  }
 
   async function handleSave() {
     if (smsEnabled && !consentChecked) {
@@ -210,6 +234,37 @@ export default function AccountSettings() {
               <Label className="text-xs text-muted-foreground">Email</Label>
               <p className="text-sm font-medium mt-0.5">{profile?.email ?? "—"}</p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Email Notifications */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">Email Notifications</CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Control which platform emails you receive. These settings do not affect your account security emails.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-start justify-between gap-3 rounded-xl border border-border px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Sector alert emails</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  Email notifications when a disease or pest sector alert is issued or lifted. Advisors managing many farms may prefer to disable these.
+                </p>
+              </div>
+              <Switch
+                checked={emailSectorAlerts}
+                onCheckedChange={setEmailSectorAlerts}
+                className="mt-0.5 flex-shrink-0"
+              />
+            </div>
+            <Button onClick={handleSaveEmailPrefs} disabled={savingEmail} className="w-full">
+              {savingEmail ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save email preferences"}
+            </Button>
           </CardContent>
         </Card>
 

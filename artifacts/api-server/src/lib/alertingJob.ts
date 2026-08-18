@@ -4,9 +4,9 @@ import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificat
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
 import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
-import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull } from "drizzle-orm";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, sendSectorAlertIssuedEmail, type WeeklyDigestItem } from "./mailer";
+import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull, inArray } from "drizzle-orm";
 
 const ESCALATION_DAYS = 7;
 
@@ -1951,6 +1951,24 @@ async function runSectorAlertAllClearNotifications() {
             if (!unique.has(norm)) unique.set(norm, a.name ?? "");
           }
 
+          // Exclude platform users who have opted out of sector alert emails.
+          // Cross-reference by normalised email address so advisor rows and user accounts align.
+          if (unique.size > 0) {
+            const allNorms = [...unique.keys()];
+            const optedOut = await db
+              .select({ email: usersTable.email })
+              .from(usersTable)
+              .where(
+                and(
+                  inArray(sql`lower(${usersTable.email})`, allNorms),
+                  eq(usersTable.emailSectorAlerts, false),
+                )
+              );
+            for (const row of optedOut) {
+              if (row.email) unique.delete(row.email.toLowerCase());
+            }
+          }
+
           // Load already-delivered addresses for this episode from the outbox (clear kind only)
           const delivered = await db.execute(sql`
             SELECT email_norm FROM sector_alert_email_deliveries
@@ -2049,6 +2067,24 @@ async function runSectorAlertIssueNotifications() {
         for (const a of advisors) {
           const norm = a.email.toLowerCase();
           if (!unique.has(norm)) unique.set(norm, a.name ?? "");
+        }
+
+        // Exclude platform users who have opted out of sector alert emails.
+        // Cross-reference by normalised email address so advisor rows and user accounts align.
+        if (unique.size > 0) {
+          const allNorms = [...unique.keys()];
+          const optedOut = await db
+            .select({ email: usersTable.email })
+            .from(usersTable)
+            .where(
+              and(
+                inArray(sql`lower(${usersTable.email})`, allNorms),
+                eq(usersTable.emailSectorAlerts, false),
+              )
+            );
+          for (const row of optedOut) {
+            if (row.email) unique.delete(row.email.toLowerCase());
+          }
         }
 
         // Load already-delivered addresses for this episode+kind from the outbox

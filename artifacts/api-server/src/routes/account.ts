@@ -22,6 +22,8 @@ router.get("/api/account/profile", requireAuth, async (req: Request, res: Respon
       phoneNumber: usersTable.phoneNumber,
       smsOptIn: usersTable.smsOptIn,
       smsConsentAt: usersTable.smsConsentAt,
+      smsCategories: usersTable.smsCategories,
+      emailSectorAlerts: usersTable.emailSectorAlerts,
     })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
@@ -48,6 +50,8 @@ router.get("/api/account/profile", requireAuth, async (req: Request, res: Respon
         phoneNumber: usersTable.phoneNumber,
         smsOptIn: usersTable.smsOptIn,
         smsConsentAt: usersTable.smsConsentAt,
+        smsCategories: usersTable.smsCategories,
+        emailSectorAlerts: usersTable.emailSectorAlerts,
       });
     user = inserted;
 
@@ -66,7 +70,13 @@ router.put("/api/account/profile", requireAuth, async (req: Request, res: Respon
   const userId = req.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return; }
 
-  const { phoneNumber, smsOptIn } = req.body as { phoneNumber?: string; smsOptIn?: string };
+  const { phoneNumber, smsOptIn, smsCategories, consentGiven, emailSectorAlerts } = req.body as {
+    phoneNumber?: string;
+    smsOptIn?: string;
+    smsCategories?: Record<string, boolean> | null;
+    consentGiven?: boolean;
+    emailSectorAlerts?: boolean;
+  };
 
   const validSmsOptIn = ["all", "critical", "none"];
   if (smsOptIn !== undefined && !validSmsOptIn.includes(smsOptIn)) {
@@ -90,6 +100,18 @@ router.put("/api/account/profile", requireAuth, async (req: Request, res: Respon
     if (smsOptIn !== "none") {
       updates.smsConsentAt = new Date();
     }
+  }
+
+  if (smsCategories !== undefined) {
+    updates.smsCategories = smsCategories;
+  }
+
+  if (consentGiven === true && smsOptIn !== "none") {
+    updates.smsConsentAt = new Date();
+  }
+
+  if (emailSectorAlerts !== undefined) {
+    updates.emailSectorAlerts = Boolean(emailSectorAlerts);
   }
 
   if (Object.keys(updates).length === 0) {

@@ -93,5 +93,11 @@ export async function runSectorAlertMigrations(): Promise<void> {
     ADD COLUMN IF NOT EXISTS issue_email_notified boolean NOT NULL DEFAULT false
   `);
 
+  // Per-user sector alert email opt-out preference.
+  await db.execute(sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS email_sector_alerts boolean NOT NULL DEFAULT true
+  `);
+
   console.log("[SECTOR-ALERT-MIGRATE] Done.");
 }
