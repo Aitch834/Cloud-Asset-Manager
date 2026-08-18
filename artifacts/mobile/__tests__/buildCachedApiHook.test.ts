@@ -2,8 +2,9 @@
  * Unit tests for buildCachedApiHook — cacheTransform path.
  *
  * We avoid @testing-library/react-native (which pulls in ESM expo modules that
- * break the node Jest environment) and instead drive the hook by mocking React's
- * useState/useEffect to run synchronously and capturing state updates directly.
+ * break the node Jest environment) and instead drive the hook via the shared
+ * cachedHookHarness utility.  See that file for a full explanation of the
+ * approach.
  *
  * Assertions:
  *   (a) Fresh API response → kvSet is called with the cacheTransformed value
@@ -15,52 +16,31 @@
  */
 
 // ---------------------------------------------------------------------------
-// Minimal synchronous hook runner
+// Harness — shared test infrastructure for buildCachedApiHook-based hooks
 // ---------------------------------------------------------------------------
 
+import {
+  StateStore,
+  runHook,
+  type HarnessContext,
+} from './helpers/cachedHookHarness';
+
 /**
- * A very small state-slot tracker that replaces useState.
- * Each slot stores the current value and provides a setter.
- * Slots are assigned in the order useState is first called within one run.
+ * Module-level harness.  A single const object is used so that the
+ * jest.mock('react', ...) factory closures below and the runHook calls later
+ * share the same object references throughout the test file's lifetime.
+ *
+ * IMPORTANT: The variable MUST be prefixed with `mock` (case-insensitive).
+ * babel-jest's hoist plugin rejects any other name referenced inside a
+ * jest.mock() factory with "not allowed to reference any out-of-scope
+ * variables".  See cachedHookHarness.ts for the full explanation of why the
+ * factory-closure pattern is safe despite hoisting.
  */
-class StateStore {
-  private slots: unknown[] = [];
-  private initialized = false;
-
-  /** Reset to initial values (next run re-uses same slots). */
-  reset(initialValues: unknown[]) {
-    this.slots = [...initialValues];
-    this.initialized = true;
-  }
-
-  /** Get all current values. */
-  get values() { return this.slots; }
-
-  /**
-   * Return a [getter, setter] pair for the nth slot.
-   * In real React, useState(init) only uses init on the first call.
-   * We replicate that: first call per slot index sets the initial value,
-   * subsequent calls return the current (possibly updated) value.
-   */
-  useState(slotIdx: number, init: unknown): [unknown, (v: unknown) => void] {
-    if (!this.initialized || this.slots.length <= slotIdx) {
-      // First call for this slot — use the initializer
-      while (this.slots.length <= slotIdx) this.slots.push(undefined);
-      this.slots[slotIdx] = typeof init === 'function' ? (init as () => unknown)() : init;
-    }
-    const setter = (v: unknown) => {
-      this.slots[slotIdx] = typeof v === 'function'
-        ? (v as (prev: unknown) => unknown)(this.slots[slotIdx])
-        : v;
-    };
-    return [this.slots[slotIdx], setter];
-  }
-}
-
-const mockStore = new StateStore();
-let mockSlotCounter = 0;
-/** Captures the useEffect async callback so tests can await it. */
-let mockCapturedEffect: (() => unknown) | null = null;
+const mockHarness: HarnessContext = {
+  store: new StateStore(),
+  slotCounter: { value: 0 },
+  capturedEffect: { value: null },
+};
 
 // ---------------------------------------------------------------------------
 // Mocks — must be declared before any import that triggers module evaluation
@@ -84,16 +64,16 @@ jest.mock('expo-secure-store', () => ({
 
 jest.mock('react', () => ({
   useState: (init: unknown) => {
-    const idx = mockSlotCounter++;
-    return mockStore.useState(idx, init);
+    const idx = mockHarness.slotCounter.value++;
+    return mockHarness.store.useState(idx, init);
   },
   useEffect: (fn: () => unknown, _deps?: unknown[]) => {
     // Only capture the FIRST useEffect call — that's the one from
     // buildCachedApiHook that drives the cache/fetch flow.
     // Subsequent calls (e.g. the URL-caching side-effect in useApiVineBlocks)
     // are intentionally skipped; they don't affect the cache-transform assertions.
-    if (!mockCapturedEffect) {
-      mockCapturedEffect = fn;
+    if (!mockHarness.capturedEffect.value) {
+      mockHarness.capturedEffect.value = fn;
     }
   },
   // useMemo: evaluate immediately — no dependency tracking needed in tests.
@@ -104,7 +84,7 @@ jest.mock('react', () => ({
 // Imports under test (after mocks are registered)
 // ---------------------------------------------------------------------------
 
-import { buildCachedApiHook, CachedHookResult } from '../lib/hooks/buildCachedApiHook';
+import { buildCachedApiHook } from '../lib/hooks/buildCachedApiHook';
 import { useApiVineBlocks, VineBlock } from '../lib/hooks/useApiVineBlocks';
 
 // ---------------------------------------------------------------------------
@@ -143,8 +123,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockKvSet.mockResolvedValue(undefined);
   mockKvGet.mockResolvedValue(null);
-  mockCapturedEffect = null;
-  mockSlotCounter = 0;
+  mockHarness.capturedEffect.value = null;
+  mockHarness.slotCounter.value = 0;
 
   // babel-preset-expo injects __DEV__ references; define it for the node env.
   (global as unknown as Record<string, unknown>).__DEV__ = false;
@@ -161,49 +141,13 @@ afterEach(() => {
   delete process.env.EXPO_PUBLIC_DOMAIN;
 });
 
-/**
- * Drain all pending promises/microtasks by yielding to the event loop
- * several times.  The hook's useEffect body is a fire-and-forget async IIFE
- * so we cannot await it directly — instead we flush until all settled.
- */
-const flushPromises = (): Promise<void> =>
-  new Promise((resolve) => setImmediate(resolve));
-
-async function drainAsync(rounds = 8): Promise<void> {
-  for (let i = 0; i < rounds; i++) await flushPromises();
-}
-
-/**
- * Run the hook once (captures the effect callback), fire the effect, drain
- * all async work, then return the final state slots.
- */
-async function runHook<T>(
-  hookFn: (farmId: string | undefined) => CachedHookResult<T>,
-  farmId: string,
-  initialSlots = [[], true, false, null],
-): Promise<CachedHookResult<T>> {
-  mockSlotCounter = 0;
-  mockStore.reset(initialSlots);
-  hookFn(farmId);
-
-  // Fire the captured useEffect callback (synchronous wrapper that starts
-  // the internal async IIFE fire-and-forget).
-  if (mockCapturedEffect) mockCapturedEffect();
-
-  // Drain until all pending promises have settled.
-  await drainAsync();
-
-  const [items, loading, fromCache, lastError] = mockStore.values as [T[], boolean, boolean, string | null];
-  return { items, loading, fromCache, lastError };
-}
-
 // ---------------------------------------------------------------------------
 // (a) kvSet is called with the cacheTransformed value after a fresh API fetch
 // ---------------------------------------------------------------------------
 
 describe('buildCachedApiHook — cacheTransform on cache write', () => {
   it('stores the transformed item (photoUrl: null) to kvSet, not the raw URL', async () => {
-    await runHook(useTestHook, FARM_ID);
+    await runHook(useTestHook, FARM_ID, mockHarness);
 
     expect(mockKvSet).toHaveBeenCalledTimes(1);
     const [calledKey, calledValue] = mockKvSet.mock.calls[0];
@@ -224,7 +168,7 @@ describe('buildCachedApiHook — cacheTransform on cache write', () => {
       // no cacheTransform
     );
 
-    await runHook(useNoTransform, FARM_ID);
+    await runHook(useNoTransform, FARM_ID, mockHarness);
 
     expect(mockKvSet).toHaveBeenCalledTimes(1);
     const [, calledValue] = mockKvSet.mock.calls[0];
@@ -235,7 +179,7 @@ describe('buildCachedApiHook — cacheTransform on cache write', () => {
   it('does not call kvSet when the API call fails', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
 
-    await runHook(useTestHook, FARM_ID);
+    await runHook(useTestHook, FARM_ID, mockHarness);
 
     expect(mockKvSet).not.toHaveBeenCalled();
   });
@@ -252,7 +196,7 @@ describe('buildCachedApiHook — cacheTransform on cache read', () => {
     mockKvGet.mockResolvedValue(JSON.stringify(staleCache));
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
 
-    const result = await runHook(useTestHook, FARM_ID);
+    const result = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
 
     // Must have loaded something from cache
     expect(result.items).toHaveLength(1);
@@ -273,7 +217,7 @@ describe('buildCachedApiHook — cacheTransform on cache read', () => {
       (json) => (json as { records: TestItem[] }).records,
     );
 
-    const result = await runHook(useNoTransform, FARM_ID);
+    const result = await runHook<TestItem>(useNoTransform, FARM_ID, mockHarness);
 
     expect(result.items[0].photoUrl).toBe(RAW_ITEM.photoUrl);
   });
@@ -282,7 +226,7 @@ describe('buildCachedApiHook — cacheTransform on cache read', () => {
     mockKvGet.mockResolvedValue(null);
     global.fetch = jest.fn().mockRejectedValue(new Error('Network request failed'));
 
-    const result = await runHook(useTestHook, FARM_ID);
+    const result = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
 
     expect(result.items).toHaveLength(0);
     expect(result.lastError).toBe('Network request failed');
@@ -295,7 +239,7 @@ describe('buildCachedApiHook — cacheTransform on cache read', () => {
 
 describe('buildCachedApiHook — live state after API response', () => {
   it('exposes the real presigned URL in items after a successful API fetch', async () => {
-    const result = await runHook(useTestHook, FARM_ID);
+    const result = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].photoUrl).toBe(RAW_ITEM.photoUrl);   // real URL in live state
@@ -313,7 +257,7 @@ describe('buildCachedApiHook — live state after API response', () => {
       json: async () => ({ records: [RAW_ITEM] }),
     } as unknown as Response);
 
-    const result = await runHook(useTestHook, FARM_ID);
+    const result = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
 
     // Final state should have the real URL from the API
     expect(result.items[0].photoUrl).toBe(RAW_ITEM.photoUrl);
@@ -321,16 +265,16 @@ describe('buildCachedApiHook — live state after API response', () => {
   });
 
   it('does not load anything and skips API when farmId is undefined', async () => {
-    mockSlotCounter = 0;
-    mockStore.reset([[], true, false, null]);
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[], true, false, null]);
     useTestHook(undefined);
 
-    if (mockCapturedEffect) {
-      const cleanup = mockCapturedEffect();
+    if (mockHarness.capturedEffect.value) {
+      const cleanup = mockHarness.capturedEffect.value();
       if (cleanup instanceof Promise) await cleanup;
     }
 
-    const [items, , , lastError] = mockStore.values as [TestItem[], boolean, boolean, string | null];
+    const [items, , , lastError] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
     expect(items).toHaveLength(0);
     expect(lastError).toBeNull();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -357,19 +301,15 @@ describe('useApiVineBlocks — coverPhotoUrl cacheTransform', () => {
     coverPhotoUrl: 'https://s3.example.com/cover.jpg?X-Amz-Expires=300&X-Amz-Signature=abc123',
   };
 
-  function runVineHook(): ReturnType<typeof useApiVineBlocks> {
-    mockSlotCounter = 0;
-    mockStore.reset([[], true, false, null]);
-    return useApiVineBlocks(FARM_ID);
-  }
-
-  async function runVineHookToCompletion(): Promise<{ blocks: VineBlock[]; loading: boolean; fromCache: boolean; error: string | null }> {
-    runVineHook();
-    if (mockCapturedEffect) mockCapturedEffect();
-    await drainAsync();
-    const [items, loading, fromCache, lastError] = mockStore.values as [VineBlock[], boolean, boolean, string | null];
-    const error = items.length === 0 && lastError ? lastError : null;
-    return { blocks: items, loading, fromCache, error };
+  async function runVineHookToCompletion(): Promise<{
+    blocks: VineBlock[];
+    loading: boolean;
+    fromCache: boolean;
+    error: string | null;
+  }> {
+    const result = await runHook<VineBlock>(useApiVineBlocks, FARM_ID, mockHarness);
+    const error = result.items.length === 0 && result.lastError ? result.lastError : null;
+    return { blocks: result.items, loading: result.loading, fromCache: result.fromCache, error };
   }
 
   beforeEach(() => {
