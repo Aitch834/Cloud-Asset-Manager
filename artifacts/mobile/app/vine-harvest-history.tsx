@@ -630,6 +630,19 @@ export default function VineHarvestHistoryScreen() {
     const namedKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
     if (namedKeys.length < 2) return null;
 
+    // Build colour map: named varieties in insertion order get palette colours;
+    // unknown blocks get a neutral gray.
+    const colorMap: Record<string, string> = {};
+    let paletteIdx = 0;
+    for (const key of Object.keys(varietyMap)) {
+      if (key === UNKNOWN_KEY) {
+        colorMap[key] = "#94a3b8";
+      } else {
+        colorMap[key] = YIELD_CHART_COLORS[paletteIdx % YIELD_CHART_COLORS.length];
+        paletteIdx++;
+      }
+    }
+
     const rows = Object.entries(varietyMap)
       .sort(([a], [b]) => {
         if (a === UNKNOWN_KEY) return 1;
@@ -644,7 +657,7 @@ export default function VineHarvestHistoryScreen() {
       }));
 
     const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
-    return { rows, grandKg };
+    return { rows, grandKg, colorMap };
   }, [vintageRecords, blocks]);
 
   // Sorted variety rows (sort persisted per farm via usePersistedVarietySort)
@@ -860,6 +873,42 @@ export default function VineHarvestHistoryScreen() {
           </Pressable>
 
           {varietyTableOpen && (
+            <>
+            {/* ── Proportional bar chart ── */}
+            <View style={styles.varietyChart}>
+              {varietySummaryData.grandKg > 0 && varietySummaryData.rows.map((row) => {
+                const pct = row.totalKg / varietySummaryData.grandKg;
+                const color = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
+                return (
+                  <View key={row.variety} style={styles.varietyBarRow}>
+                    <View style={styles.varietyBarTrack}>
+                      <View
+                        style={[
+                          styles.varietyBarFill,
+                          { width: `${Math.max(pct * 100, 0.5)}%` as any, backgroundColor: color },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.varietyBarPct} numberOfLines={1}>
+                      {(pct * 100).toFixed(0)}%
+                    </Text>
+                  </View>
+                );
+              })}
+              {/* Legend */}
+              <View style={styles.varietyLegend}>
+                {varietySummaryData.rows.map((row) => {
+                  const color = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
+                  return (
+                    <View key={row.variety} style={styles.varietyLegendItem}>
+                      <View style={[styles.varietyLegendSwatch, { backgroundColor: color }]} />
+                      <Text style={styles.varietyLegendLabel} numberOfLines={1}>{row.variety}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 {/* Column headers */}
@@ -912,12 +961,15 @@ export default function VineHarvestHistoryScreen() {
                 </View>
 
                 {/* Data rows */}
-                {sortedVarietyRows.map((row, i) => (
+                {sortedVarietyRows.map((row, i) => {
+                  const swatchColor = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
+                  return (
                   <View
                     key={row.variety}
                     style={[styles.varietyRow, styles.varietyDataRow, i < sortedVarietyRows.length - 1 && styles.varietyDataRowBorder]}
                   >
-                    <View style={{ flex: 1 }}>
+                    <View style={[{ flex: 1 }, styles.varietyNameCell]}>
+                      <View style={[styles.varietyRowSwatch, { backgroundColor: swatchColor }]} />
                       <Text style={styles.varietyName} numberOfLines={1}>{row.variety}</Text>
                     </View>
                     <View style={{ width: 80, alignItems: "flex-end" }}>
@@ -936,7 +988,8 @@ export default function VineHarvestHistoryScreen() {
                       </Text>
                     </View>
                   </View>
-                ))}
+                  );
+                })}
 
                 {/* Grand total footer */}
                 <View style={[styles.varietyRow, styles.varietyFooterRow]}>
@@ -955,6 +1008,7 @@ export default function VineHarvestHistoryScreen() {
                 </View>
               </View>
             </ScrollView>
+            </>
           )}
         </View>
       )}
@@ -1466,6 +1520,71 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
   },
+  // Variety bar chart
+  varietyChart: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.xs,
+  },
+  varietyBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  varietyBarTrack: {
+    flex: 1,
+    height: 10,
+    backgroundColor: colors.border,
+    borderRadius: 5,
+    overflow: "hidden",
+  },
+  varietyBarFill: {
+    height: "100%",
+    borderRadius: 5,
+  },
+  varietyBarPct: {
+    width: 32,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: "right",
+  },
+  varietyLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  varietyLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  varietyLegendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  varietyLegendLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  // Variety name cell with swatch dot
+  varietyNameCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  varietyRowSwatch: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
   // Must Chemistry card
   chemCard: {
     marginHorizontal: spacing.md,
@@ -1510,3 +1629,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
 });
+
+const YIELD_CHART_COLORS = [
+  "#6366f1", "#10b981", "#f59e0b", "#ef4444",
+  "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6",
+  "#f97316", "#84cc16",
+];
