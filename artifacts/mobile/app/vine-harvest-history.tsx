@@ -34,6 +34,7 @@ import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 import { getItem, getList, setItem } from "@/lib/storage";
 import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
@@ -325,12 +326,90 @@ function HarvestRow({
   );
 }
 
+// ─── Email helper ─────────────────────────────────────────────────────────────
+
+function buildHarvestReportMailto(
+  records: HarvestRecord[],
+  farmName: string,
+  sbi: string | null,
+  address: string | null,
+  farmMeta: Record<string, unknown> | null,
+  blocks: { id: number; blockName?: string | null }[],
+  yearLabel?: string,
+): string {
+  const fsaVineRef = String(farmMeta?.fsaVineRegisterRef ?? "").trim();
+  const fsaWineRef = String(farmMeta?.fsaWineProductionRef ?? "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const blockLookup: Record<number, string> = {};
+  blocks.forEach(b => { blockLookup[b.id] = String(b.blockName ?? ""); });
+  const bname = (id: number | null) =>
+    id != null && blockLookup[id] ? blockLookup[id] : "—";
+
+  const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
+
+  const col = (v: string | null | undefined, width: number) => {
+    const s = v == null ? "—" : String(v);
+    return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
+  };
+  const nf = (v: number | null | undefined, dp: number) => {
+    if (v == null) return "—";
+    return v.toFixed(dp);
+  };
+  const df = (v: string | null | undefined) =>
+    v ? new Date(v).toLocaleDateString("en-GB") : "—";
+
+  const headerLine = [
+    col("Date", 12), col("Vintage", 8), col("Block", 20),
+    col("Method", 14), col("Yield (kg)", 11),
+    col("Brix", 6), col("pH", 6), col("TA g/L", 7), col("PA %", 6),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const dataLines = records.map(r => [
+    col(df(r.harvestDate), 12),
+    col(r.vintageYear != null ? String(r.vintageYear) : null, 8),
+    col(bname(r.blockId), 20),
+    col(r.harvestMethod, 14),
+    col(r.yieldKg != null ? r.yieldKg.toFixed(1) : "—", 11),
+    col(nf(r.brix, 1), 6),
+    col(nf(r.ph, 2), 6),
+    col(nf(r.titratableAcidityGl, 2), 7),
+    col(nf(r.potentialAlcohol, 2), 6),
+  ].join("  "));
+
+  const body = [
+    `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
+    sbi ? `SBI Number: ${sbi}` : `SBI Number: (not set — add in Farm Settings)`,
+    fsaVineRef ? `FSA Vine Register Ref: ${fsaVineRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
+    fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
+    `Date: ${printed}`,
+    `Records: ${records.length}   Total yield: ${totalKg > 0 ? totalKg.toFixed(1) + " kg" : "—"}`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...(dataLines.length > 0 ? dataLines : [`(no records)`]),
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
+  );
+  return `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function VineHarvestHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
-  const { address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { sbiNumber, address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-harvest-history", currentFarm?.id, user?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
@@ -348,6 +427,20 @@ export default function VineHarvestHistoryScreen() {
     "/api/farms/:farmId/vineyard-harvest",
   );
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
+
+  // Fetch extra farm meta (FSA refs) not covered by useFarmIdentifiers
+  const [farmMeta, setFarmMeta] = React.useState<Record<string, unknown> | null>(null);
+  React.useEffect(() => {
+    if (!currentFarm?.id) return;
+    let cancelled = false;
+    apiFetch(`/api/farms/${currentFarm.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { record?: Record<string, unknown> } | null) => {
+        if (!cancelled && d) setFarmMeta(d.record ?? d as Record<string, unknown>);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
 
   const [search, setSearch] = useState("");
   const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
@@ -710,6 +803,23 @@ export default function VineHarvestHistoryScreen() {
     }
   }, [currentFarm?.id]);
 
+  const handleEmail = () => {
+    if (!displayRecords.length) return;
+    const yearLabel =
+      displayVintage != null ? String(displayVintage) : undefined;
+    const recordsToEmail = displayVintage != null ? vintageRecords : displayRecords;
+    const mailto = buildHarvestReportMailto(
+      recordsToEmail,
+      currentFarm?.name ?? "Farm",
+      sbiNumber ?? null,
+      address ?? null,
+      farmMeta,
+      blocks,
+      yearLabel,
+    );
+    openExternalUrl(mailto);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -717,6 +827,17 @@ export default function VineHarvestHistoryScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Harvest History</Text>
+        {displayRecords.length > 0 && (
+          <Pressable
+            onPress={handleEmail}
+            style={styles.emailBtn}
+            hitSlop={12}
+            accessibilityLabel="Email harvest report"
+            accessibilityRole="button"
+          >
+            <Feather name="mail" size={20} color={colors.primary} />
+          </Pressable>
+        )}
       </View>
 
       <IdentifierBanner
@@ -1203,6 +1324,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
+  emailBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
   unlinkedBanner: {
     flexDirection: "row",

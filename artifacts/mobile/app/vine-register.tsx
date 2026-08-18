@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -24,6 +24,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 interface VineRegisterEntry {
   id: number;
@@ -119,6 +120,75 @@ function RpaWarningBanner({
       </Text>
     </Pressable>
   );
+}
+
+function buildVineRegisterMailto(
+  records: VineRegisterEntry[],
+  farmName: string,
+  sbi: string | null,
+  address: string | null,
+  farmMeta: Record<string, unknown> | null,
+): string {
+  const fsaRef = String(farmMeta?.fsaVineRegisterRef ?? "").trim();
+  const fsaWineRef = String(farmMeta?.fsaWineProductionRef ?? "").trim();
+  const winegbNo = String(farmMeta?.winegbMembershipNumber ?? "").trim();
+  const appaRef = String(farmMeta?.appaRef ?? "").trim();
+  const printed = new Date().toLocaleDateString("en-GB");
+
+  const activeRecords = records.filter(r => !r.isRemovedFromRegister);
+  const removedRecords = records.filter(r => !!r.isRemovedFromRegister);
+  const totalHa = records.reduce((sum, r) => sum + (parseFloat(r.registeredAreaHa ?? "") || 0), 0);
+
+  const col = (v: string | null | undefined, width: number) => {
+    const s = v == null ? "—" : String(v);
+    return s.length <= width ? s.padEnd(width) : s.slice(0, width - 1) + "…";
+  };
+  const d = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString("en-GB") : "—");
+
+  const headerLine = [
+    col("Variety", 24), col("FSA Ref", 16), col("Area (ha)", 10),
+    col("GI", 22), col("Wine Colour", 16), col("Date Reg.", 12), col("Status", 8),
+  ].join("  ");
+  const separator = "-".repeat(headerLine.length);
+
+  const buildLines = (recs: VineRegisterEntry[]) =>
+    recs.map(r => [
+      col(r.registeredVariety, 24),
+      col(r.fsaVineRegisterRef, 16),
+      col(r.registeredAreaHa ? parseFloat(r.registeredAreaHa).toFixed(4) : "—", 10),
+      col(r.giClassification, 22),
+      col(r.wineColour, 16),
+      col(d(r.dateRegistered), 12),
+      col(r.isRemovedFromRegister ? "Removed" : "Active", 8),
+    ].join("  "));
+
+  const body = [
+    `FSA Vine Register — ${farmName}`,
+    ``,
+    `Farm: ${farmName}`,
+    ...(address ? [`Address: ${address}`] : [`Address: (not set — add in Farm Settings)`]),
+    sbi ? `SBI Number: ${sbi}` : `SBI Number: (not set — add in Farm Settings)`,
+    fsaRef ? `FSA Vine Register Ref: ${fsaRef}` : `FSA Vine Register Ref: (not set — add in Farm Settings)`,
+    fsaWineRef ? `FSA Wine Production Ref: ${fsaWineRef}` : `FSA Wine Production Ref: (not set — add in Farm Settings)`,
+    ...(winegbNo ? [`WineGB Membership No: ${winegbNo}`] : []),
+    ...(appaRef ? [`APPA Ref: ${appaRef}`] : []),
+    `Date: ${printed}`,
+    `Entries: ${records.length}   Active: ${activeRecords.length}   Removed: ${removedRecords.length}   Total area: ${totalHa.toFixed(4)} ha`,
+    ``,
+    separator,
+    headerLine,
+    separator,
+    ...(activeRecords.length > 0 ? buildLines(activeRecords) : [`(no active entries)`]),
+    ...(removedRecords.length > 0 ? [separator, `Removed from register:`, ...buildLines(removedRecords)] : []),
+    separator,
+    ``,
+    `Prepared by BDE Farm Trac. Mandatory FSA register for UK vineyards over 0.01 ha.`,
+  ].join("\n");
+
+  const subject = encodeURIComponent(
+    `FSA Vine Register — ${farmName}${fsaRef ? ` (Ref: ${fsaRef})` : ""}`,
+  );
+  return `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
 }
 
 // ─── Missing Parcel Ref Banner ─────────────────────────────────────────────────
@@ -298,7 +368,7 @@ function EditParcelRefModal({
 export default function VineRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { sbiNumber, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { sbiNumber, address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
   const { records, loading, refreshing, error, refresh } = useApiFetch<VineRegisterEntry>(
     currentFarm?.id,
     "/api/farms/:farmId/vine-register",
@@ -311,6 +381,20 @@ export default function VineRegisterScreen() {
   // Track blocks whose ref has been saved this session so the banner hides
   // them immediately without needing a full re-fetch of the blocks list.
   const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
+
+  // Fetch extra farm meta (FSA refs, WineGB, APPA) not covered by useFarmIdentifiers
+  const [farmMeta, setFarmMeta] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    if (!currentFarm?.id) return;
+    let cancelled = false;
+    apiFetch(`/api/farms/${currentFarm.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { record?: Record<string, unknown> } | null) => {
+        if (!cancelled && d) setFarmMeta(d.record ?? d as Record<string, unknown>);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
 
   const sbiMissing = !identifiersLoading && !sbiNumber;
   const sectorMissing = !currentFarm?.sectorViticulture;
@@ -343,6 +427,18 @@ export default function VineRegisterScreen() {
     setSavedBlockIds(prev => new Set([...prev, blockId]));
   }, []);
 
+  const handleEmail = () => {
+    if (!records.length) return;
+    const mailto = buildVineRegisterMailto(
+      records,
+      currentFarm?.name ?? "Farm",
+      sbiNumber,
+      address,
+      farmMeta,
+    );
+    openExternalUrl(mailto);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -351,6 +447,17 @@ export default function VineRegisterScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>FSA Vine Register</Text>
+        {records.length > 0 && (
+          <Pressable
+            onPress={handleEmail}
+            style={styles.emailBtn}
+            hitSlop={12}
+            accessibilityLabel="Email vine register"
+            accessibilityRole="button"
+          >
+            <Feather name="mail" size={20} color={colors.primary} />
+          </Pressable>
+        )}
       </View>
 
       {/* RPA missing-fields warning */}
@@ -462,6 +569,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
   },
+  emailBtn: { padding: 4 },
   rpaBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
