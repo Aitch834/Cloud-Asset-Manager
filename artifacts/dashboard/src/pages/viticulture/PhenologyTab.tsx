@@ -1,7 +1,6 @@
 import { useFarmName } from "@/hooks/use-farm-name";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
@@ -54,6 +53,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printPhenology, FarmSettingsWarning, FsaCompletenessBar, useFarmMeta, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 import { FrostEventsSection } from "./FrostEventsSection";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Phenology = Record<string, unknown>;
 
@@ -249,7 +249,11 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [current, setCurrent] = useState<Phenology | null>(null);
   const [form, setForm] = useState<Phenology>({});
   const [viewing, setViewing] = useState<Phenology | null>(null);
-  const [winegbSurveyBanner, setWinegbSurveyBanner] = useState<{ surveyName: string; label: string; surveyKey: WinegbSurveyKey | null; year: number } | null>(null);
+  const [winegbSurveyBanners, setWinegbSurveyBanners] = useState<StoredOffer[]>([]);
+  // Transient (non-persisted) banners for surveys with no checklist key (e.g. Fruit Set).
+  // These show an external-link-only prompt and are not written to localStorage.
+  type LinkBanner = { surveyName: string; label: string; year: number };
+  const [winegbLinkBanners, setWinegbLinkBanners] = useState<LinkBanner[]>([]);
   const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
 
   // ── localStorage helpers for persisted survey offer ────────────────────────
@@ -346,42 +350,51 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
 
-  // ── Restore persisted survey offer on mount ───────────────────────────────
-  // Track the year of a stored offer so we can query submissions to verify it
-  const [storedOfferYear, setStoredOfferYear] = useState<number | null>(null);
-
+  // ── Restore all persisted survey offers on mount ─────────────────────────
   useEffect(() => {
     const offers = readStoredOffers();
-    if (!offers.length) return;
-    // Pick the offer with the most recent year
-    const offer = offers.sort((a, b) => b.year - a.year)[0];
-    setStoredOfferYear(offer.year);
-    // Show the banner immediately; the submission-check effect below will suppress it if already done
-    setWinegbSurveyBanner(offer);
+    if (offers.length) setWinegbSurveyBanners(offers);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farmId]);
 
-  // Query submissions for the stored offer's year so we can clear the banner if already submitted
-  const { data: storedOfferSubmissions } = useQuery<{ submissions: Record<string, { submitted: boolean; submittedAt: string | null }> }>({
-    queryKey: ["winegb-submissions", farmId, storedOfferYear ?? 0],
-    queryFn: () =>
-      fetch(api(`farms/${farmId}/winegb-submissions?year=${storedOfferYear}`), { credentials: "include" })
-        .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json(); }),
-    enabled: !!farmId && storedOfferYear !== null,
-    staleTime: 60_000,
+  // Query submissions for every unique year that has a pending banner so we
+  // can auto-clear any offers that were already submitted in a previous visit.
+  const bannerYears = useMemo(
+    () => Array.from(new Set(winegbSurveyBanners.map(b => b.year))),
+    [winegbSurveyBanners],
+  );
+  type SubmissionsPayload = { submissions: Record<string, { submitted: boolean; submittedAt: string | null }> };
+  const bannerSubmissionResults = useQueries({
+    queries: bannerYears.map(year => ({
+      queryKey: ["winegb-submissions", farmId, year] as const,
+      queryFn: (): Promise<SubmissionsPayload> =>
+        fetch(api(`farms/${farmId}/winegb-submissions?year=${year}`), { credentials: "include" })
+          .then(r => { if (!r.ok) throw new Error("Failed to load"); return r.json() as Promise<SubmissionsPayload>; }),
+      enabled: !!farmId,
+      staleTime: 60_000,
+    })),
   });
 
-  // Once submissions load, clear the banner (and localStorage) if already submitted
+  // Once any year's submissions load, auto-clear banners that are already submitted
   useEffect(() => {
-    if (!storedOfferSubmissions || !winegbSurveyBanner?.surveyKey) return;
-    const alreadySubmitted = storedOfferSubmissions.submissions?.[winegbSurveyBanner.surveyKey]?.submitted ?? false;
-    if (alreadySubmitted) {
-      clearStoredOffer(winegbSurveyBanner.surveyKey, winegbSurveyBanner.year);
-      setWinegbSurveyBanner(null);
-      setStoredOfferYear(null);
+    const toRemove: Array<{ surveyKey: WinegbSurveyKey; year: number }> = [];
+    for (let i = 0; i < bannerYears.length; i++) {
+      const subs = bannerSubmissionResults[i]?.data?.submissions;
+      if (!subs) continue;
+      for (const banner of winegbSurveyBanners) {
+        if (banner.year === bannerYears[i] && subs[banner.surveyKey]?.submitted) {
+          clearStoredOffer(banner.surveyKey, banner.year);
+          toRemove.push({ surveyKey: banner.surveyKey, year: banner.year });
+        }
+      }
+    }
+    if (toRemove.length) {
+      setWinegbSurveyBanners(prev =>
+        prev.filter(b => !toRemove.some(r => r.surveyKey === b.surveyKey && r.year === b.year))
+      );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storedOfferSubmissions]);
+  }, [bannerSubmissionResults]);
 
   // ── WineGB toggle mutation (year comes from the saved observation's date) ─────
   const winegbToggleMutation = useMutation({
@@ -400,7 +413,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       const survey = WINEGB_SURVEYS.find(s => s.key === key);
       toast({ title: `${survey?.label ?? "Survey"} marked as submitted`, description: "WineGB survey checklist updated." });
       clearStoredOffer(key, year);
-      setWinegbSurveyBanner(null);
+      setWinegbSurveyBanners(prev => prev.filter(b => !(b.surveyKey === key && b.year === year)));
     },
   });
 
@@ -428,17 +441,25 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         : new Date().getFullYear();
       if (survey.surveyKey) {
         // Survey has a checklist entry — offer to tick it, unless already submitted for this year
-        type SubmissionsPayload = { submissions: Record<string, { submitted: boolean; submittedAt: string | null }> };
         const cached = queryClient.getQueryData<SubmissionsPayload>(["winegb-submissions", farmId, obsYear]);
         const alreadySubmitted = cached?.submissions?.[survey.surveyKey]?.submitted ?? false;
         if (!alreadySubmitted) {
           const offer = { ...survey, year: obsYear } as StoredOffer;
           writeStoredOffer(offer);
-          setWinegbSurveyBanner(offer);
+          // Add to the banner list only if not already showing
+          setWinegbSurveyBanners(prev =>
+            prev.some(b => b.surveyKey === offer.surveyKey && b.year === offer.year)
+              ? prev
+              : [...prev, offer]
+          );
         }
       } else {
-        // No checklist key (e.g. Fruit Set) — show the external-link prompt instead
-        setWinegbSurveyBanner({ ...survey, year: obsYear });
+        // No checklist key (e.g. Fruit Set) — show a transient external-link prompt, not persisted to localStorage
+        setWinegbLinkBanners(prev =>
+          prev.some(b => b.surveyName === survey.surveyName && b.year === obsYear)
+            ? prev
+            : [...prev, { surveyName: survey.surveyName, label: survey.label, year: obsYear }]
+        );
       }
     }
     setOpen(false);
@@ -467,65 +488,81 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
   return (
     <div className="space-y-4">
-      {/* WineGB seasonal survey prompt */}
-      {winegbSurveyBanner && (
-        <div className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+      {/* WineGB seasonal survey prompts — one banner per pending offer, stacked */}
+      {winegbSurveyBanners.map(banner => (
+        <div key={`${banner.surveyKey}:${banner.year}`} className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
           <Globe className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
           <div className="flex-1 min-w-0">
-            <span className="font-medium">WineGB {winegbSurveyBanner.surveyName}</span>
-            {winegbSurveyBanner.surveyKey ? (
-              <span>
-                {" "}— Have you submitted your {winegbSurveyBanner.label} data to WineGB? Mark it as done to keep your checklist up to date.
-              </span>
-            ) : (
-              <span>
-                {" "}— WineGB are collecting UK-wide data on {winegbSurveyBanner.label} this season. Submit your figures to their{" "}
-                <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
-                  Vineyard Survey →
-                </a>
-              </span>
-            )}
-            {winegbSurveyBanner.surveyKey && (
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  type="button"
-                  disabled={winegbToggleMutation.isPending}
-                  onClick={() => winegbToggleMutation.mutate({ key: winegbSurveyBanner.surveyKey!, year: winegbSurveyBanner.year })}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
-                >
-                  {winegbToggleMutation.isPending ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-3 h-3" />
-                  )}
-                  Mark {winegbSurveyBanner.label} survey as submitted
-                </button>
-                <a
-                  href="https://winegb.co.uk/production/vineyards-wineries/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
-                >
-                  Submit to WineGB first →
-                </a>
-              </div>
-            )}
+            <span className="font-medium">WineGB {banner.surveyName}</span>
+            <span>
+              {" "}— Have you submitted your {banner.label} data to WineGB? Mark it as done to keep your checklist up to date.
+            </span>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                disabled={winegbToggleMutation.isPending && winegbToggleMutation.variables?.key === banner.surveyKey && winegbToggleMutation.variables?.year === banner.year}
+                onClick={() => winegbToggleMutation.mutate({ key: banner.surveyKey, year: banner.year })}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+              >
+                {winegbToggleMutation.isPending && winegbToggleMutation.variables?.key === banner.surveyKey && winegbToggleMutation.variables?.year === banner.year ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-3 h-3" />
+                )}
+                Mark {banner.label} survey as submitted
+              </button>
+              <a
+                href="https://winegb.co.uk/production/vineyards-wineries/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+              >
+                Submit to WineGB first →
+              </a>
+            </div>
           </div>
           <button
             type="button"
             className="shrink-0 text-emerald-500 hover:text-emerald-800"
             onClick={() => {
-              // Add to session-only dismissed set so the banner doesn't re-show within this visit.
-              // The localStorage entry is intentionally kept so the offer reappears on the next page load.
-              setDismissedSurveys(prev => new Set(prev).add(winegbSurveyBanner.surveyName));
-              setWinegbSurveyBanner(null);
+              // Keep the localStorage entry so the offer reappears on next load if not yet submitted.
+              // Only suppress it for the rest of this session via dismissedSurveys.
+              setDismissedSurveys(prev => new Set(prev).add(banner.surveyName));
+              setWinegbSurveyBanners(prev => prev.filter(b => !(b.surveyKey === banner.surveyKey && b.year === banner.year)));
             }}
             aria-label="Dismiss"
           >
             <XCircle className="w-4 h-4" />
           </button>
         </div>
-      )}
+      ))}
+
+      {/* WineGB external-link-only prompts (e.g. Fruit Set — no checklist entry, transient/session-only) */}
+      {winegbLinkBanners.map(banner => (
+        <div key={`link:${banner.surveyName}:${banner.year}`} className="flex items-start gap-2.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+          <Globe className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+          <div className="flex-1 min-w-0">
+            <span className="font-medium">WineGB {banner.surveyName}</span>
+            <span>
+              {" "}— WineGB are collecting UK-wide data on {banner.label} this season. Submit your figures to their{" "}
+              <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
+                Vineyard Survey →
+              </a>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 text-emerald-500 hover:text-emerald-800"
+            onClick={() => {
+              setDismissedSurveys(prev => new Set(prev).add(banner.surveyName));
+              setWinegbLinkBanners(prev => prev.filter(b => !(b.surveyName === banner.surveyName && b.year === banner.year)));
+            }}
+            aria-label="Dismiss"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
 
       {/* Block highlight banner */}
       {highlightBlockId && blockFilter === String(highlightBlockId) && highlightedBlockName && (
