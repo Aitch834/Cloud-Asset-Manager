@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useState, useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
@@ -29,6 +29,9 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { getList } from "@/lib/storage";
 
@@ -308,7 +311,20 @@ function HarvestRow({
 
 export default function VineHarvestHistoryScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
+  const { address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-harvest-history", currentFarm?.id, user?.id);
+
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
+
+  const missingAddressFields: string[] = !identifiersLoading
+    ? [
+        !currentFarm?.name || currentFarm.name.trim() === "" ? "Farm name" : "",
+        !address || address.trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
+  const missingIdentifiers = missingAddressFields.length > 0;
+
   const { records, loading, refreshing, error, refresh } = useApiFetch<HarvestRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-harvest",
@@ -520,6 +536,17 @@ export default function VineHarvestHistoryScreen() {
         </Pressable>
         <Text style={styles.title}>Harvest History</Text>
       </View>
+
+      <IdentifierBanner
+        justSaved={justSaved && !identifiersLoading}
+        missingIdentifiers={missingIdentifiers}
+        bannerDismissed={bannerDismissed}
+        onClearJustSaved={clearJustSaved}
+        onDismiss={dismissBanner}
+        cphMissing={false}
+        sbiMissing={false}
+        warningMessage={`${missingAddressFields.join(" and ")} ${missingAddressFields.length === 1 ? "is" : "are"} missing from your farm profile.`}
+      />
 
       {/* Vintage filter chips */}
       {vintages.length > 0 && (
