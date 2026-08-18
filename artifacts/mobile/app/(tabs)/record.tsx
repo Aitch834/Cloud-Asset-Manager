@@ -1204,7 +1204,7 @@ const recordOptions: RecordOption[] = [
     icon: "clock",
     color: "#7c3aed",
     bgColor: "#ede9fe",
-    route: "/vine-operation-history",
+    route: "/vine-operations-history",
     moduleKeys: ["viticulture"],
   },
   {
