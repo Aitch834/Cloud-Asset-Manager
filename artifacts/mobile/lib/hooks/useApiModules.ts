@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { useEffect, useState } from "react";
-import { kvGet } from "@/lib/database";
+import { kvGet, kvSet } from "@/lib/database";
 
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -68,8 +68,12 @@ export function useApiModules(farmId: string | undefined) {
 
         const data = await res.json();
         if (!cancelled) {
-          setActiveModuleKeys(data.activeModuleKeys ?? []);
+          const keys: string[] = data.activeModuleKeys ?? [];
+          setActiveModuleKeys(keys);
           setResolvedFarmId(farmId);
+          // Persist for the sync engine (non-React context) to read.
+          // Key is farm-scoped so multi-farm users get accurate per-farm results.
+          try { await kvSet(`bde_active_module_keys_${farmId}`, JSON.stringify(keys)); } catch { /* ignore */ }
         }
       } catch {
         // Silently fall back — if offline or unauthenticated, all records remain visible

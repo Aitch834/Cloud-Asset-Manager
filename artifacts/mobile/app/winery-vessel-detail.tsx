@@ -23,6 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers (mirrored from useApiFetch) ─────────────────────────────────
@@ -97,7 +98,11 @@ interface VesselDetail {
   movements: BarrelMovement[];
 }
 
-function useVesselDetail(farmId: string | undefined, vesselId: string | undefined) {
+function useVesselDetail(
+  farmId: string | undefined,
+  vesselId: string | undefined,
+  isViticultureActive: boolean,
+) {
   const [data, setData] = useState<VesselDetail>({ fills: [], maintenance: [], movements: [] });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,7 +110,7 @@ function useVesselDetail(farmId: string | undefined, vesselId: string | undefine
   const cancelRef = useRef(false);
 
   const load = useCallback(async (isRefresh = false) => {
-    if (!farmId || !vesselId) { setLoading(false); return; }
+    if (!farmId || !vesselId || !isViticultureActive) { setLoading(false); return; }
     cancelRef.current = false;
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
@@ -137,7 +142,7 @@ function useVesselDetail(farmId: string | undefined, vesselId: string | undefine
     } finally {
       if (!cancelRef.current) { setLoading(false); setRefreshing(false); }
     }
-  }, [farmId, vesselId]);
+  }, [farmId, vesselId, isViticultureActive]);
 
   useEffect(() => {
     void load();
@@ -1246,9 +1251,17 @@ export default function WineryVesselDetailScreen() {
     cellarPosition?: string;
   }>();
 
+  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
+  // Require resolvedFarmId to match currentFarm.id so winery requests are never
+  // issued during the transition window between a farm switch and module resolution.
+  const isViticultureActive =
+    resolvedFarmId === currentFarm?.id &&
+    activeModuleKeys.includes("viticulture");
+
   const { data, loading, refreshing, error, refresh } = useVesselDetail(
     currentFarm?.id,
-    params.vesselId
+    params.vesselId,
+    isViticultureActive,
   );
 
   const [movementModalOpen, setMovementModalOpen] = useState(false);

@@ -21,6 +21,7 @@
 
 import {
   StateStore,
+  drainAsync,
   runHook,
   type HarnessContext,
 } from './helpers/cachedHookHarness';
@@ -301,15 +302,15 @@ describe('buildCachedApiHook — cancellation guard', () => {
     );
 
     // Initialise the hook — captures the effect callback but does NOT run it.
-    mockSlotCounter = 0;
-    mockStore.reset([[], true, false, null]);
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[], true, false, null]);
     useTestHook(FARM_ID);
 
     // Fire the effect synchronously.  The hook body runs up to the async IIFE
     // and then returns the cleanup function immediately.
     let cleanup: (() => void) | undefined;
-    if (mockCapturedEffect) {
-      const result = mockCapturedEffect();
+    if (mockHarness.capturedEffect.value) {
+      const result = mockHarness.capturedEffect.value();
       if (typeof result === 'function') cleanup = result as () => void;
     }
 
@@ -329,7 +330,7 @@ describe('buildCachedApiHook — cancellation guard', () => {
     // call the state setters — which it must NOT do once cancelled === true.
     await drainAsync();
 
-    const [items, , fromCache] = mockStore.values as [TestItem[], boolean, boolean, string | null];
+    const [items, , fromCache] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
 
     // State must remain at the initial values because every setter in the
     // async IIFE is guarded by `if (!cancelled)`.
@@ -350,13 +351,13 @@ describe('buildCachedApiHook — cancellation guard', () => {
       new Promise<Response>((res) => { resolveFetch = res; })
     );
 
-    mockSlotCounter = 0;
-    mockStore.reset([[], true, false, null]);
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[], true, false, null]);
     useTestHook(FARM_ID);
 
     let cleanup: (() => void) | undefined;
-    if (mockCapturedEffect) {
-      const result = mockCapturedEffect();
+    if (mockHarness.capturedEffect.value) {
+      const result = mockHarness.capturedEffect.value();
       if (typeof result === 'function') cleanup = result as () => void;
     }
 
@@ -375,7 +376,7 @@ describe('buildCachedApiHook — cancellation guard', () => {
 
     await drainAsync();
 
-    const [items] = mockStore.values as [TestItem[], boolean, boolean, string | null];
+    const [items] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
 
     // The fresh item from the API must NOT have overwritten the state
     // (or there must be no items with the fresh id).

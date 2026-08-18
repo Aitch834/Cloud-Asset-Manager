@@ -393,6 +393,13 @@ async function processQueue(): Promise<void> {
         }
         successCount++;
       } catch (err) {
+        if (err instanceof SyncDeferredError) {
+          // Module state not yet resolved — leave item pending, do not count as
+          // a failure or consume a retry slot. Schedule a retry so the item is
+          // re-attempted once useApiModules has written the module cache.
+          scheduleSyncAttempt(10000);
+          continue;
+        }
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         await markSyncItemFailed(item.id, errorMsg);
         failCount++;
@@ -457,6 +464,40 @@ async function getTenantSlug(): Promise<string> {
   return "";
 }
 
+/**
+ * Thrown when a sync item should be skipped for this cycle but kept in the
+ * queue for retry once the blocking condition (e.g. unresolved module cache)
+ * is resolved. Unlike a normal error, this does NOT consume a retry slot.
+ */
+class SyncDeferredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SyncDeferredError";
+  }
+}
+
+const WINERY_RECORD_TYPES = new Set([
+  "bde_winery_age_verification",
+  "bde_winery_reception",
+  "bde_winery_cellar_ops",
+  "bde_winery_fermentation",
+  "bde_winery_pressing",
+  "bde_winery_so2",
+]);
+
+/**
+ * Returns the cached module keys for a specific farm, or null when the cache
+ * has not yet been populated (modules not yet resolved for this farm).
+ */
+async function getCachedModuleKeysForFarm(farmId: string): Promise<string[] | null> {
+  try {
+    const raw = await kvGet(`bde_active_module_keys_${farmId}`);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function uploadSyncItem(item: {
   id: string;
   record_type: string;
@@ -468,6 +509,27 @@ async function uploadSyncItem(item: {
   if (!apiDomain) {
     await simulateUpload();
     return;
+  }
+
+  // Guard winery record types: only sync when the record's farm has a confirmed
+  // viticulture or organic-viticulture module. If the module cache hasn't been
+  // populated yet for that farm (null), throw so the item is retried later rather
+  // than silently dropped. Only discard when we have a confirmed non-viticulture result.
+  if (WINERY_RECORD_TYPES.has(item.record_type)) {
+    const data = JSON.parse(item.data_json) as Record<string, unknown>;
+    const recordFarmId = data.farmId as string | undefined;
+    if (recordFarmId) {
+      const moduleKeys = await getCachedModuleKeysForFarm(recordFarmId);
+      if (moduleKeys === null) {
+        // Cache not yet populated for this farm — defer without consuming a retry slot.
+        throw new SyncDeferredError("Module cache not yet resolved for farm; deferring winery sync");
+      }
+      const hasWinery = moduleKeys.includes("viticulture");
+      if (!hasWinery) {
+        // Confirmed non-viticulture farm: discard the record without uploading.
+        return;
+      }
+    }
   }
 
   const data = JSON.parse(item.data_json) as Record<string, unknown>;

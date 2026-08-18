@@ -18,6 +18,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -92,6 +93,9 @@ export default function OrganicVitDerogationsScreen() {
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id;
 
+  const { activeModuleKeys } = useApiModules(farmId);
+  const isOrganicVitModuleActive = activeModuleKeys.includes("organic-viticulture");
+
   const [cases, setCases] = useState<VitDerogCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,7 +104,7 @@ export default function OrganicVitDerogationsScreen() {
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
   const load = useCallback(async () => {
-    if (!farmId || !apiBase) { setLoading(false); return; }
+    if (!farmId || !apiBase || !isOrganicVitModuleActive) { setLoading(false); return; }
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`${apiBase}/api/farms/${farmId}/organic-viticulture/input-derogations`, { headers });
@@ -111,7 +115,7 @@ export default function OrganicVitDerogationsScreen() {
     } catch {}
     setLoading(false);
     setRefreshing(false);
-  }, [farmId, apiBase]);
+  }, [farmId, apiBase, isOrganicVitModuleActive]);
 
   useEffect(() => { load(); }, [load]);
 

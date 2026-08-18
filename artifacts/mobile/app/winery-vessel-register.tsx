@@ -17,6 +17,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -308,8 +309,15 @@ export default function WineryVesselRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
 
+  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
+  // Require resolvedFarmId to match currentFarm.id so we never fire this request
+  // during the window between a farm switch and the new farm's module fetch completing.
+  const isWineryModuleActive =
+    resolvedFarmId === currentFarm?.id &&
+    activeModuleKeys.includes("viticulture");
+
   const { records, loading, refreshing, error, refresh } = useApiFetch<WineryVessel>(
-    currentFarm?.id,
+    isWineryModuleActive ? currentFarm?.id : undefined,
     "/api/farms/:farmId/winery-vessels"
   );
 
