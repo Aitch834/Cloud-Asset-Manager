@@ -321,6 +321,32 @@ function printDctRegister(records: OrgDctRecord[], farmName: string, monthLabel:
     <tbody>${rows}</tbody></table></body></html>`);
 }
 
+function exportDctCsv(records: OrgDctRecord[], monthLabel: string) {
+  const slug = monthLabel.toLowerCase().replace(/\s+/g, "-");
+  const header = [
+    "Dry-Off Date", "Ear Tag", "Protocol", "Antibiotic Product", "Antibiotic Batch",
+    "Std Milk W/D (days)", "Dbl Milk W/D (days)", "Teat Sealant Product", "SCC at Dry-Off (k/mL)",
+    "Vet Authorisation", "Vet Name", "Certifier Notified", "Expected Calving Date", "Justification",
+  ];
+  const dataRows = records.map(r => [
+    r.dryOffDate ? new Date(r.dryOffDate).toLocaleDateString("en-GB") : "",
+    r.cowEarTag ?? "",
+    r.protocol ? r.protocol.replace(/-/g, " ") : "",
+    r.antibioticTubeProduct ?? "",
+    r.antibioticTubeBatch ?? "",
+    r.standardMilkWithdrawalDays != null ? String(r.standardMilkWithdrawalDays) : "",
+    r.doubledMilkWithdrawalDays != null ? String(r.doubledMilkWithdrawalDays) : "",
+    r.teatSealantProduct ?? "",
+    r.sccAtDryOff != null ? String(r.sccAtDryOff) : "",
+    r.vetAuthorisation ? "Yes" : "No",
+    r.vetName ?? "",
+    r.certifierNotified ? "Yes" : "No",
+    r.expectedCalvingDate ? new Date(r.expectedCalvingDate).toLocaleDateString("en-GB") : "",
+    r.therapeuticJustification ?? "",
+  ]);
+  downloadCsvFile(`dct-records-${slug}.csv`, [header, ...dataRows]);
+}
+
 function printDairyTreatmentRegister(records: DairyTreatmentRecord[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB");
   const rows = records.map(r => `
@@ -1044,6 +1070,9 @@ function DctTab({ farmId, farmName }: { farmId: number; farmName: string }) {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => printDctRegister(filteredList, farmName, monthLabel)} disabled={filteredList.length === 0} className="gap-1.5">
             <Printer className="w-3.5 h-3.5" />Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => exportDctCsv(filteredList, monthLabel)} disabled={filteredList.length === 0} className="gap-1.5">
+            <FileDown className="w-3.5 h-3.5" />CSV Export
           </Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add DCT Record</Button>
         </div>
