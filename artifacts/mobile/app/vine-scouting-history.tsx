@@ -383,6 +383,21 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
                 <Text style={editStyles.quickLinkText}>Log Harvest Record</Text>
                 <Feather name="arrow-right" size={16} color={colors.textSecondary} />
               </Pressable>
+              <Pressable
+                style={[editStyles.quickLinkBtn, { marginTop: spacing.sm }]}
+                onPress={() => {
+                  onClose();
+                  if (record?.blockId) {
+                    router.push({ pathname: "/vine-spray-diary", params: { blockId: String(record.blockId) } });
+                  } else {
+                    router.push("/vine-spray-diary");
+                  }
+                }}
+              >
+                <Feather name="droplet" size={16} color={colors.primary} />
+                <Text style={editStyles.quickLinkText}>Log Spray Diary Entry</Text>
+                <Feather name="arrow-right" size={16} color={colors.textSecondary} />
+              </Pressable>
             </View>
           </ScrollView>
 

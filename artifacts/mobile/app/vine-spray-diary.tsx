@@ -1,7 +1,7 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -344,6 +344,7 @@ function SprayDiaryPhotoSection({
 export default function VineSprayDiaryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
+  const { blockId } = useLocalSearchParams<{ blockId?: string }>();
   const { members } = useApiFarmMembers(currentFarm?.id);
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
@@ -364,6 +365,13 @@ export default function VineSprayDiaryScreen() {
 
   const [applicationDate, setApplicationDate] = useState(today);
   const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
+
+  useEffect(() => {
+    if (blockId && blocks.length > 0 && !blocksLoading) {
+      const match = blocks.find(b => String(b.id) === String(blockId));
+      if (match) setSelectedBlock(match);
+    }
+  }, [blockId, blocks, blocksLoading]);
 
   const [productName, setProductName] = useState("");
   const [mappNumber, setMappNumber] = useState("");
