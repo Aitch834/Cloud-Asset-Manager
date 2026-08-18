@@ -1586,11 +1586,17 @@ export async function printOperations(
     ? `APPA Ref: <strong>${escHtml(opsAppaRef)}</strong>`
     : `<span class="fsa-missing">&#9888; APPA Ref not set</span>`;
 
-  const opsAnyMissingRef = !opsFsaVineRegisterRef || !opsFsaWineProductionRef || !opsAppaRef;
+  const opsAnyMissingRef = !opsAddressValue || !opsFsaVineRegisterRef || !opsFsaWineProductionRef || !opsAppaRef;
+  const opsMissingFields = [
+    !opsAddressValue ? "Farm Address" : "",
+    !opsFsaVineRegisterRef ? "FSA Vine Register Ref" : "",
+    !opsFsaWineProductionRef ? "FSA Wine Production Ref" : "",
+    !opsAppaRef ? "APPA Ref" : "",
+  ].filter(Boolean).join(", ");
   const opsMissingRefWarningBlock = opsAnyMissingRef
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing registration references</strong> &mdash;
-        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        the field(s) marked below (${opsMissingFields}) have not been set in Farm Settings.
         Add them before submitting this report.
       </div>`
     : "";
@@ -1790,11 +1796,17 @@ export async function printHarvest(
     ? `WineGB Membership No: <strong>${escHtml(harvestWinegbNumber)}</strong>`
     : "";
 
-  const harvestAnyMissingRef = !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef;
+  const harvestAnyMissingRef = !harvestAddressValue || !harvestFsaVineRegisterRef || !harvestFsaWineProductionRef || !harvestAppaRef;
+  const harvestMissingFields = [
+    !harvestAddressValue ? "Farm Address" : "",
+    !harvestFsaVineRegisterRef ? "FSA Vine Register Ref" : "",
+    !harvestFsaWineProductionRef ? "FSA Wine Production Ref" : "",
+    !harvestAppaRef ? "APPA Ref" : "",
+  ].filter(Boolean).join(", ");
   const harvestMissingRefWarningBlock = harvestAnyMissingRef
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing registration references</strong> &mdash;
-        the field(s) marked below (FSA Vine Register Ref, FSA Wine Production Ref, APPA Ref) have not been set in Farm Settings.
+        the field(s) marked below (${harvestMissingFields}) have not been set in Farm Settings.
         Add them before submitting this report.
       </div>`
     : "";
