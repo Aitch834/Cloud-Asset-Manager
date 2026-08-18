@@ -1754,6 +1754,32 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         );
       })()}
 
+      {/* Peak pressure summary — print-only card placed before the scouting section so it always appears in print */}
+      {year != null && seasonScouts.length > 0 && (
+        <div className="hidden print:block rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h3 className="text-sm font-semibold">Disease &amp; Pest Pressure — {year} Season Peak</h3>
+            <p className="text-xs text-foreground/40">{seasonScouts.length} scouting round{seasonScouts.length !== 1 ? "s" : ""} · 0 = None · 1 = Low · 2 = Medium · 3 = High</p>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-3 gap-2">
+              {DISEASE_SERIES.map(d => {
+                const peak = diseasePeak[d.key] ?? 0;
+                return (
+                  <div key={d.key} className="rounded-lg border border-border bg-background p-2.5">
+                    <p className="text-xs text-foreground/50 leading-tight">{d.label}</p>
+                    <p className={`text-sm font-bold mt-0.5 ${PRESSURE_COLOR[peak]}`}>
+                      {PRESSURE_LABEL[peak] ?? "—"}
+                    </p>
+                    <p className="text-xs text-foreground/30">peak this season</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Disease pressure season peak summary (single-vintage mode only) */}
       {year != null && <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-muted/30">
@@ -1774,8 +1800,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               />
             )}
           <div className="p-4 space-y-3">
-            {/* Peak pressure per disease */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            {/* Peak pressure per disease — hidden in print; the print-only card above handles it */}
+            <div className="print:hidden grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
               {DISEASE_SERIES.map(d => {
                 const peak = diseasePeak[d.key] ?? 0;
                 return (
