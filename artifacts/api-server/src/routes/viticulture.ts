@@ -111,6 +111,8 @@ async function enrichBlocks(farmId: number) {
       photos: blockPhotos,
       // Presigned URL for the cover photo (or first photo); null if no photos
       coverPhotoUrl: coverPhotoUrlMap.get(block.id) ?? null,
+      // Total number of photos for this block (used by mobile block list)
+      photoCount: blockPhotos.length,
     };
   });
 }

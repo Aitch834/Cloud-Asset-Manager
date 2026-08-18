@@ -13,6 +13,9 @@ export interface VineBlock {
   isActive: boolean;
   isOrganicBlock: boolean;
   coverPhotoUrl: string | null;
+  /** Total photos for this block. May be absent on records cached by older app
+   *  versions; always normalised to a number (default 0) before use. */
+  photoCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,12 +58,18 @@ export function setCachedBlockCoverUrl(blockId: number, url: string | null): voi
 const getCachedUrl = getCachedBlockCoverUrl;
 const setCachedUrl = setCachedBlockCoverUrl;
 
-/** Overlay in-memory cached URLs onto blocks that currently have null coverPhotoUrl. */
+/**
+ * Overlay in-memory cached URLs onto blocks that currently have null coverPhotoUrl,
+ * and normalise any fields that may be absent in records cached by older app versions.
+ */
 function overlayUrls(blocks: VineBlock[]): VineBlock[] {
   return blocks.map((b) => {
-    if (b.coverPhotoUrl) return b; // fresh URL already present — keep it
+    // Normalise photoCount: absent on records cached before this field was added;
+    // default to 0 so the chip always renders correctly, even when fully offline.
+    const withCount: VineBlock = typeof b.photoCount === "number" ? b : { ...b, photoCount: 0 };
+    if (withCount.coverPhotoUrl) return withCount; // fresh URL already present — keep it
     const cached = getCachedUrl(b.id);
-    return cached ? { ...b, coverPhotoUrl: cached } : b;
+    return cached ? { ...withCount, coverPhotoUrl: cached } : withCount;
   });
 }
 

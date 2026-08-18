@@ -1664,6 +1664,25 @@ export default function VineBlockPhotosScreen() {
                       {b.areaHa ? ` · ${Number(b.areaHa).toFixed(2)} ha` : ""}
                     </Text>
                   ) : null}
+                  <View style={styles.blockListPhotoChip}>
+                    <Feather
+                      name="camera"
+                      size={11}
+                      color={(b.photoCount ?? 0) === 0 ? "#b45309" : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.blockListPhotoCount,
+                        (b.photoCount ?? 0) === 0 && styles.blockListPhotoCountZero,
+                      ]}
+                    >
+                      {(b.photoCount ?? 0) === 0
+                        ? "No photos"
+                        : b.photoCount === 1
+                        ? "1 photo"
+                        : `${b.photoCount} photos`}
+                    </Text>
+                  </View>
                 </View>
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} />
               </Pressable>
@@ -2223,6 +2242,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.textSecondary,
     marginTop: 1,
+  },
+  blockListPhotoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 3,
+  },
+  blockListPhotoCount: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+  },
+  blockListPhotoCountZero: {
+    color: "#b45309",
+    fontFamily: fonts.medium,
   },
 });
 
