@@ -21,6 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useApiModules } from "@/lib/hooks/useApiModules";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { IrrigationApplication } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
@@ -69,6 +70,7 @@ export default function IrrigationApplicationScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id ? String(currentFarm.id) : undefined);
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
@@ -107,6 +109,19 @@ export default function IrrigationApplicationScreen() {
       : "";
 
   const handleSave = async () => {
+    // Guard: if the module cache has been resolved for this farm and water-irrigation
+    // is not among the active modules, refuse to queue the record. Without this check
+    // the sync engine would retry the upload indefinitely after the server returns 403.
+    const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
+    if (farmIdStr && resolvedFarmId === farmIdStr && !activeModuleKeys.includes("water-irrigation")) {
+      Alert.alert(
+        "Module Not Enabled",
+        "The Water & Irrigation module is not active on this farm. Please contact your farm administrator to enable it before logging irrigation records.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     if (!fieldOrBlockDescription.trim()) {
       Alert.alert("Required", "Please enter the field or block being irrigated.");
       return;

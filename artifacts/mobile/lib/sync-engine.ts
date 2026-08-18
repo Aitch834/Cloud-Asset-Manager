@@ -485,6 +485,11 @@ const WINERY_RECORD_TYPES = new Set([
   "bde_winery_so2",
 ]);
 
+const IRRIGATION_RECORD_TYPES = new Set([
+  "bde_irrigation_applications",
+  "bde_irrigation_meter_readings",
+]);
+
 /**
  * Returns the cached module keys for a specific farm, or null when the cache
  * has not yet been populated (modules not yet resolved for this farm).
@@ -527,6 +532,28 @@ async function uploadSyncItem(item: {
       const hasWinery = moduleKeys.includes("viticulture");
       if (!hasWinery) {
         // Confirmed non-viticulture farm: discard the record without uploading.
+        return;
+      }
+    }
+  }
+
+  // Guard irrigation record types: only sync when the record's farm has the
+  // water-irrigation module enabled. If the module cache hasn't been populated yet,
+  // defer so the item is retried once the cache is written by useApiModules.
+  // When the module is confirmed absent, discard silently — the form now blocks
+  // saves at submission time, so records in the queue from before this guard was
+  // added should not retry indefinitely and accumulate a permanent sync-badge.
+  if (IRRIGATION_RECORD_TYPES.has(item.record_type)) {
+    const data = JSON.parse(item.data_json) as Record<string, unknown>;
+    const recordFarmId = data.farmId as string | undefined;
+    if (recordFarmId) {
+      const moduleKeys = await getCachedModuleKeysForFarm(recordFarmId);
+      if (moduleKeys === null) {
+        // Cache not yet populated — defer without consuming a retry slot.
+        throw new SyncDeferredError("Module cache not yet resolved for farm; deferring irrigation sync");
+      }
+      if (!moduleKeys.includes("water-irrigation")) {
+        // Confirmed module-absent farm: discard the record to clear the sync badge.
         return;
       }
     }
