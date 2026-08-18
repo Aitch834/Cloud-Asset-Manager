@@ -47,6 +47,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from "recharts";
 import { BcsTab, MobilityTab, BulkTankTab, RecordingVisitsTab, SccEquipmentSection } from "@/pages/DairyPage";
 import { openPrintWindow } from "@/lib/print-report";
+import { downloadCsvFile } from "@/lib/csv";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
 import { DairySuppliesTab } from "@/components/DairySuppliesTab";
 import { OrganicJohnesTab } from "@/pages/OrganicJohnesTab";
@@ -248,6 +249,26 @@ function esc(v: unknown): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+function downloadMastitisCsv(records: OrgDairyMastitisRecord[], farmName: string, monthLabel: string) {
+  const headers = ["Onset Date", "Ear Tag", "Quarter", "Grade", "Treatment", "Std W/D (days)", "Dbl W/D (days)", "W/D End Date", "Certifier Notified", "Outcome", "Vet", "Notes"];
+  const dataRows = records.map(r => [
+    r.onsetDate ? new Date(r.onsetDate).toLocaleDateString("en-GB") : "",
+    r.earTagNumber ?? "",
+    r.quartersAffected ?? "",
+    r.clinicalGrade ?? "",
+    r.treatmentProduct ?? "",
+    r.standardWithdrawalDays != null ? String(r.standardWithdrawalDays) : "",
+    r.doubledWithdrawalDays != null ? String(r.doubledWithdrawalDays) : "",
+    r.withdrawalEndDate ? new Date(r.withdrawalEndDate).toLocaleDateString("en-GB") : "",
+    r.certifierNotified ? "Yes" : (r.treatmentProduct ? "Pending" : "N/A"),
+    r.outcome ? (r.chronicCase ? `${r.outcome} (Chronic)` : r.outcome) : (r.chronicCase ? "Ongoing (Chronic)" : "Ongoing"),
+    r.attendingVet ?? "",
+    r.notes ?? "",
+  ]);
+  const filename = `Mastitis_${farmName.replace(/[^a-z0-9]/gi, "_")}_${monthLabel.replace(/[^a-z0-9]/gi, "_")}.csv`;
+  downloadCsvFile(filename, [headers, ...dataRows]);
+}
+
 function printMastitisRecords(records: OrgDairyMastitisRecord[], farmName: string, monthLabel: string) {
   const today = new Date().toLocaleDateString("en-GB");
   const rows = records.map(r => `
@@ -560,6 +581,7 @@ function MastitisTab({ farmId, farmName }: { farmId: number; farmName: string })
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => printMastitisRecords(filtered, farmName, monthLabelM)} disabled={filtered.length === 0} className="gap-1.5"><Printer className="w-4 h-4" />Print</Button>
+          <Button variant="outline" size="sm" onClick={() => downloadMastitisCsv(filtered, farmName, monthLabelM)} disabled={filtered.length === 0} className="gap-1.5"><FileDown className="w-4 h-4" />Download CSV</Button>
           <Button size="sm" onClick={() => { setEditing(null); setForm(blank); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Add Record</Button>
         </div>
       </div>
