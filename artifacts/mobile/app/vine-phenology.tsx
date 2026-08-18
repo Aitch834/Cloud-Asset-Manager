@@ -30,6 +30,9 @@ import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { apiFetch } from "@/lib/apiFetch";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -143,6 +146,10 @@ export default function VinePhenologyScreen() {
 
   const farmId = currentFarm?.id ?? "";
   const userId = user?.id;
+
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved } = useFarmIdentifiers(currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissIdentifierBanner } = useIdentifierBannerDismiss("vine-phenology", currentFarm?.id, userId);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
   // Used only to trigger re-renders when the module-level Set is updated after
   // a migration completes.  The actual readiness is read from the Set.
@@ -301,6 +308,17 @@ export default function VinePhenologyScreen() {
           </Pressable>
           <Text style={styles.title}>Vine Phenology Observation</Text>
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissIdentifierBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="phenology records"
+        />
 
         {/* WineGB seasonal survey nudge */}
         {winegbSurveyBanner && (

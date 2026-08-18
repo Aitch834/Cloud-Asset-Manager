@@ -26,6 +26,9 @@ import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -56,6 +59,10 @@ export default function VineOperationScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
   const { blockId } = useLocalSearchParams<{ blockId?: string }>();
+
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved } = useFarmIdentifiers(currentFarm?.id);
+  const { dismissed: bannerDismissed, dismiss: dismissIdentifierBanner } = useIdentifierBannerDismiss("vine-operations", currentFarm?.id, user?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
   const [manualOperator, setManualOperator] = useState(user?.name || "");
@@ -137,6 +144,17 @@ export default function VineOperationScreen() {
           </Pressable>
           <Text style={styles.title}>Vineyard Operation</Text>
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissIdentifierBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="operation records"
+        />
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Operation Details</Text>
