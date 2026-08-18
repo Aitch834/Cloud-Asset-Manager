@@ -2544,6 +2544,7 @@ export async function printPhenology(
   farmName: string,
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
+  yearLabel?: string,
 ) {
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
@@ -2609,7 +2610,7 @@ export async function printPhenology(
       <div class="meta">
         <strong>${safeFarmName}</strong><br>
         ${phenAddressHtml}<br>
-        ${years ? `Season(s): ${years}<br>` : ""}
+        ${yearLabel ? `Year: <strong>${escHtml(yearLabel)}</strong><br>` : years ? `Season(s): ${years}<br>` : ""}
         Printed: ${new Date().toLocaleDateString("en-GB")} &nbsp;&middot;&nbsp; ${records.length} record${records.length === 1 ? "" : "s"}
       </div>
     </div>

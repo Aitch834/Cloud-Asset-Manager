@@ -540,7 +540,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
               {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(printRows, farmName ?? "", blocks, farmMeta); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printPhenology(printRows, farmName ?? "", blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Observation</Button>
         </div>
       </div>
@@ -682,7 +682,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
                 <Button variant="outline" onClick={() => { setPrintConfirmOpen(false); openBulkLink(); }}>
                   <Link className="w-4 h-4 mr-1" />Link first
                 </Button>
-                <Button onClick={() => { setPrintConfirmOpen(false); void printPhenology(printRows, farmName ?? "", blocks, farmMeta); }}>
+                <Button onClick={() => { setPrintConfirmOpen(false); void printPhenology(printRows, farmName ?? "", blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined); }}>
                   <Printer className="w-4 h-4 mr-1" />Print anyway
                 </Button>
               </DialogFooter>
