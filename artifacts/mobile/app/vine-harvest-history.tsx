@@ -337,6 +337,8 @@ export default function VineHarvestHistoryScreen() {
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [varietySort, setVarietySort] = useState<{ col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; dir: "asc" | "desc" }>({ col: "variety", dir: "asc" });
+  const [varietyTableOpen, setVarietyTableOpen] = useState(true);
 
   // Offline-pending records that haven't synced yet
   const [offlinePending, setOfflinePending] = useState<OfflineHarvestEntry[]>([]);
@@ -505,6 +507,79 @@ export default function VineHarvestHistoryScreen() {
     };
   }, [vintageRecords, blocks, offlinePendingForVintage]);
 
+  // ── Yield by Variety summary (requires ≥2 distinct named varieties) ──────────
+  const varietySummaryData = useMemo(() => {
+    const UNKNOWN_KEY = "Unknown / Not linked";
+    const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    const blockAreaMap = new Map<number, number>();
+    const blockVarietyMap = new Map<number, string>();
+    for (const b of blocks) {
+      if (b.id != null) {
+        if (b.areaHa != null) blockAreaMap.set(b.id, Number(b.areaHa));
+        blockVarietyMap.set(b.id, String(b.variety ?? "").trim());
+      }
+    }
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; seenBlockIds: Set<number>; brixVals: number[] }> = {};
+    for (const r of vintageRecords) {
+      const variety = r.blockId != null ? (blockVarietyMap.get(r.blockId) ?? "") : "";
+      const key = variety || UNKNOWN_KEY;
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, seenBlockIds: new Set(), brixVals: [] };
+      const entry = varietyMap[key];
+      entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+      if (r.blockId != null && !entry.seenBlockIds.has(r.blockId)) {
+        entry.seenBlockIds.add(r.blockId);
+        const ha = blockAreaMap.get(r.blockId);
+        if (ha != null && ha > 0) entry.totalHa += ha;
+      }
+      const brix = parseFloat(String(r.brix ?? ""));
+      if (!isNaN(brix)) entry.brixVals.push(brix);
+    }
+    const namedKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
+    if (namedKeys.length < 2) return null;
+
+    const rows = Object.entries(varietyMap)
+      .sort(([a], [b]) => {
+        if (a === UNKNOWN_KEY) return 1;
+        if (b === UNKNOWN_KEY) return -1;
+        return a.localeCompare(b);
+      })
+      .map(([variety, e]) => ({
+        variety,
+        totalKg: e.totalKg,
+        kgPerHa: e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null,
+        avgBrix: avg(e.brixVals),
+      }));
+
+    const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
+    return { rows, grandKg };
+  }, [vintageRecords, blocks]);
+
+  // Sorted variety rows (local sort, no persistence)
+  const sortedVarietyRows = useMemo(() => {
+    if (!varietySummaryData) return [];
+    const UNKNOWN_KEY = "Unknown / Not linked";
+    return [...varietySummaryData.rows].sort((a, b) => {
+      if (a.variety === UNKNOWN_KEY) return 1;
+      if (b.variety === UNKNOWN_KEY) return -1;
+      const d = varietySort.dir === "asc" ? 1 : -1;
+      switch (varietySort.col) {
+        case "variety":  return d * a.variety.localeCompare(b.variety);
+        case "totalKg":  return d * (a.totalKg - b.totalKg);
+        case "kgPerHa":  return d * ((a.kgPerHa ?? (d > 0 ? Infinity : -Infinity)) - (b.kgPerHa ?? (d > 0 ? Infinity : -Infinity)));
+        case "avgBrix":  return d * ((a.avgBrix ?? (d > 0 ? Infinity : -Infinity)) - (b.avgBrix ?? (d > 0 ? Infinity : -Infinity)));
+        default: return 0;
+      }
+    });
+  }, [varietySummaryData, varietySort]);
+
+  const toggleVarietySort = useCallback((col: "variety" | "totalKg" | "kgPerHa" | "avgBrix") => {
+    setVarietySort(prev =>
+      prev.col === col
+        ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { col, dir: col === "variety" ? "asc" : "desc" },
+    );
+  }, []);
+
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
   const handleSaved = useCallback((recordId: number, updated: Partial<HarvestRecord>) => {
@@ -669,6 +744,123 @@ export default function VineHarvestHistoryScreen() {
                 Includes {offlinePendingForVintage.length} unsynced record{offlinePendingForVintage.length !== 1 ? "s" : ""} — totals may update once connected
               </Text>
             </View>
+          )}
+        </View>
+      )}
+
+      {/* Yield by Variety table — shown when ≥2 distinct named varieties */}
+      {!loading && !error && varietySummaryData && (
+        <View style={styles.varietyCard}>
+          {/* Collapsible header */}
+          <Pressable
+            style={styles.varietyHeader}
+            onPress={() => { Haptics.selectionAsync(); setVarietyTableOpen(o => !o); }}
+          >
+            <Feather name="bar-chart-2" size={14} color={colors.textSecondary} />
+            <Text style={styles.varietyHeaderText}>Yield by Variety</Text>
+            <Feather
+              name={varietyTableOpen ? "chevron-down" : "chevron-right"}
+              size={14}
+              color={colors.textSecondary}
+            />
+          </Pressable>
+
+          {varietyTableOpen && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View>
+                {/* Column headers */}
+                <View style={[styles.varietyRow, styles.varietyHeaderRow]}>
+                  {(
+                    [
+                      { col: "variety",  label: "Variety",    flex: 1, align: "left"  },
+                      { col: "totalKg",  label: "Total kg",   width: 80, align: "right" },
+                      { col: "kgPerHa",  label: "kg / ha",    width: 72, align: "right" },
+                      { col: "avgBrix",  label: "Avg Brix°",  width: 72, align: "right" },
+                    ] as { col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; label: string; flex?: number; width?: number; align: "left" | "right" }[]
+                  ).map(({ col, label, flex, width, align }) => {
+                    const active = varietySort.col === col;
+                    const icon = !active ? "minus" : varietySort.dir === "asc" ? "arrow-up" : "arrow-down";
+                    return (
+                      <Pressable
+                        key={col}
+                        style={[
+                          styles.varietyHeaderCell,
+                          flex != null ? { flex } : { width },
+                          align === "right" && { alignItems: "flex-end" },
+                        ]}
+                        onPress={() => { Haptics.selectionAsync(); toggleVarietySort(col); }}
+                        hitSlop={6}
+                      >
+                        <View style={styles.varietyHeaderCellInner}>
+                          {align === "right" && (
+                            <Feather
+                              name={icon}
+                              size={9}
+                              color={active ? colors.primary : colors.textSecondary}
+                              style={{ opacity: active ? 1 : 0.4 }}
+                            />
+                          )}
+                          <Text style={[styles.varietyHeaderLabel, active && styles.varietyHeaderLabelActive]}>
+                            {label}
+                          </Text>
+                          {align === "left" && (
+                            <Feather
+                              name={icon}
+                              size={9}
+                              color={active ? colors.primary : colors.textSecondary}
+                              style={{ opacity: active ? 1 : 0.4 }}
+                            />
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Data rows */}
+                {sortedVarietyRows.map((row, i) => (
+                  <View
+                    key={row.variety}
+                    style={[styles.varietyRow, styles.varietyDataRow, i < sortedVarietyRows.length - 1 && styles.varietyDataRowBorder]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.varietyName} numberOfLines={1}>{row.variety}</Text>
+                    </View>
+                    <View style={{ width: 80, alignItems: "flex-end" }}>
+                      <Text style={styles.varietyValue}>
+                        {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
+                      </Text>
+                    </View>
+                    <View style={{ width: 72, alignItems: "flex-end" }}>
+                      <Text style={styles.varietyValue}>
+                        {row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}
+                      </Text>
+                    </View>
+                    <View style={{ width: 72, alignItems: "flex-end" }}>
+                      <Text style={styles.varietyValue}>
+                        {row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Grand total footer */}
+                <View style={[styles.varietyRow, styles.varietyFooterRow]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.varietyFooterLabel}>Total</Text>
+                  </View>
+                  <View style={{ width: 80, alignItems: "flex-end" }}>
+                    <Text style={styles.varietyFooterValue}>
+                      {varietySummaryData.grandKg > 0
+                        ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 0 })
+                        : "—"}
+                    </Text>
+                  </View>
+                  <View style={{ width: 72 }} />
+                  <View style={{ width: 72 }} />
+                </View>
+              </View>
+            </ScrollView>
           )}
         </View>
       )}
@@ -1047,4 +1239,93 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  // Yield by Variety table
+  varietyCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  varietyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  varietyHeaderText: {
+    flex: 1,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  varietyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+  },
+  varietyHeaderRow: {
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  varietyDataRow: {
+    paddingVertical: spacing.sm,
+  },
+  varietyDataRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  varietyFooterRow: {
+    paddingVertical: spacing.sm,
+    borderTopWidth: 2,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  varietyHeaderCell: {
+    paddingVertical: 2,
+  },
+  varietyHeaderCellInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  varietyHeaderLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  varietyHeaderLabelActive: {
+    color: colors.primary,
+  },
+  varietyName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  varietyValue: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  varietyFooterLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  varietyFooterValue: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
 });
