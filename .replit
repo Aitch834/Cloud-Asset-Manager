@@ -218,12 +218,12 @@ isValidation = true
 name = "no-annual-pricing-claim-drift-website"
 author = "agent"
 
+[workflows.workflow.metadata]
+isValidation = true
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node artifacts/website/scripts/check-annual-pricing-ceiling.mjs"
-
-[workflows.workflow.metadata]
-isValidation = true
 
 [[workflows.workflow]]
 name = "no-hardcoded-prices-admin-portal"

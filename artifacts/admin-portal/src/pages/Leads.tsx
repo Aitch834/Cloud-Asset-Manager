@@ -366,7 +366,7 @@ export default function Leads() {
   const sectorBreakdown = useMemo<SectorStat[]>(() => {
     const map = new Map<string, { total: number; converted: number }>();
     for (const lead of leads) {
-      const sector = parseSector(lead.notes);
+      const sector = lead.sector;
       if (!sector) continue;
       if (!map.has(sector)) map.set(sector, { total: 0, converted: 0 });
       const entry = map.get(sector)!;

@@ -32,14 +32,37 @@
  * (2667p) — not as the irrational exact value — for a deterministic result.
  * ────────────────────────────────────────────────────────────────────────────
  *
+ * ── COPY-CONSISTENCY CHECK ──────────────────────────────────────────────────
+ * In addition to the ceiling check, the script now reads Pricing.tsx and
+ * verifies that the "Under £X a year" copy is consistent with the computed
+ * rounded annual figure:
+ *
+ *   • If the copy uses the expected dynamic JSX expression
+ *       {Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100}
+ *     the formula itself is verified to match; no literal drift is possible.
+ *
+ *   • If someone has replaced that expression with a hardcoded literal
+ *     (e.g. "Under £600 a year"), the script asserts the literal matches
+ *     roundedClaimGBP computed from pricing-data.ts.
+ *
+ *   • If neither pattern is found, the script fails with exit code 2 so
+ *     that a structural refactor of the copy is not silently ignored.
+ *
+ * Additionally, ANNUAL_CEILING_GBP (the constant in this script) is asserted
+ * to equal roundedClaimGBP, keeping the script's own ceiling in sync with what
+ * the Pricing page actually displays.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
  * Usage:
  *   node artifacts/website/scripts/check-annual-pricing-ceiling.mjs
  *   node artifacts/website/scripts/check-annual-pricing-ceiling.mjs --self-test
  *
  * Exit codes:
- *   0 — annual cost is below the ceiling; copy is safe to ship.
- *   1 — annual cost has reached or exceeded the ceiling; needs copy review.
- *   2 — pricing-data.ts could not be parsed (file moved / format changed).
+ *   0 — all checks pass; copy is safe to ship.
+ *   1 — annual cost has reached or exceeded the ceiling, or copy/ceiling
+ *       constant is out of sync with the computed value; needs copy review.
+ *   2 — pricing-data.ts or Pricing.tsx could not be parsed (file moved /
+ *       format changed).
  */
 
 import fs from "fs";
@@ -48,6 +71,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PRICING_DATA_PATH = path.resolve(__dirname, "../src/lib/pricing-data.ts");
+const PRICING_TSX_PATH  = path.resolve(__dirname, "../src/pages/Pricing.tsx");
 
 // ── Ceiling ──────────────────────────────────────────────────────────────────
 //
@@ -59,8 +83,18 @@ const PRICING_DATA_PATH = path.resolve(__dirname, "../src/lib/pricing-data.ts");
 // When prices are raised intentionally and the copy is updated, bump this
 // constant to the new approved ceiling (e.g. 600) and commit the change
 // alongside the pricing-data.ts edit so the CI check passes again.
+//
+// IMPORTANT: this constant must also equal roundedClaimGBP (the value the
+// Pricing page actually displays).  The copy-consistency check below will
+// fail if they diverge.
 const ANNUAL_CEILING_GBP = 500; // £/year
 const ANNUAL_CEILING_PENCE = ANNUAL_CEILING_GBP * 100; // 50000p — integer comparison target
+
+// The exact JSX expression used in Pricing.tsx to render the dynamic claim.
+// If the expression is ever simplified or refactored, update this constant
+// alongside the Pricing.tsx change so the check stays accurate.
+const EXPECTED_JSX_FORMULA =
+  'Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100';
 
 // ── Pence conversion ─────────────────────────────────────────────────────────
 
@@ -80,7 +114,7 @@ function toPence(raw) {
   return Math.round(pounds * 100);
 }
 
-// ── Parsing ──────────────────────────────────────────────────────────────────
+// ── Parsing — pricing-data.ts ─────────────────────────────────────────────────
 
 /**
  * Parse BASE_FEE and the red-tractor-compliance price from a pricing-data.ts
@@ -119,6 +153,50 @@ function parsePricingData(src) {
   return { baseFeeRaw: baseFeeMatch[1], rtcPriceRaw: rtcMatch[1] };
 }
 
+// ── Parsing — Pricing.tsx copy ────────────────────────────────────────────────
+
+/**
+ * Parse the "Under £X a year" claim from Pricing.tsx source.
+ *
+ * The copy may take one of two forms:
+ *
+ *   Dynamic (expected):
+ *     Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100} a year
+ *
+ *   Literal (hardcoded — not expected but must be caught):
+ *     Under £500 a year
+ *
+ * Returns one of:
+ *   { kind: "dynamic", formula: "<captured JS expression>" }
+ *   { kind: "literal", value: <number> }
+ *
+ * @param {string} src — full text of Pricing.tsx.
+ * @returns {{ kind: "dynamic", formula: string } | { kind: "literal", value: number }}
+ * @throws {Error} if neither pattern is found.
+ */
+function parsePricingTsx(src) {
+  // Try dynamic first: Under £{<expression>} a year
+  const dynMatch = src.match(/Under £\{([^}]+)\} a year/);
+  if (dynMatch) {
+    return { kind: "dynamic", formula: dynMatch[1].trim() };
+  }
+
+  // Try hardcoded literal: Under £<digits> a year
+  const litMatch = src.match(/Under £(\d+) a year/);
+  if (litMatch) {
+    return { kind: "literal", value: parseInt(litMatch[1], 10) };
+  }
+
+  throw new Error(
+    'Could not find "Under £X a year" copy in Pricing.tsx.\n' +
+    "  Expected either a dynamic JSX expression\n" +
+    '    Under £{Math.ceil(...)} a year\n' +
+    "  or a literal number\n" +
+    "    Under £500 a year\n" +
+    `  File inspected: ${PRICING_TSX_PATH}`
+  );
+}
+
 // ── Evaluation ───────────────────────────────────────────────────────────────
 
 /**
@@ -145,7 +223,9 @@ function evaluate(baseFeeP, rtcPriceP, ceilingP) {
 // Run: node check-annual-pricing-ceiling.mjs --self-test
 //
 // Verifies that the pence-arithmetic evaluation correctly detects when a price
-// pushes the annual total past the ceiling, including decimal and boundary cases.
+// pushes the annual total past the ceiling, including decimal and boundary cases,
+// and that the Pricing.tsx copy parser behaves correctly for both dynamic and
+// literal forms.
 
 if (process.argv.includes("--self-test")) {
   let failures = 0;
@@ -248,6 +328,92 @@ if (process.argv.includes("--self-test")) {
     }
   }
 
+  // ── parsePricingTsx self-tests ──────────────────────────────────────────────
+
+  console.log("\nSelf-test: parsePricingTsx copy parsing\n");
+
+  // Case 8 — dynamic expression (expected current form)
+  {
+    const fakeTsx = `<p>Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100} a year for a fully compliant farm.</p>`;
+    try {
+      const result = parsePricingTsx(fakeTsx);
+      assert("dynamic form detected as kind='dynamic'", result.kind === "dynamic");
+      assert(
+        "dynamic formula matches expected constant",
+        result.formula === EXPECTED_JSX_FORMULA
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parsePricingTsx threw on dynamic form: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 9 — hardcoded literal (must be caught and validated)
+  {
+    const fakeTsx = `<p>Under £500 a year for a fully compliant farm.</p>`;
+    try {
+      const result = parsePricingTsx(fakeTsx);
+      assert("literal form detected as kind='literal'", result.kind === "literal");
+      assert("literal value parsed as 500",             result.value === 500);
+    } catch (e) {
+      console.error(`  ✗ FAIL: parsePricingTsx threw on literal form: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 10 — wrong literal (drift scenario: copy says £600 but computed is £500)
+  {
+    const fakeTsx = `<p>Under £600 a year for a fully compliant farm.</p>`;
+    try {
+      const result = parsePricingTsx(fakeTsx);
+      const roundedClaimGBP = 500; // simulated computed value
+      assert(
+        "literal £600 disagrees with computed £500 (drift detected)",
+        result.kind === "literal" && result.value !== roundedClaimGBP
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parsePricingTsx threw: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 11 — copy structure changed; no "Under £X a year" found
+  {
+    const fakeTsx = `<p>Less than £500 per year for a fully compliant farm.</p>`;
+    let threw = false;
+    try {
+      parsePricingTsx(fakeTsx);
+    } catch (_) {
+      threw = true;
+    }
+    assert("missing copy pattern throws (structure drift detected)", threw === true);
+  }
+
+  // Case 12 — ANNUAL_CEILING_GBP self-consistency: ceiling must equal roundedClaimGBP
+  {
+    // At current prices (£15 + £25 × 12 = £480/yr → rounded = £500)
+    const roundedClaimGBP = 500;
+    assert(
+      `ANNUAL_CEILING_GBP (${ANNUAL_CEILING_GBP}) equals roundedClaimGBP (${roundedClaimGBP})`,
+      ANNUAL_CEILING_GBP === roundedClaimGBP
+    );
+  }
+
+  // Case 13 — dynamic expression formula mismatch (refactor without updating script)
+  {
+    const fakeTsx = `<p>Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor")) * 12 / 100) * 100} a year for a fully compliant farm.</p>`;
+    try {
+      const result = parsePricingTsx(fakeTsx);
+      assert(
+        "mismatched dynamic formula disagrees with EXPECTED_JSX_FORMULA (drift detected)",
+        result.kind === "dynamic" && result.formula !== EXPECTED_JSX_FORMULA
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parsePricingTsx threw: ${e.message}`);
+      failures++;
+    }
+  }
+
   console.log();
   if (failures === 0) {
     console.log("✓ All self-tests passed.");
@@ -260,9 +426,11 @@ if (process.argv.includes("--self-test")) {
 
 // ── Normal mode ───────────────────────────────────────────────────────────────
 
-let src;
+// ── Step 1: Read and parse pricing-data.ts ────────────────────────────────────
+
+let pricingSrc;
 try {
-  src = fs.readFileSync(PRICING_DATA_PATH, "utf8");
+  pricingSrc = fs.readFileSync(PRICING_DATA_PATH, "utf8");
 } catch (err) {
   console.error(`✗ Could not read pricing-data.ts: ${err.message}`);
   console.error(`  Expected path: ${PRICING_DATA_PATH}`);
@@ -271,7 +439,7 @@ try {
 
 let baseFeeRaw, rtcPriceRaw;
 try {
-  ({ baseFeeRaw, rtcPriceRaw } = parsePricingData(src));
+  ({ baseFeeRaw, rtcPriceRaw } = parsePricingData(pricingSrc));
 } catch (err) {
   console.error(`✗ ${err.message}`);
   process.exit(2);
@@ -302,6 +470,101 @@ console.log(`  Pricing page copy reads:  "Under £${roundedClaimGBP} a year"`);
 console.log(`  Ceiling (must be below):  £${ANNUAL_CEILING_GBP}/yr  (${ANNUAL_CEILING_PENCE}p)`);
 console.log();
 
+// ── Step 2: Read and parse Pricing.tsx ───────────────────────────────────────
+
+let tsxSrc;
+try {
+  tsxSrc = fs.readFileSync(PRICING_TSX_PATH, "utf8");
+} catch (err) {
+  console.error(`✗ Could not read Pricing.tsx: ${err.message}`);
+  console.error(`  Expected path: ${PRICING_TSX_PATH}`);
+  process.exit(2);
+}
+
+let copyResult;
+try {
+  copyResult = parsePricingTsx(tsxSrc);
+} catch (err) {
+  console.error(`✗ ${err.message}`);
+  process.exit(2);
+}
+
+// ── Step 3: Copy-consistency checks ──────────────────────────────────────────
+
+let copyCheckPassed = true;
+
+if (copyResult.kind === "dynamic") {
+  // The formula in JSX should match the expected expression exactly.
+  if (copyResult.formula !== EXPECTED_JSX_FORMULA) {
+    console.error(
+      `✗ FAIL — The "Under £X a year" JSX expression in Pricing.tsx has changed\n` +
+      `  and no longer matches the formula this script validates.\n` +
+      `\n` +
+      `  Found in Pricing.tsx:\n` +
+      `    {${copyResult.formula}}\n` +
+      `\n` +
+      `  Expected (EXPECTED_JSX_FORMULA in this script):\n` +
+      `    {${EXPECTED_JSX_FORMULA}}\n` +
+      `\n` +
+      `  Action required:\n` +
+      `    Update EXPECTED_JSX_FORMULA in this script to match the new\n` +
+      `    expression, and verify the arithmetic is still equivalent.\n`
+    );
+    copyCheckPassed = false;
+  } else {
+    console.log(`  Copy form: dynamic JSX expression (expected)\n  Formula matches EXPECTED_JSX_FORMULA ✓`);
+  }
+} else {
+  // Literal — the hardcoded number must equal the computed roundedClaimGBP.
+  if (copyResult.value !== roundedClaimGBP) {
+    console.error(
+      `✗ FAIL — The "Under £X a year" copy in Pricing.tsx is a hardcoded literal\n` +
+      `  that disagrees with the computed rounded annual figure.\n` +
+      `\n` +
+      `  Copy says:        "Under £${copyResult.value} a year"\n` +
+      `  Computed value:   "Under £${roundedClaimGBP} a year"\n` +
+      `\n` +
+      `  Action required:\n` +
+      `    Either restore the dynamic JSX expression in Pricing.tsx:\n` +
+      `      Under £{${EXPECTED_JSX_FORMULA}} a year\n` +
+      `    or update the hardcoded literal to £${roundedClaimGBP}.\n`
+    );
+    copyCheckPassed = false;
+  } else {
+    console.log(`  Copy form: hardcoded literal £${copyResult.value} — matches computed value ✓`);
+  }
+}
+
+// ── Step 4: ANNUAL_CEILING_GBP self-consistency check ────────────────────────
+//
+// The ANNUAL_CEILING_GBP constant in this script should always equal
+// roundedClaimGBP (the value the Pricing page actually displays).
+// If they diverge, either the constant was not updated after a price change
+// or prices have dropped below the previous ceiling — both require a review.
+
+let ceilingConstantPassed = true;
+
+if (ANNUAL_CEILING_GBP !== roundedClaimGBP) {
+  console.error(
+    `✗ FAIL — ANNUAL_CEILING_GBP (£${ANNUAL_CEILING_GBP}) in this script does not match\n` +
+    `  the computed rounded annual claim (£${roundedClaimGBP}).\n` +
+    `\n` +
+    `  The constant must always equal what the Pricing page displays so the\n` +
+    `  ceiling check remains self-consistent.\n` +
+    `\n` +
+    `  Action required:\n` +
+    `    Update ANNUAL_CEILING_GBP in this script to ${roundedClaimGBP} (with marketing\n` +
+    `    approval if the copy has changed) and update the ceiling comment.\n`
+  );
+  ceilingConstantPassed = false;
+} else {
+  console.log(`  ANNUAL_CEILING_GBP (£${ANNUAL_CEILING_GBP}) matches computed claim ✓`);
+}
+
+console.log();
+
+// ── Step 5: Ceiling check ─────────────────────────────────────────────────────
+
 if (!passes) {
   console.error(
     `✗ FAIL — Annual entry-level cost (${annualP}p = £${annualGBP}) has reached or\n` +
@@ -320,9 +583,14 @@ if (!passes) {
   process.exit(1);
 }
 
+if (!copyCheckPassed || !ceilingConstantPassed) {
+  process.exit(1);
+}
+
 console.log(
   `✓ PASS — Annual entry-level cost (${annualP}p = £${annualGBP}) is below the\n` +
   `  ${ANNUAL_CEILING_PENCE}p (£${ANNUAL_CEILING_GBP}) ceiling.\n` +
-  `  Pricing page claim "Under £${roundedClaimGBP} a year" is accurate.`
+  `  Pricing page claim "Under £${roundedClaimGBP} a year" is accurate.\n` +
+  `  Copy and ceiling constant are consistent.`
 );
 process.exit(0);
