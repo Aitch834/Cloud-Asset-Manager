@@ -390,6 +390,43 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
   );
 }
 
+// ─── Pressure detail row shown inside the card ───────────────────────────────
+
+const DISEASE_FIELDS: { key: keyof ScoutingRecord; label: string }[] = [
+  { key: "downyMildewPressure", label: "Downy" },
+  { key: "powderyMildewPressure", label: "Powdery" },
+  { key: "botrytisPressure", label: "Botrytis" },
+  { key: "phomopsisPressure", label: "Phomopsis" },
+  { key: "leafhopperPressure", label: "Leafhopper" },
+  { key: "spiderMitePressure", label: "Spider Mite" },
+];
+
+function PressureGrid({ record }: { record: ScoutingRecord }) {
+  const active = DISEASE_FIELDS.filter(f => {
+    const v = record[f.key];
+    return v != null && Number(v) > 0;
+  });
+  if (active.length === 0) return null;
+  return (
+    <View style={styles.pressureGrid}>
+      {active.map(f => {
+        const idx = Math.min(Math.max(Number(record[f.key] ?? 0), 0), 3);
+        return (
+          <View key={f.key} style={[styles.pressurePill, { borderColor: PRESSURE_COLORS[idx] }]}>
+            <View style={[styles.pressureDot, { backgroundColor: PRESSURE_COLORS[idx] }]} />
+            <Text style={[styles.pressurePillLabel, { color: PRESSURE_COLORS[idx] }]}>
+              {f.label}
+            </Text>
+            <Text style={[styles.pressurePillValue, { color: PRESSURE_COLORS[idx] }]}>
+              {PRESSURE_LABELS[idx]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── Record Row ───────────────────────────────────────────────────────────────
 
 function ScoutingRow({
@@ -402,8 +439,8 @@ function ScoutingRow({
   onDelete: (id: number) => void;
 }) {
   const linked = !!item.blockId;
-  const pressure = highestPressure(item);
   const hasNotifiable = item.xylellaFastidiosa || item.phytophthoraViticola;
+  const hasBoolPests = item.vineWeevilSighted || item.eutypaDiebackSighted;
 
   const handlePress = () => {
     Haptics.selectionAsync();
@@ -423,49 +460,86 @@ function ScoutingRow({
   };
 
   return (
-    <Pressable style={styles.row} onPress={handlePress}>
-      <View style={styles.rowLeft}>
-        <Text style={styles.rowDate}>{formatDate(item.scoutDate)}</Text>
-        <View style={styles.rowMeta}>
-          {linked ? (
-            <View style={styles.blockTag}>
-              <Feather name="layers" size={12} color={colors.primary} />
-              <Text style={styles.blockTagText}>{item.blockName ?? "Block"}</Text>
-            </View>
-          ) : (
-            <View style={styles.unlinkTag}>
-              <Feather name="alert-circle" size={12} color={colors.warning ?? "#d97706"} />
-              <Text style={styles.unlinkTagText}>No block linked</Text>
+    <Pressable style={styles.card} onPress={handlePress}>
+      {/* ── Header row: date + actions ── */}
+      <View style={styles.cardHeader}>
+        <View style={styles.cardHeaderLeft}>
+          <Text style={styles.rowDate}>{formatDate(item.scoutDate)}</Text>
+          <View style={styles.rowMeta}>
+            {linked ? (
+              <View style={styles.blockTag}>
+                <Feather name="layers" size={12} color={colors.primary} />
+                <Text style={styles.blockTagText}>{item.blockName ?? "Block"}</Text>
+              </View>
+            ) : (
+              <View style={styles.unlinkTag}>
+                <Feather name="alert-circle" size={12} color={colors.warning ?? "#d97706"} />
+                <Text style={styles.unlinkTagText}>No block linked</Text>
+              </View>
+            )}
+            {item.scoutedBy ? (
+              <Text style={styles.rowSub} numberOfLines={1}>{item.scoutedBy}</Text>
+            ) : null}
+          </View>
+        </View>
+        <View style={styles.cardActions}>
+          {!!item.photoCount && item.photoCount > 0 && (
+            <View style={styles.photoBadge}>
+              <Feather name="camera" size={11} color={colors.primary} />
+              <Text style={styles.photoBadgeText}>{item.photoCount}</Text>
             </View>
           )}
-          {item.scoutedBy ? (
-            <Text style={styles.rowSub} numberOfLines={1}>{item.scoutedBy}</Text>
-          ) : null}
+          <Feather name="edit-2" size={14} color={colors.textSecondary} />
+          <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
+            <Feather name="trash-2" size={15} color={colors.error} />
+          </Pressable>
+          <Feather name="chevron-right" size={16} color={colors.textSecondary} />
         </View>
       </View>
-      <View style={styles.rowRight}>
-        {hasNotifiable && (
-          <View style={[styles.badge, { backgroundColor: "#fef2f2", borderColor: colors.error }]}>
-            <Text style={[styles.badgeText, { color: colors.error }]}>⚠ Notifiable</Text>
-          </View>
-        )}
-        {!hasNotifiable && pressure && (
-          <View style={[styles.badge, { backgroundColor: "#f5f5f5", borderColor: pressure.color }]}>
-            <Text style={[styles.badgeText, { color: pressure.color }]}>{pressure.label}</Text>
-          </View>
-        )}
-        {!!item.photoCount && item.photoCount > 0 && (
-          <View style={styles.photoBadge}>
-            <Feather name="camera" size={11} color={colors.primary} />
-            <Text style={styles.photoBadgeText}>{item.photoCount}</Text>
-          </View>
-        )}
-        <Feather name="edit-2" size={14} color={colors.textSecondary} />
-        <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
-          <Feather name="trash-2" size={15} color={colors.error} />
-        </Pressable>
-        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-      </View>
+
+      {/* ── Notifiable banner ── */}
+      {hasNotifiable && (
+        <View style={styles.notifiableBanner}>
+          <Feather name="alert-triangle" size={13} color={colors.error} />
+          <Text style={styles.notifiableText}>
+            ⚠ Notifiable pest flagged
+            {item.xylellaFastidiosa && item.phytophthoraViticola
+              ? " — Xylella & Phytophthora viticola"
+              : item.xylellaFastidiosa
+              ? " — Xylella fastidiosa"
+              : " — Phytophthora viticola"}
+          </Text>
+        </View>
+      )}
+
+      {/* ── Disease / pest pressure pills ── */}
+      <PressureGrid record={item} />
+
+      {/* ── Boolean pest sightings ── */}
+      {hasBoolPests && (
+        <View style={styles.boolPestRow}>
+          {item.vineWeevilSighted && (
+            <View style={styles.boolPestTag}>
+              <Feather name="alert-circle" size={11} color={colors.error} />
+              <Text style={styles.boolPestText}>Vine Weevil</Text>
+            </View>
+          )}
+          {item.eutypaDiebackSighted && (
+            <View style={[styles.boolPestTag, { borderColor: colors.warning ?? "#d97706", backgroundColor: "#fffbeb" }]}>
+              <Feather name="alert-circle" size={11} color={colors.warning ?? "#d97706"} />
+              <Text style={[styles.boolPestText, { color: colors.warning ?? "#d97706" }]}>Eutypa Dieback</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── Action taken ── */}
+      {!!item.actionTaken && (
+        <View style={styles.actionRow}>
+          <Feather name="check-circle" size={13} color={colors.success} style={styles.actionIcon} />
+          <Text style={styles.actionText} numberOfLines={2}>{item.actionTaken}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -853,21 +927,110 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  // Card-style row (replaces old horizontal `row`)
+  card: {
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
+    gap: spacing.sm,
   },
-  rowLeft: { flex: 1, gap: 4 },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  cardHeaderLeft: { flex: 1, gap: 4 },
+  cardActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
   rowDate: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
-  rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
   deleteBtn: { padding: 4 },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
+  // Pressure pills grid
+  pressureGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  pressurePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    backgroundColor: colors.surface,
+  },
+  pressureDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  pressurePillLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+  },
+  pressurePillValue: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    opacity: 0.8,
+  },
+  // Boolean pest sightings
+  boolPestRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  boolPestTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: 20,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    backgroundColor: "#fef2f2",
+  },
+  boolPestText: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    color: colors.error,
+  },
+  // Notifiable banner
+  notifiableBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "#fef2f2",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: colors.error + "55",
+  },
+  notifiableText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.error,
+    flex: 1,
+  },
+  // Action taken
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    paddingTop: 2,
+  },
+  actionIcon: { marginTop: 1 },
+  actionText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 17,
+  },
   blockTag: {
     flexDirection: "row",
     alignItems: "center",
