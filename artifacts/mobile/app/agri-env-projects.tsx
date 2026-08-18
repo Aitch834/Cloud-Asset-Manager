@@ -84,6 +84,9 @@ function projectsCacheKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
 }
 
+function schemeFilterKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_SCHEME_FILTER}_${farmId}`;
+}
 function FarmDrawdownSummary({
   projects,
   milestones,
@@ -306,6 +309,49 @@ export default function AgriEnvProjectsScreen() {
     },
     [currentFarm?.id],
   );
+
+  // Tracks which farm's stored filter has been read and applied.
+  // The persist effect compares this to currentFarm.id so it can only
+  // write when the async read for the *current* farm has resolved —
+  // preventing a farm-switch render's prior closure from writing the
+  // old farm's query under the new farm's key.
+  const [hydratedFarmId, setHydratedFarmId] = useState<string | number | null>(null);
+
+  // Restore the scheme filter from storage when the farm changes.
+  // Resets searchQuery and hydratedFarmId to neutral immediately so no
+  // carry-over from the previous farm leaks into persistence. A
+  // cancellation flag prevents a stale async read from resolving after
+  // the farm has changed again.
+  useEffect(() => {
+    if (!currentFarm?.id) {
+      setSearchQuery("");
+      setHydratedFarmId(null);
+      return;
+    }
+    const farmId = currentFarm.id;
+    setSearchQuery("");
+    setHydratedFarmId(null);
+    let cancelled = false;
+    getItem<string>(schemeFilterKey(farmId))
+      .then((stored) => {
+        if (cancelled) return;
+        setSearchQuery(typeof stored === "string" ? stored : "");
+        setHydratedFarmId(farmId);
+      })
+      .catch(() => {
+        if (!cancelled) setHydratedFarmId(farmId);
+      });
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
+
+  // Persist the scheme filter, but only once the hydration read for the
+  // current farm has resolved (hydratedFarmId === currentFarm.id).
+  // This ensures we never write a previous farm's filter under the new
+  // farm's key, even during the render that immediately follows a farm switch.
+  useEffect(() => {
+    if (!currentFarm?.id || hydratedFarmId !== currentFarm.id) return;
+    setItem<string>(schemeFilterKey(currentFarm.id), searchQuery).catch(() => { /* ignore */ });
+  }, [searchQuery, currentFarm?.id, hydratedFarmId]);
 
   // Persist fresh data to the local cache.
   const persistCache = useCallback(

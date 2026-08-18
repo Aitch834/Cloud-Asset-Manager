@@ -243,4 +243,5 @@ export const STORAGE_KEYS = {
   AGRI_ENV_PROJECTS_CACHE: "bde_agri_env_projects_cache",
   AGRI_ENV_MILESTONES_CACHE: "bde_agri_env_milestones_cache",
   AGRI_ENV_PROJECT_MILESTONES_CACHE: "bde_agri_env_project_milestones_cache",
+  AGRI_ENV_SCHEME_FILTER: "bde_agri_env_scheme_filter",
 } as const;
