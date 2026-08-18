@@ -29,7 +29,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
+import { downloadCsvFile } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -54,7 +54,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printSprayRecords, printVineSprayDiaryReport, downloadVineSprayDiaryPdf, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, printExciseReturn, printOrganicWineRecords, printSprayRecords, printVineSprayDiaryReport, downloadVineSprayDiaryPdf, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 const SPRAY_PRODUCT_TYPES = [
   "Fungicide", "Herbicide", "Insecticide", "Acaricide",
@@ -506,21 +506,6 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
     },
   });
 
-  const csvCols = [
-    { key: "applicationDate", label: "Date", fmt: (r: Record<string, unknown>) => fmtDate(r.applicationDate) },
-    { key: "blockId", label: "Block", fmt: (r: Record<string, unknown>) => String(blockName(r.blockId) ?? "") },
-    { key: "blockLinked", label: "Block Linked", fmt: (r: Record<string, unknown>) => r.blockId ? "Yes" : "No" },
-    { key: "productName", label: "Product Name" },
-    { key: "mappNumber", label: "MAPP No." },
-    { key: "productType", label: "Type" },
-    { key: "ratePerHectare", label: "Rate/ha" },
-    { key: "rateUnit", label: "Rate Unit" },
-    { key: "areaTreatedHa", label: "Area (ha)" },
-    { key: "operatorName", label: "Operator" },
-    { key: "harvestIntervalDays", label: "Harvest Interval (days)" },
-    { key: "notes", label: "Notes" },
-  ];
-
   const sprayYears = Array.from(new Set(crud.data.map(r => new Date(r.applicationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!sprayYears.includes(new Date().getFullYear())) sprayYears.unshift(new Date().getFullYear());
   const filteredSpray = useMemo(() => {
@@ -580,7 +565,60 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               {sprayYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { exportCSV(filteredSpray, "spray-diary.csv", csvCols, buildViticultureUnlinkedWarning(filteredSpray)); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            // ── Build per-block summary ──────────────────────────────────────────────
+            const bMap: Record<string, { label: string; applications: number; minDate: string; maxDate: string; totalAreaHa: number; totalPhotos: number }> = {};
+            const bKeys: string[] = [];
+            for (const r of filteredSpray) {
+              const bid = r.blockId != null ? Number(r.blockId) : null;
+              const key = bid != null && !isNaN(bid) && bid > 0 ? String(bid) : "unlinked";
+              if (!bMap[key]) {
+                const bl = bid != null && !isNaN(bid) && bid > 0 ? blocks.find(b => b.id === bid) : undefined;
+                const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
+                bMap[key] = { label, applications: 0, minDate: "", maxDate: "", totalAreaHa: 0, totalPhotos: 0 };
+                bKeys.push(key);
+              }
+              const e = bMap[key];
+              e.applications++;
+              e.totalPhotos += Number(r.photoCount) || 0;
+              e.totalAreaHa += Number(r.areaTreatedHa) || 0;
+              const ad = String(r.applicationDate ?? "");
+              if (ad && (!e.minDate || ad < e.minDate)) e.minDate = ad;
+              if (ad && (!e.maxDate || ad > e.maxDate)) e.maxDate = ad;
+            }
+            const sortedKeys = [...bKeys].sort((a, b) => bMap[a].label.localeCompare(bMap[b].label));
+            const summaryRows = sortedKeys.map(key => {
+              const e = bMap[key];
+              return [e.label, String(e.applications), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", fmtNum(e.totalAreaHa, 2), String(e.totalPhotos)];
+            });
+            // ── Build per-record rows ────────────────────────────────────────────────
+            const recordRows = filteredSpray.map(r => [
+              fmtDate(r.applicationDate),
+              String(blockName(r.blockId) ?? ""),
+              r.blockId ? "Yes" : "No",
+              String(r.productName ?? ""),
+              String(r.mappNumber ?? ""),
+              String(r.productType ?? ""),
+              String(r.ratePerHectare ?? ""),
+              String(r.rateUnit ?? ""),
+              String(r.areaTreatedHa ?? ""),
+              String(r.operatorName ?? ""),
+              String(r.harvestIntervalDays ?? ""),
+              String(r.notes ?? ""),
+              String(Number(r.photoCount) || 0),
+            ]);
+            const unlinkedCount = filteredSpray.filter(r => !r.blockId).length;
+            downloadCsvFile("spray-diary.csv", [
+              ...(unlinkedCount > 0 ? [[`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`]] : []),
+              ["BLOCK SUMMARY"],
+              ["Block", "Applications", "First Date", "Last Date", "Total Area Treated (ha)", "Total Photos"],
+              ...summaryRows,
+              [],
+              ["DETAILED SPRAY RECORDS"],
+              ["Date", "Block", "Block Linked", "Product Name", "MAPP No.", "Type", "Rate/ha", "Rate Unit", "Area (ha)", "Operator", "Harvest Interval (days)", "Notes", "Photos"],
+              ...recordRows,
+            ]);
+          }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />CSV</Button>
           <Button size="sm" variant="outline" onClick={() => { void downloadVineSprayDiaryPdf(filteredSpray, blocks, farmName, farmMeta, searchText.trim() || undefined); }} disabled={!filteredSpray.length}><FileDown className="w-4 h-4 mr-1" />Diary Export</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>
             <SelectTrigger className={`w-36 h-8 text-xs ${printBlockFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
