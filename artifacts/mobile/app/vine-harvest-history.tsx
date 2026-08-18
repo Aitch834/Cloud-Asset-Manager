@@ -35,6 +35,7 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { getItem, getList, setItem } from "@/lib/storage";
+import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
 
 interface HarvestRecord {
   id: number;
@@ -353,7 +354,7 @@ export default function VineHarvestHistoryScreen() {
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
-  const [varietySort, setVarietySort] = useState<{ col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; dir: "asc" | "desc" }>({ col: "variety", dir: "asc" });
+  const [varietySort, setVarietySort] = usePersistedVarietySort(currentFarm?.id);
 
   // Persisted open/closed state for the Yield by Variety panel, scoped per farm.
   // Default: open (true). Loaded from storage on mount / farm switch.
@@ -645,7 +646,7 @@ export default function VineHarvestHistoryScreen() {
     return { rows, grandKg };
   }, [vintageRecords, blocks]);
 
-  // Sorted variety rows (local sort, no persistence)
+  // Sorted variety rows (sort persisted per farm via usePersistedVarietySort)
   const sortedVarietyRows = useMemo(() => {
     if (!varietySummaryData) return [];
     const UNKNOWN_KEY = "Unknown / Not linked";
@@ -664,12 +665,12 @@ export default function VineHarvestHistoryScreen() {
   }, [varietySummaryData, varietySort]);
 
   const toggleVarietySort = useCallback((col: "variety" | "totalKg" | "kgPerHa" | "avgBrix") => {
-    setVarietySort(prev =>
-      prev.col === col
-        ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
-        : { col, dir: col === "variety" ? "asc" : "desc" },
-    );
-  }, []);
+    const newSort =
+      varietySort.col === col
+        ? { col, dir: varietySort.dir === "asc" ? ("desc" as const) : ("asc" as const) }
+        : { col, dir: col === "variety" ? ("asc" as const) : ("desc" as const) };
+    setVarietySort(newSort);
+  }, [varietySort, setVarietySort]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
