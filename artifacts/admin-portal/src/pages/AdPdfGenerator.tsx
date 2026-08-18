@@ -1021,6 +1021,15 @@ export default function AdPdfGenerator() {
     queryKey: ["brand-assets-status"],
     queryFn: fetchBrandAssetStatus,
   });
+  const hasMissingAssets = !!brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable);
+  const missingAssetsTitle = !brandAssetStatus ? undefined
+    : !brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
+      ? "Upload the logo and QR code in Brand Assets below before generating"
+      : !brandAssetStatus.logoResolvable
+      ? "Upload the logo in Brand Assets below before generating"
+      : !brandAssetStatus.qrResolvable
+      ? "Upload the QR code in Brand Assets below before generating"
+      : undefined;
 
   // Selected template for rendering (only from active templates)
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -1644,34 +1653,50 @@ export default function AdPdfGenerator() {
             <BrandAssetWarning status={brandAssetStatus} variant="compact" />
           )}
           <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
-              disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking"}
-              size="lg"
+            {/* Wrap in a span when disabled-by-missing-assets so the title tooltip is reachable
+                (disabled buttons have pointer-events-none and cannot receive hover events). */}
+            <span
+              title={hasMissingAssets ? missingAssetsTitle : undefined}
+              className={hasMissingAssets ? "cursor-not-allowed" : undefined}
+              aria-label={hasMissingAssets ? missingAssetsTitle : undefined}
             >
-              {previewMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
-              ) : bgUrlCheckStatus === "checking" ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
-              ) : (
-                <><Eye className="w-4 h-4 mr-2" />Preview</>
-              )}
-            </Button>
+              <Button
+                variant="outline"
+                onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
+                disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets}
+                size="lg"
+                className={hasMissingAssets ? "pointer-events-none" : undefined}
+              >
+                {previewMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
+                ) : bgUrlCheckStatus === "checking" ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
+                ) : (
+                  <><Eye className="w-4 h-4 mr-2" />Preview</>
+                )}
+              </Button>
+            </span>
 
-            <Button
-              onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
-              disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking"}
-              size="lg"
+            <span
+              title={hasMissingAssets ? missingAssetsTitle : undefined}
+              className={hasMissingAssets ? "cursor-not-allowed" : undefined}
+              aria-label={hasMissingAssets ? missingAssetsTitle : undefined}
             >
-              {mutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
-              ) : bgUrlCheckStatus === "checking" ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
-              ) : (
-                "Generate & Download CMYK PDF"
-              )}
-            </Button>
+              <Button
+                onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
+                disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets}
+                size="lg"
+                className={hasMissingAssets ? "pointer-events-none" : undefined}
+              >
+                {mutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
+                ) : bgUrlCheckStatus === "checking" ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
+                ) : (
+                  "Generate & Download CMYK PDF"
+                )}
+              </Button>
+            </span>
           </div>
 
           {(previewMutation.isPending || mutation.isPending) && (
