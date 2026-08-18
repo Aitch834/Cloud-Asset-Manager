@@ -1,9 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -17,7 +20,9 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { apiFetch } from "@/lib/apiFetch";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 
 interface VineRegisterEntry {
@@ -116,6 +121,178 @@ function RpaWarningBanner({
   );
 }
 
+// ─── Missing Parcel Ref Banner ─────────────────────────────────────────────────
+
+function MissingParcelRefBanner({
+  blocks,
+  onBlockPress,
+}: {
+  blocks: VineBlock[];
+  onBlockPress: (block: VineBlock) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  if (blocks.length === 0) return null;
+
+  return (
+    <View style={styles.parcelBanner}>
+      <Pressable
+        onPress={() => setExpanded(e => !e)}
+        style={styles.parcelBannerHeader}
+        accessibilityRole="button"
+        accessibilityLabel={`${blocks.length} block${blocks.length === 1 ? "" : "s"} missing Parcel / Field Ref`}
+      >
+        <Feather name="alert-triangle" size={15} color="#92400e" style={{ marginTop: 1 }} />
+        <Text style={styles.parcelBannerTitle}>
+          <Text style={styles.parcelBannerBold}>
+            {blocks.length} block{blocks.length === 1 ? "" : "s"} missing Parcel / Field Ref
+          </Text>
+          {" — "}tap a block to add it
+        </Text>
+        <Feather
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={14}
+          color="#92400e"
+        />
+      </Pressable>
+      {expanded && (
+        <View style={styles.parcelBannerList}>
+          {blocks.map((block, idx) => (
+            <Pressable
+              key={block.id}
+              onPress={() => onBlockPress(block)}
+              style={[
+                styles.parcelBannerItem,
+                idx < blocks.length - 1 && styles.parcelBannerItemBorder,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Add Parcel / Field Ref for ${block.blockName}`}
+            >
+              <Text style={styles.parcelBannerBlockName}>{block.blockName}</Text>
+              <Feather name="edit-2" size={13} color="#b45309" />
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Edit Parcel Ref Modal ────────────────────────────────────────────────────
+
+function EditParcelRefModal({
+  block,
+  farmId,
+  onClose,
+  onSaved,
+}: {
+  block: VineBlock | null;
+  farmId: number | undefined;
+  onClose: () => void;
+  onSaved: (blockId: number) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset state whenever the block changes
+  React.useEffect(() => {
+    if (block) {
+      setValue(block.fieldParcelRef ?? "");
+      setError(null);
+    }
+  }, [block]);
+
+  const handleSave = useCallback(async () => {
+    if (!block || !farmId) return;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setError("Please enter a Parcel / Field Ref.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-blocks/${block.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldParcelRef: trimmed }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      onSaved(block.id);
+      onClose();
+    } catch {
+      setError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [block, farmId, value, onSaved, onClose]);
+
+  return (
+    <Modal
+      visible={!!block}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Add Parcel / Field Ref</Text>
+          {!!block && (
+            <Text style={styles.modalSubtitle}>{block.blockName}</Text>
+          )}
+          <Text style={styles.modalHint}>
+            Enter the reference used for this block in the Rural Payments portal.
+          </Text>
+          <TextInput
+            style={[styles.modalInput, !!error && styles.modalInputError]}
+            value={value}
+            onChangeText={v => { setValue(v); setError(null); }}
+            placeholder="e.g. SX1234 5678"
+            placeholderTextColor={colors.textSecondary}
+            autoFocus
+            autoCapitalize="characters"
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+            editable={!saving}
+          />
+          {!!error && (
+            <Text style={styles.modalError}>{error}</Text>
+          )}
+          <View style={styles.modalButtons}>
+            <Pressable
+              onPress={onClose}
+              style={[styles.modalBtn, styles.modalBtnCancel]}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+            >
+              <Text style={styles.modalBtnCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSave}
+              style={[styles.modalBtn, styles.modalBtnSave, saving && styles.modalBtnDisabled]}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Save Parcel / Field Ref"
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.modalBtnSaveText}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function VineRegisterScreen() {
@@ -126,12 +303,28 @@ export default function VineRegisterScreen() {
     currentFarm?.id,
     "/api/farms/:farmId/vine-register",
   );
+  const farmIdStr = currentFarm?.id != null ? String(currentFarm.id) : undefined;
+  const { blocks, loading: blocksLoading } = useApiVineBlocks(farmIdStr);
 
   const [search, setSearch] = useState("");
+  const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
+  // Track blocks whose ref has been saved this session so the banner hides
+  // them immediately without needing a full re-fetch of the blocks list.
+  const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
 
   const sbiMissing = !identifiersLoading && !sbiNumber;
   const sectorMissing = !currentFarm?.sectorViticulture;
   const showRpaWarning = !identifiersLoading && (sbiMissing || sectorMissing);
+
+  // Only show the parcel ref banner when the farm has the Viticulture sector
+  // enabled (same condition as the desktop RPA buttons).
+  const missingParcelRefBlocks: VineBlock[] = currentFarm?.sectorViticulture
+    ? blocks.filter(
+        b =>
+          !savedBlockIds.has(b.id) &&
+          (!b.fieldParcelRef || String(b.fieldParcelRef).trim() === ""),
+      )
+    : [];
 
   const activeRecords = records.filter(r => !r.isRemovedFromRegister);
   const totalAreaHa = activeRecords.reduce((sum, r) => {
@@ -146,6 +339,10 @@ export default function VineRegisterScreen() {
       )
     : records;
 
+  const handleBlockSaved = useCallback((blockId: number) => {
+    setSavedBlockIds(prev => new Set([...prev, blockId]));
+  }, []);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -159,6 +356,14 @@ export default function VineRegisterScreen() {
       {/* RPA missing-fields warning */}
       {showRpaWarning && (
         <RpaWarningBanner sbiMissing={sbiMissing} sectorMissing={sectorMissing} />
+      )}
+
+      {/* Missing Parcel / Field Ref warning */}
+      {!blocksLoading && missingParcelRefBlocks.length > 0 && (
+        <MissingParcelRefBanner
+          blocks={missingParcelRefBlocks}
+          onBlockPress={setEditingBlock}
+        />
       )}
 
       {/* Summary card */}
@@ -224,6 +429,14 @@ export default function VineRegisterScreen() {
           }
         />
       )}
+
+      {/* Edit Parcel Ref Modal */}
+      <EditParcelRefModal
+        block={editingBlock}
+        farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
+        onClose={() => setEditingBlock(null)}
+        onSaved={handleBlockSaved}
+      />
     </View>
   );
 }
@@ -278,6 +491,141 @@ const styles = StyleSheet.create({
     color: "#92400e",
     textDecorationLine: "underline",
   },
+  // ── Missing Parcel Ref Banner ──────────────────────────────────────────────
+  parcelBanner: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: radius.md,
+    overflow: "hidden",
+  },
+  parcelBannerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  parcelBannerTitle: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    lineHeight: 18,
+  },
+  parcelBannerBold: {
+    fontFamily: fonts.semiBold,
+    color: "#92400e",
+  },
+  parcelBannerList: {
+    borderTopWidth: 1,
+    borderTopColor: "#fde68a",
+  },
+  parcelBannerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: "#fffbeb",
+  },
+  parcelBannerItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#fde68a",
+  },
+  parcelBannerBlockName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  // ── Edit Parcel Ref Modal ──────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  modalTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  modalSubtitle: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: -spacing.xs,
+  },
+  modalHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  modalInputError: {
+    borderColor: colors.error,
+  },
+  modalError: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  modalBtnCancel: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  modalBtnCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  modalBtnSave: {
+    backgroundColor: colors.primary,
+  },
+  modalBtnDisabled: {
+    opacity: 0.6,
+  },
+  modalBtnSaveText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+  },
+  // ── Summary ────────────────────────────────────────────────────────────────
   summaryCard: {
     flexDirection: "row",
     alignItems: "center",

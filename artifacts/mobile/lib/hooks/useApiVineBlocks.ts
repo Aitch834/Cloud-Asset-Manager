@@ -5,6 +5,8 @@ export interface VineBlock {
   id: number;
   blockName: string;
   blockRef: string | null;
+  /** Parcel / Field Ref used for RPA rural-payments submissions. */
+  fieldParcelRef: string | null;
   variety: string | null;
   rootstock: string | null;
   areaHa: number | null;
