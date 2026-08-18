@@ -734,6 +734,8 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         const totKg = recs.reduce((s, r) => s + n(r.yieldKg), 0);
         const areaHa = n(bl.areaHa);
         row[bl.blockName] = areaHa > 0 ? parseFloat((totKg / 1000 / areaHa).toFixed(2)) : null;
+        // Store pick count so the cross-tab can flag low-confidence cells
+        row[`${bl.blockName}__picks`] = recs.length;
       });
       return row;
     });
@@ -1337,20 +1339,39 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                   {vintageRows.map(row => (
                     <tr key={String(row.vintage)} className="border-t border-border/40 hover:bg-muted/20">
                       <td className="px-4 py-2 font-semibold text-purple-700 sticky left-0 bg-card">{String(row.vintage)}</td>
-                      {allLines.map(bl => (
-                        <td
-                          key={bl.key}
-                          className={`px-4 py-2 text-right font-mono${
-                            selectedBlockNames != null && !selectedBlockNames.has(bl.key)
-                              ? " hidden print:table-cell"
-                              : ""
-                          }`}
-                        >
-                          {row[bl.key] != null
-                            ? <span>{Number(row[bl.key]).toFixed(2)}</span>
-                            : <span className="text-foreground/30">—</span>}
-                        </td>
-                      ))}
+                      {allLines.map(bl => {
+                        const tha = row[bl.key];
+                        const picks = tha != null ? (row[`${bl.key}__picks`] as number | undefined) ?? 0 : 0;
+                        return (
+                          <td
+                            key={bl.key}
+                            className={`px-4 py-2 text-right font-mono${
+                              selectedBlockNames != null && !selectedBlockNames.has(bl.key)
+                                ? " hidden print:table-cell"
+                                : ""
+                            }`}
+                          >
+                            {tha != null ? (
+                              <span className="inline-flex items-center justify-end gap-1.5">
+                                <span>{Number(tha).toFixed(2)}</span>
+                                {picks === 1 ? (
+                                  <span
+                                    className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold px-1.5 py-0.5 ring-1 ring-inset ring-amber-300 print:bg-amber-100 print:text-amber-800"
+                                    title="Only one pick recorded — low-confidence data"
+                                  >1 pick</span>
+                                ) : picks >= 2 && picks <= 3 ? (
+                                  <span
+                                    className="inline-block w-1.5 h-1.5 rounded-full bg-amber-300 print:bg-amber-300"
+                                    title={`${picks} picks — treat with some caution`}
+                                  />
+                                ) : null}
+                              </span>
+                            ) : (
+                              <span className="text-foreground/30">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
