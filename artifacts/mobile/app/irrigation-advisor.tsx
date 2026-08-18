@@ -233,6 +233,40 @@ function computeScenarios(opts: {
   };
 }
 
+// ─── Forecast verdict ─────────────────────────────────────────────────────────
+
+type ForecastVerdict = "sufficient" | "partial" | "insufficient";
+
+interface ForecastVerdictResult {
+  projectedSmd: number;
+  forecastTotal: number;
+  verdict: ForecastVerdict;
+}
+
+function computeForecastVerdict(opts: {
+  currentSmdMm: number;
+  forecastDailyMm: Array<{ date: string; mm: number }>;
+  dailyEtcMm: number;
+  fieldCapacityMm: number;
+}): ForecastVerdictResult | null {
+  const { currentSmdMm, forecastDailyMm, dailyEtcMm, fieldCapacityMm } = opts;
+  if (currentSmdMm <= 0 || forecastDailyMm.length === 0) return null;
+
+  let smd = currentSmdMm;
+  let forecastTotal = 0;
+  for (const day of forecastDailyMm) {
+    forecastTotal += day.mm;
+    smd = Math.max(0, Math.min(fieldCapacityMm, smd + dailyEtcMm - day.mm));
+  }
+
+  const verdict: ForecastVerdict =
+    smd <= 0 ? "sufficient" :
+    smd < currentSmdMm * 0.5 ? "partial" :
+    "insufficient";
+
+  return { projectedSmd: smd, forecastTotal, verdict };
+}
+
 // ─── API types ────────────────────────────────────────────────────────────────
 
 interface FieldOption {
@@ -642,8 +676,8 @@ export default function IrrigationAdvisorScreen() {
   const handleRefresh = () => { setRefreshing(true); setError(""); setReloadToken(t => t + 1); };
 
   // ── Compute SMD and scenarios ─────────────────────────────────────────────
-  const { smdSeries, currentSmd, fieldCapacity, cropProfile, scenarios, selectedField } = useMemo(() => {
-    if (!data) return { smdSeries: [], currentSmd: 0, fieldCapacity: DEFAULT_FC_MM, cropProfile: null, scenarios: null, selectedField: null };
+  const { smdSeries, currentSmd, currentDailyEtcMm, fieldCapacity, cropProfile, scenarios, selectedField } = useMemo(() => {
+    if (!data) return { smdSeries: [], currentSmd: 0, currentDailyEtcMm: 0, fieldCapacity: DEFAULT_FC_MM, cropProfile: null, scenarios: null, selectedField: null };
 
     const selectedField = data.fields.find(f => f.id === selectedFieldId) ?? data.fields[0] ?? null;
     const fc = getFieldCapacity(selectedField?.soilType);
@@ -670,7 +704,7 @@ export default function IrrigationAdvisorScreen() {
     // Financial scenarios require a recognized crop profile — without one we
     // cannot compute credible yield loss or net-benefit figures.
     if (!cp) {
-      return { smdSeries, currentSmd, fieldCapacity: fc, cropProfile: null, scenarios: null, selectedField };
+      return { smdSeries, currentSmd, currentDailyEtcMm, fieldCapacity: fc, cropProfile: null, scenarios: null, selectedField };
     }
 
     // Parse user inputs; use Number.isFinite so that zero is preserved (as
@@ -697,7 +731,7 @@ export default function IrrigationAdvisorScreen() {
       currentDailyEtcMm,
     });
 
-    return { smdSeries, currentSmd, fieldCapacity: fc, cropProfile: cp, scenarios, selectedField };
+    return { smdSeries, currentSmd, currentDailyEtcMm, fieldCapacity: fc, cropProfile: cp, scenarios, selectedField };
   }, [data, selectedFieldId, irrigateMm, costPerMmHa, cropPricePerTonne, expectedRainfall]);
 
   const criticalSmd = cropProfile?.criticalSmdMm ?? 35;
@@ -856,6 +890,49 @@ export default function IrrigationAdvisorScreen() {
               <View style={[styles.statusCard, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
                 <ForecastRainfallChart days={data.forecastDailyMm} />
               </View>
+              {(() => {
+                const vr = computeForecastVerdict({
+                  currentSmdMm: currentSmd,
+                  forecastDailyMm: data.forecastDailyMm,
+                  dailyEtcMm: currentDailyEtcMm,
+                  fieldCapacityMm: fieldCapacity,
+                });
+                if (!vr) return null;
+                const { projectedSmd, forecastTotal, verdict } = vr;
+                const vs =
+                  verdict === "sufficient"
+                    ? { bg: "#f0fdf4", border: "#bbf7d0", text: "#15803d", dot: "#22c55e" }
+                    : verdict === "partial"
+                    ? { bg: "#fefce8", border: "#fef08a", text: "#a16207", dot: "#eab308" }
+                    : { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c", dot: "#ef4444" };
+                return (
+                  <View style={[styles.verdictCard, { backgroundColor: vs.bg, borderColor: vs.border }]}>
+                    <View style={[styles.verdictDot, { backgroundColor: vs.dot }]} />
+                    <Text style={[styles.verdictText, { color: vs.text }]}>
+                      {verdict === "sufficient" ? (
+                        <>
+                          {"Forecast "}
+                          <Text style={styles.verdictBold}>{forecastTotal.toFixed(1)} mm</Text>
+                          {" closes the "}
+                          <Text style={styles.verdictBold}>{currentSmd.toFixed(1)} mm</Text>
+                          {" deficit — rain likely sufficient, consider holding off irrigation."}
+                        </>
+                      ) : (
+                        <>
+                          {"Forecast "}
+                          <Text style={styles.verdictBold}>{forecastTotal.toFixed(1)} mm</Text>
+                          {" vs "}
+                          <Text style={styles.verdictBold}>{currentSmd.toFixed(1)} mm</Text>
+                          {" deficit — projected SMD "}
+                          <Text style={styles.verdictBold}>{projectedSmd.toFixed(1)} mm</Text>
+                          {" after 7-day ET"}
+                          {verdict === "insufficient" ? " — consider irrigating" : ""}.
+                        </>
+                      )}
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
           ) : data && data.forecastDailyMm === null ? (
             <View style={[styles.unavailableCard]}>
@@ -1012,6 +1089,11 @@ const styles = StyleSheet.create({
   scenarioVal: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.text, textAlign: "right" },
   logBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary + "50", backgroundColor: "#fff" },
   logBtnText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+
+  verdictCard: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs, borderRadius: radius.md, borderWidth: 1, padding: spacing.sm },
+  verdictDot: { width: 8, height: 8, borderRadius: 4, marginTop: 3, flexShrink: 0 },
+  verdictText: { fontFamily: fonts.medium, fontSize: fontSize.xs, flex: 1, lineHeight: 18 },
+  verdictBold: { fontFamily: fonts.bold },
 
   // Modal styles
   modalContainer: { flex: 1, backgroundColor: "#fff" },
