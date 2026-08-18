@@ -557,8 +557,42 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             Clear filters
           </button>
         )}
+        {(searchText.trim() || pressureLevelFilter !== "__all__") && (
+          <span className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{filteredScouting.length}</span>{" "}
+            {filteredScouting.length === 1 ? "record" : "records"} matched
+          </span>
+        )}
       </div>
-      <DataTable
+      {filteredScouting.length === 0 && (searchText.trim() || pressureLevelFilter !== "__all__") && (() => {
+        const parts: string[] = [];
+        if (searchText.trim()) parts.push(`"${searchText.trim()}"`);
+        if (pressureLevelFilter !== "__all__") {
+          const lvlLabel = pressureLevelFilter === "1" ? "Low or above" : pressureLevelFilter === "2" ? "Medium or above" : "High only";
+          parts.push(`pressure "${lvlLabel}"`);
+        }
+        const filterDesc = parts.join(" and ");
+        return (
+          <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg bg-muted/30">
+            <Bug className="w-6 h-6 mb-2 text-muted-foreground/50" />
+            <p className="text-sm font-medium">No scouting records match {filterDesc}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Try adjusting your search or{" "}
+              <button
+                type="button"
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() => { setSearchText(""); setPressureLevelFilter("__all__"); }}
+              >
+                clearing the filters
+              </button>
+              {" "}to see all records.
+            </p>
+          </div>
+        );
+      })()}
+      {/* Only render DataTable when there are rows to show, or when no filter is active
+          (so the generic "No records yet" state appears for a truly empty dataset). */}
+      {(filteredScouting.length > 0 || !(searchText.trim() || pressureLevelFilter !== "__all__")) && <DataTable
         cols={[
           { key: "scoutDate", label: "Date", render: r => fmtDate(r.scoutDate) },
           {
@@ -669,7 +703,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
-      />
+      />}
 
       {/* View Dialog */}
       <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
