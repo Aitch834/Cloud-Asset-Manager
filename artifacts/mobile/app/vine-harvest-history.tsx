@@ -237,14 +237,20 @@ function EditHarvestModal({
 
 function HarvestRow({
   item,
+  blockAreaHa,
   onEdit,
   onDelete,
 }: {
   item: HarvestRecord;
+  blockAreaHa?: number | null;
   onEdit: (record: HarvestRecord) => void;
   onDelete: (id: number) => void;
 }) {
   const linked = !!item.blockId;
+  const tonnesPerHa =
+    item.yieldKg != null && blockAreaHa != null && blockAreaHa > 0
+      ? item.yieldKg / 1000 / blockAreaHa
+      : null;
 
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -282,7 +288,10 @@ function HarvestRow({
             </View>
           )}
           {item.yieldKg != null ? (
-            <Text style={styles.rowSub}>{item.yieldKg} kg</Text>
+            <Text style={styles.rowSub}>
+              {item.yieldKg.toLocaleString("en-GB")} kg
+              {tonnesPerHa != null ? ` · ${tonnesPerHa.toFixed(2)} t/ha` : ""}
+            </Text>
           ) : null}
           {item.vintageYear ? (
             <Text style={styles.rowSub}>{item.vintageYear}</Text>
@@ -774,7 +783,7 @@ export default function VineHarvestHistoryScreen() {
                     [
                       { col: "variety",  label: "Variety",    flex: 1, align: "left"  },
                       { col: "totalKg",  label: "Total kg",   width: 80, align: "right" },
-                      { col: "kgPerHa",  label: "kg / ha",    width: 72, align: "right" },
+                      { col: "kgPerHa",  label: "t / ha",     width: 72, align: "right" },
                       { col: "avgBrix",  label: "Avg Brix°",  width: 72, align: "right" },
                     ] as { col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; label: string; flex?: number; width?: number; align: "left" | "right" }[]
                   ).map(({ col, label, flex, width, align }) => {
@@ -833,7 +842,7 @@ export default function VineHarvestHistoryScreen() {
                     </View>
                     <View style={{ width: 72, alignItems: "flex-end" }}>
                       <Text style={styles.varietyValue}>
-                        {row.kgPerHa != null ? Math.round(row.kgPerHa).toLocaleString("en-GB") : "—"}
+                        {row.kgPerHa != null ? (row.kgPerHa / 1000).toFixed(2) : "—"}
                       </Text>
                     </View>
                     <View style={{ width: 72, alignItems: "flex-end" }}>
@@ -900,9 +909,19 @@ export default function VineHarvestHistoryScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => (
-            <HarvestRow item={item} onEdit={setEditingRecord} onDelete={handleDelete} />
-          )}
+          renderItem={({ item }) => {
+            const areaHa = item.blockId != null
+              ? blocks.find(b => b.id === item.blockId)?.areaHa ?? null
+              : null;
+            return (
+              <HarvestRow
+                item={item}
+                blockAreaHa={typeof areaHa === "number" ? areaHa : null}
+                onEdit={setEditingRecord}
+                onDelete={handleDelete}
+              />
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
