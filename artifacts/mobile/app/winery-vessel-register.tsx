@@ -511,9 +511,10 @@ function VesselRow({
   const approachingNeutral = barrel && active && isApproachingNeutral(vessel.fill_number, approachingNeutralFillsThreshold);
   const hasAlerts = idle || approachingNeutral;
 
-  const locationParts = [vessel.cellar_zone, vessel.cellar_position, vessel.location]
-    .filter(Boolean)
-    .join(" · ");
+  const currentLocation =
+    [vessel.cellar_zone, vessel.cellar_position].filter(Boolean).join(" · ") ||
+    vessel.location ||
+    "";
   const capacityLabel = vessel.capacity_litres ? `${vessel.capacity_litres} L` : null;
 
   const handlePress = () => {
@@ -603,8 +604,11 @@ function VesselRow({
               {vessel.current_volume_litres ? ` · ${vessel.current_volume_litres} L` : ""}
             </Text>
           ) : null}
-          {locationParts ? (
-            <Text style={styles.metaText} numberOfLines={1}>{locationParts}</Text>
+          {currentLocation ? (
+            <View style={styles.locationLabel}>
+              <Feather name="map-pin" size={11} color={colors.primary} />
+              <Text style={styles.locationText} numberOfLines={1}>{currentLocation}</Text>
+            </View>
           ) : null}
           {capacityLabel && !vessel.current_contents ? (
             <Text style={styles.metaText}>{capacityLabel}</Text>
@@ -1119,6 +1123,17 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontFamily: fonts.regular,
     color: colors.textSecondary,
+  },
+  locationLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.primary,
   },
   capacityChip: {
     paddingHorizontal: spacing.sm,
