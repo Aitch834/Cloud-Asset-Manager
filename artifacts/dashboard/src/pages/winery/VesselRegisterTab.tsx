@@ -1620,6 +1620,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         [
                           csvComment(`Barrel Health Summary — ${farmNameVessels}`),
                           csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
+                          csvComment(`Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+`),
                           ...(noFillsCsvParts.length > 0 ? [csvComment(`Warning: ${noFillsCsvParts.join(", ")} barrel${(noFillsCooperageCsvCount + noFillsNoneCsvCount) !== 1 ? "s" : ""} have no fill history — see Fill Tier column for details`)] : []),
                         ],
                       );
