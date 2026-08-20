@@ -303,3 +303,31 @@ uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Portra
 type = "pdf"
 title = "BDE Farm Trac — Vineyard Magazine portrait advert (CMYK PDF)"
 description = "Press-ready single-page PDF: 90 × 267 mm, CMYK, PDF 1.3. This is the revised format matching the printed Vineyard Magazine placement."
+
+[[outputs]]
+id = "eqSYqOgQfOCLW3XkPaBKb"
+uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Portrait-RGB.pdf"
+type = "pdf"
+title = "Vineyard advert portrait — browser preview PDF (RGB)"
+description = "Viewable RGB preview of the revised portrait advert. Use the CMYK PDF for the printer."
+
+[[outputs]]
+id = "x3Fx4RbGnJ9wfxsmCuJT1"
+uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Horizontal-RGB.pdf"
+type = "pdf"
+title = "Vineyard advert horizontal — browser preview PDF (RGB)"
+description = "Viewable RGB preview of the revised horizontal advert. Use the CMYK PDF for the printer."
+
+[[outputs]]
+id = "7WBuVhE5IGpoTgZGYJecc"
+uri = "file://attached_assets/ad-cmyk-output/output/ad-portrait-300dpi.png"
+type = "image"
+title = "Vineyard advert portrait — rendered proof PNG"
+description = "Direct image proof of the exact 300-DPI portrait render used to create the printer PDF."
+
+[[outputs]]
+id = "fz1w7WouvS7lTEuJs-AT3"
+uri = "file://attached_assets/ad-cmyk-output/output/ad-horiz-300dpi.png"
+type = "image"
+title = "Vineyard advert horizontal — rendered proof PNG"
+description = "Direct image proof of the exact 300-DPI horizontal render used to create the printer PDF."
