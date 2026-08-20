@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
@@ -258,6 +258,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
   const [sourceFilter, setSourceFilter] = usePersistedFilter({ page: "financial-transactions", filter: "source", farmId, defaultValue: "all" });
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-transactions", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
   const [enterpriseFilter, setEnterpriseFilter] = usePersistedFilter({ page: "financial-transactions", filter: "enterprise", farmId, defaultValue: "all" });
+  const txListRef = useRef<HTMLDivElement>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
@@ -315,6 +316,14 @@ function TransactionsTab({ farmId }: { farmId: number }) {
     onSuccess: () => { invalidate(); setLinkingTx(null); setSelectedProjectId(""); },
     onError: () => toast({ title: "Failed to update link", variant: "destructive" }),
   });
+
+  const handleEnterpriseRowClick = (enterprise: string) => {
+    // "Untagged" in the breakdown map represents records with no enterprise value ("")
+    setEnterpriseFilter(enterprise === "Untagged" ? "" : enterprise);
+    setTimeout(() => {
+      txListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
 
   const agriEnvProjectName = (id: number) => agriEnvProjects.find((p: any) => p.id === id)?.schemeName ?? `Project #${id}`;
   const AGRI_ENV_INCOME_CATS = ["Agri-Environment Scheme", "Vineyard Agri-Environment Scheme"];
@@ -434,8 +443,16 @@ function TransactionsTab({ farmId }: { farmId: number }) {
             <tbody>
               {enterpriseBreakdown.map(([enterprise, { income, expense }], i) => {
                 const rowNet = income - expense;
+                const isActive = enterpriseFilter === (enterprise === "Untagged" ? "" : enterprise);
                 return (
-                  <tr key={enterprise} style={{ borderTop: "1px solid #f3f4f6" }}>
+                  <tr
+                    key={enterprise}
+                    onClick={() => handleEnterpriseRowClick(enterprise)}
+                    title={`Filter to ${enterprise} transactions`}
+                    style={{ borderTop: "1px solid #f3f4f6", cursor: "pointer", background: isActive ? "#f0fdf4" : undefined, transition: "background 0.1s" }}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLTableRowElement).style.background = "#f9fafb"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = isActive ? "#f0fdf4" : ""; }}
+                  >
                     <td style={{ padding: "0.5rem 1.25rem", fontWeight: 500, color: "#111827" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                         <span style={{ width: 8, height: 8, borderRadius: "50%", background: ["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#f97316"][i % 7], flexShrink: 0 }} />
@@ -455,7 +472,7 @@ function TransactionsTab({ farmId }: { farmId: number }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+      <div ref={txListRef} style={{ display: "flex", gap: 8, marginBottom: "1rem", alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} />
           <Input placeholder="Search transactions..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
