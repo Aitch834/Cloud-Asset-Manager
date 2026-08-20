@@ -1,13 +1,19 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,9 +22,37 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { kvGet, kvSet } from "@/lib/database";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
+import { getApiBase } from "@/lib/uploadPhoto";
+
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  try {
+    let token: string | null = null;
+    if (Platform.OS !== "web") {
+      const SecureStore = await import("expo-secure-store");
+      token = await SecureStore.getItemAsync("auth_session_token");
+    } else {
+      try { token = localStorage.getItem("auth_session_token"); } catch {}
+    }
+    if (!token) {
+      const raw = await kvGet("bde_auth_token");
+      if (raw) token = JSON.parse(raw) as string;
+    }
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const farmRaw = await kvGet("bde_current_farm");
+    if (farmRaw) {
+      const farm = JSON.parse(farmRaw) as { tenantSlug?: string; slug?: string };
+      headers["x-tenant-slug"] = farm.tenantSlug ?? farm.slug ?? "";
+    }
+  } catch {}
+  return headers;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -123,6 +157,320 @@ function idleDays(emptySince: string): number {
   return Math.floor((now.getTime() - emptyDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// ── Fill form ─────────────────────────────────────────────────────────────────
+
+interface FillFormState {
+  fillNumber: string;
+  wineName: string;
+  vintageYear: string;
+  variety: string;
+  volumeLitres: string;
+  fillDate: string;
+  rackOutDate: string;
+  batchRef: string;
+  operatorName: string;
+  notes: string;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+interface LogFillModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  vesselRef: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function LogFillModal({ visible, farmId, vesselId, vesselRef, onClose, onSuccess }: LogFillModalProps) {
+  const [form, setForm] = useState<FillFormState>({
+    fillNumber: "1",
+    wineName: "",
+    vintageYear: "",
+    variety: "",
+    volumeLitres: "",
+    fillDate: todayIso(),
+    rackOutDate: "",
+    batchRef: "",
+    operatorName: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setForm({
+      fillNumber: "1",
+      wineName: "",
+      vintageYear: "",
+      variety: "",
+      volumeLitres: "",
+      fillDate: todayIso(),
+      rackOutDate: "",
+      batchRef: "",
+      operatorName: "",
+      notes: "",
+    });
+    setError(null);
+    let cancelled = false;
+    void (async () => {
+      const storedOperator = await kvGet("last_operator_name");
+      if (!cancelled && storedOperator) {
+        setForm(prev => ({
+          ...prev,
+          ...(prev.operatorName === "" ? { operatorName: storedOperator } : {}),
+        }));
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  function set(field: keyof FillFormState, value: string) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit() {
+    if (!form.fillDate.trim()) { setError("Rack-in date is required."); return; }
+    const fillNumber = parseInt(form.fillNumber.trim());
+    if (!form.fillNumber.trim() || isNaN(fillNumber) || fillNumber < 1) {
+      setError("Fill number must be a positive integer.");
+      return;
+    }
+    let vintageYear: number | null = null;
+    if (form.vintageYear.trim()) {
+      const parsed = parseInt(form.vintageYear.trim());
+      if (isNaN(parsed)) { setError("Vintage year must be a valid year."); return; }
+      vintageYear = parsed;
+    }
+    let volumeLitres: number | null = null;
+    if (form.volumeLitres.trim()) {
+      const parsed = parseFloat(form.volumeLitres.trim());
+      if (isNaN(parsed) || parsed < 0) { setError("Volume must be a valid positive number."); return; }
+      volumeLitres = parsed;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/fills`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          fillNumber,
+          wineName: form.wineName.trim() || null,
+          vintageYear,
+          variety: form.variety.trim() || null,
+          volumeLitres,
+          fillDate: form.fillDate.trim(),
+          rackOutDate: form.rackOutDate.trim() || null,
+          batchRef: form.batchRef.trim() || null,
+          operatorName: form.operatorName.trim() || null,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      if (form.operatorName.trim()) {
+        kvSet("last_operator_name", form.operatorName.trim()).catch(() => undefined);
+      }
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save fill record.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={formStyles.sheet}>
+          <View style={formStyles.sheetHeader}>
+            <Text style={formStyles.sheetTitle}>Log Fill — {vesselRef}</Text>
+            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+              <Feather name="x" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={formStyles.body} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={formStyles.errorBanner}>
+                <Feather name="alert-circle" size={14} color={colors.error} />
+                <Text style={formStyles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            {/* Fill number */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Fill number <Text style={formStyles.required}>*</Text></Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.fillNumber}
+                onChangeText={v => set("fillNumber", v)}
+                placeholder="e.g. 1"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="number-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Wine name */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Wine name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.wineName}
+                onChangeText={v => set("wineName", v)}
+                placeholder="e.g. Estate Pinot Noir"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Vintage year / variety */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Vintage</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.vintageYear}
+                  onChangeText={v => set("vintageYear", v)}
+                  placeholder="e.g. 2024"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Variety</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.variety}
+                  onChangeText={v => set("variety", v)}
+                  placeholder="e.g. Pinot Noir"
+                  placeholderTextColor={colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Volume */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Volume (litres)</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.volumeLitres}
+                onChangeText={v => set("volumeLitres", v)}
+                placeholder="e.g. 225"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Rack in / rack out dates */}
+            <View style={formStyles.row}>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Rack-in date <Text style={formStyles.required}>*</Text></Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.fillDate}
+                  onChangeText={v => set("fillDate", v)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                />
+              </View>
+              <View style={[formStyles.field, { flex: 1 }]}>
+                <Text style={formStyles.label}>Rack-out date</Text>
+                <TextInput
+                  style={formStyles.input}
+                  value={form.rackOutDate}
+                  onChangeText={v => set("rackOutDate", v)}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="numbers-and-punctuation"
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Batch ref */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Batch reference</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.batchRef}
+                onChangeText={v => set("batchRef", v)}
+                placeholder="e.g. LOT-2024-01"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Operator */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Operator name</Text>
+              <TextInput
+                style={formStyles.input}
+                value={form.operatorName}
+                onChangeText={v => set("operatorName", v)}
+                placeholder="Name of person logging fill"
+                placeholderTextColor={colors.textTertiary}
+                returnKeyType="next"
+              />
+            </View>
+
+            {/* Notes */}
+            <View style={formStyles.field}>
+              <Text style={formStyles.label}>Notes</Text>
+              <TextInput
+                style={[formStyles.input, formStyles.multiline]}
+                value={form.notes}
+                onChangeText={v => set("notes", v)}
+                placeholder="Any additional notes…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+                returnKeyType="default"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[formStyles.submitBtn, submitting && formStyles.submitBtnDisabled]}
+              onPress={() => { void handleSubmit(); }}
+              disabled={submitting}
+              activeOpacity={0.8}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={formStyles.submitBtnText}>Save fill record</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Zone section header ───────────────────────────────────────────────────────
 
 interface ZoneSectionHeaderProps {
@@ -165,10 +513,12 @@ function VesselRow({
   vessel,
   idleBarrelDaysThreshold,
   approachingNeutralFillsThreshold,
+  onLogFill,
 }: {
   vessel: WineryVessel;
   idleBarrelDaysThreshold?: number | null;
   approachingNeutralFillsThreshold?: number | null;
+  onLogFill?: () => void;
 }) {
   const barrel = isBarrelType(vessel.vessel_type);
   const active = String(vessel.status ?? "active") === "active";
@@ -216,11 +566,16 @@ function VesselRow({
             </View>
           )}
 
-          {/* No fills logged badge — shown when fill_count is 0 */}
+          {/* No fills logged badge — shown when fill_count is 0; tappable to log a fill inline */}
           {Number(vessel.fill_count ?? 0) === 0 && (
-            <View style={styles.noFillsBadge}>
+            <Pressable
+              onPress={e => { e.stopPropagation?.(); onLogFill?.(); }}
+              hitSlop={6}
+              style={({ pressed }) => [styles.noFillsBadge, pressed && { opacity: 0.65 }]}
+            >
+              <Feather name="plus-circle" size={11} color="#b45309" style={{ marginRight: 3 }} />
               <Text style={styles.noFillsBadgeText}>No fills logged</Text>
-            </View>
+            </Pressable>
           )}
 
           {/* Status / fullness badge */}
@@ -334,6 +689,9 @@ export default function WineryVesselRegisterScreen() {
 
   // ── Alert-flag filter ──────────────────────────────────────────────────────
   const [alertFlag, setAlertFlag] = usePersistedAlertFlag(currentFarm?.id ? String(currentFarm.id) : undefined);
+
+  // ── Log-fill quick-action modal ────────────────────────────────────────────
+  const [logFillVessel, setLogFillVessel] = useState<WineryVessel | null>(null);
 
   function toggleFlag(flag: AlertFlag) {
     setAlertFlag(alertFlag === flag ? null : flag);
@@ -487,6 +845,7 @@ export default function WineryVesselRegisterScreen() {
               vessel={item}
               idleBarrelDaysThreshold={currentFarm?.idleBarrelDays}
               approachingNeutralFillsThreshold={currentFarm?.approachingNeutralFills}
+              onLogFill={() => setLogFillVessel(item)}
             />
           )}
           renderSectionHeader={({ section }) => (
@@ -512,6 +871,18 @@ export default function WineryVesselRegisterScreen() {
               tintColor={colors.primary}
             />
           }
+        />
+      )}
+
+      {/* Log-fill quick-action modal */}
+      {logFillVessel && currentFarm?.id && (
+        <LogFillModal
+          visible={!!logFillVessel}
+          farmId={String(currentFarm.id)}
+          vesselId={String(logFillVessel.id)}
+          vesselRef={logFillVessel.vessel_ref}
+          onClose={() => setLogFillVessel(null)}
+          onSuccess={() => { setLogFillVessel(null); refresh(); }}
         />
       )}
     </View>
@@ -727,6 +1098,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
   },
   noFillsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.full,
@@ -798,5 +1171,97 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
+  },
+});
+
+// ── Form modal styles (shared by LogFillModal) ────────────────────────────────
+
+const formStyles = StyleSheet.create({
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sheetTitle: {
+    fontSize: fontSize.md,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  closeBtn: {
+    padding: spacing.xs,
+  },
+  body: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.errorBg,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  errorText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: colors.error,
+    flex: 1,
+  },
+  field: {
+    gap: 4,
+  },
+  label: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.medium,
+    color: colors.text,
+  },
+  required: {
+    color: colors.error,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  multiline: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  row: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  submitBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
+  },
+  submitBtnText: {
+    fontSize: fontSize.md,
+    fontFamily: fonts.semiBold,
+    color: "#fff",
   },
 });
