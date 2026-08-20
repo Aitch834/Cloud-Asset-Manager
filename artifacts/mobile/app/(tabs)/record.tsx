@@ -2020,6 +2020,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["staff-training"],
   },
   {
+    id: "financial-overview",
+    title: "Financial Overview",
+    description: "View income, expenses and net balance for the year — including a per-enterprise breakdown for mixed-enterprise farms",
+    icon: "trending-up",
+    color: "#15803d",
+    bgColor: "#dcfce7",
+    route: "/financial-overview",
+    moduleKeys: ["financial-records"],
+  },
+  {
     id: "grain-sale",
     title: "Grain Sale",
     description: "Record a grain sale — commodity, buyer, tonnage, price, moisture and quality results",
