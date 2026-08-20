@@ -97,7 +97,7 @@
   }
 
   .logo {
-    height: 80px;
+    height: 96px;
     width: auto;
     object-fit: contain;
     object-position: left center;
@@ -131,8 +131,8 @@
   .headline em { font-style: italic; color: #C49A6C; }
 
   .subline {
-    font-size: 28px;
-    color: rgba(255,255,255,0.68);
+    font-size: 32px;
+    color: rgba(255,255,255,0.82);
     line-height: 1.50;
     font-weight: 400;
     max-width: 940px;
@@ -149,7 +149,7 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    font-size: 23px;
+    font-size: 25px;
     font-weight: 500;
     color: rgba(255,255,255,0.78);
     white-space: nowrap;
@@ -183,14 +183,12 @@
     align-items: stretch;
   }
 
-  /* Glassmorphism card */
+  /* High-contrast platform panel — sized and coloured for printed legibility */
   .glass-card {
-    background: rgba(255,255,255,0.07);
-    backdrop-filter: blur(18px) saturate(1.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    border: 1px solid rgba(196,154,108,0.25);
-    border-radius: 14px;
-    padding: 44px 50px;
+    background: rgba(14,45,29,0.94);
+    border: 2px solid #D6B47B;
+    border-radius: 18px;
+    padding: 58px 60px;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -199,28 +197,28 @@
   .card-title {
     font-family: 'Playfair Display', serif;
     font-style: italic;
-    font-size: 28px;
-    color: #C49A6C;
-    font-weight: 700;
+    font-size: 34px;
+    color: #F4E0B0;
+    font-weight: 800;
     line-height: 1.2;
-    margin-bottom: 22px;
+    margin-bottom: 28px;
   }
 
   .card-item {
-    padding: 18px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.09);
+    padding: 22px 0;
+    border-bottom: 1px solid rgba(244,224,176,0.28);
   }
   .card-item:last-child { border-bottom: none; padding-bottom: 0; }
 
   .card-item-title {
-    font-size: 23px;
-    font-weight: 700;
-    color: rgba(255,255,255,0.90);
-    margin-bottom: 5px;
+    font-size: 27px;
+    font-weight: 800;
+    color: #FFFFFF;
+    margin-bottom: 7px;
   }
   .card-item-desc {
-    font-size: 18px;
-    color: rgba(255,255,255,0.50);
+    font-size: 21px;
+    color: #E7F0E4;
     line-height: 1.35;
   }
 
@@ -255,10 +253,12 @@
   }
 
   .qr-url {
-    font-size: 20px;
-    color: rgba(255,255,255,0.40);
-    letter-spacing: 0.06em;
+    font-size: 28px;
+    font-weight: 700;
+    color: #F4E0B0;
+    letter-spacing: 0.04em;
     text-align: center;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.65);
   }
 </style>
 </head>

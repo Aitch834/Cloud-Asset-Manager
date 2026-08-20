@@ -282,3 +282,17 @@ uri = "file://screenshots/leaflet-v5-contracting.jpg"
 type = "image"
 title = "Agricultural Contracting — final"
 description = "Footer complete, image top half, blue tint bottom half"
+
+[[outputs]]
+id = "X_2MX26mrHN7-YTxYhCQ1"
+uri = "file://screenshots/vineyard-ad-portrait-print-layout-revised.jpg"
+type = "image"
+title = "Vineyard Magazine portrait advert — revised proof"
+description = "Review proof matching the printed portrait layout: larger logo and main copy, a high-contrast Full Farm Platform panel, and a larger light-gold web address below the QR code."
+
+[[outputs]]
+id = "GtN3tU7Df-mvvju5yY3o_"
+uri = "file://screenshots/vineyard-ad-horizontal-revised.jpg"
+type = "image"
+title = "Vineyard Magazine horizontal advert — revised proof"
+description = "Matching revision for the horizontal half-page version, with the larger logo, readable platform panel, and stronger QR web address."
