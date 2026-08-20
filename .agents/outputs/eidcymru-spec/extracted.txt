@@ -1,0 +1,3233 @@
+
+===== PAGE 1 =====
+ 
+ 
+ 
+ 
+ 
+EIDCymru Web Service (EWS) 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 2 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 2 
+ 
+ 
+Contents 
+ 
+1 
+Introduction .......................................................................................................... 6 
+ 
+ 
+1.1 Assumed Knowledge 
+6 
+ 
+ 
+1.2 EIDCymru Registration Details: 
+6 
+ 
+ 
+1.3 Application Name 
+6 
+ 
+2 
+Purpose ................................................................................................................ 7 
+ 
+3 
+Document Contents .............................................................................................. 8 
+ 
+4 
+Web Services Security ............................................................................................ 9 
+ 
+ 
+4.1 Introduction 
+9 
+ 
+ 
+4.2 Web Services Security 
+9 
+ 
+ 
+4.3 Warning Responses and SOAP Fault Errors 
+10 
+ 
+4.3.1 Introduction ......................................................................................................... 10 
+ 
+4.3.2 Errors resulting in a SOAP Fault Response ........................................................... 10 
+ 
+ 
+4.4 Service and Interface Namespaces 
+10 
+ 
+5 
+Interface Specification ......................................................................................... 11 
+ 
+ 
+5.1 AcceptMovementRequest .............................................................................. 11 
+ 
+5.1.1 Pre-Conditions ...................................................................................................... 11 
+ 
+5.1.2 Post Conditions .................................................................................................... 11 
+ 
+5.1.2.1 Success Conditions ............................................................................................ 11 
+ 
+5.1.2.2 Failure Conditions ............................................................................................. 11 
+ 
+5.1.3.1 Example request (ByKeyRequest) ..................................................................... 12 
+ 
+5.1.3.1.1 Example success response ............................................................................. 12 
+ 
+5.1.3.1.2 Example failure response ............................................................................... 13 
+ 
+5.1.3.2 Example request (AcceptMovementRequest) .................................................. 13 
+ 
+5.1.3.2.1 Example success response ............................................................................. 14 
+ 
+5.1.3.2.2 Example failure response ............................................................................... 14 
+ 
+ 
+5.2 CreateMovementRequest .............................................................................. 15 
+ 
+5.2.1 Pre-Conditions ...................................................................................................... 15 
+ 
+5.2.2 Post Conditions .................................................................................................... 15 
+
+===== PAGE 3 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 3 
+ 
+ 
+5.2.3 Example Requests ................................................................................................ 16 
+ 
+5.2.3.1 Example Request (including optional elements) .............................................. 16 
+ 
+5.2.3.2 Example request – example minimum submission .......................................... 18 
+ 
+5.2.4 Example success response ................................................................................... 18 
+ 
+5.2.5 Example failure response ..................................................................................... 18 
+ 
+5.2.6 Example warning response .................................................................................. 19 
+ 
+ 
+5.3 DeleteMovementRequest .............................................................................. 20 
+ 
+5.3.1 Pre-Conditions ...................................................................................................... 20 
+ 
+5.3.2 Post Conditions .................................................................................................... 20 
+ 
+5.3.3 Example request .................................................................................................. 20 
+ 
+5.3.4 Example success response ................................................................................... 21 
+ 
+5.3.5 Example failure response ..................................................................................... 21 
+ 
+ 
+5.4 DeleteReferenceRequest ............................................................................... 22 
+ 
+5.4.1 Pre-Conditions ...................................................................................................... 22 
+ 
+5.4.2 Post Conditions .................................................................................................... 22 
+ 
+5.4.3 Example request .................................................................................................. 22 
+ 
+5.4.4 Example success response ................................................................................... 22 
+ 
+5.4.5 Example failure response ..................................................................................... 23 
+ 
+ 
+5.5 GetCurrentLocations ..................................................................................... 24 
+ 
+5.5.1 Pre-Conditions ...................................................................................................... 24 
+ 
+5.5.2 Post Conditions .................................................................................................... 24 
+ 
+5.5.3 Example request .................................................................................................. 24 
+ 
+5.5.4 Example success response ................................................................................... 24 
+ 
+ 
+5.6 GetHistoryRequest ........................................................................................ 25 
+ 
+5.6.1 Pre-Conditions ...................................................................................................... 25 
+ 
+5.6.2 Post Conditions .................................................................................................... 25 
+ 
+5.6.3 Example request .................................................................................................. 25 
+ 
+5.6.4 Example success response ................................................................................... 26 
+ 
+5.6.5 Example failure response ..................................................................................... 26 
+ 
+ 
+
+===== PAGE 4 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 4 
+ 
+ 
+5.7 GetMovementRequest .................................................................................. 28 
+ 
+5.7.1 Pre-Conditions ...................................................................................................... 28 
+ 
+5.7.2 Post Conditions .................................................................................................... 28 
+ 
+5.7.3 Example request .................................................................................................. 28 
+ 
+5.7.4 Example success response ................................................................................... 28 
+ 
+5.7.5 Example failure response ..................................................................................... 30 
+ 
+ 
+5.8 GetOutstandingMovementsRequest .............................................................. 31 
+ 
+5.8.1 Pre-Conditions ...................................................................................................... 31 
+ 
+5.8.2 Post Conditions .................................................................................................... 31 
+ 
+5.8.3 Example request .................................................................................................. 31 
+ 
+5.8.4 Example success response ................................................................................... 32 
+ 
+5.8.5 Example failure response ..................................................................................... 32 
+ 
+ 
+5.9 GetReferenceRequest .................................................................................... 33 
+ 
+5.9.1 Pre-Conditions ...................................................................................................... 33 
+ 
+5.9.2 Post Conditions .................................................................................................... 33 
+ 
+5.9.3 Example request .................................................................................................. 33 
+ 
+5.9.4 Example success response ................................................................................... 33 
+ 
+5.9.5 Example failure response ..................................................................................... 34 
+ 
+ 
+5.10 UpdateMovementRequest ........................................................................... 35 
+ 
+5.10.1 Pre-Conditions.................................................................................................... 35 
+ 
+5.10.2 Post Conditions .................................................................................................. 35 
+ 
+5.10.3 Example request ................................................................................................ 35 
+ 
+5.10.4 Example success response ................................................................................. 36 
+ 
+5.10.5 Example failure response ................................................................................... 36 
+ 
+ 
+5.11 UpdateReferenceRequest ............................................................................ 37 
+ 
+5.11.1 Pre-Conditions.................................................................................................... 37 
+ 
+5.11.2 Post Conditions .................................................................................................. 37 
+ 
+5.11.3 Example request ................................................................................................ 37 
+ 
+5.11.4 Example success response ................................................................................. 38 
+ 
+5.11.5 Example failure response ................................................................................... 38 
+ 
+ 
+
+===== PAGE 5 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 5 
+ 
+6 
+Detailed Field Definitions .................................................................................... 39 
+ 
+6.1 Common Elements 
+39 
+ 
+6.2 AcceptMovementRequest 
+39 
+ 
+6.3 CreateMovementRequest 
+40 
+ 
+7  
+Lookup Tables ..................................................................................................... 44 
+ 
+7.1 Premises Activities ................................................................................................... 44 
+ 
+7.2 Response Codes ....................................................................................................... 44 
+ 
+7.2.1 Success 
+44 
+ 
+7.2.2 Warning 
+44 
+ 
+7.2.3 Failure 
+45 
+ 
+7.3 Movement Species ................................................................................................... 47 
+ 
+7.4 Movement Type ....................................................................................................... 47 
+ 
+7.5 Movement Reason ................................................................................................... 47 
+ 
+7.6 Off Exemption Codes ................................................................................................ 48 
+ 
+7.7 On Exemption Codes ................................................................................................ 48 
+ 
+7.8 Transport / Haulier Type ........................................................................................... 49 
+ 
+7.9 FCI Withdrawl Period ................................................................................................ 49 
+ 
+7.10 Holding Numbers .................................................................................................... 49 
+ 
+8 
+Endpoints ........................................................................................................... 50 
+ 
+9 
+End-User Setup - Advisery Notice ........................................................................ 51 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 6 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 6 
+ 
+ 
+1 
+ 
+Introduction 
+ 
+ 
+This document describes and specifies a Web Service interface to EIDCymru Web 
+Service (EWS).  The interface is for Animal movement and associated data, 
+submission and recovery. This document is intended for application suppliers to 
+enable movement registrations to be made from external (to EIDCymru) systems and 
+allows the client, the movement data supplier’s, system invoking this service – to do 
+the following: 
+• 
+Submit movement into the EIDCymru Upload process. 
+• 
+Request data of previously submitted movement using EIDCymru reference 
+(Mid).  
+• 
+Request data of previously submitted movement using Clients own reference 
+(ExternalReference) 
+• 
+Accept receipt of Animals following movement from third parties. 
+• 
+Request listing of historic animal movement. 
+• 
+Get Current Registered Holdings  
+ 
+ 
+1.1 
+Assumed Knowledge 
+ 
+ 
+This document assumes the reader is familiar with the concepts, acronyms and syntax 
+of XML, XML Namespaces, Web Services and SOAP messaging.  They should also 
+have a general appreciation of WS-Security standards 
+(http://schemas.xmlsoap.org/specs/ws-security/ws-security.htm). 
+ 
+1.2 
+EIDCymru Registration Details: 
+ 
+ 
+*To register, please contact the EIDCymru Service: 
+e-mail: contact@eidcymru.org 
+Telephone: 01970 636959 
+ 
+ 
+1.3 
+Application Name 
+ 
+ 
+Each software provider requires an Application Name that must be specified when 
+sending requests to EWS. The Application Name can be obtained from the EIDCymru 
+Service. 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 7 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 7 
+ 
+2 
+ 
+Purpose 
+ 
+ 
+The overall purpose of the document is to specify the interface to the service and its 
+expected behaviour.  This behaviour includes response on successful completion of 
+the service, or all possible error or warning conditions that may occur. 
+The document is a user guide to the service.  It does not cover details on 
+implementing a client application that calls this service, but intends to provide enough 
+information for the reader to implement such a client. 
+ 
+ 
+ 
+
+===== PAGE 8 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 8 
+ 
+3 
+ 
+Document Contents 
+ 
+ 
+This section introduces subsequent sections of this document, which combine to 
+present a full specification of the service.  Firstly, common features across all services 
+are introduced: 
+• 
+Section 4 describes the common security features for EIDCymru web service 
+invocation.  These are encapsulated in the Security structure within the SOAP 
+Body. 
+• 
+Section 4.3 describes the standard Warning Responses within a SOAP Body 
+Response, and the SOAP Fault that is returned on a severe error. 
+• 
+Section 4.4 summarises the XML namespace structure for the service 
+definition, the interface Request and Response data types and the underlying 
+data types. 
+ 
+ 
+Section 5 describes the operations of the service, breaking down into the following 
+headings: 
+• 
+Functional Specification: a high-level description and summary of the logic of 
+the operation and its pre- and post-conditions. 
+o 
+Pre-Conditions: a description of such items as global data 
+requirements and the system state prior to invocation. 
+o 
+Post-Conditions: a description of the interface and the state of the 
+system after an information transfer has been completed in the typical 
+successful scenario. 
+• 
+Non-functional Specification: details of the non-functional aspects of the 
+Service. 
+• 
+Interface Definition: a detailed description of the interface including what 
+information and entities are passed across it, semantic meanings and specific 
+values that must be supplied.  References the Error Scenarios that are driven 
+by the values of specific fields in the Request. 
+• 
+Error Scenarios: a description of the interface after an information transfer has 
+been completed including the state of the system and the possible error 
+handling conditions and their effects.  A full catalogue of the error conditions 
+that may result and in which scenarios. 
+ 
+ 
+Section 6 sets out detailed definition of data type, contents and structure: 
+• 
+Provides detailed information of the elements within the WSDL which are 
+encapsulated with XSD validation to process XML requests. 
+ 
+ 
+ 
+Section 7 lists the supporting information and look up tables. 
+Section 8 provides details of Endpoints to be used. 
+Section 9 provides advisery details which can be relayed to end users who wish to 
+setup a software link to their EIDCymru online account. 
+ 
+ 
+ 
+
+===== PAGE 9 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 9 
+ 
+4 
+ 
+Web Services Security 
+ 
+4.1 
+Introduction 
+ 
+ 
+This section is intended for an audience external to EIDCymru that is intending to 
+implement a client of the service described herein.   
+ 
+4.2 
+Web Services Security 
+ 
+ 
+All client systems invoking EIDCymru services, will be supplied credentials to access 
+the application from the EIDCymru Service. 
+When calling this service, security information must be provided in the SOAP Body of 
+the request, as follows: 
+ 
+ 
+<soapenv:Envelope 
+xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+   <soapenv:Header/> 
+   <soapenv:Body> 
+      <ews:CreateMovementRequest> 
+         <UserName>?</UserName> 
+         <Password>?</Password> 
+         <ApplicationName>?</ApplicationName> 
+         <ApplicationVersion>?</ApplicationVersion> 
+         <!--Optional:--> 
+         <ApplicationKey>?</ApplicationKey> 
+         <SchemaVersion>?</SchemaVersion> 
+         <Timestamp>?</Timestamp> 
+         <Movement></Movement> 
+      </ews:CreateMovementRequest> 
+   </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+The provided credentials are used within the Security element of the SOAP message. 
+Note: Client systems will be provided with security credentials upon request. 
+The secure HTTPS transport protocol is used to invoke the Web Service.  No element 
+of the SOAP message is otherwise encrypted. 
+ 
+ 
+ 
+ 
+
+===== PAGE 10 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 10 
+ 
+ 
+ 
+ 
+ 
+4.3 
+Warning Responses and SOAP Fault Errors 
+ 
+ 
+4.3.1 
+Introduction 
+ 
+ 
+This section describes a common element of the Response from the service. 
+If a service request message cannot be processed (e.g. invalid message format, 
+internal system error), then a technical fault will be returned within a SOAP fault 
+response.   
+If however, a service call has been successfully received and processed, but the 
+content of the message has violated some validation routine or failed some application 
+logic a successful SOAP response will be returned, with the Business Warning (i.e. 
+application error or warning) contained within a bespoke structure.  
+ 
+ 
+4.3.2 Errors resulting in a SOAP Fault Response 
+ 
+ 
+When processing fails and the Response message cannot be populated, a SOAP 
+Fault message is returned.  The use of this SOAP Fault facility avoids having to have 
+every field in the Response as optional.  Please refer to section 7.2, for the full list of 
+scenarios that can cause a SOAP Fault (severe Error) and for the Error Codes and 
+Messages returned in those scenarios. 
+ 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-
+ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ews:UpdateMovementResponse> 
+         <SubmissionId>1662</SubmissionId> 
+         <Failures> 
+            <Failure> 
+               <Code>S0011D</Code> 
+               <Description>No Record Found</Description> 
+               <Element>mid</Element> 
+            </Failure> 
+         </Failures> 
+      </ews:UpdateMovementResponse> 
+   </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+4.4 
+Service and Interface Namespaces 
+ 
+ 
+For consistency and maintainability reasons the XML data types making up the 
+Request and Response messages for a service are defined across a number of 
+namespace layers.  The dependencies between these layers are strictly controlled to 
+ensure reusability and to minimise the impact of any changes. 
+The split across layers is such that the Request and Response messages for a service 
+are defined at one namespace layer, and the component elements that make up those 
+Requests and Responses are defined at a lower level.  The latter does not ever refer 
+to the former. 
+ 
+ 
+
+===== PAGE 11 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 11 
+ 
+ 
+ 
+ 
+5 
+ 
+Interface Specification 
+ 
+ 
+Operations: 
+ 
+The Eidcymru Web Services consists of: 
+• 
+AcceptMovementRequest 
+• 
+CreateMovementRequest 
+• 
+DeleteMovementRequest 
+• 
+DeleteReferenceRequest 
+• 
+GetCurrentLocations 
+• 
+GetHistoryRequest 
+• 
+GetMovementRequest 
+• 
+GetOutstandingMovementRequest 
+• 
+GetReferenceRequest 
+• 
+UpdateMovementRequest 
+• 
+UpdateReferenceRequest 
+ 
+ 
+5.1 Accept Movement Operation:  (AcceptMovementRequest) 
+ 
+ 
+This operation is invoked to acknowledge and accept movements arriving at the 
+client’s location. 
+The operation accepts the request message, performs schema validation and then 
+process the Animal movement within the EIDCymru system.  The response message 
+returned indicates whether the message was successfully processed, or whether the 
+movement acceptance was rejected by the EIDCymru system. 
+ 
+ 
+5.1.1 
+Pre-Conditions 
+• 
+The client system must be a registered* client of the EIDCymru 
+system.Mid (Movement ID)- required 
+• 
+ArrivalDate–optional 
+• 
+MovementDoa - optional 
+ 
+ 
+5.1.2 
+Post Conditions 
+ 
+ 
+5.1.2.1 Success Conditions 
+The movement registration record will be stored within the EIDCymru system 
+and a unique reference number returned for each record stored. 
+ 
+ 
+5.1.2.2 Failure Conditions 
+If the message fails schema validation or fails authentication, a SOAP Fault 
+is returned as the response.   
+Failure scenarios are described in full in section - 7 
+ 
+
+===== PAGE 12 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 12 
+ 
+ 
+ 
+ 
+5.1.3.1 
+Example request (AcceptMovementByKeyRequest) 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:AcceptMovementByKeyRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <MovementKey>XXNNNNN</MovementKey> 
+        <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+      </Movement> 
+    </ews:AcceptMovementByKeyRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+5.1.3.1.1 Example success response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope  
+  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"     
+         xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:AcceptMovementByKeyRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S003V</Code> 
+        <Description>Submission Processed</Description> 
+      </Success> 
+    </ns1:AcceptMovementByKeyRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 13 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 13 
+ 
+ 
+ 
+5.1.3.1.2 Example failure response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:AcceptMovementByKeyRequest> 
+      <submission_id>NNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S022D</Code> 
+          <Description>Movement Accept Disallowed</Description> 
+          <Element>Mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:AcceptMovementByKeyRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+5.1.3.2 
+Example request (AcceptMovementRequest) 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:AcceptMovementRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <Mid>NNNNNNNNNNN</Mid> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+      </Movement> 
+    </ews:AcceptMovementRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 14 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 14 
+ 
+ 
+ 
+5.1.3.2.1 Example success response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:AcceptMovementRequest> 
+      <submission_id>NNNN</submission_id> 
+      <Success> 
+        <Code>S003V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNNN</Mid> 
+      </Success> 
+    </ns1:AcceptMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+ 
+ 
+ 
+5.1.3.2.2 Example failure response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:AcceptMovementRequest> 
+      <submission_id>NNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S022D</Code> 
+          <Description>Movement Accept Disallowed</Description> 
+          <Element>Mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:AcceptMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 15 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 15 
+ 
+ 
+5.2 Create Movement Operation (CreateMovementRequest) 
+ 
+ 
+This operation is invoked to create a movement with a minimum set of mandatory 
+details, or up to as many movement details as required. 
+The operation accepts the request message, performs schema validation and then 
+process the Animal movement within the EIDCymru system.  The response message 
+returned indicates whether the message was successfully processed, or whether the 
+request to create a movement was rejected by the EIDCymru system. 
+ 
+ 
+ 
+5.2.1 
+Pre-Conditions 
+• 
+The client system must be a registered client of the EIDCymru system 
+• 
+MovementSpecies - required 
+• 
+MovementQty–required , must be greater than 0 
+• 
+DepartureDate– required, cannot be more than 3 days after the 
+submission date 
+• 
+DepartureCph 
+• 
+DestinationCph - required OR at least 1 of: 
+• 
+DestinationStreet 
+• 
+DestinationLocality 
+• 
+DestinationTown 
+• 
+DestinationCounty 
+• 
+DestinationPostcode 
+ 
+ 
+ 
+5.2.2 
+Post Conditions 
+ 
+ 
+
+===== PAGE 16 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 16 
+ 
+  
+5.2.3 
+Example Requests 
+ 
+ 
+5.2.3.1 
+Example Request (including optional elements) 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:CreateMovementRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <ExternalReference>(Your unique ref.)</ExternalReference> 
+        <ExternalSystem>(your system label)</ExternalSystem> 
+        <LotNumber>NNNNNN</LotNumber> 
+        <MovementReference>(Your comment / note)</MovementReference> 
+        <MovementSpecies>4</MovementSpecies> 
+        <MovementQty>NNN</MovementQty> 
+        <ReadLocation>A</ReadLocation> 
+        <MovementReads>NNN</MovementReads> 
+        <MovementType>4</MovementType> 
+        <MovementReason>Reason Code</MovementReason> 
+        <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+        <DepartureActivity>CCC</DepartureActivity> 
+        <DepartureDate>YYYY-MM-DD</DepartureDate> 
+        <LoadingDate>YYYY-MM-DD</LoadingDate> 
+        <LoadingTime>hh:mm</LoadingTime> 
+        <OffExemptionCode>Exemption code</OffExemptionCode> 
+        <DepartureName>Departure Name</DepartureName> 
+        <DepartureStreet>Departure Street</DepartureStreet> 
+        <DepartureLocality>Departure Locality</DepartureLocality> 
+        <DepartureTown>Departure Town</DepartureTown> 
+        <DepartureCounty>Departure County</DepartureCounty> 
+        <DeparturePostcode>Off Postcode</DeparturePostcode> 
+        <DeparturePhone>Off Phone</DeparturePhone> 
+        <DepartureEmail>Off. Email</DepartureEmail> 
+        <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+        <DepartureTime>hh:mm</DepartureTime> 
+        <DestinationActivity>Activity Code</DestinationActivity> 
+        <UnloadingDate>YYYY-MM-DD</UnloadingDate> 
+        <UnLoadingTime>hh:mm</UnLoadingTime> 
+        <OnExemptionCode>Exemption Code</OnExemptionCode> 
+        <DestinationName>Destination Name</DestinationName> 
+        <DestinationStreet>Destination Street</DestinationStreet> 
+        <DestinationLocality>Destination Locality</DestinationLocality> 
+        <DestinationTown>Destination Town</DestinationTown> 
+        <DestinationCounty>Destination County</DestinationCounty> 
+        <DestinationPostcode>On Postcode</DestinationPostcode> 
+        <DestinationPhone>On Phone</DestinationPhone> 
+        <DestinationEmail>On Email</DestinationEmail> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+        <TransportInformation> 
+          <TransportType>Code</TransportType> 
+          <TransportName>Driver Name</TransportName> 
+          <TransportCompanyName>Company Name</TransportCompanyName> 
+          <TransportPhone>01234567890</TransportPhone> 
+          <TransportEmail>email@somedomain.co.uk</TransportEmail> 
+          <TransportVehicleReg>REG No</TransportVehicleReg> 
+          <TransportAuthNumber>1234567890</TransportAuthNumber> 
+        </TransportInformation> 
+        <FciAnimals> 
+
+===== PAGE 17 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 17 
+ 
+          <FciDiseaseDesc>Disease Description</FciDiseaseDesc> 
+          <FciWithdrawalPeriods>Withdrawal Period</FciWithdrawalPeriods> 
+          <FciSatisfied>1</FciSatisfied> 
+          <FciOtherInfo>Further Information</FciOtherInfo> 
+          <Animals> 
+            <Animal ISO24631="1 0 04 00 0 826 0712345 12345"/> 
+            <Animal Hex="8200CE905568BCCA"/> 
+          </Animals> 
+        </FciAnimals> 
+        <TagReadings> 
+          <TagReading Hex="8200CE905568BCCA" Type="eid" Timestamp="YYYY-MM-
+DDThh:mm:ss"/> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 12345" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+          <TagReading FreeTag="UK123456 111" Type="manual" Timestamp="YYYY-MM-
+DDThh:mm:ss"/> 
+        </TagReadings> 
+        <FlockTags> 
+          <!--Zero or more repetitions:--> 
+          <FlockTag FlockNumber="123456" TagCount="NNN"/> 
+        </FlockTags> 
+      </Movement> 
+    </ews:CreateMovementRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+ 
+
+===== PAGE 18 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 18 
+ 
+  
+5.2.3.2 Example request – example minimum submission 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:CreateMovementRequest> 
+      <UserName>username</UserName> 
+       <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <LotNumber>NNN</LotNumber> 
+        <MovementSpecies>4</MovementSpecies> 
+        <MovementQty>NNN</MovementQty> 
+        <MovementReads>NNN</MovementReads> 
+        <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+        <DepartureDate>YYYY-MM-DD</DepartureDate> 
+        <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+        <TagReadings> 
+          <TagReading Hex="8200CE9095A82B6B" Type="eid"  
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 12345" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+        </TagReadings> 
+      </Movement> 
+    </ews:CreateMovementRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+  
+5.2.4 
+Example success response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:CreateMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S001V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNN</Mid> 
+      </Success> 
+    </ns1:CreateMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+  
+5.2.5 
+Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:CreateMovementRequest> 
+      <submission_id>NNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+
+===== PAGE 19 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 19 
+ 
+          <Code>S026W</Code> 
+          <Description>Species not recognised</Description> 
+          <Element>MovementSpecies</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:CreateMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+  
+5.2.6 
+Example warning response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:CreateMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S001V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNNN</Mid> 
+      </Success> 
+      <Warnings> 
+        <Warning> 
+          <Code>S004D</Code> 
+          <Description>CPH Not Recognised</Description> 
+          <Element>DestinationCph</Element> 
+        </Warning> 
+      </Warnings> 
+    </ns1:CreateMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 20 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 20 
+ 
+ 
+5.3 
+Delete Movement Operation (DeleteMovementRequest) 
+ 
+ 
+This operation is invoked in order to delete a movement. 
+The operation accepts the request message, performs schema validation and then 
+process the Animal movement within the EIDCymru system.  The response message 
+returned indicates whether the message was successfully processed, or whether the 
+request to delete a movement was rejected by the EIDCymru system. Delete Requests 
+may be rejected dependant on internal processing- i.e. Moves has been accepted by 
+Destination Keeper. 
+ 
+ 
+ 
+5.3.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru system 
+• 
+Movement ID (Mid) - required 
+• 
+DepartureCph– required 
+• 
+DestinationCph - optional 
+ 
+ 
+ 
+5.3.2 
+Post Conditions 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+5.3.3 
+Example request 
+  
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:DeleteMovementRequest> 
+      <UserName>username</UserName> 
+       <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <Mid>NNNNNNNNNN</Mid> 
+        <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+      </Movement> 
+    </ews:DeleteMovementRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 21 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 21 
+ 
+ 
+ 
+ 
+ 
+5.3.4 
+Example success response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:DeleteMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S002V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNN</Mid> 
+      </Success> 
+    </ns1:DeleteMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.3.5 
+Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:DeleteMovementRequest> 
+      <submission_id>NNNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S021D</Code> 
+          <Description>Delete disallowed</Description> 
+          <Element>Mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:DeleteMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 22 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 22 
+ 
+ 
+ 
+ 
+5.4 
+Delete by Reference Operation (DeleteReferenceRequest) 
+ 
+ 
+This operation is invoked in order to delete a movement referenced by client own 
+external reference. 
+The operation accepts the request message, performs schema validation and then 
+process the Animal movement within the EIDCymru system.  The response message 
+returned indicates whether the message was successfully processed, or whether the 
+request to delete a movement was rejected by the EIDCymru system. Delete Requests 
+may be rejected dependant on internal processing. i.e. Moves has been accepted by 
+Destination Keeper. 
+ 
+ 
+ 
+5.4.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+• 
+Client Reference ID (ExternalReference) - required 
+• 
+DepartureCph – required 
+• 
+DestinationCph - optional 
+ 
+ 
+ 
+5.4.2 
+Post Conditions 
+ 
+ 
+5.4.3 
+Example request 
+  
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:DeleteReferenceRequest> 
+      <UserName>username</UserName> 
+       <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <ExternalReference>A Unique Id</ExternalReference> 
+        <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+      </Movement> 
+    </ews:DeleteReferenceRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+5.4.4 
+Example success response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:DeleteReferenceRequest> 
+      <submission_id>NNNNNN</submission_id> 
+      <Success> 
+        <Code>S002V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNN</Mid> 
+
+===== PAGE 23 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 23 
+ 
+      </Success> 
+    </ns1:DeleteReferenceRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.4.5 
+Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:DeleteReferenceRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S009W</Code> 
+          <Description>No Departure CPH</Description> 
+          <Element>DepartureCph</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:DeleteReferenceRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+
+===== PAGE 24 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 24 
+ 
+ 
+5.5 
+GetCurrentLocations Operation(GetCurrentLocations) 
+ 
+ 
+This operation returns a list of locations relating to the user credentials provided for 
+authentication. 
+The operation accepts the request message, performs schema validation and 
+accesses location information for the account associated with the details provided for 
+authentication. The response message returned indicates whether the message was 
+successfully processed, or whether the request was rejected by the EIDCymru system. 
+ 
+ 
+5.5.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+ 
+ 
+ 
+5.5.2 
+Post Conditions 
+ 
+ 
+5.5.3 
+Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:GetCurrentLocationsRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+    </ews:GetCurrentLocationsRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+5.5.4 
+Example success response 
+ 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ns1:GetCurrentLocationsResponse> 
+         <SubmissionId>NNNNN</SubmissionId> 
+         <Success> 
+            <Code>S004V</Code> 
+            <Description>Submission Processed</Description> 
+            <NumPages>1</NumPages> 
+         </Success> 
+         <Locations> 
+            <LocationReference>CC/PPP/HHHH</LocationReference> 
+         </Locations> 
+      </ns1:GetCurrentLocationsResponse> 
+   </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+
+===== PAGE 25 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 25 
+ 
+ 
+ 
+ 
+5.6 
+GetHistory Operation (GetHistoryRequest) 
+ 
+ 
+This operation is invoked to return a list of movements relating to the account identified 
+with the user credentials provided for authentication. 
+The operation accepts the request message, performs schema validation and 
+accesses movements for the account associated with the details provided for 
+authentication. The response message returned indicates whether the message was 
+successfully processed, or whether the request was rejected by the EIDCymru system. 
+A response indicating a successful operation will contain the following result pagination 
+information 
+• 
+NumRecords - total number of records associated with the request 
+• 
+NumPages - the number of pages across which, the total number of records, 
+span 
+• 
+CurrentPage - which of the number of pages of results has currently been 
+returned 
+• 
+LastPage - is this the last page of the number of pages of results 
+ 
+If a page is requested that lies outwith the range of pages defined by 'NumPages', 
+above, then the response xml will contain the following: 
+ 
+<Response>none in range</Response> 
+ 
+ 
+5.6.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+ 
+ 
+ 
+5.6.2 
+Post Conditions 
+ 
+ 
+ 
+ 
+ 
+ 
+5.6.3 
+Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:GetHistoryRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <History> 
+        <Page>2</Page> 
+      </History> 
+    </ews:GetHistoryRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+
+===== PAGE 26 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 26 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+5.6.4 
+Example success response  
+ 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ns1:GetHistoryResponse> 
+         <SubmissionId>NNNNN</SubmissionId> 
+         <Success> 
+            <Code>S004V</Code> 
+            <Description>Submission Processed</Description> 
+            <NumRecords>3</NumRecords> 
+            <NumPages>1</NumPages> 
+            <CurrentPage>1</CurrentPage> 
+            <LastPage>No</LastPage> 
+         </Success> 
+         <History> 
+            <Movement> 
+               <Mid>NNNNNNNNNNN</Mid> 
+               <MovementSpecies>4</MovementSpecies> 
+               <MovementQty>5</MovementQty> 
+               <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+               <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+               <DepartureDate>2016-08-18</DepartureDate> 
+            </Movement> 
+            <Movement> 
+               <Mid>NNNNNNNNNNN</Mid> 
+               <MovementSpecies>4</MovementSpecies> 
+               <MovementQty>11</MovementQty> 
+               <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+               <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+               <DepartureDate>2016-08-24</DepartureDate> 
+            </Movement> 
+            <Movement> 
+               <Mid>NNNNNNNNNNN</Mid> 
+               <MovementSpecies>4</MovementSpecies> 
+               <MovementQty>7</MovementQty> 
+               <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+               <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+               <DepartureDate>2016-08-24</DepartureDate> 
+            </Movement> 
+         </History> 
+      </ns1:GetHistoryResponse> 
+   </SOAP:ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.6.5 
+Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:GetHistoryRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S004V</Code> 
+        <Description>Submission Processed</Description> 
+        <NumRecords>343</NumRecords> 
+        <NumPages>4</NumPages> 
+      </Success> 
+      <Response>none in range</Response> 
+    </ns1:GetHistoryRequest> 
+  </SOAP-ENV:Body> 
+
+===== PAGE 27 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 27 
+ 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 28 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 28 
+ 
+ 
+ 
+ 
+ 
+ 
+5.7 
+GetMovement Operation (GetMovementRequest) 
+ 
+ 
+This operation is invoked to retrieve all details associated with a given Movement ID. 
+The operation accepts the request message, performs schema validation and retrieves 
+movement information if access is allowed for the account associated with the details 
+provided for authentication. The response message returned indicates whether the 
+message was successfully processed, or whether the request was rejected by the 
+EIDCymru system. 
+ 
+ 
+5.7.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+ 
+ 
+ 
+5.7.2 
+Post Conditions 
+ 
+ 
+5.7.3 
+Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:GetMovementRequest> 
+      <UserName>username</UserName> 
+      <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <Mid>NNNNNNNNNN</Mid> 
+      </Movement> 
+    </ews:GetMovementRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+ 
+5.7.4 
+Example success response 
+ 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ns1:GetMovementResponse> 
+         <SubmissionId>NNNNN</SubmissionId> 
+         <Success> 
+            <Code>S005V</Code> 
+            <Description>Submission Processed</Description> 
+            <Mid>NNNNNNNNNNN</Mid> 
+         </Success> 
+         <Movement> 
+            <Mid>NNNNNNNNNNN</Mid> 
+            <ExternalReference>ref2f</ExternalReference> 
+            <ExternalSystem>kpr1</ExternalSystem> 
+            <LotNumber>2f</LotNumber> 
+            <MovementReference>ref2f</MovementReference> 
+            <MovementType>4</MovementType> 
+            <MovementReason>1</MovementReason> 
+
+===== PAGE 29 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 29 
+ 
+            <MovementSpecies>4</MovementSpecies> 
+            <MovementQty>100</MovementQty> 
+            <MovementDoa>0</MovementDoa> 
+            <MovementReads>10</MovementReads> 
+            <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+            <DepartureActivity>STM</DepartureActivity> 
+            <DepartureDate>YYYY-MM-DD</DepartureDate> 
+            <DepartureTime>hh:mm</DepartureTime> 
+            <LoadingDate>YYYY-MM-DD</LoadingDate> 
+            <LoadingTime>hh:mm</LoadingTime> 
+            <OffExemptionCode>AOF016</OffExemptionCode> 
+            <DepartureName>Departure Name</DepartureName> 
+            <DepartureStreet>Departure Street</DepartureStreet> 
+            <DepartureLocality>Departure Locality</DepartureLocality> 
+            <DepartureTown>Departure Town</DepartureTown> 
+            <DepartureCounty>Departure County</DepartureCounty> 
+            <DeparturePostcode>Off Postcode</DeparturePostcode> 
+            <DeparturePhone>Off Phone</DeparturePhone> 
+            <DepartureEmail>Off. Email</DepartureEmail> 
+            <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+            <DestinationActivity>AH</DestinationActivity> 
+            <UnloadingDate>YYYY-MM-DD</UnloadingDate> 
+            <OnExemptionCode>AON014</OnExemptionCode> 
+            <DestinationName>Destination Name</DestinationName> 
+            <DestinationStreet>Destination Street</DestinationStreet> 
+            <DestinationLocality>Destination Locality</DestinationLocality> 
+            <DestinationTown>Destination Town</DestinationTown> 
+            <DestinationCounty>Destination County</DestinationCounty> 
+            <DestinationPostcode>On Postcode</DestinationPostcode> 
+            <DestinationPhone>On Phone</DestinationPhone> 
+            <DestinationEmail>On Email</DestinationEmail> 
+            <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+            <TransportInformation> 
+               <TransportType>1</TransportType> 
+               <TransportName>Driver Name</TransportName> 
+               <TransportCompanyName>Company Name</TransportCompanyName> 
+               <TransportPhone>01234567890</TransportPhone> 
+               <TransportEmail>email@somedomain.co.uk</TransportEmail> 
+               <TransportVehicleReg>REG No</TransportVehicleReg> 
+               <TransportAuthNumber>1234567890</TransportAuthNumber> 
+            </TransportInformation> 
+            <FciAnimals> 
+               <FciDiseaseDesc>Scrapie</FciDiseaseDesc> 
+               <FciWithdrawalPeriods>2</FciWithdrawalPeriods> 
+               <FciSatisfied>1</FciSatisfied> 
+               <FciOtherInfo>testing</FciOtherInfo> 
+               <Animals> 
+                  <Animal ISO24631="1 0 04 00 0 826 0712345 01234"/> 
+                  <Animal Hex="8200CE905568BCTBB"/> 
+               </Animals> 
+            </FciAnimals> 
+            <TagReadings> 
+               <TagReading Hex="8200CE905568BC44" Timestamp="YYYY-MM-DD 
+15:51:49"/> 
+               <TagReading Hex="8200CE905568BCTBB" Timestamp="YYYY-MM-DD 
+15:51:50"/> 
+               <TagReading ISO24631="1 0 04 00 0 826 0712345 01234" 
+Timestamp="YYYY-MM-DD 15:51:50"/> 
+            </TagReadings> 
+            <FlockTags> 
+               <FlockTag FlockNumber="703269" TagCount="7"/> 
+            </FlockTags> 
+         </Movement> 
+      </ns1:GetMovementResponse> 
+   </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+
+===== PAGE 30 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 30 
+ 
+ 
+ 
+5.7.5 
+Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:GetMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S001D</Code> 
+          <Description>View Movement Disallowed</Description> 
+          <Element>Mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:GetMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 31 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 31 
+ 
+ 
+ 
+ 
+5.8 
+GetOutstanding Movement Operations 
+(GetOutstandingMovementsRequest) 
+ 
+ 
+This operation is invoked to return a list of movements that need to be 'accepted', 
+relating to the account identified with the user credentials provided for authentication. 
+The operation accepts the request message, performs schema validation and retrieves 
+movement information if access is allowed for the account associated with the details 
+provided for authentication. The response message returned indicates whether the 
+message was successfully processed, or whether the request was rejected by the 
+EIDCymru system. 
+A response indicating a successful operation will contain the following result pagination 
+information 
+• 
+NumRecords - total number of records associated with the request 
+• 
+NumPages - the number of pages across which, the total number of records, 
+span 
+• 
+CurrentPage - which of the number of pages of results has currently been 
+returned 
+• 
+LastPage - is this the last page of the number of pages of results 
+ 
+If a page is requested that lies outwith the range of pages defined by 'NumPages', 
+above, then the response xml will contain the following: 
+ 
+<Response>none in range</Response> 
+ 
+ 
+5.8.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+ 
+ 
+ 
+5.8.2 
+Post Conditions 
+ 
+ 
+5.8.3 
+Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"> 
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xmlns:xsd="http://www.w3.org/2001/XMLSchema"> 
+    <GetOutstandingMovementsRequest xmlns="https://ews.eidcymru.org/ews/"> 
+      <UserName xmlns="">username</UserName> 
+      <Password xmlns="">password</Password> 
+      <ApplicationName xmlns="">Registered Application Name</ApplicationName> 
+      <ApplicationVersion xmlns="">1.0</ApplicationVersion> 
+      <SchemaVersion xmlns="">1.0</SchemaVersion> 
+      <Timestamp xmlns="">YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Outstanding xmlns=""> 
+        <Page>1</Page> 
+      </Outstanding> 
+    </GetOutstandingMovementsRequest> 
+  </s:Body> 
+</s:Envelope> 
+ 
+ 
+
+===== PAGE 32 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 32 
+ 
+ 
+ 
+5.8.4 
+Example success response 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ns1:GetOutstandingMovementsResponse> 
+         <SubmissionId>438</SubmissionId> 
+         <Success> 
+            <Code>S004V</Code> 
+            <Description>Submission Processed</Description> 
+            <NumRecords>2</NumRecords> 
+            <NumPages>1</NumPages> 
+            <CurrentPage>1</CurrentPage> 
+            <LastPage>Yes</LastPage> 
+         </Success> 
+         <Outstanding> 
+            <Movement> 
+               <Mid>NNNNNNNNNNN</Mid> 
+               <MovementSpecies>4</MovementSpecies> 
+               <MovementQty>100</MovementQty> 
+               <MovementStatus>10</MovementStatus> 
+               <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+               <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+               <DepartureDate>2017-07-20</DepartureDate> 
+            </Movement> 
+            <Movement> 
+               <Mid>NNNNNNNNNNN</Mid> 
+               <MovementSpecies>4</MovementSpecies> 
+               <MovementQty>1</MovementQty> 
+               <MovementStatus>10</MovementStatus> 
+               <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+               <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+               <DepartureDate>YYYY-MM-DD</DepartureDate> 
+            </Movement> 
+         </Outstanding> 
+      </ns1:GetOutstandingMovementsResponse> 
+   </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.8.5 
+Example failure response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:GetOutstandingMovementsRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S004V</Code> 
+        <Description>Submission Processed</Description> 
+        <NumRecords>2</NumRecords> 
+        <NumPages>1</NumPages> 
+      </Success> 
+      <Response>none in range</Response> 
+    </ns1:GetOutstandingMovementsRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 33 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 33 
+ 
+ 
+5.9 
+GetReference Operations (GetReferenceRequest) 
+ 
+ 
+This operation is identical to ' GetMovementRequest' detailed @ 5.7 above, except for: 
+ExternalReference is required 
+Movement ID (Mid) is optional 
+The operation accepts the request message, performs schema validation and retrieves 
+movement information if access is allowed for the account associated with the details 
+provided for authentication. The response message returned indicates whether the 
+message was successfully processed, or whether the request was rejected by the 
+EIDCymru system. 
+ 
+ 
+ 
+5.9.1 
+Pre-Conditions 
+• 
+The client system must be a registered client* of the EIDCymru 
+system 
+ 
+ 
+ 
+5.9.2 
+Post Conditions 
+ 
+ 
+5.9.3 
+Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ews="https://ews.eidcymru.org/ews/"> 
+  <soapenv:Header/> 
+  <soapenv:Body> 
+    <ews:GetReferenceRequest> 
+      <UserName>username</UserName> 
+       <Password>password</Password> 
+      <ApplicationName>Registered Application Name</ApplicationName> 
+      <ApplicationVersion>1.0</ApplicationVersion> 
+      <SchemaVersion>1.0</SchemaVersion> 
+      <Timestamp>YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement> 
+        <Mid>NNNNNNNNNN</Mid> 
+        <ExternalReference>keeper2_1b</ExternalReference> 
+      </Movement> 
+    </ews:GetReferenceRequest> 
+  </soapenv:Body> 
+</soapenv:Envelope> 
+ 
+ 
+5.9.4 
+Example success response 
+ 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://ews.eidcymru.org/ews/"> 
+   <SOAP-ENV:Body> 
+      <ns1:GetReferenceResponse> 
+         <SubmissionId>443</SubmissionId> 
+         <Success> 
+            <Code>S005V</Code> 
+            <Description>Submission Processed</Description> 
+            <Mid>NNNNNNNNNN</Mid> 
+         </Success> 
+         <Movement> 
+            <Mid>NNNNNNNNNN</Mid> 
+            <ExternalReference>keeper2_1b</ExternalReference> 
+            <LotNumber>123b</LotNumber> 
+            <MovementReference>ref</MovementReference> 
+            <MovementType>3</MovementType> 
+
+===== PAGE 34 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 34 
+ 
+            <MovementSpecies>4</MovementSpecies> 
+            <MovementQty>1</MovementQty> 
+            <MovementReads>1</MovementReads> 
+            <DepartureCph>CC/PPP/HHHH</DepartureCph> 
+            <DepartureActivity>AH</DepartureActivity> 
+            <DepartureDate>YYYY-MM-DD</DepartureDate> 
+            <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+            <DestinationActivity>AH</DestinationActivity> 
+            <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+         </Movement> 
+      </ns1:GetReferenceResponse> 
+   </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.9.5 
+Example failure response 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:GetReferenceRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S001D</Code> 
+          <Description>View Movement Disallowed</Description> 
+          <Element>Mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:GetReferenceRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 35 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 35 
+ 
+ 
+5.10 Update Movement Operations (UpdateMovementRequest) 
+ 
+ 
+This operation is invoked in order to update details relating a particular movement 
+identified by its Movement ID. 
+The operation accepts the request message, performs schema validation and retrieves 
+movement information if access is allowed for the account associated with the details 
+provided for authentication. The update is a fully replacing update, any data not 
+provided is removed from the original movement. The response message returned 
+indicates whether the message was successfully processed, or whether the request 
+was rejected by the EIDCymru system. 
+ 
+ 
+5.10.1 Pre-Conditions 
+• 
+The client system must be a registered* client of the EIDCymru 
+system 
+• 
+Movement ID (Mid) - required 
+• 
+All other parameters are required as per the original movement 
+transmission 
+ 
+ 
+ 
+5.10.2 Post Conditions 
+ 
+ 
+5.10.3 Example request 
+ 
+<?xml version="1.0"?> 
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"> 
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xmlns:xsd="http://www.w3.org/2001/XMLSchema"> 
+    <UpdateMovementRequest xmlns="https://ews.eidcymru.org/ews/"> 
+      <UserName xmlns="">username</UserName> 
+      <Password xmlns="">password</Password> 
+      <ApplicationName xmlns="">Registered Application Name</ApplicationName> 
+      <ApplicationVersion xmlns="">1.0</ApplicationVersion> 
+      <SchemaVersion xmlns="">1.0</SchemaVersion> 
+      <Timestamp xmlns="">YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement xmlns=""> 
+        <Mid>NNNNNNNNNN</Mid> 
+        <MovementSpecies>4</MovementSpecies> 
+        <MovementQty>NNN</MovementQty> 
+        <ReadLocation>A</ReadLocation> 
+        <MovementType>3</MovementType> 
+        <DepartureCph>CC/PP/HHHH</DepartureCph> 
+        <DepartureDate>YYYY-MM-DD</DepartureDate> 
+        <DepartureTime>hh:mm</DepartureTime> 
+        <DeparturePostcode>Postcode</DeparturePostcode> 
+        <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+        <DestinationPostcode>Postcode</DestinationPostcode> 
+        <DestinationPhone>Phone</DestinationPhone> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+        <TransportInformation> 
+        <TransportType>0</TransportType> 
+        </TransportInformation> 
+        <TagReadings> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 12345" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 23467" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+        </TagReadings> 
+      </Movement> 
+    </UpdateMovementRequest> 
+  </s:Body> 
+</s:Envelope> 
+
+===== PAGE 36 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 36 
+ 
+ 
+ 
+5.10.4 Example success response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:UpdateMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S003V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNN</Mid> 
+      </Success> 
+    </ns1:UpdateMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.10.5 Example failure response 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:UpdateMovementRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S045D</Code> 
+          <Description>Update disallowed</Description> 
+          <Element>mid</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:UpdateMovementRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+
+===== PAGE 37 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 37 
+ 
+ 
+5.11 Update Reference Operation (UpdateReferenceRequest) 
+ 
+ 
+This operation is invoked in order to update details relating a particular movement identified by 
+its Movement Reference. 
+The operation accepts the request message, performs schema validation and retrieves 
+movement information if access is allowed for the account associated with the details provided 
+for authentication. The update is a fully replacing update, any data not provided is removed 
+from the original movement. The response message returned indicates whether the message 
+was successfully processed, or whether the request was rejected by the EIDCymru system. 
+ 
+ 
+5.11.1 Pre-Conditions 
+• 
+The client system must be a registered* client of the EIDCymru system 
+• 
+The movement reference (ExternalReference) – required 
+• 
+All other parameters are required as per the original movement transmission 
+ 
+ 
+ 
+5.11.2 Post Conditions 
+ 
+ 
+ 
+ 
+ 
+ 
+5.11.3 Example request 
+ 
+ 
+<?xml version="1.0"?> 
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"> 
+  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xmlns:xsd="http://www.w3.org/2001/XMLSchema"> 
+    <UpdateMovementRequest xmlns="https://ews.eidcymru.org/ews/"> 
+      <UserName xmlns="">username</UserName> 
+      <Password xmlns="">password</Password> 
+      <ApplicationName xmlns="">Registered Application Name</ApplicationName> 
+      <ApplicationVersion xmlns="">1.0</ApplicationVersion> 
+      <SchemaVersion xmlns="">1.0</SchemaVersion> 
+      <Timestamp xmlns="">YYYY-MM-DDThh:mm:ss</Timestamp> 
+      <Movement xmlns=""> 
+        <ExternalReference>(Your unique ref.)</ExternalReference> 
+        <MovementSpecies>4</MovementSpecies> 
+        <MovementQty>NNN</MovementQty> 
+        <ReadLocation>A</ReadLocation> 
+        <MovementType>3</MovementType> 
+        <DepartureCph>CC/PP/HHHH</DepartureCph> 
+        <DepartureDate>YYYY-MM-DD</DepartureDate> 
+        <DepartureTime>hh:mm</DepartureTime> 
+        <DeparturePostcode>Postcode</DeparturePostcode> 
+        <DestinationCph>CC/PPP/HHHH</DestinationCph> 
+        <DestinationPostcode>Postcode</DestinationPostcode> 
+        <DestinationPhone>Phone</DestinationPhone> 
+        <ArrivalDate>YYYY-MM-DD</ArrivalDate> 
+        <TransportInformation> 
+        <TransportType>0</TransportType> 
+        </TransportInformation> 
+        <TagReadings> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 12345" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+          <TagReading ISO24631="1 0 04 00 0 826 0712345 23467" Type="eid" 
+Timestamp="YYYY-MM-DDThh:mm:ss"/> 
+        </TagReadings> 
+      </Movement> 
+    </UpdateMovementRequest> 
+  </s:Body> 
+</s:Envelope> 
+
+===== PAGE 38 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 38 
+ 
+ 
+ 
+5.11.4 Example success response 
+ 
+ 
+ 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-
+ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:UpdateReferenceRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Success> 
+        <Code>S003V</Code> 
+        <Description>Submission Processed</Description> 
+        <Mid>NNNNNNNNNN</Mid> 
+      </Success> 
+    </ns1:UpdateReferenceRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+5.11.5 Example failure response 
+<?xml version="1.0"?> 
+<SOAP-ENV:Envelope xmlns:SOAP-
+ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+xmlns:ns1="https://api.eidcymru.org/ews/"> 
+  <SOAP-ENV:Body> 
+    <ns1:UpdateReferenceRequest> 
+      <submission_id>NNNNN</submission_id> 
+      <Failures> 
+        <Failure> 
+          <Code>S045D</Code> 
+          <Description>Update disallowed</Description> 
+          <Element>ExternalReference</Element> 
+        </Failure> 
+      </Failures> 
+    </ns1:UpdateReferenceRequest> 
+  </SOAP-ENV:Body> 
+</SOAP-ENV:Envelope> 
+ 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 39 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 39 
+ 
+6 Detailed Field Definitions 
+6.1 
+Common Elements 
+XML Element 
+Required 
+Definition 
+Username 
+Compulsory 
+Client username as provided by EIDCymru Web 
+service (EWS) 
+Password 
+Compulsory 
+The password provided by the EIDCymru 
+service 
+ApplicationName 
+Optional 
+The name of the Client application being used 
+to create the request. 
+ApplicationVersion 
+Optional 
+Client application version number for the 
+application name, where provided to 
+EIDCymru service, optional validation can be 
+provided to prevent submissions from out of 
+date application versions by registering the 
+minimum version number with EIDCymru. 
+ApplicationKey 
+Optional 
+Reserved for future use. 
+SchemaVersion 
+Optional 
+Schema version of the EIDCymru web service 
+(EWS) supported by this request. Current 
+minimum value is 1.0. 
+ 
+6.2 
+AcceptMovementRequest 
+XML Element 
+Required 
+Definition 
+Mid 
+Compulsory 
+EIDCymru web service (EWS) unique 
+movement identifier. 
+ArrivalDate 
+Optional 
+The on-date of the animal movement in the 
+format YYYY-mm-dd. 
+MovementDoa 
+Optional 
+The integer value of animals Dead On Arrival 
+(DOA) in format nn. Maximum admitted value 
+equal to or less than number of animals 
+moved. 
+ 
+ 
+
+===== PAGE 40 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 40 
+ 
+ 
+ 
+ 
+ 
+6.3 
+CreateMovementRequest 
+XML Element 
+Required 
+Definition 
+ExternalReference 
+Optional 
+Unique movement identifier. Provided by the 
+client and unique for each movement. In the 
+format of text of maximum length, 32 
+characters. 
+ExternalSystem 
+Optional 
+Client system name. In the format of text of 
+maximum length, 6 characters. 
+LotNumber 
+Optional 
+Lot number in arbitrary format, must have a 
+maximum length of 10 characters and be 
+unique for the given read location and date. 
+MovementReference 
+Optional 
+Client movement reference. Free format text 
+field i.e. for Notes.  In the format of text of 
+maximum length, 32 characters. 
+MovementType 
+Optional 
+See Movement Type list in section 7 in the 
+format of integer nn. 
+MovementReason 
+Optional 
+See Movement Reason list in section 7 in the 
+format of integer nn. 
+MovementSpecies 
+Compulsory 
+See Movement Species list in section 7 in the 
+format of integer nn. 
+MovementQty 
+Compulsory 
+Number of animals moved. Minimum value of 
+1. 
+Maximum value 1000. 
+In the format of an integer nnnn. 
+MovementDoa 
+Optional 
+The integer value of animals Dead On Arrival 
+(DOA) in format nn. Maximum admitted value 
+equal to or less than number of animals 
+moved. 
+ReadLocation 
+Optional 
+Specify if animals have been read at  
+Departure specify - D 
+Arrival specify - A 
+Format X (single uppercase character) 
+ 
+MovementReads 
+Optional 
+The number of EID tags entered.  
+Maximum value number of animals moved. 
+In the format of an integer nnnn. 
+DepartureCph 
+Compulsory 
+The departure location registered identifier. 
+In the format of County Parish Holding (CPH), 
+nn/nnn/nnnn OR EU identifier, in the format 
+of nnnn OR other identifier in text of 
+maximum length, 11 characters. 
+DepartureActivity 
+Optional 
+See Premises Activity list in section 7  
+DepartureDate 
+Compulsory 
+The off-date of the animal movement in the 
+format YYYY-mm-dd. 
+DepartureTime 
+Optional 
+The off-time. In the format HH:mm 
+LoadingDate 
+Optional 
+The date of loading. In the format of YYYY-
+mm-dd 
+
+===== PAGE 41 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 41 
+ 
+ 
+LoadingTime 
+Optional 
+The time of loading. In the format of HH:mm 
+(24 hour) 
+OffExemptionCode 
+Optional 
+See Exemption Code list in section 7 
+DepartureName 
+Optional 
+The name of the person sending the animals. 
+In the format of text, maximum of 40 
+characters. 
+DepartureStreet 
+Optional 
+The Street address of the departure location. 
+In the format of text, maximum of 40 
+characters. 
+DepartureLocality 
+Optional 
+The Locality of the departure location. In the 
+format of text, maximum of 40 characters. 
+DepartureTown 
+Optional 
+The Town of the departure location. In the 
+format of text, maximum of 40 characters. 
+DepartureCounty 
+Optional 
+The County of the departure location. In the 
+format of text, maximum of 40 characters. 
+DeparturePostcode 
+Optional 
+The Postcode of the departure location. In the 
+format of text, maximum of 40 characters. 
+DeparturePhone 
+Optional 
+The Phone of the departure location. In the 
+format of text, maximum of 40 characters. 
+DepartureEmail 
+Optional 
+The Email address of the departure location. 
+In the format of text, maximum of 40 
+characters. 
+DestinationCph 
+Compulsory * 
+* Either 
+DestinationCPH or 
+address of movement 
+destination if 
+DestinationCPH not 
+known. 
+The Destination location registered identifier. 
+In the format of County Parish Holding (CPH), 
+nn/nnn/nnnn OR EU identifier, in the format 
+of nnnn OR other identifier in text of 
+maximum length, 11 characters. 
+DestinationActivity 
+Optional 
+See Premises Activity list in section 7 
+UploadingDate 
+Optional 
+The date of unloading. In the format of YYYY-
+mm-dd 
+UploadingTime 
+Optional 
+The time of loading. In the format of HH:mm 
+(24 hour) 
+OnExemptionCode 
+Optional 
+See Exemption Code list in section 7 
+DestinationName 
+Optional 
+The name of the person sending the animals. 
+In the format of text, maximum of 40 
+characters. 
+DestinationStreet 
+Optional * 
+The Street address of the Destination 
+location. In the format of text, maximum of 
+40 characters. 
+DestinationLocality 
+Optional * 
+The Locality address of the Destination 
+location. In the format of text, maximum of 
+40 characters. 
+DestinationTown 
+Optional * 
+The Town address of the Destination location. 
+In the format of text, maximum of 40 
+characters. 
+DestinationCounty 
+Optional * 
+The County address of the Destination 
+location. In the format of text, maximum of 
+40 characters. 
+
+===== PAGE 42 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 42 
+ 
+DestinationPostcode 
+Optional * 
+The Postcode address of the Destination 
+location. In the format of text, maximum of 
+40 characters. 
+DestinationPhone 
+Optional 
+The Phone of the Destination location. In the 
+format of text, maximum of 40 characters. 
+DestinationEmail 
+Optional 
+The Email address of the Destination location. 
+In the format of text, maximum of 40 
+characters. 
+ArrivalDate 
+Optional 
+The on-date of the animal movement in the 
+format YYYY-mm-dd. 
+TransportType 
+Optional 
+Who is transporting the animals. See section 
+7 for list of values. 
+TransportName 
+Optional 
+The name of the Driver. In the format of text, 
+maximum of 60 characters. 
+TransportCompanyName Optional 
+The name of the Haulier company. In the 
+format of text, maximum of 60 characters. 
+TransportPhone 
+Optional 
+The Phone of the Haulier. In the format of 
+text, maximum of 40 characters. 
+TransportEmail 
+Optional 
+The Email address of the Haulier. In the 
+format of text, maximum of 40 characters. 
+TransportVehicleReg 
+Optional 
+The registration of the vehicle. In the format 
+of text, maximum of 14 characters. 
+TransportAuthNumber 
+Optional 
+The permit number. In the format of text, 
+maximum 10 characters. 
+FciDiseaseDesc 
+Optional 
+The name of the disease. In the format of 
+text, maximum of 2048 characters. 
+FciWithdrawalPeriod 
+Optional 
+See Withdrawal Period list in section 7. 
+ 
+FciSatisfied 
+Optional 
+Have the FCI requirements been met.  
+0 equals no. 1 equals yes. 
+FciOtherInfo 
+Optional 
+Other FCI information. In the format of text, 
+maximum of 2048 characters. 
+Animal 
+Optional 
+Tag number of animal/s which do not meet 
+FCI requirements. 
+In the format of: 
+Hex - hex number, i.e. 8200CE8DF846BD2D 
+and/or 
+ISO24631 -  i.e. 1 0 04 00 0 826 0701234 
+01241 
+and/or 
+FreeTag. i.e. UK123456 229 (Non-EID tag 
+animal born pre-2010) 
+ 
+TagReading 
+Optional 
+In the format of: 
+Hex - hex number, i.e. 8200CE8DF846BD2D 
+and/or 
+ISO24631 -  i.e. 1 0 04 00 0 826 0701234 
+01241 
+and/or 
+FreeTag. i.e. UK123456 229 (Non-EID tag 
+animal born pre-2010) 
+
+===== PAGE 43 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 43 
+ 
+and 
+(optional) KillNumber, in the format of 
+integer, nnn 
+ 
+Timestamp, in the format of dateTime YYYY-
+mm-ddTHH:mm:ss 
+ 
+FlockTag 
+Optional 
+In the format of: 
+FlockNumber - in the format of a 6-digit flock 
+number, nnnnnn 
+TagCount - in the format of integer, nnnn 
+ 
+ 
+
+===== PAGE 44 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 44 
+ 
+7 
+ 
+Lookup Tables: 
+ 
+7.1 Premises Activities 
+ 
+ 
+Activity 
+Code 
+Description 
+Comment 
+AC 
+Assembly Centre 
+ 
+AH 
+Agricultural Holding 
+ 
+CC 
+Collection Centre 
+ 
+CL 
+Common Land 
+ 
+QU 
+Quarantine 
+ 
+SLM 
+Slaughter Market 
+ 
+SR 
+Slaughter House 
+ 
+STM 
+Store Market 
+ 
+ 
+ 
+  7.2 Response  Codes 
+  
+7.2.1 Success  
+ 
+Code 
+Description (Eng.) 
+Description (Welsh) 
+S001V 
+Submission Processed 
+Methiant Dilysu 
+S002V 
+Submission Processed 
+Methiant Dilysu 
+S003V 
+Submission Processed 
+Methiant Dilysu 
+S004V 
+Submission Processed 
+Methiant Dilysu 
+S005V 
+Submission Processed 
+Methiant Dilysu 
+S006V 
+Submission Processed 
+Methiant Dilysu 
+   
+ 
+  7.2.2 Warning 
+ 
+Code 
+Description (Eng.) 
+Description (Welsh) 
+S003D 
+Arrival Date Must Be Less 
+Than 2 Days After Departure 
+Date 
+Rhaid I'r Dyddiad Cyrraedd fod yn Llai 
+na 2 Ddiwrnod Wedi'r Dyddiad Gadael 
+S004D 
+CPH Not Recognised 
+Rhif y Daliad Heb ei Adnabod 
+S006D 
+Departure And Destination 
+CPH Must Be Different 
+Rhaid i Rif y Daliad y Man Gadael a Pen 
+y Daith fod yn Wahanol 
+S017D 
+Submission Date Must Be 
+Less Than 3 Days After Arrival 
+Date 
+Rhaid i'r Dyddiad Cyflwyno Fod yn Llai 
+na 3 Diwrnod Wedi'r Dyddiad Cyrraedd 
+S017W 
+Incorrect Movement Type For 
+Role Or Premises 
+Combination 
+Fath o Symudiad Anghywir ar gyfer 
+Cyfuniad y Rôl a'r Lleoliad 
+
+===== PAGE 45 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 45 
+ 
+S019W 
+Total Quantity of Animals 
+Mismatch 
+Nid yw Cyfanswm yr Anifeiliaid yn 
+Cyfateb 
+S020W 
+Tags Must Equal Reads 
+Rhaid Cael yr un Faint o Dagiau â'r 
+Rhestr 
+S023W 
+Premises Activity Incorrect 
+Gweithgaredd y Safle yn Anghywir 
+S033W 
+Incorrect Flock Number 
+Rhif Diadell Anghywir 
+   
+ 
+  7.2.
+3 
+Failure 
+  
+Code 
+Description (Eng.) 
+Description (Welsh) 
+S001A 
+Authentication Fail 
+Methiant Dilysu 
+S001D 
+View Movement Disallowed 
+Gweld y Symudiad na Chaniateir 
+S002D 
+Animal ID Must Be Known 
+Rhaid Gwybod Cod Adnabod yr Anifail 
+S005D 
+Arrival Date Cannot Be 
+Future Date 
+Ni all y Dyddiad Cyrraedd fod yn y 
+Dyfodol 
+S007D 
+Departure Date Must Be Less 
+Than 3 Days Ahead 
+Rhaid i'r Dyddiad Gadael fod yn Llai na 
+3 Diwrnod yn y Dyfodol 
+S008D 
+Duplicate Movement 
+Symudiad wedi ei wneud eisoes 
+S009D 
+Movement Over 12 Months 
+Old 
+Symudiad Dros 12 Mis Oed 
+S010D 
+Movement Not Found 
+Symudiad Heb Ei Ganfod 
+S011D 
+Movement Not Saved 
+Symudiad Heb Ei Gadw 
+S012D 
+Neither CPH Registered With 
+This User 
+Dim Un Rhif y Daliad wedi ei Gofrestru 
+Gyda'r Defnyddiwr Hwn 
+S013D 
+No Record Found 
+Dim Cofnod 
+S014D 
+Quantity Of Animals Must Be 
+Less Than 1000 
+Rhaid Cael Llai na 1000 o Anifeiliaid 
+S015D 
+Updated Record But No 
+Matching Movement 
+Cofnod Wedi'i Diweddaru ond Dim 
+Symudiad yn Cyd-fynd 
+S016D 
+Deleted Record But No 
+Matching Movement 
+Cofnod Wedi'i Ddileu ond Dim 
+Symudiad yn Cyd-fynd  
+S018D 
+Specified Foreign Reference 
+Already Exists 
+Cyfeirnod Tramor Penodol Eisoes yn 
+Bodoli 
+S019D 
+Foreign Reference Not 
+Found 
+Dim Cyfeirnod Tramor 
+S020D 
+CPH Not Registered With 
+This User 
+Rhif y Daliad Heb ei Gofrestru â'r 
+Defnyddiwr Hwn 
+S021D 
+Movement Cannot Be 
+Deleted 
+Ni Caniateir Dileu y Symudiad 
+
+===== PAGE 46 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 46 
+ 
+S022D 
+Movement Cannot Be 
+Accepted 
+Ni Cheir Dderbyn y Symudiad  
+S023D 
+CPH View Disallowed 
+Cais Annilys i weld y CPH 
+S045D 
+Update Disallowed 
+Cais Annilys i Diweddaru 
+S001W 
+Reference Number Required 
+Angen Rhif Cyfeirnod 
+S002W 
+Movement Type Required. 
+Angen y Fath o Symudiad 
+S003W 
+Applicant Premises Activity 
+Not Recognised 
+Gweithgaredd yr Ymgeisydd heb ei 
+adnabod 
+S004W 
+Date Format Must Be yyyy-
+mm-dd 
+Rhaid ir Dyddiad fod mewn ffurf bbbb-
+mm-dd 
+S005W 
+Tag Time Format Must Be 
+yyyy-mm-ddThh:mm:ss 
+Rhaid i amser y Tag fod mewn ffurf 
+bbbb-mm-ddTaa:mm:ee 
+S006W 
+Destination Information 
+Required 
+Angen Manylion Pen y Daith 
+S007W 
+External Movement ID 
+Required 
+Angen Cyfeirnod Symud Allanol 
+S008W 
+Departure Date Required 
+Dim Dyddiad Ymadael 
+S009W 
+Departure CPH Required 
+Dim CPH man Cychwyn y Daith 
+S010W 
+External Reference Required 
+Dim Cyfeirnod allanol 
+S011W 
+Species Required 
+Nid oes Rhiwogaeth wedi ei gwblhau 
+S012W 
+Destination CPH Required 
+Angen Rhif Daliad Pen y Daith 
+S013W 
+Dead On Arrival Must Be 
+Numeric 
+Rhaid I nifer y rhai marw ar gyrraedd fod 
+yn Rhifol 
+S014W 
+Quantity Required 
+Angen y Nifer o Anifeiliaid 
+S015W 
+Quantity Too Large 
+Nifer yn Ormod 
+S016W 
+Reads Must Be Positive 
+Rhaid ir Darlleniadau fod yn Ffigwr 
+Positif 
+S018W 
+Element Previously Used 
+Elfen Wedi'i Ddefnyddio Eisoes 
+S021W 
+Incorrect Time Format 
+Fformat Amser Anghywir 
+S022W 
+Duplicated Element 
+Elfen Wedi'i Ddefnyddio Eisoes 
+S024W 
+Input Error 
+Camgymeriad yn y Mewnbwn 
+S025W 
+Incorrect Read Location 
+Format 
+Fformat Lleoliad wedi'i Ddarllen yn 
+Anghywir 
+S026W 
+Species Not Recognised 
+Rhywogaeth heb ei adnabod 
+S027W 
+Incorrect Lot Number 
+Rhif Lot Anghywir 
+S028W 
+Movement Key Required 
+Angen Allwedd Symudiad 
+S029W 
+Incorrect ISO tag 
+Tag ISO Anghywir 
+S030W 
+Incorrect Hex tag 
+Tag Hex Anghywir 
+
+===== PAGE 47 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 47 
+ 
+S031W 
+Incorrect Movement Type 
+Math Anghywir o Symudiad  
+S032W 
+Quantity Must Be Positive 
+Rhaid i'r Swm fod yn Fwy na Dim 
+S034W 
+Field To Be Completed 
+Maes i'w Gwblhau  
+S035W 
+Too Many Characters 
+Gormod o Nodau 
+S036W 
+Incorrect Date Format 
+Fformat Dyddiad Anghywir 
+S037W 
+Date Is Too Old 
+Dyddiad yn Rhy Hen 
+S038W 
+Date Must Not Be In Future 
+Ni Ddylai'r Dyddiad fod yn y Dyfodol 
+S039W 
+Out Of Range 
+Tu Hwnt i'r Terfynnau  
+ 
+7.3 Movement Species 
+ 
+Species Code 
+Description 
+4 
+SHEEP 
+44 
+GOAT 
+60 
+DEER 
+ 
+7.4 Movement Type 
+ 
+Movement Type 
+Description 
+3 
+ON/OFF (Keeper move) 
+4 
+MART (Use only by Market or Collection Centre 
+CPRC) 
+8 
+ABATTOIR (Use only by Abattoir CPRC) 
+ 
+7.5 Movement Reason 
+ 
+Movment Reason Code 
+Description 
+1 
+Moving to/Return from rounding up 
+from Common Land 
+2 
+Moving animals within your business 
+that remain under your ownership 
+3 
+Animals moving to a CPRC 
+
+===== PAGE 48 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 48 
+ 
+ 
+7.6 Off Exemption Codes 
+ 
+Movement Off 
+Exemption Codes 
+Description 
+102 
+Movements from tack 
+154 
+Moving from sheep dog trials back to premises of origin 
+168 
+Moving to show and no animals have moved onto the holding since the 
+animals last visited a show 
+169 
+Moving to show and no animals have moved onto the holding since the 
+animals last visited a show 
+173 
+Returning to their correct home after being inadvertently rounded up from 
+common land 
+185 
+Animals are moving to a slaughter collecting centre, from where the only 
+move is to slaughter 
+ 
+The exemption codes are AMLS codes and are only required in certain circumstances and scenarios. 
+The list is not exhaustive and has been compiled based on what is deemed to be likely common 
+codes. 
+7.7 On Exemption Codes 
+ 
+Movement On 
+Exemption Codes 
+Description 
+102 
+Movements from tack 
+173 
+Returning to their correct home after being inadvertently rounded up from 
+common land 
+187 
+Animals moved for performance/exhibition purposes and a permit has been 
+issued for the move. 
+ 
+The exemption codes are AMLS codes and are only required in certain circumstances and scenarios. 
+The list is not exhaustive and has been compiled based on what is deemed to be likely common 
+codes. 
+ 
+ 
+ 
+ 
+ 
+
+===== PAGE 49 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 49 
+ 
+7.8 Transport / Haulier Type 
+ 
+Transport / Haulier Code 
+Description 
+0 
+Departure Keeper 
+1 
+Receiving Keeper 
+2 
+Haulier 
+ 
+7.9 FCI Withdrawl Period 
+ 
+FCI Withdrawl Period Code 
+Description 
+0 
+Not relevant for this movement (e.g. 
+moves within a business or to shows) 
+1 
+The required withdrawal period for all 
+medicines has been adhered to - no 
+medicines have been administered in 
+the past 28 days 
+2 
+The required withdrawal period has 
+not been met 
+ 
+7.10 Holding Numbers 
+ 
+The CPH number formatting is CC/PPP/HHHH. Sub-locations are not supported and should be 
+removed before submission. 
+Where a movement is made to an abattoir, the 4-digit EU number may be used as an alternative. 
+ 
+ 
+ 
+
+===== PAGE 50 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 50 
+ 
+8 
+ 
+Endpoints 
+ 
+Two separate endpoints have been configured.  
+The first is for testing and is a fully functional test environment. The second is the main 
+production environment for users. 
+Before access will be given to the production environment, developers must 
+successfully test their application against the Staging environment and be satisfied 
+that reporting criteria has been met as laid out in the specification. 
+  
+Staging site: https://stagews.eidcymru.org/ews 
+ 
+Staging WSDL: https://stagews.eidcymru.org/ews.wsdl 
+ 
+ 
+Production site: https://ews.eidcymru.org/ews 
+ 
+Production WSDL: https://ews.eidcymru.org/ews.wsdl 
+ 
+ 
+Vendors will only be added into the Production Site once they have notified EIDCymru 
+that testing has been completed to their own satisfaction. EIDCymru will not retain a 
+list of Approved vendors. 
+ 
+ 
+ 
+ 
+
+===== PAGE 51 =====
+EIDCymru Web Service (EWS) 
+ 
+V1.3 Last updated 07/02/2018                                                                                                             Page 51 
+ 
+9 
+End-User Setup - Advisery Notice 
+ 
+ 
+This section provides advisery details which can be relayed to end users who wish to 
+setup a software link to their EIDCymru online account. 
+ 
+9.1.1 
+Pre-Requisite 
+Each individual keeper needs to have registered via the website 
+www.eidcymru.org for a standard EIDCymru account. 
+ 
+They should ensure details have been fully entered to their online account. 
+ 
+Specifically: 
+• 
+Name and address details 
+• 
+The primary farm CPH and any other CPH numbers that form part of 
+the holding/farm. 
+ 
+ 
+9.1.2 
+Enable Interface Credentials 
+To enable their farm software link, the user is required to contact the 
+EIDCymru Bureau directly via email or phone. 
+They will need to provide: 
+ 
+• 
+EIDCymru Username  
+• 
+Primary farm CPH number 
+• 
+Name of their farm software package. 
+ 
+The bureau service will activate the user’s web account to work with the 
+specified farm software package. 
+ 
+The credentials used for interfacing via farm software will remain the same 
+as the keeper’s web site credentials. 
+ 
+ 
+9.1.3 
+Contact Details for User Support 
+To register or ask for assistance, please contact the EIDCymru Service: 
+ 
+e-mail: contact@eidcymru.org / cysylltu@eidcymru.org 
+ 
+Telephone: 01970 636959 
+ 
+ 
