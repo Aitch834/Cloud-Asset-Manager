@@ -395,6 +395,163 @@ function BcmsCredentialsCard({ farmId, bcmsHoldingNumber }: { farmId: number; bc
   );
 }
 
+function EidcymruConnectionCard({ farmId, flockNumber }: { farmId: number; flockNumber?: string }) {
+  const { toast } = useToast();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [applicationName, setApplicationName] = useState("");
+  const [applicationVersion, setApplicationVersion] = useState("");
+  const [isStaging, setIsStaging] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState(false);
+
+  const credsQ = useQuery({
+    queryKey: ["eidcymru-credentials", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/eidcymru-credentials`).then(async r => {
+      if (!r.ok) throw new Error("Could not load EIDCymru settings");
+      return r.json();
+    }),
+    enabled: !!farmId,
+  });
+  const creds = credsQ.data;
+
+  useEffect(() => {
+    if (!creds) return;
+    setApplicationName(creds.applicationName ?? "");
+    setApplicationVersion(creds.applicationVersion ?? "");
+    setIsStaging(creds.sandboxMode !== false);
+  }, [creds]);
+
+  const saveMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/eidcymru-credentials`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: username || undefined,
+        password: password || undefined,
+        flockNumber: flockNumber ?? "",
+        applicationName,
+        applicationVersion,
+        sandboxMode: isStaging,
+      }),
+    }).then(async r => {
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Could not save EIDCymru credentials");
+      return r.json();
+    }),
+    onSuccess: () => {
+      setPassword("");
+      toast({ title: "EIDCymru credentials saved", description: `Ready to test against the ${isStaging ? "staging" : "production"} service.` });
+      credsQ.refetch();
+    },
+    onError: (error) => toast({ title: "Could not save EIDCymru credentials", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
+  });
+  const testMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/eidcymru-credentials/test`, { method: "POST" }).then(async r => {
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Connection test failed");
+      return r.json();
+    }),
+    onSuccess: (result) => {
+      toast({ title: result.success ? "EIDCymru connection verified" : "EIDCymru connection failed", description: result.message, variant: result.success ? "default" : "destructive" });
+      credsQ.refetch();
+    },
+    onError: (error) => toast({ title: "Connection test failed", description: error instanceof Error ? error.message : undefined, variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => fetch(`/api/farms/${farmId}/eidcymru-credentials`, { method: "DELETE" }).then(async r => {
+      if (!r.ok) throw new Error("Could not remove EIDCymru credentials");
+      return r.json();
+    }),
+    onSuccess: () => {
+      setUsername("");
+      setPassword("");
+      setApplicationName("");
+      setApplicationVersion("");
+      setPendingConfirm(false);
+      toast({ title: "EIDCymru credentials removed" });
+      credsQ.refetch();
+    },
+    onError: () => toast({ title: "Could not remove EIDCymru credentials", variant: "destructive" }),
+  });
+
+  const readyToSave = !!applicationName.trim() && !!applicationVersion.trim() && (!!username.trim() || !!creds?.usernameConfigured) && (!!password || !!creds?.passwordConfigured);
+  return (
+    <Card>
+      <CardContent className="p-6 md:p-8 space-y-5">
+        <SectionHeader
+          title="EIDCymru Movement Reporting"
+          description="Connect this Welsh holding to EIDCymru’s current EWS service for direct sheep and goat on/off movement reporting."
+        />
+        <div className="flex items-start gap-3 p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+          <ShieldCheck size={16} className="text-blue-700 mt-0.5 shrink-0" />
+          <div className="text-sm text-blue-900">
+            <p className="font-semibold">Per-keeper EIDCymru credentials</p>
+            <p className="text-xs text-blue-800 mt-1 leading-relaxed">EIDCymru EWS uses your keeper username and password in a secure HTTPS SOAP request, together with the application name and version that EIDCymru registered for BDE Farm Trac. Passwords are encrypted at rest and are never shown again.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <Label>EIDCymru Username</Label>
+            <Input value={username} onChange={e => setUsername(e.target.value)} placeholder={creds?.usernameConfigured ? "Saved — enter only to change" : "EIDCymru username"} className="mt-1" autoComplete="username" />
+          </div>
+          <div>
+            <Label>EIDCymru Password</Label>
+            <div className="relative mt-1">
+              <Input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder={creds?.passwordConfigured ? "Saved — enter only to change" : "EIDCymru password"} className="pr-10" autoComplete="new-password" />
+              <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <Label>Registered Application Name</Label>
+            <Input value={applicationName} onChange={e => setApplicationName(e.target.value)} placeholder="Exact name issued by EIDCymru" className="mt-1" />
+          </div>
+          <div>
+            <Label>Application Version</Label>
+            <Input value={applicationVersion} onChange={e => setApplicationVersion(e.target.value)} placeholder="e.g. 1.0" className="mt-1 font-mono" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Service environment</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{isStaging ? "Staging: sends real SOAP test requests only to stagews.eidcymru.org." : "Production: sends movement notifications to ews.eidcymru.org."}</p>
+          </div>
+          <Button type="button" variant={isStaging ? "outline" : "default"} size="sm" onClick={() => setIsStaging(value => !value)}>
+            {isStaging ? "Use production" : "Use staging"}
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={saveMut.isPending || !readyToSave} onClick={() => saveMut.mutate()} className="bg-green-800 hover:bg-green-900 text-white">
+            {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />} Save credentials
+          </Button>
+          <Button variant="outline" disabled={testMut.isPending || !creds?.configured} onClick={() => testMut.mutate()}>
+            {testMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Wifi size={14} className="mr-1" />} Test connection
+          </Button>
+          {creds?.configured && <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setPendingConfirm(true)}><Trash2 size={14} /></Button>}
+          {creds?.configured && <span className={`text-xs font-medium ml-1 ${creds.sandboxMode ? "text-amber-700" : "text-green-700"}`}>{creds.sandboxMode ? "Staging configured" : "Production configured"}</span>}
+        </div>
+        {creds?.lastTestedAt && (
+          <div className={`text-xs flex items-center gap-1.5 ${creds.testStatus === "ok" ? "text-green-700" : "text-red-700"}`}>
+            {creds.testStatus === "ok" ? <ShieldCheck size={13} /> : <WifiOff size={13} />}
+            Last test: {new Date(creds.lastTestedAt).toLocaleString("en-GB")} — {creds.testMessage}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">The flock number comes from the Livestock Movement Reporting section above. EIDCymru has indicated that EWS will be replaced in future; this connection is isolated so the movements workflow can move to the replacement service without changing your ledger.</p>
+        <ConfirmDialog
+          open={pendingConfirm}
+          title="Remove EIDCymru credentials"
+          message="This removes this holding’s encrypted EIDCymru login. Existing movement submission records will remain."
+          onConfirm={() => deleteMut.mutate()}
+          onCancel={() => { setPendingConfirm(false); deleteMut.reset(); }}
+          confirmLabel="Remove"
+          confirmVariant="destructive"
+          mutation={deleteMut}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
 type LisSyncResult = {
   success: boolean;
   sandbox?: boolean;
@@ -3091,6 +3248,7 @@ export default function FarmSettings() {
 
         {/* ── LIS / Livestock Information Service ── */}
         {farmId && <LisConnectionCard farmId={farmId} />}
+        {farmId && formData.country === "wales" && <EidcymruConnectionCard farmId={farmId} flockNumber={formData.eidCymruNumber} />}
         {/* LIP Cattle: greyed out — LIS LIP Cattle postponed to late 2027. Code preserved. */}
         {farmId && (
           <div style={{ position: "relative" }}>

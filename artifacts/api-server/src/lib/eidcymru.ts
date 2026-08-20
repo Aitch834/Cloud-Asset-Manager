@@ -1,142 +1,354 @@
 /**
- * EIDCymru — Electronic Identification for Wales adapter
+ * EIDCymru EWS v1.3 SOAP provider.
  *
- * EIDCymru is the Welsh Government's livestock electronic identification and
- * movement reporting system for sheep and goat keepers in Wales. It is
- * operated on behalf of the Welsh Government and is the Wales equivalent of
- * England's Livestock Information Service (LIS) for small livestock.
- *
- * Cattle movements in Wales are reported to BCMS Online (same as England).
- * Pig movements in Wales use eAML2.org.uk.
- *
- * API access requires registration as an approved software supplier at:
- *   https://www.eidcymru.org  (or developer.eidcymru.org when available)
- *
- * Authentication: API key supplied via HTTP header.
- *
- * Production credentials required (set as environment variables):
- *   EIDCYMRU_API_KEY   — BDE's vendor API key from the EIDCymru developer portal
- *
- * When EIDCYMRU_API_KEY is absent the adapter runs in SANDBOX mode: it builds
- * the request payload exactly as it would for production, logs it, and returns
- * a simulated acknowledgement so the full workflow can be tested immediately.
- *
- * EIDCymru portal:  https://www.eidcymru.org
- * EIDCymru API:     https://api.eidcymru.org/v1  (pending supplier registration)
+ * This provider is intentionally self-contained: the movements workflow talks
+ * to this boundary rather than knowing SOAP details, so a future EIDCymru API
+ * can replace it without changing routes or user-facing submission history.
  */
 
-const EIDCYMRU_API_BASE = "https://api.eidcymru.org/v1";
+const STAGING_ENDPOINT = "https://stagews.eidcymru.org/ews";
+const PRODUCTION_ENDPOINT = "https://ews.eidcymru.org/ews";
+const EWS_NAMESPACE = "https://ews.eidcymru.org/ews/";
 
-export function isEidcymruSandbox(): boolean {
-  return !process.env.EIDCYMRU_API_KEY;
+export interface EidcymruCredentials {
+  username: string;
+  password: string;
+  applicationName: string;
+  applicationVersion: string;
+  sandboxMode: boolean;
 }
 
-// ── Payload types ─────────────────────────────────────────────────────────────
-
 export interface EidcymruMovementPayload {
-  movementDate: string;           // YYYY-MM-DD
+  movementDate: string;
   movementType: "on" | "off" | "between" | "birth" | "death";
   departureCph: string;
   destinationCph: string;
   species: "sheep" | "goat";
   numberOfAnimals: number;
-  flockNumber?: string;           // EIDCymru flock number (from farm settings)
-  earTags?: string[];             // individual ear tag numbers
-  licenceNumber?: string;         // AML or movement licence ref
+  flockNumber?: string;
+  earTags?: string[];
+  licenceNumber?: string;
   transporterName?: string;
   vehicleRegistration?: string;
   reason?: string;
+  externalReference: string;
+}
+
+export interface EidcymruIssue {
+  code?: string;
+  description: string;
+  element?: string;
 }
 
 export interface EidcymruResult {
   success: boolean;
   sandboxMode: boolean;
   reference?: string;
+  warnings: EidcymruIssue[];
   rawResponse?: unknown;
   errorMessage?: string;
   payload: EidcymruMovementPayload;
 }
 
-// ── Movement submission ───────────────────────────────────────────────────────
+interface XmlNode {
+  name: string;
+  children: XmlNode[];
+  text: string;
+}
 
-export async function submitEidcymruMovement(payload: EidcymruMovementPayload): Promise<EidcymruResult> {
-  if (isEidcymruSandbox()) {
-    console.log("[EIDCYMRU] SANDBOX — simulated movement submission:", JSON.stringify(payload));
+function localName(name: string): string {
+  return name.split(":").at(-1) ?? name;
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function escapeXml(value: string | number): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * A small namespace-tolerant XML reader for EWS response documents. It uses a
+ * token stack rather than response-specific regular expressions, which keeps
+ * SOAP faults, repeated warnings and namespace prefixes safe to process.
+ */
+function readXml(xml: string): XmlNode {
+  const root: XmlNode = { name: "root", children: [], text: "" };
+  const stack = [root];
+  const tokens = xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<[^>]+>|[^<]+/g);
+  for (const match of tokens) {
+    const token = match[0];
+    if (token.startsWith("<!--") || token.startsWith("<?") || token.startsWith("<!DOCTYPE")) continue;
+    if (token.startsWith("<![CDATA[")) {
+      stack.at(-1)!.text += match[1] ?? "";
+      continue;
+    }
+    if (!token.startsWith("<")) {
+      stack.at(-1)!.text += decodeXml(token);
+      continue;
+    }
+    if (token.startsWith("</")) {
+      const expected = localName(token.slice(2, -1).trim());
+      if (stack.length === 1 || localName(stack.at(-1)!.name) !== expected) {
+        throw new Error("Malformed XML response from EIDCymru");
+      }
+      stack.pop();
+      continue;
+    }
+    if (token.startsWith("<!")) continue;
+    const inner = token.slice(1, -1).trim();
+    const selfClosing = inner.endsWith("/");
+    const tagName = inner.replace(/\/$/, "").trim().split(/\s+/, 1)[0];
+    if (!tagName) throw new Error("Malformed XML response from EIDCymru");
+    const node: XmlNode = { name: tagName, children: [], text: "" };
+    stack.at(-1)!.children.push(node);
+    if (!selfClosing) stack.push(node);
+  }
+  if (stack.length !== 1) throw new Error("Malformed XML response from EIDCymru");
+  return root;
+}
+
+function descendants(node: XmlNode, name: string): XmlNode[] {
+  const found: XmlNode[] = [];
+  for (const child of node.children) {
+    if (localName(child.name) === name) found.push(child);
+    found.push(...descendants(child, name));
+  }
+  return found;
+}
+
+function firstText(node: XmlNode, name: string): string | undefined {
+  const found = descendants(node, name)[0];
+  const value = found?.text.trim();
+  return value || undefined;
+}
+
+function issuesFrom(node: XmlNode, itemName: "Warning" | "Failure"): EidcymruIssue[] {
+  return descendants(node, itemName).map((item) => ({
+    code: firstText(item, "Code"),
+    description: firstText(item, "Description") ?? "EIDCymru returned an unspecified response.",
+    element: firstText(item, "Element"),
+  }));
+}
+
+function formatIssues(issues: EidcymruIssue[]): string {
+  return issues.map((issue) => [issue.code, issue.description, issue.element ? `(${issue.element})` : ""].filter(Boolean).join(" ")).join("; ");
+}
+
+export function parseEidcymruResponse(xml: string): {
+  success: boolean;
+  reference?: string;
+  warnings: EidcymruIssue[];
+  errorMessage?: string;
+  response: Record<string, unknown>;
+} {
+  const root = readXml(xml);
+  const fault = descendants(root, "Fault")[0];
+  if (fault) {
+    const faultCode = firstText(fault, "faultcode");
+    const faultString = firstText(fault, "faultstring") ?? "EIDCymru SOAP fault";
     return {
-      success: true,
-      sandboxMode: true,
-      reference: `EIDCYMRU-SBX-${Date.now()}`,
-      payload,
+      success: false,
+      warnings: [],
+      errorMessage: [faultCode, faultString].filter(Boolean).join(": "),
+      response: { fault: { code: faultCode, description: faultString } },
     };
   }
 
-  try {
-    const res = await fetch(`${EIDCYMRU_API_BASE}/movements`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": process.env.EIDCYMRU_API_KEY!,
-        "Accept": "application/json",
-      },
-      body: JSON.stringify({
-        movementDate:        payload.movementDate,
-        movementType:        payload.movementType,
-        departureCph:        payload.departureCph,
-        destinationCph:      payload.destinationCph,
-        species:             payload.species,
-        numberOfAnimals:     payload.numberOfAnimals,
-        flockNumber:         payload.flockNumber,
-        earTags:             payload.earTags ?? [],
-        licenceNumber:       payload.licenceNumber,
-        transporterName:     payload.transporterName,
-        vehicleRegistration: payload.vehicleRegistration,
-        reason:              payload.reason,
-      }),
-    });
-
-    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-
-    if (!res.ok) {
-      const msg = (body?.message ?? body?.error ?? `HTTP ${res.status}`) as string;
-      return { success: false, sandboxMode: false, errorMessage: msg, payload, rawResponse: body };
-    }
-
+  const failures = issuesFrom(root, "Failure");
+  const warnings = issuesFrom(root, "Warning");
+  const success = descendants(root, "Success")[0];
+  const reference = success ? firstText(success, "Mid") : undefined;
+  const submissionId = firstText(root, "submission_id") ?? firstText(root, "SubmissionId");
+  if (!success || failures.length > 0) {
     return {
-      success: true,
-      sandboxMode: false,
-      reference: (body?.reference ?? body?.id ?? body?.submissionId ?? String(res.status)) as string,
-      rawResponse: body,
+      success: false,
+      warnings,
+      errorMessage: formatIssues(failures) || "EIDCymru rejected this request.",
+      response: { submissionId, failures, warnings },
+    };
+  }
+
+  return {
+    success: true,
+    reference,
+    warnings,
+    response: {
+      submissionId,
+      success: {
+        code: firstText(success, "Code"),
+        description: firstText(success, "Description"),
+        mid: reference,
+      },
+      warnings,
+    },
+  };
+}
+
+function isoTimestamp(now = new Date()): string {
+  return now.toISOString().replace(/\.\d{3}Z$/, "");
+}
+
+function normaliseCph(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length < 9) return value.trim().replace(/\s+/g, "");
+  // EWS requires CPH only, not a sub-location. A supplied sub-location follows
+  // the 2/3/4 CPH digits and is deliberately excluded.
+  const cph = digits.slice(0, 9);
+  return `${cph.slice(0, 2)}/${cph.slice(2, 5)}/${cph.slice(5)}`;
+}
+
+export function eidcymruSpeciesCode(species: EidcymruMovementPayload["species"]): number {
+  if (species === "sheep") return 4;
+  if (species === "goat") return 44;
+  throw new Error(`EIDCymru does not support '${species}' in this provider.`);
+}
+
+export function eidcymruMovementReasonCode(payload: EidcymruMovementPayload): number | undefined {
+  if (payload.movementType === "between") return 2;
+  const reason = payload.reason?.toLowerCase() ?? "";
+  if (reason.includes("common land") || reason.includes("rounding")) return 1;
+  if (reason.includes("own business") || reason.includes("within business")) return 2;
+  if (reason.includes("market") || reason.includes("mart") || reason.includes("collection")) return 3;
+  return undefined;
+}
+
+export function buildEidcymruMovementEnvelope(payload: EidcymruMovementPayload, credentials: EidcymruCredentials, now = new Date()): string {
+  if (!["on", "off", "between"].includes(payload.movementType)) {
+    throw new Error("EIDCymru EWS submits on, off and between-holding movements. Record births and deaths separately in the keeper portal.");
+  }
+  if (!Number.isInteger(payload.numberOfAnimals) || payload.numberOfAnimals < 1 || payload.numberOfAnimals > 999) {
+    throw new Error("EIDCymru movements must contain between 1 and 999 animals.");
+  }
+  const departureCph = normaliseCph(payload.departureCph);
+  const destinationCph = normaliseCph(payload.destinationCph);
+  if (!departureCph || !destinationCph) throw new Error("Both departure and destination CPH numbers are required for EIDCymru.");
+  const tags = payload.earTags?.map((tag) => tag.trim()).filter(Boolean) ?? [];
+  const reasonCode = eidcymruMovementReasonCode(payload);
+  const transport = payload.transporterName || payload.vehicleRegistration
+    ? `<TransportInformation>${payload.transporterName ? `<TransportName>${escapeXml(payload.transporterName)}</TransportName>` : ""}${payload.vehicleRegistration ? `<TransportVehicleReg>${escapeXml(payload.vehicleRegistration)}</TransportVehicleReg>` : ""}</TransportInformation>`
+    : "";
+  const tagReadings = tags.length
+    ? `<MovementReads>${tags.length}</MovementReads><TagReadings>${tags.map((tag) => `<TagReading FreeTag="${escapeXml(tag)}" Type="manual" Timestamp="${isoTimestamp(now)}"/>`).join("")}</TagReadings>`
+    : "";
+  const flockTags = payload.flockNumber
+    ? `<FlockTags><FlockTag FlockNumber="${escapeXml(payload.flockNumber)}" TagCount="${payload.numberOfAnimals}"/></FlockTags>`
+    : "";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ews="${EWS_NAMESPACE}">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <ews:CreateMovementRequest>
+      <UserName>${escapeXml(credentials.username)}</UserName>
+      <Password>${escapeXml(credentials.password)}</Password>
+      <ApplicationName>${escapeXml(credentials.applicationName)}</ApplicationName>
+      <ApplicationVersion>${escapeXml(credentials.applicationVersion)}</ApplicationVersion>
+      <SchemaVersion>1.0</SchemaVersion>
+      <Timestamp>${isoTimestamp(now)}</Timestamp>
+      <Movement>
+        <ExternalReference>${escapeXml(payload.externalReference)}</ExternalReference>
+        <ExternalSystem>BDE Farm Trac</ExternalSystem>
+        <LotNumber>${escapeXml(payload.externalReference)}</LotNumber>
+        ${payload.licenceNumber ? `<MovementReference>${escapeXml(payload.licenceNumber)}</MovementReference>` : ""}
+        <MovementSpecies>${eidcymruSpeciesCode(payload.species)}</MovementSpecies>
+        <MovementQty>${payload.numberOfAnimals}</MovementQty>
+        <MovementType>3</MovementType>
+        ${reasonCode ? `<MovementReason>${reasonCode}</MovementReason>` : ""}
+        <DepartureCph>${escapeXml(departureCph)}</DepartureCph>
+        <DepartureDate>${escapeXml(payload.movementDate)}</DepartureDate>
+        <DestinationCph>${escapeXml(destinationCph)}</DestinationCph>
+        <ArrivalDate>${escapeXml(payload.movementDate)}</ArrivalDate>
+        ${tagReadings}
+        ${flockTags}
+        ${transport}
+      </Movement>
+    </ews:CreateMovementRequest>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+}
+
+function buildOutstandingEnvelope(credentials: EidcymruCredentials): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <GetOutstandingMovementsRequest xmlns="${EWS_NAMESPACE}">
+      <UserName xmlns="">${escapeXml(credentials.username)}</UserName>
+      <Password xmlns="">${escapeXml(credentials.password)}</Password>
+      <ApplicationName xmlns="">${escapeXml(credentials.applicationName)}</ApplicationName>
+      <ApplicationVersion xmlns="">${escapeXml(credentials.applicationVersion)}</ApplicationVersion>
+      <SchemaVersion xmlns="">1.0</SchemaVersion>
+      <Timestamp xmlns="">${isoTimestamp()}</Timestamp>
+      <Outstanding xmlns=""><Page>1</Page></Outstanding>
+    </GetOutstandingMovementsRequest>
+  </s:Body>
+</s:Envelope>`;
+}
+
+async function callEws(envelope: string, credentials: EidcymruCredentials): Promise<{ httpStatus: number; xml: string }> {
+  const endpoint = credentials.sandboxMode ? STAGING_ENDPOINT : PRODUCTION_ENDPOINT;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/xml; charset=utf-8",
+      Accept: "text/xml, application/soap+xml",
+      SOAPAction: "",
+    },
+    body: envelope,
+  });
+  return { httpStatus: response.status, xml: await response.text() };
+}
+
+export function isEidcymruSandbox(credentials?: Pick<EidcymruCredentials, "sandboxMode"> | null): boolean {
+  return credentials?.sandboxMode ?? true;
+}
+
+export async function submitEidcymruMovement(payload: EidcymruMovementPayload, credentials: EidcymruCredentials): Promise<EidcymruResult> {
+  try {
+    const envelope = buildEidcymruMovementEnvelope(payload, credentials);
+    const { httpStatus, xml } = await callEws(envelope, credentials);
+    const parsed = parseEidcymruResponse(xml);
+    return {
+      success: parsed.success,
+      sandboxMode: credentials.sandboxMode,
+      reference: parsed.reference,
+      warnings: parsed.warnings,
+      errorMessage: parsed.errorMessage ?? (httpStatus >= 400 ? `EIDCymru returned HTTP ${httpStatus}` : undefined),
+      payload,
+      rawResponse: { httpStatus, ...parsed.response },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      sandboxMode: credentials.sandboxMode,
+      warnings: [],
+      errorMessage: error instanceof Error ? error.message : "Unable to contact EIDCymru.",
       payload,
     };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Network error contacting EIDCymru API";
-    console.error("[EIDCYMRU] Submit error:", msg);
-    return { success: false, sandboxMode: false, errorMessage: msg, payload };
   }
 }
 
-// ── Connection test ───────────────────────────────────────────────────────────
-
-export async function testEidcymruConnection(): Promise<{ success: boolean; message: string }> {
-  if (isEidcymruSandbox()) {
+export async function testEidcymruConnection(credentials: EidcymruCredentials): Promise<{ success: boolean; message: string }> {
+  try {
+    const { httpStatus, xml } = await callEws(buildOutstandingEnvelope(credentials), credentials);
+    const parsed = parseEidcymruResponse(xml);
+    if (!parsed.success) return { success: false, message: parsed.errorMessage ?? `EIDCymru returned HTTP ${httpStatus}.` };
     return {
       success: true,
-      message: "Sandbox mode — EIDCYMRU_API_KEY not yet configured. All submissions will be simulated until BDE completes EIDCymru supplier registration.",
+      message: `${credentials.sandboxMode ? "Staging" : "Production"} EIDCymru connection accepted. ${parsed.warnings.length ? `Warnings: ${formatIssues(parsed.warnings)}` : "Credentials and registered application verified."}`,
     };
-  }
-  try {
-    const res = await fetch(`${EIDCYMRU_API_BASE}/status`, {
-      headers: {
-        "X-Api-Key": process.env.EIDCYMRU_API_KEY!,
-        "Accept": "application/json",
-      },
-    });
-    if (res.ok) {
-      return { success: true, message: "EIDCymru API key accepted — connection live. Ready to submit Wales sheep/goat movements." };
-    }
-    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-    return { success: false, message: `EIDCymru returned HTTP ${res.status}: ${body?.message ?? "Unexpected error"}` };
-  } catch (err: unknown) {
-    return { success: false, message: err instanceof Error ? err.message : "Network error reaching EIDCymru API" };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Unable to contact EIDCymru." };
   }
 }

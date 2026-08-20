@@ -43,7 +43,7 @@
 - [FarmEngage integration](farmengage-integration.md) — Trimble PTx; Auth Code Grant; redirect=api.bdefarmtrac.co.uk/api/farmengage/callback; docs at api-docs.farmengage.com; awaiting credentials
 - [LIS CLA births/deaths — UNSUPPORTED in v1.0](lis-cla-animals-api.md) — births/deaths are confirmed unsupported in CLA v1.0; cattle also no longer supported; submitLisBirth/Death stubbed; route guards early-return 422; lisBtn restricted to on/off only
 - [Livestock withdrawal alerting](livestock-withdrawal-alerting.md) — gte(col, dateString) only works for `date` columns; use sql`col >= CURRENT_DATE` for timestamp columns; CRITICAL_TYPES must include any new type that needs SMS
-- [EIDCymru + ScotEID integration scaffold](eidcymru-scoteid-scaffold.md) — Wales/Scotland livestock submission adapters; sandbox-first; tables in lisMigrations.ts; routes appended to farms.ts; Movements.tsx tabs gated on farmData.country
+- [EIDCymru + ScotEID integration boundary](eidcymru-scoteid-scaffold.md) — EIDCymru uses per-keeper EWS SOAP credentials with real staging/production endpoints; preserve its provider boundary for the announced replacement API
 - [lib/db rebuild command](lib-db-rebuild.md) — correct command after schema changes: `cd lib/db && npx tsc --build tsconfig.json`; not `pnpm --filter @workspace/db run build` (no build script exists)
 - [Record unknown && JSX TypeScript error](record-unknown-jsx.md) — `{record.field && <JSX />}` when record is `Record<string,unknown>` yields `unknown`, not ReactNode; fix with `{!!record.field && <JSX />}`
 - [Enter-opens-dialog ghost close](enter-opens-dialog-ghost-close.md) — Enter handlers that open a Radix dialog must preventDefault or the keystroke leaks into the dialog and instantly closes it

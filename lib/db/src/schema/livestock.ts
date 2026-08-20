@@ -1414,7 +1414,13 @@ export type NewAnnualHealthWelfareReview = typeof annualHealthWelfareReviewsTabl
 export const eidcymruFarmTokensTable = pgTable("eidcymru_farm_tokens", {
   id: serial("id").primaryKey(),
   farmId: integer("farm_id").notNull().references(() => farmsTable.id).unique(),
+  // Retained for transition from the previous speculative API-key integration.
+  // It is not used by the EWS SOAP provider.
   apiKeyEncrypted: text("api_key_encrypted"),
+  usernameEncrypted: text("username_encrypted"),
+  passwordEncrypted: text("password_encrypted"),
+  applicationName: text("application_name"),
+  applicationVersion: text("application_version"),
   flockNumber: text("flock_number"),
   isConfigured: boolean("is_configured").notNull().default(false),
   sandboxMode: boolean("sandbox_mode").notNull().default(true),

@@ -1588,7 +1588,7 @@ export default function Movements() {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
       refetchEidcymruSubmissions();
       if (d.success) {
-        toast({ title: d.sandbox ? "Submitted to EIDCymru (sandbox)" : "Submitted to EIDCymru", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `EIDCymru ref: ${d.reference}` });
+        toast({ title: d.sandbox ? "Submitted to EIDCymru staging" : "Submitted to EIDCymru", description: `${d.sandbox ? "Staging" : "EIDCymru"} ref: ${d.reference}${d.warnings?.length ? ` — ${d.warnings.map((warning: { description?: string }) => warning.description).filter(Boolean).join("; ")}` : ""}` });
       } else {
         toast({ title: "EIDCymru submission failed", description: d.errorMessage, variant: "destructive" });
       }
@@ -2704,7 +2704,7 @@ export default function Movements() {
                               </span>
                             ) : null;
 
-                            const isEidcymruSpecies = (r.species === "Sheep" || r.species === "Goat") && isWales && isSubmittableType;
+                            const isEidcymruSpecies = (speciesLower === "sheep" || speciesLower === "goat") && isWales && (r.movementType === "on" || r.movementType === "off" || r.movementType === "between");
                             const eidcymruBtn = isEidcymruSpecies ? (
                               <button
                                 onClick={() => setEidcymruSubmitConfirmId(r.id)}
@@ -2712,7 +2712,7 @@ export default function Movements() {
                                 style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.7rem", padding: "2px 8px", borderRadius: 6, border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
                               >
                                 {eidcymruSubmittingId === r.id ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
-                                {eidcymruCredsData?.sandboxMode !== false ? "Test (EIDCymru)" : "Submit EIDCymru"}
+                                {eidcymruCredsData?.sandboxMode !== false ? "Submit EIDCymru (staging)" : "Submit EIDCymru"}
                               </button>
                             ) : null;
 
@@ -4032,7 +4032,7 @@ export default function Movements() {
               <p style={{ fontSize: "0.82rem", color: "#6b7280" }}>
                 Sheep and goat movement notifications submitted to EIDCymru on behalf of this Wales holding.
                 {eidcymruCredsData?.sandboxMode !== false && (
-                  <span style={{ marginLeft: 8, color: "#b45309", fontWeight: 600 }}>⚠ Sandbox mode — submissions are simulated (EIDCYMRU_API_KEY not configured)</span>
+                  <span style={{ marginLeft: 8, color: "#b45309", fontWeight: 600 }}>⚠ Staging service — real test requests go to stagews.eidcymru.org</span>
                 )}
               </p>
             </div>
@@ -4041,7 +4041,7 @@ export default function Movements() {
 
           {!eidcymruConfigured && (
             <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "1rem 1.25rem", marginBottom: "1rem", fontSize: "0.875rem", color: "#92400e" }}>
-              <strong>EIDCymru not configured.</strong> Go to Farm Settings → Integrations to enter your EIDCymru flock number. In sandbox mode all submissions are simulated automatically.
+              <strong>EIDCymru not configured.</strong> Go to Farm Settings and enter the keeper credentials plus the EIDCymru-registered application name and version.
             </div>
           )}
 
@@ -4049,7 +4049,7 @@ export default function Movements() {
             <div style={{ textAlign: "center", padding: "3rem 0", color: "#9ca3af" }}>
               <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
               <p style={{ fontWeight: 600, marginBottom: 4 }}>No EIDCymru submissions yet</p>
-              <p style={{ fontSize: "0.82rem" }}>Use the "Test (EIDCymru)" button on a sheep or goat movement to submit it.</p>
+              <p style={{ fontSize: "0.82rem" }}>Use the EIDCymru button on an eligible sheep or goat on/off movement to submit it.</p>
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -4168,7 +4168,7 @@ export default function Movements() {
             <DialogTitle>Submit to EIDCymru</DialogTitle>
             <DialogDescription>
               {eidcymruCredsData?.sandboxMode !== false
-                ? "EIDCymru is in sandbox mode. This will log a simulated submission without contacting the live EIDCymru service."
+                ? "This sends a real test SOAP request to EIDCymru’s staging service. It will not use the production EIDCymru endpoint."
                 : "This will submit the movement notification to the live EIDCymru service on behalf of this holding."}
             </DialogDescription>
           </DialogHeader>
@@ -4181,7 +4181,7 @@ export default function Movements() {
               style={{ background: "#166534", color: "#fff" }}
             >
               {submitEidcymruMut.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-              {eidcymruCredsData?.sandboxMode !== false ? "Test Submit (Sandbox)" : "Submit to EIDCymru"}
+              {eidcymruCredsData?.sandboxMode !== false ? "Submit to EIDCymru staging" : "Submit to EIDCymru"}
             </Button>
           </DialogFooter>
         </DialogContent>

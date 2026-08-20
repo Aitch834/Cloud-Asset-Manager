@@ -504,7 +504,7 @@ import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
 import { submitMovement, testConnection, isSandboxMode } from "../lib/ctws";
 import { submitLisMovement, submitLisBirth, submitLisDeath, testLisConnection, fetchLisToken, refreshLisToken, isLisSandboxMode, isLisOAuthSandbox, callLisApi, buildLisAuthUrl, exchangeLisCode, reviewHoldingMovement, undoLisRequest, type LisResult } from "../lib/lis";
 import { buildLipAuthUrl, exchangeLipCode, getLipRedirectUri, signLipOAuthState, verifyLipOAuthState, probeLipApi, isLipSandboxMode, refreshLipToken, callLipApi, submitLipMovement, submitLipBirth, submitLipDeath, submitLipLostFound, confirmLipMovement, cancelLipMovement, getLipRejectionReasons, checkLipRequestStatus } from "../lib/lip";
-import { submitEidcymruMovement, testEidcymruConnection, isEidcymruSandbox } from "../lib/eidcymru";
+import { submitEidcymruMovement, testEidcymruConnection } from "../lib/eidcymru";
 import { submitScoteidMovement, testScoteidConnection, isScoteidSandbox } from "../lib/scoteid";
 import { buildTeltonikaAuthUrl, verifyTeltonikaState, exchangeTeltonikaCode } from "../lib/teltonika";
 import { buildJdAuthUrl, verifyJdState, exchangeJdCode } from "../lib/john_deere";
@@ -41931,13 +41931,17 @@ router.get("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, as
   if (!farmId) return;
   const [token] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
   if (!token) {
-    res.json({ configured: false, sandboxMode: isEidcymruSandbox() });
+    res.json({ configured: false, sandboxMode: true });
     return;
   }
   res.json({
     configured: token.isConfigured,
-    sandboxMode: isEidcymruSandbox(),
+    sandboxMode: token.sandboxMode,
     flockNumber: token.flockNumber,
+    usernameConfigured: !!token.usernameEncrypted,
+    passwordConfigured: !!token.passwordEncrypted,
+    applicationName: token.applicationName,
+    applicationVersion: token.applicationVersion,
     lastTestedAt: token.lastTestedAt,
     testStatus: token.testStatus,
     testMessage: token.testMessage,
@@ -41947,14 +41951,22 @@ router.get("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, as
 router.put("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { apiKey, flockNumber } = req.body as { apiKey?: string; flockNumber?: string };
+  const { username, password, flockNumber, applicationName, applicationVersion, sandboxMode } = req.body as {
+    username?: string; password?: string; flockNumber?: string; applicationName?: string; applicationVersion?: string; sandboxMode?: boolean;
+  };
   const [existing] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
-  const keyToStore = apiKey ? encryptCredential(apiKey) : existing?.apiKeyEncrypted;
+  const usernameToStore = username?.trim() ? encryptCredential(username.trim()) : existing?.usernameEncrypted;
+  const passwordToStore = password ? encryptCredential(password) : existing?.passwordEncrypted;
+  const nameToStore = applicationName?.trim() ?? existing?.applicationName ?? "";
+  const versionToStore = applicationVersion?.trim() ?? existing?.applicationVersion ?? "";
   const data = {
-    apiKeyEncrypted: keyToStore,
+    usernameEncrypted: usernameToStore,
+    passwordEncrypted: passwordToStore,
     flockNumber: flockNumber ?? existing?.flockNumber,
-    isConfigured: !!(apiKey || existing?.apiKeyEncrypted) || isEidcymruSandbox(),
-    sandboxMode: isEidcymruSandbox(),
+    applicationName: nameToStore,
+    applicationVersion: versionToStore,
+    isConfigured: !!(usernameToStore && passwordToStore && nameToStore && versionToStore),
+    sandboxMode: typeof sandboxMode === "boolean" ? sandboxMode : (existing?.sandboxMode ?? true),
     updatedAt: new Date(),
   };
   let record;
@@ -41963,7 +41975,7 @@ router.put("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, as
   } else {
     [record] = await db.insert(eidcymruFarmTokensTable).values({ ...data, farmId }).returning();
   }
-  res.json({ success: true, configured: record.isConfigured });
+  res.json({ success: true, configured: record.isConfigured, sandboxMode: record.sandboxMode });
 });
 
 router.delete("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
@@ -41976,7 +41988,18 @@ router.delete("/farms/:farmId/eidcymru-credentials", requireAuth, requireTenant,
 router.post("/farms/:farmId/eidcymru-credentials/test", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const result = await testEidcymruConnection();
+  const [token] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  if (!token?.usernameEncrypted || !token.passwordEncrypted || !token.applicationName || !token.applicationVersion) {
+    res.status(400).json({ error: "Enter EIDCymru username, password, registered application name and application version first." });
+    return;
+  }
+  const result = await testEidcymruConnection({
+    username: decryptCredential(token.usernameEncrypted),
+    password: decryptCredential(token.passwordEncrypted),
+    applicationName: token.applicationName,
+    applicationVersion: token.applicationVersion,
+    sandboxMode: token.sandboxMode,
+  });
   const status = result.success ? "ok" : "failed";
   await db.update(eidcymruFarmTokensTable)
     .set({ testStatus: status, testMessage: result.message, lastTestedAt: new Date(), updatedAt: new Date() })
@@ -42006,6 +42029,11 @@ router.post("/farms/:farmId/eidcymru-submit/:movementId", requireAuth, requireTe
 
   const [farmRow] = await db.select({ cphNumber: farmsTable.cphNumber, eidCymruNumber: farmsTable.eidCymruNumber })
     .from(farmsTable).where(eq(farmsTable.id, farmId));
+  const [token] = await db.select().from(eidcymruFarmTokensTable).where(eq(eidcymruFarmTokensTable.farmId, farmId));
+  if (!token?.isConfigured || !token.usernameEncrypted || !token.passwordEncrypted || !token.applicationName || !token.applicationVersion) {
+    res.status(409).json({ error: "EIDCymru is not configured. Add the keeper credentials and registered application details in Farm Settings first." });
+    return;
+  }
 
   const earTags = movement.earTagNumbers
     ? movement.earTagNumbers.split(",").map((t: string) => t.trim()).filter(Boolean)
@@ -42024,6 +42052,7 @@ router.post("/farms/:farmId/eidcymru-submit/:movementId", requireAuth, requireTe
     transporterName: movement.haulierCompany ?? movement.driverName ?? undefined,
     vehicleRegistration: movement.vehicleRegistration ?? undefined,
     reason: movement.reason ?? undefined,
+    externalReference: `BDE-${farmId}-${movement.id}`,
   };
 
   const [sub] = await db.insert(eidcymruSubmissionsTable).values({
@@ -42031,17 +42060,23 @@ router.post("/farms/:farmId/eidcymru-submit/:movementId", requireAuth, requireTe
     movementId,
     submissionType: "movement",
     status: "pending",
-    sandboxMode: isEidcymruSandbox(),
+    sandboxMode: token.sandboxMode,
     requestPayload: payload,
   }).returning();
 
-  const result = await submitEidcymruMovement(payload);
+  const result = await submitEidcymruMovement(payload, {
+    username: decryptCredential(token.usernameEncrypted),
+    password: decryptCredential(token.passwordEncrypted),
+    applicationName: token.applicationName,
+    applicationVersion: token.applicationVersion,
+    sandboxMode: token.sandboxMode,
+  });
 
   await db.update(eidcymruSubmissionsTable).set({
     status: result.success ? "submitted" : "failed",
     eidcymruReference: result.reference,
     responsePayload: (result.rawResponse as any) ?? null,
-    errorMessage: result.errorMessage,
+    errorMessage: result.errorMessage ?? (result.warnings.length ? `Warnings: ${result.warnings.map((warning) => warning.description).join("; ")}` : undefined),
     submittedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(eidcymruSubmissionsTable.id, sub.id));
@@ -42052,7 +42087,7 @@ router.post("/farms/:farmId/eidcymru-submit/:movementId", requireAuth, requireTe
     }).where(eq(livestockMovementsTable.id, movementId));
   }
 
-  res.json({ success: result.success, sandbox: result.sandboxMode, reference: result.reference, errorMessage: result.errorMessage });
+  res.json({ success: result.success, sandbox: result.sandboxMode, reference: result.reference, warnings: result.warnings, errorMessage: result.errorMessage });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

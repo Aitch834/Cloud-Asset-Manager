@@ -7,7 +7,8 @@
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
-    "test:alert": "tsx scripts/test-alert-county-filter.ts"
+    "test:alert": "tsx scripts/test-alert-county-filter.ts",
+    "test:eidcymru": "tsx scripts/test-eidcymru.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.0",

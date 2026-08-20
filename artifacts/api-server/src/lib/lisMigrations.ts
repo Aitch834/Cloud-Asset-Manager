@@ -392,6 +392,10 @@ export async function runLisMigrations(): Promise<void> {
       id serial primary key,
       farm_id integer not null unique references farms(id),
       api_key_encrypted text,
+      username_encrypted text,
+      password_encrypted text,
+      application_name text,
+      application_version text,
       flock_number text,
       is_configured boolean not null default false,
       sandbox_mode boolean not null default true,
@@ -402,6 +406,13 @@ export async function runLisMigrations(): Promise<void> {
       updated_at timestamptz not null default now()
     )
   `);
+  // The original EIDCymru implementation assumed an API key. EWS v1.3 uses
+  // per-keeper SOAP credentials, so preserve existing rows and add the fields
+  // required by the documented service contract.
+  await db.execute(sql`ALTER TABLE eidcymru_farm_tokens ADD COLUMN IF NOT EXISTS username_encrypted text`);
+  await db.execute(sql`ALTER TABLE eidcymru_farm_tokens ADD COLUMN IF NOT EXISTS password_encrypted text`);
+  await db.execute(sql`ALTER TABLE eidcymru_farm_tokens ADD COLUMN IF NOT EXISTS application_name text`);
+  await db.execute(sql`ALTER TABLE eidcymru_farm_tokens ADD COLUMN IF NOT EXISTS application_version text`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS eidcymru_submissions (
