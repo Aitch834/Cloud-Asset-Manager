@@ -71,4 +71,5 @@
 - [ZENTRA Cloud v5 migration](zentra-v5-migration.md) — upgraded from v4→v5 (July 2026 Cloud 2.0 broke v4); added next_url pagination in getAllZentraDevices(); stored token also needs regeneration from zentracloud.com Settings → API Access if 404 HTML persists
 - [adTemplateMigrations __dirname ESM fix](ad-template-esm-dirname.md) — __dirname undefined in tsx ESM; fixed with __esmDirname shim using fileURLToPath(import.meta.url); production CJS bundle falls back to global __dirname
 - [Sector alert system — county filtering](sector-alert-county-filtering.md) — 4 sectors × 5 keys in PLATFORM_CONFIG_DEFAULTS; county filter via ?farmId= on public endpoints; resolveFarmCounty does DB lookup; fail-open when county blank
+- [Defra plant health alerts](defra-plant-health-alerts.md) — Defra confirms there is currently no API or structured subscription feed; use official portal links/manual publication rather than scraping
 - [Vineyard Magazine advert](vineyard-magazine-ad.md) — approved portrait CMYK artwork is the version to use for the next magazine issue
