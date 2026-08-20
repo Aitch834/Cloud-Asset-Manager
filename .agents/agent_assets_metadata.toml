@@ -56,8 +56,8 @@ description = "Press-ready CMYK PDF. Half page vertical, 90×267mm trim. PDF 1.3
 id = "rq3aWA5-2pHfgiF0SOlHB"
 uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Horizontal-CMYK.pdf"
 type = "pdf"
-title = "BDE Farm Trac — Vineyard Magazine Horizontal Ad (CMYK PDF)"
-description = "Half-page horizontal, 190 × 133 mm, 300 DPI, CMYK, PDF 1.3 — ready for submission to Kelsey Media"
+title = "BDE Farm Trac — Vineyard Magazine horizontal advert (CMYK PDF)"
+description = "Press-ready single-page PDF: 190 × 133 mm, CMYK, PDF 1.3. Includes the same readability revisions as the portrait version."
 
 [[outputs]]
 id = "yKcNd0hczq5_edQ2_RzJh"
@@ -296,3 +296,10 @@ uri = "file://screenshots/vineyard-ad-horizontal-revised.jpg"
 type = "image"
 title = "Vineyard Magazine horizontal advert — revised proof"
 description = "Matching revision for the horizontal half-page version, with the larger logo, readable platform panel, and stronger QR web address."
+
+[[outputs]]
+id = "wbAxr-KCeNaW8_AVKctX7"
+uri = "file://attached_assets/ad-cmyk-output/output/BDE-FarmTrac-HalfPage-Portrait-CMYK.pdf"
+type = "pdf"
+title = "BDE Farm Trac — Vineyard Magazine portrait advert (CMYK PDF)"
+description = "Press-ready single-page PDF: 90 × 267 mm, CMYK, PDF 1.3. This is the revised format matching the printed Vineyard Magazine placement."
