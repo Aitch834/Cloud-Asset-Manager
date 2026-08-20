@@ -29,6 +29,7 @@ import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
 import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+import { isApproachingNeutral, isIdleBarrel } from "../lib/utils/vesselAlerts";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -133,24 +134,6 @@ function fillTier(fillNumber: number | null): { label: string; color: string; bg
   if (fillNumber === 4) return { label: "4th fill", color: "#1e40af", bg: "#eff6ff" };
   return { label: `${fillNumber}th fill – neutral`, color: "#6b7280", bg: "#f9fafb" };
 }
-
-/** A barrel is idle when it has been empty for longer than the threshold (default 90 days). */
-function isIdleBarrel(emptySince: string | null, idleBarrelDaysThreshold?: number | null): boolean {
-  if (!emptySince) return false;
-  const emptyDate = new Date(emptySince);
-  const now = new Date();
-  const diffDays = (now.getTime() - emptyDate.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDays > (idleBarrelDaysThreshold ?? 90);
-}
-
-/**
- * A barrel is approaching neutral at or above the fill threshold (default 4+).
- * Matches dashboard: `if (flagFilter === "approaching-neutral") return fill >= approachingNeutralFills;`
- */
-function isApproachingNeutral(fillNumber: number | null, approachingNeutralFillsThreshold?: number | null): boolean {
-  return fillNumber != null && fillNumber >= (approachingNeutralFillsThreshold ?? 4);
-}
-
 function idleDays(emptySince: string): number {
   const emptyDate = new Date(emptySince);
   const now = new Date();
