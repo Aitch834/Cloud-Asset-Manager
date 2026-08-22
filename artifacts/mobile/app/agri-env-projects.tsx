@@ -87,6 +87,68 @@ function projectsCacheKey(farmId: string | number): string {
 function schemeFilterKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_SCHEME_FILTER}_${farmId}`;
 }
+
+function deadlineStatus(dateStr: string | null): "overdue" | "warning" | "ok" | "none" {
+  if (!dateStr) return "none";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(dateStr);
+  dueDate.setHours(0, 0, 0, 0);
+  const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / 86_400_000);
+  if (daysUntilDue < 0) return "overdue";
+  if (daysUntilDue <= 30) return "warning";
+  return "ok";
+}
+
+function MilestoneDeadlineSummary({
+  overdueCount,
+  upcomingCount,
+  schemeFilter,
+}: {
+  overdueCount: number;
+  upcomingCount: number;
+  schemeFilter: string;
+}) {
+  if (overdueCount === 0 && upcomingCount === 0) return null;
+
+  return (
+    <View style={styles.deadlineBanner}>
+      <View style={styles.deadlineBannerIcon}>
+        <Feather
+          name="alert-triangle"
+          size={17}
+          color={overdueCount > 0 ? colors.error : colors.accentDark}
+        />
+      </View>
+      <View style={styles.deadlineBannerBody}>
+        <Text style={[
+          styles.deadlineBannerTitle,
+          { color: overdueCount > 0 ? colors.error : colors.accentDark },
+        ]}>
+          Milestone deadlines
+        </Text>
+        <Text style={styles.deadlineBannerScope}>
+          {schemeFilter ? `Showing ${schemeFilter}` : "All schemes"}
+        </Text>
+      </View>
+      <View style={styles.deadlineBadges}>
+        {overdueCount > 0 && (
+          <View style={[styles.deadlineBadge, styles.deadlineBadgeOverdue]}>
+            <Text style={[styles.deadlineBadgeCount, { color: colors.error }]}>{overdueCount}</Text>
+            <Text style={[styles.deadlineBadgeLabel, { color: colors.error }]}>Overdue</Text>
+          </View>
+        )}
+        {upcomingCount > 0 && (
+          <View style={[styles.deadlineBadge, styles.deadlineBadgeUpcoming]}>
+            <Text style={[styles.deadlineBadgeCount, { color: colors.accentDark }]}>{upcomingCount}</Text>
+            <Text style={[styles.deadlineBadgeLabel, { color: colors.accentDark }]}>Due soon</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function FarmDrawdownSummary({
   projects,
   milestones,
@@ -531,6 +593,20 @@ export default function AgriEnvProjectsScreen() {
     return nameOk && statusOk;
   });
 
+  // The mobile scheme filter is a type-to-search field. Use the same
+  // scheme-only scope for deadline counts as the dashboard: status chips
+  // affect the list, but not the selected scheme's deadline summary.
+  const schemeFilter = searchQuery.trim();
+  const schemeProjects = schemeFilter
+    ? projects.filter(p => p.schemeName.toLowerCase().includes(schemeFilter.toLowerCase()))
+    : projects;
+  const schemeProjectIds = new Set(schemeProjects.map(p => p.id));
+  const pendingMilestones = milestones.filter(
+    m => m.status !== "paid" && schemeProjectIds.has(m.projectId),
+  );
+  const overdueMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
+  const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
+
   const renderItem = ({ item: project }: { item: AgriEnvProject }) => {
     const isExpanded = expandedId === project.id;
     const total = project.totalGrantValuePence ?? 0;
@@ -854,6 +930,11 @@ export default function AgriEnvProjectsScreen() {
           ListHeaderComponent={
             projects.length > 0 ? (
               <View>
+                <MilestoneDeadlineSummary
+                  overdueCount={overdueMs}
+                  upcomingCount={upcomingMs}
+                  schemeFilter={schemeFilter}
+                />
                 <FarmDrawdownSummary projects={projects} milestones={milestones} />
                 <Text style={styles.countLabel}>
                   {(searchQuery.trim() || statusFilter !== null)
@@ -1067,6 +1148,67 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#92400e",
     flexShrink: 1,
+  },
+  deadlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: colors.accentLight,
+    borderRadius: radius.md,
+  },
+  deadlineBannerIcon: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+  },
+  deadlineBannerBody: {
+    flex: 1,
+    gap: 2,
+  },
+  deadlineBannerTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+  },
+  deadlineBannerScope: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  deadlineBadges: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  deadlineBadge: {
+    minWidth: 45,
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  deadlineBadgeOverdue: {
+    backgroundColor: colors.errorBg,
+    borderColor: colors.error + "55",
+  },
+  deadlineBadgeUpcoming: {
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warning + "55",
+  },
+  deadlineBadgeCount: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.md,
+    lineHeight: 18,
+  },
+  deadlineBadgeLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: 9,
   },
 
   // Status chip row
