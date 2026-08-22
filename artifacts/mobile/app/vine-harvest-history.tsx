@@ -625,7 +625,7 @@ export default function VineHarvestHistoryScreen() {
     let paSum = 0;   let paCount = 0;
     const seenBlockIds = new Set<number>();
 
-    for (const r of vintageRecords) {
+    for (const r of blockFilteredRecords) {
       if (r.yieldKg != null) {
         totalKg += Number(r.yieldKg);
         if (r.blockId != null) {
@@ -687,11 +687,11 @@ export default function VineHarvestHistoryScreen() {
       avgPh,
       avgTa,
       avgPotAlc,
-      count: vintageRecords.length + offlinePendingForVintage.length,
+      count: blockFilteredRecords.length + offlinePendingForVintage.length,
       hasBlockWithMissingArea,
       hasUnsynced,
     };
-  }, [vintageRecords, blocks, offlinePendingForVintage]);
+  }, [blockFilteredRecords, vintageRecords, blocks, offlinePendingForVintage]);
 
   // ── Yield by Variety summary (requires ≥2 distinct named varieties) ──────────
   const varietySummaryData = useMemo(() => {
