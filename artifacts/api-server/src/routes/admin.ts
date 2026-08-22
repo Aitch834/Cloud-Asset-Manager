@@ -135,6 +135,7 @@ router.get("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Re
       id: subscriptionsTable.id,
       farmId: subscriptionsTable.farmId,
       moduleId: subscriptionsTable.moduleId,
+      moduleKey: modulesTable.key,
       moduleName: modulesTable.name,
       status: subscriptionsTable.status,
       currentPeriodEnd: subscriptionsTable.currentPeriodEnd,
@@ -153,6 +154,9 @@ router.get("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Re
       email: usersTable.email,
       firstName: usersTable.firstName,
       lastName: usersTable.lastName,
+      phoneNumber: usersTable.phoneNumber,
+      smsOptIn: usersTable.smsOptIn,
+      smsCategories: usersTable.smsCategories,
     })
     .from(userTenantsTable)
     .innerJoin(usersTable, eq(userTenantsTable.userId, usersTable.id))

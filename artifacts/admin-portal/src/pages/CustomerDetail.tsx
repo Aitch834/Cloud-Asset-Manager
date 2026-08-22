@@ -5,7 +5,7 @@ import { getSecret } from "@/lib/auth";
 import {
   ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2,
   FileDown, Loader2, Mail, MailCheck, Bell, BellOff, Gift, Share2, Copy,
-  TrendingDown, RotateCcw, AlertTriangle, Zap, Plus, Trash2, Package, Pencil, X,
+  TrendingDown, RotateCcw, AlertTriangle, Zap, Plus, Trash2, Package, Pencil, X, AlertCircle,
 } from "lucide-react";
 
 const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
@@ -308,11 +308,69 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function UserRow({ user, tenantId, isLast, systemRoles, onUpdated }: {
+// Mirrors roleMiddleware.ts MODULE_BUNDLES — implied module keys from bundle subscriptions.
+const MODULE_BUNDLES: Record<string, string[]> = {
+  "sprays-inputs":        ["viticulture", "organic-viticulture"],
+  "risk-waste":           ["viticulture", "organic-viticulture"],
+  "staff-training":       ["viticulture", "organic-viticulture"],
+  "equipment-management": ["viticulture", "organic-viticulture"],
+  "stock-suppliers":      ["viticulture", "organic-viticulture"],
+};
+
+function expandModuleKeys(actualKeys: string[]): string[] {
+  const expanded = new Set(actualKeys);
+  for (const [impliedKey, triggerKeys] of Object.entries(MODULE_BUNDLES)) {
+    if (triggerKeys.some(k => expanded.has(k))) expanded.add(impliedKey);
+  }
+  return [...expanded];
+}
+
+// Mirrors the category list in the dashboard AccountSettings — keep in sync.
+const SMS_CATEGORIES: ReadonlyArray<{
+  key: string;
+  label: string;
+  moduleGates: ReadonlyArray<string>;
+}> = [
+  {
+    key: "livestock",
+    label: "Livestock & Animals",
+    moduleGates: [
+      "livestock-management", "livestock",
+      "beef-production", "sheep-production", "goat-production", "venison-production",
+      "pig-production", "poultry-production", "organic-livestock",
+    ],
+  },
+  {
+    key: "dairy",
+    label: "Dairy",
+    moduleGates: [
+      "dairy-management", "sheep-dairy", "goat-dairy",
+      "organic-dairy", "organic-sheep-dairy", "organic-goat-dairy",
+    ],
+  },
+  {
+    key: "arable",
+    label: "Arable & Crops",
+    moduleGates: [
+      "field-crop-management", "crop-management",
+      "fresh-produce", "organic-fresh-produce",
+      "water-irrigation", "organic-arable",
+    ],
+  },
+  { key: "viticulture", label: "Viticulture & Winery", moduleGates: ["viticulture"] },
+  { key: "tasks",      label: "Task Assignments & Reminders", moduleGates: [] },
+  { key: "regulatory", label: "Regulatory Compliance",        moduleGates: [] },
+  { key: "quality",    label: "Quality & Non-conformances",   moduleGates: [] },
+  { key: "stock",      label: "Stock & Supplies",             moduleGates: [] },
+];
+
+function UserRow({ user, tenantId, isLast, systemRoles, activeModuleKeys, smsAlertsActive, onUpdated }: {
   user: TenantUser;
   tenantId: number;
   isLast: boolean;
   systemRoles: Array<{ id: number; name: string }>;
+  activeModuleKeys: Set<string>;
+  smsAlertsActive: boolean;
   onUpdated: (updated: TenantUser) => void;
 }) {
   const [saving, setSaving] = useState(false);
@@ -345,52 +403,79 @@ function UserRow({ user, tenantId, isLast, systemRoles, onUpdated }: {
     }
   }
 
+  const smsCategories = user.smsCategories;
+  const visibleCategories = SMS_CATEGORIES.filter(cat =>
+    cat.moduleGates.length === 0 || cat.moduleGates.some(g => activeModuleKeys.has(g))
+  );
+  // Misconfigured when:
+  //   - the tenant has an active sms-alerts subscription on at least one farm
+  //   - the user's SMS opt-in is enabled (non-"none")
+  //   - categories are explicitly saved (non-null = legacy means all on)
+  //   - every visible category is explicitly false (absent keys default to true)
+  const smsMisconfigured =
+    smsAlertsActive &&
+    user.smsOptIn !== "none" &&
+    smsCategories !== null &&
+    typeof smsCategories === "object" &&
+    visibleCategories.length > 0 &&
+    visibleCategories.every(cat => smsCategories[cat.key] === false);
+
   return (
-    <div className={`px-5 py-3.5 flex items-center gap-3 ${!isLast ? "border-b border-border" : ""}`}>
-      <Users className="w-4 h-4 text-muted-foreground shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">
-          {user.firstName} {user.lastName}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-      </div>
-      <div className="relative">
-        {savingRole && <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-muted-foreground pointer-events-none" />}
-        <select
-          value={user.roleId ?? ""}
-          onChange={handleRoleChange}
-          disabled={savingRole}
-          className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+    <div className={!isLast ? "border-b border-border" : ""}>
+      <div className="px-5 py-3.5 flex items-center gap-3">
+        <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">
+            {user.firstName} {user.lastName}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+        </div>
+        <div className="relative">
+          {savingRole && <Loader2 className="absolute right-6 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-muted-foreground pointer-events-none" />}
+          <select
+            value={user.roleId ?? ""}
+            onChange={handleRoleChange}
+            disabled={savingRole}
+            className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+          >
+            <option value="">— No role —</option>
+            {systemRoles.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={toggleAlerts}
+          disabled={saving}
+          title={user.receiveAlerts ? "Receives critical alerts — click to remove" : "Does not receive alerts — click to enable"}
+          className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
+            user.receiveAlerts
+              ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
         >
-          <option value="">— No role —</option>
-          {systemRoles.map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-        </select>
-      </div>
-      <button
-        onClick={toggleAlerts}
-        disabled={saving}
-        title={user.receiveAlerts ? "Receives critical alerts — click to remove" : "Does not receive alerts — click to enable"}
-        className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full transition-colors ${
-          user.receiveAlerts
-            ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-            : "bg-muted text-muted-foreground hover:bg-muted/80"
-        }`}
-      >
-        {saving ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        ) : user.receiveAlerts ? (
-          <Bell className="w-3 h-3" />
+          {saving ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : user.receiveAlerts ? (
+            <Bell className="w-3 h-3" />
+          ) : (
+            <BellOff className="w-3 h-3" />
+          )}
+          {user.receiveAlerts ? "Receives alerts" : "No alerts"}
+        </button>
+        {user.isActive ? (
+          <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
         ) : (
-          <BellOff className="w-3 h-3" />
+          <XCircle className="w-4 h-4 text-destructive shrink-0" />
         )}
-        {user.receiveAlerts ? "Receives alerts" : "No alerts"}
-      </button>
-      {user.isActive ? (
-        <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-      ) : (
-        <XCircle className="w-4 h-4 text-destructive shrink-0" />
+      </div>
+      {smsMisconfigured && (
+        <div className="mx-5 mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
+          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
+          <p className="text-xs leading-relaxed">
+            SMS is enabled but every category is off — you won't receive any text alerts.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -1120,18 +1205,32 @@ export default function CustomerDetail() {
           <p className="text-sm text-muted-foreground">No users found.</p>
         ) : (
           <div className="bg-card border border-border rounded-xl overflow-hidden">
-            {users.map((user, i) => (
-              <UserRow
-                key={user.userId}
-                user={user}
-                tenantId={tenantId}
-                isLast={i === users.length - 1}
-                systemRoles={systemRoles}
-                onUpdated={(updated) =>
-                  setUsers((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)))
-                }
-              />
-            ))}
+            {(() => {
+              const now = Date.now();
+              // Mirror dashboard's activeSubs logic: active OR unexpired trial.
+              const effectiveSubs = subscriptions.filter(s =>
+                s.status === "active" ||
+                (s.status === "trial" && (!s.currentPeriodEnd || new Date(s.currentPeriodEnd).getTime() > now))
+              );
+              const effectiveKeys = expandModuleKeys(effectiveSubs.map(s => s.moduleKey));
+              const activeModuleKeys = new Set(effectiveKeys);
+              // Warning only shown when the tenant has sms-alerts on at least one farm.
+              const smsAlertsActive = activeModuleKeys.has("sms-alerts");
+              return users.map((user, i) => (
+                <UserRow
+                  key={user.userId}
+                  user={user}
+                  tenantId={tenantId}
+                  isLast={i === users.length - 1}
+                  systemRoles={systemRoles}
+                  activeModuleKeys={activeModuleKeys}
+                  smsAlertsActive={smsAlertsActive}
+                  onUpdated={(updated) =>
+                    setUsers((prev) => prev.map((u) => (u.userId === updated.userId ? updated : u)))
+                  }
+                />
+              ));
+            })()}
           </div>
         )}
       </Section>

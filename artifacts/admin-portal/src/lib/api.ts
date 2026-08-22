@@ -143,6 +143,7 @@ export interface Subscription {
   id: number;
   farmId: number;
   moduleId: number;
+  moduleKey: string;
   moduleName: string;
   status: string;
   currentPeriodEnd?: string;
@@ -164,6 +165,9 @@ export interface TenantUser {
   roleName: string | null;
   isActive: boolean;
   receiveAlerts: boolean;
+  phoneNumber: string | null;
+  smsOptIn: string;
+  smsCategories: Record<string, boolean> | null;
 }
 
 export interface SupportTicket {
