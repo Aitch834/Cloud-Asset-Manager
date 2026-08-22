@@ -1475,23 +1475,19 @@ export default function VineBlockPhotosScreen() {
     }
   };
 
-  const handleEditCaption = useCallback((photo: BlockPhoto) => {
-    setCaptionPhoto(photo);
-  }, []);
-
-  const handleSaveCaption = async (caption: string) => {
-    if (!currentFarm?.id || !selectedBlock || !captionPhoto) return;
+  const saveCaptionForPhoto = async (photo: BlockPhoto, caption: string) => {
+    if (!currentFarm?.id || !selectedBlock) return;
     setCaptionSaving(true);
     try {
       const result = await patchPhotoCaption(
         currentFarm.id,
         selectedBlock.id,
-        captionPhoto.id,
+        photo.id,
         caption,
       );
       if (result.ok) {
         setPhotos((prev) =>
-          prev.map((p) => (p.id === captionPhoto.id ? { ...p, caption: result.trimmedCaption } : p)),
+          prev.map((p) => (p.id === photo.id ? { ...p, caption: result.trimmedCaption } : p)),
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCaptionPhoto(null);
@@ -1502,6 +1498,34 @@ export default function VineBlockPhotosScreen() {
       setCaptionSaving(false);
     }
   };
+
+  const handleSaveCaption = async (caption: string) => {
+    if (captionPhoto) await saveCaptionForPhoto(captionPhoto, caption);
+  };
+
+  const handleEditCaption = useCallback((photo: BlockPhoto) => {
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Edit Caption",
+        undefined,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: (value?: string) => {
+              saveCaptionForPhoto(photo, value ?? "");
+            },
+          },
+        ],
+        "plain-text",
+        photo.caption ?? "",
+        "default",
+      );
+      return;
+    }
+
+    setCaptionPhoto(photo);
+  }, [saveCaptionForPhoto]);
 
   const handleSetCover = useCallback(async (photo: BlockPhoto) => {
     if (!currentFarm?.id || !selectedBlock) return;
@@ -1785,14 +1809,16 @@ export default function VineBlockPhotosScreen() {
         reloading={lightboxReloading}
       />
 
-      {/* Caption editor */}
-      <CaptionSheet
-        visible={captionPhoto !== null}
-        initialCaption={captionPhoto?.caption ?? null}
-        saving={captionSaving}
-        onSave={handleSaveCaption}
-        onClose={() => setCaptionPhoto(null)}
-      />
+      {/* Android caption editor (iOS uses Alert.prompt) */}
+      {Platform.OS !== "ios" ? (
+        <CaptionSheet
+          visible={captionPhoto !== null}
+          initialCaption={captionPhoto?.caption ?? null}
+          saving={captionSaving}
+          onSave={handleSaveCaption}
+          onClose={() => setCaptionPhoto(null)}
+        />
+      ) : null}
     </View>
   );
 }

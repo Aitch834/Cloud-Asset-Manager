@@ -984,8 +984,28 @@ export function ScoutingPhotoSection({
   };
 
   const handleOpenCaptionEdit = (photo: ScoutingPhoto) => {
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Edit Caption",
+        undefined,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: (value?: string) => {
+              handleSaveCaption(photo.id, value ?? "");
+            },
+          },
+        ],
+        "plain-text",
+        photo.caption ?? "",
+        "default",
+      );
+      return;
+    }
+
     setLightboxIndex(null);
-    // small delay so lightbox closes before caption modal opens
+    // Small delay so the lightbox closes before the Android caption modal opens.
     setTimeout(() => setCaptionEditPhoto(photo), 150);
   };
 
@@ -1071,14 +1091,16 @@ export function ScoutingPhotoSection({
         onEditCaption={handleOpenCaptionEdit}
       />
 
-      <CaptionEditModal
-        visible={captionEditPhoto !== null}
-        initialCaption={captionEditPhoto?.caption ?? ""}
-        onSave={(caption) => {
-          if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
-        }}
-        onClose={() => setCaptionEditPhoto(null)}
-      />
+      {Platform.OS !== "ios" ? (
+        <CaptionEditModal
+          visible={captionEditPhoto !== null}
+          initialCaption={captionEditPhoto?.caption ?? ""}
+          onSave={(caption) => {
+            if (captionEditPhoto) handleSaveCaption(captionEditPhoto.id, caption);
+          }}
+          onClose={() => setCaptionEditPhoto(null)}
+        />
+      ) : null}
 
       {/* Post-upload caption prompt — shown immediately after a successful upload */}
       <CaptionEditModal
