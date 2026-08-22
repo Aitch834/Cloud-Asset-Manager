@@ -163,6 +163,62 @@ describe("TemplatePlaceholderPreview — headline debounce", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// template switching
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("TemplatePlaceholderPreview — rapid template switching", () => {
+  it("discards the old headline timer and shows the new template content together after 150 ms", () => {
+    const firstTemplate = "<p>{{headline}}</p>";
+    const switchedTemplate =
+      "<p>{{headline}}</p><p>{{body}}</p><p style='color:{{accent_color}}'>.</p>";
+
+    const { rerender } = render(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Original headline"
+        body="Original body"
+        accentColor="#ff0000"
+      />
+    );
+
+    // Begin editing the old template, leaving its headline debounce timer pending.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Old headline mid-edit"
+        body="Original body"
+        accentColor="#ff0000"
+      />
+    );
+    tick(75);
+
+    // Switch templates while the old headline timer is still pending.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={switchedTemplate}
+        headline="New headline"
+        body="New body"
+        accentColor="#00ff00"
+      />
+    );
+
+    // The old timer would fire here if the template switch left it alive.
+    tick(75);
+    expect(screen.getByText("{{body}}")).toBeDefined();
+    expect(screen.queryByText(/Old headline mid-edit/i)).toBeNull();
+
+    // 150 ms after the switch, all debounced values must belong to the new template.
+    tick(75);
+    expect(screen.getByText("{{body}}")).toBeDefined();
+    expect(screen.getByText(/New headline/i)).toBeDefined();
+    expect(screen.getByText(/New body/i)).toBeDefined();
+    expect(screen.getByText("#00ff00")).toBeDefined();
+    expect(screen.queryByText(/Original body/i)).toBeNull();
+    expect(screen.queryByText(/Old headline mid-edit/i)).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // body
 // ═══════════════════════════════════════════════════════════════════════════════
 
