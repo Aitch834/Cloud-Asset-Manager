@@ -59,6 +59,25 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Harvest = Record<string, unknown>;
 
+function getWineGBVarietyPickCounts(rows: Record<string, unknown>[], blocks: Record<string, unknown>[]) {
+  const pickCounts: Record<string, number> = {};
+  for (const r of rows) {
+    const block = r.blockId != null ? blocks.find(b => String(b.id) === String(r.blockId)) : null;
+    const variety = block ? String(block.variety ?? "").trim() : "";
+    const key = variety || "Unknown / Not linked";
+    pickCounts[key] = (pickCounts[key] ?? 0) + 1;
+  }
+  return Object.entries(pickCounts);
+}
+
+function buildWineGBLowPickNote(varietyPickCounts: [string, number][]) {
+  const lowPickVarieties = varietyPickCounts.filter(([, pickCount]) => pickCount === 1);
+  if (lowPickVarieties.length === 0) return null;
+  const names = lowPickVarieties.map(([variety]) => variety);
+  const plural = lowPickVarieties.length === 1;
+  return `NOTE: ${lowPickVarieties.length} variet${plural ? "y" : "ies"} based on a single pick — yield and chemistry averages may be less representative: ${names.join("; ")}`;
+}
+
 export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Harvest>(farmId, "vineyard-harvest", "vineyard-harvest");
   const farmName = useFarmName(farmId);
@@ -248,6 +267,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     if (printBlockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === printBlockFilter);
     return rows;
   }, [data, yearFilter, printBlockFilter]);
+
+  const wineGBLowPickWarning = useMemo(
+    () => buildWineGBLowPickNote(getWineGBVarietyPickCounts(filteredHarvest, blocks)),
+    [filteredHarvest, blocks],
+  );
+  const [dismissedWineGBWarningVintage, setDismissedWineGBWarningVintage] = useState<string | null>(null);
 
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
@@ -1128,13 +1153,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const warningLine = _w2 ? _w2 + "\n" : "";
 
     // Low-pick warning: varieties with only 1 harvest record have less representative averages
-    const lowPickVarieties = Object.entries(varietyMap).filter(([, e]) => e.pickCount === 1);
-    let lowPickWarningLine = "";
-    if (lowPickVarieties.length > 0) {
-      const names = lowPickVarieties.map(([variety]) => variety);
-      const plural = lowPickVarieties.length === 1;
-      lowPickWarningLine = cell(`NOTE: ${lowPickVarieties.length} variet${plural ? "y" : "ies"} based on a single pick — yield and chemistry averages may be less representative: ${names.join("; ")}`) + "\n";
-    }
+    const lowPickWarningNote = buildWineGBLowPickNote(
+      Object.entries(varietyMap).map(([variety, entry]) => [variety, entry.pickCount] as [string, number]),
+    );
+    const lowPickWarningLine = lowPickWarningNote ? cell(lowPickWarningNote) + "\n" : "";
 
     const csv = warningLine + lowPickWarningLine + [
       cell(`WineGB Harvest Yield Survey — ${farmName ?? ""} — Vintage ${vintageLabel}`),
@@ -1236,6 +1258,20 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
         </div>
       </div>
+      {wineGBLowPickWarning && dismissedWineGBWarningVintage !== yearFilter && (
+        <div role="alert" className="flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <span className="min-w-0 flex-1">{wineGBLowPickWarning}</span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-amber-700 hover:bg-amber-100 hover:text-amber-950"
+            aria-label="Dismiss WineGB single-pick warning"
+            onClick={() => setDismissedWineGBWarningVintage(yearFilter)}
+          >
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Farm Settings missing / invalid field warning */}
       <FarmSettingsWarning
