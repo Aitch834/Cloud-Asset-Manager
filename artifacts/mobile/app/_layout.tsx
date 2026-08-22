@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { BarrelAlertProvider } from "@/lib/context/BarrelAlertContext";
 import { FarmProvider, useFarm } from "@/lib/context/FarmContext";
 import { RFIDProvider } from "@/lib/context/RFIDContext";
 import { SyncProvider } from "@/lib/context/SyncContext";
@@ -194,13 +195,15 @@ export default function RootLayout() {
               <AuthProvider>
                 <FarmProvider>
                   <FarmRefresher />
-                  <SyncProvider>
-                    <RFIDProvider>
-                      <AuthGate>
-                        <RootLayoutNav />
-                      </AuthGate>
-                    </RFIDProvider>
-                  </SyncProvider>
+                  <BarrelAlertProvider>
+                    <SyncProvider>
+                      <RFIDProvider>
+                        <AuthGate>
+                          <RootLayoutNav />
+                        </AuthGate>
+                      </RFIDProvider>
+                    </SyncProvider>
+                  </BarrelAlertProvider>
                 </FarmProvider>
               </AuthProvider>
             </KeyboardProvider>

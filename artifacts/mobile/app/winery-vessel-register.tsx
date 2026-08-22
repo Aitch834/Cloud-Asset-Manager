@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { useBarrelAlertContext } from "@/lib/context/BarrelAlertContext";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
@@ -685,6 +686,7 @@ function EmptyState({ error }: { error: string | null }) {
 export default function WineryVesselRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
+  const { triggerBarrelRefresh } = useBarrelAlertContext();
   const { flag: flagParam } = useLocalSearchParams<{ flag?: string }>();
   const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
   // Require resolvedFarmId to match currentFarm.id so we never fire this request
@@ -918,7 +920,7 @@ export default function WineryVesselRegisterScreen() {
           vesselId={String(logFillVessel.id)}
           vesselRef={logFillVessel.vessel_ref}
           onClose={() => setLogFillVessel(null)}
-          onSuccess={() => { setLogFillVessel(null); refresh(); }}
+          onSuccess={() => { setLogFillVessel(null); refresh(); triggerBarrelRefresh(); }}
         />
       )}
     </View>

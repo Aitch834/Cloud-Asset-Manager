@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
+import { useBarrelAlertContext } from "@/lib/context/BarrelAlertContext";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { useApiModules } from "@/lib/hooks/useApiModules";
@@ -1242,6 +1243,7 @@ function MovementCard({ record, onEdit, onDelete }: { record: BarrelMovement; on
 export default function WineryVesselDetailScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
+  const { triggerBarrelRefresh } = useBarrelAlertContext();
   const params = useLocalSearchParams<{
     vesselId: string;
     vesselRef: string;
@@ -1552,14 +1554,14 @@ export default function WineryVesselDetailScreen() {
             farmId={currentFarm.id}
             vesselId={params.vesselId}
             onClose={() => setLogFillModalOpen(false)}
-            onSuccess={() => { setLogFillModalOpen(false); refresh(); }}
+            onSuccess={() => { setLogFillModalOpen(false); refresh(); triggerBarrelRefresh(); }}
           />
           <LogMaintenanceModal
             visible={maintenanceModalOpen}
             farmId={currentFarm.id}
             vesselId={params.vesselId}
             onClose={() => setMaintenanceModalOpen(false)}
-            onSuccess={() => { setMaintenanceModalOpen(false); refresh(); }}
+            onSuccess={() => { setMaintenanceModalOpen(false); refresh(); triggerBarrelRefresh(); }}
           />
           <EditFillModal
             visible={editingFill !== null}
@@ -1567,7 +1569,7 @@ export default function WineryVesselDetailScreen() {
             vesselId={params.vesselId}
             record={editingFill}
             onClose={() => setEditingFill(null)}
-            onSuccess={() => { setEditingFill(null); refresh(); }}
+            onSuccess={() => { setEditingFill(null); refresh(); triggerBarrelRefresh(); }}
           />
           <EditMaintenanceModal
             visible={editingMaintenance !== null}
@@ -1575,7 +1577,7 @@ export default function WineryVesselDetailScreen() {
             vesselId={params.vesselId}
             record={editingMaintenance}
             onClose={() => setEditingMaintenance(null)}
-            onSuccess={() => { setEditingMaintenance(null); refresh(); }}
+            onSuccess={() => { setEditingMaintenance(null); refresh(); triggerBarrelRefresh(); }}
           />
           {editingMovement !== null && (
             <EditMovementModal
