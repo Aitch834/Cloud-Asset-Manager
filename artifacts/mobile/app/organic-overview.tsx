@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { RaiseTaskSheet } from "@/components/ui/RaiseTaskSheet";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -124,6 +125,11 @@ export default function OrganicOverviewScreen() {
   const [livestockConversions, setLivestockConversions] = useState<LivestockConversion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [taskSheet, setTaskSheet] = useState<{
+    title: string;
+    description: string;
+    dueDate: string;
+  } | null>(null);
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -249,6 +255,18 @@ export default function OrganicOverviewScreen() {
                       : certificationExpiryDays !== null && certificationExpiryDays < 0
                         ? <Text style={styles.errorBadge}>Expired</Text>
                         : null}
+                    <Pressable
+                      style={styles.taskButton}
+                      onPress={() => setTaskSheet({
+                        title: `Certificate Expiry — ${certification.certifier ?? "Unknown certifier"}`,
+                        description: `Your organic certificate issued by ${certification.certifier ?? "your certifier"} is due to expire. Check with your certifier and update the record in Organic Compliance → Certification.`,
+                        dueDate: certification.expiryDate!,
+                      })}
+                      accessibilityRole="button"
+                      accessibilityLabel="Raise certificate expiry reminder task"
+                    >
+                      <Feather name="clipboard" size={16} color={colors.error} />
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
@@ -513,6 +531,18 @@ export default function OrganicOverviewScreen() {
           </>
         )}
       </ScrollView>
+      {taskSheet && (
+        <RaiseTaskSheet
+          visible
+          farmId={currentFarm?.id ?? ""}
+          defaultTitle={taskSheet.title}
+          defaultDescription={taskSheet.description}
+          defaultDueDate={taskSheet.dueDate}
+          module="Organic Compliance"
+          onRaised={() => setTaskSheet(null)}
+          onSkip={() => setTaskSheet(null)}
+        />
+      )}
     </View>
   );
 }
@@ -571,6 +601,14 @@ const styles = StyleSheet.create({
   statusBadge: { fontFamily: fonts.medium, fontSize: fontSize.sm },
   certDetail: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
   renewalRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.xs },
+  taskButton: {
+    width: 32,
+    height: 32,
+    marginLeft: spacing.xs,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   warningBadge: {
     fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: "#92400e",
     backgroundColor: "#fef3c7", paddingHorizontal: 6, paddingVertical: 2,

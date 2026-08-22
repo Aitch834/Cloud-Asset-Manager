@@ -24,12 +24,13 @@ interface Props {
   farmId: string | number;
   defaultTitle: string;
   defaultDescription: string;
+  defaultDueDate?: string;
   module: string;
   onRaised: () => void;
   onSkip: () => void;
 }
 
-export function RaiseTaskSheet({ visible, farmId, defaultTitle, defaultDescription, module, onRaised, onSkip }: Props) {
+export function RaiseTaskSheet({ visible, farmId, defaultTitle, defaultDescription, defaultDueDate, module, onRaised, onSkip }: Props) {
   const [title, setTitle] = useState(defaultTitle);
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,6 +53,7 @@ export function RaiseTaskSheet({ visible, farmId, defaultTitle, defaultDescripti
         body: JSON.stringify({
           title: title.trim(),
           description: defaultDescription,
+          dueDate: defaultDueDate || null,
           module,
           status: "pending",
         }),
