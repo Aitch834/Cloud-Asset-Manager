@@ -42750,18 +42750,41 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const body = req.body as Record<string, unknown>;
   const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = body;
+  const [existing] = await db.select({
+    completionDate: agriEnvMilestonesTable.completionDate,
+    status: agriEnvMilestonesTable.status,
+  }).from(agriEnvMilestonesTable)
+    .where(and(
+      eq(agriEnvMilestonesTable.id, id),
+      eq(agriEnvMilestonesTable.projectId, projectId),
+      eq(agriEnvMilestonesTable.farmId, farmId),
+    ));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const nextStatus = status != null ? String(status) : existing.status;
+  const nextCompletionDate = "completionDate" in body
+    ? (completionDate ? String(completionDate) : null)
+    : existing.completionDate;
+  if (nextStatus === "paid" && !nextCompletionDate) {
+    res.status(400).json({ error: "A paid milestone requires a completion date" });
+    return;
+  }
+
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (milestoneName   != null) updates["milestoneName"]   = String(milestoneName);
   if (dueDate         != null) updates["dueDate"]         = dueDate         ? String(dueDate)         : null;
   // Allow explicit null to clear the completion date (e.g. when reverting from submitted/paid)
   if ("completionDate" in body) updates["completionDate"] = completionDate  ? String(completionDate)  : null;
-  if (claimAmountPence != null) updates["claimAmountPence"] = claimAmountPence ? Number(claimAmountPence) : null;
+  if ("claimAmountPence" in body) {
+    updates["claimAmountPence"] = claimAmountPence == null || claimAmountPence === ""
+      ? null
+      : Number(claimAmountPence);
+  }
   if (status          != null) updates["status"]          = String(status);
-  if (evidenceNotes   != null) updates["evidenceNotes"]   = evidenceNotes   ? String(evidenceNotes)   : null;
+  if ("evidenceNotes" in body) updates["evidenceNotes"] = evidenceNotes ? String(evidenceNotes) : null;
   const [milestone] = await db.update(agriEnvMilestonesTable).set(updates as any)
     .where(and(eq(agriEnvMilestonesTable.id, id), eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)))
     .returning();
-  if (!milestone) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ milestone });
 });
 
