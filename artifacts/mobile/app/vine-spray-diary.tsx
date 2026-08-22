@@ -84,6 +84,7 @@ function SprayPhotoThumbnail({
   onDelete,
   onPress,
   onReload,
+  reloading,
   onShowTooltip,
   onHideTooltip,
 }: {
@@ -91,6 +92,8 @@ function SprayPhotoThumbnail({
   onDelete: (id: number) => void;
   onPress: (photo: SprayDiaryPhoto) => void;
   onReload?: () => void;
+  /** True while this thumbnail's presigned URL refresh is in flight. */
+  reloading?: boolean;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
 }) {
@@ -154,9 +157,16 @@ function SprayPhotoThumbnail({
             style={styles.thumbPlaceholder}
             onPress={() => { onReload?.(); }}
             hitSlop={8}
+            disabled={reloading}
           >
-            <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
-            <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+              </>
+            )}
           </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
@@ -510,6 +520,11 @@ function SprayDiaryPhotoSection({
   // Lightbox state
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // ID of the thumbnail whose presigned URL refresh is currently in flight.
+  const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
+  // Prevent rapid presses from starting overlapping refreshes before React
+  // commits the reloadingPhotoId state update.
+  const reloadInFlightRef = useRef(false);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -625,7 +640,18 @@ function SprayDiaryPhotoSection({
               photo={item}
               onDelete={handleDeletePhoto}
               onPress={handlePressPhoto}
-              onReload={() => loadPhotos({ silent: true })}
+              onReload={async () => {
+                if (reloadInFlightRef.current) return;
+                reloadInFlightRef.current = true;
+                setReloadingPhotoId(item.id);
+                try {
+                  await loadPhotos({ silent: true });
+                } finally {
+                  reloadInFlightRef.current = false;
+                  setReloadingPhotoId(null);
+                }
+              }}
+              reloading={reloadingPhotoId === item.id}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
             />
