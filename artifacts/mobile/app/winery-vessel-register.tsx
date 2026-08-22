@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -85,6 +85,10 @@ interface WineryVessel {
 // ── Flag filter ───────────────────────────────────────────────────────────────
 
 type AlertFlag = "idle" | "approaching-neutral" | "no-fills";
+
+function isAlertFlag(value: string | undefined): value is AlertFlag {
+  return value === "idle" || value === "approaching-neutral" || value === "no-fills";
+}
 
 interface FlagDef {
   key: AlertFlag;
@@ -681,6 +685,7 @@ function EmptyState({ error }: { error: string | null }) {
 export default function WineryVesselRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
+  const { flag: flagParam } = useLocalSearchParams<{ flag?: string }>();
   const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
   // Require resolvedFarmId to match currentFarm.id so we never fire this request
   // during the window between a farm switch and the new farm's module fetch completing.
@@ -711,6 +716,14 @@ export default function WineryVesselRegisterScreen() {
 
   // ── Alert-flag filter ──────────────────────────────────────────────────────
   const [alertFlag, setAlertFlag] = usePersistedAlertFlag(currentFarm?.id ? String(currentFarm.id) : undefined);
+
+  // A badge tap on the Record screen supplies the most urgent flag to show.
+  // Apply it after the persisted-filter hook so the explicit navigation intent
+  // wins over any previously stored selection.
+  useEffect(() => {
+    const requestedFlag = Array.isArray(flagParam) ? flagParam[0] : flagParam;
+    if (isAlertFlag(requestedFlag)) setAlertFlag(requestedFlag);
+  }, [flagParam, setAlertFlag]);
 
   // ── Log-fill quick-action modal ────────────────────────────────────────────
   const [logFillVessel, setLogFillVessel] = useState<WineryVessel | null>(null);

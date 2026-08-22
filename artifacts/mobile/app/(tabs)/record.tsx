@@ -2309,6 +2309,22 @@ function RecordOptionCard({
   const badgeIsRed =
     showVesselBadge && vesselAlertCounts!.idleCount > 0;
 
+  const handleBadgePress = () => {
+    if (!showVesselBadge || option.id !== "winery-vessel-register") return;
+
+    // Match the register's urgency order: idle, no fills, then approaching neutral.
+    const flag = vesselAlertCounts!.idleCount > 0
+      ? "idle"
+      : vesselAlertCounts!.noFillsCount > 0
+        ? "no-fills"
+        : "approaching-neutral";
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: "/winery-vessel-register",
+      params: { flag },
+    });
+  };
+
   return (
     <Pressable
       onPress={handlePress}
@@ -2328,11 +2344,14 @@ function RecordOptionCard({
         <Text style={styles.cardTitle}>{option.title}</Text>
         <Text style={styles.cardDescription}>{option.description}</Text>
         {showVesselBadge && (
-          <View
+          <Pressable
+            onPress={handleBadgePress}
             style={[
               styles.vesselAlertBadge,
               { backgroundColor: badgeIsRed ? colors.errorBg : colors.warningBg },
             ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Filter Vessel Register by ${vesselBadgeLabel}`}
           >
             <Feather
               name="alert-triangle"
@@ -2347,7 +2366,7 @@ function RecordOptionCard({
             >
               {vesselBadgeLabel}
             </Text>
-          </View>
+          </Pressable>
         )}
       </View>
       <Feather name="chevron-right" size={20} color={colors.textTertiary} />
