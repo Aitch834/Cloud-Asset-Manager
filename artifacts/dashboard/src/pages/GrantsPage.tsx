@@ -207,6 +207,7 @@ const AE_COMMON_BODIES = [
 const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
 const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
 const AE_MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+const AE_MILESTONE_FILTERS = ["all", ...AE_MILESTONE_STATUSES] as const;
 
 const AE_BLANK_PROJECT = {
   schemeName: "", administeringBody: "", agreementReference: "",
@@ -501,6 +502,17 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farmId]);
 
+  // The milestone status tab belongs to the expanded project, so include the
+  // project ID in the filter name while the hook scopes the value to the farm.
+  // This lets each project resume on the status view the advisor last used.
+  const [milestoneFilter, setMilestoneFilter] = usePersistedFilter({
+    page: "grants-agri-env",
+    filter: expandedId === null ? "milestone-status-none" : `milestone-status-${expandedId}`,
+    farmId,
+    defaultValue: "all",
+    validValues: AE_MILESTONE_FILTERS,
+  });
+
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<AgriEnvProject | null>(null);
   const [deletingProject, setDeletingProject] = useState<AgriEnvProject | null>(null);
@@ -550,6 +562,9 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
   const projects = projData?.projects ?? [];
   const milestones = msData?.milestones ?? [];
   const allMilestones = allMsData?.milestones ?? [];
+  const visibleMilestones = milestoneFilter === "all"
+    ? milestones
+    : milestones.filter(m => m.status === milestoneFilter);
 
   // If the persisted project has been deleted, collapse gracefully.
   // Read from localStorage directly (keyed on the current farmId) rather than
@@ -1187,13 +1202,67 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                         <Plus size={12} /> Add Milestone
                       </Button>
                     </div>
+                    {milestones.length > 0 && (
+                      <div
+                        role="tablist"
+                        aria-label="Filter milestones by status"
+                        style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}
+                      >
+                        {AE_MILESTONE_FILTERS.map(filter => {
+                          const isActive = milestoneFilter === filter;
+                          const count = filter === "all"
+                            ? milestones.length
+                            : milestones.filter(m => m.status === filter).length;
+                          const label = filter === "all"
+                            ? "All"
+                            : AE_MILESTONE_STATUS_CFG[filter]?.label ?? filter;
+                          return (
+                            <button
+                              key={filter}
+                              role="tab"
+                              aria-selected={isActive}
+                              onClick={() => setMilestoneFilter(filter)}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                padding: "3px 10px", borderRadius: 20,
+                                fontSize: "0.76rem", fontWeight: isActive ? 600 : 400,
+                                cursor: "pointer",
+                                border: isActive ? "1.5px solid #374151" : "1px solid #e5e7eb",
+                                background: isActive ? "#111827" : "#fff",
+                                color: isActive ? "#fff" : "#374151",
+                              }}
+                            >
+                              {label}
+                              <span style={{
+                                fontSize: "0.68rem", fontWeight: 600,
+                                background: isActive ? "rgba(255,255,255,0.2)" : "#f3f4f6",
+                                color: isActive ? "#fff" : "#6b7280",
+                                borderRadius: 20, padding: "0px 5px", minWidth: 16, textAlign: "center",
+                              }}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                     {milestones.length === 0 ? (
                       <div style={{ textAlign: "center", padding: "20px 12px", color: "#9ca3af", fontSize: "0.82rem" }}>
                         No milestones recorded yet — add one to track claim dates and evidence.
                       </div>
+                    ) : visibleMilestones.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px 12px", color: "#9ca3af", fontSize: "0.82rem" }}>
+                        No milestones match this status.
+                        <button
+                          onClick={() => setMilestoneFilter("all")}
+                          style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", cursor: "pointer", color: "#374151", textDecoration: "underline", fontSize: "0.78rem" }}
+                        >
+                          Show all milestones
+                        </button>
+                      </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {milestones.map(m => {
+                        {visibleMilestones.map(m => {
                           const isPending = pendingCompletion?.milestoneId === m.id;
                           const isUpdating = updatingMilestone === m.id;
                           const needsDate = (s: string) => (s === "submitted" || s === "paid") && !m.completionDate;
