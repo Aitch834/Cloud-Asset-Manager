@@ -956,6 +956,8 @@ export function ScoutingPhotoSection({
       setPhotos((prev) =>
         prev.map((p) => (p.id === photoId ? { ...p, downloadUrl: freshUrl } : p)),
       );
+    } catch {
+      Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
     } finally {
       reloadInFlightRef.current = false;
       setReloadingPhotoId(null);
