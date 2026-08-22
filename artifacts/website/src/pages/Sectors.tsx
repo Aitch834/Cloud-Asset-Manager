@@ -177,6 +177,8 @@ const WHY = [
 export default function Sectors() {
   const [active, setActive] = useState(SECTORS[0].id);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
+  const [lightboxPage, setLightboxPage] = useState(0);
+  const [leafletPages, setLeafletPages] = useState<Record<string, string[]>>({});
 
   // Pre-select sector from ?sector= query param so Sectors page links from other pages work
   useEffect(() => {
@@ -185,17 +187,48 @@ export default function Sectors() {
     if (s && SECTORS.some(sec => sec.id === s)) setActive(s);
   }, []);
 
+  // Preview images are generated from every .page element in the leaflet HTML.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/leaflets/img/manifest.json", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Leaflet preview manifest returned ${response.status}`);
+        return response.json() as Promise<{ pages?: Record<string, string[]> }>;
+      })
+      .then((manifest) => {
+        if (manifest.pages) setLeafletPages(manifest.pages);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        console.warn("Unable to load leaflet preview pages", error);
+      });
+    return () => controller.abort();
+  }, []);
+
   // Close lightbox on Escape
   useEffect(() => {
     if (!lightboxId) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxId(null); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxId(null);
+      if (e.key === "ArrowLeft") setLightboxPage((page) => Math.max(0, page - 1));
+      if (e.key === "ArrowRight") {
+        setLightboxPage((page) => Math.min(lightboxPageCount - 1, page + 1));
+      }
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [lightboxId]);
+  }, [lightboxId, leafletPages]);
 
   const sector = SECTORS.find((s) => s.id === active)!;
   const Icon = sector.icon as React.ElementType;
   const lightboxSector = lightboxId ? SECTORS.find((s) => s.id === lightboxId) ?? null : null;
+  const lightboxPageUrls = lightboxSector
+    ? leafletPages[lightboxSector.id] ?? [`/leaflets/img/${lightboxSector.id}.jpg`]
+    : [];
+  const lightboxPageCount = lightboxPageUrls.length;
+  const goToPage = (page: number) => {
+    setLightboxPage(Math.max(0, Math.min(lightboxPageCount - 1, page)));
+  };
 
   return (
     <Layout>
@@ -259,7 +292,10 @@ export default function Sectors() {
                   <div className="flex flex-col items-end gap-2">
                     <button
                       type="button"
-                      onClick={() => setLightboxId(sector.id)}
+                      onClick={() => {
+                        setLightboxPage(0);
+                        setLightboxId(sector.id);
+                      }}
                       className="group relative block rounded-lg overflow-hidden border border-border shadow-md hover:shadow-lg transition-shadow w-28 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-forest"
                       aria-label={`Preview ${sector.label} leaflet cover full-screen`}
                     >
@@ -519,7 +555,7 @@ export default function Sectors() {
           </div>
         </div>
       </section>
-      {/* Leaflet cover lightbox */}
+      {/* Leaflet page lightbox */}
       {lightboxSector && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -542,12 +578,42 @@ export default function Sectors() {
               <X className="w-5 h-5" />
             </button>
 
-            {/* Cover image */}
+            <div className="relative flex items-center justify-center w-full">
+              {lightboxPageCount > 1 && (
+                <button
+                  type="button"
+                  onClick={() => goToPage(lightboxPage - 1)}
+                  disabled={lightboxPage === 0}
+                  className="absolute left-0 z-10 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label="Previous leaflet page"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+              )}
+
             <img
-              src={`/leaflets/img/${lightboxSector.id}.jpg`}
-              alt={`${lightboxSector.label} leaflet cover`}
-              className="w-full rounded-xl shadow-2xl border border-white/10"
+              key={lightboxPageUrls[lightboxPage]}
+              src={lightboxPageUrls[lightboxPage]}
+              alt={`${lightboxSector.label} leaflet page ${lightboxPage + 1} of ${lightboxPageCount}`}
+              className="max-h-[calc(100vh-11rem)] w-full object-contain rounded-xl shadow-2xl border border-white/10"
             />
+
+              {lightboxPageCount > 1 && (
+                <button
+                  type="button"
+                  onClick={() => goToPage(lightboxPage + 1)}
+                  disabled={lightboxPage === lightboxPageCount - 1}
+                  className="absolute right-0 z-10 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label="Next leaflet page"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            <p className="text-white text-sm font-medium" aria-live="polite">
+              Page {lightboxPage + 1} of {lightboxPageCount}
+            </p>
 
             {/* Actions row */}
             <div className="flex items-center gap-3">
