@@ -207,6 +207,8 @@ const AE_COMMON_BODIES = [
 const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
 const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
 const AE_MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+
+const ACTIVE_AE_PROJECT_STATUSES = new Set(["active", "applied", "pending"]);
 const AE_MILESTONE_FILTERS = ["all", ...AE_MILESTONE_STATUSES] as const;
 
 const AE_BLANK_PROJECT = {
@@ -901,7 +903,9 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
 
       {/* Farm-wide drawdown summary */}
       {(() => {
-        const drawdownProjects = projects.filter(p => p.status !== "withdrawn" && (p.totalGrantValuePence ?? 0) > 0);
+        const drawdownProjects = projects.filter(
+          p => ACTIVE_AE_PROJECT_STATUSES.has(p.status) && (p.totalGrantValuePence ?? 0) > 0,
+        );
         if (drawdownProjects.length === 0) return null;
         const drawdownProjectIds = new Set(drawdownProjects.map(p => p.id));
         const totalPence = drawdownProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
@@ -920,7 +924,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#059669", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
-                Farm-wide Drawdown
+                Farm-wide Drawdown — {drawdownProjects.length} active project{drawdownProjects.length !== 1 ? "s" : ""}
               </div>
               <div style={{ fontSize: "0.8rem", fontWeight: 700, color: pct >= 100 ? "#059669" : "#111827" }}>
                 {pct}% drawn
