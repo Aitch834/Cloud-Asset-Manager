@@ -32,9 +32,9 @@ function fmtDate(val: string | null | undefined): string {
 
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
-  const target = new Date(dateStr);
-  if (isNaN(target.getTime())) return null;
-  return Math.ceil((target.getTime() - Date.now()) / 86400000);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr); target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - now.getTime()) / 86400000);
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -64,6 +64,7 @@ interface Certification {
   certificateNumber: string | null;
   status: string | null;
   renewalDate: string | null;
+  expiryDate: string | null;
   operatorNumber: string | null;
 }
 
@@ -138,7 +139,7 @@ export default function OrganicOverviewScreen() {
       ]);
       if (certRes.ok) {
         const data = await certRes.json();
-        setCertification(data.record ?? null);
+        setCertification(data.record ?? data.records?.[0] ?? null);
       }
       if (inspRes.ok) {
         const data = await inspRes.json();
@@ -163,6 +164,7 @@ export default function OrganicOverviewScreen() {
 
   const nextInspection = inspections.find(r => r.nextDueDate);
   const nextDays = nextInspection ? daysUntil(nextInspection.nextDueDate) : null;
+  const certificationExpiryDays = certification ? daysUntil(certification.expiryDate) : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -219,6 +221,34 @@ export default function OrganicOverviewScreen() {
                         return <Text style={styles.errorBadge}>Overdue</Text>;
                       return null;
                     })()}
+                  </View>
+                ) : null}
+                {certification.expiryDate ? (
+                  <View style={styles.renewalRow}>
+                    <Feather
+                      name="calendar"
+                      size={13}
+                      color={certificationExpiryDays !== null && certificationExpiryDays < 0
+                        ? colors.error
+                        : certificationExpiryDays !== null && certificationExpiryDays <= 60
+                          ? colors.warning
+                          : colors.textSecondary}
+                    />
+                    <Text style={[
+                      styles.certDetail,
+                      certificationExpiryDays !== null && certificationExpiryDays < 0
+                        ? { color: colors.error }
+                        : certificationExpiryDays !== null && certificationExpiryDays <= 60
+                          ? { color: colors.accentDark }
+                          : null,
+                    ]}>
+                      Certificate expiry: {fmtDate(certification.expiryDate)}
+                    </Text>
+                    {certificationExpiryDays !== null && certificationExpiryDays <= 60 && certificationExpiryDays >= 0
+                      ? <Text style={styles.warningBadge}>{certificationExpiryDays}d</Text>
+                      : certificationExpiryDays !== null && certificationExpiryDays < 0
+                        ? <Text style={styles.errorBadge}>Expired</Text>
+                        : null}
                   </View>
                 ) : null}
               </View>
