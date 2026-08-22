@@ -19,6 +19,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { canApplyMilestoneLoad } from "@/lib/agriEnvMilestoneCache";
 import { getItem, removeItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -46,6 +47,16 @@ interface MilestoneListCache {
   data: AgriEnvMilestone[];
   cachedAt: string;
 }
+
+function mergeMilestone(
+  milestones: AgriEnvMilestone[],
+  updated: AgriEnvMilestone,
+): AgriEnvMilestone[] {
+  return milestones.some(m => m.id === updated.id)
+    ? milestones.map(m => m.id === updated.id ? { ...m, ...updated } : m)
+    : [...milestones, updated];
+}
+
 const MILESTONE_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending:   { label: "Pending",   color: "#d97706", bg: "#fef3c7" },
   submitted: { label: "Submitted", color: "#0891b2", bg: "#e0f2fe" },
@@ -117,6 +128,9 @@ export default function AgriEnvMilestoneDetailScreen() {
   // already-visible cached content with the full-screen error state.
   // Reset whenever the farm/project/milestone identifiers change.
   const hasCachedDataRef = useRef(false);
+  // Prevent a detail refresh that started before a save from invalidating the
+  // farm-wide cache after the save has written its confirmed milestone.
+  const cacheMutationVersionRef = useRef(0);
 
   // Reset the cached-data ref whenever the identifiers change so a stale
   // "has cache" signal from a previous milestone never suppresses a genuine
@@ -158,6 +172,7 @@ export default function AgriEnvMilestoneDetailScreen() {
 
       setError(null);
 
+      const cacheVersionAtRequest = cacheMutationVersionRef.current;
       try {
         const res = await apiFetch(
           `/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones`,
@@ -166,7 +181,13 @@ export default function AgriEnvMilestoneDetailScreen() {
         const data = (await res.json()) as { milestones: AgriEnvMilestone[] };
         const loaded = data.milestones ?? [];
 
-        if (!cancelRef.current) {
+        if (
+          !cancelRef.current &&
+          canApplyMilestoneLoad(
+            cacheVersionAtRequest,
+            cacheMutationVersionRef.current,
+          )
+        ) {
           const found = loaded.find(m => m.id === milestoneId) ?? null;
           setMilestone(found);
           setCachedAt(null); // live data — suppress banner
@@ -176,14 +197,20 @@ export default function AgriEnvMilestoneDetailScreen() {
             milestones: loaded,
             cachedAt: now,
           }).catch(() => { /* ignore */ });
+          // The project list has a separate farm-wide milestones cache. The
+          // detail endpoint only returns this project's milestones, so
+          // invalidate the farm-wide entry rather than replacing it with a
+          // partial list. The project list reloads it when it regains focus.
+          removeItem(farmMilestonesCacheKey(currentFarm.id)).catch(() => { /* ignore */ });
         }
-        // The project list has a separate farm-wide milestones cache. The
-        // detail endpoint only returns this project's milestones, so
-        // invalidate the farm-wide entry rather than replacing it with a
-        // partial list. The project list reloads it when it regains focus.
-        removeItem(farmMilestonesCacheKey(currentFarm.id)).catch(() => { /* ignore */ });
       } catch (err) {
-        if (!cancelRef.current) {
+        if (
+          !cancelRef.current &&
+          canApplyMilestoneLoad(
+            cacheVersionAtRequest,
+            cacheMutationVersionRef.current,
+          )
+        ) {
           // Only surface the full-screen error when there is no cached content
           // already visible. hasCachedDataRef persists across load() calls
           // (unlike a local variable), so a failed pull-to-refresh while the
@@ -231,27 +258,28 @@ export default function AgriEnvMilestoneDetailScreen() {
   const updateMilestoneCache = useCallback(async (updated: AgriEnvMilestone) => {
     if (!currentFarm?.id || !projectId) return;
     const now = new Date().toISOString();
-    const projectCache = await getItem<MilestoneDetailCache>(
-      cacheKey(currentFarm.id, projectId),
-    );
+    const [projectCache, allCache] = await Promise.all([
+      getItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId)),
+      getItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id)),
+    ]);
     const projectMilestones = projectCache?.milestones ?? [];
-    const updatedProjectMilestones = projectMilestones.some(m => m.id === updated.id)
-      ? projectMilestones.map(m => m.id === updated.id ? { ...m, ...updated } : m)
-      : [...projectMilestones, updated];
-    await setItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId), {
-      milestones: updatedProjectMilestones,
-      cachedAt: now,
-    });
-
-    const allCache = await getItem<MilestoneListCache>(
-      allMilestonesCacheKey(currentFarm.id),
-    );
-    if (allCache) {
-      await setItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id), {
-        data: allCache.data.map(m => m.id === updated.id ? { ...m, ...updated } : m),
+    const updatedProjectMilestones = mergeMilestone(projectMilestones, updated);
+    const writes: Promise<void>[] = [
+      setItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId), {
+        milestones: updatedProjectMilestones,
         cachedAt: now,
-      });
+      }),
+    ];
+
+    if (allCache) {
+      writes.push(
+        setItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id), {
+          data: mergeMilestone(allCache.data, updated),
+          cachedAt: now,
+        }),
+      );
     }
+    await Promise.all(writes);
   }, [currentFarm?.id, projectId]);
 
   const saveEdits = useCallback(async () => {
@@ -295,11 +323,14 @@ export default function AgriEnvMilestoneDetailScreen() {
         throw new Error((body as { error?: string }).error ?? `Server error ${res.status}`);
       }
       const data = await res.json() as { milestone: AgriEnvMilestone };
+      cacheMutationVersionRef.current += 1;
       setMilestone(prev => prev ? { ...prev, ...data.milestone } : data.milestone);
-      updateMilestoneCache(data.milestone).catch(() => {
+      try {
+        await updateMilestoneCache(data.milestone);
+      } catch {
         // The server response is authoritative; keep the confirmed UI update
         // even if the device's local cache cannot be written.
-      });
+      }
       setEditing(false);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : "Could not save milestone.");
