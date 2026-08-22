@@ -78,6 +78,14 @@ function formatDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function showBlockAreaExplanation() {
+  Alert.alert(
+    "Block area not set",
+    "t/ha is calculated from each block's area. Open Vineyard Blocks and enter the area (ha) for each block to see this figure.",
+    [{ text: "OK" }],
+  );
+}
+
 // ─── Edit Modal (block-link focused) ─────────────────────────────────────────
 
 function EditHarvestModal({
@@ -944,13 +952,7 @@ export default function VineHarvestHistoryScreen() {
               <Text style={styles.totalsStatLabel}>t / ha</Text>
               {totals.weightedTonnesPerHa == null && totals.hasBlockWithMissingArea && (
                 <Pressable
-                  onPress={() =>
-                    Alert.alert(
-                      "Block area not set",
-                      "t/ha is calculated from each block's area. Open Vineyard Blocks and enter the area (ha) for each block to see this figure.",
-                      [{ text: "OK" }],
-                    )
-                  }
+                  onPress={showBlockAreaExplanation}
                   hitSlop={8}
                 >
                   <Text style={styles.totalsHint}>Set block area to calculate</Text>
@@ -1099,9 +1101,19 @@ export default function VineHarvestHistoryScreen() {
                       </Text>
                     </View>
                     <View style={{ width: 72, alignItems: "flex-end" }}>
-                      <Text style={styles.varietyValue}>
-                        {row.kgPerHa != null ? (row.kgPerHa / 1000).toFixed(2) : "—"}
-                      </Text>
+                      {row.kgPerHa != null ? (
+                        <Text style={styles.varietyValue}>{(row.kgPerHa / 1000).toFixed(2)}</Text>
+                      ) : (
+                        <Pressable
+                          onPress={showBlockAreaExplanation}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Set block area to calculate t/ha for ${row.variety}`}
+                        >
+                          <Text style={styles.varietyValue}>—</Text>
+                          <Text style={styles.varietyTonneHint}>Set block area to calculate</Text>
+                        </Pressable>
+                      )}
                     </View>
                     <View style={{ width: 72, alignItems: "flex-end" }}>
                       <Text style={styles.varietyValue}>
@@ -1631,6 +1643,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  varietyTonneHint: {
+    fontFamily: fonts.regular,
+    fontSize: 9,
+    lineHeight: 11,
+    color: colors.primary,
+    textDecorationLine: "underline",
+    textAlign: "right",
+    maxWidth: 72,
   },
   varietyFooterLabel: {
     fontFamily: fonts.semiBold,
