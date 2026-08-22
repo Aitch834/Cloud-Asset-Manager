@@ -1105,6 +1105,18 @@ export default function AdPdfGenerator() {
   const effectiveId = selectedId ?? (activeTemplates.find((t) => t.isDefault)?.id ?? activeTemplates[0]?.id ?? null);
   const selectedTemplate = activeTemplates.find((t) => t.id === effectiveId) ?? null;
 
+  // Client-side guard: block Generate PDF (and Preview) when the selected template
+  // is missing any of the four required placeholders — avoids a wasted server round-trip
+  // that would 422 anyway.
+  const REQUIRED_PLACEHOLDERS_GENERATE = ["{{font_css}}", "{{logo}}", "{{bg}}", "{{qr}}"] as const;
+  // When a template is selected, evaluate against its htmlBody (defaulting to "")
+  // so that an empty/whitespace body is treated as missing all four required tokens —
+  // the same outcome the API produces with a 422. Only skip the check when no
+  // template is selected at all (the button is already disabled via !effectiveId).
+  const missingTemplatePlaceholders: string[] = selectedTemplate
+    ? REQUIRED_PLACEHOLDERS_GENERATE.filter((p) => !(selectedTemplate.htmlBody ?? "").includes(p))
+    : [];
+
   // Background URL
   const [bgUrl, setBgUrl] = useState("");
   const [bgUrlCheckStatus, setBgUrlCheckStatus] = useState<"idle" | "checking" | "ok" | "unreachable">("idle");
@@ -1752,16 +1764,16 @@ export default function AdPdfGenerator() {
             {/* Wrap in a span when disabled-by-missing-assets so the title tooltip is reachable
                 (disabled buttons have pointer-events-none and cannot receive hover events). */}
             <span
-              title={hasMissingAssets ? missingAssetsTitle : undefined}
-              className={hasMissingAssets ? "cursor-not-allowed" : undefined}
-              aria-label={hasMissingAssets ? missingAssetsTitle : undefined}
+              title={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
+              className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}
+              aria-label={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
             >
               <Button
                 variant="outline"
                 onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
-                disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets}
+                disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets || missingTemplatePlaceholders.length > 0}
                 size="lg"
-                className={hasMissingAssets ? "pointer-events-none" : undefined}
+                className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
               >
                 {previewMutation.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
@@ -1774,15 +1786,15 @@ export default function AdPdfGenerator() {
             </span>
 
             <span
-              title={hasMissingAssets ? missingAssetsTitle : undefined}
-              className={hasMissingAssets ? "cursor-not-allowed" : undefined}
-              aria-label={hasMissingAssets ? missingAssetsTitle : undefined}
+              title={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
+              className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}
+              aria-label={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
             >
               <Button
                 onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
-                disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets}
+                disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets || missingTemplatePlaceholders.length > 0}
                 size="lg"
-                className={hasMissingAssets ? "pointer-events-none" : undefined}
+                className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
               >
                 {mutation.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
@@ -1794,6 +1806,22 @@ export default function AdPdfGenerator() {
               </Button>
             </span>
           </div>
+
+          {missingTemplatePlaceholders.length > 0 && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+              <p className="text-sm text-amber-800">
+                <span className="font-medium">Generate blocked</span> — the selected template is missing required placeholder{missingTemplatePlaceholders.length > 1 ? "s" : ""}:{" "}
+                {missingTemplatePlaceholders.map((p, i) => (
+                  <span key={p}>
+                    <code className="bg-amber-100 px-1 rounded">{p}</code>
+                    {i < missingTemplatePlaceholders.length - 1 ? ", " : ""}
+                  </span>
+                ))}
+                . Edit the template in the <span className="font-medium">Template library</span> below to add {missingTemplatePlaceholders.length === 1 ? "it" : "them"}.
+              </p>
+            </div>
+          )}
 
           {(previewMutation.isPending || mutation.isPending) && (
             <p className="text-xs text-muted-foreground">
