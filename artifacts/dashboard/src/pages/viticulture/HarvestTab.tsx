@@ -29,7 +29,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell, buildViticultureUnlinkedWarning } from "@/lib/csv";
+import { sanitiseCsvCell, deriveTonnesPerHa, buildViticultureUnlinkedWarning } from "@/lib/csv";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -571,6 +571,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     { key: "notes", label: "Notes" },
   ];
 
+  const getBlockAreaHa = (blockId: unknown): number | null => {
+    const block = blocks.find(b => String(b.id) === String(blockId));
+    const areaHa = parseFloat(String((block as Record<string, unknown> | undefined)?.areaHa ?? (block as Record<string, unknown> | undefined)?.area ?? ""));
+    return Number.isFinite(areaHa) && areaHa > 0 ? areaHa : null;
+  };
+
+  const deriveBlockTha = (totalKg: number, blockId: unknown): number | null => {
+    return deriveTonnesPerHa(totalKg, getBlockAreaHa(blockId));
+  };
+
   const exportHarvestCSV = (rows: Record<string, unknown>[], mode: "full" | "summary" = "full") => {
     if (!rows.length) return;
     const cell = (v: unknown) => {
@@ -591,7 +601,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
 
     const summaryLabel = groupByVintage ? "Vintage Year" : "Block";
-    const summaryHeader = [summaryLabel, "Picks", "Harvest Date(s)", "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %"].map(h => cell(h)).join(",");
+    const summaryThaLabel = groupByVintage ? "Avg t/ha" : "t/ha";
+    const summaryHeader = [summaryLabel, "Picks", "Harvest Date(s)", "Total Yield (kg)", summaryThaLabel, "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Potential Alcohol %"].map(h => cell(h)).join(",");
     const summaryRows = groupKeys.map(key => {
       const grp = groupObj[key];
       const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
@@ -611,6 +622,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const dateStr = sortedDates.length === 0 ? ""
         : sortedDates.length === 1 ? sortedDates[0]
         : `${sortedDates[0]} – ${sortedDates[sortedDates.length - 1]}`;
+      const summaryTha = groupByVintage
+        ? avgTha
+        : deriveBlockTha(totalYieldKg, grp[0]?.blockId);
 
       let label: string;
       if (groupByVintage) {
@@ -625,7 +639,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         cell(grp.length),
         cell(dateStr),
         cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
-        cell(avgTha != null ? avgTha.toFixed(2) : ""),
+        cell(summaryTha != null ? summaryTha.toFixed(2) : ""),
         cell(avgBrix != null ? avgBrix.toFixed(1) : ""),
         cell(avgPh != null ? avgPh.toFixed(2) : ""),
         cell(avgTa != null ? avgTa.toFixed(2) : ""),
@@ -972,14 +986,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
     const header = [
       "Vintage", "Block", "Variety", "Area (ha)", "Picks",
-      "Total Yield (kg)", "Avg t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Pot. Alcohol %",
+      "Total Yield (kg)", "t/ha", "Avg Brix °", "Avg pH", "Avg TA (g/L)", "Avg Pot. Alcohol %",
     ].map(h => cell(h)).join(",");
 
     const dataRows = Object.entries(blockMap).map(([key, grp]) => {
       const block = key === "__unlinked__" ? null : blocks.find(b => String(b.id) === key);
       const name = block ? String(block.blockName ?? "") : "Not linked";
       const variety = block ? String(block.variety ?? "") : "";
-      const area = block ? String((block.areaHa ?? block.area ?? "")) : "";
+      const areaHa = block ? getBlockAreaHa(block.id) : null;
 
       // Vintage column: single vintage from filter, or comma-list if multiple
       const vintagesInGrp = [...new Set(grp.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
@@ -988,10 +1002,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const totalYieldKg = grp.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
       const avg = (vals: number[]) => vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       // t/ha is derived from total yield ÷ block area, NOT an average of per-pick t/ha values
-      const areaHaNum = area !== "" ? parseFloat(area) : NaN;
-      const derivedTha = !isNaN(areaHaNum) && areaHaNum > 0 && totalYieldKg > 0
-        ? totalYieldKg / 1000 / areaHaNum
-        : null;
+      const derivedTha = deriveBlockTha(totalYieldKg, block?.id);
       const avgBrix = avg(grp.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v)));
       const avgPh = avg(grp.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
       const avgTa = avg(grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
@@ -1001,7 +1012,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         cell(vintageCol),
         cell(name),
         cell(variety),
-        cell(area !== "" ? parseFloat(area).toFixed(2) : ""),
+        cell(areaHa != null ? areaHa.toFixed(2) : ""),
         cell(grp.length),
         cell(totalYieldKg > 0 ? totalYieldKg.toFixed(1) : ""),
         cell(derivedTha != null ? derivedTha.toFixed(2) : ""),

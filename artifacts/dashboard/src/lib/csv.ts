@@ -23,6 +23,19 @@ export function sanitiseCsvCell(value: unknown): string {
 }
 
 /**
+ * Derive tonnes per hectare from a total yield in kilograms and an area in
+ * hectares. Missing, invalid, or non-positive inputs return null so CSV
+ * callers can emit an empty cell instead of a spreadsheet error.
+ */
+export function deriveTonnesPerHa(totalKg: unknown, areaHa: unknown): number | null {
+  const kg = Number.parseFloat(String(totalKg ?? ""));
+  const ha = Number.parseFloat(String(areaHa ?? ""));
+  return Number.isFinite(kg) && kg > 0 && Number.isFinite(ha) && ha > 0
+    ? kg / 1000 / ha
+    : null;
+}
+
+/**
  * Wrap a cell string in double-quotes, escaping any embedded double-quotes.
  * Always quote so commas inside values are safe.
  */
