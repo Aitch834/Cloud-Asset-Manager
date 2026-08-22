@@ -23,10 +23,24 @@ import { useFarmMembers } from "@/hooks/use-farm-members";
 import { useToast } from "@/hooks/use-toast";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { ConfirmDialog as SharedConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, exportCSV, StatCard, Empty, ConfirmDialog, DataTable, useCrud, HOUSE_TYPES, POULTRY_SPECIES, PRODUCTION_SYSTEMS, SPECIES_LABEL_MAP, SYSTEM_LABEL_MAP, fmtSpecies, fmtSystem, getStockingDensityInfo, useFlocks, FlockSelect, fmtFlock } from "./shared";
 import type { DensityInfo } from "./shared";
+
+function BiosecurityStatusBadge({ status }: { status: unknown }) {
+  const value = String(status ?? "").toLowerCase();
+  const config = value === "in-progress"
+    ? { label: "In Progress", className: "border-amber-300 bg-amber-100 text-amber-800", icon: <Clock className="w-3 h-3 mr-1" /> }
+    : value === "non-compliant"
+      ? { label: "Non-Compliant", className: "border-red-300 bg-red-100 text-red-800", icon: <AlertTriangle className="w-3 h-3 mr-1" /> }
+      : value === "complete" || value === "compliant"
+        ? { label: value === "complete" ? "Complete" : "Compliant", className: "border-green-300 bg-green-100 text-green-800", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> }
+        : { label: status ? String(status) : "—", className: "border-slate-300 bg-slate-100 text-slate-700", icon: <Circle className="w-3 h-3 mr-1" /> };
+
+  return <Badge variant="outline" className={`text-xs ${config.className}`}>{config.icon}{config.label}</Badge>;
+}
 
 function BioBoolField({ label, field, form, setForm }: { label: string; field: string; form: Record<string, unknown>; setForm: React.Dispatch<React.SetStateAction<Record<string, unknown>>> }) {
   return (
@@ -133,7 +147,7 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
           { key: "houseName", label: "House", fmt: r => r.houseName ? String(r.houseName) : fmt(r.houseId) },
           { key: "cleanoutEndDate", label: "Cleanout End", fmt: r => fmtDate(r.cleanoutEndDate) },
           { key: "downtimeDays", label: "Downtime (days)" },
-          { key: "overallComplianceStatus", label: "Status" },
+          { key: "overallComplianceStatus", label: "Status", render: r => <BiosecurityStatusBadge status={r.overallComplianceStatus} /> },
           { key: "completedBy", label: "Completed By" },
           { key: "doc", label: "Document", render: r => <DocAttach farmId={farmId} endpoint="poultry-biosecurity-checklists" recordId={r.id as number} documentPath={r.documentPath as string | null} documentName={r.documentName as string | null} queryKey={["poultry-biosecurity", farmId]} /> },
         ]}
