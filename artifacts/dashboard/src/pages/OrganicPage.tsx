@@ -277,7 +277,7 @@ function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cro
   const safeName = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const yearPart = cropYear ? `-${cropYear}` : "";
   downloadCsvFile(`input-register${yearPart}-${safeName}.csv`, [
-    ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref", "Approval Status", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
+    ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref", "Approval Status", "Derogation Expiry", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
     ...records.map(r => [
       fmtDate(r.dateOfUse),
       r.productName,
@@ -286,6 +286,7 @@ function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cro
       r.poReference ?? "",
       r.grnReference ?? "",
       APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
+      fmtDate(r.derogationExpiryDate),
       r.certifierApprovalRef ?? "",
       r.fieldName ?? "",
       r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "",
@@ -304,6 +305,7 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
     <td>${r.poReference || "—"}</td>
     <td>${r.grnReference || "—"}</td>
     <td style="font-weight:600;color:${r.approvalStatus === "permitted" ? "#166534" : r.approvalStatus === "restricted" ? "#92400e" : "#991b1b"}">${APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus}</td>
+    <td style="white-space:nowrap">${r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "—"}</td>
     <td>${r.certifierApprovalRef || "—"}</td>
     <td>${r.fieldName || "—"}</td>
     <td>${r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "—"}</td>
@@ -312,7 +314,7 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
   openPrint(`<!DOCTYPE html><html><head><title>Input Register — ${farmName} — ${yearLabel}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel} · Complementary Record</p></div>
 <div class="hdr-r"><b>Input Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Approval Status</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
+<table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Approval Status</th><th>Derogation Expiry</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Organic Input Register — Complementary record for Soil Association / OF&G portal. This register demonstrates that inputs used comply with organic standards. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
