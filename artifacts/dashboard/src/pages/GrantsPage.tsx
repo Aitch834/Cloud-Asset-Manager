@@ -1388,6 +1388,23 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           milestonesByProject.set(m.projectId, arr);
         }
         const printedValue = filteredProjects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+        const drawdownProjects = projects.filter(
+          p => ACTIVE_AE_PROJECT_STATUSES.has(p.status) && (p.totalGrantValuePence ?? 0) > 0,
+        );
+        const drawdownProjectIds = new Set(drawdownProjects.map(p => p.id));
+        const drawdownTotalPence = drawdownProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+        const drawdownPaidPence = allMilestones
+          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "paid")
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const drawdownSubmittedPence = allMilestones
+          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "submitted")
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const drawdownPct = drawdownTotalPence > 0
+          ? Math.min(100, Math.round(drawdownPaidPence / drawdownTotalPence * 100))
+          : 0;
+        const drawdownPctSubmitted = drawdownTotalPence > 0
+          ? Math.min(100 - drawdownPct, Math.round(drawdownSubmittedPence / drawdownTotalPence * 100))
+          : 0;
         const filterLabel = [
           aeExportScheme !== "all" ? aeExportScheme : null,
           aeExportStatus !== "all" ? (AE_PROJECT_STATUS_CFG[aeExportStatus]?.label ?? aeExportStatus) : null,
@@ -1401,6 +1418,44 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                 {filterLabel && ` · Filtered: ${filterLabel}`}
                 {printedValue > 0 && ` · Total scheme value: £${(printedValue / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`}
               </p>
+              {drawdownProjects.length > 0 && (
+                <div className="ae-print-card" style={{
+                  background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
+                  padding: "16px 20px", marginBottom: 24,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Farm-wide Drawdown — {drawdownProjects.length} active project{drawdownProjects.length !== 1 ? "s" : ""}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: drawdownPct >= 100 ? "#059669" : "#111827" }}>
+                      {drawdownPct}% drawn
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "0.875rem", color: "#374151", marginBottom: 8 }}>
+                    <span style={{ fontWeight: 700, color: "#111827" }}>
+                      £{(drawdownPaidPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                    </span>
+                    {" of "}
+                    <span style={{ fontWeight: 600 }}>
+                      £{(drawdownTotalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}
+                    </span>
+                    {" claimed across "}
+                    <span style={{ fontWeight: 600 }}>{drawdownProjects.length}</span>
+                    {" project"}{drawdownProjects.length !== 1 ? "s" : ""}
+                  </div>
+                  <div style={{ height: 10, background: "#dcfce7", borderRadius: 6, overflow: "hidden", display: "flex" }}>
+                    <div style={{ height: "100%", width: `${drawdownPct}%`, background: "#059669", borderRadius: drawdownPct >= 100 ? 6 : "6px 0 0 6px" }} />
+                    {drawdownPctSubmitted > 0 && (
+                      <div style={{ height: "100%", width: `${drawdownPctSubmitted}%`, background: "#93c5fd" }} />
+                    )}
+                  </div>
+                  {drawdownPctSubmitted > 0 && (
+                    <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: 5 }}>
+                      + £{(drawdownSubmittedPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })} submitted (awaiting payment)
+                    </div>
+                  )}
+                </div>
+              )}
               {filteredProjects.map((p, idx) => {
                 const ms = milestonesByProject.get(p.id) ?? [];
                 const statusCfg = AE_PROJECT_STATUS_CFG[p.status];
