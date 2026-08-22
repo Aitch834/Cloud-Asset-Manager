@@ -1484,10 +1484,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     </button>
                   </div>
                 )}
-                <table className="w-full text-sm">
+                <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className={`text-left px-4 py-2 font-medium sticky left-0 bg-card ${yieldSort?.col === "name" ? "bg-muted/30" : ""}`}>
+                      <th className={`text-left px-4 py-2 font-medium sticky left-0 z-10 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] ${yieldSort?.col === "name" ? "!bg-muted/30" : ""}`}>
                         <button
                           type="button"
                           className={`inline-flex items-center justify-start hover:text-foreground transition-colors ${yieldSort?.col === "name" ? "text-foreground" : ""}`}
@@ -1502,7 +1502,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       <th colSpan={2} className={`text-center px-3 py-2 font-medium border-l ${yieldSort?.col === "total:kg" || yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>Total</th>
                     </tr>
                     <tr className="border-b text-xs text-muted-foreground">
-                      <th className="sticky left-0 bg-card" />
+                      <th className="sticky left-0 z-10 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]" />
                       {uniqueVintages.map(vy => (
                         <React.Fragment key={vy}>
                           <th className={`text-right px-3 py-1 font-normal border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
@@ -1534,7 +1534,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           kg{yieldSortIcon("total:kg")}
                         </button>
                       </th>
-                      <th className={`text-right px-3 py-1 font-normal ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
+                      <th className={`text-right px-3 py-1 font-normal sticky right-0 z-10 bg-card shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] ${yieldSort?.col === "total:tha" ? "!bg-muted/30" : ""}`}>
                         <button
                           type="button"
                           className={`inline-flex items-center justify-end hover:text-foreground transition-colors w-full ${yieldSort?.col === "total:tha" ? "text-foreground" : ""}`}
@@ -1547,8 +1547,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   </thead>
                   <tbody>
                     {sortedYieldRows.map((row, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-2 font-medium sticky left-0 bg-card">{row.bname}</td>
+                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20 group">
+                        <td className="px-4 py-2 font-medium sticky left-0 z-10 bg-card group-hover:bg-muted/20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">{row.bname}</td>
                         {uniqueVintages.map(vy => (
                           <React.Fragment key={vy}>
                             <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
@@ -1562,15 +1562,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className={`text-right px-3 py-2 tabular-nums font-medium border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
                           {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                         </td>
-                        <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === "total:tha" ? "bg-muted/30" : ""}`}>
+                        <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground sticky right-0 z-10 bg-card group-hover:bg-muted/20 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] ${yieldSort?.col === "total:tha" ? "!bg-muted/30" : ""}`}>
                           {row.totalTha != null ? row.totalTha.toFixed(2) : "—"}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 bg-muted/40 font-semibold">
-                      <td className="px-4 py-2 sticky left-0 bg-muted/40">Total</td>
+                    <tr className="border-t-2 bg-muted/40 font-semibold group">
+                      <td className="px-4 py-2 sticky left-0 z-10 bg-muted/40 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">Total</td>
                       {uniqueVintages.map(vy => (
                         <React.Fragment key={vy}>
                           <td className="text-right px-3 py-2 tabular-nums border-l">
@@ -1584,12 +1584,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       <td className="text-right px-3 py-2 tabular-nums border-l">
                         {footerTotalKg > 0 ? footerTotalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                       </td>
-                      <td className="text-right px-3 py-2 tabular-nums">
+                      <td className="text-right px-3 py-2 tabular-nums sticky right-0 z-10 bg-muted/40 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
                         {footerTotalTha != null ? footerTotalTha.toFixed(2) : "—"}
                       </td>
                     </tr>
-                    <tr className="border-t text-xs">
-                      <td className="px-4 py-1.5 sticky left-0 bg-stone-50 font-medium text-muted-foreground">Picks</td>
+                    <tr className="border-t text-xs group">
+                      <td className="px-4 py-1.5 sticky left-0 z-10 bg-stone-50 font-medium text-muted-foreground shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">Picks</td>
                       {uniqueVintages.map(vy => {
                         const picks = picksByVintage[vy] ?? 0;
                         const single = picks === 1;
@@ -1603,7 +1603,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           </td>
                         );
                       })}
-                      <td colSpan={2} className="text-center px-3 py-1.5 tabular-nums font-medium bg-stone-50 text-muted-foreground border-l">
+                      <td colSpan={2} className="text-center px-3 py-1.5 tabular-nums font-medium bg-stone-50 text-muted-foreground border-l sticky right-0 z-10 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
                         {grandTotalPicks > 0 ? grandTotalPicks : "—"}
                       </td>
                     </tr>

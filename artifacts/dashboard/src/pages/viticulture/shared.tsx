@@ -2013,7 +2013,7 @@ export async function printHarvest(
       const paAll = allForBlock.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
       const avgPaRow = paAll.length > 0 ? paAll.reduce((a, b) => a + b, 0) / paAll.length : null;
       return `<tr>
-        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;font-weight:600">${escHtml(label)}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;font-weight:600;background:#fff;position:sticky;left:0;z-index:1">${escHtml(label)}</td>
         <td style="padding:${yieldTdPad};border:1px solid #d1d5db;color:#555">${escHtml(variety)}</td>
         ${vintageCells}
         <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-weight:700;font-family:monospace">${rowTotal > 0 ? rowTotal.toFixed(0) : "\u2014"}</td>
@@ -2021,7 +2021,7 @@ export async function printHarvest(
         <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrixRow != null ? avgBrixRow.toFixed(1) + " \xb0" : "\u2014"}</td>
         <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPhRow != null ? avgPhRow.toFixed(2) : "\u2014"}</td>
         <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTaRow != null ? avgTaRow.toFixed(1) : "\u2014"}</td>
-        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPaRow != null ? avgPaRow.toFixed(1) : "\u2014"}</td>
+        <td style="padding:${yieldTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace;background:#fff;position:sticky;right:0;z-index:1">${avgPaRow != null ? avgPaRow.toFixed(1) : "\u2014"}</td>
       </tr>`;
     }).join("");
 
@@ -2095,7 +2095,7 @@ export async function printHarvest(
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Block &times; Vintage &mdash; Total Yield</h2>
   <table style="width:100%;border-collapse:collapse;font-size:${yieldFontPx}px;margin-bottom:18px">
     <thead><tr>
-      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:left;white-space:nowrap">Block</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:left;white-space:nowrap;position:sticky;left:0;z-index:2">Block</th>
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:left;white-space:nowrap">Variety</th>
       ${vintageColHeaders}
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Total (kg)</th>
@@ -2103,12 +2103,12 @@ export async function printHarvest(
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg Brix &deg;</th>
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg pH</th>
       <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg TA (g/L)</th>
-      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
+      <th style="background:#7c3d12;color:white;padding:${yieldThPad};text-align:right;white-space:nowrap;position:sticky;right:0;z-index:2">Avg Pot. Alc %</th>
     </tr></thead>
     <tbody>${crossBodyRows}</tbody>
     <tfoot>
     <tr>
-      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;font-weight:700">All blocks</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;font-weight:700;position:sticky;left:0;z-index:1">All blocks</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5"></td>
       ${footerVintageCells}
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${grandTotal > 0 ? grandTotal.toFixed(0) : "\u2014"}</td>
@@ -2116,10 +2116,10 @@ export async function printHarvest(
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgBrix != null ? grandAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPh != null ? grandAvgPh.toFixed(2) : "\u2014"}</td>
       <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgTa != null ? grandAvgTa.toFixed(1) : "\u2014"}</td>
-      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
+      <td style="padding:${yieldTdPad};border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace;position:sticky;right:0;z-index:1">${grandAvgPa != null ? grandAvgPa.toFixed(1) : "\u2014"}</td>
     </tr>
     <tr>
-      <td style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-weight:600;color:#555;font-size:${yieldFontPx - 0.5}px">Picks</td>
+      <td style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-weight:600;color:#555;font-size:${yieldFontPx - 0.5}px;position:sticky;left:0;z-index:1">Picks</td>
       <td style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4"></td>
       ${picksFooterVintageCells}
       <td colspan="2" style="padding:${yieldTdPad};border:1px solid #d6b89a;background:#f5f5f4;text-align:center;font-family:monospace;font-weight:600;color:#555">${grandTotalPicks}</td>
