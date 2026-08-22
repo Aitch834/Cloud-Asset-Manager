@@ -270,11 +270,13 @@ function EditHarvestModal({
 function HarvestRow({
   item,
   blockAreaHa,
+  isSinglePick,
   onEdit,
   onDelete,
 }: {
   item: HarvestListItem;
   blockAreaHa?: number | null;
+  isSinglePick: boolean;
   onEdit: (record: HarvestRecord) => void;
   onDelete: (id: number) => void;
 }) {
@@ -328,6 +330,16 @@ function HarvestRow({
             <View style={styles.unlinkTag}>
               <Feather name="alert-circle" size={12} color={colors.warning ?? "#d97706"} />
               <Text style={styles.unlinkTagText}>No block linked</Text>
+            </View>
+          )}
+          {isSinglePick && (
+            <View
+              style={styles.singlePickBadge}
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel="1 pick — only one pick recorded for this block and vintage; data may have lower confidence"
+            >
+              <Text style={styles.singlePickBadgeText}>1 pick</Text>
             </View>
           )}
           {item.yieldKg != null ? (
@@ -573,6 +585,19 @@ export default function VineHarvestHistoryScreen() {
         return update !== undefined ? { ...r, ...update } : r;
       });
   }, [records, localUpdates, deletedIds]);
+
+  // For each block+vintage combination across all records, count picks.
+  // Keep unsynced local records in the count because they are visible in the
+  // list and represent real picks until the sync completes.
+  const singlePickKeys = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of [...displayRecords, ...offlinePending]) {
+      if (r.blockId == null) continue;
+      const key = `${r.blockId}_${r.vintageYear}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return new Set(Object.entries(counts).filter(([, count]) => count === 1).map(([key]) => key));
+  }, [displayRecords, offlinePending]);
 
   // Sorted unique vintage years descending
   const vintages = useMemo(() => {
@@ -1280,6 +1305,7 @@ export default function VineHarvestHistoryScreen() {
               <HarvestRow
                 item={item}
                 blockAreaHa={typeof areaHa === "number" ? areaHa : null}
+                isSinglePick={item.blockId != null && singlePickKeys.has(`${item.blockId}_${item.vintageYear}`)}
                 onEdit={setEditingRecord}
                 onDelete={handleDelete}
               />
@@ -1603,6 +1629,20 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   blockTagText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+  singlePickBadge: {
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    borderColor: "#fcd34d",
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  singlePickBadgeText: {
+    color: "#92400e",
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+  },
   unlinkTag: {
     flexDirection: "row",
     alignItems: "center",
