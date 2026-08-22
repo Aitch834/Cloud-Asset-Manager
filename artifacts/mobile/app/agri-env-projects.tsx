@@ -22,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
 import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 
 interface AgriEnvProject {
@@ -70,6 +71,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 function fmt(pence: number): string {
   return `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`;
 }
+
+const CURRENT_YEAR = new Date().getFullYear();
 
 function formatDate(d: string | null | undefined): string {
   if (!d) return "";
@@ -156,6 +159,8 @@ function FarmDrawdownSummary({
   projects: AgriEnvProject[];
   milestones: AgriEnvMilestone[];
 }) {
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+
   // Only consider active/applied/pending projects with a grant value.
   // Withdrawn and completed projects still appear in the list below but
   // should not inflate the farm-wide summary bar.
@@ -167,13 +172,14 @@ function FarmDrawdownSummary({
 
   const includedIds = new Set(withValue.map(p => p.id));
   const totalGrantPence = withValue.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
+  const availableYears = getIncomeSummaryYears(milestones, includedIds, CURRENT_YEAR);
 
   const paidPence = milestones
-    .filter(m => m.status === "paid" && includedIds.has(m.projectId))
+    .filter(m => m.status === "paid" && includedIds.has(m.projectId) && hasCompletionDateInYear(m.completionDate, selectedYear))
     .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
 
   const submittedPence = milestones
-    .filter(m => m.status === "submitted" && includedIds.has(m.projectId))
+    .filter(m => m.status === "submitted" && includedIds.has(m.projectId) && hasCompletionDateInYear(m.completionDate, selectedYear))
     .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
 
   const pct    = Math.min(100, Math.round(paidPence      / totalGrantPence * 100));
@@ -183,27 +189,61 @@ function FarmDrawdownSummary({
   const perProject = withValue.length > 1
     ? withValue.map(p => {
         const projPaid = milestones
-          .filter(m => m.status === "paid" && m.projectId === p.id)
+          .filter(m => m.status === "paid" && m.projectId === p.id && hasCompletionDateInYear(m.completionDate, selectedYear))
           .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
         const projSubmitted = milestones
-          .filter(m => m.status === "submitted" && m.projectId === p.id)
+          .filter(m => m.status === "submitted" && m.projectId === p.id && hasCompletionDateInYear(m.completionDate, selectedYear))
+          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        // Remaining grant value is a lifetime figure, so it stays stable when
+        // the income summary is switched to a different year.
+        const allTimePaid = milestones
+          .filter(m => m.status === "paid" && m.projectId === p.id)
           .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
         const total = p.totalGrantValuePence ?? 0;
-        const remaining = total > 0 ? total - projPaid : null;
+        const remaining = total > 0 ? total - allTimePaid : null;
         return { project: p, projPaid, projSubmitted, total, remaining };
       })
     : [];
 
   return (
     <View style={summaryStyles.card}>
-      <Text style={summaryStyles.heading}>
-        Farm-wide drawdown — {withValue.length} active project{withValue.length !== 1 ? "s" : ""}
-      </Text>
+      <View style={summaryStyles.headingRow}>
+        <Text style={summaryStyles.heading}>
+          Farm-wide drawdown — {withValue.length} active project{withValue.length !== 1 ? "s" : ""}
+        </Text>
+        <Text style={summaryStyles.yearLabel}>Income year</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={summaryStyles.yearPickerContent}
+        style={summaryStyles.yearPicker}
+        accessibilityLabel="Select income year"
+      >
+        {availableYears.map(year => {
+          const active = selectedYear === year;
+          return (
+            <Pressable
+              key={year}
+              testID={`agri-env-summary-year-${year}`}
+              style={[summaryStyles.yearChip, active && summaryStyles.yearChipActive]}
+              onPress={() => setSelectedYear(year)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Show agri-environment income for ${year}`}
+            >
+              <Text style={[summaryStyles.yearChipText, active && summaryStyles.yearChipTextActive]}>
+                {year}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
       <View style={summaryStyles.labelsRow}>
         <Text style={summaryStyles.label}>
           {paidPence > 0
-            ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed`
-            : `${fmt(totalGrantPence)} total — no paid claims yet`}
+            ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed in ${selectedYear}`
+            : `${fmt(totalGrantPence)} total — no paid claims in ${selectedYear}`}
         </Text>
         <Text style={[summaryStyles.pct, pct >= 100 && summaryStyles.pctFull]}>
           {pct}%
@@ -217,7 +257,7 @@ function FarmDrawdownSummary({
       </View>
       {pctSub > 0 && (
         <Text style={summaryStyles.submittedNote}>
-          {fmt(submittedPence)} submitted (awaiting payment)
+          {fmt(submittedPence)} submitted in {selectedYear} (awaiting payment)
         </Text>
       )}
 
@@ -1586,11 +1626,54 @@ const summaryStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  headingRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: spacing.sm,
+  },
   heading: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.text,
-    marginBottom: 8,
+    flex: 1,
+  },
+  yearLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: 10,
+    color: colors.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+  },
+  yearPicker: {
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  yearPickerContent: {
+    flexDirection: "row" as const,
+    gap: spacing.xs,
+  },
+  yearChip: {
+    minWidth: 54,
+    alignItems: "center" as const,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  yearChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  yearChipText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  yearChipTextActive: {
+    color: colors.textInverse,
   },
   labelsRow: {
     flexDirection: "row",
