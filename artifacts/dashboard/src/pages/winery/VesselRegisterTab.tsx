@@ -669,7 +669,23 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/movements/${id}`), { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error("Delete failed");
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qKey }); qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] }); },
+    onSuccess: (_data, deletedId) => {
+      qc.invalidateQueries({ queryKey: qKey });
+      qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
+
+      // The API derives the vessel location from the newest remaining movement
+      // after a delete. Mirror that locally when the deleted row was the
+      // current movement so the detail fields and the next-move pre-fill do not
+      // wait for the winery-vessels refetch.
+      const deletedIndex = (data ?? []).findIndex(m => Number(m.id) === deletedId);
+      if (deletedIndex === 0) {
+        const previousMovement = (data ?? [])[1];
+        onMoveLogged?.(
+          previousMovement?.to_zone != null ? String(previousMovement.to_zone) : "",
+          previousMovement?.to_position != null ? String(previousMovement.to_position) : "",
+        );
+      }
+    },
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
   });
 
