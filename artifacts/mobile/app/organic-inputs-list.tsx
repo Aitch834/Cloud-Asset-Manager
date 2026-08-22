@@ -18,7 +18,8 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { getPendingSyncItems, kvGet } from "@/lib/database";
+import { useSync } from "@/lib/context/SyncContext";
+import { deletePendingSyncItem, getPendingSyncItems, kvGet } from "@/lib/database";
 import { STORAGE_KEYS } from "@/lib/storage";
 
 function fmtDate(val: string | null | undefined): string {
@@ -80,6 +81,8 @@ interface DisplayRecord {
   key: string;
   /** Numeric server id — present only for synced records */
   serverId: number | null;
+  /** Local record UUID — present only for pending (not-yet-synced) records */
+  localId: string | null;
   productName: string;
   inputType: string | null;
   approvalStatus: string;
@@ -104,12 +107,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 export default function OrganicInputsListScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
+  const { refreshPendingCount } = useSync();
   const farmId = currentFarm?.id;
 
   const [records, setRecords] = useState<DisplayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | string | null>(null);
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -127,6 +131,7 @@ export default function OrganicInputsListScreen() {
         const rec: DisplayRecord = {
           key: `pending-${item.record_id}`,
           serverId: null,
+          localId: item.record_id,
           productName: String(data.productName ?? ""),
           inputType: data.inputType ? String(data.inputType) : null,
           approvalStatus: String(data.approvalStatus ?? "permitted"),
@@ -156,6 +161,7 @@ export default function OrganicInputsListScreen() {
           server = (data.records as ServerInputRecord[]).map(r => ({
             key: `server-${r.id}`,
             serverId: r.id,
+            localId: null,
             productName: r.productName,
             inputType: r.inputType,
             approvalStatus: r.approvalStatus,
@@ -189,25 +195,58 @@ export default function OrganicInputsListScreen() {
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const handleEdit = (r: DisplayRecord) => {
-    if (!r.serverId) return;
-    router.push({
-      pathname: "/organic-input",
-      params: {
-        id: String(r.serverId),
-        productName: r.productName ?? "",
-        inputType: r.inputType ?? "",
-        approvalStatus: r.approvalStatus ?? "permitted",
-        supplier: r.supplier ?? "",
-        dateOfUse: r.dateOfUse ?? "",
-        quantityAmount: r.quantityAmount ?? "",
-        quantityUnit: r.quantityUnit ?? "",
-        cropYear: r.cropYear != null ? String(r.cropYear) : "",
-        certifierApprovalRef: r.certifierApprovalRef ?? "",
-        derogationExpiryDate: r.derogationExpiryDate ?? "",
-        fieldName: r.fieldName ?? "",
-        notes: r.notes ?? "",
-      },
-    });
+    const sharedParams = {
+      productName: r.productName ?? "",
+      inputType: r.inputType ?? "",
+      approvalStatus: r.approvalStatus ?? "permitted",
+      supplier: r.supplier ?? "",
+      dateOfUse: r.dateOfUse ?? "",
+      quantityAmount: r.quantityAmount ?? "",
+      quantityUnit: r.quantityUnit ?? "",
+      cropYear: r.cropYear != null ? String(r.cropYear) : "",
+      certifierApprovalRef: r.certifierApprovalRef ?? "",
+      derogationExpiryDate: r.derogationExpiryDate ?? "",
+      fieldName: r.fieldName ?? "",
+      notes: r.notes ?? "",
+    };
+    if (r.pending && r.localId) {
+      router.push({
+        pathname: "/organic-input",
+        params: { pendingId: r.localId, ...sharedParams },
+      });
+    } else if (r.serverId) {
+      router.push({
+        pathname: "/organic-input",
+        params: { id: String(r.serverId), ...sharedParams },
+      });
+    }
+  };
+
+  const handleDeletePending = (r: DisplayRecord) => {
+    if (!r.localId) return;
+    Alert.alert(
+      "Discard Pending Record",
+      `Remove "${r.productName}" from the sync queue? It has not been saved to the server yet.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(r.localId!);
+            try {
+              await deletePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, r.localId!);
+              setRecords(prev => prev.filter(x => x.localId !== r.localId));
+              await refreshPendingCount();
+            } catch {
+              Alert.alert("Error", "Could not discard this record. Please try again.");
+            } finally {
+              setDeleting(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDelete = (r: DisplayRecord) => {
@@ -280,18 +319,17 @@ export default function OrganicInputsListScreen() {
               const expiryDays = daysUntil(r.derogationExpiryDate);
               const isExpired = expiryDays !== null && expiryDays < 0;
               const isExpiringSoon = expiryDays !== null && expiryDays >= 0 && expiryDays <= 30;
-              const isDeleting = deleting === r.serverId;
+              const isDeleting = r.pending ? deleting === r.localId : deleting === r.serverId;
 
               return (
                 <View key={r.key}>
                   {i > 0 && <View style={styles.divider} />}
                   {/* Outer row is a plain View so the delete button sits beside the edit target */}
                   <View style={styles.row}>
-                    {/* Tappable content area — opens edit form for synced records */}
+                    {/* Tappable content area — opens edit form for synced and pending records */}
                     <Pressable
-                      style={({ pressed }) => [styles.rowContent, pressed && !r.pending && styles.rowPressed]}
-                      onPress={() => { if (!r.pending) handleEdit(r); }}
-                      disabled={r.pending}
+                      style={({ pressed }) => [styles.rowContent, pressed && styles.rowPressed]}
+                      onPress={() => handleEdit(r)}
                     >
                       <View style={styles.nameRow}>
                         <Text style={styles.productName} numberOfLines={1}>{r.productName}</Text>
@@ -363,11 +401,11 @@ export default function OrganicInputsListScreen() {
                     </Pressable>
 
                     {/* Delete + chevron sit OUTSIDE the edit Pressable so taps don't bubble */}
-                    {!r.pending && r.serverId != null && (
+                    {(r.pending ? r.localId != null : r.serverId != null) && (
                       <View style={styles.actions}>
                         <Pressable
                           style={styles.actionBtn}
-                          onPress={() => handleDelete(r)}
+                          onPress={() => r.pending ? handleDeletePending(r) : handleDelete(r)}
                           hitSlop={8}
                           disabled={isDeleting}
                         >

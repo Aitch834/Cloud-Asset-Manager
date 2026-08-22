@@ -23,7 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
-import { kvGet } from "@/lib/database";
+import { kvGet, updatePendingSyncItem } from "@/lib/database";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicInput } from "@/lib/types";
 
@@ -83,9 +83,10 @@ export default function OrganicInputScreen() {
   const { fields, loading: fieldsLoading } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
-  // Route params — present when editing an existing server record
+  // Route params — present when editing an existing server record (id) or a pending local record (pendingId)
   const params = useLocalSearchParams<{
     id?: string;
+    pendingId?: string;
     productName?: string;
     inputType?: string;
     approvalStatus?: string;
@@ -102,6 +103,8 @@ export default function OrganicInputScreen() {
 
   const editId = params.id ? parseInt(params.id) : null;
   const isEdit = editId != null && !isNaN(editId);
+  /** true when editing a pending (not-yet-synced) local record */
+  const isPendingEdit = !!params.pendingId && !isEdit;
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -133,7 +136,47 @@ export default function OrganicInputScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    if (isEdit) {
+    if (isPendingEdit) {
+      // ── Pending edit mode: overwrite the queued local record ──────────────
+      try {
+        const updatedRecord: OrganicInput = {
+          id: params.pendingId!,
+          farmId: currentFarm?.id ?? "",
+          productName: productName.trim(),
+          inputType: inputType.trim(),
+          approvalStatus,
+          supplier: supplier.trim(),
+          dateOfUse: dateOfUse.trim(),
+          fieldName: fieldName.trim(),
+          quantityAmount: quantityAmount.trim(),
+          quantityUnit: quantityUnit.trim(),
+          cropYear: cropYear.trim(),
+          certifierApprovalRef: certifierApprovalRef.trim(),
+          derogationExpiryDate: derogationExpiryDate.trim() || undefined,
+          notes: notes.trim(),
+          createdAt: new Date().toISOString(),
+          synced: false,
+        };
+        const updated = await updatePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, params.pendingId!, updatedRecord);
+        setSaving(false);
+        if (!updated) {
+          // The record was already picked up and synced before the save landed —
+          // tell the grower so they can find it in the synced list and edit it there.
+          Alert.alert(
+            "Already Synced",
+            "This record reached the server before you saved. Find it in the list and tap it to edit the synced version.",
+            [{ text: "OK", onPress: () => router.back() }]
+          );
+          return;
+        }
+        Alert.alert("Record Updated", "Your changes will sync when you're back online.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      } catch {
+        setSaving(false);
+        Alert.alert("Error", "Could not update this record. Please try again.");
+      }
+    } else if (isEdit) {
       // ── Edit mode: PUT to server ──────────────────────────────────────────
       try {
         const headers = await getAuthHeaders();
@@ -209,7 +252,7 @@ export default function OrganicInputScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Feather name="x" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>{isEdit ? "Edit Input Record" : "Log Organic Input"}</Text>
+        <Text style={styles.title}>{isPendingEdit ? "Edit Pending Record" : isEdit ? "Edit Input Record" : "Log Organic Input"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -220,7 +263,7 @@ export default function OrganicInputScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {!isEdit && (
+          {!isEdit && !isPendingEdit && (
             <View style={styles.infoBox}>
               <Feather name="package" size={14} color="#2563eb" />
               <Text style={styles.infoText}>
@@ -371,7 +414,7 @@ export default function OrganicInputScreen() {
           </View>
 
           <Button
-            title={saving ? (isEdit ? "Saving…" : "Saving…") : (isEdit ? "Save Changes" : "Save Input Record")}
+            title={saving ? "Saving…" : isPendingEdit ? "Save Changes" : isEdit ? "Save Changes" : "Save Input Record"}
             onPress={handleSave}
             disabled={saving}
           />

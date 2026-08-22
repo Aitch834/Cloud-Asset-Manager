@@ -7,6 +7,7 @@ interface SQLiteDB {
   runAsync(sql: string, params?: unknown[]): Promise<{ changes: number; lastInsertRowId: number }>;
   getFirstAsync<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null>;
   getAllAsync<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
+  withTransactionAsync(task: () => Promise<void>): Promise<void>;
 }
 
 interface SyncQueueRow {
@@ -430,6 +431,104 @@ export async function markRecordSynced(table: string, id: string): Promise<void>
     delete item._pendingSync;
     await AsyncStorage.setItem(storeKey, JSON.stringify(item));
   }
+}
+
+/**
+ * Delete a pending sync queue entry and its corresponding local record.
+ * Used when a grower wants to remove a not-yet-synced item entirely.
+ */
+export async function deletePendingSyncItem(recordType: string, recordId: string): Promise<void> {
+  await ensureInit();
+  if (usingSQLite) {
+    const table = TABLE_MAP[recordType];
+    await db().withTransactionAsync(async () => {
+      await db().runAsync(
+        "DELETE FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+        [recordType, recordId],
+      );
+      if (table) {
+        await db().runAsync("DELETE FROM records WHERE id = ? AND record_type = ?", [recordId, table]);
+      }
+    });
+    return;
+  }
+  // AsyncStorage fallback: queue first (most critical), then local record.
+  // No true transaction here — partial failure leaves an orphaned local record
+  // that will not re-sync since the queue entry is gone, but the data is not
+  // sent to the server. Acceptable for the web-only AsyncStorage path.
+  const queueRaw = await AsyncStorage.getItem("bde_sync_queue");
+  if (queueRaw) {
+    const queue: SyncQueueRow[] = JSON.parse(queueRaw);
+    await AsyncStorage.setItem(
+      "bde_sync_queue",
+      JSON.stringify(
+        queue.filter(
+          (i) => !(i.record_type === recordType && i.record_id === recordId && i.status === "pending"),
+        ),
+      ),
+    );
+  }
+  const table = TABLE_MAP[recordType];
+  if (table) {
+    await AsyncStorage.removeItem(`bde_record_${table}_${recordId}`);
+    const indexKey = `bde_index_${table}`;
+    const idxRaw = await AsyncStorage.getItem(indexKey);
+    if (idxRaw) {
+      const index: string[] = JSON.parse(idxRaw);
+      await AsyncStorage.setItem(indexKey, JSON.stringify(index.filter((i) => i !== recordId)));
+    }
+  }
+}
+
+/**
+ * Overwrite the data in a pending sync queue entry without creating a duplicate.
+ * Used when a grower edits a not-yet-synced record before it reaches the server.
+ */
+/**
+ * Returns true when the update succeeded (the pending entry still existed).
+ * Returns false when the record was already synced/removed before the save —
+ * callers should treat this as a "record already synced" condition and handle
+ * it (e.g. redirect to the server-edit flow).
+ */
+export async function updatePendingSyncItem(recordType: string, recordId: string, data: unknown): Promise<boolean> {
+  await ensureInit();
+  const json = JSON.stringify(data);
+  if (usingSQLite) {
+    const table = TABLE_MAP[recordType];
+    let updated = false;
+    await db().withTransactionAsync(async () => {
+      const result = await db().runAsync(
+        "UPDATE sync_queue SET data_json = ?, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+        [json, recordType, recordId],
+      );
+      updated = result.changes > 0;
+      if (updated && table) {
+        await db().runAsync(
+          "UPDATE records SET data_json = ? WHERE id = ? AND record_type = ?",
+          [json, recordId, table],
+        );
+      }
+    });
+    return updated;
+  }
+  // AsyncStorage fallback: queue first (most critical), then local record.
+  // No true transaction — partial failure leaves queue carrying new data and
+  // local record carrying old data. Sync will send the new payload, so the
+  // server will have the corrected record. Acceptable for web-only path.
+  const queueRaw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!queueRaw) return false;
+  const queue: SyncQueueRow[] = JSON.parse(queueRaw);
+  const idx = queue.findIndex(
+    (i) => i.record_type === recordType && i.record_id === recordId && i.status === "pending",
+  );
+  if (idx === -1) return false;
+  queue[idx].data_json = json;
+  await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+  const table = TABLE_MAP[recordType];
+  if (table) {
+    await AsyncStorage.setItem(`bde_record_${table}_${recordId}`, json);
+  }
+  return true;
 }
 
 export async function clearCompletedSyncItems(): Promise<void> {
