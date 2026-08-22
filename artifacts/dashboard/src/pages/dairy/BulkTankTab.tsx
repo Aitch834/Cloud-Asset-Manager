@@ -84,6 +84,20 @@ function TempBadge({ v }: { v?: string | null }) {
   return <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${cls}`}><Thermometer className="h-3 w-3" />{v}°C</span>;
 }
 
+// ─── Milk statement badge helper ───────────────────────────────────────────────
+function StatementBadge({ pencePerLitre, netPaymentPence }: Pick<MilkCollection, "pencePerLitre" | "netPaymentPence">) {
+  const hasStatementDetails = pencePerLitre != null || netPaymentPence != null;
+  return hasStatementDetails ? (
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-50 text-green-700" title="Milk statement details entered">
+      <BadgeCheck className="h-3 w-3" aria-hidden="true" />Statement received
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700" title="Milk statement details are still needed">
+      <Clock className="h-3 w-3" aria-hidden="true" />Awaiting statement
+    </span>
+  );
+}
+
 // ─── BulkTankTab ──────────────────────────────────────────────────────────────
 
 export function BulkTankTab({ farmId, showCollections = true }: { farmId: number; showCollections?: boolean }) {
@@ -661,6 +675,7 @@ ${collRows ? `<h3>Milk Collections</h3><table><tr><th>Date</th><th>Tank</th><th>
                     {c.milkBuyer && <span className="text-xs text-gray-500">{c.milkBuyer}</span>}
                     {c.volumeCollectedLitres && <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{parseFloat(String(c.volumeCollectedLitres)).toLocaleString()} L</span>}
                     {c.pencePerLitre && <span className="text-xs text-gray-400">{parseFloat(String(c.pencePerLitre)).toFixed(2)}ppl</span>}
+                    <StatementBadge pencePerLitre={c.pencePerLitre} netPaymentPence={c.netPaymentPence} />
                     {c.buyerSccThousands != null && <span className={`text-xs px-2 py-0.5 rounded ${c.buyerSccThousands < 100 ? "bg-green-50 text-green-700" : c.buyerSccThousands < 200 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>SCC: {c.buyerSccThousands}k</span>}
                     {c.buyerBactoscanThousands != null && <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Bact: {c.buyerBactoscanThousands}k</span>}
                     {c.buyerTvcCfuMl != null && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">TVC: {c.buyerTvcCfuMl.toLocaleString()}</span>}
