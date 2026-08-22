@@ -290,10 +290,6 @@ export default function AgriEnvMilestoneDetailScreen() {
       setEditError("A paid milestone must have a completion date.");
       return;
     }
-    if (completionDate && !isValidIsoDate(completionDate)) {
-      setEditError("Use a valid completion date in YYYY-MM-DD format.");
-      return;
-    }
 
     const amountText = editDraft.claimAmount.trim().replace(/[£,\s]/g, "");
     const amount = amountText ? Number(amountText) : null;
@@ -468,51 +464,58 @@ export default function AgriEnvMilestoneDetailScreen() {
             <Text style={styles.sectionHeading}>Grant Claim</Text>
 
             <Text style={styles.fieldLabel}>Completion date</Text>
-            <View style={styles.dateInputRow}>
-              <TextInput
-                value={editDraft.completionDate}
-                onChangeText={completionDate => {
-                  setEditDraft(prev => ({ ...prev, completionDate }));
-                  setEditError(null);
-                }}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textTertiary}
-                style={styles.dateTextInput}
-                autoCapitalize="none"
-                keyboardType="numbers-and-punctuation"
-                accessibilityLabel="Completion date"
-                testID="milestone-completion-date-input"
-              />
-              <Pressable
-                onPress={() => {
-                  const value = parseIsoDateLocal(editDraft.completionDate);
-                  if (Platform.OS === "android") {
-                    DateTimePickerAndroid.open({
-                      value,
-                      mode: "date",
-                      onChange: (_event: DateTimePickerEvent, selectedDate?: Date) => {
-                        if (selectedDate) {
-                          setEditDraft(prev => ({
-                            ...prev,
-                            completionDate: dateToIso(selectedDate),
-                          }));
-                          setEditError(null);
-                        }
-                      },
-                    });
-                  } else {
-                    setShowCompletionDatePicker(prev => !prev);
-                  }
-                }}
-                style={styles.calendarButton}
-                accessibilityRole="button"
-                accessibilityLabel="Choose completion date"
+            <Pressable
+              onPress={() => {
+                const value = parseIsoDateLocal(editDraft.completionDate);
+                if (Platform.OS === "android") {
+                  DateTimePickerAndroid.open({
+                    value,
+                    mode: "date",
+                    maximumDate: new Date(),
+                    onChange: (_event: DateTimePickerEvent, selectedDate?: Date) => {
+                      if (selectedDate) {
+                        setEditDraft(prev => ({
+                          ...prev,
+                          completionDate: dateToIso(selectedDate),
+                        }));
+                        setEditError(null);
+                      }
+                    },
+                  });
+                } else {
+                  setShowCompletionDatePicker(prev => !prev);
+                }
+              }}
+              style={styles.datePressable}
+              accessibilityRole="button"
+              accessibilityLabel={
+                editDraft.completionDate
+                  ? `Completion date: ${formatLocalIsoDate(editDraft.completionDate)}`
+                  : "Choose completion date"
+              }
+              testID="milestone-completion-date-input"
+            >
+              <Feather name="calendar" size={16} color={colors.textTertiary} />
+              <Text
+                style={
+                  editDraft.completionDate
+                    ? styles.datePressableText
+                    : styles.datePressablePlaceholder
+                }
               >
-                <Feather name="calendar" size={18} color={colors.primary} />
-              </Pressable>
+                {editDraft.completionDate
+                  ? formatLocalIsoDate(editDraft.completionDate)
+                  : "Select date"}
+              </Text>
               {!!editDraft.completionDate && (
                 <Pressable
-                  onPress={() => setEditDraft(prev => ({ ...prev, completionDate: "" }))}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setEditDraft(prev => ({ ...prev, completionDate: "" }));
+                    setShowCompletionDatePicker(false);
+                    setEditError(null);
+                  }}
+                  hitSlop={8}
                   style={styles.clearDateButton}
                   accessibilityRole="button"
                   accessibilityLabel="Clear completion date"
@@ -520,12 +523,13 @@ export default function AgriEnvMilestoneDetailScreen() {
                   <Feather name="x" size={17} color={colors.textSecondary} />
                 </Pressable>
               )}
-            </View>
+            </Pressable>
             {Platform.OS === "ios" && showCompletionDatePicker && (
               <DateTimePicker
                 value={parseIsoDateLocal(editDraft.completionDate)}
                 mode="date"
                 display="spinner"
+                maximumDate={new Date()}
                 onChange={(_event: DateTimePickerEvent, selectedDate?: Date) => {
                   if (selectedDate) {
                     setEditDraft(prev => ({
@@ -844,32 +848,28 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: spacing.sm,
   },
-  dateInputRow: {
+  datePressable: {
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-  },
-  dateTextInput: {
-    flex: 1,
-    minHeight: 44,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
+    backgroundColor: colors.background,
+  },
+  datePressableText: {
+    flex: 1,
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
-    backgroundColor: colors.background,
   },
-  calendarButton: {
-    width: 44,
-    height: 44,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
+  datePressablePlaceholder: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textTertiary,
   },
   clearDateButton: {
     width: 36,
@@ -1000,6 +1000,19 @@ function parseIsoDateLocal(value: string): Date {
 function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   return dateToIso(parseIsoDateLocal(value)) === value;
+}
+
+/**
+ * Format a YYYY-MM-DD ISO string for display using local date components,
+ * so it always matches what the native picker shows (avoids UTC-offset shift).
+ */
+function formatLocalIsoDate(iso: string): string {
+  if (!iso) return "";
+  return parseIsoDateLocal(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 interface MilestoneEditDraft {
