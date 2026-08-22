@@ -706,6 +706,7 @@ function SprayDiaryPhotoSection({
   const [captionEditPhoto, setCaptionEditPhoto] = useState<SprayDiaryPhoto | null>(null);
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
+  const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
 
   // Stable ref so loadPhotos (memoised) can call the callback without it as a dep
   const onPhotosChangedRef = useRef(onPhotosChanged);
@@ -802,6 +803,7 @@ function SprayDiaryPhotoSection({
 
   const handleSaveCaptionFromThumbnail = async (photoId: number, newCaption: string | null) => {
     setCaptionSaving(true);
+    setCaptionSaveError(null);
     try {
       const res = await apiFetch(
         `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photoId}`,
@@ -812,16 +814,17 @@ function SprayDiaryPhotoSection({
         },
       );
       if (!res.ok) {
-        Alert.alert("Save Failed", "Could not save the caption. Please try again.");
+        setCaptionSaveError("Could not save the caption. Please try again.");
         return;
       }
       setPhotos((prev) =>
         prev.map((p) => (p.id === photoId ? { ...p, caption: newCaption } : p)),
       );
+      setCaptionSaveError(null);
       setCaptionEditPhoto(null);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert("Save Failed", "An error occurred. Please try again.");
+      setCaptionSaveError("An error occurred. Please try again.");
     } finally {
       setCaptionSaving(false);
     }
@@ -848,6 +851,7 @@ function SprayDiaryPhotoSection({
       );
     } else {
       setCaptionDraft(photo.caption ?? "");
+      setCaptionSaveError(null);
       setCaptionEditPhoto(photo);
     }
   };
@@ -949,6 +953,11 @@ function SprayDiaryPhotoSection({
                 autoFocus
                 maxLength={500}
               />
+              {captionSaveError ? (
+                <Text style={editStyles.captionModalError} accessibilityRole="alert">
+                  {captionSaveError}
+                </Text>
+              ) : null}
               <View style={editStyles.captionModalActions}>
                 <Pressable
                   style={editStyles.captionModalCancelBtn}
@@ -1992,6 +2001,11 @@ const editStyles = StyleSheet.create({
     color: colors.text,
     minHeight: 80,
     textAlignVertical: "top",
+  },
+  captionModalError: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
   },
   captionModalActions: {
     flexDirection: "row",
