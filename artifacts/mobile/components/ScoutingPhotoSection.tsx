@@ -706,6 +706,7 @@ export function ScoutingPhotoThumbnail({
   }
 
   const handleLongPress = () => {
+    if (reloading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     longPressJustFiredRef.current = true;
     // Show caption tooltip while the finger is held (captioned photos only)
@@ -715,6 +716,11 @@ export function ScoutingPhotoThumbnail({
   };
 
   const handlePressOut = () => {
+    if (reloading) {
+      longPressJustFiredRef.current = false;
+      onHideTooltip?.();
+      return;
+    }
     if (!longPressJustFiredRef.current) return;
     longPressJustFiredRef.current = false;
     onHideTooltip?.();
@@ -741,7 +747,12 @@ export function ScoutingPhotoThumbnail({
   };
 
   return (
-    <Pressable style={photoStyles.thumbnail} onLongPress={handleLongPress} onPressOut={handlePressOut} onPress={() => onPress(photo)}>
+    <Pressable
+      style={photoStyles.thumbnail}
+      onLongPress={reloading ? undefined : handleLongPress}
+      onPressOut={handlePressOut}
+      onPress={() => onPress(photo)}
+    >
       <View style={photoStyles.thumbImgBox}>
         {uri && !imgError ? (
           <Image
