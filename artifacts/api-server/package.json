@@ -8,7 +8,8 @@
     "build": "tsx ./build.ts",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
     "test:alert": "tsx scripts/test-alert-county-filter.ts",
-    "test:eidcymru": "tsx scripts/test-eidcymru.ts"
+    "test:eidcymru": "tsx scripts/test-eidcymru.ts",
+    "test:lis-first-production": "tsx scripts/test-lis-first-production-submission.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.0",

@@ -8,6 +8,7 @@ import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
 import { analysePestTrapImage } from "../lib/pestVision";
 import { objectStorageClient } from "../lib/objectStorage";
+import { shouldSurfaceFirstProductionSubmission } from "../lib/lisFirstProductionSubmission";
 
 // Decrypt a LIP OAuth token stored in lip_farm_tokens.
 // Handles both new enc:v1: format and plaintext (existing rows — transition safe).
@@ -28330,6 +28331,8 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
     submittedAt: new Date(),
   }).returning();
 
+  let firstProductionSubmission = false;
+
   try {
     // ── CLA v1.0: only on/off movements reach here ────────────────────────────
     // Births and deaths are blocked by the early-return guard above.
@@ -28397,23 +28400,17 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
         bcmsSubmissionRef: result.reference ?? `LIS-SANDBOX-${submission.id}`,
       }).where(eq(livestockMovementsTable.id, movementId));
 
-      // ── INC0208722 closure email ──────────────────────────────────────────────
-      // On every successful *production* (non-sandbox) CLA submission, attempt to
-      // claim or reclaim the INC0208722 notification slot and send the closure email.
+      // ── First production submission + INC0208722 closure email ────────────────
+      // A successful live LIS submission and the best-effort closure email are
+      // separate concerns. The first INSERT is the durable, race-safe marker for
+      // the first live submission; it must not depend on SMTP succeeding.
+      // Later submissions can only reclaim a failed or stale email delivery.
       //
       // State machine (lis_incident_notifications.status):
       //   pending_send — claimed by this worker; email in flight
       //   sent         — successfully delivered; claim locked forever
       //   failed       — last attempt failed; eligible for reclaim
       //
-      // The single atomic query handles all cases:
-      //   - Fresh DB: INSERT → pending_send → we send
-      //   - Concurrent fresh submissions: only the INSERT winner gets RETURNING;
-      //     the loser sees conflict with status=pending_send (not failed) → no row
-      //   - Retry after failure: UPDATE WHERE status='failed' → pending_send → we send
-      //   - Stale pending_send (process crashed before final UPDATE): reclaim after
-      //     10-minute timeout so the claim is never permanently abandoned
-      //   - Already sent: conflict + status='sent' → WHERE false → no row → skip
       if (!result.sandbox) {
         try {
           // Use the returned reference if available; fall back to a sentinel so
@@ -28421,22 +28418,42 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
           const lisRef = result.reference ?? `(submission-id:${submission.id} — ref not returned by LIS API)`;
           const movDateFmt = movDate ?? new Date().toISOString().slice(0, 10);
 
-          const claimResult = await db.execute<{ id: number }>(sql`
+          // Only the INSERT winner is the first successful production submission.
+          // This is intentionally completed before SMTP is attempted so a delivery
+          // failure cannot make a later movement look like the first submission.
+          const firstSubmissionClaim = await db.execute<{ id: number }>(sql`
             INSERT INTO lis_incident_notifications (incident_ref, lis_reference, status, claimed_at)
             VALUES ('INC0208722', ${lisRef}, 'pending_send', now())
-            ON CONFLICT (incident_ref) DO UPDATE
-              SET lis_reference = EXCLUDED.lis_reference,
-                  status        = 'pending_send',
-                  claimed_at    = now(),
-                  updated_at    = now()
-              WHERE lis_incident_notifications.status = 'failed'
-                 OR (lis_incident_notifications.status = 'pending_send'
-                     AND lis_incident_notifications.claimed_at < now() - interval '10 minutes')
+            ON CONFLICT (incident_ref) DO NOTHING
             RETURNING id
           `);
 
-          if (claimResult.rows.length > 0) {
-            const notifId = claimResult.rows[0].id;
+          let notifId = firstSubmissionClaim.rows[0]?.id;
+          if (notifId) {
+            firstProductionSubmission = shouldSurfaceFirstProductionSubmission({
+              sandbox: result.sandbox,
+              createdFirstSubmissionMarker: true,
+            });
+          } else {
+            // Retry only an email delivery that previously failed or was abandoned
+            // while pending. This never changes the first-submission response flag.
+            const retryClaim = await db.execute<{ id: number }>(sql`
+              UPDATE lis_incident_notifications
+              SET lis_reference = ${lisRef},
+                  status        = 'pending_send',
+                  claimed_at    = now(),
+                  updated_at    = now()
+              WHERE incident_ref = 'INC0208722'
+                AND (
+                  status = 'failed'
+                  OR (status = 'pending_send' AND claimed_at < now() - interval '10 minutes')
+                )
+              RETURNING id
+            `);
+            notifId = retryClaim.rows[0]?.id;
+          }
+
+          if (notifId) {
             const body = `
               <p>Dear Aquil,</p>
               <p>
@@ -28556,7 +28573,13 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
       }
     }
 
-    res.json({ success: result.success, sandbox: result.sandbox, reference: result.reference, error: result.errorMessage });
+    res.json({
+      success: result.success,
+      sandbox: result.sandbox,
+      reference: result.reference,
+      firstProductionSubmission,
+      error: result.errorMessage,
+    });
   } catch (err: any) {
     await db.update(lisSubmissionsTable).set({ status: "failed", errorMessage: err?.message ?? "Unknown error", updatedAt: new Date() }).where(eq(lisSubmissionsTable.id, submission.id));
     res.status(500).json({ error: err?.message ?? "Submission failed" });

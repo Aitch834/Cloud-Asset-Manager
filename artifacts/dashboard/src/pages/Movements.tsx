@@ -1171,6 +1171,10 @@ export default function Movements() {
   const [submittingId, setSubmittingId] = useState<number | null>(null);
   const [lisSubmitConfirmId, setLisSubmitConfirmId] = useState<number | null>(null);
   const [lisSubmittingId, setLisSubmittingId] = useState<number | null>(null);
+  const [firstProductionSubmissionNotice, setFirstProductionSubmissionNotice] = useState<{
+    farmId: number;
+    reference: string | null;
+  } | null>(null);
   const [lisSubTab, setLisSubTab] = useState<"outbound" | "inbound">("outbound");
   const [lisReviewDialog, setLisReviewDialog] = useState<{ movId: number; requestId: number; holding: string; animalTotal: number; fromCph: string | null; toCph: string | null; date: string } | null>(null);
   const [lisReviewArrivalDate, setLisReviewArrivalDate] = useState("");
@@ -1624,6 +1628,9 @@ export default function Movements() {
       queryClient.invalidateQueries({ queryKey: ["movements", farmId] });
       refetchLisSubmissions();
       if (d.success) {
+        if (d.firstProductionSubmission) {
+          setFirstProductionSubmissionNotice({ farmId, reference: d.reference ?? null });
+        }
         toast({ title: d.sandbox ? "Submitted to LIS (sandbox)" : "Submitted to LIS", description: d.sandbox ? `Sandbox ref: ${d.reference}` : `LIS ref: ${d.reference}` });
       } else {
         toast({ title: "LIS submission failed", description: d.error, variant: "destructive" });
@@ -1971,6 +1978,18 @@ export default function Movements() {
           </TabButton>
         )}
       </TabBar>
+
+      {firstProductionSubmissionNotice?.farmId === farmId && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+          <p>
+            <strong>First live LIS submission sent — awaiting LIS confirmation.</strong> LIS reference:{" "}
+            <span className="font-mono font-semibold">
+              {firstProductionSubmissionNotice.reference ?? "not returned by LIS"}
+            </span>
+          </p>
+        </div>
+      )}
 
       {activeTab === "movements" && (<>
       <TabBar className="mb-5">
