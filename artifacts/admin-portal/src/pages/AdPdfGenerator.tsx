@@ -606,6 +606,7 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
   const [draftPreviewError,        setDraftPreviewError]        = useState<string | null>(null);
   const [draftPreviewMissingAssets, setDraftPreviewMissingAssets] = useState<string[] | null>(null);
   const [draftPreviewMissingPlaceholders, setDraftPreviewMissingPlaceholders] = useState<string[] | null>(null);
+  const [draftPreviewWarnings, setDraftPreviewWarnings] = useState<string[]>([]);
   // Track whether a preview has ever been successfully generated — used to keep
   // the missing-placeholder warning visible even after subsequent HTML edits clear
   // the preview image.
@@ -672,6 +673,7 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
     setDraftPreviewError(null);
     setDraftPreviewMissingAssets(null);
     setDraftPreviewMissingPlaceholders(null);
+    setDraftPreviewWarnings([]);
     try {
       const res = await fetch("/api/admin/ad-pdf/preview-draft", {
         method: "POST",
@@ -691,11 +693,14 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
         if (json.missingAssets?.length) throw new MissingAssetsError(json.error ?? `HTTP ${res.status}`, json.missingAssets);
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
+      const warningsHeader = res.headers.get("X-Ad-Render-Warnings");
+      const warnings: string[] = warningsHeader ? (JSON.parse(warningsHeader) as string[]) : [];
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       if (prevDraftObjectUrl.current) URL.revokeObjectURL(prevDraftObjectUrl.current);
       prevDraftObjectUrl.current = url;
       setDraftPreviewUrl(url);
+      setDraftPreviewWarnings(warnings);
       setHasEverPreviewed(true);
     } catch (err) {
       if (thisRevision !== previewRevision.current) return;
@@ -918,28 +923,24 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
         {draftPreviewUrl && (
           <div className="mt-3 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Draft preview</p>
-            {typoPlaceholders.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
+              <img src={draftPreviewUrl} alt="Draft template preview" className="w-full object-contain" />
+            </div>
+            {draftPreviewWarnings.length > 0 && (
               <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
                 <div className="text-xs text-amber-800 space-y-1">
                   <p className="font-medium">
-                    Likely placeholder typo{typoPlaceholders.length > 1 ? "s" : ""} — {typoPlaceholders.length > 1 ? "these tokens were" : "this token was"} silently ignored in the render above:
+                    Likely placeholder typo{draftPreviewWarnings.length > 1 ? "s" : ""} detected in this draft:
                   </p>
-                  <ul className="space-y-0.5">
-                    {typoPlaceholders.map(({ found, expected }) => (
-                      <li key={found} className="flex items-center gap-1.5">
-                        <code className="bg-amber-100 px-1 rounded">{found}</code>
-                        <span className="text-amber-600">→</span>
-                        <code className="bg-amber-100 px-1 rounded">{expected}</code>
-                      </li>
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {draftPreviewWarnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
                     ))}
                   </ul>
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
-              <img src={draftPreviewUrl} alt="Draft template preview" className="w-full object-contain" />
-            </div>
             <p className="text-xs text-muted-foreground">
               Rendered at 150&nbsp;dpi from the RGB intermediate PDF.{" "}
               {draftBgUrl.trim() ? "Background image from the URL above." : "Using the default background photo — paste a URL above to preview with a custom one."}

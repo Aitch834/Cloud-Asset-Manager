@@ -3358,6 +3358,10 @@ router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res
     return;
   }
 
+  // Detect near-miss placeholder typos in the unsaved draft HTML and surface them
+  // to the caller without blocking the preview render.
+  const draftRenderWarnings = detectAdTemplateNearMissPlaceholders(htmlBody);
+
   const tmpId  = crypto.randomUUID();
   const tmpDir = path.join(os.tmpdir(), `ad-pdf-draft-${tmpId}`);
   const htmlOut = path.join(tmpDir, "print.html");
@@ -3387,6 +3391,9 @@ router.post("/admin/ad-pdf/preview-draft", requireAuth, async (req: Request, res
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Content-Length", pngBuffer.length);
     res.setHeader("Cache-Control", "no-store");
+    if (draftRenderWarnings.length > 0) {
+      res.setHeader("X-Ad-Render-Warnings", JSON.stringify(draftRenderWarnings));
+    }
     res.send(pngBuffer);
   } catch (err: unknown) {
     console.error("[ad-pdf/preview-draft] Generation failed:", err);
