@@ -588,6 +588,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["livestock"],
   },
   {
+    id: "bulk-tank",
+    title: "Bulk Tank",
+    description: "View milk collections, enter buyer statement details, and log tank monitoring records",
+    icon: "droplet",
+    color: "#0369a1",
+    bgColor: "#DBEAFE",
+    route: "/bulk-tank-record",
+    moduleKeys: ["dairy-management"],
+    requiresSectors: ["dairy"],
+  },
+  {
     id: "calving-record",
     title: "Calving Record",
     description: "Record birth details, calf outcome, calving ease score, and colostrum management",

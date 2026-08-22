@@ -16821,7 +16821,38 @@ router.put("/farms/:farmId/dairy/milk-collections/:collectionId", requireAuth, r
   if (!farmId) return;
   const collectionId = parseInt(req.params.collectionId as string);
   const { tankId, collectionDate, volumeCollectedLitres, milkBuyer, tankerRegistration, tankerDriverName, collectionRef, statementRef, abtResultBeforeCollection, pencePerLitre, grossValuePence, qualityBonusPence, qualityPenaltyPence, transportDeductionPence, netPaymentPence, buyerSccThousands, buyerBactoscanThousands, buyerTvcCfuMl, buyerThermsCfuMl, buyerColiformsCfuMl, buyerFatPercent, buyerProteinPercent, buyerCaseinPercent, buyerLactosePercent, buyerUreaMillimolesPerLitre, notes } = req.body;
-  const [collection] = await db.update(dairyMilkCollectionsTable).set({ tankId: tankId ? parseInt(tankId) : null, collectionDate: collectionDate ? new Date(collectionDate) : undefined, volumeCollectedLitres: volumeCollectedLitres || null, milkBuyer: milkBuyer || null, tankerRegistration: tankerRegistration || null, tankerDriverName: tankerDriverName || null, collectionRef: collectionRef || null, statementRef: statementRef || null, abtResultBeforeCollection: abtResultBeforeCollection || null, pencePerLitre: pencePerLitre || null, grossValuePence: grossValuePence || null, qualityBonusPence: qualityBonusPence || null, qualityPenaltyPence: qualityPenaltyPence || null, transportDeductionPence: transportDeductionPence || null, netPaymentPence: netPaymentPence || null, buyerSccThousands: buyerSccThousands ? parseInt(buyerSccThousands) : null, buyerBactoscanThousands: buyerBactoscanThousands ? parseInt(buyerBactoscanThousands) : null, buyerTvcCfuMl: buyerTvcCfuMl ? parseInt(buyerTvcCfuMl) : null, buyerThermsCfuMl: buyerThermsCfuMl ? parseInt(buyerThermsCfuMl) : null, buyerColiformsCfuMl: buyerColiformsCfuMl ? parseInt(buyerColiformsCfuMl) : null, buyerFatPercent: buyerFatPercent || null, buyerProteinPercent: buyerProteinPercent || null, buyerCaseinPercent: buyerCaseinPercent || null, buyerLactosePercent: buyerLactosePercent || null, buyerUreaMillimolesPerLitre: buyerUreaMillimolesPerLitre || null, notes: notes || null }).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId))).returning();
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(req.body, key);
+  const nullableString = (value: unknown): string | null => value == null || value === "" ? null : String(value);
+  const nullableNumber = (value: unknown): number | null => value == null || value === "" ? null : Number(value);
+  const nullableInteger = (value: unknown) => value == null || value === "" ? null : parseInt(String(value), 10);
+  const [collection] = await db.update(dairyMilkCollectionsTable).set({
+    tankId: has("tankId") ? (tankId ? parseInt(tankId) : null) : undefined,
+    collectionDate: has("collectionDate") && collectionDate ? new Date(collectionDate) : undefined,
+    volumeCollectedLitres: has("volumeCollectedLitres") ? nullableString(volumeCollectedLitres) : undefined,
+    milkBuyer: has("milkBuyer") ? nullableString(milkBuyer) : undefined,
+    tankerRegistration: has("tankerRegistration") ? nullableString(tankerRegistration) : undefined,
+    tankerDriverName: has("tankerDriverName") ? nullableString(tankerDriverName) : undefined,
+    collectionRef: has("collectionRef") ? nullableString(collectionRef) : undefined,
+    statementRef: has("statementRef") ? nullableString(statementRef) : undefined,
+    abtResultBeforeCollection: has("abtResultBeforeCollection") ? nullableString(abtResultBeforeCollection) : undefined,
+    pencePerLitre: has("pencePerLitre") ? nullableString(pencePerLitre) : undefined,
+    grossValuePence: has("grossValuePence") ? nullableNumber(grossValuePence) : undefined,
+    qualityBonusPence: has("qualityBonusPence") ? nullableNumber(qualityBonusPence) : undefined,
+    qualityPenaltyPence: has("qualityPenaltyPence") ? nullableNumber(qualityPenaltyPence) : undefined,
+    transportDeductionPence: has("transportDeductionPence") ? nullableNumber(transportDeductionPence) : undefined,
+    netPaymentPence: has("netPaymentPence") ? nullableNumber(netPaymentPence) : undefined,
+    buyerSccThousands: has("buyerSccThousands") ? nullableInteger(buyerSccThousands) : undefined,
+    buyerBactoscanThousands: has("buyerBactoscanThousands") ? nullableInteger(buyerBactoscanThousands) : undefined,
+    buyerTvcCfuMl: has("buyerTvcCfuMl") ? nullableInteger(buyerTvcCfuMl) : undefined,
+    buyerThermsCfuMl: has("buyerThermsCfuMl") ? nullableInteger(buyerThermsCfuMl) : undefined,
+    buyerColiformsCfuMl: has("buyerColiformsCfuMl") ? nullableInteger(buyerColiformsCfuMl) : undefined,
+    buyerFatPercent: has("buyerFatPercent") ? nullableString(buyerFatPercent) : undefined,
+    buyerProteinPercent: has("buyerProteinPercent") ? nullableString(buyerProteinPercent) : undefined,
+    buyerCaseinPercent: has("buyerCaseinPercent") ? nullableString(buyerCaseinPercent) : undefined,
+    buyerLactosePercent: has("buyerLactosePercent") ? nullableString(buyerLactosePercent) : undefined,
+    buyerUreaMillimolesPerLitre: has("buyerUreaMillimolesPerLitre") ? nullableString(buyerUreaMillimolesPerLitre) : undefined,
+    notes: has("notes") ? nullableString(notes) : undefined,
+  }).where(and(eq(dairyMilkCollectionsTable.id, collectionId), eq(dairyMilkCollectionsTable.farmId, farmId))).returning();
   res.json({ collection });
 });
 
