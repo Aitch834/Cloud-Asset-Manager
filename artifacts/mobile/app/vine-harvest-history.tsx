@@ -38,6 +38,7 @@ import { openExternalUrl } from "@/utils/openExternalUrl";
 import { getItem, getList, setItem } from "@/lib/storage";
 import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
+import { subscribe } from "@/lib/sync-engine";
 
 interface HarvestRecord {
   id: number;
@@ -495,23 +496,40 @@ export default function VineHarvestHistoryScreen() {
 
   // Offline-pending records that haven't synced yet
   const [offlinePending, setOfflinePending] = useState<OfflineHarvestEntry[]>([]);
+  const offlinePendingLoadId = React.useRef(0);
+  const loadOfflinePending = useCallback(async () => {
+    const loadId = ++offlinePendingLoadId.current;
+    try {
+      const all = await getList<OfflineHarvestEntry>("bde_vine_harvest");
+      if (loadId !== offlinePendingLoadId.current) return;
+      const pending = all.filter(
+        r => r._pendingSync === true && (!currentFarm?.id || r.farmId === currentFarm.id),
+      );
+      setOfflinePending(pending);
+    } catch {
+      // non-fatal — totals will just exclude offline records
+    }
+  }, [currentFarm?.id]);
+
   React.useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const all = await getList<OfflineHarvestEntry>("bde_vine_harvest");
-        if (!active) return;
-        const pending = all.filter(
-          r => r._pendingSync === true && (!currentFarm?.id || r.farmId === currentFarm.id),
-        );
-        setOfflinePending(pending);
-      } catch {
-        // non-fatal — totals will just exclude offline records
+    void loadOfflinePending();
+  }, [loadOfflinePending, records]); // re-read whenever server records refresh (sync may have cleared some)
+
+  React.useEffect(() => {
+    // The sync engine notifies once the queue is drained. Track whether this
+    // screen observed an active sync so the initial idle notification cannot
+    // trigger an unnecessary server request.
+    let syncWasActive = false;
+    return subscribe((syncState) => {
+      const syncFinished = syncWasActive && !syncState.isSyncing && syncState.pendingCount === 0;
+      syncWasActive = syncState.isSyncing || syncState.pendingCount > 0;
+
+      if (syncFinished) {
+        refresh();
+        void loadOfflinePending();
       }
-    };
-    load();
-    return () => { active = false; };
-  }, [currentFarm?.id, records]); // re-read whenever server records refresh (sync may have cleared some)
+    });
+  }, [refresh, loadOfflinePending]);
 
   const displayRecords = useMemo(() => {
     return records
