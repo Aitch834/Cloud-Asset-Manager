@@ -23,7 +23,6 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
-import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 
 interface AgriEnvProject {
   id: number;
@@ -1799,7 +1798,7 @@ function milestonesCacheKey(farmId: string | number): string {
 }
 
 /** Cache entries older than this are discarded and a fresh fetch is made. */
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_TTL_MS = AGRI_ENV_CACHE_TTL_MS;
 
 /**
  * Returns true when the cache entry should be discarded:

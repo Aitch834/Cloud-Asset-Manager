@@ -2,7 +2,13 @@ import createContextHook from "@nkzw/create-context-hook";
 import React, { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 
-import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
+import {
+  clearExpiredAgriEnvCaches,
+  getItem,
+  removeItem,
+  setItem,
+  STORAGE_KEYS,
+} from "@/lib/storage";
 import { syncRefData } from "@/lib/refCache";
 import type { Farm, UserProfile } from "@/lib/types";
 
@@ -47,14 +53,14 @@ async function fetchUserProfileFromApi(token: string | null): Promise<UserProfil
   }
 }
 
-async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
+async function fetchFarmsFromApi(token: string | null): Promise<Farm[] | null> {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (!domain) return [];
+  if (!domain) return null;
   try {
     const res = await fetch(`https://${domain}/api/my-farms`, {
       headers: buildApiHeaders(token),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; sectorViticulture: boolean; idleBarrelDays?: number | null; approachingNeutralFills?: number | null; }> };
     return (data.farms ?? []).map((f) => ({
       id: String(f.id),
@@ -70,7 +76,7 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[]> {
       approachingNeutralFills: f.approachingNeutralFills ?? null,
     }));
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -159,6 +165,7 @@ const [FarmProviderInner, useFarm] = createContextHook(
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+      clearExpiredAgriEnvCaches().catch(() => {});
       (async () => {
         const savedFarms = await getItem<Farm[]>(STORAGE_KEYS.FARM_LIST);
         const savedFarm = await getItem<Farm>(STORAGE_KEYS.CURRENT_FARM);
@@ -174,15 +181,27 @@ const [FarmProviderInner, useFarm] = createContextHook(
             fetchFarmsFromApi(token),
             fetchUserProfileFromApi(token),
           ]);
-          if (apiFarms.length > 0) {
+          if (apiFarms !== null) {
+            const resolvedUser = apiUser || savedUser || DEMO_USER;
+            await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
+            clearExpiredAgriEnvCaches(apiFarms.map((farm) => farm.id)).catch(() => {});
+
+            if (apiFarms.length === 0) {
+              await removeItem(STORAGE_KEYS.CURRENT_FARM);
+              await setItem(STORAGE_KEYS.USER_PROFILE, resolvedUser);
+              setFarms([]);
+              setCurrentFarmState(null);
+              setUser(resolvedUser);
+              setIsLoading(false);
+              return;
+            }
+
             // Always use the fresh API farm object so new fields (e.g. barrel
             // alert thresholds) are never shadowed by a stale cached value.
             const currentApiFarm =
               savedFarm
                 ? (apiFarms.find((f) => f.id === savedFarm.id) ?? apiFarms[0])
                 : apiFarms[0];
-            const resolvedUser = apiUser || savedUser || DEMO_USER;
-            await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
             await setItem(STORAGE_KEYS.CURRENT_FARM, currentApiFarm);
             await setItem(STORAGE_KEYS.USER_PROFILE, resolvedUser);
             setFarms(apiFarms);
@@ -236,15 +255,21 @@ const [FarmProviderInner, useFarm] = createContextHook(
       const token = await getAuthToken();
       if (!token && !__DEV__) return;
       const apiFarms = await fetchFarmsFromApi(token);
-      if (apiFarms.length === 0) return;
+      if (apiFarms === null) return;
       await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
+      clearExpiredAgriEnvCaches(apiFarms.map((farm) => farm.id)).catch(() => {});
       setFarms(apiFarms);
+      if (apiFarms.length === 0) {
+        await removeItem(STORAGE_KEYS.CURRENT_FARM);
+        setCurrentFarmState(null);
+        return;
+      }
       setCurrentFarmState(prev => {
         if (!prev) return prev;
         const updated = apiFarms.find(f => f.id === prev.id);
-        if (!updated) return prev;
-        setItem(STORAGE_KEYS.CURRENT_FARM, updated).catch(() => {});
-        return updated;
+        const next = updated ?? apiFarms[0];
+        setItem(STORAGE_KEYS.CURRENT_FARM, next).catch(() => {});
+        return next;
       });
     }, []);
 

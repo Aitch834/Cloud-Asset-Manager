@@ -9,6 +9,7 @@ import {
   insertRecord,
   kvDelete,
   kvGet,
+  kvGetKeysByPrefix,
   kvSet,
   updateRecord,
 } from "./database";
@@ -29,6 +30,87 @@ export async function setItem<T>(key: string, value: T): Promise<void> {
 
 export async function removeItem(key: string): Promise<void> {
   await kvDelete(key);
+}
+
+export const AGRI_ENV_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const AGRI_ENV_CACHE_NAMESPACES = [
+  "bde_agri_env_projects_cache",
+  "bde_agri_env_milestones_cache",
+  "bde_agri_env_project_milestones_cache",
+] as const;
+
+interface AgriEnvCacheValue {
+  cachedAt?: unknown;
+}
+
+function getAgriEnvCacheFarmId(key: string): string | null {
+  for (const namespace of AGRI_ENV_CACHE_NAMESPACES) {
+    const keyPrefix = `${namespace}_`;
+    if (key.startsWith(keyPrefix)) {
+      const suffix = key.slice(keyPrefix.length);
+      if (namespace === "bde_agri_env_project_milestones_cache") {
+        // Detail entries are keyed as <farmId>_<projectId>. Split from the
+        // right so farm IDs containing underscores remain intact.
+        const projectSeparator = suffix.lastIndexOf("_");
+        return projectSeparator > 0 ? suffix.slice(0, projectSeparator) : null;
+      }
+      return suffix || null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Remove agri-environment cache entries that can no longer be used.
+ *
+ * Cache keys include the farm ID, so prefix enumeration is needed to clean
+ * farms that are no longer in the advisor's current farm list. When an
+ * authoritative farm list is available, any cache for another farm is deleted.
+ * Invalid and future-dated payloads are removed too; the reader treats them as
+ * stale and they should not remain in local storage indefinitely.
+ */
+export async function clearExpiredAgriEnvCaches(
+  managedFarmIds?: Iterable<string | number>,
+  now = Date.now(),
+): Promise<void> {
+  const managedFarmIdSet = managedFarmIds === undefined
+    ? null
+    : new Set(Array.from(managedFarmIds, String));
+  const keys = (
+    await Promise.all(
+      AGRI_ENV_CACHE_NAMESPACES.map((namespace) => kvGetKeysByPrefix(`${namespace}_`)),
+    )
+  ).flat();
+
+  await Promise.all(keys.map(async (key) => {
+    const farmId = getAgriEnvCacheFarmId(key);
+    if (managedFarmIdSet && (!farmId || !managedFarmIdSet.has(farmId))) {
+      await kvDelete(key);
+      return;
+    }
+
+    const raw = await kvGet(key);
+    if (!raw) return;
+
+    let cachedAt: unknown;
+    try {
+      const parsed = JSON.parse(raw) as AgriEnvCacheValue | null;
+      cachedAt = parsed?.cachedAt;
+    } catch {
+      await kvDelete(key);
+      return;
+    }
+
+    const timestamp = typeof cachedAt === "string" ? new Date(cachedAt).getTime() : Number.NaN;
+    if (
+      Number.isNaN(timestamp) ||
+      timestamp > now ||
+      now - timestamp > AGRI_ENV_CACHE_TTL_MS
+    ) {
+      await kvDelete(key);
+    }
+  }));
 }
 
 export async function getList<T>(key: string, farmId?: string): Promise<T[]> {

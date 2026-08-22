@@ -152,6 +152,20 @@ export async function kvGet(key: string): Promise<string | null> {
   return AsyncStorage.getItem(key);
 }
 
+export async function kvGetKeysByPrefix(prefix: string): Promise<string[]> {
+  await ensureInit();
+  if (usingSQLite) {
+    const rows = await db().getAllAsync<{ key: string }>(
+      "SELECT key FROM kv_store WHERE substr(key, 1, length(?)) = ?",
+      [prefix, prefix],
+    );
+    return rows.map((row) => row.key);
+  }
+
+  const keys = await AsyncStorage.getAllKeys();
+  return keys.filter((key) => key.startsWith(prefix));
+}
+
 export async function kvSet(key: string, value: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
