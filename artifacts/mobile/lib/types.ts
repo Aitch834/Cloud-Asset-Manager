@@ -115,6 +115,8 @@ export interface CropEvent {
   yieldUnit: string;
   notes: string;
   photoIds: string[];
+  documentUrl?: string;
+  documentCaption?: string;
   latitude?: number;
   longitude?: number;
   createdAt: string;
@@ -162,6 +164,8 @@ export interface SoilSample {
   longitude?: number;
   locationDescription?: string;
   photoIds: string[];
+  documentUrl?: string;
+  documentCaption?: string;
   createdAt: string;
   synced: boolean;
 }

@@ -42,6 +42,7 @@ export default function SoilSampleScreen() {
   const { labs, loading: labsLoading, error: labsError, fromCache: labsCached } = useApiLabs(currentFarm?.id);
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
 
   const [fieldId, setFieldId] = useState<number | undefined>(undefined);
   const [fieldName, setFieldName] = useState("");
@@ -126,6 +127,8 @@ export default function SoilSampleScreen() {
       longitude: gpsLng,
       locationDescription: locationDescription.trim() || undefined,
       photoIds: [],
+      documentUrl,
+      documentCaption: photoCaption.trim() || undefined,
       createdAt: new Date().toISOString(),
       synced: false,
     };
@@ -336,9 +339,24 @@ export default function SoilSampleScreen() {
             numberOfLines={3}
           />
 
+          {photoUri ? (
+            <Input
+              label="Photo Caption"
+              placeholder="Describe what this photo shows..."
+              value={photoCaption}
+              onChangeText={setPhotoCaption}
+              multiline
+              numberOfLines={2}
+              maxLength={300}
+            />
+          ) : null}
           <PhotoAttachButton
             photoUri={photoUri}
-            onPhotoSelected={setPhotoUri}
+            onPhotoSelected={(uri) => {
+              setPhotoUri(uri);
+              if (uri !== photoUri) setPhotoCaption("");
+            }}
+            caption={photoCaption}
             label="Attach Photo"
             promptTitle="Attach Photo to Soil Sample"
           />

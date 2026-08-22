@@ -26,6 +26,8 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { CropEvent } from "@/lib/types";
+import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 
 const EVENT_TYPES: { key: CropEvent["eventType"]; label: string; icon: keyof typeof Feather.glyphMap; color: string }[] = [
   { key: "drilling", label: "Drilling", icon: "arrow-down", color: colors.fieldBrown },
@@ -50,6 +52,8 @@ export default function CropEventScreen() {
   const [yieldAmount, setYieldAmount] = useState("");
   const [yieldUnit, setYieldUnit] = useState("t/ha");
   const [notes, setNotes] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
 
   const handleSave = async () => {
     if (!fieldName.trim() || !eventType) {
@@ -59,6 +63,16 @@ export default function CropEventScreen() {
 
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let documentUrl: string | undefined;
+    if (photoUri) {
+      try {
+        const objectPath = await uploadPhotoToStorage(photoUri, getApiBase(), "crop-event-photo.jpg");
+        if (objectPath) documentUrl = objectPath;
+      } catch {
+        // The record remains available for sync even when the optional photo upload fails.
+      }
+    }
 
     let latitude: number | undefined;
     let longitude: number | undefined;
@@ -86,6 +100,8 @@ export default function CropEventScreen() {
       yieldUnit: eventType === "harvesting" ? yieldUnit : "",
       notes: notes.trim(),
       photoIds: [],
+      documentUrl,
+      documentCaption: photoCaption.trim() || undefined,
       latitude,
       longitude,
       createdAt: new Date().toISOString(),
@@ -192,6 +208,28 @@ export default function CropEventScreen() {
             onChangeText={setNotes}
             multiline
             numberOfLines={2}
+          />
+
+          {photoUri ? (
+            <Input
+              label="Photo Caption"
+              placeholder="Describe what this photo shows..."
+              value={photoCaption}
+              onChangeText={setPhotoCaption}
+              multiline
+              numberOfLines={2}
+              maxLength={300}
+            />
+          ) : null}
+          <PhotoAttachButton
+            photoUri={photoUri}
+            onPhotoSelected={(uri) => {
+              setPhotoUri(uri);
+              if (uri !== photoUri) setPhotoCaption("");
+            }}
+            caption={photoCaption}
+            label="Attach Photo"
+            promptTitle="Attach Photo to Crop Event"
           />
 
           <Button

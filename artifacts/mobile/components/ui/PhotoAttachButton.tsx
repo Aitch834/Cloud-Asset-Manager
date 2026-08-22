@@ -17,6 +17,8 @@ import { radius, spacing } from "@/constants/spacing";
 interface PhotoAttachButtonProps {
   photoUri: string | null;
   onPhotoSelected: (uri: string | null) => void;
+  /** Optional caption rendered below the attached photo thumbnail. */
+  caption?: string;
   label?: string;
   promptTitle?: string;
 }
@@ -24,6 +26,7 @@ interface PhotoAttachButtonProps {
 export function PhotoAttachButton({
   photoUri,
   onPhotoSelected,
+  caption,
   label = "Attach Document / Photo",
   promptTitle = "Attach Supporting Document",
 }: PhotoAttachButtonProps) {
@@ -97,6 +100,11 @@ export function PhotoAttachButton({
           <Feather name="camera" size={14} color={colors.primary} />
           <Text style={styles.changeBtnText}>Change photo</Text>
         </Pressable>
+        {caption?.trim() ? (
+          <Text style={styles.captionBelow} numberOfLines={2}>
+            {caption.trim()}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -180,5 +188,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: colors.primary,
+  },
+  captionBelow: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 16,
+    marginHorizontal: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    textAlign: "center",
   },
 });

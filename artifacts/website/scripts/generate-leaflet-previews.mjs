@@ -6,8 +6,6 @@
  * gains or loses pages.
  */
 
-import pkg from "/home/runner/workspace/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/index.js";
-const { chromium } = pkg;
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
@@ -26,22 +24,35 @@ const LEAFLETS = [
   "contracting-v7",
 ];
 
-const CHROMIUM_PATH =
-  "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
-
-async function main() {
-  if (!fs.existsSync(CHROMIUM_PATH)) {
+async function loadChromium() {
+  try {
+    const { chromium } = await import("playwright-core");
+    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
+    if (!executablePath || !fs.existsSync(executablePath)) {
+      console.warn(
+        "⚠  Leaflet preview generation skipped: Playwright Chromium is not installed.\n" +
+          "   Existing preview images remain in place.",
+      );
+      return null;
+    }
+    return { chromium, executablePath };
+  } catch {
     console.warn(
-      `⚠  Leaflet preview generation skipped: Chromium not found at ${CHROMIUM_PATH}.\n` +
+      "⚠  Leaflet preview generation skipped: playwright-core is not installed.\n" +
         "   Existing preview images remain in place.",
     );
-    return;
+    return null;
   }
+}
+
+async function main() {
+  const browserRuntime = await loadChromium();
+  if (!browserRuntime) return;
 
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  const browser = await chromium.launch({
-    executablePath: CHROMIUM_PATH,
+  const browser = await browserRuntime.chromium.launch({
+    executablePath: browserRuntime.executablePath,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   const manifest = {};

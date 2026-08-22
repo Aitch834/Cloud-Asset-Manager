@@ -70,6 +70,7 @@ export default function DiseaseIncidentScreen() {
   const { refreshPendingCount } = useSync();
   const [saving, setSaving] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
 
   const [incidentType, setIncidentType] = useState<IncidentType>("disease-suspicion");
   const [notifiableDisease, setNotifiableDisease] = useState("");
@@ -147,7 +148,11 @@ export default function DiseaseIncidentScreen() {
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.DISEASE_INCIDENTS, { ...record, documentUrl });
+    await appendToList(STORAGE_KEYS.DISEASE_INCIDENTS, {
+      ...record,
+      documentUrl,
+      documentCaption: photoCaption.trim() || undefined,
+    });
     await refreshPendingCount();
     setSaving(false);
 
@@ -376,9 +381,24 @@ export default function DiseaseIncidentScreen() {
             <Text style={styles.infoText}>GPS coordinates will be captured automatically and attached to the incident report.</Text>
           </View>
 
+          {photoUri ? (
+            <Input
+              label="Photo Caption"
+              placeholder="Describe what this photo shows..."
+              value={photoCaption}
+              onChangeText={setPhotoCaption}
+              multiline
+              numberOfLines={2}
+              maxLength={300}
+            />
+          ) : null}
           <PhotoAttachButton
             photoUri={photoUri}
-            onPhotoSelected={setPhotoUri}
+            onPhotoSelected={(uri) => {
+              setPhotoUri(uri);
+              if (uri !== photoUri) setPhotoCaption("");
+            }}
+            caption={photoCaption}
             label="Attach Photo / Evidence"
             promptTitle="Attach Photo to Disease Incident Report"
           />
