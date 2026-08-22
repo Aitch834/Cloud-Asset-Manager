@@ -12,8 +12,9 @@ import {
   Plus, Loader2, Pencil, Trash2, AlertTriangle,
   Leaf, ShieldCheck, FlaskConical, FileText,
   Eye, Info, Package, CheckCircle2, Clock, Printer, ClipboardList,
-  Droplets, Thermometer, Warehouse,
+  Droplets, Thermometer, Warehouse, Download,
 } from "lucide-react";
+import { downloadCsvFile } from "@/lib/csv";
 import {
   CropsTab, WaterTestsTab, HarvestTab, IntakeTab, PackhouseTab, AllergenTab,
 } from "@/pages/FreshProducePage";
@@ -457,12 +458,17 @@ function printFpInputLog(rows: Record<string, unknown>[], farmName: string, year
   const rowsHtml = rows.map(r => {
     const needsDerogCol = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
     let derogCell = "—";
+    let daysCell = "—";
     if (needsDerogCol && r.derogationExpiryDate) {
       const expiryMs = new Date(r.derogationExpiryDate as string).setHours(0, 0, 0, 0);
       const formatted = new Date(r.derogationExpiryDate as string).toLocaleDateString("en-GB");
+      const daysLeft = Math.round((expiryMs - todayMs) / 86400000);
       derogCell = expiryMs < todayMs
         ? `<span class="expiry-expired">${formatted}</span>`
         : formatted;
+      daysCell = expiryMs < todayMs
+        ? `<span class="expiry-expired">${daysLeft}</span>`
+        : String(daysLeft);
     }
     return `
     <tr>
@@ -472,6 +478,7 @@ function printFpInputLog(rows: Record<string, unknown>[], farmName: string, year
       <td>${String(r.inputType ?? "—")}</td>
       <td><span class="badge ${r.approvalStatus === 'permitted' ? 'badge-green' : r.approvalStatus === 'restricted' ? 'badge-yellow' : 'badge-red'}">${String(r.approvalStatus ?? "—")}</span></td>
       <td>${derogCell}</td>
+      <td>${daysCell}</td>
       <td>${String(r.supplier ?? "—")}</td>
       <td>${r.quantityApplied ? String(r.quantityApplied) + ' ' + String(r.quantityUnit ?? "") : "—"}</td>
       <td>${String(r.purposeOfUse ?? "—")}</td>
@@ -484,8 +491,49 @@ function printFpInputLog(rows: Record<string, unknown>[], farmName: string, year
   fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Input Log — ${farmName} — ${yearLabel}</title><style>${FP_PRINT_CSS}</style></head><body>
     <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Approved Input Log · ${yearLabel}</div><div class="farm">${farmName}</div></div>
     <div class="hdr-r"><b>Input Log</b><br>${rows.length} record${rows.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-    <table><thead><tr><th>Date</th><th>Crop Year</th><th>Input / Product</th><th>Type</th><th>Approval</th><th>Derogation Expiry</th><th>Supplier</th><th>Qty Applied</th><th>Purpose</th><th>Applied By</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
+    <table><thead><tr><th>Date</th><th>Crop Year</th><th>Input / Product</th><th>Type</th><th>Approval</th><th>Derogation Expiry</th><th>Days Remaining</th><th>Supplier</th><th>Qty Applied</th><th>Purpose</th><th>Applied By</th><th>Certifier Ref</th><th>PO Ref</th><th>GRN Ref</th></tr></thead>
     <tbody>${rowsHtml}</tbody></table></body></html>`);
+}
+
+function exportFpInputLogCsv(rows: Record<string, unknown>[], farmName: string, yearLabel: string) {
+  const fmtDate = (v: unknown) => {
+    if (!v) return "";
+    try { return new Date(v as string).toLocaleDateString("en-GB"); } catch { return String(v); }
+  };
+  const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+  const yearPart = yearLabel === "All Years" ? "" : `-${yearLabel}`;
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  downloadCsvFile(`fp-input-log${yearPart}-${slug}.csv`, [
+    ["Date Applied", "Crop Year", "Input / Product", "Type", "Approval Status", "Expiry Date", "Days Remaining", "Supplier", "Qty Applied", "Unit", "Purpose", "Applied By", "Certifier Ref", "PO Ref", "GRN Ref", "Notes"],
+    ...rows.map(r => {
+      const needsDerог = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
+      let expiryDate = "";
+      let daysRemaining: string | number = "";
+      if (needsDerог && r.derogationExpiryDate) {
+        expiryDate = fmtDate(r.derogationExpiryDate);
+        const expiryMs = new Date(r.derogationExpiryDate as string).setHours(0, 0, 0, 0);
+        daysRemaining = Math.round((expiryMs - todayMs) / 86400000);
+      }
+      return [
+        fmtDate(r.applicationDate),
+        r.cropYear != null ? String(r.cropYear) : "",
+        r.inputName != null ? String(r.inputName) : "",
+        r.inputType != null ? String(r.inputType) : "",
+        r.approvalStatus != null ? String(r.approvalStatus) : "",
+        expiryDate,
+        daysRemaining,
+        r.supplier != null ? String(r.supplier) : "",
+        r.quantityApplied != null ? String(r.quantityApplied) : "",
+        r.quantityUnit != null ? String(r.quantityUnit) : "",
+        r.purposeOfUse != null ? String(r.purposeOfUse) : "",
+        r.appliedBy != null ? String(r.appliedBy) : "",
+        r.certifierApprovalRef != null ? String(r.certifierApprovalRef) : "",
+        r.poReference != null ? String(r.poReference) : "",
+        r.grnReference != null ? String(r.grnReference) : "",
+        r.notes != null ? String(r.notes) : "",
+      ];
+    }),
+  ]);
 }
 
 function printFpCertificates(certs: Record<string, unknown>[], farmName: string) {
@@ -920,6 +968,9 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
           )}
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => exportFpInputLogCsv(rows, farmName, yearFilter === "all" ? "All Years" : String(yearFilter))} disabled={rows.length === 0} className="gap-1.5">
+            <Download className="h-4 w-4" />Download CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={() => printFpInputLog(rows, farmName, yearFilter === "all" ? "All Years" : String(yearFilter))} disabled={rows.length === 0} className="gap-1.5">
             <Printer className="h-4 w-4" />Print Input Log
           </Button>
