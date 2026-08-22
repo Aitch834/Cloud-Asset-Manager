@@ -17,7 +17,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
-import { getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
+import { getItem, removeItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 
 interface AgriEnvMilestone {
   id: number;
@@ -61,6 +61,10 @@ function formatDate(d: string | null | undefined): string {
 
 function cacheKey(farmId: string | number, projectId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_PROJECT_MILESTONES_CACHE}_${farmId}_${projectId}`;
+}
+
+function farmMilestonesCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_MILESTONES_CACHE}_${farmId}`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -150,6 +154,11 @@ export default function AgriEnvMilestoneDetailScreen() {
             cachedAt: now,
           }).catch(() => { /* ignore */ });
         }
+        // The project list has a separate farm-wide milestones cache. The
+        // detail endpoint only returns this project's milestones, so
+        // invalidate the farm-wide entry rather than replacing it with a
+        // partial list. The project list reloads it when it regains focus.
+        removeItem(farmMilestonesCacheKey(currentFarm.id)).catch(() => { /* ignore */ });
       } catch (err) {
         if (!cancelRef.current) {
           // Only surface the full-screen error when there is no cached content

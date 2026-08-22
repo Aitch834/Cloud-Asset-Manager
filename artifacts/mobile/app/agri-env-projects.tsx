@@ -1,6 +1,6 @@
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +23,12 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
+import {
+  AGRI_ENV_CACHE_TTL_MS,
+  getItem,
+  setItem,
+  STORAGE_KEYS,
+} from "@/lib/storage";
 
 interface AgriEnvProject {
   id: number;
@@ -543,6 +549,21 @@ export default function AgriEnvProjectsScreen() {
     void load();
     return () => { cancelRef.current = true; };
   }, [load]);
+
+  // This screen remains mounted while a milestone detail screen is pushed.
+  // Reload after returning so a detail refresh that invalidated the farm-wide
+  // milestones cache is reflected in the drawdown totals immediately.
+  const hasFocusedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedRef.current) {
+        hasFocusedRef.current = true;
+        return;
+      }
+      void load(true);
+      return () => { cancelRef.current = true; };
+    }, [load]),
+  );
 
   const refresh = useCallback(() => { void load(true); }, [load]);
 
