@@ -461,11 +461,31 @@ interface ZoneSectionHeaderProps {
   zone: string;
   totalCount: number;
   flagCount: number | null;
+  flagKey: AlertFlag | null;
   flagShortLabel: string | null;
 }
 
-function ZoneSectionHeader({ zone, totalCount, flagCount, flagShortLabel }: ZoneSectionHeaderProps) {
+function ZoneSectionHeader({ zone, totalCount, flagCount, flagKey, flagShortLabel }: ZoneSectionHeaderProps) {
   const hasFlaggedVessels = flagCount !== null && flagCount > 0;
+  const isNoFillsFilter = flagKey === "no-fills";
+  const flaggedChipStyle =
+    flagKey === "idle"
+      ? styles.sectionCountChipIdle
+      : flagKey === "approaching-neutral"
+        ? styles.sectionCountChipApproachingNeutral
+        : styles.sectionCountChipNoFills;
+  const flaggedTextStyle =
+    flagKey === "idle"
+      ? styles.sectionCountTextIdle
+      : flagKey === "approaching-neutral"
+        ? styles.sectionCountTextApproachingNeutral
+        : styles.sectionCountTextNoFills;
+  const flaggedIconColor =
+    flagKey === "idle"
+      ? colors.error
+      : flagKey === "approaching-neutral"
+        ? colors.accentDark
+        : "#b45309";
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText} numberOfLines={1}>
@@ -473,10 +493,20 @@ function ZoneSectionHeader({ zone, totalCount, flagCount, flagShortLabel }: Zone
       </Text>
       {flagCount !== null ? (
         // Flag filter active — show count of matching vessels
-        <View style={[styles.sectionCountChip, hasFlaggedVessels ? styles.sectionCountChipAlert : styles.sectionCountChipNone]}>
-          {hasFlaggedVessels && <Feather name="alert-triangle" size={10} color="#b45309" />}
-          <Text style={[styles.sectionCountText, hasFlaggedVessels ? styles.sectionCountTextAlert : styles.sectionCountTextNone]}>
-            {flagCount} {flagShortLabel}
+        <View style={[
+          styles.sectionCountChip,
+          hasFlaggedVessels
+            ? flaggedChipStyle
+            : styles.sectionCountChipNone,
+        ]}>
+          {hasFlaggedVessels && <Feather name="alert-triangle" size={10} color={flaggedIconColor} />}
+          <Text style={[
+            styles.sectionCountText,
+            hasFlaggedVessels
+              ? flaggedTextStyle
+              : styles.sectionCountTextNone,
+          ]}>
+            {flagCount} {isNoFillsFilter ? "no fills" : flagShortLabel}
           </Text>
         </View>
       ) : (
@@ -845,6 +875,7 @@ export default function WineryVesselRegisterScreen() {
               zone={section.zone}
               totalCount={section.totalCount}
               flagCount={section.flagCount}
+              flagKey={activeFlagDef?.key ?? null}
               flagShortLabel={activeFlagDef?.shortLabel ?? null}
             />
           )}
@@ -1013,7 +1044,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     backgroundColor: colors.borderLight,
   },
-  sectionCountChipAlert: {
+  sectionCountChipIdle: {
+    backgroundColor: colors.errorBg,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  sectionCountChipApproachingNeutral: {
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  sectionCountChipNoFills: {
     backgroundColor: "#fffbeb",
     borderWidth: 1,
     borderColor: "#fde68a",
@@ -1026,7 +1067,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: colors.textSecondary,
   },
-  sectionCountTextAlert: {
+  sectionCountTextIdle: {
+    color: colors.error,
+    fontFamily: fonts.semiBold,
+  },
+  sectionCountTextApproachingNeutral: {
+    color: colors.accentDark,
+    fontFamily: fonts.semiBold,
+  },
+  sectionCountTextNoFills: {
     color: "#b45309",
     fontFamily: fonts.semiBold,
   },
