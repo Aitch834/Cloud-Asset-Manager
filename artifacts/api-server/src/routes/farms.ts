@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual, randomBytes, createHash } from "crypto";
 import { db, pool, dbSchema, helpArticlesTable, farmResourcesTable, farmTaskResourceAllocationsTable, staffLocationPingsTable, gpsIntegrationsTable, gpsAssetPositionsTable, sensorIntegrationsTable, apiSensorReadingsTable, supportTicketsTable, supportTicketMessagesTable, dataApiKeysTable } from "@workspace/db";
 import { sendSms } from "../lib/sms";
 import { tenantSmsRecipients } from "../lib/smsRecipients";
-import { sendAdminEmail, sendCustomerReplyAlert } from "../lib/mailer";
+import { sendAdminEmail, sendCustomerReplyAlert, sendNewTicketInternalAlert } from "../lib/mailer";
 import { sanitiseBody } from "../lib/sanitise";
 import { encryptCredential, decryptCredential } from "../lib/encrypt";
 import { analysePestTrapImage } from "../lib/pestVision";
@@ -28499,6 +28499,48 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
                 WHERE id = ${notifId}
               `);
               console.warn(`[LIS] INC0208722 closure email FAILED (will retry on next production submission): ${emailResult.reason}`);
+
+              // Persist an open support ticket so the failure remains visible in the
+              // admin portal even when the SMTP transport is unavailable. The email
+              // alert below is best-effort and uses the existing support alert path.
+              try {
+                const failureSubject = "INC0208722 closure email failed — manual LIS follow-up required";
+                const failureDescription = [
+                  "The automated closure email for LIS incident INC0208722 could not be sent after a successful live CLA production submission.",
+                  `LIS Movement Document Reference: ${lisRef}`,
+                  `Email error: ${emailResult.reason ?? "unknown"}`,
+                  "Action required: send the closure email manually to incidentmanagement@livestockinformation.org.uk, referencing INC0208722 and the LIS movement document reference above.",
+                ].join("\n\n");
+                const [alertTicket] = await db.insert(supportTicketsTable).values({
+                  name: "BDE Farm Trac automated monitoring",
+                  email: "hello@bdefarmtrac.co.uk",
+                  subject: failureSubject,
+                  description: failureDescription,
+                  source: "system",
+                  farmId,
+                  tenantSlug: req.tenantSlug ?? null,
+                }).returning();
+                const ticketRef = `BDE-${alertTicket.createdAt.getFullYear().toString().slice(2)}${String(alertTicket.createdAt.getMonth() + 1).padStart(2, "0")}-${String(alertTicket.id).padStart(4, "0")}`;
+                await db.update(supportTicketsTable).set({ ticketRef }).where(eq(supportTicketsTable.id, alertTicket.id));
+
+                const alertResult = await sendNewTicketInternalAlert({
+                  ticketRef,
+                  ticketId: alertTicket.id,
+                  name: alertTicket.name,
+                  email: alertTicket.email,
+                  subject: failureSubject,
+                  description: failureDescription,
+                  source: "system",
+                  tenantSlug: req.tenantSlug ?? null,
+                  farmId,
+                });
+                if (!alertResult.sent) {
+                  console.warn(`[LIS] INC0208722 admin email alert not sent for ${ticketRef}: ${alertResult.reason}`);
+                }
+                console.error(`[LIS] INC0208722 failure alert created as support ticket ${ticketRef}`);
+              } catch (alertErr) {
+                console.error("[LIS] Failed to create INC0208722 admin failure alert:", alertErr);
+              }
             }
 
             // Internal copy so BDE can track delivery and manually intervene if needed
