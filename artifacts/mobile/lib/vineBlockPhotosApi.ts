@@ -102,6 +102,57 @@ export async function fetchBlockPhotoUrl(
   }
 }
 
+export interface PhotoReloadCallbacks {
+  setPhotos: (
+    updater: (photos: BlockPhotoRecord[]) => BlockPhotoRecord[],
+  ) => void;
+  setReloadingPhotoId: (photoId: number | null) => void;
+  reloadInFlightRef: { current: boolean };
+  showReloadFailedAlert: () => void;
+}
+
+/**
+ * Runs the complete single-photo reload state machine used by handleReload.
+ *
+ * The callbacks keep the helper independent of React Native while preserving
+ * the production behavior: one reload at a time, a per-photo loading state,
+ * target-only URL replacement, failure feedback, and cleanup that always
+ * allows a later retry.
+ */
+export async function executePhotoReload(
+  farmId: number | string,
+  blockId: number | string,
+  photoId: number | string,
+  callbacks: PhotoReloadCallbacks,
+): Promise<void> {
+  if (callbacks.reloadInFlightRef.current) return;
+
+  const targetPhotoId = Number(photoId);
+  callbacks.reloadInFlightRef.current = true;
+  callbacks.setReloadingPhotoId(targetPhotoId);
+
+  try {
+    const freshUrl = await fetchBlockPhotoUrl(farmId, blockId, photoId);
+    if (freshUrl === null) {
+      callbacks.showReloadFailedAlert();
+      return;
+    }
+
+    callbacks.setPhotos((photos) =>
+      photos.map((photo) =>
+        photo.id === targetPhotoId
+          ? { ...photo, downloadUrl: freshUrl }
+          : photo,
+      ),
+    );
+  } catch {
+    callbacks.showReloadFailedAlert();
+  } finally {
+    callbacks.reloadInFlightRef.current = false;
+    callbacks.setReloadingPhotoId(null);
+  }
+}
+
 /**
  * Result type returned by patchPhotoCaption.
  *

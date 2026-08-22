@@ -45,7 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
-import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, fetchBlockPhotoUrl, applyOptimisticReorder, executePhotoReorder, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, executePhotoReload, applyOptimisticReorder, executePhotoReorder, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -1356,25 +1356,14 @@ export default function VineBlockPhotosScreen() {
   // on different broken thumbnails cannot race past the React state commit.
   const handleReload = useCallback(async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
-    if (reloadInFlightRef.current) return; // another reload already claimed the slot
-    reloadInFlightRef.current = true;
-    setReloadingPhotoId(photoId);
-    try {
-      const freshUrl = await fetchBlockPhotoUrl(currentFarm.id, selectedBlock.id, photoId);
-      if (freshUrl === null) {
+    await executePhotoReload(currentFarm.id, selectedBlock.id, photoId, {
+      setPhotos,
+      setReloadingPhotoId,
+      reloadInFlightRef,
+      showReloadFailedAlert: () => {
         Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
-        return;
-      }
-      // Patch only the affected photo — no need to replace the full list.
-      setPhotos((prev) =>
-        prev.map((p) => (p.id === photoId ? { ...p, downloadUrl: freshUrl } : p)),
-      );
-    } catch {
-      Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
-    } finally {
-      reloadInFlightRef.current = false;
-      setReloadingPhotoId(null);
-    }
+      },
+    });
   }, [currentFarm?.id, selectedBlock]);
 
   // Re-fetch photos whenever the screen comes back into focus so that
