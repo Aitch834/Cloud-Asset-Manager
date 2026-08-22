@@ -657,6 +657,37 @@ router.get("/farms/:farmId/vineyard-scouting/:id/photos", requireAuth, requireTe
   res.json({ photos });
 });
 
+// ── Refresh presigned URL for a single scouting photo ─────────────────────────
+// Lightweight endpoint used when a broken thumbnail needs a fresh URL. This
+// avoids re-fetching every photo attached to the scouting record.
+router.get("/farms/:farmId/vineyard-scouting/:id/photos/:photoId/url", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = Number(req.params.farmId);
+  const scoutingId = Number(req.params.id);
+  const photoId = Number(req.params.photoId);
+
+  // Verify the farm belongs to the caller's tenant before issuing any URL.
+  const [farm] = await db
+    .select({ id: farmsTable.id })
+    .from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
+    .limit(1);
+  if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
+  const [photo] = await db
+    .select({ id: vineyardScoutingPhotosTable.id, objectPath: vineyardScoutingPhotosTable.objectPath })
+    .from(vineyardScoutingPhotosTable)
+    .where(and(
+      eq(vineyardScoutingPhotosTable.id, photoId),
+      eq(vineyardScoutingPhotosTable.scoutingId, scoutingId),
+      eq(vineyardScoutingPhotosTable.farmId, farmId),
+    ))
+    .limit(1);
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  const downloadUrl = await _scoutingPhotoStorage.getPresignedDownloadUrl(photo.objectPath, 300);
+  res.json({ downloadUrl });
+});
+
 // ── Add a photo to a scouting record ─────────────────────────────────────────
 router.post("/farms/:farmId/vineyard-scouting/:id/photos", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);

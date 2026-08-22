@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
+import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -198,7 +199,7 @@ export function ScoutingPhotoLightbox({
   onClose: () => void;
   /** Awaited; lightbox stays open on rejection so the grower can retry. */
   onDelete: (id: number) => Promise<void>;
-  onReload?: () => Promise<void>;
+  onReload?: (id: number) => Promise<void>;
   /** When provided a "Caption" button appears in the action bar. */
   onEditCaption?: (photo: ScoutingPhoto) => void;
 }) {
@@ -256,11 +257,13 @@ export function ScoutingPhotoLightbox({
     cancelAutoRetry();
   }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const photo = photos[currentIndex] ?? null;
+
   // Auto-retry: when imgError fires and onReload is available, silently reload
   // after a short delay.  Only one automatic attempt is made per photo view;
   // if it fails the "Tap to reload" UI appears as the manual fallback.
   useEffect(() => {
-    if (!imgError || !onReload || autoRetried.current) return;
+    if (!imgError || !onReload || !photo || autoRetried.current) return;
     autoRetried.current = true;
     setAutoRetryPending(true);
     autoRetryTimer.current = setTimeout(async () => {
@@ -268,7 +271,7 @@ export function ScoutingPhotoLightbox({
       setAutoRetryPending(false);
       setReloading(true);
       try {
-        await onReload();
+        await onReload(photo.id);
       } finally {
         setReloading(false);
       }
@@ -282,7 +285,6 @@ export function ScoutingPhotoLightbox({
   }, [imgError]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear image error (and reloading) when the URL is refreshed (e.g. after onReload)
-  const photo = photos[currentIndex] ?? null;
   const prevDownloadUrl = useRef(photo?.downloadUrl);
   if (prevDownloadUrl.current !== photo?.downloadUrl) {
     prevDownloadUrl.current = photo?.downloadUrl;
@@ -294,11 +296,11 @@ export function ScoutingPhotoLightbox({
     if (!onReload || reloading) return;
     setReloading(true);
     try {
-      await onReload();
+      if (photo) await onReload(photo.id);
     } finally {
       setReloading(false);
     }
-  }, [onReload, reloading]);
+  }, [onReload, photo, reloading]);
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
@@ -928,6 +930,27 @@ export function ScoutingPhotoSection({
     }
   };
 
+  // Refresh only the affected photo's presigned URL instead of replacing the
+  // full scouting photo list.
+  const handleReload = useCallback(async (photoId: number): Promise<void> => {
+    if (reloadInFlightRef.current) return;
+    reloadInFlightRef.current = true;
+    setReloadingPhotoId(photoId);
+    try {
+      const freshUrl = await fetchScoutingPhotoUrl(farmId, scoutingId, photoId);
+      if (freshUrl === null) {
+        Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
+        return;
+      }
+      setPhotos((prev) =>
+        prev.map((p) => (p.id === photoId ? { ...p, downloadUrl: freshUrl } : p)),
+      );
+    } finally {
+      reloadInFlightRef.current = false;
+      setReloadingPhotoId(null);
+    }
+  }, [farmId, scoutingId]);
+
   const handleSaveCaption = async (photoId: number, caption: string) => {
     const trimmed = caption.trim();
     try {
@@ -987,17 +1010,7 @@ export function ScoutingPhotoSection({
                 });
               }}
               onPress={handlePressPhoto}
-              onReload={async () => {
-                if (reloadInFlightRef.current) return;
-                reloadInFlightRef.current = true;
-                setReloadingPhotoId(item.id);
-                try {
-                  await loadPhotos({ silent: true });
-                } finally {
-                  reloadInFlightRef.current = false;
-                  setReloadingPhotoId(null);
-                }
-              }}
+              onReload={() => handleReload(item.id)}
               onEditCaption={handleOpenCaptionEdit}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
@@ -1040,7 +1053,7 @@ export function ScoutingPhotoSection({
         initialIndex={lightboxIndex ?? 0}
         visible={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}
-        onReload={() => loadPhotos({ silent: true })}
+        onReload={handleReload}
         onDelete={handleDeletePhoto}
         onEditCaption={handleOpenCaptionEdit}
       />
