@@ -12,6 +12,7 @@ import { CombineIcon } from "@/components/ui/CombineIcon";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useBarrelAlertThresholds } from "@/lib/hooks/useBarrelAlertThresholds";
 import {
   isBarrelType as _isBarrelType,
   isIdleBarrel as _isIdleBarrel,
@@ -1311,7 +1312,7 @@ const recordOptions: RecordOption[] = [
   {
     id: "winery-vessel-register",
     title: "Vessel Register",
-    description: "View all cellar vessels and barrels — fill tier (New oak / 2nd / 3rd / Neutral), idle alerts for barrels empty over 90 days, and approaching-neutral warnings for fill 4+",
+    description: "View all cellar vessels and barrels — fill tier (New oak / 2nd / 3rd / Neutral), idle alerts, and approaching-neutral warnings using your farm or platform thresholds",
     icon: "database",
     color: "#7c3aed",
     bgColor: "#ede9fe",
@@ -2201,6 +2202,11 @@ export default function RecordScreen() {
     !modulesLoading &&
     resolvedFarmId === currentFarm?.id &&
     moduleSet.has("viticulture");
+  const barrelAlertThresholds = useBarrelAlertThresholds(
+    currentFarm?.idleBarrelDays,
+    currentFarm?.approachingNeutralFills,
+    shouldFetchVessels,
+  );
   const { records: vesselRecords } = useApiFetch<WineryVesselSummary>(
     shouldFetchVessels ? currentFarm?.id : undefined,
     "/api/farms/:farmId/winery-vessels"
@@ -2212,13 +2218,13 @@ export default function RecordScreen() {
     let noFillsCount = 0;
     for (const v of vesselRecords) {
       if (_isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
-        if (_isIdleBarrel(v.empty_since, currentFarm?.idleBarrelDays)) idleCount++;
-        if (_isApproachingNeutral(v.fill_number, currentFarm?.approachingNeutralFills)) neutralCount++;
+        if (_isIdleBarrel(v.empty_since, barrelAlertThresholds.idleBarrelDays)) idleCount++;
+        if (_isApproachingNeutral(v.fill_number, barrelAlertThresholds.approachingNeutralFills)) neutralCount++;
         if (Number(v.fill_count ?? 0) === 0) noFillsCount++;
       }
     }
     return { idleCount, neutralCount, noFillsCount };
-  }, [vesselRecords, currentFarm?.idleBarrelDays, currentFarm?.approachingNeutralFills]);
+  }, [vesselRecords, barrelAlertThresholds.idleBarrelDays, barrelAlertThresholds.approachingNeutralFills]);
 
   const visibleOptions = recordOptions.filter((option) => {
     if (option.requiresSectors && !hasSector(currentFarm, option.requiresSectors)) {

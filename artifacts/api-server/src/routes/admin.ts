@@ -2021,6 +2021,16 @@ const PLATFORM_CONFIG_DEFAULTS: Record<string, { label: string; description: str
     description: "Default water abstraction source label shown in the Irrigation Advisor (e.g. Borehole, River, Reservoir). Can be overridden per farm.",
     value: "Borehole",
   },
+  barrel_idle_days_default: {
+    label: "Default Idle Barrel Threshold (days)",
+    description: "Default number of days a barrel may be empty before it is flagged as idle. Used by winery farms that have not set their own threshold.",
+    value: "90",
+  },
+  barrel_neutral_fills_default: {
+    label: "Default Neutral Oak Threshold (fills)",
+    description: "Default fill number at which a barrel is flagged as approaching neutral oak influence. Used by winery farms that have not set their own threshold.",
+    value: "4",
+  },
   "brand.adLogoDataUrl": {
     label: "Ad Template — BDE Logo (Data URL)",
     description: "Base64-encoded BDE Farm Trac logo used in ad PDF templates. Upload a PNG or SVG via the Ad PDF Generator page. Falls back to extracting the logo from legacy on-disk template files if blank.",
@@ -2306,6 +2316,13 @@ router.put("/admin/platform-config/:key", requireAuth, async (req: Request, res:
   const { value } = req.body as { value?: string };
   if (typeof value !== "string" || !value.trim()) {
     res.status(400).json({ error: "value is required" });
+    return;
+  }
+  if (
+    (key === "barrel_idle_days_default" || key === "barrel_neutral_fills_default") &&
+    !/^[1-9]\d*$/.test(value.trim())
+  ) {
+    res.status(400).json({ error: "Barrel alert thresholds must be positive whole numbers" });
     return;
   }
   // Read existing value before overwriting (needed for audit trail)

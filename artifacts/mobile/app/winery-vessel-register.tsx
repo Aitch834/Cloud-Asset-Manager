@@ -25,6 +25,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
+import { useBarrelAlertThresholds } from "@/lib/hooks/useBarrelAlertThresholds";
 import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
 import { getApiBase } from "@/lib/uploadPhoto";
 
@@ -650,13 +651,17 @@ function EmptyState({ error }: { error: string | null }) {
 export default function WineryVesselRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-
   const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
   // Require resolvedFarmId to match currentFarm.id so we never fire this request
   // during the window between a farm switch and the new farm's module fetch completing.
   const isWineryModuleActive =
     resolvedFarmId === currentFarm?.id &&
     activeModuleKeys.includes("viticulture");
+  const barrelAlertThresholds = useBarrelAlertThresholds(
+    currentFarm?.idleBarrelDays,
+    currentFarm?.approachingNeutralFills,
+    isWineryModuleActive,
+  );
 
   const { records, loading, refreshing, error, refresh } = useApiFetch<WineryVessel>(
     isWineryModuleActive ? currentFarm?.id : undefined,
@@ -690,12 +695,12 @@ export default function WineryVesselRegisterScreen() {
   const idleCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
     String(v.status ?? "active") === "active" &&
-    isIdleBarrel(v.empty_since, currentFarm?.idleBarrelDays)
+    isIdleBarrel(v.empty_since, barrelAlertThresholds.idleBarrelDays)
   ).length;
   const neutralCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
     String(v.status ?? "active") === "active" &&
-    isApproachingNeutral(v.fill_number, currentFarm?.approachingNeutralFills)
+    isApproachingNeutral(v.fill_number, barrelAlertThresholds.approachingNeutralFills)
   ).length;
   const noFillsCount = records.filter(v =>
     isBarrelType(v.vessel_type) &&
@@ -726,8 +731,8 @@ export default function WineryVesselRegisterScreen() {
       const filtered = alertFlag
         ? zoneVessels.filter(v => matchesFlag(
             v, alertFlag,
-            currentFarm?.idleBarrelDays,
-            currentFarm?.approachingNeutralFills,
+            barrelAlertThresholds.idleBarrelDays,
+            barrelAlertThresholds.approachingNeutralFills,
           ))
         : zoneVessels;
 
@@ -740,14 +745,14 @@ export default function WineryVesselRegisterScreen() {
     }).filter(s => s.data.length > 0 || alertFlag === null);
     // When a flag is active, hide zones where nothing matches (data.length === 0)
     // But only hide when a flag IS active; otherwise all zones always show.
-  }, [records, alertFlag, currentFarm?.idleBarrelDays, currentFarm?.approachingNeutralFills]);
+  }, [records, alertFlag, barrelAlertThresholds.idleBarrelDays, barrelAlertThresholds.approachingNeutralFills]);
 
   const activeFlagDef = alertFlag ? FLAG_DEFS.find(f => f.key === alertFlag) ?? null : null;
 
-  // Derive the effective label for the active flag using farm-configured thresholds where applicable
+  // Derive the effective label using the farm → platform → hardcoded threshold chain.
   const activeFlagLabel = activeFlagDef
     ? activeFlagDef.key === "idle"
-      ? `Idle >${currentFarm?.idleBarrelDays ?? 90} days`
+      ? `Idle >${barrelAlertThresholds.idleBarrelDays} days`
       : activeFlagDef.label
     : null;
 
@@ -830,8 +835,8 @@ export default function WineryVesselRegisterScreen() {
           renderItem={({ item }) => (
             <VesselRow
               vessel={item}
-              idleBarrelDaysThreshold={currentFarm?.idleBarrelDays}
-              approachingNeutralFillsThreshold={currentFarm?.approachingNeutralFills}
+              idleBarrelDaysThreshold={barrelAlertThresholds.idleBarrelDays}
+              approachingNeutralFillsThreshold={barrelAlertThresholds.approachingNeutralFills}
               onLogFill={() => setLogFillVessel(item)}
             />
           )}

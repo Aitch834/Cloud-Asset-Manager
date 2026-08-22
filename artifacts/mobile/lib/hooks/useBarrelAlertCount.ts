@@ -1,5 +1,6 @@
 import React from "react";
 import { useApiFetch } from "./useApiFetch";
+import { useBarrelAlertThresholds } from "./useBarrelAlertThresholds";
 import {
   isBarrelType,
   isIdleBarrel,
@@ -16,8 +17,8 @@ interface WineryVesselSummary {
 
 /**
  * Returns the total number of barrels that are idle (empty for longer than the
- * farm's idle threshold, default 90 days), approaching neutral (at or above the
- * farm's neutral fill threshold, default 4 fills), or have no fills logged.
+ * resolved farm or platform idle threshold), approaching neutral (at or above
+ * the resolved farm or platform neutral-fill threshold), or have no fills logged.
  * Returns 0 when the viticulture module is not active so non-winery farms never
  * trigger an unnecessary API call.
  */
@@ -27,6 +28,11 @@ export function useBarrelAlertCount(
   idleBarrelDays?: number | null,
   approachingNeutralFills?: number | null,
 ): number {
+  const thresholds = useBarrelAlertThresholds(
+    idleBarrelDays,
+    approachingNeutralFills,
+    isViticultureActive,
+  );
   // Pass undefined farmId when viticulture is inactive to skip the fetch entirely
   const { records } = useApiFetch<WineryVesselSummary>(
     isViticultureActive ? farmId : undefined,
@@ -39,8 +45,8 @@ export function useBarrelAlertCount(
     for (const v of records) {
       if (isBarrelType(v.vessel_type) && String(v.status ?? "active") === "active") {
         if (
-          isIdleBarrel(v.empty_since, idleBarrelDays) ||
-          isApproachingNeutral(v.fill_number, approachingNeutralFills) ||
+          isIdleBarrel(v.empty_since, thresholds.idleBarrelDays) ||
+          isApproachingNeutral(v.fill_number, thresholds.approachingNeutralFills) ||
           Number(v.fill_count ?? 0) === 0
         ) {
           count++;
@@ -48,5 +54,5 @@ export function useBarrelAlertCount(
       }
     }
     return count;
-  }, [records, isViticultureActive, idleBarrelDays, approachingNeutralFills]);
+  }, [records, isViticultureActive, thresholds.idleBarrelDays, thresholds.approachingNeutralFills]);
 }

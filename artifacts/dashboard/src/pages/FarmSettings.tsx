@@ -2444,6 +2444,12 @@ export default function FarmSettings() {
     queryFn: () => fetch("/api/platform-config").then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
     staleTime: 5 * 60 * 1000,
   });
+  const platformIdleBarrelDays = Number(platformConfig?.barrel_idle_days_default);
+  const platformNeutralFills = Number(platformConfig?.barrel_neutral_fills_default);
+  const defaultIdleBarrelDays =
+    Number.isInteger(platformIdleBarrelDays) && platformIdleBarrelDays > 0 ? platformIdleBarrelDays : 90;
+  const defaultNeutralFills =
+    Number.isInteger(platformNeutralFills) && platformNeutralFills > 0 ? platformNeutralFills : 4;
 
   const { mutate: updateFarm, isPending: isSaving } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -3356,13 +3362,13 @@ export default function FarmSettings() {
                     id="settings-idle-barrel-days"
                     type="number"
                     min="1"
-                    placeholder="Default: 90"
+                    placeholder={`Default: ${defaultIdleBarrelDays}`}
                     value={formData.idleBarrelDays}
                     onChange={e => updateField("idleBarrelDays", e.target.value)}
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    A barrel empty for longer than this many days is flagged as idle in the vessel register. Leave blank to use the platform default of 90 days.
+                    A barrel empty for longer than this many days is flagged as idle in the vessel register. Leave blank to use the platform default of {defaultIdleBarrelDays} days.
                   </p>
                 </div>
                 <div>
@@ -3371,13 +3377,13 @@ export default function FarmSettings() {
                     id="settings-approaching-neutral-fills"
                     type="number"
                     min="1"
-                    placeholder="Default: 4"
+                    placeholder={`Default: ${defaultNeutralFills}`}
                     value={formData.approachingNeutralFills}
                     onChange={e => updateField("approachingNeutralFills", e.target.value)}
                     className="mt-1"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of 4 fills.
+                    Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of {defaultNeutralFills} fills.
                   </p>
                 </div>
               </div>

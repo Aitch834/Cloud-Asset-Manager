@@ -46,6 +46,17 @@ function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
   return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
 }
 
+function resolveBarrelAlertThreshold(
+  farmOverride: unknown,
+  platformDefault: unknown,
+  hardcodedFallback: number,
+): number {
+  for (const value of [farmOverride, platformDefault]) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return hardcodedFallback;
+}
 export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly, approachingNeutralFills: neutralFillsThreshold }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean; approachingNeutralFills?: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -1095,14 +1106,25 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     },
     staleTime: 5 * 60 * 1000,
   });
-  const idleBarrelDays: number =
-    farmSettingsData?.record?.idleBarrelDays != null
-      ? Number(farmSettingsData.record.idleBarrelDays)
-      : 90;
-  const approachingNeutralFills: number =
-    farmSettingsData?.record?.approachingNeutralFills != null
-      ? Number(farmSettingsData.record.approachingNeutralFills)
-      : 4;
+  const { data: platformConfigData } = useQuery<{ config: Record<string, string> }>({
+    queryKey: ["platform-config"],
+    queryFn: async () => {
+      const res = await fetch(api("platform-config"));
+      if (!res.ok) throw new Error("Failed to load platform config");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const idleBarrelDays = resolveBarrelAlertThreshold(
+    farmSettingsData?.record?.idleBarrelDays,
+    platformConfigData?.config?.barrel_idle_days_default,
+    90,
+  );
+  const approachingNeutralFills = resolveBarrelAlertThreshold(
+    farmSettingsData?.record?.approachingNeutralFills,
+    platformConfigData?.config?.barrel_neutral_fills_default,
+    4,
+  );
 
   const { toast } = useToast();
   const [open, setOpen] = useState(false);

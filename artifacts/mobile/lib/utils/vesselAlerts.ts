@@ -2,14 +2,35 @@
  * Shared barrel / vessel alert classification helpers.
  *
  * Single source of truth used by both the Record screen and the
- * useBarrelAlertCount hook — edit thresholds here only.
+ * useBarrelAlertCount hook.
+ *
+ * Barrel thresholds are resolved in this order: farm override → platform
+ * default (`barrel_idle_days_default` / `barrel_neutral_fills_default`) →
+ * the hardcoded constants below. The constants protect offline and
+ * unavailable-config cases.
  */
 
-/** Number of days a barrel must be empty before it is flagged as idle. */
+/** Final fallback: days a barrel must be empty before it is flagged as idle. */
 export const IDLE_BARREL_DAYS = 90;
 
-/** Fill number at which a barrel is considered to be approaching neutral oak influence. */
+/** Final fallback: fill number at which a barrel is approaching neutral oak influence. */
 export const APPROACHING_NEUTRAL_FILLS = 4;
+
+/**
+ * Mobile threshold fallback chain: farm override → platform default → hardcoded
+ * constant. The platform default is supplied by the cached public config hook.
+ */
+export function resolveBarrelAlertThreshold(
+  farmOverride: unknown,
+  platformDefault: unknown,
+  hardcodedFallback: number,
+): number {
+  for (const value of [farmOverride, platformDefault]) {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return hardcodedFallback;
+}
 
 export function isBarrelType(vesselType: string | null): boolean {
   const t = (vesselType ?? "").toLowerCase();

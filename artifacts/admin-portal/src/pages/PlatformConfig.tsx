@@ -25,6 +25,9 @@ function ConfigCard({ item, secret, onSaved }: { item: PlatformConfigItem; secre
 
   const isCustomised = item.currentValue !== null;
   const isDirty = draft !== effectiveValue;
+  const isBarrelAlertThreshold =
+    item.key === "barrel_idle_days_default" ||
+    item.key === "barrel_neutral_fills_default";
 
   async function handleSave() {
     setSaving(true);
@@ -87,13 +90,25 @@ function ConfigCard({ item, secret, onSaved }: { item: PlatformConfigItem; secre
         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Current value
         </label>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={3}
-          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          spellCheck={false}
-        />
+        {isBarrelAlertThreshold ? (
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        ) : (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            spellCheck={false}
+          />
+        )}
         {isCustomised && (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground font-medium">Built-in default</p>
