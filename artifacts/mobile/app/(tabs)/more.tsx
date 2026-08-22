@@ -154,6 +154,56 @@ export default function MoreScreen() {
           // best-effort
         }
       }
+      // Nudge: only when the contact phone materially changed to a UK mobile that
+      // differs from the saved SMS number. Gate on normOldPhone so farm-name-only
+      // saves (where phoneDraft hasn't moved) never trigger the prompt.
+      // Also skip if SMS prefs haven't loaded yet — we can't safely preserve them.
+      const normPhone = toUkMobileIntl(phoneDraft);
+      const normOldPhone = toUkMobileIntl(contactPhone); // pre-save value from useFarmIdentifiers
+      if (normPhone && normPhone !== normOldPhone && normPhone !== toUkMobileIntl(smsMobile) && smsPrefsLoaded) {
+        Alert.alert(
+          "Update SMS number?",
+          `Your new contact number (${normPhone}) differs from your saved SMS alerts number. Update it now so alerts reach this number?`,
+          [
+            { text: "Keep existing", style: "cancel" },
+            {
+              text: `Update to ${normPhone}`,
+              onPress: async () => {
+                // Persist through the profile API using the exact raw values loaded
+                // from the server — never derive from UI booleans, which would
+                // silently change "critical" → "all" or wipe saved category choices.
+                try {
+                  const saveRes = await apiFetch("/api/account/profile", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      phoneNumber: normPhone,
+                      smsOptIn: smsOptInRaw,
+                      smsCategories: smsCategoriesRaw,
+                      consentGiven: smsOptInRaw !== "none" ? consentChecked : undefined,
+                    }),
+                  });
+                  if (saveRes.ok) {
+                    // Only update local state once the server confirms the save
+                    setSmsMobile(normPhone);
+                    setSmsOptInRaw(smsOptInRaw); // no-op but keeps intent explicit
+                  } else {
+                    Alert.alert(
+                      "Couldn't save SMS number",
+                      "The SMS number could not be saved automatically. Please update it manually in the SMS section below.",
+                    );
+                  }
+                } catch {
+                  Alert.alert(
+                    "Couldn't save SMS number",
+                    "The SMS number could not be saved automatically. Please update it manually in the SMS section below.",
+                  );
+                }
+              },
+            },
+          ],
+        );
+      }
     } catch (err: unknown) {
       setProfileError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
     } finally {
@@ -183,6 +233,15 @@ export default function MoreScreen() {
   const [categoryStates, setCategoryStates] = useState<Record<string, boolean>>({});
   const [consentChecked, setConsentChecked] = useState(false);
   const [smsLoading, setSmsLoading] = useState(true);
+  // Raw opt-in string and categories as loaded from the API — used by the phone-
+  // sync nudge so it can PUT the phone without accidentally overwriting the exact
+  // server-side opt-in tier (e.g. "critical") or wiping saved category choices.
+  const [smsOptInRaw, setSmsOptInRaw] = useState<string>("none");
+  const [smsCategoriesRaw, setSmsCategoriesRaw] = useState<Record<string, boolean> | null>(null);
+  // True only after a successful profile response has populated the raw fields.
+  // smsLoading reaches false even on fetch failure, so never use it as a safety
+  // gate for writes that depend on raw state being trustworthy.
+  const [smsPrefsLoaded, setSmsPrefsLoaded] = useState(false);
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsSaved, setSmsSaved] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
@@ -208,6 +267,13 @@ export default function MoreScreen() {
         if (!data) return;
         setSmsMobile(data.phoneNumber ?? "");
         setSmsEnabled(data.smsOptIn !== "none");
+        // Preserve exact server values so the phone-sync nudge can PUT them
+        // back unchanged (avoids silently altering opt-in tier or categories).
+        setSmsOptInRaw(data.smsOptIn ?? "none");
+        setSmsCategoriesRaw(data.smsCategories ?? null);
+        // Mark prefs as trustworthy only after a valid response — smsLoading
+        // reaches false even on network failure, so this is the safe gate.
+        setSmsPrefsLoaded(true);
         if (data.smsConsentAt) setConsentChecked(true);
         const saved = data.smsCategories;
         const initial: Record<string, boolean> = {};
@@ -246,6 +312,10 @@ export default function MoreScreen() {
       setSmsSaved(true);
       setTimeout(() => setSmsSaved(false), 3000);
       triggerSmsRefresh();
+      // Keep raw state in sync so a subsequent phone-sync nudge uses the
+      // values the user just saved, not the stale values from the initial load.
+      setSmsOptInRaw(smsEnabled ? "all" : "none");
+      setSmsCategoriesRaw(smsEnabled ? categoryStates : null);
     } catch (err: unknown) {
       setSmsError(err instanceof Error ? err.message : "Save failed — check your connection and try again.");
     } finally {
