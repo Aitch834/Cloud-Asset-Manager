@@ -4661,6 +4661,104 @@ const CONTENT: [string, string][] = [
 <h3>Relationship to the Disease &amp; Incident Log</h3>
 <p>The Sheep Production disease observation is a quick-capture field flag for the moment of suspicion. Once APHA has been contacted and an incident reference number received, the formal incident record is created in <strong>Compliance &amp; Plans → Disease &amp; Incident Log</strong> where the APHA reference, isolation measures, and investigation outcome are all recorded.</p>`,
   ],
+  // Organic Poultry — Certification Tab: Certifying Body, Certificate Type and Status Records
+  [
+    "How to record and review organic poultry certification details, certificate scope, status, and expiry dates.",
+    `<h2>Organic Poultry — Certification Tab: Certifying Body, Certificate Type and Status Records</h2>
+<h3>What it records</h3>
+<p>Use <strong>Organic Poultry → Certification</strong> to keep certification records for the farm. Each record includes the certifying body, certificate type, status, and optional certificate number, scope, issue date, expiry date, and notes.</p>
+<h3>Review and maintain records</h3>
+<p>Select a record to edit it, or use <strong>Add Certification</strong> to create one. Certificate types include laying hens, broilers, turkeys, ducks, geese, and mixed poultry.</p>
+<h3>Expiry visibility</h3>
+<p>Records whose expiry date has passed are marked <strong>EXPIRED</strong>, and the page displays a renewal warning. Use the print control on a record when a paper copy is needed.</p>`,
+  ],
+  // Organic Poultry — Outdoor Access Log: Birds on Range, Stocking Density and Compliance Status
+  [
+    "How to record flock outdoor access, range use, stocking density, restrictions, and organic compliance status.",
+    `<h2>Organic Poultry — Outdoor Access Log: Birds on Range, Stocking Density and Compliance Status</h2>
+<h3>Record outdoor access</h3>
+<p>Open <strong>Organic Poultry → Outdoor Access</strong> and choose <strong>Record Access</strong>. The form defaults the record date to today and records flock reference, house or location, flock size, birds accessing range, range area, stocking density, access duration, and vegetation condition.</p>
+<h3>Restrictions and compliance</h3>
+<p>Mark whether access was blocked and give the reason whenever it was restricted. Select the compliance status; non-compliant records are highlighted for review.</p>
+<h3>Review the log</h3>
+<p>Saved records are listed newest first with flock, range, duration, restriction reason, and compliance indicators. The page includes the displayed organic poultry guidance on continuous daytime access and stocking-density limits.</p>`,
+  ],
+  // Organic Poultry — Feed Records: Organic Approval Status, Certifier Reference and Derogation Case Linking
+  [
+    "How to log organic poultry feed deliveries with approval status, supplier traceability, and certifier references.",
+    `<h2>Organic Poultry — Feed Records: Organic Approval Status, Certifier Reference and Derogation Case Linking</h2>
+<h3>Log a delivery</h3>
+<p>In <strong>Organic Poultry → Organic Feed</strong>, select <strong>Add Feed Record</strong>. Enter delivery date, product name and type, quantity in kilograms, supplier, lot or batch number, invoice reference, flock or house, and notes.</p>
+<h3>Approval information</h3>
+<p>Set the organic approval status to <strong>Certified Organic</strong>, <strong>Approved Non-Organic</strong>, or <strong>Conventional Derogation</strong>. Where applicable, enter the certifier approval reference or link the relevant derogation case.</p>
+<h3>Audit review</h3>
+<p>Feed records show delivery, product, approval status, quantity, supplier, certifier reference, and flock. Non-certified-organic statuses are visually flagged; retain delivery invoices and certificates of conformity with the farm's records.</p>`,
+  ],
+  // Organic Poultry — Derogations: Non-Permitted Input Case Register and Full Lifecycle Tracking
+  [
+    "How to create and track organic poultry derogation cases from application through decision, expiry, and evidence review.",
+    `<h2>Organic Poultry — Derogations: Non-Permitted Input Case Register and Full Lifecycle Tracking</h2>
+<h3>Create a case</h3>
+<p>Use <strong>Organic Poultry → Derogations</strong> and choose <strong>Add Derogation</strong>. Record the input name and, where available, input type, regulatory basis, certifying body, application date, justification, and case reference.</p>
+<h3>Track the decision</h3>
+<p>Cases support statuses including <strong>Pending</strong>, <strong>Approved</strong>, <strong>Rejected</strong>, <strong>Active</strong>, <strong>Expired</strong>, and <strong>Suspended</strong>. Maintain decision date, expiry date, approval conditions, and notes as the case progresses.</p>
+<h3>Review expiry and evidence</h3>
+<p>Pending cases are called out as awaiting a certifier decision, and expired cases are highlighted. A derogation is a certifier-approved permission for a specific non-organic input; obtain approval before use and keep the supporting written application and decision with the record.</p>`,
+  ],
+  // SMS Alerts — Configuring Alert Categories, Per-Member Settings and Alert History Log
+  [
+    "How to configure SMS alert categories, control which farm members receive each alert type, and review the alert history log in BDE Farm Trac.",
+    `<h2>SMS Alerts — Configuring Alert Categories, Per-Member Settings and Alert History Log</h2>
+<p>The SMS Alerts module lets your farm send automated text message notifications to relevant team members when compliance-critical events occur — withdrawal periods expiring, inspection deadlines approaching, NVZ closed periods opening, and more. This article explains how to configure which alert categories are active and which team members receive each type.</p>
+<h3>Navigating to SMS Alerts configuration</h3>
+<p>Go to <strong>Account &amp; Notifications</strong> (your account icon in the top-right corner, then <strong>Notifications</strong>) to manage your personal SMS alert preferences. Farm administrators can review the farm-level alert configuration and team recipient status under <strong>SMS &amp; Alert Settings</strong>. A subscription to the Platform Add-ons module is required for SMS Alerts to be active.</p>
+<h3>Enabling and disabling alert categories</h3>
+<p>On <strong>Account &amp; Notifications</strong>, enter a valid mobile number, switch on <strong>Enable SMS text notifications</strong>, then choose the alert categories relevant to your role. Only categories relevant to your farm are shown. They can include:</p>
+<ul>
+<li><strong>Livestock &amp; Animals</strong></li>
+<li><strong>Dairy</strong></li>
+<li><strong>Arable &amp; Crops</strong></li>
+<li><strong>Viticulture &amp; Winery</strong></li>
+<li><strong>Task Assignments &amp; Reminders</strong></li>
+<li><strong>Regulatory Compliance</strong></li>
+<li><strong>Quality &amp; Non-conformances</strong></li>
+<li><strong>Stock &amp; Supplies</strong></li>
+</ul>
+<p>Toggle categories on or off, tick the SMS consent box, then click <strong>Save preferences</strong> to store your changes.</p>
+<h3>Per-member settings</h3>
+<p>Each farm member controls their own SMS opt-in from <strong>Account &amp; Notifications</strong>. Members can opt in to some categories and out of others — for example, a herd manager may choose <strong>Livestock &amp; Animals</strong> and <strong>Task Assignments &amp; Reminders</strong> while leaving unrelated categories off.</p>
+<p>Farm administrators can view each member's current SMS preference status from <strong>SMS &amp; Alert Settings → Team Recipients</strong>. This read-only panel shows each member's phone, SMS preference, and whether alerts are active. Individual member settings can only be changed by the member themselves from their own <strong>Account &amp; Notifications</strong> page.</p>
+<h3>SMS number setup</h3>
+<p>Each member must have a valid UK mobile number saved to their profile for SMS delivery. If a number is missing, the member's status appears as not receiving SMS in the team recipient view. The member can add or update their number from <strong>Account &amp; Notifications</strong>.</p>
+<h3>Alert history log</h3>
+<p>Open the <strong>History</strong> tab in <strong>SMS &amp; Alert Settings</strong> to see a full timestamped log of recent alerts sent by the platform. Each row shows the sent time, alert type, message, severity, and number of recipients. Use this log to review recent alert activity and confirm that notifications were generated for the farm.</p>`,
+  ],
+  // Goat Production — Enterprise Report Tab: Financial and Production KPIs, Kidding Performance and DLWG Analysis
+  [
+    "How to use the Goat Production Enterprise Report to review annual financial and production performance.",
+    `<h2>Goat Production — Enterprise Report Tab: Financial and Production KPIs, Kidding Performance and DLWG Analysis</h2>
+<h3>Open and select a year</h3>
+<p>Open the <strong>Enterprise Report</strong> tab in Goat Production and select a year from the five-year selector. The report loads data from the goat enterprise report for that farm and year.</p>
+<h3>KPIs and margin</h3>
+<p>The report summarises head sold, sale revenue, average price per head, variable costs, feed cost, vet cost, gross margin, and gross margin per head. Revenue and costs are shown in pounds.</p>
+<h3>Charts and detail</h3>
+<p>When multiple months are available, the report charts monthly sale revenue, feed cost, and gross margin. Expand the report sections to review the enterprise P&amp;L and sales by destination; sale rows include head, revenue, weights, price, finish grade, and abattoir details where recorded.</p>
+<h3>Print</h3>
+<p>Choose <strong>Print</strong> to print the report. If no cull or market data is found for the selected year, the report directs you to record goat sales in the Cull / Market tab.</p>`,
+  ],
+  // Mobile App — Organic Poultry: Outdoor Access Log and Feed Record Capture with Offline Sync
+  [
+    "How to capture organic poultry outdoor access and feed records in the mobile app, including offline saving and sync.",
+    `<h2>Mobile App — Organic Poultry: Outdoor Access Log and Feed Record Capture with Offline Sync</h2>
+<h3>Outdoor access</h3>
+<p>From the mobile app's organic records, open <strong>Outdoor Access Log</strong>. Select the poultry flock, indicate whether access was provided, and if access was restricted enter a reason. Save the record after checking the date and details.</p>
+<h3>Feed capture</h3>
+<p>Open <strong>Feed Record</strong> to record the herd or flock, feed type or custom type, supplier and batch or lot details, quantity and units, and feed date. The form validates the required flock and feed type before saving.</p>
+<h3>Offline saving and sync</h3>
+<p>Both forms save records locally when connectivity is unavailable and queue them for synchronisation when the connection returns. A successful save confirms that the record will sync when connected.</p>
+<h3>Scope</h3>
+<p>The mobile derogations screen is for viewing feed derogation cases and directs users to the dashboard for case management; it does not replace the dashboard's derogation workflow.</p>`,
+  ],
   // 227 — Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries
   // 217 — Herd Health Follow-Up Tasks — Raising Tasks from Clinical Event Timeline Entries
   [
@@ -4730,34 +4828,6 @@ const CONTENT: [string, string][] = [
 </ul>
 <h3>Why destination type matters</h3>
 <p>For PDO and PGI wines, the processing location must be within the geographical indication area. Recording the destination type and processor creates the evidence trail that the English or Welsh wine PDO/PGI certification body may request. For HMRC duty purposes, grape sale records provide traceability of when ownership transferred and to whom.</p>`,
-  ],
-  // 235 — SMS Alerts — Configuring Alert Categories, Per-Member Settings and Alert History Log
-  [
-    "How to configure SMS alert categories, control which farm members receive each alert type, and review the alert history log in BDE Farm Trac.",
-    `<h2>SMS Alerts — Configuring Alert Categories, Per-Member Settings and Alert History Log</h2>
-<p>The SMS Alerts module lets your farm send automated text message notifications to relevant team members when compliance-critical events occur — withdrawal periods expiring, inspection deadlines approaching, NVZ closed periods opening, and more. This article explains how to configure which alert categories are active and which team members receive each type.</p>
-<h3>Navigating to SMS Alerts configuration</h3>
-<p>Go to <strong>Account &amp; Notifications</strong> (your account icon in the top-right corner, then <strong>Notifications</strong>) to manage your personal SMS alert preferences. Farm administrators can review the farm-level alert configuration and team recipient status under <strong>SMS &amp; Alert Settings</strong>. A subscription to the Platform Add-ons module is required for SMS Alerts to be active.</p>
-<h3>Enabling and disabling alert categories</h3>
-<p>On <strong>Account &amp; Notifications</strong>, enter a valid mobile number, switch on <strong>Enable SMS text notifications</strong>, then choose the alert categories relevant to your role. Only categories relevant to your farm are shown. They can include:</p>
-<ul>
-<li><strong>Livestock &amp; Animals</strong></li>
-<li><strong>Dairy</strong></li>
-<li><strong>Arable &amp; Crops</strong></li>
-<li><strong>Viticulture &amp; Winery</strong></li>
-<li><strong>Task Assignments &amp; Reminders</strong></li>
-<li><strong>Regulatory Compliance</strong></li>
-<li><strong>Quality &amp; Non-conformances</strong></li>
-<li><strong>Stock &amp; Supplies</strong></li>
-</ul>
-<p>Toggle categories on or off, tick the SMS consent box, then click <strong>Save preferences</strong> to store your changes.</p>
-<h3>Per-member settings</h3>
-<p>Each farm member controls their own SMS opt-in from <strong>Account &amp; Notifications</strong>. Members can opt in to some categories and out of others — for example, a herd manager may choose <strong>Livestock &amp; Animals</strong> and <strong>Task Assignments &amp; Reminders</strong> while leaving unrelated categories off.</p>
-<p>Farm administrators can view each member's current SMS preference status from <strong>SMS &amp; Alert Settings → Team Recipients</strong>. This read-only panel shows each member's phone, SMS preference, and whether alerts are active. Individual member settings can only be changed by the member themselves from their own <strong>Account &amp; Notifications</strong> page.</p>
-<h3>SMS number setup</h3>
-<p>Each member must have a valid UK mobile number saved to their profile for SMS delivery. If a number is missing, the member's status appears as not receiving SMS in the team recipient view. The member can add or update their number from <strong>Account &amp; Notifications</strong>.</p>
-<h3>Alert history log</h3>
-<p>Open the <strong>History</strong> tab in <strong>SMS &amp; Alert Settings</strong> to see a full timestamped log of recent alerts sent by the platform. Each row shows the sent time, alert type, message, severity, and number of recipients. Use this log to review recent alert activity and confirm that notifications were generated for the farm.</p>`,
   ],
   // 236 — Harvest Botrytis Advisory — Amber Quality Alert and Task Raising on High Botrytis or Poor Condition
   [
@@ -6618,6 +6688,116 @@ x-api-key: your_full_api_key_here</code></pre>
 <li><strong>Medicine usage by product</strong> — Medicine Records, bar chart on Product Name with count aggregation.</li>
 <li><strong>Training certificate expiry</strong> — Training Records, filter Expiry Date to the next 6 months for advance renewal planning.</li>
 </ul>`,
+  ],
+  // Winery Management — Overview
+  [
+    "Overview of the winery production workspace, from grape reception through pressing, fermentation, cellar work, bottling, SO₂ testing, and equipment records.",
+    `<h2>Winery Management — Overview: Harvest Reception, Pressing, Fermentation, Vessel Register, Cellar Ops, Bottling, SO₂ Testing and Equipment Register</h2>
+<h3>Production records</h3>
+<p>Use the winery tabs to keep linked records for reception, pressing, fermentation, vessels, cellar operations, bottling, SO₂ tests, and equipment. Batch references, vintage year, wine colour, and vessel links provide traceability across the workflow.</p>
+<h3>Traceability</h3>
+<p>Reception records capture the source block or grower, variety, weights, and must chemistry. Pressing and fermentation records link batches to juice, vessels, yeast, readings, and additions; cellar operations record movements and treatments through to bottling.</p>
+<h3>Compliance evidence</h3>
+<p>Record organic status where applicable, analytical results, and SO₂ actions. Exportable registers and the batch trail provide a reviewable history of production records.</p>`,
+  ],
+  // Winery Harvest Reception — Grape Intake Records, Source Block Traceability and Must Chemistry
+  [
+    "How to record grape deliveries at the winery with source, acceptance, weights, condition, temperature, and must chemistry.",
+    `<h2>Winery Harvest Reception — Grape Intake Records, Source Block Traceability and Must Chemistry</h2>
+<h3>Delivery identity</h3>
+<p>Create a reception record with reception date, vintage year, block, variety, source type, grower or merchant, vehicle registration, and driver name.</p>
+<h3>Intake measurements</h3>
+<p>Enter gross and tare weights, net weight, MOG percentage, intake temperature, and the holding bin or tank allocated. Record grape condition and the receiving inspector.</p>
+<h3>Must chemistry and decision</h3>
+<p>Record Brix, pH, TA, and potential alcohol, plus tester and testing equipment. Mark whether grapes were accepted; if rejected, record the rejection reason. Disposal route, destination or notes, and disposal date are available for rejected material.</p>`,
+  ],
+  // Winery Pressing Records — Press Run Log, Free-Run and Press-Run Volume Fractions
+  [
+    "How to log press runs, juice fractions, settling, and pressing measurements against a batch or lot reference.",
+    `<h2>Winery Pressing Records — Press Run Log, Free-Run and Press-Run Volume Fractions</h2>
+<h3>Press run</h3>
+<p>Record press date, vintage year, batch or lot reference, wine colour, grapes pressed, press type, operator, and analysis source.</p>
+<h3>Juice fractions</h3>
+<p>Enter free-run, press wine, and total juice volumes. The record also supports press efficiency and the decision to keep free-run and press wine separate.</p>
+<h3>Settling and analysis</h3>
+<p>Record settling method, settling time, and settling vessel, together with Brix, pH, TA, turbidity, and notes. The batch reference and sequence number keep successive runs distinguishable.</p>`,
+  ],
+  // Winery Fermentation — Vessel Logs, Yeast Strain, Daily Gravity, Temperature and pH Reading Series
+  [
+    "How to track fermentation batches by vessel with inoculation details, yeast, readings, temperature range, and additions.",
+    `<h2>Winery Fermentation — Vessel Logs, Yeast Strain, Daily Gravity, Temperature and pH Reading Series</h2>
+<h3>Batch and vessel</h3>
+<p>Create a fermentation record with batch or lot reference, vintage year, wine colour, fermentation type, vessel, and volume. A pressing batch can be linked when the fermentation follows pressing.</p>
+<h3>Fermentation setup</h3>
+<p>Record inoculation date and temperature, yeast strain, operator, organic batch status, and any nutrient or SO₂ additions made at fermentation.</p>
+<h3>Readings and completion</h3>
+<p>Enter start and end dates with start and end Brix, SG, pH, TA, and residual sugar. Record minimum and maximum temperatures and notes; the mobile monitoring screen can save fermentation entries offline for later sync.</p>`,
+  ],
+  // Winery Vessel Register — Tank and Barrel Register, Capacity, Contents and Status
+  [
+    "How to maintain the tank and barrel register with identity, location, capacity, contents, status, fills, rack-outs, and maintenance history.",
+    `<h2>Winery Vessel Register — Tank and Barrel Register, Capacity, Contents and Status</h2>
+<h3>Vessel identity</h3>
+<p>Register a vessel reference, vessel type, material, manufacturer, capacity, purchase year, and status. Barrels also support cooperage, cooperage name, oak origin, and toasting level.</p>
+<h3>Location and contents</h3>
+<p>Record cellar zone, position within the zone, current contents, current volume, wine name, variety, vintage year, and batch reference.</p>
+<h3>History</h3>
+<p>Use fill and rack-out records for wine-in and wine-out dates, volume, fill number, and operator. Vessel movements capture from and to zones and positions with a reason; cleaning records capture product, concentration, contact time, water temperature, rinse confirmation, and operator.</p>`,
+  ],
+  // Winery Cellar Operations — Racking, Fining, Filtering, Blending, SO₂ Addition and Vessel Transfers
+  [
+    "How to record cellar treatments and movements including racking, fining, filtering, blending, topping-up, and SO₂ additions.",
+    `<h2>Winery Cellar Operations — Racking, Fining, Filtering, Blending, SO₂ Addition and Vessel Transfers</h2>
+<h3>Operation record</h3>
+<p>Choose an operation type and enter operation date, batch reference, vintage year, wine colour, operator, and the relevant source and destination vessels.</p>
+<h3>Transfers and topping-up</h3>
+<p>For a transfer, record the volume moved. For topping-up, record the top-up source vessel, source of top-up wine, and top-up volume.</p>
+<h3>Treatments</h3>
+<p>Fining records support agent, dose, clarity before and after, and contact time. Filtering records support filter type, pore size, and volume filtered. Sulfiting records support SO₂ product, SO₂ added, and free SO₂ before and after; add notes where needed.</p>`,
+  ],
+  // Winery Bottling Records — Bottling Run Log, Bottle Type, Closure Type and Label Batch
+  [
+    "How to record bottling runs with lot traceability, source vessel, packaging details, volumes, labels, and analytical results.",
+    `<h2>Winery Bottling Records — Bottling Run Log, Bottle Type, Closure Type and Label Batch</h2>
+<h3>Run identity</h3>
+<p>Enter bottling date, lot code, batch reference, vintage year, wine colour, source vessel, operator, and bottling machine.</p>
+<h3>Packaging and output</h3>
+<p>Record bottle size, bottles produced, volume bottled, full cases of 12, closure type, cork grade, and label batch.</p>
+<h3>Wine and certification</h3>
+<p>Record actual ABV, pH, TA, residual sugar, free SO₂, and total SO₂. Mark certified organic batches and apply the organic SO₂ limits option when appropriate; capture the certifier reference and notes.</p>`,
+  ],
+  // Winery SO₂ Testing — Analytical Log, Free, Bound and Total SO₂ Readings with UK Limit Compliance Check
+  [
+    "How to keep an analytical SO₂ register with test stage, method, results, equipment or laboratory details, and compliance actions.",
+    `<h2>Winery SO₂ Testing — Analytical Log, Free, Bound and Total SO₂ Readings with UK Limit Compliance Check</h2>
+<h3>Test identity</h3>
+<p>Record test date, batch reference, vintage year, wine colour, vessel, and test stage. Select the test method and enter the operator.</p>
+<h3>Results</h3>
+<p>Enter free SO₂ and total SO₂ in mg/L, plus pH and TA where measured. The register calculates or displays the applicable maximum permitted value for the wine details and shows the compliance result.</p>
+<h3>Evidence and action</h3>
+<p>Identify the equipment used or the laboratory and lab report reference. Record any action taken and notes. The mobile SO₂ screen supports free and total measurements, pH, wine type, and organic-limit checking, with an over-limit alert for review.</p>`,
+  ],
+  // Winery Equipment Register — Press, Tank, Filter, Pump and Bottling Line Register with Service Interval Alerts
+  [
+    "How to register winery production and laboratory equipment with cleaning, calibration, service, and due-date records.",
+    `<h2>Winery Equipment Register — Press, Tank, Filter, Pump and Bottling Line Register with Service Interval Alerts</h2>
+<h3>Equipment identity</h3>
+<p>Register an equipment reference or machine reference, type, manufacturer, model, serial number, description, status, purchase or commissioned date, and notes.</p>
+<h3>Service and cleaning</h3>
+<p>Record the next service due date and machine cleaning date. Cleaning records include timing, chemical, concentration, contact time, temperature, operator, and rinse confirmation.</p>
+<h3>Calibration</h3>
+<p>For laboratory equipment, record calibration date, frequency, next calibration due, carried out by, certificate reference, standard used, expected value, pre- and post-calibration readings, and result. Due dates make follow-up visible in the register.</p>`,
+  ],
+  // Mobile App — Winery Production Screens
+  [
+    "How to use the mobile winery production screens for reception, pressing, fermentation, cellar operations, vessel work, and SO₂ testing with offline sync.",
+    `<h2>Mobile App — Winery Production Screens: Reception, Pressing, Fermentation, Cellar Ops and SO₂ Testing with Offline Sync</h2>
+<h3>Available screens</h3>
+<p>The mobile Record menu provides Winery Reception, Pressing Record, Fermentation Monitoring, Cellar Operations, SO₂ Test Entry, and vessel register and detail screens. Select the relevant screen rather than duplicating a record in the dashboard.</p>
+<h3>Capture on site</h3>
+<p>Reception captures intake and must details; pressing captures run and juice fractions; fermentation captures vessel readings and additions; cellar operations capture treatments, transfers, and SO₂ additions; SO₂ testing captures free and total results with pH and wine-type context.</p>
+<h3>Offline and follow-up</h3>
+<p>Save records from the mobile forms when working without connectivity; pending entries sync when the connection returns. Review vessel details for fills, movements, and maintenance, and review SO₂ compliance or alerts after saving.</p>`,
   ],
 ];
 
