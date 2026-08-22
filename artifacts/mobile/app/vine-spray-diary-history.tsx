@@ -804,6 +804,13 @@ function SprayDiaryPhotoSection({
   const handleSaveCaptionFromThumbnail = async (photoId: number, newCaption: string | null) => {
     setCaptionSaving(true);
     setCaptionSaveError(null);
+    const showCaptionSaveError = (message: string) => {
+      if (Platform.OS === "ios") {
+        Alert.alert("Save Failed", message);
+      } else {
+        setCaptionSaveError(message);
+      }
+    };
     try {
       const res = await apiFetch(
         `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photoId}`,
@@ -814,7 +821,7 @@ function SprayDiaryPhotoSection({
         },
       );
       if (!res.ok) {
-        setCaptionSaveError("Could not save the caption. Please try again.");
+        showCaptionSaveError("Could not save the caption. Please try again.");
         return;
       }
       setPhotos((prev) =>
@@ -824,7 +831,7 @@ function SprayDiaryPhotoSection({
       setCaptionEditPhoto(null);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      setCaptionSaveError("An error occurred. Please try again.");
+      showCaptionSaveError("An error occurred. Please try again.");
     } finally {
       setCaptionSaving(false);
     }
