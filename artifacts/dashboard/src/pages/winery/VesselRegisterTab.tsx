@@ -271,6 +271,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                   <span className="font-medium text-foreground">{durationLabel(f.fill_date, f.rack_out_date)}{stillIn ? " so far" : ""}</span>
                   {!!f.volume_litres && <span>{fmtNum(f.volume_litres, 0)} L</span>}
                   {!!f.batch_ref && <span>Batch: {String(f.batch_ref)}</span>}
+                  {!!f.operator_name && <span>Operator: {String(f.operator_name)}</span>}
                 </div>
                 {!!f.notes && <p className="text-muted-foreground italic">{String(f.notes)}</p>}
                 {!readOnly && isRackingOut && (
