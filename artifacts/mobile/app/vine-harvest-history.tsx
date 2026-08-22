@@ -64,6 +64,7 @@ interface OfflineHarvestEntry {
   vintageYear?: number;
   blockId?: number;
   blockName?: string;
+  harvestMethod?: string;
   yieldKg?: number;
   brix?: number;
   ph?: number;
@@ -73,6 +74,18 @@ interface OfflineHarvestEntry {
   operatorName?: string;
   notes?: string;
   _pendingSync?: boolean;
+}
+
+type HarvestListItem = HarvestRecord | OfflineHarvestEntry;
+
+function isPendingHarvest(item: HarvestListItem): item is OfflineHarvestEntry {
+  return "_pendingSync" in item && item._pendingSync === true;
+}
+
+function harvestDateTimestamp(item: HarvestListItem): number {
+  if (!item.harvestDate) return 0;
+  const timestamp = new Date(item.harvestDate).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -260,11 +273,12 @@ function HarvestRow({
   onEdit,
   onDelete,
 }: {
-  item: HarvestRecord;
+  item: HarvestListItem;
   blockAreaHa?: number | null;
   onEdit: (record: HarvestRecord) => void;
   onDelete: (id: number) => void;
 }) {
+  const pending = isPendingHarvest(item);
   const linked = !!item.blockId;
   const tonnesPerHa =
     item.yieldKg != null && blockAreaHa != null && blockAreaHa > 0
@@ -272,13 +286,14 @@ function HarvestRow({
       : null;
 
   const handleDelete = () => {
+    if (pending) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Delete Harvest Record",
       `Delete the harvest record from ${formatDate(item.harvestDate)}? This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => onDelete(item.id) },
+        { text: "Delete", style: "destructive", onPress: () => onDelete(Number(item.id)) },
       ],
     );
   };
@@ -291,7 +306,16 @@ function HarvestRow({
   };
 
   return (
-    <Pressable style={styles.row} onPress={() => { Haptics.selectionAsync(); onEdit(item); }}>
+    <Pressable
+      style={[styles.row, pending && styles.pendingRow]}
+      onPress={() => {
+        if (pending) return;
+        Haptics.selectionAsync();
+        onEdit(item);
+      }}
+      disabled={pending}
+      accessibilityState={{ disabled: pending }}
+    >
       <View style={styles.rowLeft}>
         <Text style={styles.rowDate}>{formatDate(item.harvestDate)}</Text>
         <View style={styles.rowMeta}>
@@ -318,6 +342,12 @@ function HarvestRow({
         </View>
       </View>
       <View style={styles.rowRight}>
+        {pending && (
+          <View style={styles.pendingBadge}>
+            <Feather name="cloud-off" size={12} color={colors.textSecondary} />
+            <Text style={styles.pendingBadgeText}>Waiting to sync</Text>
+          </View>
+        )}
         {item.grapeCondition ? (
           <View style={[styles.badge, { backgroundColor: "#f5f5f5", borderColor: conditionColor[item.grapeCondition] ?? colors.border }]}>
             <Text style={[styles.badgeText, { color: conditionColor[item.grapeCondition] ?? colors.text }]}>
@@ -325,11 +355,15 @@ function HarvestRow({
             </Text>
           </View>
         ) : null}
-        <Feather name="edit-2" size={14} color={colors.textSecondary} />
-        <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
-          <Feather name="trash-2" size={15} color={colors.error} />
-        </Pressable>
-        <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+        {!pending && (
+          <>
+            <Feather name="edit-2" size={14} color={colors.textSecondary} />
+            <Pressable onPress={(e) => { e.stopPropagation(); handleDelete(); }} hitSlop={12} style={styles.deleteBtn}>
+              <Feather name="trash-2" size={15} color={colors.error} />
+            </Pressable>
+            <Feather name="chevron-right" size={16} color={colors.textSecondary} />
+          </>
+        )}
       </View>
     </Pressable>
   );
@@ -543,11 +577,11 @@ export default function VineHarvestHistoryScreen() {
   // Sorted unique vintage years descending
   const vintages = useMemo(() => {
     const years = new Set<number>();
-    for (const r of displayRecords) {
+    for (const r of [...displayRecords, ...offlinePending]) {
       if (r.vintageYear != null) years.add(r.vintageYear);
     }
     return Array.from(years).sort((a, b) => b - a);
-  }, [displayRecords]);
+  }, [displayRecords, offlinePending]);
 
   // Once both the persisted value AND the current farm's records are confirmed
   // loaded, apply the stored selection — or fall back to the most recent if
@@ -618,23 +652,28 @@ export default function VineHarvestHistoryScreen() {
     return vintageRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
   }, [vintageRecords, selectedBlockIds]);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return blockFilteredRecords;
-    const q = search.toLowerCase();
-    return blockFilteredRecords.filter(r =>
-      (r.blockName ?? "").toLowerCase().includes(q) ||
-      (r.operatorName ?? "").toLowerCase().includes(q) ||
-      (r.harvestDate ?? "").includes(q) ||
-      String(r.vintageYear ?? "").includes(q),
-    );
-  }, [blockFilteredRecords, search]);
-
   // Offline pending records that match the current vintage filter
   const offlinePendingForVintage = useMemo(() => {
     if (offlinePending.length === 0) return [];
     if (displayVintage === null) return offlinePending;
     return offlinePending.filter(r => r.vintageYear === displayVintage);
   }, [offlinePending, displayVintage]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    const matchesSearch = (r: HarvestListItem) =>
+      !q ||
+      (r.blockName ?? "").toLowerCase().includes(q) ||
+      (r.operatorName ?? "").toLowerCase().includes(q) ||
+      (r.harvestDate ?? "").includes(q) ||
+      String(r.vintageYear ?? "").includes(q);
+    const matchesBlock = (r: HarvestListItem) =>
+      selectedBlockIds.length === 0 ||
+      (r.blockId != null && selectedBlockIds.includes(r.blockId));
+
+    return [...blockFilteredRecords.filter(matchesSearch), ...offlinePendingForVintage.filter(r => matchesBlock(r) && matchesSearch(r))]
+      .sort((a, b) => harvestDateTimestamp(b) - harvestDateTimestamp(a));
+  }, [blockFilteredRecords, offlinePendingForVintage, search, selectedBlockIds]);
 
   // Farm-wide totals for the selected vintage (server + offline pending merged)
   const totals = useMemo(() => {
@@ -1528,6 +1567,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
   },
+  pendingRow: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.textSecondary,
+    paddingLeft: spacing.lg - 3,
+  },
   rowLeft: { flex: 1, gap: 4 },
   rowDate: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
@@ -1535,6 +1579,20 @@ const styles = StyleSheet.create({
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
   deleteBtn: { padding: 4 },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.background,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  pendingBadgeText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
   blockTag: {
     flexDirection: "row",
     alignItems: "center",
