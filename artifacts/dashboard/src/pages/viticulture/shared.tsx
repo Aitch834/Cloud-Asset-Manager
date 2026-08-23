@@ -2056,7 +2056,12 @@ export async function printHarvest(
   blocks?: Record<string, unknown>[],
   farmMeta?: Record<string, unknown> | null,
   yearLabel?: string,
+  chemCols?: { avgBrix: boolean; avgPh: boolean; avgTa: boolean; avgPa: boolean },
 ) {
+  const showBrix = chemCols?.avgBrix ?? true;
+  const showPh   = chemCols?.avgPh   ?? true;
+  const showTa   = chemCols?.avgTa   ?? true;
+  const showPa   = chemCols?.avgPa   ?? true;
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
 
@@ -2299,10 +2304,10 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.picks}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${row.totalKg > 0 ? row.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "\u2014"}</td>
+        ${showBrix ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.brixCount > 0 ? (row.brixSum / row.brixCount).toFixed(1) + " \xb0" : "\u2014"}</td>` : ""}
+        ${showPh   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.phCount > 0 ? (row.phSum / row.phCount).toFixed(2) : "\u2014"}</td>` : ""}
+        ${showTa   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.taCount > 0 ? (row.taSum / row.taCount).toFixed(1) : "\u2014"}</td>` : ""}
+        ${showPa   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.potAlcCount > 0 ? (row.potAlcSum / row.potAlcCount).toFixed(1) : "\u2014"}</td>` : ""}
       </tr>`;
     }).join("");
 
@@ -2320,7 +2325,8 @@ export async function printHarvest(
   const summAvgTa = summTaRows.length > 0 ? summTaRows.reduce((a, b) => a + b, 0) / summTaRows.length : null;
   const summPaRows = summBlockRows.filter(r => r.potAlcCount > 0).map(r => r.potAlcSum / r.potAlcCount);
   const summAvgPa = summPaRows.length > 0 ? summPaRows.reduce((a, b) => a + b, 0) / summPaRows.length : null;
-  const bsColSpan = hasPhotos ? 11 : 10;
+  const bsHiddenChemCols = [showBrix, showPh, showTa, showPa].filter(v => !v).length;
+  const bsColSpan = (hasPhotos ? 11 : 10) - bsHiddenChemCols;
   const bsPhotoHeader = hasPhotos ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;width:76px">Photo</th>` : "";
   const bsPhotoFooterCell = hasPhotos ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5"></td>` : "";
 
@@ -2840,10 +2846,10 @@ export async function printHarvest(
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Picks</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
         <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (t/ha)</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
-        <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
+        ${showBrix ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>` : ""}
+        ${showPh   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>` : ""}
+        ${showTa   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>` : ""}
+        ${showPa   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>` : ""}
       </tr>
     </thead>
     <tbody>${blockSummaryRows || `<tr><td colspan='${bsColSpan}' style='padding:10px;text-align:center;color:#888'>No records</td></tr>`}</tbody>
@@ -2855,10 +2861,10 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalPicks}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summTotalKg > 0 ? summTotalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTha != null ? summAvgTha.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgBrix != null ? summAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPh != null ? summAvgPh.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTa != null ? summAvgTa.toFixed(1) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPa != null ? summAvgPa.toFixed(1) : "\u2014"}</td>
+        ${showBrix ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgBrix != null ? summAvgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>` : ""}
+        ${showPh   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPh != null ? summAvgPh.toFixed(2) : "\u2014"}</td>` : ""}
+        ${showTa   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgTa != null ? summAvgTa.toFixed(1) : "\u2014"}</td>` : ""}
+        ${showPa   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${summAvgPa != null ? summAvgPa.toFixed(1) : "\u2014"}</td>` : ""}
       </tr>
     </tfoot>
   </table>
