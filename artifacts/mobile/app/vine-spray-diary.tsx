@@ -85,6 +85,7 @@ function SprayPhotoThumbnail({
   onPress,
   onReload,
   reloading,
+  onSetCover,
   onShowTooltip,
   onHideTooltip,
 }: {
@@ -94,6 +95,8 @@ function SprayPhotoThumbnail({
   onReload?: () => void;
   /** True while this thumbnail's presigned URL refresh is in flight. */
   reloading?: boolean;
+  /** When provided and photo is not already the cover, long-press menu includes "Set as cover". */
+  onSetCover?: (photo: SprayDiaryPhoto) => void;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
 }) {
@@ -123,23 +126,26 @@ function SprayPhotoThumbnail({
     if (!longPressJustFiredRef.current) return;
     longPressJustFiredRef.current = false;
     onHideTooltip();
-    Alert.alert("Photo Options", undefined, [
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          Alert.alert(
-            "Delete Photo",
-            "Are you sure you want to delete this photo? This cannot be undone.",
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
-            ],
-          );
-        },
+    const options: Parameters<typeof Alert.alert>[2] = [];
+    if (!photo.isCover && onSetCover) {
+      options.push({ text: "Set as cover", onPress: () => onSetCover(photo) });
+    }
+    options.push({
+      text: "Delete",
+      style: "destructive",
+      onPress: () => {
+        Alert.alert(
+          "Delete Photo",
+          "Are you sure you want to delete this photo? This cannot be undone.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+          ],
+        );
       },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    });
+    options.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Photo Options", undefined, options);
   };
 
   return (
@@ -608,6 +614,27 @@ function SprayDiaryPhotoSection({
     }
   };
 
+  const handleSetCover = async (photo: SprayDiaryPhoto) => {
+    try {
+      const res = await apiFetch(
+        `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photo.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCover: true }),
+        },
+      );
+      if (res.ok) {
+        setPhotos((prev) => prev.map((p) => ({ ...p, isCover: p.id === photo.id })));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert("Error", "Could not set the cover photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not set the cover photo.");
+    }
+  };
+
   const handlePressPhoto = (photo: SprayDiaryPhoto) => {
     const idx = photos.findIndex((p) => p.id === photo.id);
     setLightboxIndex(idx >= 0 ? idx : 0);
@@ -652,6 +679,7 @@ function SprayDiaryPhotoSection({
                 }
               }}
               reloading={reloadingPhotoId === item.id}
+              onSetCover={!item.isCover ? handleSetCover : undefined}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
             />

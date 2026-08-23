@@ -696,6 +696,7 @@ export function ScoutingPhotoThumbnail({
   onPress,
   onReload,
   onEditCaption,
+  onSetCover,
   onShowTooltip,
   onHideTooltip,
   reloading,
@@ -707,6 +708,8 @@ export function ScoutingPhotoThumbnail({
   onReload?: () => void;
   /** When provided, long-press menu includes "Edit Caption". */
   onEditCaption?: (photo: ScoutingPhoto) => void;
+  /** When provided and photo is not already the cover, long-press menu includes "Set as cover". */
+  onSetCover?: (photo: ScoutingPhoto) => void;
   onShowTooltip?: (caption: string) => void;
   onHideTooltip?: () => void;
   /** True when this specific thumbnail's reload is in flight (shows spinner). */
@@ -748,6 +751,9 @@ export function ScoutingPhotoThumbnail({
     const options: Parameters<typeof Alert.alert>[2] = [];
     if (onEditCaption) {
       options.push({ text: "Edit Caption", onPress: () => onEditCaption(photo) });
+    }
+    if (!photo.isCover && onSetCover) {
+      options.push({ text: "Set as cover", onPress: () => onSetCover(photo) });
     }
     options.push({
       text: "Delete",
@@ -985,6 +991,27 @@ export function ScoutingPhotoSection({
     }
   }, [farmId, scoutingId]);
 
+  const handleSetCover = async (photo: ScoutingPhoto) => {
+    try {
+      const res = await apiFetch(
+        `/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photo.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isCover: true }),
+        },
+      );
+      if (res.ok) {
+        setPhotos((prev) => prev.map((p) => ({ ...p, isCover: p.id === photo.id })));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert("Error", "Could not set the cover photo. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Could not set the cover photo.");
+    }
+  };
+
   const handleSaveCaption = async (photoId: number, caption: string) => {
     const trimmed = caption.trim();
     try {
@@ -1066,6 +1093,7 @@ export function ScoutingPhotoSection({
               onPress={handlePressPhoto}
               onReload={() => handleReload(item.id)}
               onEditCaption={handleOpenCaptionEdit}
+              onSetCover={!item.isCover ? handleSetCover : undefined}
               onShowTooltip={setGridTooltipCaption}
               onHideTooltip={() => setGridTooltipCaption(null)}
               reloading={reloadingPhotoId === item.id}
