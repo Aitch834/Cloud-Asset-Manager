@@ -1142,6 +1142,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     platformConfigData?.config?.barrel_neutral_fills_default,
     4,
   );
+  const retirementThresholdPence = resolveBarrelAlertThreshold(
+    farmSettingsData?.record?.barrelRetirementThresholdPence,
+    platformConfigData?.config?.barrel_retirement_threshold_pence,
+    60000,
+  );
 
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1683,6 +1688,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           const entry = maintMap.get(Number(r.id));
                           return entry && entry.totalPence > 0 ? (entry.totalPence / 100).toFixed(2) : "";
                         }},
+                        { key: "_retirement_warning", label: "Retirement Warning", fmt: (r) => {
+                          const entry = maintMap.get(Number(r.id));
+                          return (entry && entry.totalPence > retirementThresholdPence) ? "Yes" : "No";
+                        }},
                         ...MAINTENANCE_WORK_TYPE_OPTIONS.map(wt => ({
                           key: `_maint_${wt}`,
                           label: `Cooperage — ${wt} (£)`,
@@ -1704,7 +1713,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         [
                           csvComment(`Barrel Health Summary — ${farmNameVessels}`),
                           csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
-                          csvComment(`Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+`),
+                          csvComment(`Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+  |  Retirement threshold: £${(retirementThresholdPence / 100).toFixed(0)}`),
                           ...(fleetCooperageParts.length > 0 ? [csvComment(`Cooperage cost by work type (exported barrels): ${fleetCooperageParts.join(", ")}`)] : []),
                           ...(noFillsCsvParts.length > 0 ? [csvComment(`Warning: ${noFillsCsvParts.join(", ")} barrel${(noFillsCooperageCsvCount + noFillsNoneCsvCount) !== 1 ? "s" : ""} have no fill history — see Fill Tier column for details`)] : []),
                         ],
