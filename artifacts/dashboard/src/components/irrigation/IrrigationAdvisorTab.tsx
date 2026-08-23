@@ -1013,7 +1013,7 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
           {/* ── Soil type warning ── */}
           {field && !field.soilType && (
             <a
-              href="/fields"
+              href={`/fields?editFieldId=${selectedFieldId}`}
               className="flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800 hover:bg-yellow-100 transition-colors no-underline"
             >
               <AlertTriangle className="w-4 h-4 shrink-0" />

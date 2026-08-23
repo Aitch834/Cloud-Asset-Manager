@@ -91,12 +91,34 @@ export default function FieldsPage() {
   const { farmId } = useAppStore();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // Deep-link: ?editFieldId=<id> opens the edit dialog for that field on mount.
+  // Must be declared before usePersistedTab so the urlOverride can reference it.
+  const [autoOpenFieldId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("editFieldId");
+    const id = raw ? parseInt(raw, 10) : NaN;
+    return isNaN(id) ? null : id;
+  });
+  // Remove the param from the URL so a refresh doesn't re-open the dialog
+  useEffect(() => {
+    if (autoOpenFieldId !== null) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("editFieldId");
+      window.history.replaceState(null, "", url.toString());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [tab, setTab] = usePersistedTab<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map" | "grassland">({
     page: "fields",
     farmId,
     validIds: ["fields", "crops", "seed", "tenure", "rotation", "map", "grassland"],
     defaultTab: "fields",
+    // When arriving via a deep-link ?editFieldId=, always land on the Fields tab
+    // so the FieldCardMenu renders and the edit dialog can auto-open.
+    urlOverride: autoOpenFieldId !== null ? "fields" : undefined,
   });
+
   const [search, setSearch] = useState("");
   const [isAddFieldOpen, setIsAddFieldOpen] = useState(false);
   const [isAddCropOpen, setIsAddCropOpen] = useState(false);
@@ -699,6 +721,7 @@ export default function FieldsPage() {
                       currentCrop={crop}
                       onAssignCrop={() => { setAssignForField(field); assignForm.reset(); setSeasonManuallySet(false); setTgwManuallySet(false); }}
                       onBoundaryUpdated={() => { fieldsRefetch(); }}
+                      defaultEditOpen={autoOpenFieldId === field.id}
                     />
                   </div>
 

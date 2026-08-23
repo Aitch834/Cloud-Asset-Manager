@@ -577,7 +577,7 @@ export function PrintCropRegister({ farmId, year, fields, assignments, crops, la
 export const FIELD_LABEL_CSS = `@page{size:62mm 90mm;margin:0}body{font-family:'Segoe UI',Arial,sans-serif;padding:10px 12px;text-align:center;background:#fff;margin:0}.brand{font-size:9px;color:#0f766e;font-weight:700;letter-spacing:.06em}.divider{border-color:#e5e7eb}.farm{font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px}svg{display:block;margin:0 auto}.code{font-family:monospace;font-size:17px;font-weight:700;color:#0f766e;margin-top:7px;letter-spacing:.1em}.iname{font-size:11px;font-weight:600;color:#374151;margin-top:3px}.hint{font-size:8px;color:#d1d5db;margin-top:4px}`;
 
 export function FieldCardMenu({
-  field, farmId, crops, currentCrop, onAssignCrop, onBoundaryUpdated,
+  field, farmId, crops, currentCrop, onAssignCrop, onBoundaryUpdated, defaultEditOpen,
 }: {
   field: FieldRecord;
   farmId: number;
@@ -585,8 +585,24 @@ export function FieldCardMenu({
   currentCrop?: FieldCropAssignment;
   onAssignCrop: () => void;
   onBoundaryUpdated?: () => void;
+  defaultEditOpen?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+
+  // Auto-open the edit dialog when deep-linked via ?editFieldId=
+  useEffect(() => {
+    if (defaultEditOpen) {
+      setEditOpen(true);
+      reset({
+        name: field.name ?? "",
+        areaHectares: parseFloat(String(field.areaHectares ?? 0)),
+        soilType: field.soilType ?? "",
+        fieldReference: (field as any).fieldReference ?? "",
+        blackgrassRiskField: (field as any).blackgrassRiskField ?? false,
+      } as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultEditOpen]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [boundaryOpen, setBoundaryOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
