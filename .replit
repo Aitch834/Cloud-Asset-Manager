@@ -86,6 +86,21 @@ args = "no-hardcoded-prices-dashboard"
 task = "workflow.run"
 args = "cache-guard-api"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mobile-sync-key-guard"
+
+[[workflows.workflow]]
+name = "mobile-sync-key-guard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node artifacts/mobile/scripts/check-sync-registration.mjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
 [[workflows.workflow]]
 name = "typecheck-mobile"
 author = "agent"
