@@ -108,6 +108,22 @@ Recent additions address Red Tractor / APHA compliance gaps, including new datab
 - **Dashboard ABR Kit Stock**: new `AbrKitStockSection` collapsible panel inside BulkTankTab showing per-kit stock level, lot/batch, expiry, low-stock warnings.
 - **Mobile milk-statement.tsx**: photo attachment added via `expo-image-picker` — Camera and Library buttons, thumbnail grid, tap-to-remove.
 
+## Publishing / Deploying to Production
+
+Replit's **Publish** button triggers each artifact's production build automatically via `[services.production] build` in each `artifact.toml`. No manual step is required before Publish — the builds run in the production environment where dev-server workflows are not running, so memory pressure is low.
+
+**Build order wired into Publish:**
+| Artifact | Build command (artifact.toml) |
+|---|---|
+| API server | `lib/db` rebuild → `pnpm --filter @workspace/api-server run build` |
+| Website | `PORT=19161 BASE_PATH=/ pnpm --filter @workspace/website run build` |
+| Admin portal | `PORT=25580 BASE_PATH=/admin-portal/ pnpm --filter @workspace/admin-portal run build` |
+| Dashboard | `PORT=23183 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build` |
+
+The API server's build command rebuilds `lib/db` as its first step so compiled declarations are always fresh before the esbuild bundle runs.
+
+**Manual pre-publish verification (optional):** `scripts/build-prod.sh` replicates the API server + website + admin-portal builds locally. Dashboard is excluded from the script because it requires ~3 GB of free RAM that competing dev-server workflows consume; Publish runs it cleanly in production. See `.agents/memory/dashboard-build-oom.md` for the manual dashboard build recipe if needed.
+
 ## External Dependencies
 
 - **Monorepo Tool:** pnpm workspaces
