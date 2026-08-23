@@ -100,6 +100,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<number | null>(null);
   const [settingCoverPhotoId, setSettingCoverPhotoId] = useState<number | null>(null);
+  const [confirmDeleteViewPhotoId, setConfirmDeleteViewPhotoId] = useState<number | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [pendingPhotoCaption, setPendingPhotoCaption] = useState("");
@@ -278,12 +279,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       if (!r.ok) throw new Error("Failed to delete photo");
       return r.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Clamp index before refetch in case we deleted the last photo in the list
       setLightboxPhotoIndex(prev => Math.max(0, Math.min(prev, lightboxPhotos.length - 2)));
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
+      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, variables.scoutingId] });
       queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
       setDeletePhotoId(null);
+      setConfirmDeleteViewPhotoId(null);
       toast({ title: "Photo deleted", description: "The photo has been removed from this scouting record." });
     },
     onError: () => {
@@ -790,6 +792,15 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                               : <Star className="w-3 h-3" />}
                           </button>
                         )}
+                        {/* Delete button — hover-only, top-right */}
+                        <button
+                          type="button"
+                          title="Delete photo"
+                          onClick={() => setConfirmDeleteViewPhotoId(ph.id as number)}
+                          className="absolute top-0.5 right-0.5 rounded-full bg-black/60 hover:bg-destructive/90 text-white p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1090,7 +1101,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         />
       )}
 
-      {/* Delete photo confirm */}
+      {/* Delete photo confirm (lightbox) */}
       <ConfirmDialog
         open={deletePhotoId !== null}
         title="Delete photo?"
@@ -1099,6 +1110,21 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         confirmVariant="destructive"
         onConfirm={() => deletePhotoMutation.mutate({ scoutingId: lightboxScoutingId!, photoId: deletePhotoId! })}
         onCancel={() => { setDeletePhotoId(null); deletePhotoMutation.reset(); }}
+        mutation={deletePhotoMutation}
+      />
+
+      {/* Delete photo confirm (view dialog thumbnail) */}
+      <ConfirmDialog
+        open={confirmDeleteViewPhotoId !== null}
+        title="Delete photo?"
+        message="This photo will be permanently removed from the scouting record. This cannot be undone."
+        confirmLabel="Delete photo"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (confirmDeleteViewPhotoId !== null && viewing?.id != null)
+            deletePhotoMutation.mutate({ scoutingId: viewing.id as number, photoId: confirmDeleteViewPhotoId });
+        }}
+        onCancel={() => { setConfirmDeleteViewPhotoId(null); deletePhotoMutation.reset(); }}
         mutation={deletePhotoMutation}
       />
 
