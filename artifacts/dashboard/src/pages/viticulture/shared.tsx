@@ -2102,7 +2102,36 @@ export async function printHarvest(
   const hasPhotos = Object.keys(photoDataUrl).length > 0;
   const unlinkedCount = records.filter(r => !(Number(r.blockId) > 0)).length;
 
-  // ── 3. Build table rows ───────────────────────────────────────────────────
+  // ── 3. Pre-compute per-block × vintage TA and Pot. Alc. stats for outlier highlighting ──
+  // Groups by "blockId:vintageYear"; only computed for groups with ≥2 picks so SD is meaningful.
+  const _bvGroups: Record<string, Record<string, unknown>[]> = {};
+  for (const r of records) {
+    const _bid = r.blockId != null ? Number(r.blockId) : null;
+    if (!_bid || isNaN(_bid) || _bid <= 0) continue;
+    const _bvKey = `${_bid}:${String(r.vintageYear ?? "")}`;
+    if (!_bvGroups[_bvKey]) _bvGroups[_bvKey] = [];
+    _bvGroups[_bvKey].push(r);
+  }
+  const _bvTaStats: Record<string, { mean: number; sd: number }> = {};
+  const _bvPaStats: Record<string, { mean: number; sd: number }> = {};
+  for (const [_bvKey, _grp] of Object.entries(_bvGroups)) {
+    const _taVals = _grp.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+    const _paVals = _grp.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+    if (_taVals.length >= 2) {
+      const _taMean = _taVals.reduce((a, b) => a + b, 0) / _taVals.length;
+      const _taSd = Math.sqrt(_taVals.reduce((s, v) => s + (v - _taMean) ** 2, 0) / _taVals.length);
+      _bvTaStats[_bvKey] = { mean: _taMean, sd: _taSd };
+    }
+    if (_paVals.length >= 2) {
+      const _paMean = _paVals.reduce((a, b) => a + b, 0) / _paVals.length;
+      const _paSd = Math.sqrt(_paVals.reduce((s, v) => s + (v - _paMean) ** 2, 0) / _paVals.length);
+      _bvPaStats[_bvKey] = { mean: _paMean, sd: _paSd };
+    }
+  }
+  const _outlierCellStyle = "text-align:right;background:#fef3c7;color:#92400e;font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact";
+  let _anyOutlier = false;
+
+  // ── Build table rows ───────────────────────────────────────────────────────
   const rows = records.map(r => {
     const bid = Number(r.blockId);
     const dataUrl = !isNaN(bid) && bid > 0 ? photoDataUrl[bid] : undefined;
@@ -2119,6 +2148,18 @@ export async function printHarvest(
     const botrytisCell = r.botrytisPresent
       ? `<span style="color:#991b1b;font-weight:600">Yes${r.botrytisPercentage ? ` (${r.botrytisPercentage}%)` : ""}</span>`
       : `<span style="color:#555">No</span>`;
+    // Outlier detection for TA and Pot. Alc.
+    const _bvKey = (!isNaN(bid) && bid > 0) ? `${bid}:${String(r.vintageYear ?? "")}` : "";
+    const _taVal = parseFloat(String(r.titratableAcidityGl ?? ""));
+    const _paVal = parseFloat(String(r.potentialAlcohol ?? ""));
+    const _taStats = _bvKey ? _bvTaStats[_bvKey] : undefined;
+    const _paStats = _bvKey ? _bvPaStats[_bvKey] : undefined;
+    const _taOutlier = _taStats && !isNaN(_taVal) && _taStats.sd > 0 && Math.abs(_taVal - _taStats.mean) > _taStats.sd;
+    const _paOutlier = _paStats && !isNaN(_paVal) && _paStats.sd > 0 && Math.abs(_paVal - _paStats.mean) > _paStats.sd;
+    if (_taOutlier) _anyOutlier = true;
+    if (_paOutlier) _anyOutlier = true;
+    const _taCellStyle = _taOutlier ? _outlierCellStyle : "text-align:right";
+    const _paCellStyle = _paOutlier ? _outlierCellStyle : "text-align:right";
     return `<tr>
       ${photoCell}
       <td>${d(r.harvestDate)}</td>
@@ -2129,8 +2170,8 @@ export async function printHarvest(
       <td style="text-align:right">${n(r.yieldTonnesPerHa, 2)}</td>
       <td style="text-align:right">${n(r.brix, 1)}</td>
       <td style="text-align:right">${n(r.ph, 2)}</td>
-      <td style="text-align:right">${n(r.titratableAcidityGl, 1)}</td>
-      <td style="text-align:right">${n(r.potentialAlcohol, 1)}</td>
+      <td style="${_taCellStyle}">${n(r.titratableAcidityGl, 1)}</td>
+      <td style="${_paCellStyle}">${n(r.potentialAlcohol, 1)}</td>
       <td>${escHtml(r.grapeCondition)}</td>
       <td>${botrytisCell}</td>
       <td>${escHtml(r.operatorName)}</td>
@@ -2922,7 +2963,10 @@ export async function printHarvest(
       </tr>
     </tfoot>` : ""}
   </table>
-  <div class="footer">Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Harvest &amp; Vintage Register &nbsp;&middot;&nbsp; Required for GI / PDO vintage declarations</div>
+  <div class="footer">
+    Prepared by BDE Farm Trac &nbsp;&middot;&nbsp; Harvest &amp; Vintage Register &nbsp;&middot;&nbsp; Required for GI / PDO vintage declarations
+    ${_anyOutlier ? `<span style="margin-left:14px;display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fbbf24;border-radius:3px;padding:2px 8px;font-weight:700;font-size:9.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact">&#9888; Amber cell = TA or Pot. Alc. deviates more than 1 standard deviation from the block average for that vintage</span>` : ""}
+  </div>
   </body></html>`;
 
   win.document.open();
