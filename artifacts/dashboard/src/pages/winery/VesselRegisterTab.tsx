@@ -57,7 +57,7 @@ export function resolveBarrelAlertThreshold(
   }
   return hardcodedFallback;
 }
-export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly, approachingNeutralFills: neutralFillsThreshold }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean; approachingNeutralFills?: number }) {
+export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly, approachingNeutralFills: neutralFillsThreshold, autoOpenAdd }: { farmId: number; vesselId: number; maxExistingFill: number; readOnly?: boolean; approachingNeutralFills?: number; autoOpenAdd?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
@@ -89,6 +89,13 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const openAdd = () => { setEditingFill(null); setForm({ fillNumber: String(nextFill) }); setShowAdd(true); };
+
+  // Auto-open the add form when the parent requests it (e.g. tapping the "No fills logged" badge).
+  // Runs once on mount so it fires only when the tab is first rendered after the shortcut.
+  useEffect(() => {
+    if (autoOpenAdd && !readOnly) openAdd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const openEdit = (r: Record<string, unknown>) => {
     setEditingFill(r);
     setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
@@ -1161,6 +1168,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
+  const [autoOpenFill, setAutoOpenFill] = useState(false);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
 
   const VESSEL_DETAIL_TABS = ["fills", "maintenance", "location", "cleaning"] as const;
@@ -1960,7 +1968,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span>{fmt(r.vessel_ref)}</span>
                         {isBarrelRow && Number(r.fill_count ?? 0) === 0 && (
-                          <span className="text-xs rounded border px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200 font-medium normal-case tracking-normal">No fills logged</span>
+                          <button
+                            type="button"
+                            className="text-xs rounded border px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200 font-medium normal-case tracking-normal hover:bg-amber-100 transition-colors cursor-pointer"
+                            title="Click to log the first fill"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDetailTab("fills");
+                              setAutoOpenFill(true);
+                              openView(r);
+                            }}
+                          >No fills logged</button>
                         )}
                         {isBarrelRow && Number(r.clean_count ?? 0) === 0 && (
                           <span className="text-xs rounded border px-1.5 py-0.5 bg-red-50 text-red-700 border-red-200 font-medium normal-case tracking-normal">Never cleaned</span>
@@ -2125,7 +2143,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {view && (
-        <Dialog open onOpenChange={() => setView(null)}>
+        <Dialog open onOpenChange={() => { setView(null); setAutoOpenFill(false); }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Vessel — {fmt(view.vessel_ref)}</DialogTitle></DialogHeader>
             
@@ -2181,7 +2199,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   })}
                 </div>
                 {detailTab === "fills" && (
-                  <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
+                  <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} autoOpenAdd={autoOpenFill} />
                 )}
                 {detailTab === "maintenance" && (
                   <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} retirementThresholdPence={retirementThresholdPence} />
