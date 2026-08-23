@@ -813,6 +813,27 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const grandTha = grandArea > 0 && grandTotal > 0 ? grandTotal / 1000 / grandArea : null;
       const yieldFooter = [cell("All blocks"), ...yieldFooterCells, cell(grandTotal > 0 ? grandTotal.toFixed(1) : ""), cell(grandTha != null ? grandTha.toFixed(3) : "")].join(",");
 
+      // ── Picks-per-vintage footer row ─────────────────────────────────────
+      // Count harvest records (picks) per vintage across all linked blocks so
+      // auditors can spot single-pick vintages without reopening the dashboard.
+      const picksPerVintageCounts = crossVintages.map(vy => {
+        let count = 0;
+        for (const bid of uniqueBlockIds) {
+          count += lookup[String(bid)]?.[vy]?.length ?? 0;
+        }
+        return count;
+      });
+      const totalLinkedPicks = rows.filter(r => r.blockId != null && r.blockId !== "").length;
+      const picksRow = [
+        cell("Picks"),
+        ...picksPerVintageCounts.flatMap(count => [
+          cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : ""),
+          cell(""), // t/ha column placeholder
+        ]),
+        cell(totalLinkedPicks > 0 ? String(totalLinkedPicks) : ""),
+        cell(""), // grand t/ha placeholder
+      ].join(",");
+
       // ── Chemistry sub-tables ─────────────────────────────────────────────
       const brixTable = chemSubTable(
         "Block × Vintage Cross-tab — Avg Brix °",
@@ -845,6 +866,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         yieldHeader,
         ...yieldRows,
         yieldFooter,
+        picksRow,
         ...brixTable,
         ...phTable,
         ...taTable,
