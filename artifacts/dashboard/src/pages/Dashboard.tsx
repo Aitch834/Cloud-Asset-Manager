@@ -14,6 +14,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { UpcomingDatesPanel } from "./dashboard/UpcomingDatesPanel";
 import { ComplianceHealthPanel } from "./dashboard/ComplianceHealthPanel";
+import { FpDerogationAlertsPanel } from "./dashboard/FpDerogationAlertsPanel";
 
 type OverdueItem = { type: string; description: string; href: string };
 
@@ -316,6 +317,11 @@ export default function Dashboard() {
 
       {/* Upcoming Key Dates */}
       <UpcomingDatesPanel farmId={farmId} />
+
+      {/* FP Derogation Expiry Alerts */}
+      {activeSubs.includes("organic-fresh-produce") && (
+        <FpDerogationAlertsPanel farmId={farmId} />
+      )}
 
       {/* Compliance Health */}
       <ComplianceHealthPanel farmId={farmId} />

@@ -17599,7 +17599,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   if (isNaN(farmId)) { res.status(400).json({ error: "Invalid farmId" }); return; }
 
   const rawDays = parseInt(req.query.days as string);
-  const days = rawDays === 30 ? 30 : 7;
+  const days = rawDays === 60 ? 60 : rawDays === 30 ? 30 : 7;
 
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -18931,7 +18931,7 @@ router.get("/farms/:farmId/week-ahead", requireAuth, requireTenant, async (req: 
   for (const r of organicFPDerogRows) {
     if (!r.expiryDate) continue;
     const isOverdue = new Date(r.expiryDate + "T00:00:00Z") < now;
-    tasks.push({ id: `org-fp-derog-${r.id}`, type: "organic_fp_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Input Derogation Expiring — ${r.inputName}`, description: `The derogation approval for '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Renew or confirm with your certifying body. Manage in Organic Fresh Produce → Input Derogations.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Fresh Produce", href: "/organic-fresh-produce?tab=derogations", colour: isOverdue ? "red" : "amber" });
+    tasks.push({ id: `org-fp-derog-${r.id}`, type: "organic_fp_derogation_expiry", title: `${isOverdue ? "Overdue: " : ""}Organic Input Derogation Expiring — ${r.inputName}`, description: `The derogation approval for '${r.inputName}' ${isOverdue ? "has expired" : "is due to expire"}. Renew or confirm with your certifying body. Manage in Organic Fresh Produce → Input Derogations.`, dueDate: new Date(r.expiryDate + "T00:00:00Z").toISOString(), module: "Organic Fresh Produce", href: "/organic-fresh-produce?tab=input-derogations", colour: isOverdue ? "red" : "amber" });
   }
 
   for (const r of organicFPInputLogDerogRows) {
