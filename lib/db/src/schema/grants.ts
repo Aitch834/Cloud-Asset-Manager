@@ -34,6 +34,8 @@ export const agriEnvMilestonesTable = pgTable("agri_env_milestones", {
   evidenceNotes: text("evidence_notes"),
   alertClaimedAt: timestamp("alert_claimed_at", { withTimezone: true }),
   alertedAt: timestamp("alerted_at", { withTimezone: true }),
+  push7dClaimedAt: timestamp("push_7d_claimed_at", { withTimezone: true }),
+  push7dSentAt: timestamp("push_7d_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

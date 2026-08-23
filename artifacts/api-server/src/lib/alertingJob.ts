@@ -1,4 +1,4 @@
-import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable, agriEnvMilestonesTable, agriEnvProjectsTable } from "@workspace/db";
+import { db, notificationsTable, farmsTable, inspectionRecordsTable, nonconformanceRecordsTable, subscriptionsTable, modulesTable, poultryTreatmentsTable, poultrySchemeRecordsTable, poultryBroilerWelfareTable, pigMedicineTreatmentsTable, pigRedTractorChecklistTable, pigTailBitingRisksTable, tenantsTable, agriEnvMilestonesTable, agriEnvProjectsTable, expoPushTokensTable } from "@workspace/db";
 import { usersTable, userTenantsTable, farmAdvisorsTable } from "@workspace/db/schema";
 import { livestockMovementsTable, livestockMedicineRecordsTable, staffCertificatesTable, sprayApplicationsTable, sprayProductsTable, riskAssessmentsTable, pestControlRecordsTable, cleaningDisinfectionRecordsTable } from "@workspace/db/schema";
 import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable, feedPurchaseOrdersTable } from "@workspace/db/schema";
@@ -1805,6 +1805,8 @@ async function checkAgriEnvMilestoneDeadlines() {
       status: agriEnvMilestonesTable.status,
       alertClaimedAt: agriEnvMilestonesTable.alertClaimedAt,
       alertedAt: agriEnvMilestonesTable.alertedAt,
+      push7dClaimedAt: agriEnvMilestonesTable.push7dClaimedAt,
+      push7dSentAt: agriEnvMilestonesTable.push7dSentAt,
     })
     .from(agriEnvMilestonesTable)
     .where(
@@ -1865,6 +1867,106 @@ async function checkAgriEnvMilestoneDeadlines() {
       relatedId: ms.id,
       dedupeKey: `agrienv-milestone-${ms.id}-${weekKey}`,
     });
+
+    // ── 7-day push notification ──────────────────────────────────────────────
+    // Fires once when a milestone first enters the 7-day window. Uses a
+    // push_7d_claimed_at lease (same pattern as the overdue email lease) so that
+    // concurrent job executions cannot both dispatch and duplicate the push.
+    // push_7d_sent_at is only stamped when Expo acknowledges at least one ticket
+    // as "ok"; an HTTP or ticket-level failure leaves the lease to expire so the
+    // next run retries automatically.
+    const PUSH_WARN_DAYS = 7;
+    const isPushEligible =
+      !overdue &&
+      diffDays <= PUSH_WARN_DAYS &&
+      !ms.push7dSentAt &&
+      ms.status !== "paid" &&
+      ms.status !== "cancelled" &&
+      ms.status !== "completed";
+
+    if (isPushEligible) {
+      const PUSH_LEASE_MS = 60 * 60 * 1000; // 1 hour
+      const pushLeaseExpiry = new Date(Date.now() - PUSH_LEASE_MS);
+      const pushLeaseActive = ms.push7dClaimedAt && ms.push7dClaimedAt > pushLeaseExpiry;
+
+      if (!pushLeaseActive) {
+        // Atomically claim the send lease — only the first concurrent run proceeds.
+        const pushClaimed = await db
+          .update(agriEnvMilestonesTable)
+          .set({ push7dClaimedAt: new Date() })
+          .where(
+            and(
+              eq(agriEnvMilestonesTable.id, ms.id),
+              isNull(agriEnvMilestonesTable.push7dSentAt),
+              or(
+                isNull(agriEnvMilestonesTable.push7dClaimedAt),
+                lt(agriEnvMilestonesTable.push7dClaimedAt, pushLeaseExpiry),
+              ),
+            )
+          )
+          .returning({ id: agriEnvMilestonesTable.id });
+
+        if (pushClaimed.length > 0) {
+          const tokenRows = await db
+            .select({ token: expoPushTokensTable.expoPushToken })
+            .from(expoPushTokensTable)
+            .innerJoin(userTenantsTable, eq(userTenantsTable.userId, expoPushTokensTable.userId))
+            .where(
+              and(
+                eq(userTenantsTable.tenantId, farm.tenantId),
+                eq(userTenantsTable.isActive, true),
+                eq(expoPushTokensTable.isActive, true),
+              )
+            );
+
+          if (tokenRows.length === 0) {
+            // No mobile users registered — stamp as sent to avoid repeated leasing
+            await db
+              .update(agriEnvMilestonesTable)
+              .set({ push7dSentAt: new Date() })
+              .where(eq(agriEnvMilestonesTable.id, ms.id));
+          } else {
+            const daysLabel = diffDays === 0 ? "today" : `in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
+            const pushBody = `${schemeName}: ${ms.milestoneName} — due ${daysLabel}`;
+            const messages = tokenRows.map(r => ({
+              to: r.token,
+              sound: "default" as const,
+              title: "Grant Milestone Due Soon",
+              body: pushBody,
+              data: { href: "/agri-env-projects" },
+            }));
+
+            try {
+              const response = await fetch("https://exp.host/--/api/v2/push/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(messages.length === 1 ? messages[0] : messages),
+              });
+
+              if (!response.ok) {
+                console.warn(`[ALERTS] Expo push API returned HTTP ${response.status} for milestone ${ms.id} — lease expires, will retry`);
+              } else {
+                const result = await response.json() as { data: Array<{ status: string }> | { status: string } };
+                const tickets = Array.isArray(result.data) ? result.data : [result.data];
+                const anyAccepted = tickets.some(t => t.status === "ok");
+
+                if (anyAccepted) {
+                  await db
+                    .update(agriEnvMilestonesTable)
+                    .set({ push7dSentAt: new Date() })
+                    .where(eq(agriEnvMilestonesTable.id, ms.id));
+                  console.log(`[ALERTS] 7-day push notification sent for milestone ${ms.id} (${ms.milestoneName}) to ${tokenRows.length} device(s)`);
+                } else {
+                  console.warn(`[ALERTS] Expo rejected all push tickets for milestone ${ms.id} — lease expires, will retry`);
+                }
+              }
+            } catch (err) {
+              console.warn(`[ALERTS] 7-day push notification network error for milestone ${ms.id}:`, err);
+            }
+          }
+        }
+      }
+    }
 
     // ── Proactive email + SMS ────────────────────────────────────────────────
     // Fires once when a milestone first becomes overdue and has not been

@@ -55,4 +55,8 @@ export async function runAgriEnvMigrations(): Promise<void> {
   // alerted_at:       finalized only after at least one channel delivers successfully; NULL = retry eligible
   await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS alert_claimed_at timestamptz`);
   await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS alerted_at timestamptz`);
+  // push_7d_claimed_at: lease claimed before dispatching to prevent concurrent duplicate sends
+  await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS push_7d_claimed_at timestamptz`);
+  // push_7d_sent_at: set once when the 7-day push notification is successfully dispatched
+  await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS push_7d_sent_at timestamptz`);
 }
