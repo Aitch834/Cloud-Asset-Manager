@@ -1976,7 +1976,7 @@ const TAB_ICONS: Record<TabKey, React.ElementType> = {
 
 export default function OrganicPage() {
   const { farmId } = useAppStore();
-  const [activeTab, setActiveTab] = usePersistedTab<TabKey>({ page: "organic", farmId, validIds: TABS, defaultTab: "certification" });
+  const [activeTab, setActiveTab] = usePersistedTab<TabKey>({ page: "organic", farmId, validIds: TABS, defaultTab: "certification", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const [auditPackBusy, setAuditPackBusy] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
