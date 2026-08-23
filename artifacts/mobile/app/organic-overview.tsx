@@ -502,6 +502,15 @@ export default function OrganicOverviewScreen() {
                 <Text style={[styles.actionLabel, { color: "#9333ea" }]}>Vit Derogations</Text>
                 <Text style={styles.actionSub}>Organic viticulture</Text>
               </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#86efac" }]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onPress={() => router.push("/organic-fields-list" as any)}
+              >
+                <Feather name="map" size={22} color="#15803d" />
+                <Text style={[styles.actionLabel, { color: "#15803d" }]}>Field Status</Text>
+                <Text style={styles.actionSub}>View &amp; download CSV</Text>
+              </Pressable>
             </View>
 
             {inspections.length > 0 && (
