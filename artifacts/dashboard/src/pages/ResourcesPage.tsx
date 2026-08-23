@@ -2032,6 +2032,12 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
         rows.push(["Agri-environment milestone", m.dueDate, m.milestoneName, m.schemeName, m.status, "", "", ""]);
       }
     }
+    if (pastMilestones.length > 0) {
+      rows.push(["", "", "", "", "", "", "", ""]);
+      for (const m of pastMilestones) {
+        rows.push(["Agri-environment milestone (past)", m.dueDate, m.milestoneName, m.schemeName, m.status, "", "", ""]);
+      }
+    }
     const csv = "\uFEFF" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a"); a.href = url; a.download = "planning-status.csv"; a.click(); URL.revokeObjectURL(url);
