@@ -1,12 +1,19 @@
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -69,17 +76,62 @@ export default function HomeScreen() {
   const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
   const [upcomingMilestones, setUpcomingMilestones] = useState<Array<{
     id: number;
+    projectId: number;
     milestoneName: string;
     dueDate: string;
     schemeName: string;
     isOverdue: boolean;
   }>>([]);
+  const [markCompleteTarget, setMarkCompleteTarget] = useState<{
+    id: number;
+    projectId: number;
+    milestoneName: string;
+  } | null>(null);
+  const [completionDate, setCompletionDate] = useState<Date>(new Date());
+  const [evidenceNote, setEvidenceNote] = useState("");
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const [upcomingInspections, setUpcomingInspections] = useState<Array<{
     id: number;
     certifier: string;
     nextDueDate: string;
     isOverdue: boolean;
   }>>([]);
+
+  const handleMarkComplete = useCallback(async () => {
+    if (!markCompleteTarget || !currentFarm?.id) return;
+    setIsMarkingComplete(true);
+    try {
+      const y = completionDate.getFullYear();
+      const m = String(completionDate.getMonth() + 1).padStart(2, "0");
+      const d = String(completionDate.getDate()).padStart(2, "0");
+      const dateStr = `${y}-${m}-${d}`;
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/agri-env-projects/${markCompleteTarget.projectId}/milestones/${markCompleteTarget.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "completed",
+            completionDate: dateStr,
+            ...(evidenceNote.trim() ? { evidenceNotes: evidenceNote.trim() } : {}),
+          }),
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Error", (err as { error?: string }).error || "Could not mark milestone complete.");
+        return;
+      }
+      // Remove from the home screen list immediately
+      setUpcomingMilestones((prev) => prev.filter((m) => m.id !== markCompleteTarget.id));
+      setMarkCompleteTarget(null);
+      setEvidenceNote("");
+    } catch {
+      Alert.alert("Offline", "Could not reach the server. Please try again when back online.");
+    } finally {
+      setIsMarkingComplete(false);
+    }
+  }, [markCompleteTarget, currentFarm?.id, completionDate, evidenceNote]);
 
   const fetchFPInputDerogAlerts = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -109,6 +161,7 @@ export default function HomeScreen() {
       const data = await res.json();
       const milestones: Array<{
         id: number;
+        projectId: number;
         milestoneName: string;
         dueDate: string;
         status: string;
@@ -121,12 +174,13 @@ export default function HomeScreen() {
       const upcoming = milestones
         .filter((m) => {
           if (!m.dueDate) return false;
-          if (m.status === "paid" || m.status === "cancelled") return false;
+          if (m.status === "paid" || m.status === "completed" || m.status === "cancelled") return false;
           const due = new Date(m.dueDate);
           return due <= horizon;
         })
         .map((m) => ({
           id: m.id,
+          projectId: m.projectId,
           milestoneName: m.milestoneName,
           dueDate: m.dueDate,
           schemeName: m.schemeName,
@@ -389,9 +443,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchUpcomingInspections(), fetchWinegbSubmissions()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchUpcomingMilestones(), fetchUpcomingInspections(), fetchWinegbSubmissions()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingInspections, fetchWinegbSubmissions]);
+  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchUpcomingInspections, fetchWinegbSubmissions]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -774,36 +828,51 @@ export default function HomeScreen() {
           <>
             <SectionHeader title="Grant Milestones" />
             {upcomingMilestones.map((ms) => (
-              <Pressable
+              <View
                 key={ms.id}
                 style={[
                   styles.unlinkedBanner,
+                  styles.milestoneBannerWrap,
                   ms.isOverdue ? styles.alertBannerRed : styles.milestoneBanner,
                 ]}
-                onPress={() => router.push("/agri-env-projects")}
               >
-                <View style={[
-                  styles.unlinkedIconWrap,
-                  { backgroundColor: ms.isOverdue ? "#DC262622" : "#0D9488" + "22" },
-                ]}>
-                  <Feather
-                    name="flag"
-                    size={18}
-                    color={ms.isOverdue ? "#DC2626" : "#0D9488"}
-                  />
-                </View>
-                <View style={styles.unlinkedContent}>
-                  <Text style={styles.unlinkedTitle}>{ms.milestoneName}</Text>
-                  <Text style={[styles.unlinkedSubtitle, ms.isOverdue && { color: "#DC2626" }]}>
-                    {ms.schemeName
-                      ? `${ms.schemeName} · `
-                      : ""}
-                    {ms.isOverdue ? "Overdue — was due " : "Due "}
-                    {new Date(ms.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
-              </Pressable>
+                <Pressable
+                  style={styles.milestoneCardBody}
+                  onPress={() => router.push("/agri-env-projects")}
+                >
+                  <View style={[
+                    styles.unlinkedIconWrap,
+                    { backgroundColor: ms.isOverdue ? "#DC262622" : "#0D948822" },
+                  ]}>
+                    <Feather
+                      name="flag"
+                      size={18}
+                      color={ms.isOverdue ? "#DC2626" : "#0D9488"}
+                    />
+                  </View>
+                  <View style={styles.unlinkedContent}>
+                    <Text style={styles.unlinkedTitle}>{ms.milestoneName}</Text>
+                    <Text style={[styles.unlinkedSubtitle, ms.isOverdue && { color: "#DC2626" }]}>
+                      {ms.schemeName
+                        ? `${ms.schemeName} · `
+                        : ""}
+                      {ms.isOverdue ? "Overdue — was due " : "Due "}
+                      {new Date(ms.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.milestoneCompleteBtn}
+                  onPress={() => {
+                    setCompletionDate(new Date());
+                    setEvidenceNote("");
+                    setMarkCompleteTarget({ id: ms.id, projectId: ms.projectId, milestoneName: ms.milestoneName });
+                  }}
+                >
+                  <Feather name="check-circle" size={14} color="#0D9488" />
+                  <Text style={styles.milestoneCompleteBtnText}>Mark complete</Text>
+                </Pressable>
+              </View>
             ))}
           </>
         )}
@@ -840,6 +909,107 @@ export default function HomeScreen() {
         onSelect={setHeroCard}
         onClose={() => setPersonaliseVisible(false)}
       />
+
+      {/* Mark Complete sheet */}
+      <Modal
+        visible={!!markCompleteTarget}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMarkCompleteTarget(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.mcOverlay}
+        >
+          <Pressable style={styles.mcBackdrop} onPress={() => setMarkCompleteTarget(null)} />
+          <View style={styles.mcSheet}>
+            <View style={styles.mcHandle} />
+
+            <View style={styles.mcIconRow}>
+              <View style={styles.mcIconBg}>
+                <Feather name="check-circle" size={20} color="#0D9488" />
+              </View>
+              <Text style={styles.mcHeading}>Mark Milestone Complete</Text>
+            </View>
+
+            {markCompleteTarget && (
+              <Text style={styles.mcMilestoneName} numberOfLines={2}>
+                {markCompleteTarget.milestoneName}
+              </Text>
+            )}
+
+            <Text style={styles.mcLabel}>Completion date</Text>
+            {Platform.OS === "android" ? (
+              <Pressable
+                style={styles.mcDateBtn}
+                onPress={() =>
+                  DateTimePickerAndroid.open({
+                    value: completionDate,
+                    mode: "date",
+                    maximumDate: new Date(),
+                    onChange: (_event: DateTimePickerEvent, d?: Date) => {
+                      if (d) setCompletionDate(d);
+                    },
+                  })
+                }
+              >
+                <Feather name="calendar" size={14} color={colors.primary} />
+                <Text style={styles.mcDateBtnText}>
+                  {completionDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </Text>
+              </Pressable>
+            ) : (
+              <DateTimePicker
+                value={completionDate}
+                mode="date"
+                display="compact"
+                maximumDate={new Date()}
+                onChange={(_event: DateTimePickerEvent, d?: Date) => {
+                  if (d) setCompletionDate(d);
+                }}
+                style={{ alignSelf: "flex-start", marginBottom: spacing.md }}
+              />
+            )}
+
+            <Text style={styles.mcLabel}>Evidence note (optional)</Text>
+            <TextInput
+              style={styles.mcTextInput}
+              value={evidenceNote}
+              onChangeText={setEvidenceNote}
+              placeholder="e.g. hedgerow planted, CAMS submitted…"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              autoCapitalize="sentences"
+            />
+
+            <View style={styles.mcActions}>
+              <Pressable
+                style={styles.mcCancelBtn}
+                onPress={() => setMarkCompleteTarget(null)}
+                disabled={isMarkingComplete}
+              >
+                <Text style={styles.mcCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.mcConfirmBtn, isMarkingComplete && styles.mcConfirmDisabled]}
+                onPress={handleMarkComplete}
+                disabled={isMarkingComplete}
+              >
+                {isMarkingComplete ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Feather name="check" size={15} color="#fff" />
+                    <Text style={styles.mcConfirmText}>Confirm</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1018,6 +1188,156 @@ const styles = StyleSheet.create({
   milestoneBanner: {
     backgroundColor: "#F0FDFA",
     borderColor: "#0D948855",
+  },
+  milestoneBannerWrap: {
+    flexDirection: "column",
+    paddingBottom: spacing.sm,
+    gap: 0,
+  },
+  milestoneCardBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  milestoneCompleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    backgroundColor: "#0D948818",
+    marginTop: spacing.xs,
+  },
+  milestoneCompleteBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#0D9488",
+  },
+  // Mark Complete sheet
+  mcOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  mcBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  mcSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl + 16,
+    paddingTop: spacing.md,
+  },
+  mcHandle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  mcIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  mcIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#0D948815",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mcHeading: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
+  },
+  mcMilestoneName: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  mcLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  mcDateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background ?? "#fafafa",
+    marginBottom: spacing.md,
+    alignSelf: "flex-start",
+  },
+  mcDateBtnText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  mcTextInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    padding: spacing.md,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.background ?? "#fafafa",
+    marginBottom: spacing.lg,
+    minHeight: 72,
+  },
+  mcActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  mcCancelBtn: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mcCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+  },
+  mcConfirmBtn: {
+    flex: 2,
+    flexDirection: "row",
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: 10,
+    backgroundColor: "#0D9488",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mcConfirmDisabled: {
+    opacity: 0.6,
+  },
+  mcConfirmText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: "#fff",
   },
   winegbNudgeBanner: {
     flexDirection: "row",
