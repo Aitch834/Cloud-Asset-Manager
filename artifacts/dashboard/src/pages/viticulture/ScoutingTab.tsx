@@ -89,6 +89,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
   const [searchText, setSearchText] = usePersistedFilter({ page: "viticulture-scouting", filter: "search", farmId, defaultValue: "" });
   const [pressureLevelFilter, setPressureLevelFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "pressure", farmId, defaultValue: "__all__" });
+  const [photoFilter, setPhotoFilter] = usePersistedFilter({ page: "viticulture-scouting", filter: "photos", farmId, defaultValue: "__all__" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
@@ -401,8 +402,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         PRESSURE_NUMERIC_FIELDS.some(f => Number(r[f] ?? 0) >= minLevel)
       );
     }
+    if (photoFilter === "has") {
+      rows = rows.filter(r => Number(r.photoCount ?? 0) > 0);
+    } else if (photoFilter === "none") {
+      rows = rows.filter(r => Number(r.photoCount ?? 0) === 0);
+    }
     return rows;
-  }, [data, yearFilter, blockFilter, searchText, pressureLevelFilter, blocks]);
+  }, [data, yearFilter, blockFilter, searchText, pressureLevelFilter, photoFilter, blocks]);
 
   const printRows = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
@@ -459,6 +465,14 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             <SelectContent>
               <SelectItem value="all">All years</SelectItem>
               {scoutingYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={photoFilter} onValueChange={setPhotoFilter}>
+            <SelectTrigger className={`w-32 h-8 text-xs ${photoFilter !== "__all__" ? "border-blue-400 text-blue-700" : ""}`}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All photos</SelectItem>
+              <SelectItem value="has">Has photos</SelectItem>
+              <SelectItem value="none">No photos</SelectItem>
             </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => {
