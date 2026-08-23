@@ -1255,6 +1255,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     { key: "volume_current_litres", label: "Current Volume (L)" },
     { key: "status", label: "Status" },
     { key: "last_cleaned_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_cleaned_date) },
+    { key: "last_activity", label: "Last Activity (Fill/Cooperage)", fmt: (r: Record<string, unknown>) => r.last_activity ? fmtDate(r.last_activity) : "Never" },
     { key: "notes", label: "Notes" },
   ];
 
@@ -1283,7 +1284,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [isFullFilter, setIsFullFilter] = usePersistedFilter({ page: "vessel-register", filter: "is-full", farmId, defaultValue: "", validValues: IS_FULL_VALUES });
 
   // Persisted sort — remembered across page visits and navigation
-  const SORT_COL_VALUES = ["vessel_ref", "vessel_type", "capacity_litres", "location", "current_contents", "current_volume_litres", "status"] as const;
+  const SORT_COL_VALUES = ["vessel_ref", "vessel_type", "capacity_litres", "location", "current_contents", "current_volume_litres", "status", "last_activity"] as const;
   const SORT_DIR_VALUES = ["asc", "desc"] as const;
   const [sortCol, setSortCol] = usePersistedFilter({ page: "vessel-register", filter: "sort-col", farmId, defaultValue: "vessel_ref", validValues: SORT_COL_VALUES });
   const [sortDir, setSortDir] = usePersistedFilter({ page: "vessel-register", filter: "sort-dir", farmId, defaultValue: "asc", validValues: SORT_DIR_VALUES });
@@ -1293,7 +1294,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortCol(col);
-      setSortDir("asc");
+      // Last activity: default to asc so most neglected (null/oldest) appear first
+      setSortDir(col === "last_activity" ? "asc" : "asc");
     }
   }
 
@@ -1403,6 +1405,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         aVal = a.cellar_zone ? `${String(a.cellar_zone)}${a.cellar_position ? `/${String(a.cellar_position)}` : ""}` : String(a.location ?? "");
         bVal = b.cellar_zone ? `${String(b.cellar_zone)}${b.cellar_position ? `/${String(b.cellar_position)}` : ""}` : String(b.location ?? "");
       }
+      if (sortCol === "last_activity") {
+        // Null/empty = never had activity = treated as oldest (sorts first in asc = most neglected first)
+        const aDate = a.last_activity ? String(a.last_activity) : "";
+        const bDate = b.last_activity ? String(b.last_activity) : "";
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return sortDir === "asc" ? -1 : 1;
+        if (!bDate) return sortDir === "asc" ? 1 : -1;
+        const cmp = aDate.localeCompare(bDate);
+        return sortDir === "asc" ? cmp : -cmp;
+      }
       const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: "base" });
       return sortDir === "asc" ? cmp : -cmp;
     });
@@ -1489,6 +1501,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
               { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
               { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No" },
+              { key: "last_activity", label: "Last Activity", fmt: r => r.last_activity ? fmtDate(r.last_activity) : "Never" },
             ];
             const handlePrint = () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
@@ -1876,6 +1889,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("current_contents")}>Current Contents<SortIcon col="current_contents" /></th>
               <th className="text-right p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("current_volume_litres")}>Volume (L)<SortIcon col="current_volume_litres" /></th>
               <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60" onClick={() => handleSort("status")}>Status<SortIcon col="status" /></th>
+              <th className="text-left p-3 font-medium cursor-pointer select-none hover:bg-muted/60 whitespace-nowrap" onClick={() => handleSort("last_activity")}>Last Activity<SortIcon col="last_activity" /></th>
               <th className="text-left p-3 font-medium">Notes</th>
               <th className="p-3"></th>
             </tr></thead>
@@ -1940,6 +1954,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <td className="p-3">{fmt(r.current_contents)}</td>
                     <td className="p-3 text-right">{r.current_volume_litres ? fmtNum(r.current_volume_litres, 0) : "—"}</td>
                     <td className="p-3">{statusBadge(r.status)}</td>
+                    <td className="p-3 whitespace-nowrap text-xs">
+                      {r.last_activity
+                        ? <span>{fmtDate(r.last_activity)}</span>
+                        : <span className="text-muted-foreground italic">Never</span>}
+                    </td>
                     <NotesCell notes={r.notes} />
                     <td className="p-3 text-right whitespace-nowrap">
                       <RadixTooltipProvider>
