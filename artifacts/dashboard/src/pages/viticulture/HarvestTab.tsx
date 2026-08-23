@@ -2170,7 +2170,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       </tr>
                     ))}
                   </tbody>
-                  {summaryRows.length > 0 && (
+                  {summaryRows.length >= 1 && (
                     <tfoot>
                       <tr className="border-t-2 bg-muted/40 font-semibold">
                         <td className="px-4 py-2">Season Totals</td>
