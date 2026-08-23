@@ -490,7 +490,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       return { label: m.label, precision: m.precision, rows, colAvgs, grandAvg };
     });
 
-    return { uniqueVintages, tables };
+    // Picks per vintage: count of linked harvest records for each vintage
+    const picksByVintage: Record<string, number> = {};
+    for (const r of linkedRows) {
+      const vy = String(r.vintageYear ?? "");
+      if (vy) picksByVintage[vy] = (picksByVintage[vy] ?? 0) + 1;
+    }
+    const grandTotalPicks = linkedRows.length;
+
+    return { uniqueVintages, tables, picksByVintage, grandTotalPicks };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
 
@@ -1709,7 +1717,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       {/* Chemistry cross-tab: block × vintage for Brix, pH, TA, Pot. Alc */}
       {chemCrossTabData && (() => {
-        const { uniqueVintages, tables } = chemCrossTabData;
+        const { uniqueVintages, tables, picksByVintage, grandTotalPicks } = chemCrossTabData;
 
         const handleChemSortCol = (col: string) => {
           if (chemSort?.col === col) {
@@ -1853,6 +1861,24 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           ))}
                           <td className={`text-right px-3 py-1.5 tabular-nums border-l sticky right-0 z-10 bg-muted/40 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] ${chemSort?.col === "avg" ? "!bg-muted/30" : ""}`}>
                             {tbl.grandAvg != null ? tbl.grandAvg.toFixed(tbl.precision) : "—"}
+                          </td>
+                        </tr>
+                        <tr className="border-t text-xs group">
+                          <td className="px-3 py-1.5 sticky left-0 z-10 bg-stone-50 font-medium text-muted-foreground shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">Picks</td>
+                          {uniqueVintages.map(vy => {
+                            const picks = picksByVintage[vy] ?? 0;
+                            const single = picks === 1;
+                            return (
+                              <td
+                                key={vy}
+                                className={`text-right px-3 py-1.5 tabular-nums font-medium ${single ? "bg-amber-50 text-amber-800" : "bg-stone-50 text-muted-foreground"}`}
+                              >
+                                {single && <span className="mr-1">⚠</span>}{picks > 0 ? picks : "—"}
+                              </td>
+                            );
+                          })}
+                          <td className="text-right px-3 py-1.5 tabular-nums font-medium bg-stone-50 text-muted-foreground border-l sticky right-0 z-10 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                            {grandTotalPicks > 0 ? grandTotalPicks : "—"}
                           </td>
                         </tr>
                       </tfoot>
