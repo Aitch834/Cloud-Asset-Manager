@@ -2,6 +2,8 @@ import { Platform } from "react-native";
 
 import {
   clearCompletedSyncItems,
+  deferSyncItemIfUnchanged,
+  deleteRecord,
   getPendingSyncCount,
   getPendingSyncItems,
   kvGet,
@@ -9,12 +11,17 @@ import {
   kvDelete,
   hasPendingSyncItem,
   markRecordSynced,
-  markSyncItemCompleted,
-  markSyncItemFailed,
+  markSyncItemCompletedIfUnchanged,
+  markSyncItemFailedIfUnchanged,
+  setPendingSyncItemServerRecordId,
   getTableForKey,
   insertRecord,
   enqueueSyncItem,
 } from "./database";
+import {
+  ORGANIC_INPUT_EDIT_RECORD_TYPE,
+  parseQueuedOrganicInputEdit,
+} from "./organicInputOfflineEdit";
 
 type SyncListener = (state: SyncState) => void;
 
@@ -40,6 +47,7 @@ let state: SyncState = { ...INITIAL_STATE };
 let listeners: SyncListener[] = [];
 let unsubscribeNetInfo: (() => void) | null = null;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let followupDelayWhileSyncing: number | null = null;
 let isInitialized = false;
 
 function notify() {
@@ -257,8 +265,8 @@ async function migrateVineHarvestKey(): Promise<void> {
 //   Exactly-once server records — the server POST uses INSERT … ON CONFLICT
 //                    (farm_id, mobile_record_id) DO NOTHING, so a retry after a
 //                    lost response returns the existing row rather than inserting
-//                    a duplicate.  MARKER_KEY tracks already-enqueued IDs to
-//                    prevent multiple queue entries for the same record.
+//                    a duplicate. The returned server ID is retained so the final
+//                    local revision is applied by PUT before the queue is cleared.
 async function migrateOrganicInputsKey(): Promise<void> {
   const OLD_KEY = "bde_organic_inputs";
   const MARKER_KEY = "bde_organic_inputs_migration_v1";
@@ -349,24 +357,54 @@ export function cleanup(): void {
     clearTimeout(syncTimer);
     syncTimer = null;
   }
+  followupDelayWhileSyncing = null;
   isInitialized = false;
 }
 
+function requestFollowupAfterCurrentSync(delayMs: number): void {
+  followupDelayWhileSyncing = followupDelayWhileSyncing === null
+    ? delayMs
+    : Math.min(followupDelayWhileSyncing, delayMs);
+}
+
 function scheduleSyncAttempt(delayMs: number) {
+  if (state.isSyncing) {
+    requestFollowupAfterCurrentSync(delayMs);
+    return;
+  }
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    processQueue();
+    syncTimer = null;
+    if (state.isSyncing) {
+      requestFollowupAfterCurrentSync(delayMs);
+      return;
+    }
+    void processQueue();
   }, delayMs);
 }
 
+function syncItemIsDue(item: { next_attempt_at?: string | null }, now: number): boolean {
+  if (!item.next_attempt_at) return true;
+  const dueAt = new Date(item.next_attempt_at).getTime();
+  return Number.isNaN(dueAt) || dueAt <= now;
+}
+
 async function processQueue(): Promise<void> {
-  if (state.isSyncing) return;
+  if (state.isSyncing) {
+    requestFollowupAfterCurrentSync(0);
+    return;
+  }
   if (!state.isConnected) return;
 
+  const attemptedSnapshots = new Map<string, string>();
   setState({ isSyncing: true, lastError: null });
 
   try {
-    const items = await getPendingSyncItems();
+    const pendingItems = await getPendingSyncItems();
+    const items = pendingItems.filter(item => syncItemIsDue(item, Date.now()));
+    for (const item of items) {
+      attemptedSnapshots.set(item.id, item.data_json);
+    }
 
     if (items.length === 0) {
       setState({ isSyncing: false, lastSyncTime: new Date().toISOString() });
@@ -376,6 +414,7 @@ async function processQueue(): Promise<void> {
 
     let successCount = 0;
     let failCount = 0;
+    let supersededCount = 0;
 
     for (const item of items) {
       if (!state.isConnected) {
@@ -384,12 +423,28 @@ async function processQueue(): Promise<void> {
       }
 
       try {
-        await uploadSyncItem(item);
-        await markSyncItemCompleted(item.id);
+        const uploadResult = await uploadSyncItem(item);
+        if (uploadResult.createdOrganicInputServerId) {
+          await setPendingSyncItemServerRecordId(
+            item.id,
+            uploadResult.createdOrganicInputServerId,
+          );
+        }
+        const completed = await markSyncItemCompletedIfUnchanged(item.id, item.data_json);
+        if (!completed) {
+          // A newer edit replaced this payload during upload. Leave that newer
+          // revision pending and run another pass once this one has finished.
+          supersededCount++;
+          continue;
+        }
 
         const table = getTableForKey(item.record_type);
         if (table) {
-          await markRecordSynced(table, item.record_id);
+          if (uploadResult.deletedOrganicInput) {
+            await deleteRecord(table, item.record_id);
+          } else {
+            await markRecordSynced(table, item.record_id);
+          }
         }
         successCount++;
       } catch (err) {
@@ -397,15 +452,35 @@ async function processQueue(): Promise<void> {
           // Module state not yet resolved — leave item pending, do not count as
           // a failure or consume a retry slot. Schedule a retry so the item is
           // re-attempted once useApiModules has written the module cache.
-          scheduleSyncAttempt(10000);
+          const deferredDelay = 10000;
+          const deferredUntil = new Date(Date.now() + deferredDelay).toISOString();
+          const deferred = await deferSyncItemIfUnchanged(
+            item.id,
+            item.data_json,
+            deferredUntil,
+          );
+          if (!deferred) {
+            supersededCount++;
+          }
+          requestFollowupAfterCurrentSync(deferredDelay);
           continue;
         }
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        await markSyncItemFailed(item.id, errorMsg);
+        const retryDelay = RETRY_DELAYS[Math.min(item.retry_count, RETRY_DELAYS.length - 1)];
+        const retryAt = new Date(Date.now() + retryDelay).toISOString();
+        const failureRecorded = await markSyncItemFailedIfUnchanged(
+          item.id,
+          item.data_json,
+          errorMsg,
+          retryAt,
+        );
+        if (!failureRecorded) {
+          supersededCount++;
+          continue;
+        }
         failCount++;
 
-        const retryDelay = RETRY_DELAYS[Math.min(item.retry_count, RETRY_DELAYS.length - 1)];
-        scheduleSyncAttempt(retryDelay);
+        requestFollowupAfterCurrentSync(retryDelay);
       }
     }
 
@@ -424,10 +499,57 @@ async function processQueue(): Promise<void> {
         lastError: `${failCount} item${failCount > 1 ? "s" : ""} failed to sync`,
       });
     }
+    if (supersededCount > 0) {
+      requestFollowupAfterCurrentSync(500);
+    }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Sync failed";
     setState({ isSyncing: false, lastError: errorMsg });
-    scheduleSyncAttempt(15000);
+    requestFollowupAfterCurrentSync(15000);
+  } finally {
+    if (state.isSyncing) {
+      setState({ isSyncing: false });
+    }
+
+    let followupDelay = followupDelayWhileSyncing;
+    followupDelayWhileSyncing = null;
+    if (state.isConnected) {
+      try {
+        const latestPending = await getPendingSyncItems();
+        const now = Date.now();
+        const hasNewOrChangedWork = latestPending.some(
+          item => (
+            syncItemIsDue(item, now) &&
+            attemptedSnapshots.get(item.id) !== item.data_json
+          ),
+        );
+        if (hasNewOrChangedWork) {
+          followupDelay = followupDelay === null
+            ? 500
+            : Math.min(followupDelay, 500);
+        }
+        const futureAttemptTimes = latestPending
+          .map(item => item.next_attempt_at
+            ? new Date(item.next_attempt_at).getTime()
+            : Number.NaN)
+          .filter(attemptAt => !Number.isNaN(attemptAt) && attemptAt > now);
+        if (futureAttemptTimes.length > 0) {
+          const earliestRetryDelay = Math.max(
+            0,
+            Math.min(...futureAttemptTimes) - now,
+          );
+          followupDelay = followupDelay === null
+            ? earliestRetryDelay
+            : Math.min(followupDelay, earliestRetryDelay);
+        }
+      } catch {
+        // A later app or network event will retry if storage is unavailable.
+      }
+    }
+
+    if (state.isConnected && followupDelay !== null) {
+      scheduleSyncAttempt(followupDelay);
+    }
   }
 }
 
@@ -503,17 +625,22 @@ async function getCachedModuleKeysForFarm(farmId: string): Promise<string[] | nu
   }
 }
 
+interface UploadSyncResult {
+  createdOrganicInputServerId?: number;
+  deletedOrganicInput?: boolean;
+}
+
 async function uploadSyncItem(item: {
   id: string;
   record_type: string;
   record_id: string;
   data_json: string;
   retry_count: number;
-}): Promise<void> {
+}): Promise<UploadSyncResult> {
   const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!apiDomain) {
     await simulateUpload();
-    return;
+    return {};
   }
 
   // Guard winery record types: only sync when the record's farm has a confirmed
@@ -532,7 +659,7 @@ async function uploadSyncItem(item: {
       const hasWinery = moduleKeys.includes("viticulture");
       if (!hasWinery) {
         // Confirmed non-viticulture farm: discard the record without uploading.
-        return;
+        return {};
       }
     }
   }
@@ -554,16 +681,41 @@ async function uploadSyncItem(item: {
       }
       if (!moduleKeys.includes("water-irrigation")) {
         // Confirmed module-absent farm: discard the record to clear the sync badge.
-        return;
+        return {};
       }
     }
   }
 
   const data = JSON.parse(item.data_json) as Record<string, unknown>;
-  const endpoint = getSyncEndpoint(item.record_type, data.farmId as string, data);
+  const pendingOrganicServerId = item.record_type === "bde_organic_inputs"
+    ? Number(data._serverRecordId)
+    : null;
+  const hasPendingOrganicServerId = (
+    pendingOrganicServerId !== null &&
+    Number.isInteger(pendingOrganicServerId) &&
+    pendingOrganicServerId > 0
+  );
+  const discardPendingOrganicInput = (
+    item.record_type === "bde_organic_inputs" &&
+    data._discardRequested === true
+  );
+  const organicInputEdit = item.record_type === ORGANIC_INPUT_EDIT_RECORD_TYPE
+    ? parseQueuedOrganicInputEdit(data)
+    : null;
+  if (
+    item.record_type === ORGANIC_INPUT_EDIT_RECORD_TYPE &&
+    (!organicInputEdit || String(organicInputEdit.serverRecordId) !== item.record_id)
+  ) {
+    throw new Error("Invalid queued organic input edit");
+  }
+  const endpoint = organicInputEdit
+    ? `/farms/${organicInputEdit.farmId}/organic/inputs/${organicInputEdit.serverRecordId}`
+    : hasPendingOrganicServerId
+      ? `/farms/${String(data.farmId)}/organic/inputs/${pendingOrganicServerId}`
+    : getSyncEndpoint(item.record_type, data.farmId as string, data);
   if (!endpoint) {
     await simulateUpload();
-    return;
+    return {};
   }
 
   const token = await getAuthToken();
@@ -577,17 +729,42 @@ async function uploadSyncItem(item: {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const mappedData = remapForApi(item.record_type, data);
+  const mappedData = organicInputEdit?.changes ?? remapForApi(item.record_type, data);
   const baseUrl = `https://${apiDomain}/api`;
   const response = await fetch(`${baseUrl}${endpoint}`, {
-    method: "POST",
+    method: discardPendingOrganicInput && hasPendingOrganicServerId
+      ? "DELETE"
+      : organicInputEdit || hasPendingOrganicServerId
+        ? "PUT"
+        : "POST",
     headers,
-    body: JSON.stringify(mappedData),
+    ...(discardPendingOrganicInput && hasPendingOrganicServerId
+      ? {}
+      : { body: JSON.stringify(mappedData) }),
   });
 
   if (!response.ok) {
     throw new Error(`Server responded with ${response.status}`);
   }
+  if (discardPendingOrganicInput && hasPendingOrganicServerId) {
+    return { deletedOrganicInput: true };
+  }
+  if (item.record_type === "bde_organic_inputs" && !hasPendingOrganicServerId) {
+    let responseBody: unknown;
+    try {
+      responseBody = await response.json();
+    } catch {
+      throw new Error("Organic input create response did not include a server record");
+    }
+    const serverId = Number(
+      (responseBody as { record?: { id?: unknown } } | null)?.record?.id,
+    );
+    if (!Number.isInteger(serverId) || serverId <= 0) {
+      throw new Error("Organic input create response did not include a valid server record ID");
+    }
+    return { createdOrganicInputServerId: serverId };
+  }
+  return {};
 }
 
 function remapForApi(recordType: string, data: Record<string, unknown>): Record<string, unknown> {
@@ -615,7 +792,12 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
   if (recordType === "bde_organic_inputs") {
     // Include the stable mobile UUID as mobileRecordId so the server-side
     // ON CONFLICT DO NOTHING upsert can deduplicate retries after a lost response.
-    return { ...data, mobileRecordId: data.id };
+    const {
+      _serverRecordId: _ignoredServerRecordId,
+      _discardRequested: _ignoredDiscardRequested,
+      ...apiData
+    } = data;
+    return { ...apiData, mobileRecordId: data.id };
   }
   if (recordType === "bde_organic_fp_inputs") {
     return {

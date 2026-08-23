@@ -19,8 +19,10 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { deletePendingSyncItem, getPendingSyncItems, kvGet } from "@/lib/database";
+import { getPendingSyncItems, kvGet, requestPendingSyncItemDiscard } from "@/lib/database";
 import { STORAGE_KEYS } from "@/lib/storage";
+import { parseQueuedOrganicInputEdit } from "@/lib/organicInputOfflineEdit";
+import { scheduleSync } from "@/lib/sync-engine";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -96,6 +98,54 @@ interface DisplayRecord {
   cropYear: number | null;
   notes: string | null;
   pending: boolean;
+  editPending: boolean;
+}
+
+function applyPendingEdit(
+  record: DisplayRecord,
+  changes: Record<string, unknown>,
+): DisplayRecord {
+  return {
+    ...record,
+    productName: String(changes.productName ?? record.productName),
+    inputType: changes.inputType == null ? null : String(changes.inputType),
+    approvalStatus: String(changes.approvalStatus ?? record.approvalStatus),
+    supplier: changes.supplier == null ? null : String(changes.supplier),
+    dateOfUse: changes.dateOfUse == null ? null : String(changes.dateOfUse),
+    fieldName: changes.fieldName == null ? null : String(changes.fieldName),
+    quantityAmount: changes.quantityAmount == null ? null : String(changes.quantityAmount),
+    quantityUnit: changes.quantityUnit == null ? null : String(changes.quantityUnit),
+    cropYear: changes.cropYear == null ? null : Number(changes.cropYear),
+    certifierApprovalRef: changes.certifierApprovalRef == null ? null : String(changes.certifierApprovalRef),
+    derogationExpiryDate: changes.derogationExpiryDate == null ? null : String(changes.derogationExpiryDate),
+    notes: changes.notes == null ? null : String(changes.notes),
+    editPending: true,
+  };
+}
+
+function pendingEditOnlyRecord(
+  serverId: number,
+  changes: Record<string, unknown>,
+): DisplayRecord {
+  return applyPendingEdit({
+    key: `server-${serverId}`,
+    serverId,
+    localId: null,
+    productName: "",
+    inputType: null,
+    approvalStatus: "permitted",
+    supplier: null,
+    dateOfUse: null,
+    quantityAmount: null,
+    quantityUnit: null,
+    certifierApprovalRef: null,
+    derogationExpiryDate: null,
+    fieldName: null,
+    cropYear: null,
+    notes: null,
+    pending: false,
+    editPending: false,
+  }, changes);
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -107,7 +157,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 export default function OrganicInputsListScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { refreshPendingCount } = useSync();
+  const { pendingCount, refreshPendingCount } = useSync();
   const farmId = currentFarm?.id;
 
   const [records, setRecords] = useState<DisplayRecord[]>([]);
@@ -124,10 +174,11 @@ export default function OrganicInputsListScreen() {
     // not the unreliable JSON payload synced field which is not updated after sync).
     const allPending = await getPendingSyncItems();
     const pendingItems = allPending.filter(item => item.record_type === STORAGE_KEYS.ORGANIC_INPUTS);
+    const pendingEditItems = allPending.filter(item => item.record_type === STORAGE_KEYS.ORGANIC_INPUT_EDITS);
     const pending: DisplayRecord[] = pendingItems
       .map(item => {
         const data = JSON.parse(item.data_json) as Record<string, unknown>;
-        if (data.farmId !== farmId) return null;
+        if (data.farmId !== farmId || data._discardRequested === true) return null;
         const rec: DisplayRecord = {
           key: `pending-${item.record_id}`,
           serverId: null,
@@ -145,6 +196,7 @@ export default function OrganicInputsListScreen() {
           cropYear: data.cropYear ? Number(data.cropYear) : null,
           notes: data.notes ? String(data.notes) : null,
           pending: true,
+          editPending: false,
         };
         return rec;
       })
@@ -175,16 +227,40 @@ export default function OrganicInputsListScreen() {
             cropYear: r.cropYear,
             notes: r.notes,
             pending: false,
+            editPending: false,
           }));
         }
       } catch {}
     }
 
+    // Overlay the latest locally-saved edit on its server row until the queued PUT succeeds.
+    // New offline records remain at the top, while pending edits retain their normal position.
+    const pendingEdits = new Map<number, Record<string, unknown>>();
+    for (const item of pendingEditItems) {
+      try {
+        const edit = parseQueuedOrganicInputEdit(JSON.parse(item.data_json));
+        if (edit?.farmId === farmId && String(edit.serverRecordId) === item.record_id) {
+          pendingEdits.set(edit.serverRecordId, edit.changes);
+        }
+      } catch {
+        // Ignore malformed persisted edits so one bad queue row cannot strand
+        // the whole list in its loading state. The sync engine marks it failed.
+      }
+    }
+    const displayServer = server.map((record) => {
+      const changes = pendingEdits.get(record.serverId!);
+      return changes ? applyPendingEdit(record, changes) : record;
+    });
+    const displayedServerIds = new Set(displayServer.map(record => record.serverId));
+    const offlineOnlyEdits = Array.from(pendingEdits.entries())
+      .filter(([serverId]) => !displayedServerIds.has(serverId))
+      .map(([serverId, changes]) => pendingEditOnlyRecord(serverId, changes));
+
     // Pending at top (awaiting sync), then server records ordered newest-first (API default)
-    setRecords([...pending, ...server]);
+    setRecords([...pending, ...offlineOnlyEdits, ...displayServer]);
     setLoading(false);
     setRefreshing(false);
-  }, [farmId, apiBase]);
+  }, [farmId, apiBase, pendingCount]);
 
   // Reload whenever screen comes into focus (e.g. returning from add/edit form)
   useFocusEffect(useCallback(() => {
@@ -226,7 +302,7 @@ export default function OrganicInputsListScreen() {
     if (!r.localId) return;
     Alert.alert(
       "Discard Pending Record",
-      `Remove "${r.productName}" from the sync queue? It has not been saved to the server yet.`,
+      `Remove "${r.productName}"? If syncing has already started, its server copy will also be removed.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -235,9 +311,16 @@ export default function OrganicInputsListScreen() {
           onPress: async () => {
             setDeleting(r.localId!);
             try {
-              await deletePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, r.localId!);
+              const queued = await requestPendingSyncItemDiscard(
+                STORAGE_KEYS.ORGANIC_INPUTS,
+                r.localId!,
+              );
+              if (!queued) {
+                throw new Error("Pending record is no longer available");
+              }
               setRecords(prev => prev.filter(x => x.localId !== r.localId));
               await refreshPendingCount();
+              await scheduleSync();
             } catch {
               Alert.alert("Error", "Could not discard this record. Please try again.");
             } finally {
@@ -326,10 +409,11 @@ export default function OrganicInputsListScreen() {
                   {i > 0 && <View style={styles.divider} />}
                   {/* Outer row is a plain View so the delete button sits beside the edit target */}
                   <View style={styles.row}>
-                    {/* Tappable content area — opens edit form for synced and pending records */}
+                    {/* Tappable content area — opens new pending and synced records, unless a server edit is syncing */}
                     <Pressable
-                      style={({ pressed }) => [styles.rowContent, pressed && styles.rowPressed]}
-                      onPress={() => handleEdit(r)}
+                      style={({ pressed }) => [styles.rowContent, pressed && !r.editPending && styles.rowPressed]}
+                      onPress={() => { if (!r.editPending) handleEdit(r); }}
+                      disabled={r.editPending}
                     >
                       <View style={styles.nameRow}>
                         <Text style={styles.productName} numberOfLines={1}>{r.productName}</Text>
@@ -339,6 +423,11 @@ export default function OrganicInputsListScreen() {
                         {r.pending && (
                           <View style={styles.pendingBadge}>
                             <Text style={styles.pendingText}>Pending sync</Text>
+                          </View>
+                        )}
+                        {r.editPending && (
+                          <View style={styles.pendingBadge}>
+                            <Text style={styles.pendingText}>Edit pending sync</Text>
                           </View>
                         )}
                       </View>
@@ -401,7 +490,7 @@ export default function OrganicInputsListScreen() {
                     </Pressable>
 
                     {/* Delete + chevron sit OUTSIDE the edit Pressable so taps don't bubble */}
-                    {(r.pending ? r.localId != null : r.serverId != null) && (
+                    {(r.pending ? r.localId != null : !r.editPending && r.serverId != null) && (
                       <View style={styles.actions}>
                         <Pressable
                           style={styles.actionBtn}
@@ -429,7 +518,6 @@ export default function OrganicInputsListScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {

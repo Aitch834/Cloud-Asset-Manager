@@ -18,12 +18,14 @@ interface SyncQueueRow {
   status: string;
   retry_count: number;
   last_error?: string;
+  next_attempt_at?: string | null;
   created_at: string;
 }
 
 let sqliteDb: SQLiteDB | null = null;
 let usingSQLite = false;
 
+let syncQueueWriteChain: Promise<void> = Promise.resolve();
 async function initSQLite(): Promise<boolean> {
   if (Platform.OS === "web") return false;
   try {
@@ -48,6 +50,7 @@ async function initSQLite(): Promise<boolean> {
         status TEXT NOT NULL DEFAULT 'pending',
         retry_count INTEGER NOT NULL DEFAULT 0,
         last_error TEXT,
+        next_attempt_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -74,6 +77,14 @@ async function initSQLite(): Promise<boolean> {
         PRIMARY KEY (data_type, farm_id)
       );
     `);
+    const syncQueueColumns = await localDb.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(sync_queue)",
+    );
+    if (!syncQueueColumns.some(column => column.name === "next_attempt_at")) {
+      await localDb.execAsync(
+        "ALTER TABLE sync_queue ADD COLUMN next_attempt_at TEXT",
+      );
+    }
     usingSQLite = true;
     return true;
   } catch (initErr: unknown) {
@@ -343,13 +354,99 @@ export async function enqueueSyncItem(
   await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
 }
 
+/**
+ * Keep only the latest pending change for a server-owned record. This avoids
+ * replaying stale edits if a grower saves the same record more than once while
+ * offline.
+ */
+export async function replacePendingSyncItem(
+  recordType: string,
+  recordId: string,
+  data: unknown,
+): Promise<void> {
+  await ensureInit();
+  await serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const existing = await db().getAllAsync<{ id: string }>(
+        "SELECT id FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending' ORDER BY created_at DESC",
+        [recordType, recordId],
+      );
+      if (existing.length > 0) {
+        // Update every duplicate first. If the app stops before cleanup, every
+        // surviving replay still carries the newest edit rather than stale data.
+        await db().runAsync(
+          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+          [JSON.stringify(data), recordType, recordId],
+        );
+        await db().runAsync(
+          "DELETE FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending' AND id <> ?",
+          [recordType, recordId, existing[0].id],
+        );
+        return;
+      }
+      const id = Crypto.randomUUID();
+      await db().runAsync(
+        "INSERT INTO sync_queue (id, record_type, record_id, data_json, status, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now'))",
+        [id, recordType, recordId, JSON.stringify(data)],
+      );
+      return;
+    }
+
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    const queue: SyncQueueRow[] = raw ? JSON.parse(raw) : [];
+    const matching = queue.filter(
+      (item) => item.record_type === recordType && item.record_id === recordId && item.status === "pending",
+    );
+    const keepId = matching[0]?.id;
+    const nextQueue = queue.filter(
+      (item) => (
+        item.record_type !== recordType ||
+        item.record_id !== recordId ||
+        item.status !== "pending" ||
+        item.id === keepId
+      ),
+    );
+    const existing = keepId ? nextQueue.find(item => item.id === keepId) : undefined;
+    if (existing) {
+      existing.data_json = JSON.stringify(data);
+      existing.retry_count = 0;
+      delete existing.last_error;
+      delete existing.next_attempt_at;
+    } else {
+      nextQueue.push({
+        id: Crypto.randomUUID(),
+        record_type: recordType,
+        record_id: recordId,
+        data_json: JSON.stringify(data),
+        status: "pending",
+        retry_count: 0,
+        created_at: new Date().toISOString(),
+      });
+    }
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(nextQueue));
+  });
+}
 export async function getPendingSyncItems(): Promise<
-  { id: string; record_type: string; record_id: string; data_json: string; retry_count: number }[]
+  {
+    id: string;
+    record_type: string;
+    record_id: string;
+    data_json: string;
+    retry_count: number;
+    next_attempt_at?: string | null;
+  }[]
 > {
   await ensureInit();
   if (usingSQLite) {
-    return db().getAllAsync<{ id: string; record_type: string; record_id: string; data_json: string; retry_count: number }>(
-      "SELECT id, record_type, record_id, data_json, retry_count FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC",
+    return db().getAllAsync<{
+      id: string;
+      record_type: string;
+      record_id: string;
+      data_json: string;
+      retry_count: number;
+      next_attempt_at: string | null;
+    }>(
+      "SELECT id, record_type, record_id, data_json, retry_count, next_attempt_at FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC",
     );
   }
   const raw = await AsyncStorage.getItem("bde_sync_queue");
@@ -391,6 +488,41 @@ export async function markSyncItemCompleted(id: string): Promise<void> {
   }
 }
 
+/**
+ * Complete a queue item only if it still contains the exact payload that was
+ * uploaded. A newer offline edit may replace data_json while the request is in
+ * flight; in that case the new revision must remain pending.
+ */
+export async function markSyncItemCompletedIfUnchanged(
+  id: string,
+  uploadedDataJson: string,
+): Promise<boolean> {
+  await ensureInit();
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const result = await db().runAsync(
+        "UPDATE sync_queue SET status = 'completed', updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+        [id, uploadedDataJson],
+      );
+      return result.changes > 0;
+    }
+
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    const item = queue.find(
+      candidate => (
+        candidate.id === id &&
+        candidate.status === "pending" &&
+        candidate.data_json === uploadedDataJson
+      ),
+    );
+    if (!item) return false;
+    item.status = "completed";
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    return true;
+  });
+}
 export async function markSyncItemFailed(id: string, error: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
@@ -412,6 +544,81 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
   }
 }
 
+/**
+ * Record a failed attempt only if the queue payload has not been replaced
+ * since that attempt began.
+ */
+export async function markSyncItemFailedIfUnchanged(
+  id: string,
+  uploadedDataJson: string,
+  error: string,
+  nextAttemptAt: string,
+): Promise<boolean> {
+  await ensureInit();
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const result = await db().runAsync(
+        "UPDATE sync_queue SET status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, next_attempt_at = CASE WHEN retry_count >= 4 THEN NULL ELSE ? END, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+        [error, nextAttemptAt, id, uploadedDataJson],
+      );
+      return result.changes > 0;
+    }
+
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    const item = queue.find(
+      candidate => (
+        candidate.id === id &&
+        candidate.status === "pending" &&
+        candidate.data_json === uploadedDataJson
+      ),
+    );
+    if (!item) return false;
+    item.retry_count = (item.retry_count || 0) + 1;
+    item.last_error = error;
+    if (item.retry_count >= 5) {
+      item.status = "failed";
+      delete item.next_attempt_at;
+    } else {
+      item.next_attempt_at = nextAttemptAt;
+    }
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    return true;
+  });
+}
+
+export async function deferSyncItemIfUnchanged(
+  id: string,
+  uploadedDataJson: string,
+  nextAttemptAt: string,
+): Promise<boolean> {
+  await ensureInit();
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const result = await db().runAsync(
+        "UPDATE sync_queue SET next_attempt_at = ?, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+        [nextAttemptAt, id, uploadedDataJson],
+      );
+      return result.changes > 0;
+    }
+
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    const item = queue.find(
+      candidate => (
+        candidate.id === id &&
+        candidate.status === "pending" &&
+        candidate.data_json === uploadedDataJson
+      ),
+    );
+    if (!item) return false;
+    item.next_attempt_at = nextAttemptAt;
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    return true;
+  });
+}
 export async function markRecordSynced(table: string, id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {
@@ -481,6 +688,71 @@ export async function deletePendingSyncItem(recordType: string, recordId: string
 }
 
 /**
+ * Turn a pending organic-input create into a durable discard tombstone.
+ * The sync engine will resolve the server ID through the idempotent POST, then
+ * DELETE that server row, so a create already in flight cannot become orphaned.
+ */
+export async function requestPendingSyncItemDiscard(
+  recordType: string,
+  recordId: string,
+): Promise<boolean> {
+  await ensureInit();
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const item = await db().getFirstAsync<{ id: string; data_json: string }>(
+        "SELECT id, data_json FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+        [recordType, recordId],
+      );
+      if (!item) return false;
+      const data = JSON.parse(item.data_json) as Record<string, unknown>;
+      const nextJson = JSON.stringify({ ...data, _discardRequested: true });
+      const table = TABLE_MAP[recordType];
+      let updated = false;
+      await db().withTransactionAsync(async () => {
+        const result = await db().runAsync(
+          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+          [nextJson, item.id, item.data_json],
+        );
+        updated = result.changes > 0;
+        if (updated && table) {
+          await db().runAsync(
+            "UPDATE records SET data_json = ? WHERE id = ? AND record_type = ?",
+            [nextJson, recordId, table],
+          );
+        }
+      });
+      return updated;
+    }
+
+    const queueRaw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!queueRaw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(queueRaw);
+    const item = queue.find(
+      candidate => (
+        candidate.record_type === recordType &&
+        candidate.record_id === recordId &&
+        candidate.status === "pending"
+      ),
+    );
+    if (!item) return false;
+    const data = JSON.parse(item.data_json) as Record<string, unknown>;
+    item.data_json = JSON.stringify({ ...data, _discardRequested: true });
+    item.retry_count = 0;
+    delete item.last_error;
+    delete item.next_attempt_at;
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    const table = TABLE_MAP[recordType];
+    if (table) {
+      await AsyncStorage.setItem(
+        `bde_record_${table}_${recordId}`,
+        item.data_json,
+      );
+    }
+    return true;
+  });
+}
+
+/**
  * Overwrite the data in a pending sync queue entry without creating a duplicate.
  * Used when a grower edits a not-yet-synced record before it reaches the server.
  */
@@ -493,54 +765,129 @@ export async function deletePendingSyncItem(recordType: string, recordId: string
 export async function updatePendingSyncItem(recordType: string, recordId: string, data: unknown): Promise<boolean> {
   await ensureInit();
   const json = JSON.stringify(data);
-  if (usingSQLite) {
-    const table = TABLE_MAP[recordType];
-    let updated = false;
-    await db().withTransactionAsync(async () => {
-      const result = await db().runAsync(
-        "UPDATE sync_queue SET data_json = ?, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'pending'",
-        [json, recordType, recordId],
-      );
-      updated = result.changes > 0;
-      if (updated && table) {
-        await db().runAsync(
-          "UPDATE records SET data_json = ? WHERE id = ? AND record_type = ?",
-          [json, recordId, table],
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const table = TABLE_MAP[recordType];
+      let updated = false;
+      await db().withTransactionAsync(async () => {
+        const result = await db().runAsync(
+          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+          [json, recordType, recordId],
         );
-      }
-    });
-    return updated;
-  }
-  // AsyncStorage fallback: queue first (most critical), then local record.
-  // No true transaction — partial failure leaves queue carrying new data and
-  // local record carrying old data. Sync will send the new payload, so the
-  // server will have the corrected record. Acceptable for web-only path.
-  const queueRaw = await AsyncStorage.getItem("bde_sync_queue");
-  if (!queueRaw) return false;
-  const queue: SyncQueueRow[] = JSON.parse(queueRaw);
-  const idx = queue.findIndex(
-    (i) => i.record_type === recordType && i.record_id === recordId && i.status === "pending",
-  );
-  if (idx === -1) return false;
-  queue[idx].data_json = json;
-  await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
-  const table = TABLE_MAP[recordType];
-  if (table) {
-    await AsyncStorage.setItem(`bde_record_${table}_${recordId}`, json);
-  }
-  return true;
+        updated = result.changes > 0;
+        if (updated && table) {
+          await db().runAsync(
+            "UPDATE records SET data_json = ? WHERE id = ? AND record_type = ?",
+            [json, recordId, table],
+          );
+        }
+      });
+      return updated;
+    }
+    // Keep the queue and local copy inside the same serialized write section.
+    // This prevents completion/cleanup for an older upload snapshot from
+    // overwriting or deleting the grower's newer edit.
+    const queueRaw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!queueRaw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(queueRaw);
+    const idx = queue.findIndex(
+      (i) => i.record_type === recordType && i.record_id === recordId && i.status === "pending",
+    );
+    if (idx === -1) return false;
+    queue[idx].data_json = json;
+    queue[idx].retry_count = 0;
+    delete queue[idx].last_error;
+    delete queue[idx].next_attempt_at;
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    const table = TABLE_MAP[recordType];
+    if (table) {
+      await AsyncStorage.setItem(`bde_record_${table}_${recordId}`, json);
+    }
+    return true;
+  });
+}
+
+/**
+ * Convert a successfully-created mobile record's still-pending queue row into
+ * a server-targeted revision. This deliberately changes data_json so the POST
+ * snapshot cannot complete the row; the next sync pass can PUT the latest
+ * payload to the returned server ID.
+ */
+export async function setPendingSyncItemServerRecordId(
+  id: string,
+  serverRecordId: number,
+): Promise<boolean> {
+  await ensureInit();
+  if (!Number.isInteger(serverRecordId) || serverRecordId <= 0) return false;
+
+  return serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      const item = await db().getFirstAsync<{
+        data_json: string;
+        record_type: string;
+        record_id: string;
+      }>(
+        "SELECT data_json, record_type, record_id FROM sync_queue WHERE id = ? AND status = 'pending'",
+        [id],
+      );
+      if (!item) return false;
+      const data = JSON.parse(item.data_json) as Record<string, unknown>;
+      const nextJson = JSON.stringify({ ...data, _serverRecordId: serverRecordId });
+      const table = TABLE_MAP[item.record_type];
+      let updated = false;
+      await db().withTransactionAsync(async () => {
+        const result = await db().runAsync(
+          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+          [nextJson, id, item.data_json],
+        );
+        updated = result.changes > 0;
+        if (updated && table) {
+          await db().runAsync(
+            "UPDATE records SET data_json = ? WHERE id = ? AND record_type = ?",
+            [nextJson, item.record_id, table],
+          );
+        }
+      });
+      return updated;
+    }
+
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return false;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    const item = queue.find(candidate => candidate.id === id && candidate.status === "pending");
+    if (!item) return false;
+    const data = JSON.parse(item.data_json) as Record<string, unknown>;
+    item.data_json = JSON.stringify({ ...data, _serverRecordId: serverRecordId });
+    item.retry_count = 0;
+    delete item.last_error;
+    delete item.next_attempt_at;
+    const table = TABLE_MAP[item.record_type];
+    if (table) {
+      await AsyncStorage.setItem(
+        `bde_record_${table}_${item.record_id}`,
+        item.data_json,
+      );
+    }
+    // AsyncStorage has no cross-key transaction. Persist the recovery pointer
+    // before exposing it on the queue so an interruption can only cause a safe
+    // duplicate POST, never queue cleanup without a durable server ID.
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    return true;
+  });
 }
 
 export async function clearCompletedSyncItems(): Promise<void> {
   await ensureInit();
-  if (usingSQLite) {
-    await db().runAsync("DELETE FROM sync_queue WHERE status = 'completed'");
-    return;
-  }
-  const raw = await AsyncStorage.getItem("bde_sync_queue");
-  if (!raw) return;
-  const queue: SyncQueueRow[] = JSON.parse(raw);
-  await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue.filter((i) => i.status !== "completed")));
+  await serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      await db().runAsync("DELETE FROM sync_queue WHERE status = 'completed'");
+      return;
+    }
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue.filter((i) => i.status !== "completed")));
+  });
 }
 
 export async function saveRefCache(dataType: string, farmId: string, data: unknown): Promise<void> {
@@ -586,4 +933,13 @@ export async function getRefCacheUpdatedAt(dataType: string, farmId: string): Pr
   if (!raw) return null;
   const parsed = JSON.parse(raw) as { syncedAt: string };
   return parsed.syncedAt ? new Date(parsed.syncedAt) : null;
+}
+
+async function serializeSyncQueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = syncQueueWriteChain.then(operation, operation);
+  syncQueueWriteChain = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
 }

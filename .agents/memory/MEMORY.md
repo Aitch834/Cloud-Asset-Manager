@@ -73,3 +73,4 @@
 - [Sector alert system — county filtering](sector-alert-county-filtering.md) — 4 sectors × 5 keys in PLATFORM_CONFIG_DEFAULTS; county filter via ?farmId= on public endpoints; resolveFarmCounty does DB lookup; fail-open when county blank
 - [Defra plant health alerts](defra-plant-health-alerts.md) — Defra confirms there is currently no API or structured subscription feed; use official portal links/manual publication rather than scraping
 - [Vineyard Magazine advert](vineyard-magazine-ad.md) — approved portrait CMYK artwork is the version to use for the next magazine issue
+- [Mutable sync queue revisions](mutable-sync-queue-revisions.md) — queued edits need payload-aware completion/failure or an older in-flight request can discard a newer local revision

@@ -13,6 +13,7 @@ import {
   kvSet,
   updateRecord,
 } from "./database";
+import { ORGANIC_INPUT_EDIT_RECORD_TYPE } from "./organicInputOfflineEdit";
 
 export function generateId(): string {
   return Crypto.randomUUID();
@@ -294,6 +295,7 @@ export const STORAGE_KEYS = {
   THIRD_PARTY_GRAIN_OUTLOADINGS: "bde_third_party_grain_outloadings",
   ORGANIC_INSPECTIONS: "bde_organic_inspections",
   ORGANIC_INPUTS: "bde_organic_inputs",
+  ORGANIC_INPUT_EDITS: ORGANIC_INPUT_EDIT_RECORD_TYPE,
   ORGANIC_FP_INPUTS: "bde_organic_fp_inputs",
   ORGANIC_OUTDOOR_ACCESS: "bde_organic_outdoor_access",
   ORGANIC_TREATMENTS: "bde_organic_treatments",

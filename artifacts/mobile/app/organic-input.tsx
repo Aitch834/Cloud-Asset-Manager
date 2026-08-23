@@ -23,9 +23,11 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
-import { kvGet, updatePendingSyncItem } from "@/lib/database";
+import { kvGet, replacePendingSyncItem } from "@/lib/database";
+import { savePendingOrganicInputRevision } from "@/lib/organicInputPendingEdit";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicInput } from "@/lib/types";
+import { scheduleSync } from "@/lib/sync-engine";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -79,7 +81,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export default function OrganicInputScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { refreshPendingCount } = useSync();
+  const { isConnected, refreshPendingCount } = useSync();
   const { fields, loading: fieldsLoading } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -136,6 +138,21 @@ export default function OrganicInputScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const changes = {
+      productName: productName.trim(),
+      inputType: inputType.trim() || null,
+      approvalStatus,
+      supplier: supplier.trim() || null,
+      dateOfUse: dateOfUse.trim() || null,
+      fieldName: fieldName.trim() || null,
+      quantityAmount: quantityAmount.trim() || null,
+      quantityUnit: quantityUnit.trim() || null,
+      cropYear: cropYear.trim() ? parseInt(cropYear.trim()) : null,
+      certifierApprovalRef: certifierApprovalRef.trim() || null,
+      derogationExpiryDate: derogationExpiryDate.trim() || null,
+      notes: notes.trim() || null,
+    };
+
     if (isPendingEdit) {
       // ── Pending edit mode: overwrite the queued local record ──────────────
       try {
@@ -157,19 +174,23 @@ export default function OrganicInputScreen() {
           createdAt: new Date().toISOString(),
           synced: false,
         };
-        const updated = await updatePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, params.pendingId!, updatedRecord);
+        const outcome = await savePendingOrganicInputRevision({
+          localId: params.pendingId!,
+          farmId: currentFarm?.id ?? "",
+          updatedRecord,
+          changes,
+        });
         setSaving(false);
-        if (!updated) {
-          // The record was already picked up and synced before the save landed —
-          // tell the grower so they can find it in the synced list and edit it there.
+        if (outcome === "server_record_unavailable") {
           Alert.alert(
-            "Already Synced",
-            "This record reached the server before you saved. Find it in the list and tap it to edit the synced version.",
-            [{ text: "OK", onPress: () => router.back() }]
+            "Could Not Save",
+            "The record finished syncing, but its server copy could not be identified. Keep this screen open and try again.",
           );
           return;
         }
-        Alert.alert("Record Updated", "Your changes will sync when you're back online.", [
+        await scheduleSync();
+        const title = outcome === "server_edit_queued" ? "Edit Pending Sync" : "Record Updated";
+        Alert.alert(title, "Your changes will sync when you're back online.", [
           { text: "OK", onPress: () => router.back() },
         ]);
       } catch {
@@ -178,6 +199,34 @@ export default function OrganicInputScreen() {
       }
     } else if (isEdit) {
       // ── Edit mode: PUT to server ──────────────────────────────────────────
+      const queueEdit = async (): Promise<void> => {
+        try {
+          await replacePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUT_EDITS, String(editId), {
+            farmId: currentFarm?.id ?? "",
+            serverRecordId: editId,
+            changes,
+          });
+          await scheduleSync();
+          Alert.alert(
+            "Edit Pending Sync",
+            "Your changes are saved on this device and will sync when your connection returns.",
+            [{ text: "OK", onPress: () => router.back() }],
+          );
+        } catch {
+          Alert.alert(
+            "Could Not Save",
+            "Your changes could not be saved on this device. Please keep this screen open and try again.",
+          );
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      if (!isConnected) {
+        await queueEdit();
+        return;
+      }
+
       try {
         const headers = await getAuthHeaders();
         const res = await fetch(
@@ -185,20 +234,7 @@ export default function OrganicInputScreen() {
           {
             method: "PUT",
             headers,
-            body: JSON.stringify({
-              productName: productName.trim(),
-              inputType: inputType.trim() || null,
-              approvalStatus,
-              supplier: supplier.trim() || null,
-              dateOfUse: dateOfUse.trim() || null,
-              fieldName: fieldName.trim() || null,
-              quantityAmount: quantityAmount.trim() || null,
-              quantityUnit: quantityUnit.trim() || null,
-              cropYear: cropYear.trim() ? parseInt(cropYear.trim()) : null,
-              certifierApprovalRef: certifierApprovalRef.trim() || null,
-              derogationExpiryDate: derogationExpiryDate.trim() || null,
-              notes: notes.trim() || null,
-            }),
+            body: JSON.stringify(changes),
           }
         );
         setSaving(false);
@@ -210,8 +246,9 @@ export default function OrganicInputScreen() {
           { text: "OK", onPress: () => router.back() },
         ]);
       } catch {
-        setSaving(false);
-        Alert.alert("Error", "Could not save changes. Please check your connection.");
+        // A fetch rejection is a network-level failure. Preserve the edit even
+        // if NetInfo had not yet reported that connectivity was lost.
+        await queueEdit();
       }
     } else {
       // ── Add mode: queue for sync ──────────────────────────────────────────
