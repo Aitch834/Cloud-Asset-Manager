@@ -5,7 +5,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -111,6 +113,19 @@ function safeParsePayload(json: string): LocalIrrigationPayload {
   }
 }
 
+// ─── Irrigation method options (mirrors irrigation-application.tsx) ──────────
+
+const IRRIGATION_METHODS = [
+  "Drip / Trickle",
+  "Overhead Sprinkler",
+  "Boom Irrigation",
+  "Flood / Furrow",
+  "Linear Move",
+  "Rain Gun",
+  "Sub-surface Drip",
+  "Micro-jet",
+];
+
 // ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function IrrigationHistoryScreen() {
@@ -125,6 +140,17 @@ export default function IrrigationHistoryScreen() {
   // Server-fetch error kept separate so local cards remain visible when offline.
   const [serverError, setServerError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // ── Edit modal state ──────────────────────────────────────────────────────
+  const [editRecord, setEditRecord] = useState<IrrigationRecord | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFieldDesc, setEditFieldDesc] = useState("");
+  const [editCropType, setEditCropType] = useState("");
+  const [editMethod, setEditMethod] = useState("");
+  const [editDepthMm, setEditDepthMm] = useState("");
+  const [editAreaHa, setEditAreaHa] = useState("");
+  const [editOperator, setEditOperator] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   const reqIdRef = useRef(0);
   // Per-request counter for local item loads — prevents stale farm-switch reads.
@@ -344,6 +370,85 @@ export default function IrrigationHistoryScreen() {
   const openErrorModal = useCallback((item: LocalIrrigationItem) => {
     setErrorModal({ visible: true, item });
   }, []);
+
+  // ── Open edit modal pre-filled from a server record ───────────────────────
+
+  const openEdit = useCallback((record: IrrigationRecord) => {
+    setEditRecord(record);
+    setEditFieldDesc(record.fieldOrBlockDescription ?? record.fieldName ?? "");
+    setEditCropType(record.cropType ?? "");
+    setEditMethod(record.irrigationMethod ?? "");
+    setEditDepthMm(
+      record.applicationDepthMm != null ? String(record.applicationDepthMm) : "",
+    );
+    setEditAreaHa(
+      record.areaIrrigatedHa != null ? String(record.areaIrrigatedHa) : "",
+    );
+    setEditOperator(record.operatorName ?? "");
+    setEditNotes(record.notes ?? "");
+  }, []);
+
+  const closeEdit = useCallback(() => {
+    setEditRecord(null);
+    setEditSaving(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editRecord || !farmId) return;
+    if (!editFieldDesc.trim()) {
+      Alert.alert("Required", "Please enter the field or block description.");
+      return;
+    }
+    if (!editMethod) {
+      Alert.alert("Required", "Please select the irrigation method.");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        fieldOrBlockDescription: editFieldDesc.trim() || null,
+        cropType: editCropType.trim() || null,
+        irrigationMethod: editMethod,
+        operatorName: editOperator.trim() || null,
+        notes: editNotes.trim() || null,
+        // Always send these so clearing a value (blank input) persists as null
+        // rather than leaving the old database value in place.
+        applicationDepthMm: editDepthMm.trim() ? editDepthMm.trim() : null,
+        areaIrrigatedHa: editAreaHa.trim() ? editAreaHa.trim() : null,
+        // Preserve the linked field so the server-side area-limit check runs
+        // against the correct field even when only depth/area is being corrected.
+        fieldId: editRecord.fieldId ?? null,
+      };
+      const res = await apiFetch(
+        `/api/farms/${farmId}/irrigation-records/${editRecord.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const updated = (await res.json()) as IrrigationRecord;
+      setRecords((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)),
+      );
+      closeEdit();
+    } catch {
+      Alert.alert("Save Failed", "Could not update the record. Please try again.");
+      setEditSaving(false);
+    }
+  }, [
+    editRecord,
+    farmId,
+    editFieldDesc,
+    editMethod,
+    editCropType,
+    editDepthMm,
+    editAreaHa,
+    editOperator,
+    editNotes,
+    closeEdit,
+  ]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
 
@@ -585,13 +690,22 @@ export default function IrrigationHistoryScreen() {
                   {isDeleting ? (
                     <ActivityIndicator size="small" color={colors.error} />
                   ) : (
-                    <Pressable
-                      onPress={() => handleDelete(item)}
-                      hitSlop={12}
-                      style={styles.deleteBtn}
-                    >
-                      <Feather name="trash-2" size={16} color={colors.error} />
-                    </Pressable>
+                    <View style={styles.cardActions}>
+                      <Pressable
+                        onPress={() => openEdit(item)}
+                        hitSlop={12}
+                        style={styles.editBtn}
+                      >
+                        <Feather name="edit-2" size={15} color={colors.primary} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDelete(item)}
+                        hitSlop={12}
+                        style={styles.deleteBtn}
+                      >
+                        <Feather name="trash-2" size={16} color={colors.error} />
+                      </Pressable>
+                    </View>
                   )}
                 </View>
 
@@ -653,6 +767,185 @@ export default function IrrigationHistoryScreen() {
           }}
         />
       )}
+
+      {/* ── Edit record modal ─────────────────────────────────────────────── */}
+      <Modal
+        visible={editRecord !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEdit}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.editOverlay}>
+            <View style={styles.editSheet}>
+              {/* Header */}
+              <View style={styles.editHeader}>
+                <Text style={styles.editTitle}>Edit Application</Text>
+                <Pressable onPress={closeEdit} hitSlop={12}>
+                  <Feather name="x" size={20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.editScrollContent}
+              >
+                {/* Date (read-only) */}
+                {editRecord ? (
+                  <View style={styles.editField}>
+                    <Text style={styles.editLabel}>Date</Text>
+                    <View style={styles.editReadonly}>
+                      <Text style={styles.editReadonlyText}>
+                        {formatDate(editRecord.irrigationDate)}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Field / Block */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Field / Block *</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editFieldDesc}
+                    onChangeText={setEditFieldDesc}
+                    placeholder="e.g. Home Field, North block"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                {/* Crop Type */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Crop Type</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editCropType}
+                    onChangeText={setEditCropType}
+                    placeholder="e.g. Potatoes, Lettuce"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                {/* Irrigation Method */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Irrigation Method *</Text>
+                  {IRRIGATION_METHODS.map((m) => (
+                    <Pressable
+                      key={m}
+                      onPress={() => setEditMethod(m)}
+                      style={[
+                        styles.methodOption,
+                        editMethod === m && styles.methodOptionSelected,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.methodRadio,
+                          editMethod === m && styles.methodRadioSelected,
+                        ]}
+                      >
+                        {editMethod === m && (
+                          <View style={styles.methodRadioInner} />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.methodOptionLabel,
+                          editMethod === m && styles.methodOptionLabelSelected,
+                        ]}
+                      >
+                        {m}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Area & Depth */}
+                <View style={styles.editRow}>
+                  <View style={[styles.editField, { flex: 1 }]}>
+                    <Text style={styles.editLabel}>Area (ha)</Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editAreaHa}
+                      onChangeText={setEditAreaHa}
+                      placeholder="e.g. 3.25"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={[styles.editField, { flex: 1 }]}>
+                    <Text style={styles.editLabel}>Depth (mm)</Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editDepthMm}
+                      onChangeText={setEditDepthMm}
+                      placeholder="e.g. 25.0"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+
+                {/* Operator */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Operator</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editOperator}
+                    onChangeText={setEditOperator}
+                    placeholder="Operator name"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                {/* Notes */}
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Notes</Text>
+                  <TextInput
+                    style={[styles.editInput, styles.editInputMultiline]}
+                    value={editNotes}
+                    onChangeText={setEditNotes}
+                    placeholder="Any observations or notes…"
+                    placeholderTextColor={colors.textTertiary}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                {/* Actions */}
+                <View style={styles.editActions}>
+                  <Pressable style={styles.editCancelBtn} onPress={closeEdit}>
+                    <Text style={styles.editCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.editSaveBtn,
+                      editSaving && styles.editSaveBtnDisabled,
+                    ]}
+                    onPress={() => void handleSaveEdit()}
+                    disabled={editSaving}
+                  >
+                    {editSaving ? (
+                      <ActivityIndicator size="small" color={colors.textInverse} />
+                    ) : (
+                      <Text style={styles.editSaveText}>Save Changes</Text>
+                    )}
+                  </Pressable>
+                </View>
+
+                <View style={{ height: 24 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Sync-error detail / retry modal */}
       <Modal
@@ -1233,6 +1526,163 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   modalRetryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textInverse,
+  },
+  // Card action buttons (edit + delete)
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  editBtn: { padding: 4 },
+  // Edit modal
+  editOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  editSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    maxHeight: "92%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  editHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  editTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
+  },
+  editScrollContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  editField: {
+    marginBottom: spacing.md,
+  },
+  editRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  editLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  editInputMultiline: {
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  editReadonly: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  editReadonlyText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  // Method radio buttons inside edit modal
+  methodOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.sm,
+  },
+  methodOptionSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "12",
+  },
+  methodRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  methodRadioSelected: { borderColor: colors.primary },
+  methodRadioInner: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.primary,
+  },
+  methodOptionLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  methodOptionLabelSelected: { color: colors.primary },
+  // Edit modal action buttons
+  editActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  editCancelBtn: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+  },
+  editCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  editSaveBtn: {
+    flex: 2,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editSaveBtnDisabled: { opacity: 0.6 },
+  editSaveText: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textInverse,
