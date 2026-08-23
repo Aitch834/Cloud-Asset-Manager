@@ -187,6 +187,34 @@ export function useUiPrefs(userId: string | null | undefined) {
   );
   const mounted = useRef(true);
 
+  // ---------------------------------------------------------------------------
+  // Synchronous reset on userId change (React "derived state from props" pattern)
+  //
+  // When userId changes from one non-null value to another, the existing effects
+  // cannot reset `prefs`/`prefsReady` synchronously: effect cleanups and new
+  // effect bodies run AFTER render, so any downstream initialization effects
+  // (e.g. a sort-preference screen that checks `prefsReady` on mount) would
+  // see stale values from the previous user during the same commit.
+  //
+  // The React-recommended solution is to call setState during render when a
+  // tracked "previous prop" value diverges.  React will immediately restart the
+  // render with the updated state, so every effect in the same commit starts
+  // from the correct per-user values.
+  //
+  // Reference: https://react.dev/learn/you-might-not-need-an-effect
+  //            (section "Adjusting some state when a prop changes")
+  // ---------------------------------------------------------------------------
+  const [trackedUserId, setTrackedUserId] = useState(userId);
+  if (trackedUserId !== userId) {
+    setTrackedUserId(userId);
+    // Snapshot the new user's singleton so the re-render starts from their
+    // current known state rather than a blank slate (avoids a needless spinner
+    // if the new user's prefs are already cached in the singleton).
+    const s = userId ? getSingleton(userId) : null;
+    setPrefsReady(s?.ready ?? false);
+    setPrefs(s ? { ...s.prefs } : {});
+  }
+
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
@@ -352,7 +380,67 @@ export function useUiPrefs(userId: string | null | undefined) {
     [userId],
   );
 
-  return { prefsReady, isHintDismissed, dismissHint, prefs };
+  /**
+   * Set a pref key to any boolean value, including `false`.
+   *
+   * Unlike `dismissHint` (which only ever sets `true` and runs the server PATCH
+   * outside the write queue), `setPref` serializes the entire operation —
+   * cache write, pending-queue write, PATCH, and cleanup — through the per-user
+   * `enqueueWrite` queue.  This guarantees that rapid successive calls (e.g.
+   * a user toggling a sort preference twice in quick succession) always reach
+   * the server in the correct order: the second enqueued slot does not start its
+   * PATCH until the first slot's PATCH has settled.
+   *
+   * Trade-off: `setPref` holds the write queue open for the duration of the
+   * network request.  This is acceptable for user-initiated toggles (rare) but
+   * would be unacceptable for high-frequency writes such as migrations; those
+   * should continue to use `dismissHint` or `runUiPrefMigration`.
+   */
+  const setPref = useCallback(
+    (key: string, value: boolean): void => {
+      if (!userId) return;
+      // Optimistic update: reflect the new value immediately in the in-memory
+      // singleton so every mounted hook instance sees it before any I/O.
+      const next = { ...getSingleton(userId).prefs, [key]: value };
+      setUserState(userId, next, /* ready */ true);
+      setPrefs({ ...next });
+
+      // Run the full write + PATCH cycle inside the write queue so that a
+      // rapid A→B→A toggle sequence always serializes: slot N's PATCH finishes
+      // before slot N+1 begins, preventing a stale PATCH from overwriting a
+      // newer one on the server.
+      void enqueueWrite(userId, async () => {
+        // Re-read singleton at execution time to capture any concurrent
+        // optimistic updates that landed after the call but before this slot ran.
+        const current = { ...getSingleton(userId).prefs, [key]: value };
+        await saveCache(userId, current);
+
+        // Merge the new key into the pending queue.
+        const pending = { ...(await loadPending(userId)), [key]: value };
+        await savePending(userId, pending);
+
+        // PATCH is inside the queue — this serializes it against the next toggle.
+        if (Object.keys(pending).length === 0) return;
+        const ok = await patchServerPrefs(pending);
+        if (ok) {
+          // Remove only the keys that were in this batch; preserve any writes
+          // that arrived while the PATCH was in flight (shouldn't happen for
+          // user-initiated toggles but is correct to handle).
+          const afterFlush = await loadPending(userId);
+          const remaining: PrefsMap = {};
+          for (const [k, v] of Object.entries(afterFlush)) {
+            if (!(k in pending)) remaining[k] = v;
+          }
+          await savePending(userId, remaining);
+        }
+        // On PATCH failure the key stays in the pending queue and will be
+        // flushed by the next successful dismissHint or setPref call.
+      });
+    },
+    [userId],
+  );
+
+  return { prefsReady, isHintDismissed, dismissHint, setPref, prefs };
 }
 
 // ---------------------------------------------------------------------------

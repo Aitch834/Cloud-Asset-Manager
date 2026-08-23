@@ -75,6 +75,10 @@ interface BlockPhoto {
 // useUiPrefs; the server is the source of truth.
 const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 
+// Persisted sort preference for the block list: true = coverage-first (0 photos
+// at top), false/absent = alphabetical (default).
+const SORT_COVERAGE_KEY = "vine_block_photo_sort_coverage";
+
 function blockStatusColor(plantingStatus: string) {
   if (plantingStatus === "active") return "#16a34a";
   if (plantingStatus === "suspended") return "#d97706";
@@ -1241,7 +1245,7 @@ function PhotoThumbnail({
 
 export default function VineBlockPhotosScreen() {
   const insets = useSafeAreaInsets();
-  const { currentFarm } = useFarm();
+  const { currentFarm, user } = useFarm();
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const { address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
 
@@ -1581,8 +1585,61 @@ export default function VineBlockPhotosScreen() {
     }
   };
 
-  const activeBlocks = blocks.filter(b => b.plantingStatus === "active");
-  const suspendedBlocks = blocks.filter(b => b.plantingStatus === "suspended");
+  // -------------------------------------------------------------------------
+  // Block-list sort preference — persisted via useUiPrefs so it survives
+  // navigation and app restarts.  true = 0-photos-first, false = A–Z.
+  // -------------------------------------------------------------------------
+  const { prefsReady, prefs, setPref } = useUiPrefs(user?.id);
+  const [sortByCoverage, setSortByCoverage] = useState(false);
+
+  // Initialise from persisted prefs the first time they become ready for the
+  // current user.  The ref is reset on user-ID change so that switching
+  // accounts while the screen is mounted re-initialises from the new user's
+  // preference instead of retaining the previous user's sort setting.
+  const prefsInitialised = useRef(false);
+
+  // Reset on account change — clears the flag AND snaps back to the default
+  // sort so the previous user's preference is never shown for even a frame.
+  useEffect(() => {
+    prefsInitialised.current = false;
+    setSortByCoverage(false);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the new user's preference once their prefs are ready.
+  useEffect(() => {
+    if (prefsReady && !prefsInitialised.current) {
+      prefsInitialised.current = true;
+      setSortByCoverage(!!prefs[SORT_COVERAGE_KEY]);
+    }
+  }, [prefsReady, prefs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleToggleSort = useCallback(() => {
+    const next = !sortByCoverage;
+    setSortByCoverage(next);
+    // setPref updates the in-memory singleton, AsyncStorage cache, pending
+    // queue, and server atomically for both true and false values.
+    setPref(SORT_COVERAGE_KEY, next);
+  }, [sortByCoverage, setPref]);
+
+  // Sort a block list: coverage-first puts 0-photo blocks first (then ascending
+  // by count), alphabetical is the default A–Z.
+  const sortedBlocks = useCallback(
+    (list: typeof blocks) => {
+      if (!sortByCoverage) {
+        return [...list].sort((a, b) => a.blockName.localeCompare(b.blockName));
+      }
+      return [...list].sort((a, b) => {
+        const ca = localPhotoCountOverrides[a.id] ?? (a.photoCount ?? 0);
+        const cb = localPhotoCountOverrides[b.id] ?? (b.photoCount ?? 0);
+        if (ca !== cb) return ca - cb; // 0 photos first
+        return a.blockName.localeCompare(b.blockName);
+      });
+    },
+    [sortByCoverage, localPhotoCountOverrides],
+  );
+
+  const activeBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "active"));
+  const suspendedBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "suspended"));
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1649,6 +1706,39 @@ export default function VineBlockPhotosScreen() {
           ]}
           keyExtractor={(item, i) =>
             item._type === "header" ? `header-${i}` : String(item.block.id)
+          }
+          ListHeaderComponent={
+            blocks.length > 0 ? (
+              <View style={styles.sortRow}>
+                <Text style={styles.sortLabel}>Sort:</Text>
+                <View style={styles.sortPills}>
+                  <Pressable
+                    style={[styles.sortPill, !sortByCoverage && styles.sortPillActive]}
+                    onPress={() => sortByCoverage && handleToggleSort()}
+                    hitSlop={6}
+                  >
+                    <Text style={[styles.sortPillText, !sortByCoverage && styles.sortPillTextActive]}>
+                      A–Z
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.sortPill, sortByCoverage && styles.sortPillActive]}
+                    onPress={() => !sortByCoverage && handleToggleSort()}
+                    hitSlop={6}
+                  >
+                    <Feather
+                      name="camera"
+                      size={11}
+                      color={sortByCoverage ? "#fff" : colors.textSecondary}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={[styles.sortPillText, sortByCoverage && styles.sortPillTextActive]}>
+                      0 photos first
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null
           }
           contentContainerStyle={styles.blockList}
           renderItem={({ item }) => {
@@ -2229,6 +2319,44 @@ const styles = StyleSheet.create({
   blockList: {
     padding: spacing.md,
     gap: spacing.xs,
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  sortLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  sortPills: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  sortPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sortPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  sortPillText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  sortPillTextActive: {
+    color: "#fff",
+    fontFamily: fonts.semiBold,
   },
   blockListSection: {
     fontSize: fontSize.xs,
