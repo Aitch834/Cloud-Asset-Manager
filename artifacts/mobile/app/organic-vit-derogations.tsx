@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Platform } from "react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,6 +19,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
 import { useApiModules } from "@/lib/hooks/useApiModules";
+import { isResponseCurrentForFarm } from "@/lib/utils/farmRequestGuard";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -93,33 +94,86 @@ export default function OrganicVitDerogationsScreen() {
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id;
 
-  const { activeModuleKeys } = useApiModules(farmId);
-  const isOrganicVitModuleActive = activeModuleKeys.includes("organic-viticulture");
+  const { activeModuleKeys, loading: modulesLoading, resolvedFarmId } = useApiModules(farmId);
+  // Require resolvedFarmId to match so we never act on stale module state from a previous farm.
+  const isOrganicVitModuleActive =
+    resolvedFarmId === farmId && activeModuleKeys.includes("organic-viticulture");
 
   const [cases, setCases] = useState<VitDerogCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  // Track whether module loading has been attempted at all for the current farm.
+  // This lets us distinguish "modules not yet started" (keep spinner) from
+  // "modules attempted and failed" (resolvedFarmId stayed unset — show empty rather
+  // than spinning forever).
+  const [modulesAttempted, setModulesAttempted] = useState(false);
+  useEffect(() => {
+    if (modulesLoading) setModulesAttempted(true);
+  }, [modulesLoading]);
+
+  // Clear stale data from the previous farm immediately on farm switch so old
+  // cases are never rendered while the new farm's module state resolves.
+  useEffect(() => {
+    setModulesAttempted(false);
+    setCases([]);
+    setExpanded(null);
+  }, [farmId]);
+
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
+  // Keep a ref that is always current with the active farmId so in-flight fetches
+  // initiated for a previous farm can detect the switch and discard their response
+  // rather than writing stale data into state.
+  const activeFarmIdRef = useRef(farmId);
+  activeFarmIdRef.current = farmId;
+
   const load = useCallback(async () => {
-    if (!farmId || !apiBase || !isOrganicVitModuleActive) { setLoading(false); return; }
+    if (!farmId || !apiBase) { setLoading(false); return; }
+    // Keep the spinner while modules are actively being fetched for this farm.
+    if (modulesLoading) { return; }
+    // Module resolution finished but resolvedFarmId never matched (network/auth
+    // failure) — stop spinning and show the empty state so the user isn't stuck.
+    if (resolvedFarmId !== farmId) { setLoading(false); return; }
+    if (!isOrganicVitModuleActive) { setLoading(false); return; }
+    // Capture the farm identity at request start. Any await below can cross a
+    // farm-switch boundary; we check the ref after each one and bail out if the
+    // farm has changed so prior-farm cases can never reach setCases.
+    const myFarmId = farmId;
+    setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const res = await fetch(`${apiBase}/api/farms/${farmId}/organic-viticulture/input-derogations`, { headers });
+      if (!isResponseCurrentForFarm(myFarmId, activeFarmIdRef.current)) return;
+      const res = await fetch(`${apiBase}/api/farms/${myFarmId}/organic-viticulture/input-derogations`, { headers });
+      if (!isResponseCurrentForFarm(myFarmId, activeFarmIdRef.current)) return;
       if (res.ok) {
         const data = await res.json();
-        setCases(data.cases ?? []);
+        if (isResponseCurrentForFarm(myFarmId, activeFarmIdRef.current)) {
+          setCases(data.cases ?? []);
+        }
       }
     } catch {}
-    setLoading(false);
-    setRefreshing(false);
-  }, [farmId, apiBase, isOrganicVitModuleActive]);
+    if (isResponseCurrentForFarm(myFarmId, activeFarmIdRef.current)) {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [farmId, apiBase, isOrganicVitModuleActive, modulesLoading, resolvedFarmId]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  // Show a spinner while:
+  //   • modules haven't been attempted yet (pre-effect transition window), OR
+  //   • modules are actively loading, OR
+  //   • the data fetch itself is in flight.
+  // Stop showing the spinner once module loading has been attempted and
+  // completed (regardless of success/failure) and data loading is done.
+  const modulesConfirmedForFarm = resolvedFarmId === farmId;
+  const showSpinner =
+    (!modulesConfirmedForFarm && (!modulesAttempted || modulesLoading)) ||
+    (loading && !refreshing);
 
   const counts = {
     pending:   cases.filter(c => c.status === "pending").length,
@@ -168,7 +222,7 @@ export default function OrganicVitDerogationsScreen() {
           </View>
         )}
 
-        {loading ? (
+        {showSpinner ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
         ) : cases.length === 0 ? (
           <View style={styles.emptyCard}>

@@ -32,6 +32,11 @@ import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 import { isApproachingNeutral, isIdleBarrel } from "../lib/utils/vesselAlerts";
+import {
+  computeIsWineryModuleActive,
+  getVesselFetchFarmId,
+  shouldShowVesselLoadingSpinner,
+} from "../lib/utils/wineryModuleGuard";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -688,12 +693,28 @@ export default function WineryVesselRegisterScreen() {
   const { currentFarm } = useFarm();
   const { triggerBarrelRefresh } = useBarrelAlertContext();
   const { flag: flagParam } = useLocalSearchParams<{ flag?: string }>();
-  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
-  // Require resolvedFarmId to match currentFarm.id so we never fire this request
-  // during the window between a farm switch and the new farm's module fetch completing.
-  const isWineryModuleActive =
-    resolvedFarmId === currentFarm?.id &&
-    activeModuleKeys.includes("viticulture");
+  const { activeModuleKeys, resolvedFarmId, loading: modulesLoading } = useApiModules(currentFarm?.id);
+  // resolvedFarmId must match currentFarm.id before any module-gated request fires.
+  const isWineryModuleActive = computeIsWineryModuleActive(
+    resolvedFarmId,
+    currentFarm?.id,
+    activeModuleKeys,
+  );
+  // Track whether module loading has been attempted for the current farm so we
+  // can distinguish "not yet started" (keep spinner) from "completed but failed"
+  // (show SectionList with RefreshControl so the user can retry).
+  const [modulesAttempted, setModulesAttempted] = useState(false);
+  useEffect(() => {
+    if (modulesLoading) setModulesAttempted(true);
+  }, [modulesLoading]);
+  useEffect(() => {
+    setModulesAttempted(false);
+  }, [currentFarm?.id]);
+
+  // farmConfirmed: module identity resolved for the current farm. Used to suppress
+  // any vessel-count-derived UI (summary bar, filter pill) that would otherwise
+  // surface stale data from the previous farm during the switch gap.
+  const farmConfirmed = resolvedFarmId === currentFarm?.id && !modulesLoading;
   const barrelAlertThresholds = useBarrelAlertThresholds(
     currentFarm?.idleBarrelDays,
     currentFarm?.approachingNeutralFills,
@@ -701,7 +722,7 @@ export default function WineryVesselRegisterScreen() {
   );
 
   const { records, loading, refreshing, error, refresh } = useApiFetch<WineryVessel>(
-    isWineryModuleActive ? currentFarm?.id : undefined,
+    getVesselFetchFarmId(isWineryModuleActive, currentFarm?.id),
     "/api/farms/:farmId/winery-vessels"
   );
 
@@ -811,8 +832,9 @@ export default function WineryVesselRegisterScreen() {
         <Text style={styles.title}>Vessel Register</Text>
       </View>
 
-      {/* Summary / filter bar */}
-      {total > 0 && (
+      {/* Summary / filter bar — only shown once module identity is confirmed for
+          the current farm so stale counts from a previous farm never appear. */}
+      {farmConfirmed && total > 0 && (
         <View style={styles.summaryBar}>
           <View style={styles.summaryChip}>
             <Feather name="package" size={13} color={colors.textSecondary} />
@@ -854,8 +876,8 @@ export default function WineryVesselRegisterScreen() {
         </View>
       )}
 
-      {/* Active filter pill */}
-      {alertFlag && (
+      {/* Active filter pill — suppressed during farm switch for the same reason. */}
+      {farmConfirmed && alertFlag && (
         <View style={styles.filterPillRow}>
           <View style={styles.filterPill}>
             <Feather name="filter" size={11} color={colors.primary} />
@@ -867,8 +889,17 @@ export default function WineryVesselRegisterScreen() {
         </View>
       )}
 
-      {/* List */}
-      {loading && !refreshing ? (
+      {/* List — uses the shared shouldShowVesselLoadingSpinner helper (same predicate
+          tested in winery-vessel-farm-switch-guard.test.ts). Module mismatch always
+          wins over the refreshing flag so no prior-farm rows surface during a switch. */}
+      {shouldShowVesselLoadingSpinner({
+        modulesLoading,
+        modulesAttempted,
+        resolvedFarmId,
+        currentFarmId: currentFarm?.id,
+        loading,
+        refreshing,
+      }) ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading vessels…</Text>
