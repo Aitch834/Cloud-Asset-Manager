@@ -269,14 +269,15 @@ function exportCertificationSummaryCSV(records: Certification[], farmName: strin
   downloadCsvFile(`${safeName}_Organic_Certification_${dateStr}.csv`, rows);
 }
 
-function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cropYear: number | null) {
+function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cropYear: number | null, approvalStatusFilter?: string) {
   const fmtDate = (v: string | null | undefined) => {
     if (!v) return "";
     try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
   };
   const safeName = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const yearPart = cropYear ? `-${cropYear}` : "";
-  downloadCsvFile(`input-register${yearPart}-${safeName}.csv`, [
+  const statusPart = approvalStatusFilter && approvalStatusFilter !== "all" ? `-${approvalStatusFilter}` : "";
+  downloadCsvFile(`input-register${yearPart}${statusPart}-${safeName}.csv`, [
     ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref", "Approval Status", "Derogation Expiry", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
     ...records.map(r => [
       fmtDate(r.dateOfUse),
@@ -1568,6 +1569,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_ORG_INPUT);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "organic-input-register", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
+  const [approvalStatusFilter, setApprovalStatusFilter] = usePersistedFilter({ page: "organic-input-register", filter: "approval-status", farmId, defaultValue: "all" });
   const [supplierIdFilter, setSupplierIdFilter] = useState<number | null>(null);
   const [poIdFilter, setPoIdFilter] = useState<number | null>(null);
 
@@ -1680,6 +1682,11 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
   const restricted = records.filter(r => r.approvalStatus === "restricted").length;
   const derogation = records.filter(r => r.approvalStatus === "derogation").length;
 
+  const filteredRecords = useMemo(
+    () => approvalStatusFilter === "all" ? records : records.filter(r => r.approvalStatus === approvalStatusFilter),
+    [records, approvalStatusFilter]
+  );
+
   if (isLoading) return <div className="text-center py-12 text-foreground/50"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Loading…</div>;
 
   return (
@@ -1699,7 +1706,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
             value={yearFilter}
@@ -1708,6 +1715,16 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
             <option value="all">All years</option>
             {yearRange().map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+          <select
+            className="h-9 rounded-xl border-2 border-border bg-transparent px-3 text-sm"
+            value={approvalStatusFilter}
+            onChange={e => setApprovalStatusFilter(e.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="permitted">Permitted</option>
+            <option value="restricted">Restricted</option>
+            <option value="derogation">Derogation</option>
+          </select>
           {records.length > 0 && (
             <>
               <div className="flex gap-3 text-sm pl-1">
@@ -1715,10 +1732,10 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
                 {restricted > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />{restricted} restricted</span>}
                 {derogation > 0 && <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{derogation} derogation</span>}
               </div>
-              <Button variant="outline" size="sm" onClick={() => downloadInputRegisterCsv(records, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadInputRegisterCsv(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter), approvalStatusFilter)} className="gap-2">
                 <Download className="w-4 h-4" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printInputRegister(records, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => printInputRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
                 <Printer className="w-4 h-4" />Print Register
               </Button>
             </>
@@ -1727,15 +1744,15 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
         <Button onClick={openCreate} className="gap-2"><Plus className="w-4 h-4" />Add Input</Button>
       </div>
 
-      {records.length === 0 ? (
+      {filteredRecords.length === 0 ? (
         <Card className="p-8 text-center">
           <Package className="w-10 h-10 mx-auto mb-3 text-green-500 opacity-50" />
-          <p className="font-semibold mb-1">No inputs recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}</p>
+          <p className="font-semibold mb-1">No inputs recorded{yearFilter !== "all" ? ` for ${yearFilter}` : ""}{approvalStatusFilter !== "all" ? ` with status "${APPROVAL_STATUS_LABELS[approvalStatusFilter] ?? approvalStatusFilter}"` : ""}</p>
           <p className="text-sm text-foreground/60">Log every input used on organic land — this is your evidence register for annual inspection.</p>
         </Card>
       ) : (
         <div className="space-y-2">
-          {records.map(r => {
+          {filteredRecords.map(r => {
             const statusColor = APPROVAL_STATUS_COLORS[r.approvalStatus] ?? APPROVAL_STATUS_COLORS.permitted;
             return (
               <Card key={r.id} className="p-4">

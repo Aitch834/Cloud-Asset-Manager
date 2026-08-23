@@ -146,12 +146,20 @@ export default function HomeScreen() {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/organic/inspections`);
       if (!res.ok) return;
       const data = await res.json();
-      const records: Array<{ id: number; certifier: string; nextDueDate?: string | null }> = data.records ?? [];
+      const records: Array<{ id: number; certifier: string; inspectionDate?: string | null; nextDueDate?: string | null }> = data.records ?? [];
+      // Pick only the most recent inspection per certifier to avoid stale next-due dates
+      const latestByCertifier = new Map<string, typeof records[0]>();
+      for (const r of records) {
+        const existing = latestByCertifier.get(r.certifier);
+        if (!existing || (r.inspectionDate ?? "") > (existing.inspectionDate ?? "") || (!r.inspectionDate && r.id > existing.id)) {
+          latestByCertifier.set(r.certifier, r);
+        }
+      }
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const horizon = new Date(today);
       horizon.setDate(horizon.getDate() + 90);
-      const upcoming = records
+      const upcoming = Array.from(latestByCertifier.values())
         .filter((r) => {
           if (!r.nextDueDate) return false;
           const due = new Date(r.nextDueDate);
