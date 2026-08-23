@@ -7416,8 +7416,26 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const { dateRangeStart, dateRangeEnd, format } = req.body;
-  const transactions = await db.select().from(financialTransactionsTable).where(eq(financialTransactionsTable.farmId, farmId)).orderBy(desc(financialTransactionsTable.transactionDate));
+  // Left-join agri-env projects so the 9th column matches the GET export path.
+  const transactions = await db.select({
+    id: financialTransactionsTable.id,
+    transactionType: financialTransactionsTable.transactionType,
+    category: financialTransactionsTable.category,
+    description: financialTransactionsTable.description,
+    amountPence: financialTransactionsTable.amountPence,
+    transactionDate: financialTransactionsTable.transactionDate,
+    reference: financialTransactionsTable.reference,
+    vendorCustomer: financialTransactionsTable.vendorCustomer,
+    vatAmountPence: financialTransactionsTable.vatAmountPence,
+    vatRate: financialTransactionsTable.vatRate,
+    enterprise: financialTransactionsTable.enterprise,
+    agriEnvProjectName: agriEnvProjectsTable.schemeName,
+  }).from(financialTransactionsTable)
+    .leftJoin(agriEnvProjectsTable, eq(financialTransactionsTable.agriEnvProjectId, agriEnvProjectsTable.id))
+    .where(eq(financialTransactionsTable.farmId, farmId))
+    .orderBy(desc(financialTransactionsTable.transactionDate));
   const filtered = transactions.filter((t) => {
+    if (!t.transactionDate) return false;
     const d = new Date(t.transactionDate);
     return d >= new Date(dateRangeStart) && d <= new Date(dateRangeEnd);
   });
@@ -7434,17 +7452,18 @@ router.post("/farms/:farmId/financial-exports", requireAuth, requireTenant, requ
       return s;
     };
 
-    const xeroHeaders = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise"];
+    const xeroHeaders = ["*Date", "*Amount", "*AccountCode", "Description", "Reference", "TaxType", "TaxAmount", "Enterprise", "Agri-Env Project"];
     const rows = filtered.map((t) => {
-      const date = new Date(t.transactionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
-      const amount = (t.amountPence / 100).toFixed(2);
+      const date = new Date(t.transactionDate!).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const amount = ((t.amountPence ?? 0) / 100).toFixed(2);
       const accountCode = mapCategoryToXeroAccount(t.category || "general");
       const description = t.description || t.vendorCustomer || "";
       const reference = t.reference || "";
       const taxType = mapVatRateToXeroTax(t.vatRate);
       const taxAmount = t.vatAmountPence ? (t.vatAmountPence / 100).toFixed(2) : "";
       const enterprise = t.enterprise ?? "";
-      return [date, amount, accountCode, description, reference, taxType, taxAmount, enterprise].map(csvEscape).join(",");
+      const agriEnvProject = t.agriEnvProjectName ?? "";
+      return [date, amount, accountCode, description, reference, taxType, taxAmount, enterprise, agriEnvProject].map(csvEscape).join(",");
     });
 
     const csvContent = [xeroHeaders.join(","), ...rows].join("\n");
