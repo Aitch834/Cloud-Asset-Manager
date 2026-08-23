@@ -46,7 +46,7 @@ function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
   return months < 12 ? `${months} mo` : `${Math.floor(months / 12)}y ${months % 12}mo`;
 }
 
-function resolveBarrelAlertThreshold(
+export function resolveBarrelAlertThreshold(
   farmOverride: unknown,
   platformDefault: unknown,
   hardcodedFallback: number,
@@ -1142,11 +1142,20 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     platformConfigData?.config?.barrel_neutral_fills_default,
     4,
   );
-  const retirementThresholdPence = resolveBarrelAlertThreshold(
-    farmSettingsData?.record?.barrelRetirementThresholdPence,
-    platformConfigData?.config?.barrel_retirement_threshold_pence,
-    60000,
-  );
+  // Derive retirement cost threshold: farm setting (GBP → pence) → platform default → hardcoded 600 GBP
+  const retirementThresholdPence = (() => {
+    const farmGbp = farmSettingsData?.record?.barrelRetirementThresholdGbp;
+    if (farmGbp != null) {
+      const parsed = Number(farmGbp);
+      if (Number.isInteger(parsed) && parsed > 0) return parsed * 100;
+    }
+    const platformPence = platformConfigData?.config?.barrel_retirement_threshold_pence;
+    if (platformPence != null) {
+      const parsed = Number(platformPence);
+      if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    }
+    return 60000; // £600 hardcoded fallback
+  })();
 
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -2175,7 +2184,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   <BarrelFillHistory farmId={farmId} vesselId={view.id as number} maxExistingFill={Number(view.fill_number ?? 0)} approachingNeutralFills={approachingNeutralFills} />
                 )}
                 {detailTab === "maintenance" && (
-                  <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} />
+                  <BarrelMaintenanceLog farmId={farmId} vesselId={view.id as number} retirementThresholdPence={retirementThresholdPence} />
                 )}
                 {detailTab === "location" && (
                   <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} onMoveLogged={(toZone, toPosition) => setView(v => v ? { ...v, cellar_zone: toZone, cellar_position: toPosition } : v)} />

@@ -1,6 +1,6 @@
 import { sanitiseSignatureForHtml, SignatureEmbed, NO_EMBED, printBatchTrail } from "./print";
 import { fetchWineryJson, usePressing, useVessels, useIsViticultureActive, so2Ceiling, bottlingSo2Verdict, fmtDate, today, fmtDDMonYYYY, AssignWineColourDialog, type AssignColourTarget, fmtNum, ADDITIVE_COL, EXTRA_ADDITIVE_COLUMNS, SO2_TEST_STAGE_LABELS, EmptyState, CELLAR_OP_LABELS, fmt, So2Badge, BATCH_TRAIL_CSV_HEADER, PRESS_ADDITIVE_COLUMNS, so2LimitUnverified, ViewField, SectionLabel, VESSEL_TYPE_OPTIONS, VESSEL_STATUS_OPTIONS, TOASTING_OPTIONS } from "./shared";
-import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow } from "./VesselRegisterTab";
+import { BarrelFillHistory, BarrelMaintenanceLog, BarrelMovementLog, VesselCleanRow, resolveBarrelAlertThreshold } from "./VesselRegisterTab";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
@@ -797,6 +797,38 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
   // gated by useIsViticultureActive, so no additional guard is needed here.
   const { data: vessels, isLoading } = useVessels(farmId);
 
+  // Resolve per-farm barrel retirement threshold (same logic as VesselRegisterTab)
+  const { data: farmSettingsData } = useQuery<{ record: Record<string, unknown> }>({
+    queryKey: ["farm-settings", farmId],
+    queryFn: async () => {
+      const res = await fetch(api(`farms/${farmId}`), { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load farm settings");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: platformConfigData } = useQuery<{ config: Record<string, string> }>({
+    queryKey: ["platform-config"],
+    queryFn: async () => {
+      const res = await fetch(api("platform-config"));
+      if (!res.ok) throw new Error("Failed to load platform config");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const retirementThresholdPence = (() => {
+    const farmGbp = farmSettingsData?.record?.barrelRetirementThresholdGbp;
+    if (farmGbp != null) {
+      const parsed = Number(farmGbp);
+      if (Number.isInteger(parsed) && parsed > 0) return parsed * 100;
+    }
+    return resolveBarrelAlertThreshold(
+      undefined,
+      platformConfigData?.config?.barrel_retirement_threshold_pence,
+      60000,
+    );
+  })();
+
   const vessel = vessels?.find(v => Number(v.id) === vesselId) ?? null;
   const isBarrel = vessel
     ? String(vessel.vessel_type ?? "").toLowerCase().includes("barrel") ||
@@ -912,7 +944,7 @@ function VesselDetailFromTrail({ farmId, vesselId, onClose }: { farmId: number; 
               <>
                 <BarrelMovementLog farmId={farmId} vesselId={vesselId} currentZone={String(vessel.cellar_zone ?? "")} currentPosition={String(vessel.cellar_position ?? "")} />
                 <BarrelFillHistory farmId={farmId} vesselId={vesselId} maxExistingFill={Number(vessel.fill_number ?? 0)} />
-                <BarrelMaintenanceLog farmId={farmId} vesselId={vesselId} />
+                <BarrelMaintenanceLog farmId={farmId} vesselId={vesselId} retirementThresholdPence={retirementThresholdPence} />
               </>
             )}
             <VesselCleanRow farmId={farmId} vesselId={vesselId} />

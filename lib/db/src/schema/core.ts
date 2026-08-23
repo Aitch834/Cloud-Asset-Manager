@@ -84,6 +84,7 @@ export const farmsTable = pgTable("farms", {
   harvestStrictStorage: boolean("harvest_strict_storage").notNull().default(false),
   idleBarrelDays: integer("idle_barrel_days"),
   approachingNeutralFills: integer("approaching_neutral_fills"),
+  barrelRetirementThresholdGbp: integer("barrel_retirement_threshold_gbp"),
   hpaiZoneStatus: text("hpai_zone_status"),
   hpaiZoneDate: text("hpai_zone_date"),
   hpaiHousingRequiredSince: text("hpai_housing_required_since"),

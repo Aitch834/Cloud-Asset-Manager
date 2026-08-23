@@ -618,7 +618,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     winegbMembershipNumber,
     harvestStrictStorage,
     irrigationCostPerMmHa, irrigationAbstractionSource,
-    idleBarrelDays, approachingNeutralFills,
+    idleBarrelDays, approachingNeutralFills, barrelRetirementThresholdGbp,
   } = req.body;
 
   if (!name) { res.status(400).json({ error: "Farm name is required" }); return; }
@@ -626,6 +626,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
   // Validate optional positive-integer barrel threshold fields
   let parsedIdleBarrelDays: number | null = null;
   let parsedApproachingNeutralFills: number | null = null;
+  let parsedBarrelRetirementThresholdGbp: number | null = null;
   if (idleBarrelDays != null && idleBarrelDays !== "") {
     const v = Number(idleBarrelDays);
     if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "idleBarrelDays must be a positive integer" }); return; }
@@ -635,6 +636,11 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     const v = Number(approachingNeutralFills);
     if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "approachingNeutralFills must be a positive integer" }); return; }
     parsedApproachingNeutralFills = v;
+  }
+  if (barrelRetirementThresholdGbp != null && barrelRetirementThresholdGbp !== "") {
+    const v = Number(barrelRetirementThresholdGbp);
+    if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "barrelRetirementThresholdGbp must be a positive integer" }); return; }
+    parsedBarrelRetirementThresholdGbp = v;
   }
 
   const [updated] = await db.update(farmsTable).set({
@@ -690,6 +696,7 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
     irrigationAbstractionSource: irrigationAbstractionSource?.trim() || null,
     idleBarrelDays: parsedIdleBarrelDays,
     approachingNeutralFills: parsedApproachingNeutralFills,
+    barrelRetirementThresholdGbp: parsedBarrelRetirementThresholdGbp,
   })
   .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
   .returning();

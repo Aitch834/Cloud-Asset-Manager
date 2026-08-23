@@ -111,6 +111,7 @@ interface FarmFormData {
   irrigationAbstractionSource: string;
   idleBarrelDays: string;
   approachingNeutralFills: string;
+  barrelRetirementThresholdGbp: string;
 }
 
 function farmToFormData(farm: Farm & {
@@ -187,6 +188,7 @@ function farmToFormData(farm: Farm & {
     irrigationAbstractionSource: (farm as any).irrigationAbstractionSource || "",
     idleBarrelDays: (farm as any).idleBarrelDays?.toString() || "",
     approachingNeutralFills: (farm as any).approachingNeutralFills?.toString() || "",
+    barrelRetirementThresholdGbp: (farm as any).barrelRetirementThresholdGbp?.toString() || "",
   };
 }
 
@@ -2446,10 +2448,15 @@ export default function FarmSettings() {
   });
   const platformIdleBarrelDays = Number(platformConfig?.barrel_idle_days_default);
   const platformNeutralFills = Number(platformConfig?.barrel_neutral_fills_default);
+  const platformRetirementThresholdPence = Number(platformConfig?.barrel_retirement_threshold_pence);
   const defaultIdleBarrelDays =
     Number.isInteger(platformIdleBarrelDays) && platformIdleBarrelDays > 0 ? platformIdleBarrelDays : 90;
   const defaultNeutralFills =
     Number.isInteger(platformNeutralFills) && platformNeutralFills > 0 ? platformNeutralFills : 4;
+  const defaultRetirementThresholdGbp =
+    Number.isInteger(platformRetirementThresholdPence) && platformRetirementThresholdPence > 0
+      ? platformRetirementThresholdPence / 100
+      : 600;
 
   const { mutate: updateFarm, isPending: isSaving } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -2668,6 +2675,7 @@ export default function FarmSettings() {
       irrigationCostPerMmHa: formData.irrigationCostPerMmHa.trim() || null,
       idleBarrelDays: formData.idleBarrelDays.trim() ? parseInt(formData.idleBarrelDays, 10) : null,
       approachingNeutralFills: formData.approachingNeutralFills.trim() ? parseInt(formData.approachingNeutralFills, 10) : null,
+      barrelRetirementThresholdGbp: formData.barrelRetirementThresholdGbp.trim() ? Math.round(Number(formData.barrelRetirementThresholdGbp)) : null,
       irrigationAbstractionSource: formData.irrigationAbstractionSource.trim() || null,
     });
   };
@@ -3384,6 +3392,22 @@ export default function FarmSettings() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of {defaultNeutralFills} fills.
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="settings-barrel-retirement-threshold">Barrel Retirement Cost Threshold (£)</Label>
+                  <Input
+                    id="settings-barrel-retirement-threshold"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder={`Default: ${defaultRetirementThresholdGbp}`}
+                    value={formData.barrelRetirementThresholdGbp}
+                    onChange={e => updateField("barrelRetirementThresholdGbp", e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    When total maintenance spend on a barrel exceeds this amount, a retirement warning is shown. Leave blank to use the platform default of £{defaultRetirementThresholdGbp}.
                   </p>
                 </div>
               </div>
