@@ -569,6 +569,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   }
 
   function fieldLabel(r: Record<string, unknown>) {
+    if (r.fieldName) return String(r.fieldName);
     if (r.fieldId) { const f = fields.find(x => String(x.id) === String(r.fieldId)); if (f) return String(f.name); }
     return r.fieldOrBlockDescription ? String(r.fieldOrBlockDescription) : "—";
   }
