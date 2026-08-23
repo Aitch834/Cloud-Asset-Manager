@@ -135,7 +135,7 @@ function SortablePhotoThumbnail({
         {/* Drag handle — only for non-cover photos */}
         {!photo.isCover && (
           <button
-            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+            className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white rounded p-0.5 opacity-30 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
             title="Drag to reorder — or use Space/Enter to pick up, arrow keys to move, Space/Enter to drop"
             aria-label="Reorder photo"
             {...attributes}
@@ -238,7 +238,7 @@ function SortableFilmstripThumb({
       )}
       {!photo.isCover && (
         <button
-          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-0 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
           title="Drag to reorder"
           {...attributes}
           {...listeners}
