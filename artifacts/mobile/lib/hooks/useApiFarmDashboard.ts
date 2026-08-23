@@ -7,6 +7,7 @@ export interface FarmDashboardData {
   totalForms: number;
   completedForms: number;
   overdueActions: number;
+  activeModuleKeys: string[];
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -75,11 +76,13 @@ export function useApiFarmDashboard(farmId: string | undefined) {
 
         const json = await res.json();
         if (!cancelled) {
+          const subs: Array<{ moduleKey: string }> = json.activeSubscriptions ?? [];
           setData({
             complianceScore: json.complianceScore ?? 0,
             totalForms: json.totalForms ?? 0,
             completedForms: json.completedForms ?? 0,
             overdueActions: json.overdueActions ?? 0,
+            activeModuleKeys: [...new Set(subs.map((s) => s.moduleKey))],
           });
         }
       } catch (err) {

@@ -32,7 +32,6 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
-import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
@@ -56,7 +55,7 @@ export default function HomeScreen() {
   const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
   const { data: taskSummary, loading: taskSummaryLoading } = useApiMyTasksSummary(currentFarm?.id);
   const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference(user?.id);
-  const { activeModuleKeys } = useApiModules(currentFarm?.id);
+  const activeModuleKeys = dashboardData?.activeModuleKeys ?? [];
   const isViticultureActive = activeModuleKeys.includes("viticulture") || activeModuleKeys.includes("organic-viticulture");
   const isOrganicActive = activeModuleKeys.includes("organic-compliance");
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
