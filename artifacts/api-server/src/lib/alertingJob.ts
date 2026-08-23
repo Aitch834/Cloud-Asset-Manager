@@ -1794,7 +1794,7 @@ async function checkAgriEnvMilestoneDeadlines() {
   warnCutoff.setDate(warnCutoff.getDate() + WARN_DAYS);
 
   // Find pending/submitted milestones with a due date (overdue or within 30 days)
-  // Exclude already-paid milestones — they don't need deadline warnings
+  // Exclude already-completed, paid milestones — they don't need deadline warnings
   const milestones = await db
     .select({
       id: agriEnvMilestonesTable.id,
@@ -1811,6 +1811,7 @@ async function checkAgriEnvMilestoneDeadlines() {
       and(
         isNotNull(agriEnvMilestonesTable.dueDate),
         ne(agriEnvMilestonesTable.status, "paid"),
+        ne(agriEnvMilestonesTable.status, "completed"),
         lte(agriEnvMilestonesTable.dueDate, warnCutoff.toISOString().slice(0, 10)),
       )
     );

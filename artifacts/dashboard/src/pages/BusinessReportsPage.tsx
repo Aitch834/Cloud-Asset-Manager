@@ -987,7 +987,7 @@ function GrainPositionTab({ farmId, year, onRegisterExport }: { farmId: number; 
   );
 }
 
-const MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+const MILESTONE_STATUSES = ["pending", "completed", "submitted", "paid", "overdue"] as const;
 type MilestoneStatus = typeof MILESTONE_STATUSES[number];
 
 // ── Subsidies Tab ────────────────────────────────────────────────────────────
@@ -1071,12 +1071,12 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
     .reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
   const { hasDoubleCountRisk } = agriEnvDoubleCountRisk(data?.subsidyTransactions ?? [], agriEnvYearClaimed);
   const totalAgriEnvGrantValue = agriEnvProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
-  // Canonical milestone statuses: pending | submitted | paid | overdue
+  // Canonical milestone statuses: pending | completed | submitted | paid | overdue
   const totalMilestonesDrawnDown = agriEnvMilestones.filter(m => m.status === "submitted" || m.status === "paid").reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
   const totalMilestonesOutstanding = agriEnvMilestones.filter(m => m.status !== "submitted" && m.status !== "paid" && m.claimAmountPence != null).reduce((s: number, m: any) => s + (m.claimAmountPence ?? 0), 0);
 
   const msStatusStyle = (status: string): React.CSSProperties => {
-    if (status === "paid") return { background: "#dcfce7", color: "#166534" };
+    if (status === "paid" || status === "completed") return { background: "#dcfce7", color: "#166534" };
     if (status === "submitted") return { background: "#dbeafe", color: "#1e40af" };
     if (status === "overdue") return { background: "#fee2e2", color: "#991b1b" };
     return { background: "#f3f4f6", color: "#374151" };
@@ -1318,7 +1318,7 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
                                     const isUpdating = updatingMilestone === ms.id;
                                     const isPending = pendingCompletion?.milestoneId === ms.id;
                                     const isPendingWarning = pendingPnlWarning?.milestoneId === ms.id;
-                                    const needsDate = (s: string) => (s === "submitted" || s === "paid") && !ms.completionDate;
+                                    const needsDate = (s: string) => (s === "completed" || s === "submitted" || s === "paid") && !ms.completionDate;
                                     // A milestone is counted in the P&L if: status is submitted/paid,
                                     // completionDate falls in the report year, and the project overlaps
                                     // the year (same filter as the gross-margin API endpoint).

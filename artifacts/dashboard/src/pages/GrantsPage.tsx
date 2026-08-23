@@ -184,6 +184,7 @@ const AE_PROJECT_STATUS_CFG: Record<string, { label: string; bg: string; text: s
 
 const AE_MILESTONE_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string }> = {
   pending:   { label: "Pending",   bg: "bg-gray-50",   text: "text-gray-700",   border: "border-gray-200" },
+  completed: { label: "Completed", bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200" },
   submitted: { label: "Submitted", bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200" },
   paid:      { label: "Paid",      bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200" },
   overdue:   { label: "Overdue",   bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200" },
@@ -206,7 +207,7 @@ const AE_COMMON_BODIES = [
 ];
 const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
 const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
-const AE_MILESTONE_STATUSES = ["pending", "submitted", "paid", "overdue"] as const;
+const AE_MILESTONE_STATUSES = ["pending", "completed", "submitted", "paid", "overdue"] as const;
 
 const ACTIVE_AE_PROJECT_STATUSES = new Set(["active", "applied", "pending"]);
 const AE_MILESTONE_FILTERS = ["all", ...AE_MILESTONE_STATUSES] as const;
@@ -653,7 +654,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
 
   // Deadline counts — scoped to the selected scheme's projects (or farm-wide when "All schemes")
   const schemeProjectIds = useMemo(() => new Set(schemeProjects.map(p => p.id)), [schemeProjects]);
-  const pendingMilestones = allMilestones.filter(m => m.status !== "paid" && schemeProjectIds.has(m.projectId));
+  const pendingMilestones = allMilestones.filter(m => m.status !== "paid" && m.status !== "completed" && schemeProjectIds.has(m.projectId));
   const overdueMs  = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
   const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
   const activeCount    = schemeProjects.filter(p => ["applied", "active"].includes(p.status)).length;
@@ -1269,9 +1270,10 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                         {visibleMilestones.map(m => {
                           const isPending = pendingCompletion?.milestoneId === m.id;
                           const isUpdating = updatingMilestone === m.id;
-                          const needsDate = (s: string) => (s === "submitted" || s === "paid") && !m.completionDate;
+                          const needsDate = (s: string) => (s === "completed" || s === "submitted" || s === "paid") && !m.completionDate;
                           const msStatusColors: Record<string, { bg: string; color: string; border: string }> = {
                             pending:   { bg: "#f9fafb", color: "#374151", border: "#e5e7eb" },
+                            completed: { bg: "#dcfce7", color: "#166534", border: "#bbf7d0" },
                             submitted: { bg: "#dbeafe", color: "#1e40af", border: "#bfdbfe" },
                             paid:      { bg: "#dcfce7", color: "#166534", border: "#bbf7d0" },
                             overdue:   { bg: "#fee2e2", color: "#991b1b", border: "#fecaca" },
@@ -1326,7 +1328,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
                                 {m.dueDate && (
                                   <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#6b7280" }}>
                                     Due:{" "}
-                                    {m.status === "paid"
+                                    {(m.status === "paid" || m.status === "completed")
                                       ? <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>{new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
                                       : <DeadlineBadge dateStr={m.dueDate} />}
                                   </span>

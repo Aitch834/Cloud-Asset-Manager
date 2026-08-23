@@ -1935,6 +1935,20 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
   });
 
+  const markMilestoneMut = useMutation({
+    mutationFn: ({ id, projectId }: { id: number; projectId: number }) =>
+      fetch(`/api/farms/${farmId}/agri-env-projects/${projectId}/milestones/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed", completionDate: isoDate(new Date()) }),
+      }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["planner-events-all", farmId] });
+      toast({ title: "Milestone marked as complete ✓" });
+    },
+    onError: () => toast({ title: "Failed to update milestone", variant: "destructive" }),
+  });
+
   const [dateRange, setDateRange] = useState<"1w" | "2w" | "4w" | "8w" | "all">("all");
   const [search, setSearch] = useState("");
   const [showPast, setShowPast] = useState(false);
@@ -1996,14 +2010,16 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
     [milestones, today, sq]
   );
 
-  // Overdue = past deadline AND not yet submitted or paid (grower still needs to act).
-  // Canonical statuses: "pending" | "overdue" | "submitted" | "paid".
+  // Overdue = past deadline AND not yet completed, submitted or paid (grower still needs to act).
+  // Canonical statuses: "pending" | "overdue" | "completed" | "submitted" | "paid".
+  // "completed" means the grower has marked it done (claim not yet filed).
   // "submitted" means the claim is in flight; "paid" means fully resolved.
-  // Both exclude from the overdue count — only "pending"/"overdue" rows need action.
+  // All three exclude from the overdue count — only "pending"/"overdue" rows need action.
   const overdueMilestones = useMemo(() =>
     milestones.filter(m =>
       m.dueDate &&
       new Date(m.dueDate + "T12:00:00") < today &&
+      m.status !== "completed" &&
       m.status !== "submitted" &&
       m.status !== "paid"
     ),
@@ -2410,8 +2426,8 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
             </div>
             <Card className="overflow-hidden">
               {pastMilestones.map(m => {
-                // "submitted" = claim in flight; "paid" = fully resolved — neither is actionably overdue
-                const isOverdue = m.status !== "submitted" && m.status !== "paid";
+                // "completed" = grower marked done; "submitted" = claim in flight; "paid" = fully resolved
+                const isOverdue = m.status !== "completed" && m.status !== "submitted" && m.status !== "paid";
                 return (
                   <div key={m.id} className={cn("flex items-center gap-3 px-4 py-3 border-b border-border last:border-0", isOverdue ? "bg-red-50/40" : "opacity-60")}>
                     <div className={cn("w-1 self-stretch rounded-full flex-shrink-0 mt-0.5", isOverdue ? "bg-red-400" : "bg-teal-300")} />
@@ -2422,6 +2438,8 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-100 text-red-700 border-red-200">
                             <AlertCircle className="w-2.5 h-2.5" /> Overdue
                           </span>
+                        ) : m.status === "completed" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-green-100 text-green-700">✓ Completed</span>
                         ) : m.status === "paid" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-green-100 text-green-700">✓ Paid</span>
                         ) : (
@@ -2434,12 +2452,24 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
                         <span className="text-xs text-teal-600">{m.schemeName}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
-                      className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
-                    >
-                      <ExternalLink className="w-3 h-3" /> View
-                    </button>
+                    <div className="flex-shrink-0 flex items-center gap-1.5">
+                      {isOverdue && (
+                        <button
+                          onClick={() => markMilestoneMut.mutate({ id: m.id, projectId: m.projectId })}
+                          disabled={markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-green-700 hover:bg-green-50 border border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          {markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id ? "Saving…" : "Mark complete"}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => navigate(`/grants?tab=agrienv&project=${m.projectId}`)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors"
+                      >
+                        <ExternalLink className="w-3 h-3" /> View
+                      </button>
+                    </div>
                   </div>
                 );
               })}
