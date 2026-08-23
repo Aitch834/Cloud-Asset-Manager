@@ -1792,7 +1792,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-amber-50 text-amber-700 border-amber-200 ${alertFlagFilter === "no-fills" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-amber-100"}`}
                   >
                     <AlertTriangle className="h-3 w-3" />
-                    <span>{barrelStats.noFills} no fills</span>
+                    <span>No fills logged</span>
+                    <span className="font-bold">{barrelStats.noFills}</span>
                   </button>
                 )}
                 {barrelStats.approaching > 0 && (
