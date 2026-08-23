@@ -1977,6 +1977,9 @@ const TAB_ICONS: Record<TabKey, React.ElementType> = {
 export default function OrganicPage() {
   const { farmId } = useAppStore();
   const [activeTab, setActiveTab] = usePersistedTab<TabKey>({ page: "organic", farmId, validIds: TABS, defaultTab: "certification" });
+  const [auditPackBusy, setAuditPackBusy] = useState(false);
+  const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data: farmData } = useQuery<{ name: string }>({
     queryKey: ["farm-detail", farmId],
@@ -1985,14 +1988,81 @@ export default function OrganicPage() {
   });
   const farmName = farmData?.name ?? "Farm";
 
+  async function downloadAuditPack() {
+    if (!farmId) return;
+    setAuditPackBusy(true);
+    try {
+      // fetchQuery deduplicates with any in-flight tab queries and reuses
+      // cached results when fresh; throws on network/HTTP errors.
+      const staleTime = 60_000;
+      const [certResult, fieldsResult, inspResult, inputsResult] = await Promise.all([
+        qc.fetchQuery<{ records: Certification[] }>({
+          queryKey: ["organic-cert", farmId],
+          queryFn: () => fetch(`/api/farms/${farmId}/organic/certification`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          staleTime,
+        }),
+        qc.fetchQuery<{ records: FieldStatus[] }>({
+          queryKey: ["organic-fields", farmId],
+          queryFn: () => fetch(`/api/farms/${farmId}/organic/fields`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          staleTime,
+        }),
+        qc.fetchQuery<{ records: InspectionRecord[] }>({
+          queryKey: ["organic-inspections", farmId],
+          queryFn: () => fetch(`/api/farms/${farmId}/organic/inspections`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          staleTime,
+        }),
+        qc.fetchQuery<{ records: OrganicInput[] }>({
+          queryKey: ["organic-inputs", farmId, "all"],
+          queryFn: () => fetch(`/api/farms/${farmId}/organic/inputs`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          staleTime,
+        }),
+      ]);
+
+      const restrictedRecords = inputsResult.records.filter(
+        r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation",
+      );
+
+      exportCertificationSummaryCSV(certResult.records, farmName);
+      await new Promise<void>(res => setTimeout(res, 300));
+      downloadFieldStatusCsv(fieldsResult.records, farmName);
+      await new Promise<void>(res => setTimeout(res, 300));
+      downloadInspectionsCsv(inspResult.records, farmName, null);
+      await new Promise<void>(res => setTimeout(res, 300));
+      exportRestrictedInputsCsv(restrictedRecords, farmName, "all");
+    } catch {
+      toast({
+        title: "Could not download audit pack",
+        description: "One or more registers failed to load. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAuditPackBusy(false);
+    }
+  }
+
   if (!farmId) return <Redirect to="/" />;
 
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Leaf className="w-6 h-6 text-green-600" />Organic Compliance</h1>
-          <p className="text-sm text-foreground/60 mt-1">Complementary records alongside your certifier's portal — Soil Association, OF&G, BDOCA.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2"><Leaf className="w-6 h-6 text-green-600" />Organic Compliance</h1>
+            <p className="text-sm text-foreground/60 mt-1">Complementary records alongside your certifier's portal — Soil Association, OF&G, BDOCA.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadAuditPack}
+            disabled={auditPackBusy}
+            className="gap-2 shrink-0 mt-1"
+            title="Download all four compliance registers as separate CSV files"
+          >
+            {auditPackBusy
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />}
+            Download Audit Pack
+          </Button>
         </div>
 
         <TabBar>
