@@ -992,15 +992,31 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
           {rows.map((row, i) => {
             const status = (row.approvalStatus as string) ?? (row.isApproved ? "permitted" : "restricted");
             const statusColor = APPROVAL_STATUS_COLORS[status] ?? APPROVAL_STATUS_COLORS.permitted;
-            const showExpiry = (status === "restricted" || status === "derogation") && !!row.derogationExpiryDate;
             const expiryBadge = (() => {
-              if (!showExpiry) return null;
+              if (status !== "restricted" && status !== "derogation") return null;
+              if (!row.derogationExpiryDate) return (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">
+                  Derogation expiry: not set
+                </span>
+              );
               const expiry = new Date(row.derogationExpiryDate as string);
               const today = new Date(); today.setHours(0, 0, 0, 0);
               const daysLeft = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
-              if (daysLeft < 0) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-500 border-gray-300">Expired {fmt(row.derogationExpiryDate as string)}</span>;
-              if (daysLeft <= 30) return <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300">Expires {fmt(row.derogationExpiryDate as string)}</span>;
-              return null;
+              if (daysLeft < 0) return (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 inline-flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />Derogation expired {fmt(row.derogationExpiryDate as string)}
+                </span>
+              );
+              if (daysLeft <= 30) return (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300">
+                  Derogation expiry: {fmt(row.derogationExpiryDate as string)} ({daysLeft}d)
+                </span>
+              );
+              return (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                  Derogation expiry: {fmt(row.derogationExpiryDate as string)}
+                </span>
+              );
             })();
             return (
               <div key={i} className="rounded-md border p-3">
