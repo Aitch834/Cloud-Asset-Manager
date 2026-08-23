@@ -366,6 +366,7 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
   const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-maintenance", farmId, vesselId];
   const [retirementAlertDismissed, setRetirementAlertDismissed] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: qKey,
@@ -555,13 +556,23 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
                   <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit maintenance record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
-                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete maintenance record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(m.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete maintenance record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete maintenance record"
+        message="This maintenance record will be permanently deleted and cannot be recovered."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
     </div>
   );
 }
@@ -585,6 +596,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-barrel-movements", farmId, vesselId];
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: qKey,
@@ -763,13 +775,23 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
                   <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(m)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit movement record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
-                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(m.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete movement record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(m.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete movement record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete movement record"
+        message="This movement record will be permanently deleted and cannot be recovered."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
     </div>
   );
 }
@@ -779,6 +801,7 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
   const qKey = ["winery-vessel-cleans", farmId, vesselId];
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: qKey,
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${vesselId}/cleans`)).records ?? []) as Record<string, unknown>[],
@@ -890,13 +913,23 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
                   <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
-                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => delMut.mutate(Number(c.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(c.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete clean record"
+        message="This cleaning record will be permanently deleted and cannot be recovered."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={delMut}
+        onConfirm={() => { if (pendingDelete !== null) delMut.mutate(pendingDelete, { onSuccess: () => setPendingDelete(null) }); }}
+        onCancel={() => { setPendingDelete(null); delMut.reset(); }}
+      />
     </div>
   );
 }
