@@ -1532,6 +1532,172 @@ export async function printVineRegister(
   win.onload = () => { setTimeout(() => win.print(), 200); };
 }
 
+export async function downloadVineRegisterPdf(
+  records: Record<string, unknown>[],
+  farmName: string,
+  fsaVineRef?: string,
+  farmMeta?: Record<string, unknown> | null,
+) {
+  const [jsPDFModule, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  // jspdf 4.x ESM: named export `jsPDF` is the constructor; `.default` is a plain object
+  const jsPDF = (jsPDFModule.jsPDF ?? jsPDFModule.default) as unknown as new (...args: unknown[]) => InstanceType<typeof import("jspdf").jsPDF>;
+  const autoTable = autoTableModule.default;
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const safeDateTime = new Date().toLocaleString("en-GB");
+
+  const dv = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
+  const nv = (v: unknown, dp = 4) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
+
+  const addressValue = String(farmMeta?.address ?? "").trim();
+  const postcodeValue = String(farmMeta?.postcode ?? "").trim();
+  const addressParts = [addressValue, postcodeValue].filter(Boolean).join(", ");
+
+  // Prefer farmMeta refs over the legacy fsaVineRef argument
+  const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
+  const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
+  const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
+  const winegbMembershipNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
+
+  const missingFields: string[] = [
+    !farmName?.trim() ? "Farm name" : "",
+    !addressValue ? "Farm address" : "",
+    !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
+    !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
+    !appaRef ? "APPA Ref" : "",
+    !winegbMembershipNumber ? "WineGB Membership No" : "",
+  ].filter(Boolean);
+
+  const activeCount = records.filter(r => !r.isRemovedFromRegister).length;
+  const totalHa = records.reduce((sum, r) => sum + (parseFloat(String(r.registeredAreaHa ?? 0)) || 0), 0);
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  doc.setFillColor(45, 106, 79); // #2d6a4f
+  doc.rect(0, 0, pageW, 22, "F");
+  doc.setFontSize(15); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255);
+  doc.text("BDE Farm Trac", 14, 10);
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text("Vineyard Compliance Platform", 14, 16);
+  doc.setFontSize(13); doc.setFont("helvetica", "bold");
+  doc.text("FSA Vine Register", pageW - 14, 10, { align: "right" });
+  doc.setFontSize(8); doc.setFont("helvetica", "normal");
+  doc.text(`Date: ${safeDate}`, pageW - 14, 16, { align: "right" });
+
+  // ── Farm info bar ──────────────────────────────────────────────────────────
+  let y = 26;
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(14, y, pageW - 28, 10, 1, 1, "F");
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(30, 30, 30);
+  const farmLabel = `Farm: ${farmName || "—"}`;
+  const printedLabel = `Printed: ${safeDateTime}`;
+  const addrLabel = addressParts ? `Address: ${addressParts}` : "";
+  doc.text(farmLabel, 17, y + 7);
+  doc.text(printedLabel, pageW / 2, y + 7, { align: "center" });
+  if (addrLabel) doc.text(addrLabel, pageW - 17, y + 7, { align: "right" });
+  y += 14;
+
+  // ── Missing-fields warning ─────────────────────────────────────────────────
+  if (missingFields.length > 0) {
+    doc.setFillColor(255, 251, 235);
+    doc.setDrawColor(252, 211, 77);
+    doc.roundedRect(14, y, pageW - 28, 8, 1, 1, "FD");
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120, 53, 15);
+    doc.text(`\u26a0 Missing: ${missingFields.join(", ")} \u2014 update Farm Settings before submitting to the FSA.`, 17, y + 5.5);
+    y += 12;
+  }
+
+  // ── Registration refs bar ─────────────────────────────────────────────────
+  const refsLine = [
+    fsaVineRegisterRef ? `FSA Vine Reg: ${fsaVineRegisterRef}` : "",
+    fsaWineProductionRef ? `FSA Wine Prod: ${fsaWineProductionRef}` : "",
+    appaRef ? `APPA Ref: ${appaRef}` : "",
+    winegbMembershipNumber ? `WineGB No: ${winegbMembershipNumber}` : "",
+  ].filter(Boolean).join("   \u00b7   ");
+  if (refsLine) {
+    doc.setFillColor(209, 250, 229);
+    doc.setDrawColor(110, 231, 183);
+    doc.roundedRect(14, y, pageW - 28, 8, 1, 1, "FD");
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(6, 95, 70);
+    doc.text(refsLine, 17, y + 5.5);
+    y += 12;
+  }
+
+  // ── Summary bar ──────────────────────────────────────────────────────────
+  doc.setFillColor(240, 253, 244);
+  doc.setDrawColor(134, 239, 172);
+  doc.roundedRect(14, y, pageW - 28, 8, 1, 1, "FD");
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(6, 95, 70);
+  const summaryLine = `\u2139 ${records.length} entr${records.length === 1 ? "y" : "ies"} \u00b7 Active: ${activeCount} \u00b7 Removed: ${records.length - activeCount} \u00b7 Total Area: ${totalHa.toFixed(4)} ha \u2014 Mandatory for UK vineyards > 0.01 ha. Report changes to the FSA within 30 days.`;
+  doc.text(summaryLine, 17, y + 5.5);
+  y += 12;
+
+  // ── Main table ────────────────────────────────────────────────────────────
+  const tableBody = records.map(r => [
+    String(r.registeredVariety ?? "—"),
+    String(r.vivcNumber ?? "—"),
+    `${nv(r.registeredAreaHa)} ha`,
+    String(r.giClassification ?? "—"),
+    String(r.wineColour ?? "—"),
+    dv(r.dateRegistered),
+    dv(r.dateAmended),
+    r.isRemovedFromRegister ? "Removed" : "Active",
+  ]);
+
+  autoTable(doc, {
+    head: [["Registered Variety", "VIVC No.", "Area (ha)", "GI / PDO", "Wine Colour", "Date Registered", "Date Amended", "Status"]],
+    body: tableBody.length ? tableBody : [["No register entries", "", "", "", "", "", "", ""]],
+    startY: y,
+    styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
+    headStyles: { fillColor: [45, 106, 79], textColor: 255, fontStyle: "bold", fontSize: 8 },
+    alternateRowStyles: { fillColor: [240, 253, 244] },
+    columnStyles: {
+      0: { cellWidth: 50 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 24, halign: "right" },
+      3: { cellWidth: 38 },
+      4: { cellWidth: 32 },
+      5: { cellWidth: 28 },
+      6: { cellWidth: 26 },
+      7: { cellWidth: 22 },
+    },
+    didParseCell: (data) => {
+      // Colour the Status column
+      if (data.column.index === 7 && data.section === "body") {
+        const val = String(data.cell.raw ?? "");
+        if (val === "Active") {
+          data.cell.styles.textColor = [6, 95, 70];
+          data.cell.styles.fontStyle = "bold";
+        } else if (val === "Removed") {
+          data.cell.styles.textColor = [153, 27, 27];
+          data.cell.styles.fontStyle = "bold";
+        }
+      }
+    },
+    foot: records.length > 0
+      ? [["Totals", "", `${totalHa.toFixed(4)} ha`, "", "", "", "", ""]]
+      : undefined,
+    footStyles: { fillColor: [209, 250, 229], textColor: [6, 95, 70], fontStyle: "bold", fontSize: 8 },
+    margin: { left: 14, right: 14 },
+  });
+
+  // ── Footer on each page ───────────────────────────────────────────────────
+  const pageCount = (doc as unknown as { internal: { getNumberOfPages(): number } }).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(150, 150, 150);
+    doc.text("Prepared by BDE Farm Trac  \u00b7  FSA Vine Register  \u00b7  Report any changes to the FSA within 30 days  \u00b7  food.gov.uk/business-guidance/vine-register", 14, pageH - 5);
+    doc.text(`Page ${i} of ${pageCount}`, pageW - 14, pageH - 5, { align: "right" });
+  }
+
+  doc.save("vine-register.pdf");
+}
+
 export async function printOperations(
   records: Record<string, unknown>[],
   farmName: string,
