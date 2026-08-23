@@ -88,7 +88,12 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   // Delete confirm state
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
 
-  const openAdd = () => { setEditingFill(null); setForm({ fillNumber: String(nextFill) }); setShowAdd(true); };
+  const openAdd = () => {
+    const savedOperator = localStorage.getItem("last_operator_name") ?? "";
+    setEditingFill(null);
+    setForm({ fillNumber: String(nextFill), ...(savedOperator ? { operatorName: savedOperator } : {}) });
+    setShowAdd(true);
+  };
 
   // Auto-open the add form when the parent requests it (e.g. tapping the "No fills logged" badge).
   // Runs once on mount so it fires only when the tab is first rendered after the shortcut.
@@ -151,6 +156,9 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
     },
     onSuccess: () => {
+      if (form.operatorName?.trim()) {
+        localStorage.setItem("last_operator_name", form.operatorName.trim());
+      }
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       setShowAdd(false); setEditingFill(null); setForm(blankForm());
