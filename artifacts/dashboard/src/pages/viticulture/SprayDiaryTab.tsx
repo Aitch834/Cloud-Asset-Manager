@@ -663,7 +663,35 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       {crud.isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (
         <DataTable
           cols={[
-            { key: "applicationDate", label: "Date", render: r => fmtDate(r.applicationDate) },
+            {
+              key: "applicationDate", label: "Date", render: r => {
+                const todayMs = new Date().setHours(0, 0, 0, 0);
+                const hiDays = r.harvestIntervalDays != null && r.harvestIntervalDays !== ""
+                  ? Number(r.harvestIntervalDays) : null;
+                let hiActive = false;
+                let expiryStr = "";
+                if (hiDays != null && !isNaN(hiDays) && r.applicationDate) {
+                  const appMs = new Date(r.applicationDate as string).setHours(0, 0, 0, 0);
+                  const expiryMs = appMs + hiDays * 86400000;
+                  hiActive = expiryMs > todayMs;
+                  expiryStr = new Date(expiryMs).toLocaleDateString("en-GB");
+                }
+                return (
+                  <span className="inline-flex items-center gap-1.5">
+                    {fmtDate(r.applicationDate)}
+                    {hiActive && (
+                      <span
+                        title={`Harvest interval active — expires ${expiryStr}`}
+                        className="inline-flex items-center gap-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-full px-1.5 py-0.5 ring-1 ring-inset ring-amber-200 cursor-help"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        H.I.
+                      </span>
+                    )}
+                  </span>
+                );
+              },
+            },
             {
               key: "blockId", label: "Block",
               render: r => {

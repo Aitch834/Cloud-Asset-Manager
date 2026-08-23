@@ -1364,6 +1364,41 @@ function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, o
   );
 }
 
+// ─── Harvest Interval Badge ───────────────────────────────────────────────────
+
+function HarvestIntervalBadge({
+  applicationDate,
+  harvestIntervalDays,
+}: {
+  applicationDate: string | null | undefined;
+  harvestIntervalDays: number | null | undefined;
+}) {
+  const [showExpiry, setShowExpiry] = React.useState(false);
+
+  const hiDays = harvestIntervalDays != null ? Number(harvestIntervalDays) : null;
+  if (hiDays == null || isNaN(hiDays) || !applicationDate) return null;
+
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const appMs = new Date(applicationDate).setHours(0, 0, 0, 0);
+  const expiryMs = appMs + hiDays * 86400000;
+  if (expiryMs <= todayMs) return null;
+
+  const expiryStr = new Date(expiryMs).toLocaleDateString("en-GB");
+
+  return (
+    <Pressable
+      onPress={e => { e.stopPropagation(); setShowExpiry(v => !v); }}
+      hitSlop={6}
+      style={styles.hiBadge}
+    >
+      <Feather name="alert-triangle" size={11} color="#b45309" />
+      <Text style={styles.hiBadgeText}>
+        {showExpiry ? `H.I. expires ${expiryStr}` : "H.I. active"}
+      </Text>
+    </Pressable>
+  );
+}
+
 // ─── Record Row ───────────────────────────────────────────────────────────────
 
 function SprayDiaryRow({
@@ -1432,6 +1467,10 @@ function SprayDiaryRow({
           {item.operatorName ? (
             <Text style={styles.rowSub} numberOfLines={1}>{item.operatorName}</Text>
           ) : null}
+          <HarvestIntervalBadge
+            applicationDate={item.applicationDate}
+            harvestIntervalDays={item.harvestIntervalDays}
+          />
         </View>
       </View>
       <View style={styles.rowRight}>
@@ -2295,6 +2334,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   photoBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary },
+  hiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#fffbeb",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  hiBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: "#b45309" },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
