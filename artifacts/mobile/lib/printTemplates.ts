@@ -1041,6 +1041,185 @@ export function vineOperationsHtml(
   return wrap(body);
 }
 
+// ─── Vine Scouting History ────────────────────────────────────────────────────
+
+export interface VineScoutingHistoryRow {
+  id: number;
+  scoutDate: string | null;
+  blockName: string | null;
+  scoutedBy: string | null;
+  downyMildewPressure: number | null;
+  powderyMildewPressure: number | null;
+  botrytisPressure: number | null;
+  phomopsisPressure: number | null;
+  leafhopperPressure: number | null;
+  spiderMitePressure: number | null;
+  vineWeevilSighted: boolean | null;
+  eutypaDiebackSighted: boolean | null;
+  xylellaFastidiosa: boolean | null;
+  phytophthoraViticola: boolean | null;
+  actionTaken: string | null;
+  notes: string | null;
+}
+
+export function vineScoutingHistoryHtml(
+  records: VineScoutingHistoryRow[],
+  farmName: string | null,
+  farmAddress: string | null,
+  farmPostcode: string | null,
+  searchQuery?: string,
+  dateFrom?: string,
+  dateTo?: string,
+): string {
+  const safeDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const eFarmName = efmt(farmName);
+  const eAddress = farmAddress && farmAddress.trim() ? escHtml(farmAddress.trim()) : "";
+  const ePostcode = farmPostcode && farmPostcode.trim() ? escHtml(farmPostcode.trim()) : "";
+  const addressParts = [eAddress, ePostcode].filter(Boolean).join(", ");
+  const eSearch = searchQuery && searchQuery.trim() ? escHtml(searchQuery.trim()) : "";
+
+  const fmtDateRange = (d: string) => {
+    const parts = d.split("-");
+    if (parts.length !== 3) return escHtml(d);
+    const [y, m, day] = parts;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mIdx = parseInt(m, 10) - 1;
+    return `${day} ${months[mIdx] ?? m} ${y}`;
+  };
+  const hasDateRange = (dateFrom && dateFrom.trim()) || (dateTo && dateTo.trim());
+  const dateRangeParts: string[] = [];
+  if (dateFrom && dateFrom.trim()) dateRangeParts.push(`From: <strong>${fmtDateRange(dateFrom.trim())}</strong>`);
+  if (dateTo && dateTo.trim()) dateRangeParts.push(`To: <strong>${fmtDateRange(dateTo.trim())}</strong>`);
+  const dateRangeStr = dateRangeParts.join(" &nbsp;&middot;&nbsp; ");
+
+  const PRESSURE_LABELS = ["", "Low", "Medium", "High"];
+  const PRESSURE_COLORS = ["", "#1a7a1a", "#c07000", "#c0392b"];
+
+  function highestPressure(r: VineScoutingHistoryRow): { label: string; color: string } | null {
+    const vals = [
+      r.downyMildewPressure,
+      r.powderyMildewPressure,
+      r.botrytisPressure,
+      r.phomopsisPressure,
+      r.leafhopperPressure,
+      r.spiderMitePressure,
+    ].map(v => (v == null ? 0 : Number(v)));
+    const max = Math.max(...vals);
+    if (max <= 0) return null;
+    const idx = Math.min(Math.max(max, 0), 3);
+    return { label: PRESSURE_LABELS[idx] ?? "Low", color: PRESSURE_COLORS[idx] ?? "#1a7a1a" };
+  }
+
+  function pressureDetail(r: VineScoutingHistoryRow): string {
+    const fields: Array<{ label: string; val: number | null }> = [
+      { label: "Downy", val: r.downyMildewPressure },
+      { label: "Powdery", val: r.powderyMildewPressure },
+      { label: "Botrytis", val: r.botrytisPressure },
+      { label: "Phomopsis", val: r.phomopsisPressure },
+      { label: "Leafhopper", val: r.leafhopperPressure },
+      { label: "Spider Mite", val: r.spiderMitePressure },
+    ];
+    const active = fields.filter(f => f.val != null && Number(f.val) > 0);
+    if (active.length === 0) return "—";
+    return active.map(f => {
+      const idx = Math.min(Math.max(Number(f.val), 0), 3);
+      const col = PRESSURE_COLORS[idx] ?? "#1a7a1a";
+      return `<span style="color:${col};font-weight:600">${escHtml(f.label)}: ${PRESSURE_LABELS[idx] ?? ""}</span>`;
+    }).join("<br>");
+  }
+
+  const header = `
+    <div class="header">
+      <div class="logo-block">
+        <h1>BDE Farm Trac</h1>
+        <p>Vineyard Compliance Platform</p>
+      </div>
+      <div class="doc-title">
+        <h2>Vine Scouting History</h2>
+        <p>Date: ${safeDate}</p>
+        <p>${records.length} record${records.length === 1 ? "" : "s"}${eSearch ? ` &middot; Filter: &ldquo;${eSearch}&rdquo;` : ""}</p>
+      </div>
+    </div>
+    <div class="farm-bar" style="flex-direction:column;gap:4px;">
+      <div style="display:flex;gap:28px;">
+        <span>Farm: <strong>${eFarmName}</strong></span>
+        <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
+      </div>
+      ${addressParts ? `<div><span>Address: <strong>${addressParts}</strong></span></div>` : ""}
+      ${hasDateRange ? `<div style="margin-top:2px;"><span style="color:#1e3a5f;">&#128197; Date range: ${dateRangeStr}</span></div>` : ""}
+    </div>`;
+
+  const missingFields: string[] = [];
+  if (!farmName || !farmName.trim()) missingFields.push("Farm name");
+  const missingWarning = missingFields.length > 0
+    ? `<div class="warning-box">⚠ ${missingFields.join(" and ")} not set — update Farm Settings to populate the header.</div>`
+    : "";
+
+  const tableRows = records.map((r) => {
+    const highest = highestPressure(r);
+    const highestCell = highest
+      ? `<span style="font-weight:700;color:${highest.color}">${escHtml(highest.label)}</span><br><span style="font-size:8pt;color:#555">${pressureDetail(r)}</span>`
+      : `<span style="color:#888">—</span>`;
+
+    const notifiableParts: string[] = [];
+    if (r.xylellaFastidiosa) notifiableParts.push("Xylella");
+    if (r.phytophthoraViticola) notifiableParts.push("Phytophthora");
+    const notifiableCell = notifiableParts.length > 0
+      ? `<span style="color:#c0392b;font-weight:700">⚠ ${notifiableParts.map(escHtml).join(", ")}</span>`
+      : "";
+
+    const pestParts: string[] = [];
+    if (r.vineWeevilSighted) pestParts.push("Vine Weevil");
+    if (r.eutypaDiebackSighted) pestParts.push("Eutypa Dieback");
+    const pestCell = [...notifiableParts.map(p => `⚠ ${p}`), ...pestParts].join("<br>");
+
+    return `
+      <tr>
+        <td>${fmtDate(r.scoutDate)}</td>
+        <td><strong>${efmt(r.blockName)}</strong></td>
+        <td>${efmt(r.scoutedBy)}</td>
+        <td style="font-size:8.5pt">${highestCell}</td>
+        <td style="font-size:8.5pt">${pestCell || "—"}</td>
+        <td style="font-size:8.5pt">${efmt(r.actionTaken)}</td>
+        <td style="font-size:8.5pt">${efmt(r.notes)}</td>
+      </tr>`;
+  }).join("");
+
+  const tableEmpty = `<tr><td colspan="7" style="text-align:center;color:#888;padding:16px 8px;">No scouting records match the current filter.</td></tr>`;
+
+  const extraCss = `
+    table { font-size: 8.5pt; }
+    th { font-size: 8pt; }
+    td { padding: 4px 6px; }
+  `;
+
+  const body = `
+    ${header}
+    ${missingWarning}
+    <div class="warning-box" style="background:#f0f9ff;border-color:#7dd3fc;color:#075985;">
+      &#8505; Scouting records must be retained for a minimum of 3 years. If a notifiable plant pest is suspected, report to APHA immediately on 0300 1000 313.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Block</th>
+          <th>Scouted By</th>
+          <th>Disease Pressure</th>
+          <th>Pest / Notifiable</th>
+          <th>Action Taken</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${records.length > 0 ? tableRows : tableEmpty}
+      </tbody>
+    </table>
+    ${docFooter("Vine Scouting History")}`;
+
+  return wrap(body, extraCss);
+}
+
 export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobile, farmName: string): string {
   const lotLabel = record.intakeLotRef || (record.intakeId ? `Intake #${record.intakeId}` : "—");
   const ref = `OUT-${record.id.slice(-8).toUpperCase()}`;

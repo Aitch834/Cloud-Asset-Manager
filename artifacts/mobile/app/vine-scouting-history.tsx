@@ -35,6 +35,31 @@ import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
+import { usePrint } from "@/lib/hooks/usePrint";
+import { vineScoutingHistoryHtml, type VineScoutingHistoryRow } from "@/lib/printTemplates";
+
+function canonicaliseDate(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  let y: string, m: string, d: string;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    [y, m, d] = s.split("-") as [string, string, string];
+  } else {
+    const dmy = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/.exec(s);
+    if (!dmy) return null;
+    d = dmy[1]!; m = dmy[2]!; y = dmy[3]!;
+  }
+  const date = new Date(`${y}-${m}-${d}`);
+  if (
+    isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== parseInt(y, 10) ||
+    date.getUTCMonth() + 1 !== parseInt(m, 10) ||
+    date.getUTCDate() !== parseInt(d, 10)
+  ) {
+    return null;
+  }
+  return `${y}-${m}-${d}`;
+}
 
 const PRESSURE_LABELS = ["None", "Low", "Medium", "High"];
 const PRESSURE_COLORS = [colors.textSecondary, colors.success, colors.warning ?? "#f59e0b", colors.error];
@@ -606,11 +631,22 @@ export default function VineScoutingHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [pressureFilter, setPressureFilter] = useState<"__all__" | "1" | "2" | "3">("__all__");
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const { savePdf } = usePrint();
+
+  const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
+  const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
+  const dateFromInvalid = dateFrom.trim().length >= 8 && canonFrom === null;
+  const dateToInvalid = dateTo.trim().length >= 8 && canonTo === null;
+  const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
 
   const displayRecords = useMemo(() => {
     return records
@@ -645,6 +681,8 @@ export default function VineScoutingHistoryScreen() {
 
   const filtered = useMemo(() => {
     let rows = blockFilteredRecords;
+    if (canonFrom) rows = rows.filter(r => r.scoutDate && r.scoutDate >= canonFrom);
+    if (canonTo) rows = rows.filter(r => r.scoutDate && r.scoutDate <= canonTo);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       const matchedDiseases = SCOUTING_DISEASE_KEYWORDS.filter(d =>
@@ -670,7 +708,7 @@ export default function VineScoutingHistoryScreen() {
       );
     }
     return rows;
-  }, [blockFilteredRecords, search, pressureFilter]);
+  }, [blockFilteredRecords, search, pressureFilter, canonFrom, canonTo]);
 
   const handleSaved = (recordId: number, updated: Partial<ScoutingRecord>) => {
     setLocalUpdates(prev => ({
@@ -715,6 +753,45 @@ export default function VineScoutingHistoryScreen() {
     }
   };
 
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const rows: VineScoutingHistoryRow[] = filtered.map(r => ({
+        id: r.id,
+        scoutDate: r.scoutDate,
+        blockName: r.blockName,
+        scoutedBy: r.scoutedBy,
+        downyMildewPressure: r.downyMildewPressure,
+        powderyMildewPressure: r.powderyMildewPressure,
+        botrytisPressure: r.botrytisPressure,
+        phomopsisPressure: r.phomopsisPressure,
+        leafhopperPressure: r.leafhopperPressure,
+        spiderMitePressure: r.spiderMitePressure,
+        vineWeevilSighted: r.vineWeevilSighted,
+        eutypaDiebackSighted: r.eutypaDiebackSighted,
+        xylellaFastidiosa: r.xylellaFastidiosa,
+        phytophthoraViticola: r.phytophthoraViticola,
+        actionTaken: r.actionTaken,
+        notes: r.notes,
+      }));
+      const html = vineScoutingHistoryHtml(
+        rows,
+        currentFarm?.name ?? null,
+        address ?? null,
+        null,
+        search.trim() || undefined,
+        canonFrom ?? undefined,
+        canonTo ?? undefined,
+      );
+      await savePdf(html, "Vine Scouting History");
+    } catch {
+      Alert.alert("Export Failed", "Could not generate the scouting report. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, filtered, currentFarm?.name, address, search, canonFrom, canonTo, savePdf]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -722,6 +799,20 @@ export default function VineScoutingHistoryScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Scouting History</Text>
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting || filtered.length === 0}
+          style={[styles.exportBtn, (exporting || filtered.length === 0) && styles.exportBtnDisabled]}
+          hitSlop={8}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Feather name="share" size={18} color={filtered.length === 0 ? colors.textSecondary : colors.primary} />
+          }
+          <Text style={[styles.exportBtnText, filtered.length === 0 && styles.exportBtnTextDisabled]}>
+            {exporting ? "Exporting…" : "Export"}
+          </Text>
+        </Pressable>
       </View>
 
       <IdentifierBanner
@@ -746,6 +837,75 @@ export default function VineScoutingHistoryScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      {/* Date range filter */}
+      <View style={styles.dateRangeRow}>
+        <Feather name="calendar" size={14} color={colors.textSecondary} />
+        <View style={styles.dateRangeInputs}>
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>From</Text>
+            <TextInput
+              style={[styles.dateInput, dateFromInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateFrom}
+              onChangeText={setDateFrom}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+          <View style={styles.dateRangeSep} />
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>To</Text>
+            <TextInput
+              style={[styles.dateInput, dateToInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateTo}
+              onChangeText={setDateTo}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+        </View>
+        {(dateFrom.trim() || dateTo.trim()) ? (
+          <Pressable
+            onPress={() => { setDateFrom(""); setDateTo(""); }}
+            hitSlop={10}
+            style={styles.dateRangeClear}
+          >
+            <Feather name="x-circle" size={16} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {(dateFromInvalid || dateToInvalid || dateRangeReversed) && (
+        <View style={styles.dateRangeError}>
+          <Feather name="alert-circle" size={13} color={colors.error} />
+          <Text style={styles.dateRangeErrorText}>
+            {dateRangeReversed
+              ? "'From' date must be before 'To' date."
+              : "Use DD/MM/YYYY or YYYY-MM-DD format."}
+          </Text>
+        </View>
+      )}
+
+      {(search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__") ? (
+        <View style={styles.clearFiltersRow}>
+          <Pressable
+            onPress={() => { setSearch(""); setDateFrom(""); setDateTo(""); setPressureFilter("__all__"); }}
+            style={styles.clearFiltersChip}
+            hitSlop={6}
+          >
+            <Feather name="x" size={13} color={colors.primary} />
+            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Pressure filter chips */}
       <ScrollView
@@ -855,8 +1015,8 @@ export default function VineScoutingHistoryScreen() {
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
               <Text style={styles.emptyTitle}>No scouting records</Text>
               <Text style={styles.emptyText}>
-                {search.trim() || pressureFilter !== "__all__"
-                  ? "No records match your search or filter."
+                {search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__"
+                  ? "No records match the current filters."
                   : "Scouting records you create will appear here."}
               </Text>
             </View>
@@ -1008,6 +1168,27 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  exportBtnDisabled: {
+    borderColor: colors.border,
+  },
+  exportBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
+  exportBtnTextDisabled: {
+    color: colors.textSecondary,
+  },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1214,6 +1395,91 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.md, color: colors.text },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
+  dateRangeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateRangeInputs: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  dateRangeField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  dateRangeLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    width: 26,
+  },
+  dateInput: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    paddingVertical: 4,
+  },
+  dateRangeSep: {
+    width: 1,
+    height: 18,
+    backgroundColor: colors.border,
+    marginHorizontal: 2,
+  },
+  dateRangeClear: {
+    paddingLeft: spacing.xs,
+  },
+  dateInputError: {
+    color: colors.error,
+  },
+  dateRangeError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  dateRangeErrorText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
+  },
+  clearFiltersRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  clearFiltersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  clearFiltersText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
   // Pressure filter chips
   pressureFilterScroll: { flexGrow: 0 },
   pressureFilterScrollContent: {
