@@ -353,11 +353,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
     // Build lookup: blockId → vintageYear → totalKg
     const lookup: Record<string, Record<string, number>> = {};
+    // Also track per-cell pick counts (block × vintage)
+    const pickCountLookup: Record<string, Record<string, number>> = {};
     for (const r of linkedRows) {
       const bid = String(r.blockId);
       const vy = String(r.vintageYear ?? "");
       if (!lookup[bid]) lookup[bid] = {};
       lookup[bid][vy] = (lookup[bid][vy] ?? 0) + (parseFloat(String(r.yieldKg ?? 0)) || 0);
+      if (!pickCountLookup[bid]) pickCountLookup[bid] = {};
+      pickCountLookup[bid][vy] = (pickCountLookup[bid][vy] ?? 0) + 1;
     }
 
     const blockRows = uniqueBlockIds.map(bid => {
@@ -365,12 +369,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       const bname = block ? String((block as Record<string, unknown>).blockName ?? "") : String(bid);
       const areaHaRaw = block ? parseFloat(String((block as Record<string, unknown>).areaHa ?? (block as Record<string, unknown>).area ?? "")) : NaN;
       const areaHa = !isNaN(areaHaRaw) && areaHaRaw > 0 ? areaHaRaw : null;
-      const cells: Record<string, { kg: number; tha: number | null }> = {};
+      const cells: Record<string, { kg: number; tha: number | null; pickCount: number }> = {};
       let rowTotalKg = 0;
       for (const vy of uniqueVintages) {
         const kg = lookup[String(bid)]?.[vy] ?? 0;
+        const pickCount = pickCountLookup[String(bid)]?.[vy] ?? 0;
         rowTotalKg += kg;
-        cells[vy] = { kg, tha: areaHa && kg > 0 ? kg / 1000 / areaHa : null };
+        cells[vy] = { kg, tha: areaHa && kg > 0 ? kg / 1000 / areaHa : null, pickCount };
       }
       return { bname, areaHa, cells, totalKg: rowTotalKg, totalTha: areaHa && rowTotalKg > 0 ? rowTotalKg / 1000 / areaHa : null };
     });
@@ -401,6 +406,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
     const grandTotalPicks = linkedRows.length;
 
+    // Detect whether any block×vintage cell has exactly 1 pick (for the legend note)
+    const anySinglePickCell = blockRows.some(row =>
+      uniqueVintages.some(vy => {
+        const c = row.cells[vy];
+        return c && c.kg > 0 && c.pickCount === 1;
+      })
+    );
+
     return {
       uniqueVintages,
       blockRows,
@@ -409,6 +422,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       footerTotalTha: footerTotalArea > 0 && footerTotalKg > 0 ? footerTotalKg / 1000 / footerTotalArea : null,
       picksByVintage,
       grandTotalPicks,
+      anySinglePickCell,
     };
   }, [yearFilter, filteredHarvest, blocks]);
 
@@ -1463,7 +1477,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       {/* Yield cross-tab: block × vintage, kg + t/ha */}
       {yieldCrossTabData && (() => {
-        const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha, picksByVintage, grandTotalPicks } = yieldCrossTabData;
+        const { uniqueVintages, blockRows, footerCells, footerTotalKg, footerTotalTha, picksByVintage, grandTotalPicks, anySinglePickCell } = yieldCrossTabData;
 
         const handleYieldSort = (col: string) => {
           if (yieldSort?.col === col) {
@@ -1587,16 +1601,28 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     {sortedYieldRows.map((row, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/20 group">
                         <td className="px-4 py-2 font-medium sticky left-0 z-10 bg-card group-hover:bg-muted/20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">{row.bname}</td>
-                        {uniqueVintages.map(vy => (
+                        {uniqueVintages.map(vy => {
+                          const cell = row.cells[vy];
+                          const isSingle = cell && cell.kg > 0 && cell.pickCount === 1;
+                          const sortHlKg = yieldSort?.col === `vy:kg:${vy}`;
+                          const sortHlTha = yieldSort?.col === `vy:tha:${vy}`;
+                          return (
                           <React.Fragment key={vy}>
-                            <td className={`text-right px-3 py-2 tabular-nums border-l ${yieldSort?.col === `vy:kg:${vy}` ? "bg-muted/30" : ""}`}>
-                              {row.cells[vy]?.kg ? row.cells[vy].kg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
+                            <td
+                              className={`text-right px-3 py-2 tabular-nums border-l ${isSingle ? "bg-amber-50 text-amber-900" : sortHlKg ? "bg-muted/30" : ""}`}
+                              title={isSingle ? "Single-pick vintage — figure may be less representative" : undefined}
+                            >
+                              {cell?.kg ? `${cell.kg.toLocaleString("en-GB", { maximumFractionDigits: 1 })}${isSingle ? "\u00a0*" : ""}` : "—"}
                             </td>
-                            <td className={`text-right px-3 py-2 tabular-nums text-muted-foreground ${yieldSort?.col === `vy:tha:${vy}` ? "bg-muted/30" : ""}`}>
-                              {row.cells[vy]?.tha != null ? row.cells[vy].tha!.toFixed(2) : "—"}
+                            <td
+                              className={`text-right px-3 py-2 tabular-nums ${isSingle ? "bg-amber-50 text-amber-700" : sortHlTha ? "bg-muted/30" : "text-muted-foreground"}`}
+                              title={isSingle ? "Single-pick vintage — figure may be less representative" : undefined}
+                            >
+                              {cell?.tha != null ? `${cell.tha!.toFixed(2)}${isSingle ? "\u00a0*" : ""}` : "—"}
                             </td>
                           </React.Fragment>
-                        ))}
+                          );
+                        })}
                         <td className={`text-right px-3 py-2 tabular-nums font-medium border-l ${yieldSort?.col === "total:kg" ? "bg-muted/30" : ""}`}>
                           {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}
                         </td>
@@ -1647,6 +1673,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     </tr>
                   </tfoot>
                 </table>
+                {anySinglePickCell && (
+                  <div className="px-4 py-2 border-t bg-amber-50/60 flex items-center gap-2 text-xs text-amber-800">
+                    <span className="font-semibold">*</span>
+                    <span>Cell derived from a single harvest pick — yield and t/ha may be less representative than a multi-pick average.</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
