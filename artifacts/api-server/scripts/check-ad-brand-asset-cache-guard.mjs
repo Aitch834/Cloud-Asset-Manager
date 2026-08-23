@@ -124,17 +124,26 @@ async function setup() {
 
   // Create a dedicated tenant for this fixture.
   const { rows } = await pg.query(
-    `INSERT INTO tenants (name, slug) VALUES ($1, $2) RETURNING id`,
-    ["cache-guard-check-tenant", `cache-guard-chk-${Date.now()}`],
+    `INSERT INTO tenants (name, slug, contact_email) VALUES ($1, $2, $3) RETURNING id`,
+    ["cache-guard-check-tenant", `cache-guard-chk-${Date.now()}`, "cache-guard@example.com"],
   );
   insertedTenantId = rows[0].id;
 
+  // Look up the BDE Super Admin role ID (required NOT NULL column on user_tenants).
+  const roleResult = await pg.query(
+    `SELECT id FROM roles WHERE name = 'BDE Super Admin' AND is_system_role = true LIMIT 1`,
+  );
+  if (roleResult.rows.length === 0) {
+    throw new Error("Cannot find 'BDE Super Admin' system role — is the roles table seeded?");
+  }
+  const superAdminRoleId = roleResult.rows[0].id;
+
   // Grant super-admin on that tenant.
   await pg.query(
-    `INSERT INTO user_tenants (user_id, tenant_id, is_super_admin, is_active)
-     VALUES ($1, $2, true, true)
-     ON CONFLICT (user_id, tenant_id) DO UPDATE SET is_super_admin = true, is_active = true`,
-    [DEV_BYPASS_USER_ID, insertedTenantId],
+    `INSERT INTO user_tenants (user_id, tenant_id, role_id, is_super_admin, is_active)
+     VALUES ($1, $2, $3, true, true)
+     ON CONFLICT (user_id, tenant_id) DO UPDATE SET role_id = $3, is_super_admin = true, is_active = true`,
+    [DEV_BYPASS_USER_ID, insertedTenantId, superAdminRoleId],
   );
   console.log(`  fixture: super-admin row created (tenant ${insertedTenantId})`);
 }

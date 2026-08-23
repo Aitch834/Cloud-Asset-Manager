@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { router, useFocusEffect } from "expo-router";
 import { Platform } from "react-native";
 import React, { useCallback, useState } from "react";
@@ -29,6 +30,90 @@ function fmtDate(val: string | null | undefined): string {
   const d = new Date(val);
   if (isNaN(d.getTime())) return val;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fmtDateCsv(val: string | null | undefined): string {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleDateString("en-GB");
+}
+
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  permitted: "Permitted",
+  restricted: "Restricted",
+  derogation: "Derogation",
+};
+
+/** Mirror of dashboard lib/csv.ts sanitiseCsvCell — prevents CSV formula injection. */
+const FORMULA_STARTERS = /^[=+\-@|%\t\r]/;
+function sanitiseCsvCell(value: unknown): string {
+  const s = value == null ? "" : String(value);
+  return FORMULA_STARTERS.test(s) ? "\t" + s : s;
+}
+
+/** Always-quoted cell: sanitise first, then wrap in double-quotes. */
+function quoteCsvCell(value: unknown): string {
+  const s = sanitiseCsvCell(value);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function buildInputRegisterCsv(records: DisplayRecord[]): string {
+  const rows: unknown[][] = [
+    ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref",
+     "Approval Status", "Derogation Expiry", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
+    ...records.map(r => [
+      fmtDateCsv(r.dateOfUse),
+      r.productName,
+      r.inputType ?? "",
+      r.supplier ?? "",
+      r.poReference ?? "",
+      r.grnReference ?? "",
+      APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
+      fmtDateCsv(r.derogationExpiryDate),
+      r.certifierApprovalRef ?? "",
+      r.fieldName ?? "",
+      r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "",
+      r.notes ?? "",
+    ]),
+  ];
+  const body = rows.map(row => row.map(quoteCsvCell).join(",")).join("\r\n");
+  return "\uFEFF" + body; // UTF-8 BOM for Excel compatibility
+}
+
+async function downloadInputRegisterCsv(records: DisplayRecord[], farmName: string, cropYear: number | null) {
+  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const yearPart = cropYear ? `-${cropYear}` : "";
+  const filename = `input-register${yearPart}-${safeName}.csv`;
+  const csvContent = buildInputRegisterCsv(records);
+
+  if (Platform.OS === "web") {
+    try {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      Alert.alert("Export failed", "Could not generate the CSV file.");
+    }
+    return;
+  }
+
+  try {
+    const { shareAsync } = await import("expo-sharing");
+    const uri = FileSystem.cacheDirectory + filename;
+    await FileSystem.writeAsStringAsync(uri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+    await shareAsync(uri, {
+      mimeType: "text/csv",
+      dialogTitle: "Share Input Register CSV",
+      UTI: "public.comma-separated-values-text",
+    });
+  } catch {
+    Alert.alert("Export failed", "Could not generate or share the CSV file.");
+  }
 }
 
 function daysUntil(dateStr: string | null | undefined): number | null {
@@ -76,6 +161,8 @@ interface ServerInputRecord {
   fieldName: string | null;
   cropYear: number | null;
   notes: string | null;
+  poReference: string | null;
+  grnReference: string | null;
 }
 
 /** Unified shape for display — covers both server and local-pending records */
@@ -97,6 +184,8 @@ interface DisplayRecord {
   fieldName: string | null;
   cropYear: number | null;
   notes: string | null;
+  poReference: string | null;
+  grnReference: string | null;
   pending: boolean;
   editPending: boolean;
 }
@@ -119,6 +208,7 @@ function applyPendingEdit(
     certifierApprovalRef: changes.certifierApprovalRef == null ? null : String(changes.certifierApprovalRef),
     derogationExpiryDate: changes.derogationExpiryDate == null ? null : String(changes.derogationExpiryDate),
     notes: changes.notes == null ? null : String(changes.notes),
+    // poReference / grnReference are not editable on mobile; preserve server value
     editPending: true,
   };
 }
@@ -143,6 +233,8 @@ function pendingEditOnlyRecord(
     fieldName: null,
     cropYear: null,
     notes: null,
+    poReference: null,
+    grnReference: null,
     pending: false,
     editPending: false,
   }, changes);
@@ -164,6 +256,7 @@ export default function OrganicInputsListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState<number | string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -195,6 +288,8 @@ export default function OrganicInputsListScreen() {
           fieldName: data.fieldName ? String(data.fieldName) : null,
           cropYear: data.cropYear ? Number(data.cropYear) : null,
           notes: data.notes ? String(data.notes) : null,
+          poReference: null,
+          grnReference: null,
           pending: true,
           editPending: false,
         };
@@ -226,6 +321,8 @@ export default function OrganicInputsListScreen() {
             fieldName: r.fieldName,
             cropYear: r.cropYear,
             notes: r.notes,
+            poReference: r.poReference,
+            grnReference: r.grnReference,
             pending: false,
             editPending: false,
           }));
@@ -269,6 +366,30 @@ export default function OrganicInputsListScreen() {
   }, [load]));
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  async function handleExport() {
+    // Only export fully synced records: exclude both locally-pending (not yet POSTed)
+    // and edit-pending (queued PUT with possibly incomplete field coverage) rows.
+    // Partial records risk producing an inaccurate compliance register.
+    const exportable = records.filter(r => !r.pending && !r.editPending);
+    if (exportable.length === 0) {
+      Alert.alert(
+        "Nothing to export",
+        records.length > 0
+          ? "All records have edits or additions still awaiting sync. Please sync your data first, then export."
+          : "There are no synced input records to download."
+      );
+      return;
+    }
+    setExporting(true);
+    try {
+      const cropYears = [...new Set(exportable.map(r => r.cropYear).filter(Boolean) as number[])];
+      const cropYear = cropYears.length === 1 ? cropYears[0] : null;
+      await downloadInputRegisterCsv(exportable, currentFarm?.name ?? "farm", cropYear);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const handleEdit = (r: DisplayRecord) => {
     const sharedParams = {
@@ -373,9 +494,23 @@ export default function OrganicInputsListScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Organic Inputs</Text>
-        <Pressable style={styles.addButton} onPress={() => router.push("/organic-input")}>
-          <Feather name="plus" size={22} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+            onPress={handleExport}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Export CSV"
+          >
+            {exporting
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Feather name="download" size={16} color={colors.primary} />}
+            <Text style={styles.exportLabel}>{exporting ? "…" : "CSV"}</Text>
+          </Pressable>
+          <Pressable style={styles.addButton} onPress={() => router.push("/organic-input")}>
+            <Feather name="plus" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -532,7 +667,20 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   addButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surface,
+  },
+  exportLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.primary },
+  title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, gap: spacing.lg },
   emptyCard: {
