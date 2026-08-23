@@ -32,6 +32,8 @@ export const agriEnvMilestonesTable = pgTable("agri_env_milestones", {
   claimAmountPence: integer("claim_amount_pence"),
   status: text("status").notNull().default("pending"),
   evidenceNotes: text("evidence_notes"),
+  alertClaimedAt: timestamp("alert_claimed_at", { withTimezone: true }),
+  alertedAt: timestamp("alerted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

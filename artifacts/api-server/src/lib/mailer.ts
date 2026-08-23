@@ -628,6 +628,51 @@ export async function sendSectorAlertAllClearEmail(opts: {
   });
 }
 
+export async function sendAgriEnvMilestoneOverdueEmail(opts: {
+  to: string;
+  toName: string;
+  farmName: string;
+  milestoneName: string;
+  schemeName: string;
+  dueDate: string;
+  daysOverdue: number;
+}): Promise<{ sent: boolean; reason?: string }> {
+  const firstName = opts.toName.split(" ")[0] || opts.toName;
+  const body = `
+    <p>Hi ${firstName},</p>
+    <p>This is an automated alert from <strong>BDE Farm Trac</strong> regarding an overdue agri-environment milestone for <strong>${opts.farmName}</strong>.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px 24px;">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:bold;color:#991b1b;text-transform:uppercase;letter-spacing:0.05em;">Overdue Milestone</p>
+        <p style="margin:0 0 12px;font-size:18px;font-weight:bold;color:#1a1a1a;">${opts.milestoneName}</p>
+        <p style="margin:0 0 4px;font-size:13px;color:#374151;"><strong>Scheme:</strong> ${opts.schemeName}</p>
+        <p style="margin:0 0 4px;font-size:13px;color:#374151;"><strong>Due date:</strong> ${opts.dueDate}</p>
+        <p style="margin:0;font-size:13px;color:#991b1b;font-weight:600;">Overdue by ${opts.daysOverdue} day${opts.daysOverdue !== 1 ? "s" : ""}</p>
+      </td></tr>
+    </table>
+
+    <p>This milestone has not been marked as complete. To avoid any impact on your grant payment, please:</p>
+    <ol style="color:#374151;font-size:14px;line-height:1.7;">
+      <li>Log in to BDE Farm Trac and go to <strong>Grants &amp; Funding → Agri-environment</strong>.</li>
+      <li>Review the milestone and update its status once the work is completed.</li>
+      <li>Contact your scheme administrator if you need an extension or have questions about the deadline.</li>
+    </ol>
+
+    <p style="margin:24px 0;">
+      <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
+    </p>
+    <p style="font-size:12px;color:#9ca3af;">You are receiving this because you are registered as a user for ${opts.farmName} on BDE Farm Trac. Update your notification preferences in Account Settings to change how you receive these alerts.</p>
+  `;
+
+  return sendAdminEmail({
+    to: opts.to,
+    toName: opts.toName,
+    subject: `Action Required: Overdue Agri-environment Milestone — ${opts.milestoneName}`,
+    body,
+  });
+}
+
 export async function sendWeeklyDigestEmail(opts: {
   to: string;
   toName: string;

@@ -5,7 +5,7 @@ import { feedContingencyPlansTable, feedStockLevelsTable, feedStockTargetsTable,
 import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/schema";
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
 import { sendSms } from "./sms";
-import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, sendSectorAlertIssuedEmail, type WeeklyDigestItem } from "./mailer";
+import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, sendSectorAlertIssuedEmail, sendAgriEnvMilestoneOverdueEmail, type WeeklyDigestItem } from "./mailer";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull, inArray } from "drizzle-orm";
 
 const ESCALATION_DAYS = 7;
@@ -63,11 +63,13 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
   pig_red_tractor_overdue: "regulatory",
   pig_tail_biting_outbreak: "livestock",
   sector_alert_cleared: "regulatory",
+  agrienv_milestone_overdue: "regulatory",
 };
 
-async function dispatchSmsForCriticalAlert(tenantId: number, notifType: string, title: string, message: string) {
+/** Returns true if at least one SMS was successfully delivered. */
+async function dispatchSmsForCriticalAlert(tenantId: number, notifType: string, title: string, message: string): Promise<boolean> {
   const hasModule = await tenantHasSmsModule(tenantId);
-  if (!hasModule) return;
+  if (!hasModule) return false;
 
   const category = TYPE_TO_CATEGORY[notifType] ?? "regulatory";
 
@@ -95,12 +97,15 @@ async function dispatchSmsForCriticalAlert(tenantId: number, notifType: string, 
     );
 
   const seen = new Set<string>();
+  let anySent = false;
   for (const user of smsUsers) {
     if (!user.phoneNumber || seen.has(user.phoneNumber)) continue;
     seen.add(user.phoneNumber);
     const smsBody = `BDE Farm Trac Alert\n${title}\n${message.slice(0, 140)}`;
-    await sendSms(user.phoneNumber, smsBody);
+    const result = await sendSms(user.phoneNumber, smsBody);
+    if (result.sent) anySent = true;
   }
+  return anySent;
 }
 
 async function upsertNotification(data: {
@@ -1798,6 +1803,8 @@ async function checkAgriEnvMilestoneDeadlines() {
       milestoneName: agriEnvMilestonesTable.milestoneName,
       dueDate: agriEnvMilestonesTable.dueDate,
       status: agriEnvMilestonesTable.status,
+      alertClaimedAt: agriEnvMilestonesTable.alertClaimedAt,
+      alertedAt: agriEnvMilestonesTable.alertedAt,
     })
     .from(agriEnvMilestonesTable)
     .where(
@@ -1818,7 +1825,7 @@ async function checkAgriEnvMilestoneDeadlines() {
       .limit(1);
 
     const [farm] = await db
-      .select({ tenantId: farmsTable.tenantId })
+      .select({ tenantId: farmsTable.tenantId, name: farmsTable.name })
       .from(farmsTable)
       .where(eq(farmsTable.id, ms.farmId))
       .limit(1);
@@ -1839,7 +1846,7 @@ async function checkAgriEnvMilestoneDeadlines() {
     const statusLabel = ms.status === "submitted" ? "submitted but not yet paid" : "still pending";
 
     const title = overdue
-      ? `Agri-environment Claim Overdue — ${ms.milestoneName}`
+      ? `Agri-environment Milestone Overdue — ${ms.milestoneName}`
       : `Agri-environment Claim Due in ${diffDays} Day${diffDays !== 1 ? "s" : ""} — ${ms.milestoneName}`;
 
     const message = overdue
@@ -1857,6 +1864,103 @@ async function checkAgriEnvMilestoneDeadlines() {
       relatedId: ms.id,
       dedupeKey: `agrienv-milestone-${ms.id}-${weekKey}`,
     });
+
+    // ── Proactive email + SMS ────────────────────────────────────────────────
+    // Fires once when a milestone first becomes overdue and has not been
+    // completed. Uses two columns for safe delivery:
+    //   alert_claimed_at — lease set atomically before sending; prevents
+    //                      concurrent job runs from double-sending.
+    //   alerted_at       — set only after at least one channel confirms
+    //                      delivery; NULL means the send failed and the next
+    //                      run should retry (after the lease expires).
+    // Only alert for milestones still pending — 'submitted' means the claim is
+    // in flight (awaiting payment) and is no longer actionable by the grower.
+    // 'completed' and 'paid' are fully resolved.
+    if (!overdue || ms.status !== "pending") continue;
+
+    const LEASE_MS = 60 * 60 * 1000; // 1 hour
+    const leaseExpiry = new Date(Date.now() - LEASE_MS);
+    const alreadyAlerted = !!ms.alertedAt;
+    const leaseActive = ms.alertClaimedAt && ms.alertClaimedAt > leaseExpiry;
+
+    if (alreadyAlerted || leaseActive) continue;
+
+    // Atomically claim the lease — only this run proceeds.
+    // The WHERE predicate re-checks status so a milestone completed between
+    // the initial read and this UPDATE cannot receive a spurious overdue alert.
+    const claimed = await db
+      .update(agriEnvMilestonesTable)
+      .set({ alertClaimedAt: new Date() })
+      .where(
+        and(
+          eq(agriEnvMilestonesTable.id, ms.id),
+          isNull(agriEnvMilestonesTable.alertedAt),
+          eq(agriEnvMilestonesTable.status, "pending"),
+          or(
+            isNull(agriEnvMilestonesTable.alertClaimedAt),
+            lt(agriEnvMilestonesTable.alertClaimedAt, leaseExpiry),
+          ),
+        )
+      )
+      .returning({ id: agriEnvMilestonesTable.id });
+
+    if (claimed.length === 0) continue; // concurrent run claimed it, or milestone now completed/paid
+
+    const daysOverdue = Math.abs(diffDays);
+    let anyDelivered = false;
+
+    // Email all active users on this tenant
+    const recipients = await db
+      .select({
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+      })
+      .from(usersTable)
+      .innerJoin(userTenantsTable, eq(userTenantsTable.userId, usersTable.id))
+      .where(
+        and(
+          eq(userTenantsTable.tenantId, farm.tenantId),
+          eq(userTenantsTable.isActive, true),
+          isNotNull(usersTable.email),
+        )
+      );
+
+    for (const user of recipients) {
+      if (!user.email) continue;
+      const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Farm Manager";
+      const result = await sendAgriEnvMilestoneOverdueEmail({
+        to: user.email,
+        toName: name,
+        farmName: farm.name,
+        milestoneName: ms.milestoneName,
+        schemeName,
+        dueDate: dueDateStr,
+        daysOverdue,
+      }).catch((err) => {
+        console.error(`[ALERTS] Milestone overdue email error for milestone ${ms.id}:`, err);
+        return { sent: false as const };
+      });
+      if (result.sent) anyDelivered = true;
+    }
+
+    // SMS to opted-in phone recipients — returns true only if sendSms confirmed
+    // at least one successful Twilio delivery (not just module-enabled check)
+    const smsSent = await dispatchSmsForCriticalAlert(farm.tenantId, "agrienv_milestone_overdue", title, message);
+    if (smsSent) anyDelivered = true;
+
+    if (anyDelivered) {
+      // Finalise — at least one channel confirmed delivery
+      await db
+        .update(agriEnvMilestonesTable)
+        .set({ alertedAt: new Date() })
+        .where(eq(agriEnvMilestonesTable.id, ms.id));
+      console.log(`[ALERTS] Overdue milestone alert delivered: milestone ${ms.id} (${ms.milestoneName}), farm ${ms.farmId}, overdue by ${daysOverdue}d`);
+    } else {
+      // No channel delivered (SMTP/Twilio not configured or no eligible recipients).
+      // Lease expires in 1 hour and the next run retries automatically.
+      console.warn(`[ALERTS] Overdue milestone alert delivery failed — will retry: milestone ${ms.id} (${ms.milestoneName})`);
+    }
   }
 }
 

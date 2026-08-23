@@ -49,4 +49,10 @@ export async function runAgriEnvMigrations(): Promise<void> {
   `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_agri_env_milestones_project ON agri_env_milestones(project_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_agri_env_milestones_farm ON agri_env_milestones(farm_id)`);
+
+  // Add alert delivery columns for overdue email/SMS deduplication (idempotent)
+  // alert_claimed_at: lease set before sending to prevent concurrent duplicate sends
+  // alerted_at:       finalized only after at least one channel delivers successfully; NULL = retry eligible
+  await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS alert_claimed_at timestamptz`);
+  await db.execute(sql`ALTER TABLE agri_env_milestones ADD COLUMN IF NOT EXISTS alerted_at timestamptz`);
 }
