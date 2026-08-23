@@ -38,6 +38,8 @@ import { apiFetch } from "@/lib/apiFetch";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 import { getItem, getList, setItem } from "@/lib/storage";
 import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
+import { usePersistedVarietyColumns } from "@/lib/hooks/usePersistedVarietyColumns";
+import type { VarietyColsVisibility } from "@/lib/hooks/usePersistedVarietyColumns";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { subscribe } from "@/lib/sync-engine";
 
@@ -691,6 +693,8 @@ export default function VineHarvestHistoryScreen() {
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [varietySort, setVarietySort] = usePersistedVarietySort(currentFarm?.id);
+  const [varietyCols, toggleVarietyCol] = usePersistedVarietyColumns(currentFarm?.id);
+  const [showVarietyColsPanel, setShowVarietyColsPanel] = useState(false);
 
   // Persisted open/closed state for the Yield by Variety panel, scoped per farm.
   // Default: open (true). Loaded from storage on mount / farm switch.
@@ -982,11 +986,11 @@ export default function VineHarvestHistoryScreen() {
         blockVarietyMap.set(b.id, String(b.variety ?? "").trim());
       }
     }
-    const varietyMap: Record<string, { totalKg: number; totalHa: number; seenBlockIds: Set<number>; brixVals: number[] }> = {};
+    const varietyMap: Record<string, { totalKg: number; totalHa: number; seenBlockIds: Set<number>; brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[] }> = {};
     for (const r of vintageRecords) {
       const variety = r.blockId != null ? (blockVarietyMap.get(r.blockId) ?? "") : "";
       const key = variety || UNKNOWN_KEY;
-      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, seenBlockIds: new Set(), brixVals: [] };
+      if (!varietyMap[key]) varietyMap[key] = { totalKg: 0, totalHa: 0, seenBlockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
       const entry = varietyMap[key];
       entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
       if (r.blockId != null && !entry.seenBlockIds.has(r.blockId)) {
@@ -996,6 +1000,12 @@ export default function VineHarvestHistoryScreen() {
       }
       const brix = parseFloat(String(r.brix ?? ""));
       if (!isNaN(brix)) entry.brixVals.push(brix);
+      const ph = parseFloat(String(r.ph ?? ""));
+      if (!isNaN(ph)) entry.phVals.push(ph);
+      const ta = parseFloat(String(r.titratableAcidityGl ?? ""));
+      if (!isNaN(ta)) entry.taVals.push(ta);
+      const pa = parseFloat(String(r.potentialAlcohol ?? ""));
+      if (!isNaN(pa)) entry.paVals.push(pa);
     }
     const namedKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
     if (namedKeys.length < 2) return null;
@@ -1025,6 +1035,9 @@ export default function VineHarvestHistoryScreen() {
         totalKg: e.totalKg,
         kgPerHa: e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null,
         avgBrix: avg(e.brixVals),
+        avgPh: avg(e.phVals),
+        avgTa: avg(e.taVals),
+        avgPotAlc: avg(e.paVals),
       }));
 
     const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
@@ -1279,18 +1292,60 @@ export default function VineHarvestHistoryScreen() {
       {!loading && !error && varietySummaryData && (
         <View style={styles.varietyCard}>
           {/* Collapsible header */}
-          <Pressable
-            style={styles.varietyHeader}
-            onPress={() => { Haptics.selectionAsync(); setVarietyTableOpen(o => !o); }}
-          >
-            <Feather name="bar-chart-2" size={14} color={colors.textSecondary} />
-            <Text style={styles.varietyHeaderText}>Yield by Variety</Text>
-            <Feather
-              name={varietyTableOpen ? "chevron-down" : "chevron-right"}
-              size={14}
-              color={colors.textSecondary}
-            />
-          </Pressable>
+          <View style={styles.varietyHeader}>
+            <Pressable
+              style={styles.varietyHeaderLeft}
+              onPress={() => { Haptics.selectionAsync(); setVarietyTableOpen(o => !o); setShowVarietyColsPanel(false); }}
+            >
+              <Feather name="bar-chart-2" size={14} color={colors.textSecondary} />
+              <Text style={styles.varietyHeaderText}>Yield by Variety</Text>
+            </Pressable>
+            {varietyTableOpen && (
+              <Pressable
+                style={[styles.varietyColsBtn, showVarietyColsPanel && styles.varietyColsBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setShowVarietyColsPanel(v => !v); }}
+                hitSlop={4}
+              >
+                <Feather name="sliders" size={11} color={showVarietyColsPanel ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.varietyColsBtnText, showVarietyColsPanel && styles.varietyColsBtnTextActive]}>Columns</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setVarietyTableOpen(o => !o); setShowVarietyColsPanel(false); }}
+              hitSlop={8}
+              style={{ paddingLeft: 4 }}
+            >
+              <Feather
+                name={varietyTableOpen ? "chevron-down" : "chevron-right"}
+                size={14}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+
+          {varietyTableOpen && showVarietyColsPanel && (
+            <View style={styles.varietyColsPanel}>
+              {([
+                { key: "avgBrix" as keyof VarietyColsVisibility,    label: "Avg Brix °" },
+                { key: "avgPh" as keyof VarietyColsVisibility,      label: "Avg pH" },
+                { key: "avgTa" as keyof VarietyColsVisibility,      label: "Avg TA (g/L)" },
+                { key: "avgPotAlc" as keyof VarietyColsVisibility,  label: "Avg Pot. Alc %" },
+              ]).map(({ key, label }) => (
+                <Pressable
+                  key={key}
+                  style={styles.varietyColsPanelRow}
+                  onPress={() => { Haptics.selectionAsync(); toggleVarietyCol(key); }}
+                >
+                  <Feather
+                    name={varietyCols[key] ? "check-square" : "square"}
+                    size={15}
+                    color={varietyCols[key] ? colors.primary : colors.textSecondary}
+                  />
+                  <Text style={styles.varietyColsPanelLabel}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
           {varietyTableOpen && (
             <>
@@ -1335,48 +1390,61 @@ export default function VineHarvestHistoryScreen() {
                 <View style={[styles.varietyRow, styles.varietyHeaderRow]}>
                   {(
                     [
-                      { col: "variety",  label: "Variety",    flex: 1, align: "left"  },
-                      { col: "totalHa",  label: "Area (ha)",  width: 80, align: "right" },
-                      { col: "totalKg",  label: "Total kg",   width: 80, align: "right" },
-                      { col: "kgPerHa",  label: "t / ha",     width: 72, align: "right" },
-                      { col: "avgBrix",  label: "Avg Brix°",  width: 72, align: "right" },
-                    ] as { col: "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix"; label: string; flex?: number; width?: number; align: "left" | "right" }[]
-                  ).map(({ col, label, flex, width, align }) => {
-                    const active = varietySort.col === col;
-                    const icon = !active ? "minus" : varietySort.dir === "asc" ? "arrow-up" : "arrow-down";
+                      { col: "variety",    label: "Variety",         flex: 1,  align: "left",  show: true,                    sortable: true  as const },
+                      { col: "totalHa",   label: "Area (ha)",        width: 80, align: "right", show: true,                    sortable: true  as const },
+                      { col: "totalKg",   label: "Total kg",         width: 80, align: "right", show: true,                    sortable: true  as const },
+                      { col: "kgPerHa",   label: "t / ha",           width: 72, align: "right", show: true,                    sortable: true  as const },
+                      { col: "avgBrix",   label: "Avg Brix°",        width: 72, align: "right", show: varietyCols.avgBrix,    sortable: true  as const },
+                      { col: "avgPh",     label: "Avg pH",           width: 60, align: "right", show: varietyCols.avgPh,      sortable: false as const },
+                      { col: "avgTa",     label: "Avg TA (g/L)",     width: 72, align: "right", show: varietyCols.avgTa,      sortable: false as const },
+                      { col: "avgPotAlc", label: "Avg Pot. Alc %",   width: 80, align: "right", show: varietyCols.avgPotAlc,  sortable: false as const },
+                    ]
+                  ).filter(c => c.show).map(c => {
+                    if (c.sortable) {
+                      const active = varietySort.col === c.col;
+                      const icon = !active ? "minus" : varietySort.dir === "asc" ? "arrow-up" : "arrow-down";
+                      return (
+                        <Pressable
+                          key={c.col}
+                          style={[
+                            styles.varietyHeaderCell,
+                            c.flex != null ? { flex: c.flex } : { width: c.width },
+                            c.align === "right" && { alignItems: "flex-end" },
+                          ]}
+                          onPress={() => { Haptics.selectionAsync(); toggleVarietySort(c.col as "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix"); }}
+                          hitSlop={6}
+                        >
+                          <View style={styles.varietyHeaderCellInner}>
+                            {c.align === "right" && (
+                              <Feather
+                                name={icon}
+                                size={9}
+                                color={active ? colors.primary : colors.textSecondary}
+                                style={{ opacity: active ? 1 : 0.4 }}
+                              />
+                            )}
+                            <Text style={[styles.varietyHeaderLabel, active && styles.varietyHeaderLabelActive]}>
+                              {c.label}
+                            </Text>
+                            {c.align === "left" && (
+                              <Feather
+                                name={icon}
+                                size={9}
+                                color={active ? colors.primary : colors.textSecondary}
+                                style={{ opacity: active ? 1 : 0.4 }}
+                              />
+                            )}
+                          </View>
+                        </Pressable>
+                      );
+                    }
                     return (
-                      <Pressable
-                        key={col}
-                        style={[
-                          styles.varietyHeaderCell,
-                          flex != null ? { flex } : { width },
-                          align === "right" && { alignItems: "flex-end" },
-                        ]}
-                        onPress={() => { Haptics.selectionAsync(); toggleVarietySort(col); }}
-                        hitSlop={6}
+                      <View
+                        key={c.col}
+                        style={[styles.varietyHeaderCell, { width: c.width }, { alignItems: "flex-end" }]}
                       >
-                        <View style={styles.varietyHeaderCellInner}>
-                          {align === "right" && (
-                            <Feather
-                              name={icon}
-                              size={9}
-                              color={active ? colors.primary : colors.textSecondary}
-                              style={{ opacity: active ? 1 : 0.4 }}
-                            />
-                          )}
-                          <Text style={[styles.varietyHeaderLabel, active && styles.varietyHeaderLabelActive]}>
-                            {label}
-                          </Text>
-                          {align === "left" && (
-                            <Feather
-                              name={icon}
-                              size={9}
-                              color={active ? colors.primary : colors.textSecondary}
-                              style={{ opacity: active ? 1 : 0.4 }}
-                            />
-                          )}
-                        </View>
-                      </Pressable>
+                        <Text style={styles.varietyHeaderLabel}>{c.label}</Text>
+                      </View>
                     );
                   })}
                 </View>
@@ -1418,11 +1486,34 @@ export default function VineHarvestHistoryScreen() {
                         </Pressable>
                       )}
                     </View>
-                    <View style={{ width: 72, alignItems: "flex-end" }}>
-                      <Text style={styles.varietyValue}>
-                        {row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}
-                      </Text>
-                    </View>
+                    {varietyCols.avgBrix && (
+                      <View style={{ width: 72, alignItems: "flex-end" }}>
+                        <Text style={styles.varietyValue}>
+                          {row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {varietyCols.avgPh && (
+                      <View style={{ width: 60, alignItems: "flex-end" }}>
+                        <Text style={styles.varietyValue}>
+                          {row.avgPh != null ? row.avgPh.toFixed(2) : "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {varietyCols.avgTa && (
+                      <View style={{ width: 72, alignItems: "flex-end" }}>
+                        <Text style={styles.varietyValue}>
+                          {row.avgTa != null ? row.avgTa.toFixed(2) : "—"}
+                        </Text>
+                      </View>
+                    )}
+                    {varietyCols.avgPotAlc && (
+                      <View style={{ width: 80, alignItems: "flex-end" }}>
+                        <Text style={styles.varietyValue}>
+                          {row.avgPotAlc != null ? row.avgPotAlc.toFixed(1) : "—"}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   );
                 })}
@@ -1447,7 +1538,10 @@ export default function VineHarvestHistoryScreen() {
                     </Text>
                   </View>
                   <View style={{ width: 72 }} />
-                  <View style={{ width: 72 }} />
+                  {varietyCols.avgBrix && <View style={{ width: 72 }} />}
+                  {varietyCols.avgPh && <View style={{ width: 60 }} />}
+                  {varietyCols.avgTa && <View style={{ width: 72 }} />}
+                  {varietyCols.avgPotAlc && <View style={{ width: 80 }} />}
                 </View>
               </View>
             </ScrollView>
@@ -1932,10 +2026,64 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     backgroundColor: colors.background,
   },
+  varietyHeaderLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   varietyHeaderText: {
     flex: 1,
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  varietyColsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  varietyColsBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: "rgba(99,102,241,0.06)" as any,
+  },
+  varietyColsBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  varietyColsBtnTextActive: {
+    color: colors.primary,
+  },
+  varietyColsPanel: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  varietyColsPanelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  varietyColsPanelLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
     color: colors.text,
   },
   varietyRow: {
