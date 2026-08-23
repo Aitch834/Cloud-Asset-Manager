@@ -2100,6 +2100,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const bFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
+        // Top-row highlight: first sorted row when sorted by a numeric column
+        const NUMERIC_SUMMARY_COLS = new Set(["totalYieldKg", "derivedTha", "avgBrix", "avgPh", "avgTa", "avgPa"]);
+        const topSummaryBlock = NUMERIC_SUMMARY_COLS.has(summarySort.col) ? (sortedSummaryRows[0]?.name ?? null) : null;
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
@@ -2145,9 +2148,21 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedSummaryRows.map((row, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-2 font-medium">{row.name}</td>
+                    {sortedSummaryRows.map((row, i) => {
+                      const isTopRow = topSummaryBlock !== null && row.name === topSummaryBlock;
+                      return (
+                      <tr key={i} className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : "hover:bg-muted/20"}`}>
+                        <td className="px-4 py-2 font-medium">
+                          <span className="inline-flex items-center gap-2">
+                            {row.name}
+                            {isTopRow && (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-emerald-300">
+                                <Award className="w-3 h-3 shrink-0" />
+                                Top
+                              </span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 text-muted-foreground">{row.variety || "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">
@@ -2170,7 +2185,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgTa != null ? row.avgTa.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{row.avgPa != null ? row.avgPa.toFixed(2) : "—"}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   {summaryRows.length > 0 && (
                     <tfoot>
