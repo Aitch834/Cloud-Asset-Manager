@@ -1623,16 +1623,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   onClick={async () => {
                     setCsvExporting(true);
                     try {
-                      // Parallel aggregate queries — clean summary + fill summary
-                      const [summaryRes, fillSummaryRes] = await Promise.all([
+                      // Parallel aggregate queries — clean summary + fill summary + maintenance cost summary
+                      const [summaryRes, fillSummaryRes, maintSummaryRes] = await Promise.all([
                         fetch(api(`farms/${farmId}/winery-vessels-clean-summary`), { credentials: "include" }),
                         fetch(api(`farms/${farmId}/winery-vessels-fill-summary`), { credentials: "include" }),
+                        fetch(api(`farms/${farmId}/winery-vessels-maintenance-summary`), { credentials: "include" }),
                       ]);
-                      if (!summaryRes.ok || !fillSummaryRes.ok) {
+                      if (!summaryRes.ok || !fillSummaryRes.ok || !maintSummaryRes.ok) {
                         toast({ title: "Export failed", description: "Could not load barrel history. Please try again.", variant: "destructive" });
                         return;
                       }
-                      const [summaryBody, fillSummaryBody] = await Promise.all([summaryRes.json(), fillSummaryRes.json()]);
+                      const [summaryBody, fillSummaryBody, maintSummaryBody] = await Promise.all([summaryRes.json(), fillSummaryRes.json(), maintSummaryRes.json()]);
                       // Build lookup: vesselId → { lastCleanDate, cleanCount }
                       const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number }>();
                       for (const row of (summaryBody.records ?? []) as Record<string, unknown>[]) {
@@ -1649,12 +1650,47 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           lastRackOutDate: row.last_rack_out_date ? fmtDate(row.last_rack_out_date) : "",
                         });
                       }
+                      // Build lookup: vesselId → { totalPence, byWorkType: Record<workType, pence> }
+                      const maintMap = new Map<number, { totalPence: number; byWorkType: Record<string, number> }>();
+                      for (const row of (maintSummaryBody.records ?? []) as Record<string, unknown>[]) {
+                        const vid = Number(row.vessel_id);
+                        const wt = String(row.work_type ?? "");
+                        const pence = Number(row.total_pence ?? 0);
+                        if (!maintMap.has(vid)) maintMap.set(vid, { totalPence: 0, byWorkType: {} });
+                        const entry = maintMap.get(vid)!;
+                        entry.totalPence += pence;
+                        entry.byWorkType[wt] = (entry.byWorkType[wt] ?? 0) + pence;
+                      }
+                      // Fleet-wide cooperage cost breakdown across all exported barrels (for header comment)
+                      const fleetByWorkType: Record<string, number> = {};
+                      for (const barrel of exportBarrels) {
+                        const entry = maintMap.get(Number(barrel.id));
+                        if (!entry) continue;
+                        for (const [wt, pence] of Object.entries(entry.byWorkType)) {
+                          fleetByWorkType[wt] = (fleetByWorkType[wt] ?? 0) + pence;
+                        }
+                      }
+                      const fleetCooperageParts = Object.entries(fleetByWorkType)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([wt, pence]) => `${wt} £${(pence / 100).toFixed(2)}`);
                       const colsWithCleans: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
                         ...barrelHealthCols,
                         { key: "_last_fill_date", label: "Last Fill Date", fmt: (r) => fillMap.get(Number(r.id))?.lastFillDate ?? "" },
                         { key: "_last_rack_out_date", label: "Last Rack-out Date", fmt: (r) => fillMap.get(Number(r.id))?.lastRackOutDate ?? "" },
                         { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
                         { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
+                        { key: "_maint_total", label: "Total Cooperage Cost (£)", fmt: (r) => {
+                          const entry = maintMap.get(Number(r.id));
+                          return entry && entry.totalPence > 0 ? (entry.totalPence / 100).toFixed(2) : "";
+                        }},
+                        ...MAINTENANCE_WORK_TYPE_OPTIONS.map(wt => ({
+                          key: `_maint_${wt}`,
+                          label: `Cooperage — ${wt} (£)`,
+                          fmt: (r: Record<string, unknown>) => {
+                            const pence = maintMap.get(Number(r.id))?.byWorkType[wt];
+                            return pence != null && pence > 0 ? (pence / 100).toFixed(2) : "";
+                          },
+                        })),
                       ];
                       const noFillsCooperageCsvCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
                       const noFillsNoneCsvCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
@@ -1669,11 +1705,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           csvComment(`Barrel Health Summary — ${farmNameVessels}`),
                           csvComment(`Scope: Active barrels${scopeParts.length ? " — " + scopeParts.join(", ") : " (all)"}`),
                           csvComment(`Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+`),
+                          ...(fleetCooperageParts.length > 0 ? [csvComment(`Cooperage cost by work type (exported barrels): ${fleetCooperageParts.join(", ")}`)] : []),
                           ...(noFillsCsvParts.length > 0 ? [csvComment(`Warning: ${noFillsCsvParts.join(", ")} barrel${(noFillsCooperageCsvCount + noFillsNoneCsvCount) !== 1 ? "s" : ""} have no fill history — see Fill Tier column for details`)] : []),
                         ],
                       );
                     } catch {
-                      toast({ title: "Export failed", description: "An unexpected error occurred loading cleaning history. Please try again.", variant: "destructive" });
+                      toast({ title: "Export failed", description: "An unexpected error occurred loading barrel history. Please try again.", variant: "destructive" });
                     } finally {
                       setCsvExporting(false);
                     }

@@ -38630,6 +38630,18 @@ router.get("/farms/:farmId/winery-vessels-fill-summary", requireAuth, requireTen
   `);
   res.json({ records: rows.rows });
 });
+// Bulk maintenance cost summary — one row per vessel+work_type for the barrel health CSV export
+router.get("/farms/:farmId/winery-vessels-maintenance-summary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const rows = await db.execute(sql`
+    SELECT vessel_id, work_type, SUM(cost_pence)::bigint AS total_pence, COUNT(*)::int AS record_count
+    FROM winery_barrel_maintenance
+    WHERE farm_id = ${farmId} AND cost_pence IS NOT NULL
+    GROUP BY vessel_id, work_type
+    ORDER BY vessel_id, total_pence DESC
+  `);
+  res.json({ records: rows.rows });
+});
 router.post("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const b = sanitiseBody(req.body); const vesselId = parseInt(req.params.vesselId as string);
