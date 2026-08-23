@@ -1022,7 +1022,7 @@ function InspectionsTab({ farmId, farmName }: { farmId: number; farmName: string
                 <Printer className="w-4 h-4" />Print Register
               </Button>
               <Button variant="outline" size="sm" onClick={() => downloadInspectionsCsv(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
-                <Download className="w-4 h-4" />Download CSV
+                <Download className="w-4 h-4" />Export CSV
               </Button>
             </>
           )}
