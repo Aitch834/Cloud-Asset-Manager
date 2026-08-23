@@ -287,6 +287,27 @@ describe('buildCachedApiHook — live state after API response', () => {
 // (e) Cancellation guard — no state updates after cleanup fires
 // ---------------------------------------------------------------------------
 
+/** Build a fetch mock that rejects with an AbortError when the signal fires. */
+function makePendingFetch(): {
+  mock: jest.Mock;
+  resolve: (v: Response) => void;
+} {
+  let resolveOuter!: (v: Response) => void;
+  const mock = jest.fn().mockImplementation((_url: string, opts?: { signal?: AbortSignal }) => {
+    return new Promise<Response>((res, rej) => {
+      resolveOuter = res;
+      if (opts?.signal) {
+        opts.signal.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted.');
+          err.name = 'AbortError';
+          rej(err);
+        });
+      }
+    });
+  });
+  return { mock, get resolve() { return resolveOuter; } };
+}
+
 describe('buildCachedApiHook — cancellation guard', () => {
   it('does not call setItems or setFromCache when cleanup fires before fetch resolves', async () => {
     // Keep kvGet permanently pending so no cache hit fires before we cancel.
@@ -295,11 +316,9 @@ describe('buildCachedApiHook — cancellation guard', () => {
       new Promise<string | null>((res) => { resolveKvGet = res; })
     );
 
-    // Keep the fetch permanently pending too.
-    let resolveFetch!: (v: Response) => void;
-    global.fetch = jest.fn().mockReturnValue(
-      new Promise<Response>((res) => { resolveFetch = res; })
-    );
+    // Keep the fetch permanently pending and signal-aware.
+    const fetchHelper = makePendingFetch();
+    global.fetch = fetchHelper.mock;
 
     // Initialise the hook — captures the effect callback but does NOT run it.
     mockHarness.slotCounter.value = 0;
@@ -317,27 +336,33 @@ describe('buildCachedApiHook — cancellation guard', () => {
     expect(cleanup).toBeDefined(); // sanity — hook must return cleanup
 
     // Cancel before any async work has had a chance to settle.
+    // This calls controller.abort() — the signal is now aborted.
     cleanup!();
 
-    // Now let both the cache read and the fetch complete.
+    // Let the cache read complete (returns null — no cached data).
+    // When the IIFE resumes it will see controller.signal.aborted === true
+    // and skip the cache-hit branch, then call fetch with the aborted signal.
+    // The already-aborted signal prevents any state updates; we do NOT need to
+    // manually resolve the fetch — the hook guards do the job.
     resolveKvGet(null);
-    resolveFetch({
-      ok: true,
-      json: async () => ({ records: [RAW_ITEM] }),
-    } as unknown as Response);
 
     // Drain all microtask queues so the async IIFE has every opportunity to
-    // call the state setters — which it must NOT do once cancelled === true.
+    // call the state setters — which it must NOT do after abort.
     await drainAsync();
 
-    const [items, , fromCache] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
+    const [items, , fromCache, lastError] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
 
-    // State must remain at the initial values because every setter in the
-    // async IIFE is guarded by `if (!cancelled)`.
+    // State must remain at the initial values because the abort guard prevents
+    // any setter from firing and the AbortError is swallowed, not surfaced.
     expect(items).toHaveLength(0);
     expect(fromCache).toBe(false);
+    expect(lastError).toBeNull();
     // fetch was invoked (the IIFE started) but its result was discarded.
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    // The signal must have been passed to fetch.
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    expect(fetchCall[1]).toHaveProperty('signal');
+    expect(fetchCall[1].signal).toBeInstanceOf(AbortSignal);
   });
 
   it('does not call setItems when cleanup fires between cache read and fetch resolve', async () => {
@@ -346,10 +371,10 @@ describe('buildCachedApiHook — cancellation guard', () => {
     mockKvGet.mockResolvedValue(JSON.stringify(cachedItems));
 
     // Hold the fetch pending so we can cancel after the cache branch fires.
-    let resolveFetch!: (v: Response) => void;
-    global.fetch = jest.fn().mockReturnValue(
-      new Promise<Response>((res) => { resolveFetch = res; })
-    );
+    // Use the object reference (not destructure) so .resolve reads resolveOuter
+    // after the mock implementation has set it.
+    const fetchHelper2 = makePendingFetch();
+    global.fetch = fetchHelper2.mock;
 
     mockHarness.slotCounter.value = 0;
     mockHarness.store.reset([[], true, false, null]);
@@ -364,24 +389,60 @@ describe('buildCachedApiHook — cancellation guard', () => {
     // Let the cache read settle (sets fromCache to true via setFromCache).
     await drainAsync(4);
 
-    // Now cancel — the fetch result must be discarded.
+    // Now cancel — controller.abort() fires, rejecting the pending fetch with AbortError.
     cleanup!();
 
-    // Let the fetch complete with a different item.
+    // Let the fetch resolve with a different item (the abort rejection wins,
+    // but resolving here unblocks any remaining promise chains in the test).
     const freshItem: TestItem = { id: 99, name: 'Should not appear', photoUrl: 'https://s3.example.com/new.jpg' };
-    resolveFetch({
+    fetchHelper2.resolve({
       ok: true,
       json: async () => ({ records: [freshItem] }),
     } as unknown as Response);
 
     await drainAsync();
 
-    const [items] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
+    const [items, , , lastError] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
 
     // The fresh item from the API must NOT have overwritten the state
     // (or there must be no items with the fresh id).
     const hasFreshItem = items.some((i) => (i as TestItem).id === 99);
     expect(hasFreshItem).toBe(false);
+    // AbortError must not be surfaced as lastError.
+    expect(lastError).toBeNull();
+  });
+
+  it('does not set lastError when the fetch is aborted (AbortError is swallowed)', async () => {
+    // Make fetch immediately reject with an AbortError to simulate a very fast abort.
+    const abortErr = new Error('The operation was aborted.');
+    abortErr.name = 'AbortError';
+    global.fetch = jest.fn().mockRejectedValue(abortErr);
+
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[], true, false, null]);
+    useTestHook(FARM_ID);
+
+    let cleanup: (() => void) | undefined;
+    if (mockHarness.capturedEffect.value) {
+      const result = mockHarness.capturedEffect.value();
+      if (typeof result === 'function') cleanup = result as () => void;
+    }
+
+    cleanup?.();
+    await drainAsync();
+
+    const [, , , lastError] = mockHarness.store.values as [TestItem[], boolean, boolean, string | null];
+    expect(lastError).toBeNull();
+  });
+
+  it('passes an AbortSignal to fetch', async () => {
+    // Default setup: fetch resolves normally after signal check.
+    await runHook(useTestHook, FARM_ID, mockHarness);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const fetchOptions = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(fetchOptions).toHaveProperty('signal');
+    expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
   });
 });
 

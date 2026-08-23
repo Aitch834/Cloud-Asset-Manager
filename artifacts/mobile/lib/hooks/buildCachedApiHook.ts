@@ -78,7 +78,7 @@ export function buildCachedApiHook<T>(
       setLastError(null);
       setLoadedForFarmId(undefined);
 
-      let cancelled = false;
+      const controller = new AbortController();
 
       // If the farmId is not a valid numeric ID (e.g. demo mode "farm-1"),
       // skip the API call — just serve from cache if available, otherwise
@@ -92,7 +92,7 @@ export function buildCachedApiHook<T>(
         // such as expired presigned URLs) are sanitized before they reach state.
         try {
           const cached = await kvGet(getCacheKey(farmId));
-          if (cached && !cancelled) {
+          if (cached && !controller.signal.aborted) {
             const parsed: T[] = JSON.parse(cached);
             const hydrated = cacheTransform ? parsed.map(cacheTransform) : parsed;
             setItems(hydrated);
@@ -106,14 +106,14 @@ export function buildCachedApiHook<T>(
 
         if (!isNumericFarm) {
           // Demo mode — no real API to call, just show whatever is cached
-          if (!cancelled) setLoading(false);
+          if (!controller.signal.aborted) setLoading(false);
           return;
         }
 
         // Step 2: Try to refresh from API in background
         const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
         if (!apiDomain) {
-          if (!cancelled) setLoading(false);
+          if (!controller.signal.aborted) setLoading(false);
           return;
         }
 
@@ -129,13 +129,16 @@ export function buildCachedApiHook<T>(
             headers["x-dev-bypass"] = "bde-dev-bypass-local";
           }
 
-          const res = await fetch(`https://${getEndpoint(farmId, apiDomain)}`, { headers });
+          const res = await fetch(`https://${getEndpoint(farmId, apiDomain)}`, {
+            headers,
+            signal: controller.signal,
+          });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
           const json = await res.json();
           const fresh = transform(json);
 
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setItems(fresh);
             setLoadedForFarmId(farmId);
             setFromCache(false);
@@ -149,7 +152,10 @@ export function buildCachedApiHook<T>(
           const toCache = cacheTransform ? fresh.map(cacheTransform) : fresh;
           await kvSet(getCacheKey(farmId), JSON.stringify(toCache));
         } catch (err: unknown) {
-          if (!cancelled) {
+          // AbortError means the component unmounted before the request
+          // finished — this is intentional and must not be surfaced as an error.
+          if (err instanceof Error && err.name === "AbortError") return;
+          if (!controller.signal.aborted) {
             const msg = err instanceof Error ? err.message : "Failed to load";
             setLastError(msg);
             setLoading(false);
@@ -157,7 +163,7 @@ export function buildCachedApiHook<T>(
         }
       })();
 
-      return () => { cancelled = true; };
+      return () => { controller.abort(); };
     }, [farmId]);
 
     return { items, loading, fromCache, lastError, loadedForFarmId };
