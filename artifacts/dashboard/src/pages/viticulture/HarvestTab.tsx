@@ -141,7 +141,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yieldSortDir, setYieldSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const yieldSort = yieldSortCol ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" } : null;
   const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
-  const [yieldCrossTabOpen, setYieldCrossTabOpen] = useState(true);
+  const [yieldCrossTabOpenStr, setYieldCrossTabOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldCrossTabOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const yieldCrossTabOpen = yieldCrossTabOpenStr === "true";
+  const setYieldCrossTabOpen = (val: boolean | ((prev: boolean) => boolean)) => setYieldCrossTabOpenStr(typeof val === "function" ? (val(yieldCrossTabOpen) ? "true" : "false") : (val ? "true" : "false"));
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-harvest", filter: "print-block", farmId, defaultValue: "__all__" });
