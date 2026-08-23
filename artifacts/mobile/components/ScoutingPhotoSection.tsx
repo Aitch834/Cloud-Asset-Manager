@@ -452,6 +452,13 @@ export function ScoutingPhotoLightbox({
           </View>
         ) : null}
 
+        {/* Cover badge */}
+        {photo?.isCover ? (
+          <View style={[lbStyles.coverBadge, { top: insets.top + 12 }]}>
+            <Text style={lbStyles.coverBadgeText}>★</Text>
+          </View>
+        ) : null}
+
         {/* Swipeable photo area */}
         <View style={lbStyles.imageWrapper} {...panResponder.panHandlers}>
           {uri && !imgError ? (
@@ -662,6 +669,20 @@ const lbStyles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
+  },
+  coverBadge: {
+    position: "absolute",
+    left: 16,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  coverBadgeText: {
+    fontSize: 14,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 18,
   },
 });
 

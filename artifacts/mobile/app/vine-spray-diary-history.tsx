@@ -493,6 +493,13 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
             </View>
           ) : null}
 
+          {/* Cover badge */}
+          {photo?.isCover ? (
+            <View style={[lbStyles.coverBadge, { top: insets.top + 12 }]}>
+              <Text style={lbStyles.coverBadgeText}>★</Text>
+            </View>
+          ) : null}
+
           {/* Zoomable image */}
           <GestureDetector gesture={composed}>
             <Animated.View style={[lbStyles.imageContainer, imageStyle]}>
@@ -2507,5 +2514,20 @@ const lbStyles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: "#fff",
+  },
+  coverBadge: {
+    position: "absolute",
+    right: 64,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  coverBadgeText: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 18,
   },
 });
