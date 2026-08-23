@@ -10,7 +10,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, ExternalLink, Link, Unlink,
-  ArrowLeftRight, Mail, ChevronDown,
+  ArrowLeftRight, Mail, ChevronDown, Camera,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -724,27 +724,35 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           { key: "isRemovedFromRegister", label: "Status", render: r => <Badge variant={r.isRemovedFromRegister ? "destructive" : "default"}>{r.isRemovedFromRegister ? "Removed" : "Active"}</Badge> },
           {
             key: "photo",
-            label: "Photo",
+            label: "Photos",
             render: r => {
               if (!r.blockId) return null;
               const linked = blocks.find(b => b.id === r.blockId);
               if (!linked) return null;
-              const photos = linked.photos as Array<{ id: number; caption: string | null }> | undefined;
-              if (!photos || photos.length === 0) return null;
-              const coverPhoto = photos[0];
+              const photoCount = Number(linked.photoCount ?? 0);
+              const coverPhotoUrl = linked.coverPhotoUrl as string | null;
+              if (photoCount === 0) {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    <Camera className="w-3 h-3 shrink-0" />
+                    No photos
+                  </span>
+                );
+              }
               return (
-                <div className="flex flex-col items-center gap-0.5">
-                  <img
-                    src={api(`farms/${farmId}/vineyard-blocks/${Number(r.blockId)}/photos/${coverPhoto.id}`)}
-                    alt={String(linked.blockName ?? "Block photo")}
-                    loading="lazy"
-                    className="w-12 h-12 object-cover rounded border border-border"
-                  />
-                  {coverPhoto.caption ? (
-                    <span className="text-[10px] text-muted-foreground italic text-center max-w-[60px] leading-tight">
-                      {coverPhoto.caption}
-                    </span>
-                  ) : null}
+                <div className="flex flex-col items-center gap-1">
+                  {coverPhotoUrl && (
+                    <img
+                      src={coverPhotoUrl}
+                      alt={String(linked.blockName ?? "Block photo")}
+                      loading="lazy"
+                      className="w-12 h-12 object-cover rounded border border-border"
+                    />
+                  )}
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    <Camera className="w-3 h-3 shrink-0" />
+                    {photoCount}
+                  </span>
                 </div>
               );
             },
