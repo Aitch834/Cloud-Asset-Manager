@@ -90,6 +90,10 @@ args = "cache-guard-api"
 task = "workflow.run"
 args = "mobile-sync-key-guard"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "ad-brand-asset-guard"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -273,6 +277,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run test:cache-guard"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "ad-brand-asset-guard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node artifacts/api-server/scripts/check-ad-pdf-422-guard.mjs"
 
 [workflows.workflow.metadata]
 isValidation = true
