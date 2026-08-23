@@ -34,6 +34,35 @@ import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
+/**
+ * Normalise a grower-typed date to YYYY-MM-DD.
+ * Accepts: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY.
+ * Returns null when blank, still being typed, unparseable, or an impossible
+ * calendar date (e.g. 31 Feb or 30 Feb).
+ */
+function canonicaliseDate(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  let y: string, m: string, d: string;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    [y, m, d] = s.split("-") as [string, string, string];
+  } else {
+    const dmy = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/.exec(s);
+    if (!dmy) return null;
+    d = dmy[1]!; m = dmy[2]!; y = dmy[3]!;
+  }
+  const date = new Date(`${y}-${m}-${d}`);
+  if (
+    isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== parseInt(y, 10) ||
+    date.getUTCMonth() + 1 !== parseInt(m, 10) ||
+    date.getUTCDate() !== parseInt(d, 10)
+  ) {
+    return null;
+  }
+  return `${y}-${m}-${d}`;
+}
+
 // ─── WineGB Survey Panel ──────────────────────────────────────────────────────
 
 type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
@@ -462,9 +491,17 @@ export default function VinePhenologyHistoryScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [editingRecord, setEditingRecord] = useState<PhenologyRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<PhenologyRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+
+  const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
+  const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
+  const dateFromInvalid = dateFrom.trim().length >= 8 && canonFrom === null;
+  const dateToInvalid = dateTo.trim().length >= 8 && canonTo === null;
+  const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
 
   const displayRecords = useMemo(() => {
     return records
@@ -476,15 +513,20 @@ export default function VinePhenologyHistoryScreen() {
   }, [records, localUpdates, deletedIds]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return displayRecords;
-    const q = search.toLowerCase();
-    return displayRecords.filter(r =>
-      (r.blockName ?? "").toLowerCase().includes(q) ||
-      (r.observer ?? "").toLowerCase().includes(q) ||
-      (r.observationDate ?? "").includes(q) ||
-      (r.bbchStage ?? "").includes(q),
-    );
-  }, [displayRecords, search]);
+    let result = displayRecords;
+    if (canonFrom) result = result.filter(r => r.observationDate && r.observationDate >= canonFrom);
+    if (canonTo) result = result.filter(r => r.observationDate && r.observationDate <= canonTo);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(r =>
+        (r.blockName ?? "").toLowerCase().includes(q) ||
+        (r.observer ?? "").toLowerCase().includes(q) ||
+        (r.observationDate ?? "").includes(q) ||
+        (r.bbchStage ?? "").includes(q),
+      );
+    }
+    return result;
+  }, [displayRecords, search, canonFrom, canonTo]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
@@ -555,6 +597,75 @@ export default function VinePhenologyHistoryScreen() {
         />
       </View>
 
+      {/* Date range filter */}
+      <View style={styles.dateRangeRow}>
+        <Feather name="calendar" size={14} color={colors.textSecondary} />
+        <View style={styles.dateRangeInputs}>
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>From</Text>
+            <TextInput
+              style={[styles.dateInput, dateFromInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateFrom}
+              onChangeText={setDateFrom}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+          <View style={styles.dateRangeSep} />
+          <View style={styles.dateRangeField}>
+            <Text style={styles.dateRangeLabel}>To</Text>
+            <TextInput
+              style={[styles.dateInput, dateToInvalid && styles.dateInputError]}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={colors.textSecondary}
+              value={dateTo}
+              onChangeText={setDateTo}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+          </View>
+        </View>
+        {(dateFrom.trim() || dateTo.trim()) ? (
+          <Pressable
+            onPress={() => { setDateFrom(""); setDateTo(""); }}
+            hitSlop={10}
+            style={styles.dateRangeClear}
+          >
+            <Feather name="x-circle" size={16} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {(dateFromInvalid || dateToInvalid || dateRangeReversed) && (
+        <View style={styles.dateRangeError}>
+          <Feather name="alert-circle" size={13} color={colors.error} />
+          <Text style={styles.dateRangeErrorText}>
+            {dateRangeReversed
+              ? "'From' date must be before 'To' date."
+              : "Use DD/MM/YYYY or YYYY-MM-DD format."}
+          </Text>
+        </View>
+      )}
+
+      {(search.trim() || dateFrom.trim() || dateTo.trim()) ? (
+        <View style={styles.clearFiltersRow}>
+          <Pressable
+            onPress={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+            style={styles.clearFiltersChip}
+            hitSlop={6}
+          >
+            <Feather name="x" size={13} color={colors.primary} />
+            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {loading && !refreshing ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       ) : error ? (
@@ -577,7 +688,9 @@ export default function VinePhenologyHistoryScreen() {
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
               <Text style={styles.emptyTitle}>No phenology records</Text>
               <Text style={styles.emptyText}>
-                {search.trim() ? "No records match your search." : "Phenology records you create will appear here."}
+                {search.trim() || dateFrom.trim() || dateTo.trim()
+                  ? "No records match the current filters."
+                  : "Phenology records you create will appear here."}
               </Text>
             </View>
           }
@@ -717,6 +830,91 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  dateRangeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateRangeInputs: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  dateRangeField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  dateRangeLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    width: 26,
+  },
+  dateInput: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    paddingVertical: 4,
+  },
+  dateRangeSep: {
+    width: 1,
+    height: 18,
+    backgroundColor: colors.border,
+    marginHorizontal: 2,
+  },
+  dateRangeClear: {
+    paddingLeft: spacing.xs,
+  },
+  dateInputError: {
+    color: colors.error,
+  },
+  dateRangeError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  dateRangeErrorText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.error,
+  },
+  clearFiltersRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  clearFiltersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  clearFiltersText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
