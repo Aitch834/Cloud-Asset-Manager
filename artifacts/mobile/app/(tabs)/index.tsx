@@ -51,6 +51,7 @@ export default function HomeScreen() {
   const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference(user?.id);
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
   const isViticultureActive = activeModuleKeys.includes("viticulture") || activeModuleKeys.includes("organic-viticulture");
+  const isOrganicActive = activeModuleKeys.includes("organic-compliance");
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -71,6 +72,12 @@ export default function HomeScreen() {
     milestoneName: string;
     dueDate: string;
     schemeName: string;
+    isOverdue: boolean;
+  }>>([]);
+  const [upcomingInspections, setUpcomingInspections] = useState<Array<{
+    id: number;
+    certifier: string;
+    nextDueDate: string;
     isOverdue: boolean;
   }>>([]);
 
@@ -129,6 +136,38 @@ export default function HomeScreen() {
       setUpcomingMilestones(upcoming);
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
+
+  const fetchUpcomingInspections = useCallback(async () => {
+    if (!currentFarm?.id || !isOrganicActive) {
+      setUpcomingInspections([]);
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/farms/${currentFarm.id}/organic/inspections`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const records: Array<{ id: number; certifier: string; nextDueDate?: string | null }> = data.records ?? [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today);
+      horizon.setDate(horizon.getDate() + 90);
+      const upcoming = records
+        .filter((r) => {
+          if (!r.nextDueDate) return false;
+          const due = new Date(r.nextDueDate);
+          return due <= horizon;
+        })
+        .map((r) => ({
+          id: r.id,
+          certifier: r.certifier,
+          nextDueDate: r.nextDueDate as string,
+          isOverdue: new Date(r.nextDueDate as string) < today,
+        }))
+        .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
+        .slice(0, 5);
+      setUpcomingInspections(upcoming);
+    } catch { /* ignore */ }
+  }, [currentFarm?.id, isOrganicActive]);
 
   const fetchUnlinkedCounts = useCallback(async () => {
     if (!currentFarm?.id || !isViticultureActive) return;
@@ -193,8 +232,9 @@ export default function HomeScreen() {
       fetchUnlinkedCounts();
       fetchFPInputDerogAlerts();
       fetchUpcomingMilestones();
+      fetchUpcomingInspections();
       fetchWinegbSubmissions();
-    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchWinegbSubmissions])
+    }, [fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchUpcomingInspections, fetchWinegbSubmissions])
   );
 
   // Also re-fetch immediately when a history screen changes a block link inline
@@ -331,9 +371,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchWinegbSubmissions()]);
+    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchUpcomingInspections(), fetchWinegbSubmissions()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchWinegbSubmissions]);
+  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingInspections, fetchWinegbSubmissions]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -670,6 +710,41 @@ export default function HomeScreen() {
                 <View style={styles.unlinkedContent}>
                   <Text style={styles.unlinkedTitle}>{alert.title}</Text>
                   <Text style={styles.unlinkedSubtitle}>Tap to review FP derogations</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
+            ))}
+          </>
+        )}
+
+        {upcomingInspections.length > 0 && (
+          <>
+            <SectionHeader title="Organic Inspections" />
+            {upcomingInspections.map((inspection) => (
+              <Pressable
+                key={inspection.id}
+                style={[
+                  styles.unlinkedBanner,
+                  inspection.isOverdue ? styles.alertBannerRed : styles.alertBannerAmber,
+                ]}
+                onPress={() => router.push("/organic-overview")}
+              >
+                <View style={[
+                  styles.unlinkedIconWrap,
+                  { backgroundColor: (inspection.isOverdue ? colors.error : colors.warning) + "22" },
+                ]}>
+                  <Feather
+                    name="clipboard"
+                    size={18}
+                    color={inspection.isOverdue ? colors.error : colors.warning}
+                  />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>{inspection.certifier}</Text>
+                  <Text style={[styles.unlinkedSubtitle, inspection.isOverdue && { color: colors.error }]}>
+                    {inspection.isOverdue ? "Overdue — was due " : "Due "}
+                    {new Date(inspection.nextDueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </Text>
                 </View>
                 <Feather name="chevron-right" size={18} color={colors.textSecondary} />
               </Pressable>
