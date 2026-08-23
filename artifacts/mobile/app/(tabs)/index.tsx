@@ -151,7 +151,17 @@ export default function HomeScreen() {
       const latestByCertifier = new Map<string, typeof records[0]>();
       for (const r of records) {
         const existing = latestByCertifier.get(r.certifier);
-        if (!existing || (r.inspectionDate ?? "") > (existing.inspectionDate ?? "") || (!r.inspectionDate && r.id > existing.id)) {
+        if (
+          !existing ||
+          // A dated record always beats an undated existing record.
+          (!!r.inspectionDate && !existing.inspectionDate) ||
+          // Both dated: later date wins; same date → higher ID wins.
+          (!!r.inspectionDate && !!existing.inspectionDate &&
+            (r.inspectionDate > existing.inspectionDate ||
+             (r.inspectionDate === existing.inspectionDate && r.id > existing.id))) ||
+          // Both undated: higher ID wins (best-available tie-breaker).
+          (!r.inspectionDate && !existing.inspectionDate && r.id > existing.id)
+        ) {
           latestByCertifier.set(r.certifier, r);
         }
       }

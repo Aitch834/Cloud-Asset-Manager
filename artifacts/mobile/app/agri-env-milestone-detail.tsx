@@ -48,6 +48,22 @@ interface MilestoneListCache {
   cachedAt: string;
 }
 
+interface AgriEnvProject {
+  id: number;
+  schemeName: string;
+  administeringBody: string | null;
+  agreementReference: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  totalGrantValuePence: number | null;
+  status: string;
+}
+
+interface AgriEnvProjectsCache {
+  data: AgriEnvProject[];
+  cachedAt: string;
+}
+
 function mergeMilestone(
   milestones: AgriEnvMilestone[],
   updated: AgriEnvMilestone,
@@ -91,6 +107,10 @@ function farmMilestonesCacheKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_MILESTONES_CACHE}_${farmId}`;
 }
 
+function projectListCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
+}
+
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.detailRow}>
@@ -109,6 +129,10 @@ export default function AgriEnvMilestoneDetailScreen() {
   const milestoneId = params.milestoneId ? parseInt(params.milestoneId, 10) : null;
 
   const [milestone, setMilestone] = useState<AgriEnvMilestone | null>(null);
+  // All milestones for this project — needed to compute the true all-time
+  // claimed/submitted totals shown in the project summary row.
+  const [projectMilestones, setProjectMilestones] = useState<AgriEnvMilestone[]>([]);
+  const [project, setProject] = useState<AgriEnvProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,13 +173,19 @@ export default function AgriEnvMilestoneDetailScreen() {
 
       // ── Cache-first: show stored data immediately ──
       if (!isRefresh) {
-        const cached = await getItem<MilestoneDetailCache>(
-          cacheKey(currentFarm.id, projectId),
-        );
+        const [cached, projectsCache] = await Promise.all([
+          getItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId)),
+          getItem<AgriEnvProjectsCache>(projectListCacheKey(currentFarm.id)),
+        ]);
+        if (projectsCache && !cancelRef.current) {
+          const foundProject = projectsCache.data.find(p => p.id === projectId) ?? null;
+          setProject(foundProject);
+        }
         if (cached) {
           const found = cached.milestones.find(m => m.id === milestoneId) ?? null;
           if (found && !cancelRef.current) {
             setMilestone(found);
+            setProjectMilestones(cached.milestones);
             setCachedAt(new Date(cached.cachedAt));
             setLoading(false);
             hasCachedDataRef.current = true;
@@ -174,12 +204,28 @@ export default function AgriEnvMilestoneDetailScreen() {
 
       const cacheVersionAtRequest = cacheMutationVersionRef.current;
       try {
-        const res = await apiFetch(
-          `/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones`,
-        );
+        const [res, projectsRes] = await Promise.all([
+          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones`),
+          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`),
+        ]);
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = (await res.json()) as { milestones: AgriEnvMilestone[] };
         const loaded = data.milestones ?? [];
+
+        // Update project from the fresh projects response (best-effort).
+        if (projectsRes.ok && !cancelRef.current) {
+          const projectsData = (await projectsRes.json()) as { projects: AgriEnvProject[] };
+          const loadedProjects = projectsData.projects ?? [];
+          const foundProject = loadedProjects.find(p => p.id === projectId) ?? null;
+          setProject(foundProject);
+          // Persist project list for subsequent visits (shares key with the
+          // projects screen so both screens warm each other's cache).
+          const now = new Date().toISOString();
+          setItem<AgriEnvProjectsCache>(projectListCacheKey(currentFarm.id), {
+            data: loadedProjects,
+            cachedAt: now,
+          }).catch(() => { /* ignore */ });
+        }
 
         if (
           !cancelRef.current &&
@@ -190,6 +236,7 @@ export default function AgriEnvMilestoneDetailScreen() {
         ) {
           const found = loaded.find(m => m.id === milestoneId) ?? null;
           setMilestone(found);
+          setProjectMilestones(loaded);
           setCachedAt(null); // live data — suppress banner
           // Persist in background; ignore write failures.
           const now = new Date().toISOString();
@@ -321,6 +368,13 @@ export default function AgriEnvMilestoneDetailScreen() {
       const data = await res.json() as { milestone: AgriEnvMilestone };
       cacheMutationVersionRef.current += 1;
       setMilestone(prev => prev ? { ...prev, ...data.milestone } : data.milestone);
+      // Keep the project-wide milestone list in sync so the remaining-balance
+      // badge updates immediately rather than waiting for the next load().
+      setProjectMilestones(prev =>
+        prev.some(m => m.id === data.milestone.id)
+          ? prev.map(m => m.id === data.milestone.id ? { ...m, ...data.milestone } : m)
+          : [...prev, data.milestone],
+      );
       try {
         await updateMilestoneCache(data.milestone);
       } catch {
@@ -640,6 +694,56 @@ export default function AgriEnvMilestoneDetailScreen() {
               )}
             </View>
           </View>
+
+          {/* Project context summary */}
+          {project && (project.totalGrantValuePence ?? 0) > 0 && (() => {
+            const total = project.totalGrantValuePence ?? 0;
+            // All-time paid/submitted across all milestones for this project.
+            // projectMilestones holds the full list fetched by the detail endpoint,
+            // so these totals are accurate even when there are sibling milestones.
+            const allTimePaid = projectMilestones
+              .filter(m => m.status === "paid")
+              .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+            const allTimeSubmitted = projectMilestones
+              .filter(m => m.status === "submitted")
+              .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+            const remaining = total - allTimePaid;
+            const isFullyClaimed = remaining <= 0;
+            return (
+              <View style={styles.projectSummaryCard}>
+                <Text style={styles.projectSummaryScheme} numberOfLines={2}>
+                  {project.schemeName}
+                </Text>
+                <View style={styles.projectSummaryRow}>
+                  <Text style={styles.projectSummaryTotal}>
+                    {fmt(total)} total grant value
+                  </Text>
+                  <View style={[
+                    styles.remainingPill,
+                    isFullyClaimed ? styles.remainingPillFull : styles.remainingPillPartial,
+                  ]}>
+                    <Text style={[
+                      styles.remainingPillText,
+                      isFullyClaimed ? styles.remainingPillTextFull : styles.remainingPillTextPartial,
+                    ]}>
+                      {isFullyClaimed ? "fully claimed" : `${fmt(remaining)} left`}
+                    </Text>
+                  </View>
+                </View>
+                {allTimePaid > 0 && (
+                  <Text style={styles.projectSummaryMeta}>
+                    {fmt(allTimePaid)} claimed so far
+                    {allTimeSubmitted > 0 ? ` · ${fmt(allTimeSubmitted)} submitted` : ""}
+                  </Text>
+                )}
+                {allTimePaid === 0 && allTimeSubmitted > 0 && (
+                  <Text style={styles.projectSummaryMeta}>
+                    {fmt(allTimeSubmitted)} submitted (awaiting payment)
+                  </Text>
+                )}
+              </View>
+            );
+          })()}
 
           {/* Dates & claim */}
           <View style={styles.card}>
@@ -979,6 +1083,67 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
     lineHeight: 20,
+  },
+
+  // Project context summary
+  projectSummaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+    gap: 4,
+  },
+  projectSummaryScheme: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  projectSummaryRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  projectSummaryTotal: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+  },
+  projectSummaryMeta: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 1,
+  },
+  remainingPill: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  remainingPillPartial: {
+    backgroundColor: "#fffbeb",
+    borderColor: "#fcd34d",
+  },
+  remainingPillFull: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
+  },
+  remainingPillText: {
+    fontSize: 11,
+    fontFamily: fonts.semiBold,
+  },
+  remainingPillTextPartial: {
+    color: "#92400e",
+  },
+  remainingPillTextFull: {
+    color: "#166534",
   },
 });
 
