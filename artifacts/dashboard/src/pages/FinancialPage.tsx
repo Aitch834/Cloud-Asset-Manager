@@ -2110,6 +2110,16 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     grossMargin: v.income - v.sprayCost - v.labourCost - v.otherCost,
   }));
 
+  function handleDownloadPlCsv() {
+    const toGbp = (pence: number) => (pence / 100).toFixed(2);
+    const rows: unknown[][] = [
+      ["Category", "Type", "Amount (£)", "Period"],
+      ...incomeByCategory.map(r => [r.cat, "Income", toGbp(r.total), periodLabel]),
+      ...expenseByCategory.map(r => [r.cat, "Expense", toGbp(r.total), periodLabel]),
+    ];
+    downloadCsvFile(`full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`, rows);
+  }
+
   function handleDownloadCsv() {
     if (enterpriseSummaries.length === 0) return;
     const toGbp = (pence: number) => (pence / 100).toFixed(2);
@@ -2302,6 +2312,9 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" onClick={handleDownloadPlCsv} disabled={isLoading}>
+            <Download size={14} className="mr-2" />Download Full P&amp;L CSV
+          </Button>
           {enterpriseSummaries.length > 0 && enterpriseFilter === "all" && (
             <Button variant="outline" onClick={handleDownloadCsv} disabled={isLoading}>
               <Download size={14} className="mr-2" />Download CSV
