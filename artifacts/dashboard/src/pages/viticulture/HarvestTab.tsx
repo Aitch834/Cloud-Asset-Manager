@@ -1905,6 +1905,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               default: return 0;
             }
           });
+          const VINTAGE_NUMERIC_COLS = ["picks", "totalKg", "derivedTha", "avgBrix", "avgPh", "avgTa", "avgPa"];
+          const topVintage = VINTAGE_NUMERIC_COLS.includes(vintageSort.col) && sortedVintageRows.length > 0
+            ? sortedVintageRows[0].vintage
+            : null;
           return (
             <div className="rounded-lg border bg-card overflow-hidden">
               <button
@@ -1973,13 +1977,25 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedVintageRows.map((row, i) => (
+                        {sortedVintageRows.map((row, i) => {
+                          const isTopRow = topVintage !== null && row.vintage === topVintage;
+                          return (
                           <tr
                             key={i}
-                            className={`border-b last:border-0 ${row.picks === 1 ? "bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30" : "hover:bg-muted/20"}`}
-                            title={row.picks === 1 ? "Only one pick recorded for this vintage — treat data with lower confidence" : undefined}
+                            className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : row.picks === 1 ? "bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30" : "hover:bg-muted/20"}`}
+                            title={!isTopRow && row.picks === 1 ? "Only one pick recorded for this vintage — treat data with lower confidence" : undefined}
                           >
-                            <td className="px-4 py-2 font-medium">{row.vintage}</td>
+                            <td className="px-4 py-2 font-medium">
+                              <span className="inline-flex items-center gap-2">
+                                {row.vintage}
+                                {isTopRow && (
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-emerald-300">
+                                    <Award className="w-3 h-3 shrink-0" />
+                                    Top
+                                  </span>
+                                )}
+                              </span>
+                            </td>
                             <td className="text-right px-3 py-2 tabular-nums">
                               {row.picks === 1 ? (
                                 <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300" title="Only one pick recorded — low-confidence data">1 pick</span>
@@ -2000,7 +2016,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                             {vintageChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgTa   != null ? row.avgTa.toFixed(2)   : "—"}</td>}
                             {vintageChemCols.avgPa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPa   != null ? row.avgPa.toFixed(2)   : "—"}</td>}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                       {vintageRows.length >= 1 && (
                         <tfoot>
