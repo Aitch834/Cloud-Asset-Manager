@@ -2086,6 +2086,10 @@ function EditFillModal({ visible, farmId, vesselId, record, onClose, onSuccess }
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
+      const submittedOperator = form.operatorName.trim();
+      if (submittedOperator) {
+        void kvSet("last_operator_name", submittedOperator);
+      }
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save changes.");
