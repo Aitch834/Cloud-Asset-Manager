@@ -264,6 +264,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   const filmstripRef = useRef<HTMLDivElement>(null);
   const [orderedPhotos, setOrderedPhotos] = useState<BlockPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const swipeTouchStartX = useRef<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -387,6 +388,35 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
 
   // Derive the active lightbox photo from orderedPhotos (stays correct after reorders)
   const lightboxPhoto = lightboxId !== null ? (orderedPhotos.find(p => p.id === lightboxId) ?? null) : null;
+  const lightboxIndex = lightboxPhoto ? orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) : -1;
+
+  const goPrev = () => {
+    if (lightboxIndex > 0) setLightboxId(orderedPhotos[lightboxIndex - 1].id);
+  };
+  const goNext = () => {
+    if (lightboxIndex >= 0 && lightboxIndex < orderedPhotos.length - 1)
+      setLightboxId(orderedPhotos[lightboxIndex + 1].id);
+  };
+
+  // Arrow-key navigation when lightbox is open
+  useEffect(() => {
+    if (!lightboxPhoto) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      const tag = el.tagName;
+      // Exclude text-editing elements
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Exclude only the filmstrip drag-handle buttons so dnd-kit keyboard
+      // reordering keeps working there; all other buttons (Prev, Next, Close,
+      // Delete, Cover) should still respond to arrow-key navigation.
+      if (el.getAttribute("aria-label") === "Drag to reorder") return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); goPrev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); goNext(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightboxPhoto, lightboxIndex, orderedPhotos]);
 
   const deletePhotoMutation = useMutation({
     mutationFn: async (photoId: number) => {
@@ -505,12 +535,44 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
           {lightboxPhoto && (
             <div className="flex flex-col gap-2">
               {/* Main image */}
-              <div className="relative group/lightbox">
+              <div
+                className="relative group/lightbox"
+                onTouchStart={e => { swipeTouchStartX.current = e.touches[0].clientX; }}
+                onTouchEnd={e => {
+                  if (swipeTouchStartX.current === null) return;
+                  const dx = e.changedTouches[0].clientX - swipeTouchStartX.current;
+                  swipeTouchStartX.current = null;
+                  if (Math.abs(dx) < 40) return; // ignore tiny taps
+                  if (dx < 0) goNext(); else goPrev();
+                }}
+              >
                 <img
                   src={photoSrc(lightboxPhoto)}
                   alt={lightboxPhoto.fileName ?? "Block photo"}
                   className="w-full max-h-[60vh] object-contain rounded-lg"
                 />
+                {/* Prev arrow */}
+                {lightboxIndex > 0 && (
+                  <button
+                    type="button"
+                    onClick={goPrev}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
+                    aria-label="Previous photo"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                )}
+                {/* Next arrow */}
+                {lightboxIndex >= 0 && lightboxIndex < orderedPhotos.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/75 text-white p-1.5 transition-colors opacity-0 group-hover/lightbox:opacity-100 focus:opacity-100"
+                    aria-label="Next photo"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                )}
                 {/* Delete button */}
                 <button
                   type="button"
