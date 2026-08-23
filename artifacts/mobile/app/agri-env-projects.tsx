@@ -53,6 +53,17 @@ interface AgriEnvMilestone {
   evidenceNotes: string | null;
 }
 
+interface FinancialTransaction {
+  id: number;
+  transactionDate: string | null;
+  transactionType: string;
+  category: string;
+  description: string | null;
+  amountPence: number;
+  reference: string | null;
+  agriEnvProjectId: number | null;
+}
+
 type MilestoneStatus = "pending" | "submitted" | "paid" | "overdue";
 
 const MILESTONE_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -63,6 +74,8 @@ const MILESTONE_STATUS_META: Record<string, { label: string; color: string; bg: 
   cancelled: { label: "Cancelled", color: "#6b7280", bg: "#f3f4f6" },
 };
 const MILESTONE_STATUSES: MilestoneStatus[] = ["pending", "submitted", "paid", "overdue"];
+
+const AGRI_ENV_INCOME_CATS = ["Agri-Environment Scheme", "Vineyard Agri-Environment Scheme", "Grant / Subsidy"];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active:    { label: "Active",    color: "#15803d", bg: "#dcfce7" },
@@ -371,16 +384,26 @@ export default function AgriEnvProjectsScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
 
-  const [projects,    setProjects]    = useState<AgriEnvProject[]>([]);
-  const [milestones,  setMilestones]  = useState<AgriEnvMilestone[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [error,       setError]       = useState<string | null>(null);
-  const [expandedId,  setExpandedId]  = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [cachedAt,    setCachedAt]    = useState<Date | null>(null);
-  const cancelRef = useRef(false);
+  const [projects,      setProjects]      = useState<AgriEnvProject[]>([]);
+  const [milestones,    setMilestones]    = useState<AgriEnvMilestone[]>([]);
+  const [transactions,  setTransactions]  = useState<FinancialTransaction[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
+  const [expandedId,    setExpandedId]    = useState<number | null>(null);
+  const [searchQuery,   setSearchQuery]   = useState("");
+  const [statusFilter,  setStatusFilter]  = useState<string | null>(null);
+  const [cachedAt,      setCachedAt]      = useState<Date | null>(null);
+  const cancelRef  = useRef(false);
+  // Generation counter — incremented at the start of every load(); async
+  // callbacks only apply their result when the counter matches, preventing
+  // a stale (previous-farm) response from overwriting the current farm's state.
+  const loadGenRef = useRef(0);
+
+  // Agri-env project link flow (for financial transactions)
+  const [linkingTx,        setLinkingTx]        = useState<FinancialTransaction | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [savingLink,        setSavingLink]        = useState(false);
 
   // Milestone status-change flow
   const [statusPicker,     setStatusPicker]     = useState<MilestonePickerState | null>(null);
@@ -451,6 +474,13 @@ export default function AgriEnvProjectsScreen() {
     return () => { cancelled = true; };
   }, [currentFarm?.id]);
 
+  // Clear transaction state immediately when the active farm changes so
+  // stale records from a previous farm are never shown while a new load
+  // is in-flight.
+  useEffect(() => {
+    setTransactions([]);
+  }, [currentFarm?.id]);
+
   // Persist the scheme filter, but only once the hydration read for the
   // current farm has resolved (hydratedFarmId === currentFarm.id).
   // This ensures we never write a previous farm's filter under the new
@@ -482,6 +512,7 @@ export default function AgriEnvProjectsScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (!currentFarm?.id) { setLoading(false); return; }
     cancelRef.current = false;
+    const gen = ++loadGenRef.current; // guard: only the latest load applies state
 
     // --- Cache-first: read stored data and show it immediately ---
     if (!isRefresh) {
@@ -512,19 +543,25 @@ export default function AgriEnvProjectsScreen() {
     setError(null);
 
     try {
-      const [projRes, milRes] = await Promise.all([
+      const [projRes, milRes, txRes] = await Promise.all([
         apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`),
         apiFetch(`/api/farms/${currentFarm.id}/agri-env-milestones`),
+        apiFetch(`/api/farms/${currentFarm.id}/financial-transactions`),
       ]);
       if (!projRes.ok) throw new Error(`Server error ${projRes.status}`);
       if (!milRes.ok)  throw new Error(`Server error ${milRes.status}`);
       const projData = await projRes.json() as { projects: AgriEnvProject[] };
       const milData  = await milRes.json()  as { milestones: AgriEnvMilestone[] };
-      if (!cancelRef.current) {
+      const txData   = txRes.ok ? (await txRes.json() as { records: FinancialTransaction[] }) : { records: [] };
+      if (!cancelRef.current && loadGenRef.current === gen) {
         const loadedProjects   = projData.projects   ?? [];
         const loadedMilestones = milData.milestones  ?? [];
+        const loadedTx = (txData.records ?? []).filter(
+          r => r.transactionType === "income" && AGRI_ENV_INCOME_CATS.includes(r.category),
+        );
         setProjects(loadedProjects);
         setMilestones(loadedMilestones);
+        setTransactions(loadedTx);
         setCachedAt(null); // now showing live data — suppress the banner
         await restoreExpanded(loadedProjects);
         // Persist in the background; ignore write failures.
@@ -617,6 +654,32 @@ export default function AgriEnvProjectsScreen() {
       Alert.alert("Error", "Could not update milestone status. Please try again.");
     } finally {
       setSavingMilestone(null);
+    }
+  }, [currentFarm?.id]);
+
+  // Link (or unlink) a financial transaction to an agri-env project.
+  const saveLink = useCallback(async (txId: number, projectId: number | null) => {
+    if (!currentFarm?.id) return;
+    setSavingLink(true);
+    try {
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/financial-transactions/${txId}/link-agri-env`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agriEnvProjectId: projectId }),
+        },
+      );
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      setTransactions(prev =>
+        prev.map(t => t.id === txId ? { ...t, agriEnvProjectId: projectId } : t),
+      );
+      setLinkingTx(null);
+      setSelectedProjectId("");
+    } catch {
+      Alert.alert("Error", "Could not update the project link. Please try again.");
+    } finally {
+      setSavingLink(false);
     }
   }, [currentFarm?.id]);
 
@@ -996,6 +1059,66 @@ export default function AgriEnvProjectsScreen() {
                   schemeFilter={schemeFilter}
                 />
                 <FarmDrawdownSummary projects={projects} milestones={milestones} />
+                {/* Grant payment transactions with link badges */}
+                {transactions.length > 0 && (
+                  <View style={txStyles.card}>
+                    <Text style={txStyles.heading}>Payments received</Text>
+                    {transactions.map((tx, idx) => {
+                      const linked = tx.agriEnvProjectId != null;
+                      const projectName = linked
+                        ? (projects.find(p => p.id === tx.agriEnvProjectId)?.schemeName ?? `Project #${tx.agriEnvProjectId}`)
+                        : null;
+                      const dateStr = tx.transactionDate
+                        ? new Date(tx.transactionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                        : "—";
+                      const amountStr = `£${(tx.amountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 })}`;
+                      return (
+                        <View
+                          key={tx.id}
+                          style={[txStyles.row, idx < transactions.length - 1 && txStyles.rowBorder]}
+                        >
+                          <View style={txStyles.rowLeft}>
+                            <Text style={txStyles.rowDesc} numberOfLines={2}>
+                              {tx.description || tx.category}
+                            </Text>
+                            <Text style={txStyles.rowMeta}>{dateStr}</Text>
+                            {linked ? (
+                              /* Linked badge — tap X to unlink */
+                              <View style={txStyles.linkedBadge}>
+                                <Feather name="link" size={9} color="#15803d" />
+                                <Text style={txStyles.linkedBadgeText}>
+                                  via milestone · {projectName}
+                                </Text>
+                                <Pressable
+                                  hitSlop={8}
+                                  onPress={() => void saveLink(tx.id, null)}
+                                  accessibilityLabel="Unlink from project"
+                                >
+                                  <Feather name="x" size={11} color="#15803d" />
+                                </Pressable>
+                              </View>
+                            ) : (
+                              /* Unlinked — show "Link to project" button */
+                              <Pressable
+                                style={txStyles.linkBtn}
+                                onPress={() => {
+                                  setLinkingTx(tx);
+                                  setSelectedProjectId("");
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Link to agri-env project"
+                              >
+                                <Feather name="link" size={10} color="#15803d" />
+                                <Text style={txStyles.linkBtnText}>Link to project</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                          <Text style={txStyles.rowAmount}>{amountStr}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
                 <Text style={styles.countLabel}>
                   {(searchQuery.trim() || statusFilter !== null)
                     ? `${filteredProjects.length} of ${projects.length} project${projects.length !== 1 ? "s" : ""} — tap to expand`
@@ -1006,6 +1129,80 @@ export default function AgriEnvProjectsScreen() {
           }
           renderItem={renderItem}
         />
+      )}
+
+      {/* ── Link transaction to agri-env project sheet ── */}
+      {!!linkingTx && (
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Link to project</Text>
+              <Pressable onPress={() => { setLinkingTx(null); setSelectedProjectId(""); }} hitSlop={8}>
+                <Feather name="x" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              Linking tells the system this payment is the milestone claim — it will appear as
+              "via milestone" on the transaction.
+            </Text>
+            {linkingTx.description ? (
+              <View style={txStyles.linkingTxPreview}>
+                <Text style={txStyles.linkingTxDesc} numberOfLines={2}>{linkingTx.description}</Text>
+              </View>
+            ) : null}
+            {projects.length === 0 ? (
+              <Text style={[styles.sheetSubtitle, { marginBottom: 20 }]}>
+                No agri-env projects found. Add a project from the dashboard first.
+              </Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+                {projects.map(p => {
+                  const active = selectedProjectId === String(p.id);
+                  return (
+                    <Pressable
+                      key={p.id}
+                      style={[txStyles.projectPickerRow, active && txStyles.projectPickerRowActive]}
+                      onPress={() => setSelectedProjectId(String(p.id))}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: active }}
+                      accessibilityLabel={p.schemeName}
+                    >
+                      <View style={[txStyles.projectPickerDot, active && txStyles.projectPickerDotActive]} />
+                      <Text style={[txStyles.projectPickerName, active && txStyles.projectPickerNameActive]} numberOfLines={2}>
+                        {p.schemeName}
+                      </Text>
+                      {active && <Feather name="check" size={15} color={colors.primary} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+            <View style={[styles.sheetActions, { marginTop: 16 }]}>
+              <Pressable
+                style={styles.sheetCancel}
+                onPress={() => { setLinkingTx(null); setSelectedProjectId(""); }}
+              >
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </Pressable>
+              {projects.length > 0 && (
+                <Pressable
+                  style={[styles.sheetConfirm, (!selectedProjectId || savingLink) && { opacity: 0.5 }]}
+                  onPress={() => {
+                    if (selectedProjectId && !savingLink) {
+                      void saveLink(linkingTx.id, parseInt(selectedProjectId, 10));
+                    }
+                  }}
+                  disabled={!selectedProjectId || savingLink}
+                >
+                  <Text style={styles.sheetConfirmText}>
+                    {savingLink ? "Saving…" : "Link transaction"}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <View style={{ height: insets.bottom + spacing.md }} />
+          </View>
+        </View>
       )}
 
       {/* ── Milestone status picker sheet ── */}
@@ -1806,6 +2003,143 @@ const summaryStyles = StyleSheet.create({
   },
   remainingPillTextFull: {
     color: "#166534",
+  },
+});
+
+const txStyles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  heading: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: colors.textTertiary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+    marginBottom: spacing.xs,
+  },
+  row: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 8,
+    gap: spacing.sm,
+  },
+  rowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight ?? colors.border,
+  },
+  rowLeft: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  rowDesc: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  rowMeta: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  rowAmount: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#059669",
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  linkedBadge: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    marginTop: 5,
+    alignSelf: "flex-start" as const,
+    backgroundColor: "#dcfce7",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  linkedBadgeText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: "#15803d",
+    flexShrink: 1,
+  },
+  linkBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+    marginTop: 5,
+    alignSelf: "flex-start" as const,
+    backgroundColor: "#f0fdf4",
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  linkBtnText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: "#15803d",
+  },
+  linkingTxPreview: {
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 14,
+  },
+  linkingTxDesc: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontStyle: "italic" as const,
+  },
+  projectPickerRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.sm,
+    marginBottom: 2,
+  },
+  projectPickerRowActive: {
+    backgroundColor: "#f0fdf4",
+  },
+  projectPickerDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.border,
+    flexShrink: 0,
+  },
+  projectPickerDotActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  projectPickerName: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    flex: 1,
+  },
+  projectPickerNameActive: {
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
   },
 });
 
