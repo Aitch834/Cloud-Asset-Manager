@@ -2012,10 +2012,18 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     select: (d: any) => d.records ?? [],
   });
 
+  const agriEnvProjectsQ = useQuery({
+    queryKey: ["agri-env-projects", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/agri-env-projects`).then(r => r.json()).then(d => d.projects ?? []),
+    enabled: !!farmId,
+  });
+  const agriEnvProjects: any[] = agriEnvProjectsQ.data ?? [];
+  const agriEnvProjectName = (id: number) => agriEnvProjects.find((p: any) => p.id === id)?.schemeName ?? `Project #${id}`;
+
   const allTx: any[] = txQ.data ?? [];
   const allPurchases: any[] = purchasesQ.data ?? [];
 
-  const isLoading = txQ.isLoading || purchasesQ.isLoading || farmQ.isLoading;
+  const isLoading = txQ.isLoading || purchasesQ.isLoading || farmQ.isLoading || agriEnvProjectsQ.isLoading;
 
   // Derive available enterprise options from all transactions
   const enterprises = Array.from(new Set(allTx.map((r: any) => r.enterprise).filter(Boolean))).sort() as string[];
@@ -2044,6 +2052,16 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   const otherIncome = incomeTx.filter(r => !INCOME_CATEGORIES.includes(r.category ?? "")).reduce((s, r) => s + (r.amountPence ?? 0), 0);
   if (otherIncome > 0) incomeByCategory.push({ cat: "Other / Uncategorised Income", total: otherIncome });
+
+  // Build a map of category → deduplicated linked project names (for badge display)
+  const linkedProjectsByCategory: Record<string, string[]> = {};
+  for (const r of incomeTx) {
+    if (!r.agriEnvProjectId) continue;
+    const cat = r.category ?? "Other / Uncategorised Income";
+    if (!linkedProjectsByCategory[cat]) linkedProjectsByCategory[cat] = [];
+    const name = agriEnvProjectName(r.agriEnvProjectId);
+    if (!linkedProjectsByCategory[cat].includes(name)) linkedProjectsByCategory[cat].push(name);
+  }
 
   const expenseByCategory = EXPENSE_CATEGORIES
     .map(cat => ({ cat, total: expenseTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
@@ -2119,8 +2137,13 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     const f = (pence: number) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-    const incomeRows = incomeByCategory.map(r =>
-      `<tr><td>${esc(r.cat)}</td><td class="num">${f(r.total)}</td></tr>`).join("");
+    const incomeRows = incomeByCategory.map(r => {
+      const projects = linkedProjectsByCategory[r.cat] ?? [];
+      const badges = projects.map(name =>
+        `<span style="display:inline-block;margin-top:3px;margin-right:4px;font-size:7.5pt;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;">via milestone · ${esc(name)}</span>`
+      ).join("");
+      return `<tr><td>${esc(r.cat)}${badges ? `<br>${badges}` : ""}</td><td class="num">${f(r.total)}</td></tr>`;
+    }).join("");
     const expenseRows = expenseByCategory.map(r =>
       `<tr><td>${esc(r.cat)}</td><td class="num">${f(r.total)}</td></tr>`).join("");
 
@@ -2334,7 +2357,14 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
                     <tbody>
                       {incomeByCategory.map((r, i, arr) => (
                         <tr key={r.cat} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                          <td style={{ padding: "7px 10px", color: "#374151" }}>{r.cat}</td>
+                          <td style={{ padding: "7px 10px", color: "#374151" }}>
+                            {r.cat}
+                            {(linkedProjectsByCategory[r.cat] ?? []).map(name => (
+                              <span key={name} style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: "0.7rem", color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", width: "fit-content" }}>
+                                <Link2 size={9} />via milestone · {name}
+                              </span>
+                            ))}
+                          </td>
                           <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#166534" }}>{fmtAmt(r.total)}</td>
                         </tr>
                       ))}
