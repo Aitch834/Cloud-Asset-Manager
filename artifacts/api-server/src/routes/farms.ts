@@ -42917,3 +42917,213 @@ router.put("/farms/:farmId/winegb-submissions/:surveyKey", requireAuth, requireT
   `);
   res.json({ record: r.rows[0] });
 });
+
+// ─── WineGB Survey Data — consolidated summary for the WineGB Surveys tab ──────
+// Returns submission status, phenology observations grouped by survey bucket,
+// harvest summary, frost events, and the list of years that have any data.
+
+router.get("/farms/:farmId/winegb-survey-data", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+  const year = parseInt(String(req.query.year ?? new Date().getFullYear()), 10);
+  if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
+
+  const [submissionsRows, phenologyRows, harvestRows, frostRows, historyYears] = await Promise.all([
+    // Submission status for the requested year
+    db.execute(sql`
+      SELECT survey_key, submitted, submitted_at
+      FROM vineyard_winegb_submissions
+      WHERE farm_id = ${farmId} AND season_year = ${year}
+    `),
+    // Phenology observations for the year — joined to block and planting for names
+    db.execute(sql`
+      SELECT
+        vp.id,
+        vp.block_id,
+        COALESCE(vb.block_name, 'Unknown Block') AS block_name,
+        vp.planting_id,
+        COALESCE(vbp.registered_variety, 'Unknown') AS variety,
+        vp.observation_date,
+        vp.bbch_stage,
+        vp.bbch_description,
+        vp.percentage_reached,
+        vp.observer,
+        vp.notes
+      FROM vineyard_phenology vp
+      LEFT JOIN vineyard_blocks vb ON vb.id = vp.block_id
+      LEFT JOIN vineyard_block_plantings vbp ON vbp.id = vp.planting_id
+      WHERE vp.farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM vp.observation_date) = ${year}
+      ORDER BY vp.observation_date ASC
+    `),
+    // Harvest records for the vintage year — joined to vine register for area
+    db.execute(sql`
+      SELECT
+        vh.block_id,
+        COALESCE(vb.block_name, 'Unknown Block') AS block_name,
+        vh.planting_id,
+        COALESCE(vr.registered_variety, vbp.registered_variety, 'Unknown') AS variety,
+        vr.registered_area_ha AS area_ha,
+        vh.harvest_date,
+        vh.yield_kg,
+        vh.yield_tonnes_per_ha,
+        vh.brix,
+        vh.ph,
+        vh.titratable_acidity_gl,
+        vh.potential_alcohol,
+        vh.grape_condition,
+        vh.botrytis_present,
+        vh.botrytis_percentage,
+        vh.harvest_method
+      FROM vineyard_harvest vh
+      LEFT JOIN vineyard_blocks vb ON vb.id = vh.block_id
+      LEFT JOIN vineyard_block_plantings vbp ON vbp.id = vh.planting_id
+      LEFT JOIN vine_register vr ON vr.planting_id = vh.planting_id AND vr.farm_id = ${farmId}
+      WHERE vh.farm_id = ${farmId} AND vh.vintage_year = ${year}
+      ORDER BY vh.harvest_date ASC
+    `),
+    // Frost events for the year
+    db.execute(sql`
+      SELECT
+        vfe.id,
+        vfe.block_id,
+        COALESCE(vb.block_name, 'All blocks') AS block_name,
+        vfe.frost_date,
+        vfe.severity,
+        vfe.min_temp_c,
+        vfe.duration_hours,
+        vfe.bbch_stage_at_frost,
+        vfe.estimated_damage_percent,
+        vfe.damaged_vines_count,
+        vfe.notes
+      FROM vineyard_frost_events vfe
+      LEFT JOIN vineyard_blocks vb ON vb.id = vfe.block_id
+      WHERE vfe.farm_id = ${farmId}
+        AND EXTRACT(YEAR FROM vfe.frost_date) = ${year}
+      ORDER BY vfe.frost_date ASC
+    `),
+    // All years that have any data (submissions, harvest, or phenology)
+    db.execute(sql`
+      SELECT DISTINCT season_year AS year FROM vineyard_winegb_submissions WHERE farm_id = ${farmId}
+      UNION
+      SELECT DISTINCT vintage_year AS year FROM vineyard_harvest WHERE farm_id = ${farmId}
+      UNION
+      SELECT DISTINCT EXTRACT(YEAR FROM observation_date)::integer AS year FROM vineyard_phenology WHERE farm_id = ${farmId}
+      ORDER BY year DESC
+    `),
+  ]);
+
+  // Build submission map
+  const submissions: Record<string, { submitted: boolean; submittedAt: string | null }> = {};
+  for (const row of submissionsRows.rows) {
+    submissions[String(row.survey_key)] = {
+      submitted: !!row.submitted,
+      submittedAt: row.submitted_at ? String(row.submitted_at) : null,
+    };
+  }
+
+  // Categorise phenology rows into WineGB survey buckets based on BBCH code
+  // Bud burst: BBCH 05–15 | Flowering: 53–68 | Véraison: 77–85 | Harvest pheno: 89+
+  const getBucket = (bbchStage: string): string | null => {
+    const m = String(bbchStage).match(/(\d+)/);
+    if (!m) return null;
+    const code = parseInt(m[1], 10);
+    if (code >= 5 && code <= 19) return "bud_burst";
+    if (code >= 53 && code <= 68) return "flowering";
+    if (code >= 77 && code <= 85) return "veraison";
+    return null;
+  };
+
+  const phenologySummary: Record<string, unknown[]> = { bud_burst: [], flowering: [], veraison: [] };
+  for (const row of phenologyRows.rows) {
+    const bucket = getBucket(String(row.bbch_stage ?? ""));
+    if (bucket && Object.prototype.hasOwnProperty.call(phenologySummary, bucket)) {
+      phenologySummary[bucket].push({
+        id: row.id,
+        blockId: row.block_id,
+        blockName: row.block_name,
+        plantingId: row.planting_id,
+        variety: row.variety,
+        observationDate: row.observation_date,
+        bbchStage: row.bbch_stage,
+        bbchDescription: row.bbch_description,
+        percentageReached: row.percentage_reached,
+        observer: row.observer,
+        notes: row.notes,
+      });
+    }
+  }
+
+  const harvestSummary = harvestRows.rows.map(r => ({
+    blockId: r.block_id,
+    blockName: r.block_name,
+    plantingId: r.planting_id,
+    variety: r.variety,
+    areaHa: r.area_ha,
+    harvestDate: r.harvest_date,
+    yieldKg: r.yield_kg,
+    yieldTonnesPerHa: r.yield_tonnes_per_ha,
+    brix: r.brix,
+    ph: r.ph,
+    titratableAcidityGl: r.titratable_acidity_gl,
+    potentialAlcohol: r.potential_alcohol,
+    grapeCondition: r.grape_condition,
+    botrytisPresent: r.botrytis_present,
+    botrytisPercentage: r.botrytis_percentage,
+    harvestMethod: r.harvest_method,
+  }));
+
+  const frostEvents = frostRows.rows.map(r => ({
+    id: r.id,
+    blockId: r.block_id,
+    blockName: r.block_name,
+    frostDate: r.frost_date,
+    severity: r.severity,
+    minTempC: r.min_temp_c,
+    durationHours: r.duration_hours,
+    bbchStageAtFrost: r.bbch_stage_at_frost,
+    estimatedDamagePercent: r.estimated_damage_percent,
+    damagedVinesCount: r.damaged_vines_count,
+    notes: r.notes,
+  }));
+
+  const allYears = historyYears.rows.map(r => Number(r.year)).filter(y => !isNaN(y));
+
+  res.json({ year, submissions, phenologySummary, harvestSummary, frostEvents, allYears });
+});
+
+// ─── WineGB Submissions History — all years for year-on-year history table ─────
+
+router.get("/farms/:farmId/winegb-submissions-history", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res); if (!farmId) return;
+
+  const [subsRows, yearRows] = await Promise.all([
+    db.execute(sql`
+      SELECT season_year, survey_key, submitted, submitted_at
+      FROM vineyard_winegb_submissions
+      WHERE farm_id = ${farmId}
+      ORDER BY season_year DESC, survey_key
+    `),
+    db.execute(sql`
+      SELECT DISTINCT season_year AS year FROM vineyard_winegb_submissions WHERE farm_id = ${farmId}
+      UNION
+      SELECT DISTINCT vintage_year AS year FROM vineyard_harvest WHERE farm_id = ${farmId}
+      UNION
+      SELECT DISTINCT EXTRACT(YEAR FROM observation_date)::integer AS year FROM vineyard_phenology WHERE farm_id = ${farmId}
+      ORDER BY year DESC
+    `),
+  ]);
+
+  // Build nested history map: { "2024": { "bud_burst": { submitted, submittedAt }, ... }, ... }
+  const history: Record<string, Record<string, { submitted: boolean; submittedAt: string | null }>> = {};
+  for (const row of subsRows.rows) {
+    const yr = String(row.season_year);
+    if (!history[yr]) history[yr] = {};
+    history[yr][String(row.survey_key)] = {
+      submitted: !!row.submitted,
+      submittedAt: row.submitted_at ? String(row.submitted_at) : null,
+    };
+  }
+
+  const years = yearRows.rows.map(r => Number(r.year)).filter(y => !isNaN(y));
+  res.json({ history, years });
+});

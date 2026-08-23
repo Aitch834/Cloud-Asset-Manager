@@ -101,7 +101,7 @@ const WINEGB_SURVEYS: WinegbSurvey[] = [
   { key: "harvest",      label: "Harvest",        months: [9, 10]   },
 ];
 
-function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; seasonYear: number }) {
+function WinegbSubmissionsPanel({ farmId, seasonYear, onNavigateToSurveys }: { farmId: number; seasonYear: number; onNavigateToSurveys?: () => void }) {
   const queryClient = useQueryClient();
   const currentMonth = new Date().getMonth() + 1; // 1-based
   const isCurrentSeason = seasonYear === new Date().getFullYear();
@@ -153,14 +153,25 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: number; season
             </span>
           )}
         </div>
-        <a
-          href="https://winegb.co.uk/production/vineyards-wineries/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900 shrink-0"
-        >
-          Submit to WineGB →
-        </a>
+        <div className="flex items-center gap-3 shrink-0">
+          {onNavigateToSurveys && (
+            <button
+              type="button"
+              onClick={onNavigateToSurveys}
+              className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+            >
+              Full survey tracker →
+            </button>
+          )}
+          <a
+            href="https://winegb.co.uk/production/vineyards-wineries/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-emerald-700 underline underline-offset-2 hover:text-emerald-900"
+          >
+            Submit to WineGB →
+          </a>
+        </div>
       </div>
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-emerald-700 py-1">
@@ -574,7 +585,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       )}
 
       {/* WineGB Submissions Panel — year follows the table year filter for display */}
-      <WinegbSubmissionsPanel farmId={farmId} seasonYear={yearFilter === "all" ? new Date().getFullYear() : Number(yearFilter)} />
+      <WinegbSubmissionsPanel farmId={farmId} seasonYear={yearFilter === "all" ? new Date().getFullYear() : Number(yearFilter)} onNavigateToSurveys={onNavigate ? () => onNavigate("winegb-surveys") : undefined} />
 
       {/* FSA / APPA registration pre-flight check */}
       <FsaCompletenessBar farmId={farmId} />

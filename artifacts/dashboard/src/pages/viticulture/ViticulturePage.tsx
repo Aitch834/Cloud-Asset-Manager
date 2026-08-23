@@ -68,6 +68,7 @@ import { SprayDiaryTab } from "./SprayDiaryTab";
 import { SoilAnalysisTab } from "./SoilAnalysisTab";
 import { WineryStockTab } from "./WineryStockTab";
 import { GiComplianceTab } from "./GiComplianceTab";
+import { WinegbSurveysTab } from "./WinegbSurveysTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -75,6 +76,7 @@ const TABS = [
   { id: "blocks", label: "Blocks", icon: Sprout },
   { id: "block-map", label: "Block Map", icon: Map },
   { id: "phenology", label: "Phenology", icon: Leaf },
+  { id: "winegb-surveys", label: "WineGB Surveys", icon: Globe },
   { id: "operations", label: "Pruning & Canopy", icon: Scissors },
   { id: "harvest", label: "Harvest", icon: Grape },
   { id: "scouting", label: "Disease Scouting", icon: Bug },
@@ -233,6 +235,7 @@ export default function ViticulturePage() {
           {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} highlightBlockId={highlightBlockId} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
           {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} requestBulkLink={bulkLinkFor === "phenology"} />}
+          {tab === "winegb-surveys" && <WinegbSurveysTab farmId={selectedFarmId} blocks={blocks.data} />}
           {tab === "operations" && <OperationsTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "operations"} />}
           {tab === "harvest" && <HarvestTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "harvest"} />}
           {tab === "scouting" && <ScoutingTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} requestBulkLink={bulkLinkFor === "scouting"} onNavigate={handleNavigate} />}

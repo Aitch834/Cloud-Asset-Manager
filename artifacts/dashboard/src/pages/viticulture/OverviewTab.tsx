@@ -65,10 +65,10 @@ const WINEGB_SURVEYS_LIST = [
 
 function WinegbOverviewNudge({
   farmId,
-  onNavigateToPhenology,
+  onNavigateToSurveys,
 }: {
   farmId: number;
-  onNavigateToPhenology: () => void;
+  onNavigateToSurveys: () => void;
 }) {
   const year = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1; // 1-based
@@ -163,9 +163,9 @@ function WinegbOverviewNudge({
         </button>
         <button
           type="button"
-          onClick={onNavigateToPhenology}
+          onClick={onNavigateToSurveys}
           className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-          aria-label="Go to Phenology tab"
+          aria-label="Go to WineGB Surveys tab"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -309,7 +309,7 @@ export function OverviewTab({
       <FsaCompletenessBar farmId={farmId} />
       <WinegbOverviewNudge
         farmId={farmId}
-        onNavigateToPhenology={() => onNavigate?.("phenology")}
+        onNavigateToSurveys={() => onNavigate?.("winegb-surveys")}
       />
       <UnlinkedRecordsBar
         items={unlinkedItems}
