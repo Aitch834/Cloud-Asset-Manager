@@ -528,8 +528,13 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       <Dialog open={!!lightboxPhoto} onOpenChange={o => { if (!o) setLightboxId(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-1 pb-1">
-            <DialogTitle className="text-sm font-medium truncate">
-              {lightboxPhoto?.fileName ?? "Block photo"}
+            <DialogTitle className="text-sm font-medium flex items-center gap-2 min-w-0">
+              <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
+              {orderedPhotos.length > 1 && lightboxPhoto && (
+                <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
+                  {orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) + 1} of {orderedPhotos.length}
+                </span>
+              )}
             </DialogTitle>
           </DialogHeader>
           {lightboxPhoto && (
