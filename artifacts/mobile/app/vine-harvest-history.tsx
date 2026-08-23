@@ -33,6 +33,7 @@ import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
+import * as FileSystem from "expo-file-system/legacy";
 import { apiFetch } from "@/lib/apiFetch";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 import { getItem, getList, setItem } from "@/lib/storage";
@@ -457,6 +458,192 @@ function buildHarvestReportMailto(
     `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
   );
   return `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+}
+
+// ─── CSV export ───────────────────────────────────────────────────────────────
+
+function buildHarvestCsv(
+  records: HarvestRecord[],
+  blocks: { id: number; blockName?: string | null; areaHa?: number | null; variety?: string | null }[],
+  farmName: string,
+  yearLabel?: string,
+): string {
+  const q = (v: unknown): string => {
+    const s = v == null ? "" : String(v);
+    const safe = /^[=+\-@|%\t\r]/.test(s) ? "\t" + s : s;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const df = (v: string | null | undefined) =>
+    v ? new Date(v).toLocaleDateString("en-GB") : "";
+
+  const blockLookup = new Map<number, { name: string; areaHa: number | null; variety: string }>();
+  for (const b of blocks) {
+    blockLookup.set(b.id, {
+      name: b.blockName ?? "",
+      areaHa: b.areaHa ?? null,
+      variety: String(b.variety ?? "").trim(),
+    });
+  }
+
+  // ── Detail header + rows ─────────────────────────────────────────────────
+  const detailHeader = [
+    "Date", "Vintage", "Block", "Method", "Yield (kg)",
+    "Brix", "pH", "TA (g/L)", "Pot. Alc (%)",
+  ].map(q).join(",");
+
+  const detailRows = records.map(r => {
+    const block = r.blockId != null ? blockLookup.get(r.blockId) : undefined;
+    return [
+      df(r.harvestDate),
+      r.vintageYear != null ? r.vintageYear : "",
+      block?.name ?? "",
+      r.harvestMethod ?? "",
+      r.yieldKg != null ? r.yieldKg.toFixed(1) : "",
+      r.brix != null ? r.brix.toFixed(1) : "",
+      r.ph != null ? r.ph.toFixed(2) : "",
+      r.titratableAcidityGl != null ? r.titratableAcidityGl.toFixed(2) : "",
+      r.potentialAlcohol != null ? r.potentialAlcohol.toFixed(2) : "",
+    ].map(q).join(",");
+  });
+
+  // ── Yield by Variety section (only when ≥2 distinct named varieties) ──────
+  const UNKNOWN_KEY = "Unknown / Not linked";
+  const avg = (vals: number[]) =>
+    vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const varietyMap: Record<string, {
+    totalKg: number; totalHa: number; seenBlockIds: Set<number>;
+    brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[];
+  }> = {};
+
+  for (const r of records) {
+    const block = r.blockId != null ? blockLookup.get(r.blockId) : undefined;
+    const variety = block?.variety ?? "";
+    const key = variety || UNKNOWN_KEY;
+    if (!varietyMap[key]) {
+      varietyMap[key] = { totalKg: 0, totalHa: 0, seenBlockIds: new Set(), brixVals: [], phVals: [], taVals: [], paVals: [] };
+    }
+    const entry = varietyMap[key];
+    entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+    if (r.blockId != null && !entry.seenBlockIds.has(r.blockId)) {
+      entry.seenBlockIds.add(r.blockId);
+      const ha = block?.areaHa;
+      if (ha != null && ha > 0) entry.totalHa += ha;
+    }
+    const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
+    const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
+    const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
+    const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
+  }
+
+  const namedKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
+  const varietyLines: string[] = [];
+
+  if (namedKeys.length >= 2) {
+    const sortedEntries = Object.entries(varietyMap).sort(([a], [b]) => {
+      if (a === UNKNOWN_KEY) return 1;
+      if (b === UNKNOWN_KEY) return -1;
+      return a.localeCompare(b);
+    });
+
+    const varietyHeader = [
+      "Variety", "Area (ha)", "Total Yield (kg)", "Yield (kg/ha)",
+      "Avg Brix", "Avg pH", "Avg TA (g/L)", "Avg Pot. Alc (%)",
+    ].map(q).join(",");
+
+    const varietyDataRows = sortedEntries.map(([variety, e]) => {
+      const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+      return [
+        variety,
+        e.totalHa > 0 ? e.totalHa.toFixed(2) : "",
+        e.totalKg > 0 ? e.totalKg.toFixed(1) : "",
+        kgPerHa != null ? Math.round(kgPerHa).toString() : "",
+        avg(e.brixVals) != null ? avg(e.brixVals)!.toFixed(1) : "",
+        avg(e.phVals) != null ? avg(e.phVals)!.toFixed(2) : "",
+        avg(e.taVals) != null ? avg(e.taVals)!.toFixed(2) : "",
+        avg(e.paVals) != null ? avg(e.paVals)!.toFixed(2) : "",
+      ].map(q).join(",");
+    });
+
+    // Grand totals footer
+    const rowsWithArea = sortedEntries.filter(([, e]) => e.totalHa > 0);
+    const grandHa = rowsWithArea.reduce((s, [, e]) => s + e.totalHa, 0);
+    const grandKgForArea = rowsWithArea.reduce((s, [, e]) => s + e.totalKg, 0);
+    const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+    const grandKg = sortedEntries.reduce((s, [, e]) => s + e.totalKg, 0);
+    const allBrix = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+    const allPh = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+    const allTa = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+    const allPa = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+
+    const varietyFooter = [
+      "TOTAL",
+      grandHa > 0 ? grandHa.toFixed(2) : "",
+      grandKg > 0 ? grandKg.toFixed(1) : "",
+      grandKgPerHa != null ? Math.round(grandKgPerHa).toString() : "",
+      avg(allBrix) != null ? avg(allBrix)!.toFixed(1) : "",
+      avg(allPh) != null ? avg(allPh)!.toFixed(2) : "",
+      avg(allTa) != null ? avg(allTa)!.toFixed(2) : "",
+      avg(allPa) != null ? avg(allPa)!.toFixed(2) : "",
+    ].map(q).join(",");
+
+    varietyLines.push(
+      "",
+      q("Yield by Variety"),
+      varietyHeader,
+      ...varietyDataRows,
+      varietyFooter,
+    );
+  }
+
+  const farmLabel = yearLabel ? `${farmName} — ${yearLabel} Vintage` : farmName;
+  const lines = [
+    q(`Vineyard Harvest Report — ${farmLabel}`),
+    "",
+    detailHeader,
+    ...detailRows,
+    ...varietyLines,
+  ];
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+async function downloadHarvestCsv(
+  records: HarvestRecord[],
+  blocks: { id: number; blockName?: string | null; areaHa?: number | null; variety?: string | null }[],
+  farmName: string,
+  yearLabel?: string,
+) {
+  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const yearPart = yearLabel ? `-${yearLabel}` : "";
+  const filename = `vineyard-harvest${yearPart}-${safeName}.csv`;
+  const csvContent = buildHarvestCsv(records, blocks, farmName, yearLabel);
+
+  if (Platform.OS === "web") {
+    try {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      Alert.alert("Export failed", "Could not generate the CSV file.");
+    }
+    return;
+  }
+
+  try {
+    const { shareAsync } = await import("expo-sharing");
+    const uri = FileSystem.cacheDirectory + filename;
+    await FileSystem.writeAsStringAsync(uri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+    await shareAsync(uri, {
+      mimeType: "text/csv",
+      dialogTitle: "Share Harvest CSV",
+      UTI: "public.comma-separated-values-text",
+    });
+  } catch {
+    Alert.alert("Export failed", "Could not generate or share the CSV file.");
+  }
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -893,6 +1080,19 @@ export default function VineHarvestHistoryScreen() {
     }
   }, [currentFarm?.id]);
 
+  const [csvExporting, setCsvExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    if (!blockFilteredRecords.length || csvExporting) return;
+    const yearLabel = displayVintage != null ? String(displayVintage) : undefined;
+    setCsvExporting(true);
+    try {
+      await downloadHarvestCsv(blockFilteredRecords, blocks, currentFarm?.name ?? "Farm", yearLabel);
+    } finally {
+      setCsvExporting(false);
+    }
+  };
+
   const handleEmail = () => {
     if (!displayRecords.length) return;
     const yearLabel =
@@ -917,16 +1117,28 @@ export default function VineHarvestHistoryScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Harvest History</Text>
-        {displayRecords.length > 0 && (
-          <Pressable
-            onPress={handleEmail}
-            style={styles.emailBtn}
-            hitSlop={12}
-            accessibilityLabel="Email harvest report"
-            accessibilityRole="button"
-          >
-            <Feather name="mail" size={20} color={colors.primary} />
-          </Pressable>
+        {blockFilteredRecords.length > 0 && (
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={handleExportCsv}
+              style={styles.csvBtn}
+              hitSlop={12}
+              disabled={csvExporting}
+              accessibilityLabel="Export harvest CSV"
+              accessibilityRole="button"
+            >
+              <Feather name="download" size={20} color={csvExporting ? colors.textSecondary : colors.primary} />
+            </Pressable>
+            <Pressable
+              onPress={handleEmail}
+              style={styles.emailBtn}
+              hitSlop={12}
+              accessibilityLabel="Email harvest report"
+              accessibilityRole="button"
+            >
+              <Feather name="mail" size={20} color={colors.primary} />
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -1419,6 +1631,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  csvBtn: { padding: 4 },
   emailBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
   unlinkedBanner: {
