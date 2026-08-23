@@ -1553,6 +1553,7 @@ export default function WineryVesselDetailScreen() {
             visible={logFillModalOpen}
             farmId={currentFarm.id}
             vesselId={params.vesselId}
+            nextFillNumber={Math.max(0, ...data.fills.map(f => f.fill_number ?? 0)) + 1}
             onClose={() => setLogFillModalOpen(false)}
             onSuccess={() => { setLogFillModalOpen(false); refresh(); triggerBarrelRefresh(); }}
           />
@@ -2285,13 +2286,14 @@ interface LogFillModalProps {
   visible: boolean;
   farmId: string;
   vesselId: string;
+  nextFillNumber: number;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function LogFillModal({ visible, farmId, vesselId, onClose, onSuccess }: LogFillModalProps) {
+function LogFillModal({ visible, farmId, vesselId, nextFillNumber, onClose, onSuccess }: LogFillModalProps) {
   const [form, setForm] = useState<FillFormState>({
-    fillNumber: "1",
+    fillNumber: String(nextFillNumber),
     wineName: "",
     vintageYear: "",
     variety: "",
@@ -2309,7 +2311,7 @@ function LogFillModal({ visible, farmId, vesselId, onClose, onSuccess }: LogFill
   useEffect(() => {
     if (!visible) return;
     setForm({
-      fillNumber: "1",
+      fillNumber: String(nextFillNumber),
       wineName: "",
       vintageYear: "",
       variety: "",
