@@ -1021,13 +1021,15 @@ export default function VineHarvestHistoryScreen() {
       })
       .map(([variety, e]) => ({
         variety,
+        totalHa: e.totalHa,
         totalKg: e.totalKg,
         kgPerHa: e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null,
         avgBrix: avg(e.brixVals),
       }));
 
     const grandKg = rows.reduce((s, r) => s + r.totalKg, 0);
-    return { rows, grandKg, colorMap };
+    const grandHa = rows.reduce((s, r) => s + r.totalHa, 0);
+    return { rows, grandKg, grandHa, colorMap };
   }, [vintageRecords, blocks]);
 
   // Sorted variety rows (sort persisted per farm via usePersistedVarietySort)
@@ -1040,6 +1042,7 @@ export default function VineHarvestHistoryScreen() {
       const d = varietySort.dir === "asc" ? 1 : -1;
       switch (varietySort.col) {
         case "variety":  return d * a.variety.localeCompare(b.variety);
+        case "totalHa":  return d * (a.totalHa - b.totalHa);
         case "totalKg":  return d * (a.totalKg - b.totalKg);
         case "kgPerHa":  return d * ((a.kgPerHa ?? (d > 0 ? Infinity : -Infinity)) - (b.kgPerHa ?? (d > 0 ? Infinity : -Infinity)));
         case "avgBrix":  return d * ((a.avgBrix ?? (d > 0 ? Infinity : -Infinity)) - (b.avgBrix ?? (d > 0 ? Infinity : -Infinity)));
@@ -1048,7 +1051,7 @@ export default function VineHarvestHistoryScreen() {
     });
   }, [varietySummaryData, varietySort]);
 
-  const toggleVarietySort = useCallback((col: "variety" | "totalKg" | "kgPerHa" | "avgBrix") => {
+  const toggleVarietySort = useCallback((col: "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix") => {
     const newSort =
       varietySort.col === col
         ? { col, dir: varietySort.dir === "asc" ? ("desc" as const) : ("asc" as const) }
@@ -1333,10 +1336,11 @@ export default function VineHarvestHistoryScreen() {
                   {(
                     [
                       { col: "variety",  label: "Variety",    flex: 1, align: "left"  },
+                      { col: "totalHa",  label: "Area (ha)",  width: 80, align: "right" },
                       { col: "totalKg",  label: "Total kg",   width: 80, align: "right" },
                       { col: "kgPerHa",  label: "t / ha",     width: 72, align: "right" },
                       { col: "avgBrix",  label: "Avg Brix°",  width: 72, align: "right" },
-                    ] as { col: "variety" | "totalKg" | "kgPerHa" | "avgBrix"; label: string; flex?: number; width?: number; align: "left" | "right" }[]
+                    ] as { col: "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix"; label: string; flex?: number; width?: number; align: "left" | "right" }[]
                   ).map(({ col, label, flex, width, align }) => {
                     const active = varietySort.col === col;
                     const icon = !active ? "minus" : varietySort.dir === "asc" ? "arrow-up" : "arrow-down";
@@ -1391,6 +1395,11 @@ export default function VineHarvestHistoryScreen() {
                     </View>
                     <View style={{ width: 80, alignItems: "flex-end" }}>
                       <Text style={styles.varietyValue}>
+                        {row.totalHa > 0 ? row.totalHa.toFixed(2) : "—"}
+                      </Text>
+                    </View>
+                    <View style={{ width: 80, alignItems: "flex-end" }}>
+                      <Text style={styles.varietyValue}>
                         {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
                       </Text>
                     </View>
@@ -1422,6 +1431,13 @@ export default function VineHarvestHistoryScreen() {
                 <View style={[styles.varietyRow, styles.varietyFooterRow]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.varietyFooterLabel}>Total</Text>
+                  </View>
+                  <View style={{ width: 80, alignItems: "flex-end" }}>
+                    <Text style={styles.varietyFooterValue}>
+                      {varietySummaryData.grandHa > 0
+                        ? varietySummaryData.grandHa.toFixed(2)
+                        : "—"}
+                    </Text>
                   </View>
                   <View style={{ width: 80, alignItems: "flex-end" }}>
                     <Text style={styles.varietyFooterValue}>

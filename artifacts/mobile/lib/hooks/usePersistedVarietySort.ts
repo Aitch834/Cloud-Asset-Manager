@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getItem, setItem } from "@/lib/storage";
 
-type VarietySortCol = "variety" | "totalKg" | "kgPerHa" | "avgBrix";
+type VarietySortCol = "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix";
 type VarietySortDir = "asc" | "desc";
 
 export interface VarietySort {
@@ -12,7 +12,7 @@ export interface VarietySort {
 
 const DEFAULT_SORT: VarietySort = { col: "variety", dir: "asc" };
 
-const VALID_COLS: VarietySortCol[] = ["variety", "totalKg", "kgPerHa", "avgBrix"];
+const VALID_COLS: VarietySortCol[] = ["variety", "totalHa", "totalKg", "kgPerHa", "avgBrix"];
 const VALID_DIRS: VarietySortDir[] = ["asc", "desc"];
 
 function isValidSort(v: unknown): v is VarietySort {
