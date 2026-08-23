@@ -876,6 +876,194 @@ export async function setPendingSyncItemServerRecordId(
   });
 }
 
+/**
+ * Returns all sync queue entries whose status is 'failed' for a given record
+ * type. Optionally filtered by farmId (matched against the farmId field inside
+ * data_json). Used by screens that need to show a "sync failed" badge.
+ */
+export async function getFailedSyncItemsForType(
+  recordType: string,
+  farmId?: string,
+): Promise<{ id: string; record_id: string; data_json: string; last_error: string | null }[]> {
+  await ensureInit();
+  if (usingSQLite) {
+    const rows = await db().getAllAsync<{
+      id: string;
+      record_id: string;
+      data_json: string;
+      last_error: string | null;
+    }>(
+      "SELECT id, record_id, data_json, last_error FROM sync_queue WHERE status = 'failed' AND record_type = ? ORDER BY created_at DESC",
+      [recordType],
+    );
+    if (!farmId) return rows;
+    return rows.filter((row) => {
+      try {
+        const d = JSON.parse(row.data_json) as Record<string, unknown>;
+        return String(d?.farmId) === farmId;
+      } catch {
+        return true;
+      }
+    });
+  }
+  const raw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!raw) return [];
+  const queue: SyncQueueRow[] = JSON.parse(raw);
+  return queue
+    .filter((i) => i.status === "failed" && i.record_type === recordType)
+    .filter((i) => {
+      if (!farmId) return true;
+      try {
+        const d = JSON.parse(i.data_json) as Record<string, unknown>;
+        return String(d?.farmId) === farmId;
+      } catch {
+        return true;
+      }
+    })
+    .map((i) => ({
+      id: i.id,
+      record_id: i.record_id,
+      data_json: i.data_json,
+      last_error: i.last_error ?? null,
+    }));
+}
+
+/**
+ * Returns sync queue entries in the requested statuses for a given record type,
+ * optionally filtered by farmId (matched against data_json). Used by screens
+ * that need to render both failed and pending-retry local items.
+ */
+export async function getSyncItemsForType(
+  recordType: string,
+  statuses: string[],
+  farmId?: string,
+): Promise<{
+  id: string;
+  record_id: string;
+  data_json: string;
+  status: string;
+  last_error: string | null;
+}[]> {
+  await ensureInit();
+  if (statuses.length === 0) return [];
+  if (usingSQLite) {
+    const placeholders = statuses.map(() => "?").join(", ");
+    const rows = await db().getAllAsync<{
+      id: string;
+      record_id: string;
+      data_json: string;
+      status: string;
+      last_error: string | null;
+    }>(
+      `SELECT id, record_id, data_json, status, last_error FROM sync_queue WHERE record_type = ? AND status IN (${placeholders}) ORDER BY created_at DESC`,
+      [recordType, ...statuses],
+    );
+    if (!farmId) return rows;
+    return rows.filter((row) => {
+      try {
+        return String((JSON.parse(row.data_json) as Record<string, unknown>)?.farmId) === farmId;
+      } catch {
+        return true;
+      }
+    });
+  }
+  const raw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!raw) return [];
+  const queue: SyncQueueRow[] = JSON.parse(raw);
+  return queue
+    .filter((i) => i.record_type === recordType && statuses.includes(i.status))
+    .filter((i) => {
+      if (!farmId) return true;
+      try {
+        return String((JSON.parse(i.data_json) as Record<string, unknown>)?.farmId) === farmId;
+      } catch {
+        return true;
+      }
+    })
+    .map((i) => ({
+      id: i.id,
+      record_id: i.record_id,
+      data_json: i.data_json,
+      status: i.status,
+      last_error: i.last_error ?? null,
+    }));
+}
+
+/**
+ * Reset a 'failed' sync queue entry back to 'pending' so the sync engine will
+ * retry it on the next pass. Use after manual user retry requests.
+ */
+export async function resetSyncItemToRetry(
+  recordType: string,
+  recordId: string,
+): Promise<void> {
+  await ensureInit();
+  await serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      await db().runAsync(
+        "UPDATE sync_queue SET status = 'pending', retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'failed'",
+        [recordType, recordId],
+      );
+      return;
+    }
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    let changed = false;
+    for (const item of queue) {
+      if (
+        item.record_type === recordType &&
+        item.record_id === recordId &&
+        item.status === "failed"
+      ) {
+        item.status = "pending";
+        item.retry_count = 0;
+        delete item.last_error;
+        delete item.next_attempt_at;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    }
+  });
+}
+
+/**
+ * Reset a specific failed queue entry (identified by its queue row ID) back to
+ * 'pending'. Unlike resetSyncItemToRetry which targets by recordId, this only
+ * touches the one row the grower explicitly chose to retry.
+ */
+export async function resetSyncItemToRetryById(syncId: string): Promise<void> {
+  await ensureInit();
+  await serializeSyncQueueWrite(async () => {
+    if (usingSQLite) {
+      await db().runAsync(
+        "UPDATE sync_queue SET status = 'pending', retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'failed'",
+        [syncId],
+      );
+      return;
+    }
+    const raw = await AsyncStorage.getItem("bde_sync_queue");
+    if (!raw) return;
+    const queue: SyncQueueRow[] = JSON.parse(raw);
+    let changed = false;
+    for (const item of queue) {
+      if (item.id === syncId && item.status === "failed") {
+        item.status = "pending";
+        item.retry_count = 0;
+        delete item.last_error;
+        delete item.next_attempt_at;
+        changed = true;
+        break;
+      }
+    }
+    if (changed) {
+      await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
+    }
+  });
+}
+
 export async function clearCompletedSyncItems(): Promise<void> {
   await ensureInit();
   await serializeSyncQueueWrite(async () => {

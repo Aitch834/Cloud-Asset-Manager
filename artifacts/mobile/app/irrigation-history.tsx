@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,6 +21,13 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
+import {
+  getSyncItemsForType,
+  resetSyncItemToRetryById,
+} from "@/lib/database";
+import { scheduleSync, subscribe as subscribeSyncEngine } from "@/lib/sync-engine";
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface IrrigationRecord {
   id: number;
@@ -35,22 +43,75 @@ interface IrrigationRecord {
   notes: string | null;
 }
 
+/** Shape stored in sync_queue.data_json for irrigation applications. */
+interface LocalIrrigationPayload {
+  farmId?: string | number;
+  irrigationDate?: string;
+  fieldId?: number | string | null;
+  fieldName?: string | null;
+  fieldOrBlockDescription?: string | null;
+  applicationDepthMm?: string | number | null;
+  irrigationMethod?: string;
+  cropType?: string | null;
+  areaIrrigatedHa?: string | number | null;
+  operatorName?: string | null;
+  notes?: string | null;
+}
+
+type LocalPhase = "failed" | "pending-retry";
+
+interface LocalIrrigationItem {
+  /** Queue-row ID (sync_queue.id). Used as the primary key for UI actions. */
+  syncId: string;
+  /** The record's local UUID (sync_queue.record_id). */
+  recordId: string;
+  phase: LocalPhase;
+  error: string | null;
+  payload: LocalIrrigationPayload;
+}
+
+type DisplayRow =
+  | { kind: "server"; record: IrrigationRecord }
+  | { kind: "local"; item: LocalIrrigationItem };
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function yearOf(d: string | null | undefined): string {
   if (!d) return "";
-  return new Date(d).getFullYear().toString();
+  const yr = new Date(d).getFullYear();
+  return Number.isNaN(yr) ? "" : yr.toString();
 }
 
-function fieldLabel(record: IrrigationRecord): string {
-  if (record.fieldOrBlockDescription) return record.fieldOrBlockDescription;
-  if (record.fieldName) return record.fieldName;
-  if (record.fieldId) return `Field #${record.fieldId}`;
+function fieldLabel(
+  rec: Pick<
+    IrrigationRecord | LocalIrrigationPayload,
+    "fieldOrBlockDescription" | "fieldName" | "fieldId"
+  >,
+): string {
+  if (rec.fieldOrBlockDescription) return String(rec.fieldOrBlockDescription);
+  if (rec.fieldName) return String(rec.fieldName);
+  if (rec.fieldId) return `Field #${rec.fieldId}`;
   return "";
 }
+
+function safeParsePayload(json: string): LocalIrrigationPayload {
+  try {
+    return JSON.parse(json) as LocalIrrigationPayload;
+  } catch {
+    return {};
+  }
+}
+
+// ─── Screen ─────────────────────────────────────────────────────────────────
 
 export default function IrrigationHistoryScreen() {
   const insets = useSafeAreaInsets();
@@ -58,99 +119,298 @@ export default function IrrigationHistoryScreen() {
   const farmId = currentFarm?.id;
 
   const [records, setRecords] = useState<IrrigationRecord[]>([]);
+  const [localItems, setLocalItems] = useState<LocalIrrigationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Server-fetch error kept separate so local cards remain visible when offline.
+  const [serverError, setServerError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const reqIdRef = useRef(0);
 
-  const load = useCallback(async (isRefresh = false) => {
-    if (!farmId) { setRecords([]); setLoading(false); return; }
-    const reqId = ++reqIdRef.current;
-    if (isRefresh) setRefreshing(true); else setLoading(true);
-    setError(null);
+  const reqIdRef = useRef(0);
+  // Per-request counter for local item loads — prevents stale farm-switch reads.
+  const localReqRef = useRef(0);
+  // Tracks which queue-row IDs the grower has explicitly retried. Items in this
+  // set are shown as 'pending-retry' cards even after being reset to 'pending'
+  // in the queue; they are removed once the sync outcome is confirmed.
+  const retriedSyncIdsRef = useRef<Set<string>>(new Set());
+  // Previous isSyncing value for transition detection in the subscription.
+  const prevIsSyncingRef = useRef(false);
+
+  // Modal for showing sync-error details
+  const [errorModal, setErrorModal] = useState<{
+    visible: boolean;
+    item: LocalIrrigationItem | null;
+  }>({ visible: false, item: null });
+
+  // ── Load local items (failed + user-retried pending) ──────────────────────
+
+  const loadLocalItems = useCallback(async () => {
+    const capturedFarmId = farmId;
+    const reqId = ++localReqRef.current;
+
+    if (!capturedFarmId) {
+      setLocalItems([]);
+      return;
+    }
     try {
-      const res = await apiFetch(`/api/farms/${farmId}/irrigation-records`);
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const json = await res.json() as IrrigationRecord[];
-      if (reqId === reqIdRef.current) setRecords(Array.isArray(json) ? json : []);
-    } catch (err) {
-      if (reqId === reqIdRef.current) setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      if (reqId === reqIdRef.current) { setLoading(false); setRefreshing(false); }
+      // Query both 'failed' and 'pending' statuses so we can track pending-retry
+      // cards that were just reset from 'failed' by the user.
+      const rows = await getSyncItemsForType(
+        "bde_irrigation_applications",
+        ["failed", "pending"],
+        String(capturedFarmId),
+      );
+      if (reqId !== localReqRef.current) return; // stale — farm switched
+
+      // Prune retriedSyncIds for any rows that are no longer in the queue
+      // (they were successfully synced and removed by clearCompletedSyncItems).
+      const returnedIds = new Set(rows.map((r) => r.id));
+      for (const id of retriedSyncIdsRef.current) {
+        if (!returnedIds.has(id)) {
+          retriedSyncIdsRef.current.delete(id);
+        }
+      }
+
+      const items: LocalIrrigationItem[] = rows
+        // Show 'failed' items always; show 'pending' items only if the grower
+        // explicitly retried them (so ordinary first-time uploads don't appear
+        // as history cards).
+        .filter((r) => r.status === "failed" || retriedSyncIdsRef.current.has(r.id))
+        .map((r) => ({
+          syncId: r.id,
+          recordId: r.record_id,
+          phase: (r.status === "failed" ? "failed" : "pending-retry") as LocalPhase,
+          error: r.last_error,
+          payload: safeParsePayload(r.data_json),
+        }));
+
+      setLocalItems(items);
+    } catch {
+      if (reqId === localReqRef.current) setLocalItems([]);
     }
   }, [farmId]);
+
+  // ── Immediately clear local state on farm change ───────────────────────────
+
+  useEffect(() => {
+    // Cancel any in-flight loadLocalItems from the prior farm and clear display.
+    localReqRef.current++;
+    retriedSyncIdsRef.current = new Set();
+    setLocalItems([]);
+  }, [farmId]);
+
+  // ── Subscribe to sync engine (transition-only) ────────────────────────────
+
+  useEffect(() => {
+    const unsub = subscribeSyncEngine((syncState) => {
+      const wasSyncing = prevIsSyncingRef.current;
+      prevIsSyncingRef.current = syncState.isSyncing;
+      // Only reload after a genuine sync cycle ends (isSyncing: true → false).
+      // Ignoring the false→false no-op prevents loadLocalItems from firing
+      // during the scheduleSync() pending-count refresh (which broadcasts state
+      // without ever starting a sync cycle), which would clear pending-retry
+      // cards before the upload attempt even starts.
+      if (wasSyncing && !syncState.isSyncing) {
+        void loadLocalItems();
+      }
+    });
+    return unsub;
+  }, [loadLocalItems]);
+
+  // ── Server history load ────────────────────────────────────────────────────
+
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!farmId) {
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
+      const reqId = ++reqIdRef.current;
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setServerError(null);
+
+      // Load local items first so they are visible even if the server is offline.
+      await loadLocalItems();
+
+      try {
+        const res = await apiFetch(`/api/farms/${farmId}/irrigation-records`);
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const json = (await res.json()) as IrrigationRecord[];
+        if (reqId === reqIdRef.current)
+          setRecords(Array.isArray(json) ? json : []);
+      } catch (err) {
+        if (reqId === reqIdRef.current)
+          setServerError(
+            err instanceof Error ? err.message : "Failed to load",
+          );
+      } finally {
+        if (reqId === reqIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [farmId, loadLocalItems],
+  );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const refresh = useCallback(() => { void load(true); }, [load]);
+  const refresh = useCallback(() => {
+    void load(true);
+  }, [load]);
 
-  const handleDelete = useCallback((item: IrrigationRecord) => {
-    const label = item.irrigationDate
-      ? formatDate(item.irrigationDate)
-      : "this application";
-    Alert.alert(
-      "Delete Application",
-      `Remove the irrigation application on ${label}? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            if (!farmId) return;
-            setDeletingId(item.id);
-            try {
-              const res = await apiFetch(
-                `/api/farms/${farmId}/irrigation-records/${item.id}`,
-                { method: "DELETE" },
-              );
-              if (!res.ok) throw new Error(`Server error ${res.status}`);
-              setRecords(prev => prev.filter(r => r.id !== item.id));
-            } catch {
-              Alert.alert("Delete Failed", "Could not delete the record. Please try again.");
-            } finally {
-              setDeletingId(null);
-            }
+  // ── Delete a server-synced record ─────────────────────────────────────────
+
+  const handleDelete = useCallback(
+    (item: IrrigationRecord) => {
+      const label = item.irrigationDate
+        ? formatDate(item.irrigationDate)
+        : "this application";
+      Alert.alert(
+        "Delete Application",
+        `Remove the irrigation application on ${label}? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              if (!farmId) return;
+              setDeletingId(item.id);
+              try {
+                const res = await apiFetch(
+                  `/api/farms/${farmId}/irrigation-records/${item.id}`,
+                  { method: "DELETE" },
+                );
+                if (!res.ok) throw new Error(`Server error ${res.status}`);
+                setRecords((prev) => prev.filter((r) => r.id !== item.id));
+              } catch {
+                Alert.alert(
+                  "Delete Failed",
+                  "Could not delete the record. Please try again.",
+                );
+              } finally {
+                setDeletingId(null);
+              }
+            },
           },
-        },
-      ],
+        ],
+      );
+    },
+    [farmId],
+  );
+
+  // ── Retry a failed local item ─────────────────────────────────────────────
+
+  const handleRetry = useCallback(async (item: LocalIrrigationItem) => {
+    setErrorModal({ visible: false, item: null });
+
+    // Optimistically flip the card to 'pending-retry' so the grower sees
+    // immediate feedback. We do NOT remove the card — if the upload fails again
+    // the subscription will call loadLocalItems() and the badge returns.
+    retriedSyncIdsRef.current.add(item.syncId);
+    setLocalItems((prev) =>
+      prev.map((i) =>
+        i.syncId === item.syncId ? { ...i, phase: "pending-retry" } : i,
+      ),
     );
-  }, [farmId]);
+
+    try {
+      // Reset only this specific queue row, not all rows for the record.
+      await resetSyncItemToRetryById(item.syncId);
+      await scheduleSync(300);
+      // The sync-engine subscription (isSyncing: true → false) will call
+      // loadLocalItems() once the attempt resolves, restoring the failed badge
+      // if the upload fails again, or removing the card if it succeeds.
+    } catch {
+      // Queue-reset itself failed — revert the optimistic update.
+      retriedSyncIdsRef.current.delete(item.syncId);
+      setLocalItems((prev) =>
+        prev.map((i) =>
+          i.syncId === item.syncId ? { ...i, phase: "failed" } : i,
+        ),
+      );
+      Alert.alert(
+        "Retry Failed",
+        "Could not queue the record for retry. Please try again.",
+      );
+    }
+  }, []);
+
+  const openErrorModal = useCallback((item: LocalIrrigationItem) => {
+    setErrorModal({ visible: true, item });
+  }, []);
+
+  // ── Filters ───────────────────────────────────────────────────────────────
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
 
-  const years = useMemo(
-    () =>
-      Array.from(new Set(records.map(r => yearOf(r.irrigationDate)).filter(Boolean)))
-        .sort()
-        .reverse(),
-    [records],
-  );
+  const years = useMemo(() => {
+    const serverYears = records.map((r) => yearOf(r.irrigationDate));
+    const localYears = localItems.map((i) => yearOf(i.payload.irrigationDate));
+    return Array.from(new Set([...serverYears, ...localYears].filter(Boolean)))
+      .sort()
+      .reverse();
+  }, [records, localItems]);
 
-  const filtered = useMemo(() => {
-    let list = records;
-    if (yearFilter !== "all") list = list.filter(r => yearOf(r.irrigationDate) === yearFilter);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        r =>
-          (r.irrigationMethod ?? "").toLowerCase().includes(q) ||
-          fieldLabel(r).toLowerCase().includes(q) ||
-          (r.cropType ?? "").toLowerCase().includes(q) ||
-          (r.operatorName ?? "").toLowerCase().includes(q),
+  const displayRows = useMemo((): DisplayRow[] => {
+    const q = search.trim().toLowerCase();
+
+    const matchLocal = (i: LocalIrrigationItem): boolean => {
+      if (yearFilter !== "all" && yearOf(i.payload.irrigationDate) !== yearFilter)
+        return false;
+      if (!q) return true;
+      const p = i.payload;
+      return (
+        (p.irrigationMethod ?? "").toLowerCase().includes(q) ||
+        fieldLabel(p).toLowerCase().includes(q) ||
+        (p.cropType ?? "").toLowerCase().includes(q) ||
+        (p.operatorName ?? "").toLowerCase().includes(q)
       );
-    }
-    return list;
-  }, [records, yearFilter, search]);
+    };
+
+    const matchServer = (r: IrrigationRecord): boolean => {
+      if (yearFilter !== "all" && yearOf(r.irrigationDate) !== yearFilter)
+        return false;
+      if (!q) return true;
+      return (
+        (r.irrigationMethod ?? "").toLowerCase().includes(q) ||
+        fieldLabel(r).toLowerCase().includes(q) ||
+        (r.cropType ?? "").toLowerCase().includes(q) ||
+        (r.operatorName ?? "").toLowerCase().includes(q)
+      );
+    };
+
+    // Local items (failed + pending-retry) first — most urgent.
+    return [
+      ...localItems.filter(matchLocal).map((item): DisplayRow => ({
+        kind: "local",
+        item,
+      })),
+      ...records.filter(matchServer).map((record): DisplayRow => ({
+        kind: "server",
+        record,
+      })),
+    ];
+  }, [localItems, records, yearFilter, search]);
+
+  const failedCount = localItems.filter((i) => i.phase === "failed").length;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={12}
+        >
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Irrigation Applications</Text>
@@ -159,7 +419,12 @@ export default function IrrigationHistoryScreen() {
 
       <View style={styles.filterBar}>
         <View style={styles.searchRow}>
-          <Feather name="search" size={16} color={colors.textTertiary} style={styles.searchIcon} />
+          <Feather
+            name="search"
+            size={16}
+            color={colors.textTertiary}
+            style={styles.searchIcon}
+          />
           <TextInput
             style={styles.searchInput}
             placeholder="Search field, method or crop…"
@@ -175,13 +440,21 @@ export default function IrrigationHistoryScreen() {
           style={styles.yearScroll}
           contentContainerStyle={styles.yearScrollContent}
         >
-          {["all", ...years].map(y => (
+          {["all", ...years].map((y) => (
             <Pressable
               key={y}
               onPress={() => setYearFilter(y)}
-              style={[styles.yearPill, yearFilter === y && styles.yearPillActive]}
+              style={[
+                styles.yearPill,
+                yearFilter === y && styles.yearPillActive,
+              ]}
             >
-              <Text style={[styles.yearPillText, yearFilter === y && styles.yearPillTextActive]}>
+              <Text
+                style={[
+                  styles.yearPillText,
+                  yearFilter === y && styles.yearPillTextActive,
+                ]}
+              >
                 {y === "all" ? "All years" : y}
               </Text>
             </Pressable>
@@ -189,50 +462,107 @@ export default function IrrigationHistoryScreen() {
         </ScrollView>
       </View>
 
-      {loading ? (
+      {loading && localItems.length === 0 ? (
+        // Full-screen spinner only when there is nothing local to show yet.
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : error ? (
+      ) : serverError && records.length === 0 && localItems.length === 0 ? (
+        // Full-screen error only when there is truly nothing to render.
         <View style={styles.centre}>
           <Feather name="wifi-off" size={32} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>Could not load records</Text>
-          <Text style={styles.emptySubtitle}>{error}</Text>
+          <Text style={styles.emptySubtitle}>{serverError}</Text>
           <Pressable onPress={refresh} style={styles.retryBtn}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
       ) : (
         <FlatList
-          data={filtered}
-          keyExtractor={item => String(item.id)}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+          data={displayRows}
+          keyExtractor={(row) =>
+            row.kind === "server"
+              ? `srv-${row.record.id}`
+              : `local-${row.item.syncId}`
           }
-          contentContainerStyle={filtered.length === 0 ? styles.centre : styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+              tintColor={colors.primary}
+            />
+          }
+          contentContainerStyle={
+            displayRows.length === 0 ? styles.centre : styles.listContent
+          }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Feather name="droplet" size={36} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>
-                No applications{yearFilter !== "all" ? ` for ${yearFilter}` : ""}
+                No applications
+                {yearFilter !== "all" ? ` for ${yearFilter}` : ""}
               </Text>
               <Text style={styles.emptySubtitle}>
-                Irrigation applications logged from the Advisor or dashboard will appear here.
+                Irrigation applications logged from the Advisor or dashboard
+                will appear here.
               </Text>
             </View>
           }
           ListHeaderComponent={
-            filtered.length > 0 ? (
-              <Text style={styles.countLabel}>
-                {filtered.length} record{filtered.length !== 1 ? "s" : ""}
-              </Text>
-            ) : null
+            <>
+              {/* Inline server-error banner — local cards remain usable. */}
+              {serverError ? (
+                <View style={styles.serverErrorBanner}>
+                  <Feather name="wifi-off" size={14} color="#92400e" />
+                  <View style={styles.serverErrorText}>
+                    <Text style={styles.serverErrorTitle}>
+                      Could not load server history
+                    </Text>
+                    <Text style={styles.serverErrorSub}>
+                      {serverError} · Offline records below still show.
+                    </Text>
+                  </View>
+                  <Pressable onPress={refresh} hitSlop={8}>
+                    <Feather name="refresh-cw" size={14} color="#92400e" />
+                  </Pressable>
+                </View>
+              ) : null}
+              {/* Subtle spinner when server request is in-flight but locals exist. */}
+              {loading && localItems.length > 0 ? (
+                <View style={styles.inlineLoading}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.inlineLoadingText}>
+                    Loading server records…
+                  </Text>
+                </View>
+              ) : null}
+              {displayRows.length > 0 ? (
+                <Text style={styles.countLabel}>
+                  {displayRows.length} record
+                  {displayRows.length !== 1 ? "s" : ""}
+                  {failedCount > 0 ? ` · ${failedCount} failed to sync` : ""}
+                </Text>
+              ) : null}
+            </>
           }
-          renderItem={({ item }) => {
-            const field = fieldLabel(item);
+          renderItem={({ item: row }) => {
+            if (row.kind === "local") {
+              return (
+                <LocalItemCard
+                  item={row.item}
+                  onPress={() => openErrorModal(row.item)}
+                />
+              );
+            }
+
+            const item = row.record;
+            const fld = fieldLabel(item);
             const depthNum =
-              item.applicationDepthMm != null ? Number(item.applicationDepthMm) : null;
+              item.applicationDepthMm != null
+                ? Number(item.applicationDepthMm)
+                : null;
             const isDeleting = deletingId === item.id;
+
             return (
               <Pressable
                 style={[styles.card, isDeleting && styles.cardDeleting]}
@@ -242,7 +572,9 @@ export default function IrrigationHistoryScreen() {
               >
                 <View style={styles.cardHeader}>
                   <View style={styles.dateBadge}>
-                    <Text style={styles.dateBadgeText}>{formatDate(item.irrigationDate)}</Text>
+                    <Text style={styles.dateBadgeText}>
+                      {formatDate(item.irrigationDate)}
+                    </Text>
                   </View>
                   <View style={styles.methodBadge}>
                     <Text style={styles.methodBadgeText} numberOfLines={1}>
@@ -263,9 +595,9 @@ export default function IrrigationHistoryScreen() {
                   )}
                 </View>
 
-                {field ? (
+                {fld ? (
                   <Text style={styles.cardTitle} numberOfLines={1}>
-                    📍 {field}
+                    📍 {fld}
                   </Text>
                 ) : null}
 
@@ -276,13 +608,24 @@ export default function IrrigationHistoryScreen() {
                 <View style={styles.cardRow}>
                   {depthNum != null && depthNum > 0 ? (
                     <View style={styles.chip}>
-                      <Feather name="layers" size={11} color={colors.textSecondary} />
-                      <Text style={styles.chipText}>{depthNum.toFixed(1)} mm</Text>
+                      <Feather
+                        name="layers"
+                        size={11}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={styles.chipText}>
+                        {depthNum.toFixed(1)} mm
+                      </Text>
                     </View>
                   ) : null}
-                  {item.areaIrrigatedHa != null && Number(item.areaIrrigatedHa) > 0 ? (
+                  {item.areaIrrigatedHa != null &&
+                  Number(item.areaIrrigatedHa) > 0 ? (
                     <View style={styles.chip}>
-                      <Feather name="maximize-2" size={11} color={colors.textSecondary} />
+                      <Feather
+                        name="maximize-2"
+                        size={11}
+                        color={colors.textSecondary}
+                      />
                       <Text style={styles.chipText}>
                         {Number(item.areaIrrigatedHa).toFixed(2)} ha
                       </Text>
@@ -290,7 +633,11 @@ export default function IrrigationHistoryScreen() {
                   ) : null}
                   {item.operatorName ? (
                     <View style={styles.chip}>
-                      <Feather name="user" size={11} color={colors.textSecondary} />
+                      <Feather
+                        name="user"
+                        size={11}
+                        color={colors.textSecondary}
+                      />
                       <Text style={styles.chipText}>{item.operatorName}</Text>
                     </View>
                   ) : null}
@@ -306,9 +653,200 @@ export default function IrrigationHistoryScreen() {
           }}
         />
       )}
+
+      {/* Sync-error detail / retry modal */}
+      <Modal
+        visible={errorModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModal({ visible: false, item: null })}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setErrorModal({ visible: false, item: null })}
+        >
+          <Pressable style={styles.modalCard} onPress={() => { /* absorb */ }}>
+            <View style={styles.modalHeader}>
+              {errorModal.item?.phase === "pending-retry" ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Feather name="alert-circle" size={20} color={colors.error} />
+              )}
+              <Text
+                style={[
+                  styles.modalTitle,
+                  errorModal.item?.phase === "pending-retry" &&
+                    styles.modalTitleUploading,
+                ]}
+              >
+                {errorModal.item?.phase === "pending-retry"
+                  ? "Uploading…"
+                  : "Sync Failed"}
+              </Text>
+            </View>
+
+            {errorModal.item ? (
+              <>
+                <Text style={styles.modalBody}>
+                  {errorModal.item.phase === "pending-retry"
+                    ? "This irrigation application is queued for upload and will be sent when the connection allows."
+                    : "This irrigation application was saved on your device but could not be uploaded to the server."}
+                </Text>
+
+                {errorModal.item.payload.irrigationDate ? (
+                  <Text style={styles.modalDetail}>
+                    Date: {formatDate(errorModal.item.payload.irrigationDate)}
+                  </Text>
+                ) : null}
+                {errorModal.item.payload.irrigationMethod ? (
+                  <Text style={styles.modalDetail}>
+                    Method: {errorModal.item.payload.irrigationMethod}
+                  </Text>
+                ) : null}
+
+                {errorModal.item.phase === "failed" &&
+                errorModal.item.error ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorBoxLabel}>Error detail</Text>
+                    <Text style={styles.errorBoxText}>
+                      {errorModal.item.error}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {errorModal.item.phase === "failed" ? (
+                  <Text style={styles.modalHint}>
+                    Tap Retry to attempt uploading again. If the problem
+                    persists, please check your connection and contact support.
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setErrorModal({ visible: false, item: null })}
+              >
+                <Text style={styles.modalCancelText}>Dismiss</Text>
+              </Pressable>
+              {errorModal.item?.phase === "failed" ? (
+                <Pressable
+                  style={styles.modalRetryBtn}
+                  onPress={() => {
+                    if (errorModal.item) void handleRetry(errorModal.item);
+                  }}
+                >
+                  <Feather
+                    name="refresh-cw"
+                    size={14}
+                    color={colors.textInverse}
+                  />
+                  <Text style={styles.modalRetryText}>Retry Now</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+// ─── Local item card ─────────────────────────────────────────────────────────
+
+function LocalItemCard({
+  item,
+  onPress,
+}: {
+  item: LocalIrrigationItem;
+  onPress: () => void;
+}) {
+  const p = item.payload;
+  const fld = fieldLabel(p);
+  const depthNum =
+    p.applicationDepthMm != null ? Number(p.applicationDepthMm) : null;
+  const isPendingRetry = item.phase === "pending-retry";
+
+  return (
+    <Pressable
+      style={[styles.card, isPendingRetry ? styles.cardPending : styles.cardFailed]}
+      onPress={onPress}
+      android_ripple={null}
+    >
+      {/* Status badge row */}
+      <View style={styles.statusBadgeRow}>
+        {isPendingRetry ? (
+          <View style={styles.pendingBadge}>
+            <ActivityIndicator size="small" color={colors.primary} style={{ width: 11, height: 11 }} />
+            <Text style={styles.pendingBadgeText}>Uploading…</Text>
+          </View>
+        ) : (
+          <View style={styles.failedBadge}>
+            <Feather name="alert-circle" size={11} color="#dc2626" />
+            <Text style={styles.failedBadgeText}>Sync failed</Text>
+          </View>
+        )}
+        <Text style={styles.tapHint}>Tap for details</Text>
+      </View>
+
+      <View style={styles.cardHeader}>
+        <View style={styles.dateBadge}>
+          <Text style={styles.dateBadgeText}>
+            {formatDate(p.irrigationDate)}
+          </Text>
+        </View>
+        {p.irrigationMethod ? (
+          <View style={styles.methodBadge}>
+            <Text style={styles.methodBadgeText} numberOfLines={1}>
+              {p.irrigationMethod}
+            </Text>
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }} />
+      </View>
+
+      {fld ? (
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          📍 {fld}
+        </Text>
+      ) : null}
+
+      {p.cropType ? <Text style={styles.cardSub}>{p.cropType}</Text> : null}
+
+      <View style={styles.cardRow}>
+        {depthNum != null && depthNum > 0 ? (
+          <View style={styles.chip}>
+            <Feather name="layers" size={11} color={colors.textSecondary} />
+            <Text style={styles.chipText}>{depthNum.toFixed(1)} mm</Text>
+          </View>
+        ) : null}
+        {p.areaIrrigatedHa != null && Number(p.areaIrrigatedHa) > 0 ? (
+          <View style={styles.chip}>
+            <Feather name="maximize-2" size={11} color={colors.textSecondary} />
+            <Text style={styles.chipText}>
+              {Number(p.areaIrrigatedHa).toFixed(2)} ha
+            </Text>
+          </View>
+        ) : null}
+        {p.operatorName ? (
+          <View style={styles.chip}>
+            <Feather name="user" size={11} color={colors.textSecondary} />
+            <Text style={styles.chipText}>{p.operatorName}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {p.notes ? (
+        <Text style={styles.cardNote} numberOfLines={2}>
+          {p.notes}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
@@ -367,10 +905,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   yearPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  yearPillText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary },
+  yearPillText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
   yearPillTextActive: { color: colors.textInverse },
   listContent: { padding: spacing.lg, gap: spacing.md },
-  centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  centre: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
   emptyWrap: { alignItems: "center", paddingTop: spacing.xl * 2 },
   emptyTitle: {
     fontFamily: fonts.semiBold,
@@ -394,13 +941,55 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.md,
   },
-  retryText: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.textInverse },
+  retryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textInverse,
+  },
   countLabel: {
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
+  // Server-error inline banner
+  serverErrorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fcd34d",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  serverErrorText: { flex: 1 },
+  serverErrorTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+  },
+  serverErrorSub: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  // Inline loading (while server request in-flight, locals already shown)
+  inlineLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  inlineLoadingText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+  },
+  // Cards
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -411,12 +1000,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  cardDeleting: {
-    opacity: 0.5,
+  cardDeleting: { opacity: 0.5 },
+  cardFailed: {
+    borderWidth: 1.5,
+    borderColor: "#fca5a5",
+    backgroundColor: "#fff8f8",
   },
-  deleteBtn: {
-    padding: 4,
+  cardPending: {
+    borderWidth: 1.5,
+    borderColor: "#93c5fd",
+    backgroundColor: "#f0f9ff",
   },
+  deleteBtn: { padding: 4 },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -430,7 +1025,11 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.sm,
   },
-  dateBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: "#0369a1" },
+  dateBadgeText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: "#0369a1",
+  },
   methodBadge: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.sm,
@@ -440,7 +1039,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     flexShrink: 1,
   },
-  methodBadgeText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary },
+  methodBadgeText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
   cardTitle: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.md,
@@ -469,12 +1072,169 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
-  chipText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  chipText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
   cardNote: {
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textTertiary,
     marginTop: spacing.xs,
     fontStyle: "italic",
+  },
+  // Status badge row (inside local item cards)
+  statusBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  failedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fee2e2",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+  },
+  failedBadgeText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#dc2626",
+  },
+  pendingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#eff6ff",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#93c5fd",
+  },
+  pendingBadgeText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#1d4ed8",
+  },
+  tapHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    flex: 1,
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.xl,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    width: "100%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.error,
+  },
+  modalTitleUploading: {
+    color: colors.primary,
+  },
+  modalBody: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+  modalDetail: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  errorBox: {
+    backgroundColor: "#fff1f2",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fecdd3",
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  errorBoxLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#be123c",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  errorBoxText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: "#be123c",
+    lineHeight: 16,
+  },
+  modalHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textTertiary,
+    lineHeight: 16,
+    marginBottom: spacing.lg,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "flex-end",
+  },
+  modalCancelBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  modalRetryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+  },
+  modalRetryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.textInverse,
   },
 });
