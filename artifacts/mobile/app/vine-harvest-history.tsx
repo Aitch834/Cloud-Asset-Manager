@@ -987,6 +987,57 @@ export default function VineHarvestHistoryScreen() {
     };
   }, [blockFilteredRecords, vintageRecords, blocks, offlinePendingForVintage]);
 
+  // Per-vintage chemistry averages for the all-years trend view. Keep this
+  // independent of the selected vintage so the trend remains useful while a
+  // grower is viewing one year's totals. Apply the block filter, and include
+  // pending local records because they are already visible on this screen.
+  const chemistryTrendData = useMemo(() => {
+    type ChemistryValues = {
+      brix: number[];
+      ph: number[];
+      ta: number[];
+      potAlc: number[];
+    };
+
+    const vintageMap = new Map<number, ChemistryValues>();
+    const allRecords = [...displayRecords, ...offlinePending].filter(
+      r => r.vintageYear != null &&
+        (selectedBlockIds.length === 0 || (r.blockId != null && selectedBlockIds.includes(r.blockId))),
+    );
+
+    const addValue = (values: number[], value: number | null | undefined) => {
+      if (value == null || !Number.isFinite(Number(value))) return;
+      values.push(Number(value));
+    };
+
+    for (const record of allRecords) {
+      const vintage = record.vintageYear as number;
+      const values = vintageMap.get(vintage) ?? { brix: [], ph: [], ta: [], potAlc: [] };
+      addValue(values.brix, record.brix);
+      addValue(values.ph, record.ph);
+      addValue(values.ta, record.titratableAcidityGl);
+      addValue(values.potAlc, record.potentialAlcohol);
+      vintageMap.set(vintage, values);
+    }
+
+    const average = (values: number[]) =>
+      values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+
+    const rows = Array.from(vintageMap.entries())
+      .map(([vintageYear, values]) => ({
+        vintageYear,
+        avgBrix: average(values.brix),
+        avgPh: average(values.ph),
+        avgTa: average(values.ta),
+        avgPotAlc: average(values.potAlc),
+        hasChemistry: values.brix.length + values.ph.length + values.ta.length + values.potAlc.length > 0,
+      }))
+      .filter(row => row.hasChemistry)
+      .sort((a, b) => a.vintageYear - b.vintageYear);
+
+    return rows.length >= 2 ? rows : null;
+  }, [displayRecords, offlinePending, selectedBlockIds]);
+
   // ── Yield by Block × Vintage cross-tab ─────────────────────────────────────
   // Like the dashboard, this is an all-vintages view. Keep pending offline
   // records in the table so the on-device report reflects the records the
@@ -1986,6 +2037,67 @@ export default function VineHarvestHistoryScreen() {
         </View>
       )}
 
+      {/* Per-vintage chemistry trend — shown once at least two vintages have data */}
+      {!loading && !error && chemistryTrendData && (
+        <View style={styles.chemTrendCard}>
+          <View style={styles.chemTrendHeader}>
+            <View style={styles.chemTrendTitleRow}>
+              <Feather name="trending-up" size={14} color={colors.textSecondary} />
+              <Text style={styles.chemTrendTitle}>Chemistry by Vintage</Text>
+            </View>
+            <Text style={styles.chemTrendSubtitle}>Average must chemistry across vintages</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.chemTrendTable}>
+              <View style={[styles.chemTrendRow, styles.chemTrendHeaderRow]}>
+                <View style={[styles.chemTrendVintageCell, styles.chemTrendHeaderCell]}>
+                  <Text style={styles.chemTrendHeaderLabel}>Vintage</Text>
+                </View>
+                <View style={[styles.chemTrendValueCell, styles.chemTrendHeaderCell]}>
+                  <Text style={styles.chemTrendHeaderLabel}>Avg Brix °</Text>
+                </View>
+                <View style={[styles.chemTrendValueCell, styles.chemTrendHeaderCell]}>
+                  <Text style={styles.chemTrendHeaderLabel}>Avg pH</Text>
+                </View>
+                <View style={[styles.chemTrendValueCell, styles.chemTrendHeaderCell]}>
+                  <Text style={styles.chemTrendHeaderLabel}>Avg TA (g/L)</Text>
+                </View>
+                <View style={[styles.chemTrendPotAlcCell, styles.chemTrendHeaderCell]}>
+                  <Text style={styles.chemTrendHeaderLabel}>Avg Pot. Alc %</Text>
+                </View>
+              </View>
+              {chemistryTrendData.map((row, index) => (
+                <View
+                  key={row.vintageYear}
+                  style={[
+                    styles.chemTrendRow,
+                    index < chemistryTrendData.length - 1 && styles.chemTrendDataRowBorder,
+                  ]}
+                >
+                  <View style={styles.chemTrendVintageCell}>
+                    <Text style={styles.chemTrendVintage}>{row.vintageYear}</Text>
+                  </View>
+                  <View style={styles.chemTrendValueCell}>
+                    <Text style={styles.chemTrendValue}>{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</Text>
+                  </View>
+                  <View style={styles.chemTrendValueCell}>
+                    <Text style={styles.chemTrendValue}>{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</Text>
+                  </View>
+                  <View style={styles.chemTrendValueCell}>
+                    <Text style={[styles.chemTrendValue, styles.chemTrendTaValue]}>
+                      {row.avgTa != null ? row.avgTa.toFixed(2) : "—"}
+                    </Text>
+                  </View>
+                  <View style={styles.chemTrendPotAlcCell}>
+                    <Text style={styles.chemTrendValue}>{row.avgPotAlc != null ? row.avgPotAlc.toFixed(1) : "—"}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
       {unlinkedCount > 0 && (
         <View style={styles.unlinkedBanner}>
           <Feather name="alert-triangle" size={15} color="#92400e" />
@@ -2835,6 +2947,101 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: colors.textSecondary,
+  },
+  // Per-vintage chemistry trend table
+  chemTrendCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  chemTrendHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chemTrendTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  chemTrendTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  chemTrendSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  chemTrendTable: {
+    minWidth: 440,
+  },
+  chemTrendRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    minHeight: 42,
+  },
+  chemTrendHeaderRow: {
+    backgroundColor: colors.background,
+  },
+  chemTrendHeaderCell: {
+    justifyContent: "center",
+    paddingVertical: spacing.xs,
+  },
+  chemTrendHeaderLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: "right",
+  },
+  chemTrendVintageCell: {
+    width: 72,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  chemTrendValueCell: {
+    width: 82,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.xs,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  chemTrendPotAlcCell: {
+    width: 112,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.md,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  chemTrendVintage: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  chemTrendValue: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  chemTrendTaValue: {
+    color: "#ef4444",
+  },
+  chemTrendDataRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
 });
 
