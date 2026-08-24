@@ -167,10 +167,26 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
     isValid: (y) => y > 2000 && y <= currentYear + 1,
   });
   const [compareYear, setCompareYear] = useState<number | null>(null);
-  const [blockPerfSort, setBlockPerfSort] = useState<{ vintage: string | null; direction: "asc" | "desc" }>({
-    vintage: null,
-    direction: "desc",
+  const [blockPerfSortVintage, setBlockPerfSortVintage] = usePersistedFilter({
+    page: "viticulture-analytics",
+    filter: "block-performance-sort-vintage",
+    farmId,
+    defaultValue: "",
   });
+  const [blockPerfSortDirection, setBlockPerfSortDirection] = usePersistedFilter({
+    page: "viticulture-analytics",
+    filter: "block-performance-sort-direction",
+    farmId,
+    defaultValue: "desc",
+    validValues: ["asc", "desc"] as const,
+  });
+  const blockPerfSort = blockPerfSortVintage
+    ? { vintage: blockPerfSortVintage, direction: blockPerfSortDirection as "asc" | "desc" }
+    : null;
+  const setBlockPerfSort = (value: { vintage: string; direction: "asc" | "desc" } | null) => {
+    setBlockPerfSortVintage(value?.vintage ?? "");
+    if (value) setBlockPerfSortDirection(value.direction);
+  };
   useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
   // ── Vintage yield + Brix trend (filtered to selected/compare years) ───────
   const allVintageMap = useMemo(() => {
@@ -300,14 +316,14 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   }, [blocks, harvests, selectedYear, compareYear]);
 
   const sortedBlockPerfRows = useMemo(() => {
-    if (blockPerfSort.vintage == null) return blockPerfData.rows;
+    if (blockPerfSort == null) return blockPerfData.rows;
 
     const direction = blockPerfSort.direction === "asc" ? 1 : -1;
     return [...blockPerfData.rows].sort((a, b) => {
-      const aValue = a[blockPerfSort.vintage!];
-      const bValue = b[blockPerfSort.vintage!];
-      const aMissing = aValue == null;
-      const bMissing = bValue == null;
+      const aValue = (a[blockPerfSort.vintage] as { value: number | null } | null)?.value;
+      const bValue = (b[blockPerfSort.vintage] as { value: number | null } | null)?.value;
+      const aMissing = aValue == null || !Number.isFinite(aValue);
+      const bMissing = bValue == null || !Number.isFinite(bValue);
 
       // Keep blocks without a harvest at the bottom in either direction.
       if (aMissing || bMissing) {
@@ -315,7 +331,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
         return aMissing ? 1 : -1;
       }
 
-      const difference = Number(aValue) - Number(bValue);
+      const difference = aValue - bValue;
       return difference === 0
         ? String(a.block).localeCompare(String(b.block))
         : direction * difference;
@@ -487,19 +503,21 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                     <th key={yr} className="px-4 py-2 text-right">
                       <button
                         type="button"
-                        onClick={() => setBlockPerfSort(prev => ({
+                        onClick={() => setBlockPerfSort({
                           vintage: yr,
-                          direction: prev.vintage === yr && prev.direction === "desc" ? "asc" : "desc",
-                        }))}
+                          direction: blockPerfSort?.vintage === yr && blockPerfSort.direction === "desc"
+                            ? "asc"
+                            : "desc",
+                        })}
                         className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${
-                          blockPerfSort.vintage === yr ? "text-foreground" : ""
+                          blockPerfSort?.vintage === yr ? "text-foreground" : ""
                         }`}
                         aria-label={`Sort by ${yr} yield`}
                       >
                         {yr}
-                        {blockPerfSort.vintage !== yr ? (
+                        {blockPerfSort?.vintage !== yr ? (
                           <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />
-                        ) : blockPerfSort.direction === "asc" ? (
+                        ) : blockPerfSort?.direction === "asc" ? (
                           <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
                         ) : (
                           <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />
@@ -751,6 +769,28 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // Yield chart mode: "t" = total tonnes (default), "tha" = t/ha per block
   const [chartInTha, setChartInTha] = useState(false);
 
+  // The cross-tab only renders in all-vintages mode. Keep its preference
+  // farm-scoped while the grower temporarily views one vintage.
+  const [crossTabSortVintage, setCrossTabSortVintage] = usePersistedFilter({
+    page: "vintage-season-report",
+    filter: "cross-tab-sort-vintage",
+    farmId,
+    defaultValue: "",
+  });
+  const [crossTabSortDirection, setCrossTabSortDirection] = usePersistedFilter({
+    page: "vintage-season-report",
+    filter: "cross-tab-sort-direction",
+    farmId,
+    defaultValue: "desc",
+    validValues: ["asc", "desc"] as const,
+  });
+  const crossTabSort = crossTabSortVintage
+    ? { vintage: crossTabSortVintage, dir: crossTabSortDirection as "asc" | "desc" }
+    : null;
+  const setCrossTabSort = (value: { vintage: string; dir: "asc" | "desc" } | null) => {
+    setCrossTabSortVintage(value?.vintage ?? "");
+    if (value) setCrossTabSortDirection(value.dir);
+  };
   // Block filter state for spray diary and scouting sections (null = all blocks shown)
   const [selectedSprayBlocks, setSelectedSprayBlocks] = useState<Set<number> | null>(null);
   const [selectedScoutBlocks, setSelectedScoutBlocks] = useState<Set<number> | null>(null);
@@ -1208,16 +1248,54 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       {/* Block × Vintage yield cross-tab table (all-vintages mode only) */}
       {year == null && blockYieldTrendData.blockLines.length > 0 && blockYieldTrendData.chartData.length > 0 && (() => {
         const allLines = blockYieldTrendData.blockLines;
-        const vintageRows = [...blockYieldTrendData.chartData].sort(
-          (a, b) => String(a.vintage).localeCompare(String(b.vintage)),
-        );
+        // Vintage columns are sorted chronologically so growers can compare
+        // the same block across years at a glance.
+        const vintageYrs = [...blockYieldTrendData.chartData]
+          .map(row => String(row.vintage))
+          .sort((a, b) => a.localeCompare(b));
+
+        // Transpose the chart data into one row per block, with vintages as
+        // columns. This makes each vintage column a useful sort target.
+        type BlockRow = { key: string; variety: string; color: string } & Record<string, unknown>;
+        let blockRows: BlockRow[] = allLines.map(bl => {
+          const row: BlockRow = { key: bl.key, variety: bl.variety, color: bl.color };
+          vintageYrs.forEach(yr => {
+            const vintageRow = blockYieldTrendData.chartData.find(
+              chartRow => String(chartRow.vintage) === yr,
+            );
+            row[yr] = vintageRow != null ? vintageRow[bl.key] : null;
+          });
+          return row;
+        });
+
+        // Keep missing values at the bottom regardless of direction.
+        if (crossTabSort != null) {
+          const { vintage, dir } = crossTabSort;
+          blockRows = [...blockRows].sort((a, b) => {
+            const av = a[vintage] as number | null;
+            const bv = b[vintage] as number | null;
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return dir === "desc" ? bv - av : av - bv;
+          });
+        }
+
+        const handleVintageHeaderClick = (vintage: string) => {
+          setCrossTabSort(
+            crossTabSort?.vintage === vintage
+              ? { vintage, dir: crossTabSort.dir === "desc" ? "asc" : "desc" }
+              : { vintage, dir: "desc" },
+          );
+        };
+
         return (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-semibold">Block × Vintage Yield (t/ha)</h3>
                 <p className="text-xs text-foreground/40">
-                  Yield per hectare for each block across all vintages
+                  Yield per hectare for each block across all vintages · Click a vintage header to rank blocks
                   {visibleBlockNames != null && (
                     <> · <span className="text-purple-600 font-medium">filtered to {visibleBlockNames.size} block{visibleBlockNames.size !== 1 ? "s" : ""}</span></>
                   )}
@@ -1237,41 +1315,63 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/20 text-foreground/60 text-xs">
-                    <th className="px-4 py-2 text-left sticky left-0 bg-muted/20 z-10">Vintage</th>
-                    {/* On screen show filtered blocks; print always shows all */}
-                    {allLines.map(bl => (
-                      <th
-                        key={bl.key}
-                        className={`px-4 py-2 text-right min-w-[80px]${
-                          visibleBlockNames != null && !visibleBlockNames.has(bl.key)
-                            ? " hidden print:table-cell"
-                            : ""
-                        }`}
-                      >
-                        <span className="font-semibold" style={{ color: bl.color }}>{bl.key}</span>
-                        {bl.variety && <div className="text-foreground/40 font-normal truncate max-w-[80px]">{bl.variety}</div>}
-                      </th>
-                    ))}
+                    <th className="px-4 py-2 text-left sticky left-0 bg-muted/20 z-10">Block</th>
+                    {vintageYrs.map(yr => {
+                      const isActive = crossTabSort?.vintage === yr;
+                      return (
+                        <th key={yr} className="px-4 py-2 text-right min-w-[90px]">
+                          <button
+                            type="button"
+                            onClick={() => handleVintageHeaderClick(yr)}
+                            className={`no-print inline-flex items-center justify-end gap-0.5 w-full transition-colors ${
+                              isActive
+                                ? "text-purple-700 font-bold"
+                                : "text-foreground/60 hover:text-foreground"
+                            }`}
+                            title={`Sort blocks by ${yr} yield`}
+                          >
+                            <span className="font-semibold">{yr}</span>
+                            {isActive ? (
+                              crossTabSort.dir === "desc"
+                                ? <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                                : <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                              <span className="w-3.5 h-3.5 inline-flex items-center justify-center opacity-25 text-[10px]">↕</span>
+                            )}
+                          </button>
+                          <span className="hidden print:inline font-semibold">{yr}</span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {vintageRows.map(row => (
-                    <tr key={String(row.vintage)} className="border-t border-border/40 hover:bg-muted/20">
-                      <td className="px-4 py-2 font-semibold text-purple-700 sticky left-0 bg-card">{String(row.vintage)}</td>
-                      {allLines.map(bl => (
-                        <td
-                          key={bl.key}
-                          className={`px-4 py-2 text-right font-mono${
-                            visibleBlockNames != null && !visibleBlockNames.has(bl.key)
-                              ? " hidden print:table-cell"
-                              : ""
-                          }`}
-                        >
-                          {row[bl.key] != null
-                            ? <span>{Number(row[bl.key]).toFixed(2)}</span>
-                            : <span className="text-foreground/30">—</span>}
+                  {blockRows.map(row => (
+                    <tr
+                      key={String(row.key)}
+                      className={`border-t border-border/40 hover:bg-muted/20${
+                        visibleBlockNames != null && !visibleBlockNames.has(String(row.key))
+                          ? " hidden print:table-row"
+                          : ""
+                      }`}
+                    >
+                      <td className="px-4 py-2 sticky left-0 bg-card">
+                        <span className="font-medium" style={{ color: String(row.color) }}>{String(row.key)}</span>
+                        {row.variety && (
+                          <div className="text-xs text-foreground/40 truncate max-w-[120px]">{String(row.variety)}</div>
+                        )}
+                      </td>
+                      {vintageYrs.map(yr => {
+                        const value = row[yr];
+                        const isActive = crossTabSort?.vintage === yr;
+                        return (
+                          <td key={yr} className="px-4 py-2 text-right font-mono">
+                            {value != null
+                              ? <span className={isActive ? "font-semibold text-purple-700" : ""}>{Number(value).toFixed(2)}</span>
+                              : <span className="text-foreground/30">—</span>}
                         </td>
-                      ))}
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
