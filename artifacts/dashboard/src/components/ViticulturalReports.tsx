@@ -293,6 +293,7 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
 
   // ── Block performance table (vintages filtered to selected/compare years) ──
   const blockPerfData = useMemo(() => {
+    type BlockPerfCell = { value: number | null; records: number };
     const allVintages = [...new Set(harvests.map(h => String(h.vintageYear)).filter(Boolean))].sort();
     const vintages = compareYear
       ? allVintages.filter(yr => yr === String(selectedYear) || yr === String(compareYear))
@@ -307,7 +308,10 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
         if (recs.length === 0) { row[yr] = null; return; }
         const totKg = recs.reduce((s, r) => s + n(r.yieldKg), 0);
         const areaHa = n(bl.areaHa);
-        row[yr] = areaHa > 0 ? parseFloat((totKg / 1000 / areaHa).toFixed(2)) : null;
+        row[yr] = {
+          value: areaHa > 0 ? parseFloat((totKg / 1000 / areaHa).toFixed(2)) : null,
+          records: recs.length,
+        } satisfies BlockPerfCell;
       });
       return row;
     });
@@ -488,7 +492,29 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-2 text-right">{fmtN(row.areaHa, 2)}</td>
                     {blockPerfData.vintages.map(yr => (
                       <td key={yr} className="px-4 py-2 text-right font-mono">
-                        {row[yr] != null ? String(row[yr]) : <span className="text-foreground/30">—</span>}
+                        {(() => {
+                          const cell = row[yr] as { value: number | null; records: number } | null;
+                          if (cell?.value == null) return <span className="text-foreground/30">—</span>;
+                          return (
+                            <span className="inline-flex items-center justify-end gap-1">
+                              <span>{cell.value}</span>
+                              {cell.records === 1 ? (
+                                <span
+                                  className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 ring-1 ring-inset ring-amber-300"
+                                  title="Only one pick recorded — low-confidence data"
+                                >
+                                  1 pick
+                                </span>
+                              ) : cell.records <= 3 ? (
+                                <span
+                                  className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
+                                  title={`Based on ${cell.records} picks — treat with caution`}
+                                  aria-label={`Based on ${cell.records} picks`}
+                                />
+                              ) : null}
+                            </span>
+                          );
+                        })()}
                       </td>
                     ))}
                   </tr>
