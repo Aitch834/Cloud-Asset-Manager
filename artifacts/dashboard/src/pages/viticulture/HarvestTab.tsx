@@ -2251,7 +2251,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                     {sortedSummaryRows.map((row, i) => {
                       const isTopRow = topSummaryBlock !== null && row.name === topSummaryBlock;
                       return (
-                      <tr key={i} className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : "hover:bg-muted/20"}`}>
+                      <tr
+                        key={i}
+                        className={`border-b last:border-0 ${isTopRow ? "bg-emerald-50/70 hover:bg-emerald-50 border-l-2 border-l-emerald-500" : row.picks === 1 ? "bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/20 dark:hover:bg-amber-950/30" : "hover:bg-muted/20"}`}
+                        title={!isTopRow && row.picks === 1 ? "Only one pick recorded for this block — treat data with lower confidence" : undefined}
+                      >
                         <td className="px-4 py-2 font-medium">
                           <span className="inline-flex items-center gap-2">
                             {row.name}
