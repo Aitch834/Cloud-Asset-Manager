@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap } from "@/lib/variety-colors";
+import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap, buildUniqueBlockColorMap } from "@/lib/variety-colors";
 import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -337,7 +337,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     // so the colour key is stable and consistent with the print SVG charts.
     const allFarmVarieties = blocks.map(b => String((b as Record<string, unknown>).variety ?? "").trim());
     const varietyColorMap = buildVarietyColorMap(allFarmVarieties);
-    const blockColorByName = buildBlockColorMap(blockNames, blockVarietyByName, varietyColorMap);
+    // Use unique-per-block colours: same-variety blocks share a hue but get
+    // distinct lightness steps so every bar is individually distinguishable.
+    const blockColorByName = buildUniqueBlockColorMap(blockNames, blockVarietyByName, varietyColorMap);
 
     return { kgData, thaData, blockNames, blockAreaByName, varietyColorMap, blockVarietyByName, blockColorByName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1490,10 +1492,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               })}
             </ComposedChart>
           </ResponsiveContainer>
-          {/* Variety colour key — shown when ≥2 distinct named varieties are present */}
+          {/* Variety hue key — shown when ≥2 distinct named varieties are present.
+              Each bar has a unique shade; swatches show the anchor hue per variety. */}
           {Object.keys(yieldChartData.varietyColorMap).length >= 2 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1 pb-0.5 border-t mt-1">
-              <span className="text-xs text-muted-foreground font-medium self-center shrink-0">Variety:</span>
+              <span className="text-xs text-muted-foreground font-medium self-center shrink-0">Variety hue:</span>
               {Object.entries(yieldChartData.varietyColorMap).map(([variety, color]) => (
                 <span key={variety} className="flex items-center gap-1.5 text-xs text-foreground">
                   <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ background: color }} />
