@@ -951,9 +951,22 @@ export default function VineScoutingHistoryScreen() {
             onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
           >
             <Text style={[styles.blockChipText, selectedBlockIds.length === 0 && styles.blockChipTextActive]}>
-              All blocks
+              Show all
             </Text>
           </Pressable>
+          {filterBlocks.length > 1 && (
+            <Pressable
+              style={styles.blockChip}
+              onPress={() => {
+                Haptics.selectionAsync();
+                // Keep one block visible, matching the harvest history shortcut.
+                const firstLinkedBlockId = displayRecords.find(r => r.blockId != null)?.blockId;
+                setSelectedBlockIds([firstLinkedBlockId ?? filterBlocks[0].id]);
+              }}
+            >
+              <Text style={styles.blockChipText}>Select none</Text>
+            </Pressable>
+          )}
           {filterBlocks.map(b => {
             const active = selectedBlockIds.includes(b.id);
             return (
