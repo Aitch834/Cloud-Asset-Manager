@@ -43,22 +43,23 @@ export function usePersistedVarietySort(
   const storageKey = farmId ? `bde_vine_variety_sort_${farmId}` : null;
 
   const [sort, setSortRaw] = useState<VarietySort>(DEFAULT_SORT);
-  const loadedForFarm = useRef<string | undefined>(undefined);
+  const userToggled = useRef(false);
 
   useEffect(() => {
     if (!farmId || !storageKey) {
       setSortRaw(DEFAULT_SORT);
-      loadedForFarm.current = farmId;
+      userToggled.current = false;
       return;
     }
-    // Skip re-read if already loaded for this farm (prevents reset mid-session)
-    if (loadedForFarm.current === farmId) return;
 
+    // Reset immediately so a farm switch never displays the previous farm's
+    // preference while this farm's value is being hydrated.
+    setSortRaw(DEFAULT_SORT);
+    userToggled.current = false;
     let cancelled = false;
     getItem<VarietySort>(storageKey).then((stored) => {
-      if (cancelled) return;
+      if (cancelled || userToggled.current) return;
       setSortRaw(isValidSort(stored) ? stored : DEFAULT_SORT);
-      loadedForFarm.current = farmId;
     });
     return () => {
       cancelled = true;
@@ -67,6 +68,7 @@ export function usePersistedVarietySort(
 
   const setSort = useCallback(
     (newSort: VarietySort) => {
+      userToggled.current = true;
       setSortRaw(newSort);
       if (storageKey) {
         setItem(storageKey, newSort).catch(() => {
