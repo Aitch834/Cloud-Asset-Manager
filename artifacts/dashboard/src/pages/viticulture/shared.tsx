@@ -2771,8 +2771,14 @@ export async function printHarvest(
       if (b === VARIETY_UNKNOWN_KEY) return -1;
       return a.localeCompare(b);
     });
+    // Track whether any variety row has kg but no area recorded on its blocks
+    let anyVarietyHasArealessBlocks = false;
     const varietyBodyRows = sortedVarietyEntries.map(([variety, e]) => {
       const tPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / 1000 / e.totalHa : null;
+      // Blocks linked and contributing kg but none have an area recorded → show dagger
+      const hasArealessBlocks = e.totalKg > 0 && e.blockIds.size > 0 && e.totalHa === 0;
+      if (hasArealessBlocks) anyVarietyHasArealessBlocks = true;
+      const tPerHaCell = tPerHa != null ? tPerHa.toFixed(2) : (hasArealessBlocks ? "\u2020" : "\u2014");
       const avgBrix = e.brixCount > 0 ? e.brixSum / e.brixCount : null;
       const avgPh = e.phCount > 0 ? e.phSum / e.phCount : null;
       const avgTa = e.taCount > 0 ? e.taSum / e.taCount : null;
@@ -2781,7 +2787,7 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(variety)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${e.totalHa > 0 ? e.totalHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${e.totalKg > 0 ? e.totalKg.toFixed(0) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tPerHa != null ? tPerHa.toFixed(2) : "\u2014"}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tPerHaCell}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPh != null ? avgPh.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTa != null ? avgTa.toFixed(1) : "\u2014"}</td>
@@ -2796,6 +2802,8 @@ export async function printHarvest(
     // Use the same population (rowsWithArea2) for both kg and ha so the footer t/ha is internally consistent
     const vsGrandHaForTha2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalHa, 0);
     const vsGrandKgPerHa2 = vsGrandHaForTha2 > 0 && vsGrandKgForArea2 > 0 ? vsGrandKgForArea2 / 1000 / vsGrandHaForTha2 : null;
+    // Footer t/ha cell: use dagger when grandKgPerHa is null but some varieties have area-less blocks
+    const vsGrandTPerHaCell = vsGrandKgPerHa2 != null ? vsGrandKgPerHa2.toFixed(2) : (anyVarietyHasArealessBlocks ? "\u2020" : "\u2014");
     const vsBrixAll2 = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
     const vsGrandBrix2 = vsBrixAll2.length > 0 ? vsBrixAll2.reduce((a, b) => a + b, 0) / vsBrixAll2.length : null;
     const vsPhAll2 = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
@@ -2804,9 +2812,12 @@ export async function printHarvest(
     const vsGrandTa2 = vsTaAll2.length > 0 ? vsTaAll2.reduce((a, b) => a + b, 0) / vsTaAll2.length : null;
     const vsPaAll2 = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
     const vsGrandPa2 = vsPaAll2.length > 0 ? vsPaAll2.reduce((a, b) => a + b, 0) / vsPaAll2.length : null;
+    const vsArealessFootnote = anyVarietyHasArealessBlocks
+      ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 18px;background:#fef3c7;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;display:inline-block"><strong>\u2020</strong> Block area not set \u2014 add it in Block Settings to see yield per hectare</p>`
+      : "";
     varietySummaryHtml = `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em">Yield by Variety</h2>
-  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:18px">
+  <table style="width:100%;border-collapse:collapse;font-size:10.5px;margin-bottom:${anyVarietyHasArealessBlocks ? "4px" : "18px"}">
     <thead><tr>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:left;white-space:nowrap">Variety</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
@@ -2822,13 +2833,14 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;font-weight:700">All Varieties</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandHa2 > 0 ? vsGrandHa2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKg2 > 0 ? vsGrandKg2.toFixed(0) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKgPerHa2 != null ? vsGrandKgPerHa2.toFixed(2) : "\u2014"}</td>
+      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandTPerHaCell}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandBrix2 != null ? vsGrandBrix2.toFixed(1) + " \xb0" : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPh2 != null ? vsGrandPh2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandTa2 != null ? vsGrandTa2.toFixed(1) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPa2 != null ? vsGrandPa2.toFixed(1) : "\u2014"}</td>
     </tr></tfoot>
-  </table>`;
+  </table>
+  ${vsArealessFootnote}`;
   }
 
   const summaryHtml = records.length > 0 ? `
