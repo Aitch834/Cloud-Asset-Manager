@@ -1876,6 +1876,8 @@ export default function VineSprayDiaryHistoryScreen() {
               <Text style={styles.emptyText}>
                 {search.trim() || dateFrom.trim() || dateTo.trim()
                   ? "No entries match the current filters."
+                  : selectedBlockIds.length > 0
+                    ? "No entries for the selected block(s)."
                   : "Spray diary entries you create will appear here."}
               </Text>
             </View>

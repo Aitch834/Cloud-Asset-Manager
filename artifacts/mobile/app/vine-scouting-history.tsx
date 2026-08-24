@@ -1030,6 +1030,8 @@ export default function VineScoutingHistoryScreen() {
               <Text style={styles.emptyText}>
                 {search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__"
                   ? "No records match the current filters."
+                  : selectedBlockIds.length > 0
+                    ? "No records for the selected block(s)."
                   : "Scouting records you create will appear here."}
               </Text>
             </View>
