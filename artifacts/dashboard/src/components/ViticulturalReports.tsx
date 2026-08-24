@@ -2045,6 +2045,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     const avgThaVal = totalArea > 0 ? totalKg / 1000 / totalArea : 0;
     const brixAll = rows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
     const phAll = rows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
+    const taAll = rows.flatMap(r => r.taCount > 0 ? [r.taSum / r.taCount] : []);
     const potAlcAll = rows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
     return {
       rows,
@@ -2053,6 +2054,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
       avgTha: avgThaVal,
       avgBrix: brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null,
       avgPh: phAll.length > 0 ? phAll.reduce((a, b) => a + b, 0) / phAll.length : null,
+      avgTa: taAll.length > 0 ? taAll.reduce((a, b) => a + b, 0) / taAll.length : null,
       avgPotAlc: potAlcAll.length > 0 ? potAlcAll.reduce((a, b) => a + b, 0) / potAlcAll.length : null,
     };
   }, [vintageHarvest, blockMap]);
@@ -2351,7 +2353,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                           <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgTha > 0 ? entBlockSummary.avgTha.toFixed(2) : "—"}</td>
                           <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgBrix != null ? entBlockSummary.avgBrix.toFixed(1) : "—"}</td>
                           <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPh != null ? entBlockSummary.avgPh.toFixed(2) : "—"}</td>
-                          <td className="px-3 py-1.5" />
+                          <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgTa != null ? entBlockSummary.avgTa.toFixed(1) : "—"}</td>
                           <td className="px-3 py-1.5 text-right font-mono font-bold">{entBlockSummary.avgPotAlc != null ? entBlockSummary.avgPotAlc.toFixed(1) : "—"}</td>
                         </tr>
                       </tfoot>
