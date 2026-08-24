@@ -1154,6 +1154,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               blockInfos={trendBlockInfos}
               selectedIds={selectedBlockIds}
               onChangeIds={_persistBlockIds}
+              farmId={farmId}
             />
           )}
           <div className="p-4 print-block-chart-cap">
@@ -1636,6 +1637,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                 blockInfos={scoutBlockInfos}
                 selectedIds={selectedScoutBlocks}
                 onChangeIds={setSelectedScoutBlocks}
+                farmId={farmId}
               />
             )}
           <div className="p-4 space-y-3">
@@ -1781,6 +1783,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               blockInfos={sprayBlockInfos}
               selectedIds={selectedSprayBlocks}
               onChangeIds={setSelectedSprayBlocks}
+              farmId={farmId}
             />
           )}
           <div className="p-4 space-y-3">
@@ -2670,13 +2673,22 @@ function BlockFilterStrip({
   blockInfos,
   selectedIds,
   onChangeIds,
+  farmId,
 }: {
   blockInfos: BlockInfo[];
   selectedIds: Set<number> | null;
   onChangeIds: (ids: Set<number> | null) => void;
+  farmId: number;
 }) {
   const [search, setSearch] = useState("");
-  const [groupByVariety, setGroupByVariety] = useState(false);
+  const [groupByVarietyStr, setGroupByVarietyStr] = usePersistedFilter({
+    page: "vintage-season-report",
+    filter: "group-by-variety",
+    farmId,
+    defaultValue: "false",
+    validValues: ["true", "false"] as const,
+  });
+  const groupByVariety = groupByVarietyStr === "true";
 
   const showSearch = blockInfos.length >= 8;
   const searchLower = search.trim().toLowerCase();
@@ -2759,7 +2771,7 @@ function BlockFilterStrip({
         {showSearch && new Set(blockInfos.map(b => b.variety)).size > 1 && (
           <button
             type="button"
-            onClick={() => setGroupByVariety(v => !v)}
+            onClick={() => setGroupByVarietyStr(groupByVariety ? "false" : "true")}
             className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
               groupByVariety
                 ? "bg-purple-600 border-purple-600 text-white"
