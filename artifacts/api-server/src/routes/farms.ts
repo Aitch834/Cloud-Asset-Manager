@@ -498,7 +498,7 @@ import {
 import { eq, and, desc, asc, sql, lt, gte, isNotNull, isNull, lte, inArray, or, ne } from "drizzle-orm";
 import { drizzle as drizzleNode } from "drizzle-orm/node-postgres";
 import { createNonconformanceNotification, createFieldActionNotification, createCriticalRiskNotification, createWaterFailureNotification, createStockLowNotification, createStockOutNotification, createDairyLabConcernNotification, createDairyAbrPositiveNotification, createDairyAbrBorderlineNotification, createDairyAbrInvalidNotification, resolveAbrNotificationsForRecord, createMobilityLamenessAlert, createMobilityScore2Advisory, createBngComplianceNotification, createFpIntakeRejectionNotification, createFpPoorConditionNotification, createFpCheckMissingNotification, createFpPreCoolingPendingNotification, createRiddorNotification, createBcmsMortalityPendingNotification, createBiosecurityDeclarationMissingNotification, createHerdHealthFollowUpNotification, createIpmThresholdBreachedNotification, createReportableDiseaseNotification } from "../lib/alertingJob";
-import { requireAuth, requireTenant, requireModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireModuleByKey, requireAnyModuleByKey, expandModuleKeys } from "../middlewares/roleMiddleware";
 import { farmRlsMiddleware } from "../middlewares/farmRlsMiddleware";
 import { generateSustainabilityDeclaration, generateAuditPack } from "../lib/biofuel-pdfs";
 import { generateDispatchNoteHtml } from "../lib/dispatch-note-html";
@@ -42875,7 +42875,7 @@ router.delete("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", requ
 const VALID_WINEGB_SURVEY_KEYS = ["bud_burst", "frost_damage", "flowering", "veraison", "harvest"] as const;
 type WinegbSurveyKey = typeof VALID_WINEGB_SURVEY_KEYS[number];
 
-router.get("/farms/:farmId/winegb-submissions", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/winegb-submissions", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const year = parseInt(String(req.query.year ?? new Date().getFullYear()), 10);
   if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
@@ -42895,7 +42895,7 @@ router.get("/farms/:farmId/winegb-submissions", requireAuth, requireTenant, requ
   res.json({ year, submissions: map });
 });
 
-router.put("/farms/:farmId/winegb-submissions/:surveyKey", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/winegb-submissions/:surveyKey", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const surveyKey = req.params.surveyKey as string;
   if (!(VALID_WINEGB_SURVEY_KEYS as readonly string[]).includes(surveyKey)) {
@@ -42922,7 +42922,7 @@ router.put("/farms/:farmId/winegb-submissions/:surveyKey", requireAuth, requireT
 // Returns submission status, phenology observations grouped by survey bucket,
 // harvest summary, frost events, and the list of years that have any data.
 
-router.get("/farms/:farmId/winegb-survey-data", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/winegb-survey-data", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const year = parseInt(String(req.query.year ?? new Date().getFullYear()), 10);
   if (isNaN(year)) { res.status(400).json({ error: "Invalid year" }); return; }
@@ -43093,7 +43093,7 @@ router.get("/farms/:farmId/winegb-survey-data", requireAuth, requireTenant, requ
 
 // ─── WineGB Submissions History — all years for year-on-year history table ─────
 
-router.get("/farms/:farmId/winegb-submissions-history", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/winegb-submissions-history", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
 
   const [subsRows, yearRows] = await Promise.all([

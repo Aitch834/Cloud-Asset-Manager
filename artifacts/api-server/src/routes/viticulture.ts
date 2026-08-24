@@ -39,7 +39,7 @@ import {
   farmsTable,
 } from "@workspace/db";
 import { eq, and, desc, asc, isNull, inArray, sql, getTableColumns } from "drizzle-orm";
-import { requireAuth, requireTenant, requireModuleByKey } from "../middlewares/roleMiddleware";
+import { requireAuth, requireTenant, requireModuleByKey, requireAnyModuleByKey } from "../middlewares/roleMiddleware";
 import { createScoutingAlerts } from "../lib/alertingJob";
 import { sanitiseBody } from "../lib/sanitise";
 
@@ -1833,27 +1833,27 @@ router.delete("/farms/:farmId/vineyard-blocks/:blockId/photo", requireAuth, requ
 
 // ─── Vineyard Frost Events ────────────────────────────────────────────────────
 
-router.get("/farms/:farmId/vineyard-frost-events", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
+router.get("/farms/:farmId/vineyard-frost-events", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const records = await db.select().from(vineyardFrostEventsTable).where(eq(vineyardFrostEventsTable.farmId, farmId)).orderBy(desc(vineyardFrostEventsTable.frostDate));
   res.json({ records });
 });
 
-router.post("/farms/:farmId/vineyard-frost-events", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.post("/farms/:farmId/vineyard-frost-events", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const body = sanitiseBody(req.body as Record<string, unknown>);
   const [record] = await (db.insert(vineyardFrostEventsTable) as any).values({ ...body, farmId }).returning();
   res.json({ record });
 });
 
-router.put("/farms/:farmId/vineyard-frost-events/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
+router.put("/farms/:farmId/vineyard-frost-events/:id", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   const [record] = await (db.update(vineyardFrostEventsTable) as any).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardFrostEventsTable.id, id), eq(vineyardFrostEventsTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
-router.delete("/farms/:farmId/vineyard-frost-events/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "delete"), async (req: Request, res: Response): Promise<void> => {
+router.delete("/farms/:farmId/vineyard-frost-events/:id", requireAuth, requireTenant, requireAnyModuleByKey(["viticulture", "organic-viticulture"], "delete"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   await db.delete(vineyardFrostEventsTable).where(and(eq(vineyardFrostEventsTable.id, id), eq(vineyardFrostEventsTable.farmId, farmId)));

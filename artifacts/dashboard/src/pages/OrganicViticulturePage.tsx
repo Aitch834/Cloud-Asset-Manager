@@ -12,7 +12,7 @@ import {
   Eye, Info, Package, CheckCircle2, Clock, Grape,
   ChevronDown, ChevronUp, Wine, Beaker, Award, ClipboardList,
   BarChart3, Bug, Scissors, Droplet, Gauge, Wrench, CalendarCheck,
-  Sprout, Map, Receipt, BookOpen, TrendingUp, FileDown,
+  Sprout, Map, Receipt, BookOpen, TrendingUp, FileDown, Globe,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
@@ -36,6 +36,7 @@ import {
   GiComplianceTab,
   SO2Chip,
 } from "@/pages/ViticulturePage";
+import { WinegbSurveysTab } from "@/pages/viticulture/WinegbSurveysTab";
 import {
   ViticulturalAnalyticsTab,
   VintageSeasonReportTab,
@@ -90,7 +91,7 @@ function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { ke
 type Tab =
   | "vit-overview" | "vine-register" | "blocks" | "block-map"
   | "block-conversion" | "input-log" | "copper-register" | "input-derogations" | "certificates"
-  | "phenology" | "operations" | "vit-harvest" | "scouting"
+  | "phenology" | "winegb-surveys" | "operations" | "vit-harvest" | "scouting"
   | "gi-compliance" | "licensing" | "excise" | "tours" | "age-check"
   | "wine-production" | "winery-stock" | "winery-reception" | "winery-pressing"
   | "winery-fermentation" | "winery-vessels" | "winery-cellar-ops" | "winery-bottling"
@@ -108,6 +109,7 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "input-derogations", label: "Input Derogations",     icon: FileText },
   { id: "certificates",      label: "Certificates",          icon: Award },
   { id: "phenology",         label: "Phenology",             icon: Leaf },
+  { id: "winegb-surveys",    label: "WineGB Surveys",        icon: Globe },
   { id: "operations",        label: "Pruning & Canopy",      icon: Scissors },
   { id: "vit-harvest",       label: "Harvest",               icon: Grape },
   { id: "scouting",          label: "Disease Scouting",      icon: Bug },
@@ -1844,11 +1846,12 @@ export default function OrganicViticulturePage() {
           {tab === "winery-so2" && <So2TestingTab farmId={farmId} />}
           {tab === "winery-equipment" && <EquipmentRegisterTab farmId={farmId} />}
           {tab === "certificates" && <CertificatesTab farmId={farmId} />}
-          {tab === "vit-overview" && <VitOverviewTab farmId={farmId} />}
+          {tab === "vit-overview" && <VitOverviewTab farmId={farmId} onNavigate={(toTab) => setTab(toTab as Tab)} />}
           {tab === "vine-register" && <VineRegisterTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "blocks" && <BlocksTab farmId={farmId} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={farmId} blocks={vineyardBlocks} />}
-          {tab === "phenology" && <PhenologyTab farmId={farmId} blocks={vineyardBlocks} />}
+          {tab === "phenology" && <PhenologyTab farmId={farmId} blocks={vineyardBlocks} onNavigate={(toTab) => setTab(toTab as Tab)} />}
+          {tab === "winegb-surveys" && <WinegbSurveysTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "operations" && <OperationsTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "vit-harvest" && <VitHarvestTab farmId={farmId} blocks={vineyardBlocks} />}
           {tab === "scouting" && <ScoutingTab farmId={farmId} blocks={vineyardBlocks} />}

@@ -268,3 +268,42 @@ export function requireModuleByKey(moduleKey: string, level: PermissionLevel) {
     res.status(403).json({ error: "No permission for this module" });
   };
 }
+
+/**
+ * Require permission in at least one of several equivalent module contexts.
+ * This is used for shared functionality that is available from both the
+ * standard and organic variants of a product module.
+ */
+export function requireAnyModuleByKey(moduleKeys: string[], level: PermissionLevel) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (req.isSuperAdmin) {
+      next();
+      return;
+    }
+
+    if (!req.roleId) {
+      res.status(403).json({ error: "No role assigned" });
+      return;
+    }
+
+    const farmId = req.params?.farmId;
+    const farmIdNum = farmId ? parseInt(String(farmId), 10) : null;
+    let configuredModule = false;
+
+    for (const moduleKey of moduleKeys) {
+      if (await resolveModuleId(moduleKey)) {
+        configuredModule = true;
+        if (await checkModulePermission(req.roleId, moduleKey, level, farmIdNum)) {
+          next();
+          return;
+        }
+      }
+    }
+
+    if (!configuredModule) {
+      res.status(500).json({ error: "Module not configured" });
+      return;
+    }
+    res.status(403).json({ error: "No permission for this module" });
+  };
+}
