@@ -951,6 +951,19 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
             {grandPotAlc != null && <span><span className="font-semibold">Avg Pot. Alc:</span> {grandPotAlc.toFixed(1)}%</span>}
           </div>
         )}
+         {/* Single-vintage compact KPI row — print only */}
+         {year != null && (
+           <div className="mt-2 flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-gray-700 border-t border-gray-300 pt-2">
+             <span><span className="font-semibold">Vintage Year:</span> {String(year)}</span>
+             <span><span className="font-semibold">Total Yield:</span> {totalYieldKg > 0 ? `${(totalYieldKg / 1000).toFixed(2)} t` : "—"}</span>
+             <span><span className="font-semibold">Area:</span> {totalAreaHa > 0 ? `${totalAreaHa.toFixed(2)} ha` : "—"}</span>
+             <span><span className="font-semibold">Avg t/ha:</span> {avgTha > 0 ? avgTha.toFixed(2) : "—"}</span>
+             <span><span className="font-semibold">Avg Brix:</span> {avgBrix != null ? `${avgBrix.toFixed(1)}°` : "—"}</span>
+             <span><span className="font-semibold">Avg pH:</span> {avgPH != null ? avgPH.toFixed(2) : "—"}</span>
+             <span><span className="font-semibold">Avg TA:</span> {avgTA != null ? `${avgTA.toFixed(1)} g/L` : "—"}</span>
+             <span><span className="font-semibold">Avg Pot. Alc:</span> {avgPotAlc != null ? `${avgPotAlc.toFixed(1)}%` : "—"}</span>
+           </div>
+         )}
       </div>
 
       {/* Season summary KPIs (single-vintage mode only) */}
