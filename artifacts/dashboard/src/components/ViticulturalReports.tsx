@@ -5,6 +5,7 @@ import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/Year
 import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle, Search,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line,
@@ -188,6 +189,10 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
     isValid: (y) => y > 2000 && y <= currentYear + 1,
   });
   const [compareYear, setCompareYear] = useState<number | null>(null);
+  const [blockPerfSort, setBlockPerfSort] = useState<{ vintage: string | null; direction: "asc" | "desc" }>({
+    vintage: null,
+    direction: "desc",
+  });
   useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
   useEffect(() => { ensureAnalyticsPrintStyle(); }, []);
 
@@ -317,6 +322,29 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
     });
     return { rows, vintages };
   }, [blocks, harvests, selectedYear, compareYear]);
+
+  const sortedBlockPerfRows = useMemo(() => {
+    if (blockPerfSort.vintage == null) return blockPerfData.rows;
+
+    const direction = blockPerfSort.direction === "asc" ? 1 : -1;
+    return [...blockPerfData.rows].sort((a, b) => {
+      const aValue = a[blockPerfSort.vintage!];
+      const bValue = b[blockPerfSort.vintage!];
+      const aMissing = aValue == null;
+      const bMissing = bValue == null;
+
+      // Keep blocks without a harvest at the bottom in either direction.
+      if (aMissing || bMissing) {
+        if (aMissing && bMissing) return String(a.block).localeCompare(String(b.block));
+        return aMissing ? 1 : -1;
+      }
+
+      const difference = Number(aValue) - Number(bValue);
+      return difference === 0
+        ? String(a.block).localeCompare(String(b.block))
+        : direction * difference;
+    });
+  }, [blockPerfData.rows, blockPerfSort]);
 
   if (loading) {
     return (
@@ -480,12 +508,33 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                   <th className="px-4 py-2 text-left">Variety</th>
                   <th className="px-4 py-2 text-right">Area (ha)</th>
                   {blockPerfData.vintages.map(yr => (
-                    <th key={yr} className="px-4 py-2 text-right">{yr}</th>
+                    <th key={yr} className="px-4 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setBlockPerfSort(prev => ({
+                          vintage: yr,
+                          direction: prev.vintage === yr && prev.direction === "desc" ? "asc" : "desc",
+                        }))}
+                        className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${
+                          blockPerfSort.vintage === yr ? "text-foreground" : ""
+                        }`}
+                        aria-label={`Sort by ${yr} yield`}
+                      >
+                        {yr}
+                        {blockPerfSort.vintage !== yr ? (
+                          <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />
+                        ) : blockPerfSort.direction === "asc" ? (
+                          <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />
+                        )}
+                      </button>
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {blockPerfData.rows.map((row, i) => (
+                {sortedBlockPerfRows.map((row, i) => (
                   <tr key={i} className="border-t border-border/40 hover:bg-muted/20">
                     <td className="px-4 py-2 font-medium">{String(row.block)}</td>
                     <td className="px-4 py-2 text-foreground/60">{String(row.variety ?? "—")}</td>
