@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -80,6 +80,11 @@ interface OfflineHarvestEntry {
 }
 
 type HarvestListItem = HarvestRecord | OfflineHarvestEntry;
+
+type YieldCrossTabSort = {
+  col: string;
+  dir: "asc" | "desc";
+} | null;
 
 function isPendingHarvest(item: HarvestListItem): item is OfflineHarvestEntry {
   return "_pendingSync" in item && item._pendingSync === true;
@@ -702,6 +707,7 @@ export default function VineHarvestHistoryScreen() {
   const [varietySort, setVarietySort] = usePersistedVarietySort(currentFarm?.id);
   const [varietyCols, toggleVarietyCol] = usePersistedVarietyColumns(currentFarm?.id);
   const [showVarietyColsPanel, setShowVarietyColsPanel] = useState(false);
+  const [yieldCrossTabSort, setYieldCrossTabSort] = useState<YieldCrossTabSort>(null);
 
   // Persisted open/closed state for the Yield by Variety panel, scoped per farm.
   // Default: open (true). Loaded from storage on mount / farm switch.
@@ -980,6 +986,163 @@ export default function VineHarvestHistoryScreen() {
       hasUnsynced,
     };
   }, [blockFilteredRecords, vintageRecords, blocks, offlinePendingForVintage]);
+
+  // ── Yield by Block × Vintage cross-tab ─────────────────────────────────────
+  // Like the dashboard, this is an all-vintages view. Keep pending offline
+  // records in the table so the on-device report reflects the records the
+  // grower can currently see.
+  const yieldCrossTabData = useMemo(() => {
+    const allRecords = [...displayRecords, ...offlinePending].filter(
+      r => r.blockId != null && r.vintageYear != null &&
+        (selectedBlockIds.length === 0 || selectedBlockIds.includes(r.blockId)),
+    );
+    const uniqueVintages = Array.from(new Set(allRecords.map(r => String(r.vintageYear))))
+      .sort((a, b) => a.localeCompare(b));
+    const uniqueBlockIds = Array.from(new Set(allRecords.map(r => r.blockId as number)));
+    if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
+
+    const blockMap = new Map(blocks.map(block => [block.id, block]));
+    const rows = uniqueBlockIds.map(blockId => {
+      const blockRecords = allRecords.filter(r => r.blockId === blockId);
+      const block = blockMap.get(blockId);
+      const fallbackName = blockRecords.find(r => r.blockName)?.blockName;
+      const name = block?.blockName ?? fallbackName ?? `Block ${blockId}`;
+      const areaHa = block?.areaHa != null && block.areaHa > 0 ? block.areaHa : null;
+      const cells: Record<string, { kg: number; tha: number | null }> = {};
+      let totalKg = 0;
+
+      for (const vintage of uniqueVintages) {
+        const kg = blockRecords
+          .filter(r => String(r.vintageYear) === vintage)
+          .reduce((sum, r) => sum + (Number(r.yieldKg ?? 0) || 0), 0);
+        totalKg += kg;
+        cells[vintage] = {
+          kg,
+          tha: areaHa != null && kg > 0 ? kg / 1000 / areaHa : null,
+        };
+      }
+
+      return {
+        blockId,
+        name,
+        areaHa,
+        cells,
+        totalKg,
+        totalTha: areaHa != null && totalKg > 0 ? totalKg / 1000 / areaHa : null,
+      };
+    });
+
+    const footerCells: Record<string, { kg: number; tha: number | null }> = {};
+    let totalKg = 0;
+    let totalAreaHa = 0;
+    let totalKgWithKnownArea = 0;
+    for (const vintage of uniqueVintages) {
+      let vintageKg = 0;
+      let vintageKgWithKnownArea = 0;
+      let vintageAreaHa = 0;
+      for (const row of rows) {
+        const cell = row.cells[vintage];
+        vintageKg += cell.kg;
+        if (row.areaHa != null && cell.kg > 0) {
+          vintageKgWithKnownArea += cell.kg;
+          vintageAreaHa += row.areaHa;
+        }
+      }
+      footerCells[vintage] = {
+        kg: vintageKg,
+        tha: vintageAreaHa > 0 && vintageKgWithKnownArea > 0
+          ? vintageKgWithKnownArea / 1000 / vintageAreaHa
+          : null,
+      };
+      totalKg += vintageKg;
+    }
+    for (const row of rows) {
+      if (row.totalKg > 0 && row.areaHa != null) {
+        totalAreaHa += row.areaHa;
+        totalKgWithKnownArea += row.totalKg;
+      }
+    }
+
+    return {
+      uniqueVintages,
+      rows,
+      footerCells,
+      totalKg,
+      totalTha: totalAreaHa > 0 && totalKgWithKnownArea > 0
+        ? totalKgWithKnownArea / 1000 / totalAreaHa
+        : null,
+    };
+  }, [displayRecords, offlinePending, blocks, selectedBlockIds]);
+
+  // Sort state is deliberately local to this screen. Do not carry a column
+  // from one farm (or a removed vintage) into a table that cannot display it.
+  useEffect(() => {
+    setYieldCrossTabSort(null);
+  }, [currentFarm?.id]);
+
+  useEffect(() => {
+    const match = yieldCrossTabSort?.col.match(/^vy:(?:kg|tha):(.+)$/);
+    if (match && yieldCrossTabData && !yieldCrossTabData.uniqueVintages.includes(match[1])) {
+      setYieldCrossTabSort(null);
+    }
+  }, [yieldCrossTabSort?.col, yieldCrossTabData]);
+
+  const sortedYieldCrossTabRows = useMemo(() => {
+    if (!yieldCrossTabData) return [];
+    const { rows } = yieldCrossTabData;
+    if (!yieldCrossTabSort) return [...rows].sort((a, b) => a.name.localeCompare(b.name));
+
+    const direction = yieldCrossTabSort.dir === "asc" ? 1 : -1;
+    const compareNames = (a: typeof rows[number], b: typeof rows[number]) => a.name.localeCompare(b.name);
+    const compareNumbers = (a: number, b: number, rowA: typeof rows[number], rowB: typeof rows[number]) =>
+      direction * (a - b) || compareNames(rowA, rowB);
+    // A missing block area means t/ha is unavailable, not zero. Keep those
+    // rows last in both directions and make equal values deterministic by name.
+    const compareTonnesPerHa = (
+      a: number | null,
+      b: number | null,
+      rowA: typeof rows[number],
+      rowB: typeof rows[number],
+    ) => {
+      if (a == null && b == null) return compareNames(rowA, rowB);
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return compareNumbers(a, b, rowA, rowB);
+    };
+
+    return [...rows].sort((a, b) => {
+      if (yieldCrossTabSort.col === "name") {
+        return direction * a.name.localeCompare(b.name);
+      }
+      if (yieldCrossTabSort.col === "total:kg") {
+        return compareNumbers(a.totalKg, b.totalKg, a, b);
+      }
+      if (yieldCrossTabSort.col === "total:tha") {
+        return compareTonnesPerHa(a.totalTha, b.totalTha, a, b);
+      }
+      const match = yieldCrossTabSort.col.match(/^vy:(kg|tha):(.+)$/);
+      if (match) {
+        const [, metric, vintage] = match;
+        if (metric === "kg") {
+          return compareNumbers(a.cells[vintage]?.kg ?? 0, b.cells[vintage]?.kg ?? 0, a, b);
+        }
+        return compareTonnesPerHa(a.cells[vintage]?.tha ?? null, b.cells[vintage]?.tha ?? null, a, b);
+      }
+      return compareNames(a, b);
+    });
+  }, [yieldCrossTabData, yieldCrossTabSort]);
+
+  const toggleYieldCrossTabSort = useCallback((col: string) => {
+    setYieldCrossTabSort(current =>
+      current?.col === col
+        ? { col, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { col, dir: "desc" },
+    );
+  }, []);
+
+  const clearYieldCrossTabSort = useCallback(() => {
+    setYieldCrossTabSort(null);
+  }, []);
 
   // ── Yield by Variety summary (requires ≥2 distinct named varieties) ──────────
   const varietySummaryData = useMemo(() => {
@@ -1292,6 +1455,238 @@ export default function VineHarvestHistoryScreen() {
               </Text>
             </View>
           )}
+        </View>
+      )}
+
+      {/* Yield by Block × Vintage cross-tab — available in All Vintages mode */}
+      {!loading && !error && displayVintage === null && yieldCrossTabData && (
+        <View style={styles.yieldCrossTabCard}>
+          <View style={styles.yieldCrossTabHeader}>
+            <View style={styles.yieldCrossTabHeaderCopy}>
+              <View style={styles.yieldCrossTabTitleRow}>
+                <Feather name="grid" size={14} color={colors.textSecondary} />
+                <Text style={styles.yieldCrossTabTitle}>Yield by Block × Vintage</Text>
+              </View>
+              <Text style={styles.yieldCrossTabSubtitle}>
+                Tap kg or t/ha to sort blocks by that vintage
+              </Text>
+            </View>
+            {yieldCrossTabSort && (
+              <Pressable
+                style={styles.yieldCrossTabClearSort}
+                onPress={() => { Haptics.selectionAsync(); clearYieldCrossTabSort(); }}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Clear yield cross-tab sort"
+              >
+                <Feather name="x" size={12} color={colors.primary} />
+                <Text style={styles.yieldCrossTabClearSortText}>Clear sort</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View>
+              {/* Two header rows keep each vintage's kg and t/ha controls together. */}
+              <View style={[styles.yieldCrossTabRow, styles.yieldCrossTabHeaderRow]}>
+                <Pressable
+                  style={[
+                    styles.yieldCrossTabBlockHeader,
+                    yieldCrossTabSort?.col === "name" && styles.yieldCrossTabActiveHeader,
+                  ]}
+                  onPress={() => { Haptics.selectionAsync(); toggleYieldCrossTabSort("name"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sort yield cross-tab by block name"
+                  accessibilityState={{ selected: yieldCrossTabSort?.col === "name" }}
+                  accessibilityValue={{
+                    text: yieldCrossTabSort?.col === "name"
+                      ? `Sorted ${yieldCrossTabSort.dir === "asc" ? "ascending" : "descending"}`
+                      : "Not sorted",
+                  }}
+                >
+                  <Text style={[styles.yieldCrossTabHeaderLabel, yieldCrossTabSort?.col === "name" && styles.yieldCrossTabHeaderLabelActive]}>
+                    Block
+                  </Text>
+                  <Feather
+                    name={yieldCrossTabSort?.col === "name" ? (yieldCrossTabSort.dir === "asc" ? "arrow-up" : "arrow-down") : "minus"}
+                    size={10}
+                    color={yieldCrossTabSort?.col === "name" ? colors.primary : colors.textSecondary}
+                    style={{ opacity: yieldCrossTabSort?.col === "name" ? 1 : 0.45 }}
+                  />
+                </Pressable>
+                {yieldCrossTabData.uniqueVintages.map(vintage => (
+                  <View key={vintage} style={styles.yieldCrossTabVintageHeader}>
+                    <Text style={styles.yieldCrossTabHeaderLabel}>{vintage}</Text>
+                  </View>
+                ))}
+                <View style={styles.yieldCrossTabTotalHeader}>
+                  <Text style={styles.yieldCrossTabHeaderLabel}>Total</Text>
+                </View>
+              </View>
+
+              <View style={[styles.yieldCrossTabRow, styles.yieldCrossTabSubheaderRow]}>
+                <View style={styles.yieldCrossTabBlockHeader} />
+                {yieldCrossTabData.uniqueVintages.map(vintage => (
+                  <React.Fragment key={vintage}>
+                    {(["kg", "tha"] as const).map(metric => {
+                      const col = `vy:${metric}:${vintage}`;
+                      const active = yieldCrossTabSort?.col === col;
+                      return (
+                        <Pressable
+                          key={col}
+                          style={[
+                            styles.yieldCrossTabMetricHeader,
+                            metric === "kg" && styles.yieldCrossTabMetricHeaderBorder,
+                            active && styles.yieldCrossTabActiveHeader,
+                          ]}
+                          onPress={() => { Haptics.selectionAsync(); toggleYieldCrossTabSort(col); }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Sort yield cross-tab by ${vintage} ${metric === "kg" ? "kilograms" : "tonnes per hectare"}`}
+                          accessibilityState={{ selected: active }}
+                          accessibilityValue={{
+                            text: active
+                              ? `Sorted ${yieldCrossTabSort?.dir === "asc" ? "ascending" : "descending"}`
+                              : "Not sorted",
+                          }}
+                        >
+                          <Text style={[styles.yieldCrossTabHeaderLabel, active && styles.yieldCrossTabHeaderLabelActive]}>
+                            {metric === "kg" ? "kg" : "t/ha"}
+                          </Text>
+                          <Feather
+                            name={active ? (yieldCrossTabSort?.dir === "asc" ? "arrow-up" : "arrow-down") : "minus"}
+                            size={9}
+                            color={active ? colors.primary : colors.textSecondary}
+                            style={{ opacity: active ? 1 : 0.4 }}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+                <Pressable
+                  style={[
+                    styles.yieldCrossTabMetricHeader,
+                    styles.yieldCrossTabMetricHeaderBorder,
+                    yieldCrossTabSort?.col === "total:kg" && styles.yieldCrossTabActiveHeader,
+                  ]}
+                  onPress={() => { Haptics.selectionAsync(); toggleYieldCrossTabSort("total:kg"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sort yield cross-tab by total kilograms"
+                  accessibilityState={{ selected: yieldCrossTabSort?.col === "total:kg" }}
+                  accessibilityValue={{
+                    text: yieldCrossTabSort?.col === "total:kg"
+                      ? `Sorted ${yieldCrossTabSort.dir === "asc" ? "ascending" : "descending"}`
+                      : "Not sorted",
+                  }}
+                >
+                  <Text style={[styles.yieldCrossTabHeaderLabel, yieldCrossTabSort?.col === "total:kg" && styles.yieldCrossTabHeaderLabelActive]}>kg</Text>
+                  <Feather
+                    name={yieldCrossTabSort?.col === "total:kg" ? (yieldCrossTabSort.dir === "asc" ? "arrow-up" : "arrow-down") : "minus"}
+                    size={9}
+                    color={yieldCrossTabSort?.col === "total:kg" ? colors.primary : colors.textSecondary}
+                    style={{ opacity: yieldCrossTabSort?.col === "total:kg" ? 1 : 0.4 }}
+                  />
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.yieldCrossTabMetricHeader,
+                    yieldCrossTabSort?.col === "total:tha" && styles.yieldCrossTabActiveHeader,
+                  ]}
+                  onPress={() => { Haptics.selectionAsync(); toggleYieldCrossTabSort("total:tha"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Sort yield cross-tab by total tonnes per hectare"
+                  accessibilityState={{ selected: yieldCrossTabSort?.col === "total:tha" }}
+                  accessibilityValue={{
+                    text: yieldCrossTabSort?.col === "total:tha"
+                      ? `Sorted ${yieldCrossTabSort.dir === "asc" ? "ascending" : "descending"}`
+                      : "Not sorted",
+                  }}
+                >
+                  <Text style={[styles.yieldCrossTabHeaderLabel, yieldCrossTabSort?.col === "total:tha" && styles.yieldCrossTabHeaderLabelActive]}>t/ha</Text>
+                  <Feather
+                    name={yieldCrossTabSort?.col === "total:tha" ? (yieldCrossTabSort.dir === "asc" ? "arrow-up" : "arrow-down") : "minus"}
+                    size={9}
+                    color={yieldCrossTabSort?.col === "total:tha" ? colors.primary : colors.textSecondary}
+                    style={{ opacity: yieldCrossTabSort?.col === "total:tha" ? 1 : 0.4 }}
+                  />
+                </Pressable>
+              </View>
+
+              {sortedYieldCrossTabRows.map((row, index) => (
+                <View
+                  key={row.blockId}
+                  style={[
+                    styles.yieldCrossTabRow,
+                    styles.yieldCrossTabDataRow,
+                    index < sortedYieldCrossTabRows.length - 1 && styles.yieldCrossTabDataRowBorder,
+                  ]}
+                >
+                  <View style={styles.yieldCrossTabBlockCell}>
+                    <Text style={styles.yieldCrossTabBlockName} numberOfLines={1}>{row.name}</Text>
+                    {row.areaHa != null && <Text style={styles.yieldCrossTabBlockArea}>{row.areaHa.toFixed(2)} ha</Text>}
+                  </View>
+                  {yieldCrossTabData.uniqueVintages.map(vintage => {
+                    const cell = row.cells[vintage];
+                    return (
+                      <React.Fragment key={vintage}>
+                        <View style={[styles.yieldCrossTabValueCell, styles.yieldCrossTabMetricHeaderBorder]}>
+                          <Text style={styles.yieldCrossTabValue}>
+                            {cell.kg > 0 ? cell.kg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
+                          </Text>
+                        </View>
+                        <View style={styles.yieldCrossTabValueCell}>
+                          <Text style={styles.yieldCrossTabValue}>
+                            {cell.tha != null ? cell.tha.toFixed(2) : "—"}
+                          </Text>
+                        </View>
+                      </React.Fragment>
+                    );
+                  })}
+                  <View style={[styles.yieldCrossTabValueCell, styles.yieldCrossTabMetricHeaderBorder]}>
+                    <Text style={styles.yieldCrossTabValue}>
+                      {row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
+                    </Text>
+                  </View>
+                  <View style={styles.yieldCrossTabValueCell}>
+                    <Text style={styles.yieldCrossTabValue}>
+                      {row.totalTha != null ? row.totalTha.toFixed(2) : "—"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              <View style={[styles.yieldCrossTabRow, styles.yieldCrossTabFooterRow]}>
+                <View style={styles.yieldCrossTabBlockCell}>
+                  <Text style={styles.yieldCrossTabFooterLabel}>All blocks</Text>
+                </View>
+                {yieldCrossTabData.uniqueVintages.map(vintage => {
+                  const cell = yieldCrossTabData.footerCells[vintage];
+                  return (
+                    <React.Fragment key={vintage}>
+                      <View style={[styles.yieldCrossTabValueCell, styles.yieldCrossTabMetricHeaderBorder]}>
+                        <Text style={styles.yieldCrossTabFooterValue}>
+                          {cell.kg > 0 ? cell.kg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
+                        </Text>
+                      </View>
+                      <View style={styles.yieldCrossTabValueCell}>
+                        <Text style={styles.yieldCrossTabFooterValue}>{cell.tha != null ? cell.tha.toFixed(2) : "—"}</Text>
+                      </View>
+                    </React.Fragment>
+                  );
+                })}
+                <View style={[styles.yieldCrossTabValueCell, styles.yieldCrossTabMetricHeaderBorder]}>
+                  <Text style={styles.yieldCrossTabFooterValue}>
+                    {yieldCrossTabData.totalKg > 0 ? yieldCrossTabData.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : "—"}
+                  </Text>
+                </View>
+                <View style={styles.yieldCrossTabValueCell}>
+                  <Text style={styles.yieldCrossTabFooterValue}>
+                    {yieldCrossTabData.totalTha != null ? yieldCrossTabData.totalTha.toFixed(2) : "—"}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
         </View>
       )}
 
@@ -1913,6 +2308,175 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     flex: 1,
+  },
+  // Yield by Block × Vintage cross-tab
+  yieldCrossTabCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  yieldCrossTabHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  yieldCrossTabHeaderCopy: { flex: 1, gap: 2 },
+  yieldCrossTabTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  yieldCrossTabTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  yieldCrossTabSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  yieldCrossTabClearSort: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  yieldCrossTabClearSortText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    textDecorationLine: "underline",
+  },
+  yieldCrossTabRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  yieldCrossTabHeaderRow: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  yieldCrossTabSubheaderRow: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  yieldCrossTabBlockHeader: {
+    width: 136,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  yieldCrossTabVintageHeader: {
+    width: 144,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  yieldCrossTabTotalHeader: {
+    width: 144,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  yieldCrossTabMetricHeader: {
+    width: 72,
+    minHeight: 44,
+    paddingHorizontal: 4,
+    paddingVertical: spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 3,
+  },
+  yieldCrossTabMetricHeaderBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  yieldCrossTabActiveHeader: {
+    backgroundColor: "rgba(99,102,241,0.08)" as any,
+  },
+  yieldCrossTabHeaderLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  yieldCrossTabHeaderLabelActive: {
+    color: colors.primary,
+  },
+  yieldCrossTabDataRow: {
+    minHeight: 48,
+    backgroundColor: colors.surface,
+  },
+  yieldCrossTabDataRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  yieldCrossTabBlockCell: {
+    width: 136,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    justifyContent: "center",
+  },
+  yieldCrossTabBlockName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  yieldCrossTabBlockArea: {
+    fontFamily: fonts.regular,
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  yieldCrossTabValueCell: {
+    width: 72,
+    paddingHorizontal: 4,
+    paddingVertical: spacing.sm,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  yieldCrossTabValue: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  yieldCrossTabFooterRow: {
+    minHeight: 44,
+    borderTopWidth: 2,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  yieldCrossTabFooterLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  yieldCrossTabFooterValue: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
   },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
