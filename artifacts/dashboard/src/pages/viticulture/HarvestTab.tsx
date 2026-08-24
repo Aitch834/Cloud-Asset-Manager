@@ -915,17 +915,17 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         });
 
         const varietyHeader = [
-          cell("Variety"), cell("Area (ha)"), cell("Total Yield (kg)"), cell("Yield (kg/ha)"),
+          cell("Variety"), cell("Area (ha)"), cell("Total Yield (kg)"), cell("Yield (t/ha)"),
           cell("Avg Brix °"), cell("Avg pH"), cell("Avg TA (g/L)"), cell("Avg Pot. Alc %"),
         ].join(",");
 
         const varietyDataRows = sortedEntries.map(([variety, e]) => {
-          const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+          const tPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / 1000 / e.totalHa : null;
           return [
             cell(variety),
             cell(e.totalHa > 0 ? e.totalHa.toFixed(2) : ""),
             cell(e.totalKg > 0 ? e.totalKg.toFixed(1) : ""),
-            cell(kgPerHa != null ? Math.round(kgPerHa).toString() : ""),
+            cell(tPerHa != null ? tPerHa.toFixed(2) : ""),
             cell(avgOf(e.brixVals) != null ? avgOf(e.brixVals)!.toFixed(1) : ""),
             cell(avgOf(e.phVals) != null ? avgOf(e.phVals)!.toFixed(2) : ""),
             cell(avgOf(e.taVals) != null ? avgOf(e.taVals)!.toFixed(2) : ""),
@@ -937,7 +937,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const rowsWithArea = sortedEntries.filter(([, e]) => e.totalHa > 0);
         const grandHa = rowsWithArea.reduce((s, [, e]) => s + e.totalHa, 0);
         const grandKgForArea = rowsWithArea.reduce((s, [, e]) => s + e.totalKg, 0);
-        const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+        const grandTPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / 1000 / grandHa : null;
         const grandKg = sortedEntries.reduce((s, [, e]) => s + e.totalKg, 0);
         const allBrix = rows.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
         const allPh = rows.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
@@ -948,7 +948,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           cell("TOTAL"),
           cell(grandHa > 0 ? grandHa.toFixed(2) : ""),
           cell(grandKg > 0 ? grandKg.toFixed(1) : ""),
-          cell(grandKgPerHa != null ? Math.round(grandKgPerHa).toString() : ""),
+          cell(grandTPerHa != null ? grandTPerHa.toFixed(2) : ""),
           cell(avgOf(allBrix) != null ? avgOf(allBrix)!.toFixed(1) : ""),
           cell(avgOf(allPh) != null ? avgOf(allPh)!.toFixed(2) : ""),
           cell(avgOf(allTa) != null ? avgOf(allTa)!.toFixed(2) : ""),
