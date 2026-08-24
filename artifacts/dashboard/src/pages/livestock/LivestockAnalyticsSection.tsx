@@ -30,6 +30,7 @@ import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
+import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
 
 import { formatDate, formatDateLong, ConfirmDialog, PRODUCTION_TYPE_OPTIONS, EMPTY_SIRE, EMPTY_STRAW, EMPTY_HERD, EMPTY_PLAN, EMPTY_ANIMAL, PrintHerdRegisterDialog, PrintVetPlanDialog, getHerdNumberConfig, getBreedPlaceholder, getHerdNamePlaceholder, ANIMAL_SPECIES_FALLBACK, ANIMAL_STATUS_LABELS, MOVEMENT_TYPE_LABELS, OUTCOME_COLOURS, DOC_TYPE_LABELS } from "./shared";
 import type { Farm, Herd, VetHealthPlan, VetHealthPlanActionCompletion, VetHealthPlanAction, MortalityRecord, FallenStockContractor, FeedRecord, WaterRecord, Animal, Sire, StrawInventory, AnimalDoc, VaccHistoryRecord, AnimalProfile } from "./shared";
@@ -228,9 +229,8 @@ export function LivestockAnalyticsSection({ farmId }: { farmId: number }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {mortalityByCause.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">Mortality by Cause ({selectedYear})</h3>
-            <div className="h-52">
+          <AnalyticsChartCard title={`Mortality by Cause (${selectedYear})`}>
+            <div className="p-4 h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={mortalityByCause} layout="vertical" margin={{ left: 4, right: 24, top: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -241,12 +241,11 @@ export function LivestockAnalyticsSection({ farmId }: { farmId: number }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </AnalyticsChartCard>
         )}
         {bvdResultCounts.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">BVD Test Results ({selectedYear})</h3>
-            <div className="h-52">
+          <AnalyticsChartCard title={`BVD Test Results (${selectedYear})`}>
+            <div className="p-4 h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={bvdResultCounts} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
@@ -256,17 +255,15 @@ export function LivestockAnalyticsSection({ farmId }: { farmId: number }) {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </AnalyticsChartCard>
         )}
       </div>
 
       {mortalityByMonth.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="font-semibold text-sm mb-4">
-            Monthly Mortality
-            {compareYear !== null ? ` — ${selectedYear} vs ${compareYear}` : ` (${selectedYear})`}
-          </h3>
-          <div className="h-52">
+        <AnalyticsChartCard
+          title={`Monthly Mortality${compareYear !== null ? ` — ${selectedYear} vs ${compareYear}` : ` (${selectedYear})`}`}
+        >
+          <div className="p-4 h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={mortalityByMonth} margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -281,7 +278,7 @@ export function LivestockAnalyticsSection({ farmId }: { farmId: number }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </AnalyticsChartCard>
       )}
     </div>
   );

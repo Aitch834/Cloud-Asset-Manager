@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
+import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
 import { useQuery } from "@tanstack/react-query";
 import {
   TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle, Search,
@@ -143,29 +144,6 @@ const ChartTooltip = ({ active, payload, label }: {
   );
 };
 
-// ─── Analytics chart-card wrapper ────────────────────────────────────────────
-// Applies the analytics-chart-cap class (print-height limit) automatically so
-// any future chart added here cannot silently miss it.
-function AnalyticsChartCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="analytics-chart-cap rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {subtitle && <p className="text-xs text-foreground/40">{subtitle}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // ─── Analytics Tab ────────────────────────────────────────────────────────────
 export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   const currentYear = new Date().getFullYear();
@@ -194,8 +172,6 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
     direction: "desc",
   });
   useEffect(() => { setCompareYear(prev => (prev === selectedYear ? null : prev)); }, [selectedYear]);
-  useEffect(() => { ensureAnalyticsPrintStyle(); }, []);
-
   // ── Vintage yield + Brix trend (filtered to selected/compare years) ───────
   const allVintageMap = useMemo(() => {
     const map: Record<string, {
@@ -602,7 +578,6 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
   );
 }
 
-const ANALYTICS_PRINT_ID = "viticulture-analytics-print";
 const SEASON_PRINT_ID = "vintage-season-report-print";
 function ensureSeasonPrintStyle() {
   if (document.getElementById(SEASON_PRINT_ID + "-css")) return;
@@ -2885,12 +2860,4 @@ function BlockFilterStrip({
       </div>
     </div>
   );
-}
-
-function ensureAnalyticsPrintStyle() {
-  if (document.getElementById(ANALYTICS_PRINT_ID + "-css")) return;
-  const s = document.createElement("style");
-  s.id = ANALYTICS_PRINT_ID + "-css";
-  s.textContent = `@media print{.analytics-chart-cap{page-break-inside:avoid;break-inside:avoid;break-before:avoid}.analytics-chart-cap .recharts-responsive-container{width:100%!important;max-height:300px!important}.analytics-chart-cap .recharts-wrapper{max-height:300px!important}.analytics-chart-cap .recharts-wrapper svg{max-height:300px!important}}`;
-  document.head.appendChild(s);
 }

@@ -26,6 +26,7 @@ import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { apiUrl as api } from "@/lib/api";
 import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
+import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
 import { fmt, fmtDate, exportCSV, StatCard, Empty, ConfirmDialog, DataTable, useCrud, HOUSE_TYPES, POULTRY_SPECIES, PRODUCTION_SYSTEMS, SPECIES_LABEL_MAP, SYSTEM_LABEL_MAP, fmtSpecies, fmtSystem, getStockingDensityInfo, useFlocks, FlockSelect, fmtFlock } from "./shared";
 import type { DensityInfo } from "./shared";
 
@@ -188,12 +189,10 @@ export function PoultryAnalyticsTab({ farmId }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {flocksByMonth.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">
-              Flock Placements by Month
-              {compareYear !== null ? ` — ${selectedYear} vs ${compareYear}` : ` (${selectedYear})`}
-            </h3>
-            <div className="h-52">
+          <AnalyticsChartCard
+            title={`Flock Placements by Month${compareYear !== null ? ` — ${selectedYear} vs ${compareYear}` : ` (${selectedYear})`}`}
+          >
+            <div className="p-4 h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={flocksByMonth} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -208,12 +207,11 @@ export function PoultryAnalyticsTab({ farmId }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </AnalyticsChartCard>
         )}
         {treatmentsByType.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="font-semibold text-sm mb-4">Treatments by Type ({selectedYear})</h3>
-            <div className="h-52">
+          <AnalyticsChartCard title={`Treatments by Type (${selectedYear})`}>
+            <div className="p-4 h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={treatmentsByType} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
@@ -223,7 +221,7 @@ export function PoultryAnalyticsTab({ farmId }) {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </AnalyticsChartCard>
         )}
       </div>
 
