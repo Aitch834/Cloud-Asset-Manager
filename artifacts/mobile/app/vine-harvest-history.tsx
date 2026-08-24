@@ -40,6 +40,7 @@ import { getList } from "@/lib/storage";
 import { usePersistedVarietySort } from "@/lib/hooks/usePersistedVarietySort";
 import { usePersistedVarietyColumns } from "@/lib/hooks/usePersistedVarietyColumns";
 import { usePersistedVarietyTableOpen } from "@/lib/hooks/usePersistedVarietyTableOpen";
+import { usePersistedChemistryCrossTabSort } from "@/lib/hooks/usePersistedChemistryCrossTabSort";
 import type { VarietyColsVisibility } from "@/lib/hooks/usePersistedVarietyColumns";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { subscribe } from "@/lib/sync-engine";
@@ -709,7 +710,8 @@ export default function VineHarvestHistoryScreen() {
   const [varietyCols, toggleVarietyCol] = usePersistedVarietyColumns(currentFarm?.id);
   const [showVarietyColsPanel, setShowVarietyColsPanel] = useState(false);
   const [yieldCrossTabSort, setYieldCrossTabSort] = useState<YieldCrossTabSort>(null);
-
+  const [chemistryCrossTabSort, setChemistryCrossTabSort] = usePersistedChemistryCrossTabSort(currentFarm?.id);
+  const [chemistryCrossTabOpen, setChemistryCrossTabOpen] = useState(true);
   const [varietyTableOpen, setVarietyTableOpen] = usePersistedVarietyTableOpen(currentFarm?.id);
 
   // Offline-pending records that haven't synced yet
@@ -1162,6 +1164,86 @@ export default function VineHarvestHistoryScreen() {
   const clearYieldCrossTabSort = useCallback(() => {
     setYieldCrossTabSort(null);
   }, []);
+
+  // ── Chemistry by Block × Vintage cross-tab ─────────────────────────────────
+  const chemistryCrossTabData = useMemo(() => {
+    const allRecords = [...displayRecords, ...offlinePending].filter(
+      r => r.blockId != null && r.vintageYear != null &&
+        (selectedBlockIds.length === 0 || selectedBlockIds.includes(r.blockId)),
+    );
+    const uniqueVintages = Array.from(new Set(allRecords.map(r => String(r.vintageYear)))).sort();
+    const uniqueBlockIds = Array.from(new Set(allRecords.map(r => r.blockId as number)));
+    if (uniqueVintages.length < 2 || uniqueBlockIds.length < 2) return null;
+
+    const blockMap = new Map(blocks.map(block => [block.id, block]));
+    const average = (values: number[]) =>
+      values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    const metrics = [
+      { label: "Avg Brix °", precision: 1, value: (r: HarvestListItem) => r.brix },
+      { label: "Avg pH", precision: 2, value: (r: HarvestListItem) => r.ph },
+      { label: "Avg TA (g/L)", precision: 2, value: (r: HarvestListItem) => r.titratableAcidityGl },
+      { label: "Avg Pot. Alc %", precision: 2, value: (r: HarvestListItem) => r.potentialAlcohol },
+    ];
+
+    const tables = metrics.map(metric => {
+      const rows = uniqueBlockIds.map(blockId => {
+        const blockRecords = allRecords.filter(r => r.blockId === blockId);
+        const name = blockMap.get(blockId)?.blockName ?? blockRecords.find(r => r.blockName)?.blockName ?? `Block ${blockId}`;
+        const cells = uniqueVintages.map(vintage => {
+          const values = blockRecords
+            .filter(r => String(r.vintageYear) === vintage)
+            .map(metric.value)
+            .filter((value): value is number => value != null && Number.isFinite(Number(value)))
+            .map(Number);
+          return average(values);
+        });
+        const allValues = blockRecords
+          .map(metric.value)
+          .filter((value): value is number => value != null && Number.isFinite(Number(value)))
+          .map(Number);
+        return {
+          blockId,
+          name,
+          cells,
+          rowAverage: average(allValues),
+        };
+      });
+      const columnAverages = uniqueVintages.map(vintage => {
+        const values = allRecords
+          .filter(r => String(r.vintageYear) === vintage)
+          .map(metric.value)
+          .filter((value): value is number => value != null && Number.isFinite(Number(value)))
+          .map(Number);
+        return average(values);
+      });
+      const grandValues = allRecords
+        .map(metric.value)
+        .filter((value): value is number => value != null && Number.isFinite(Number(value)))
+        .map(Number);
+      return { ...metric, rows, columnAverages, grandAverage: average(grandValues) };
+    });
+    return { uniqueVintages, tables };
+  }, [displayRecords, offlinePending, selectedBlockIds, blocks]);
+
+  useEffect(() => {
+    if (
+      chemistryCrossTabSort?.col &&
+      chemistryCrossTabSort.col !== "name" &&
+      chemistryCrossTabSort.col !== "avg" &&
+      chemistryCrossTabData &&
+      !chemistryCrossTabData.uniqueVintages.includes(chemistryCrossTabSort.col)
+    ) {
+      setChemistryCrossTabSort(null);
+    }
+  }, [chemistryCrossTabSort?.col, chemistryCrossTabData, setChemistryCrossTabSort]);
+
+  const toggleChemistryCrossTabSort = useCallback((col: string) => {
+    setChemistryCrossTabSort(
+      chemistryCrossTabSort?.col === col
+        ? { col, dir: chemistryCrossTabSort.dir === "asc" ? "desc" : "asc" }
+        : { col, dir: col === "name" ? "asc" : "desc" },
+    );
+  }, [chemistryCrossTabSort, setChemistryCrossTabSort]);
 
   // ── Yield by Variety summary (requires ≥2 distinct named varieties) ──────────
   const varietySummaryData = useMemo(() => {
@@ -1971,6 +2053,101 @@ export default function VineHarvestHistoryScreen() {
         </View>
       )}
 
+      {/* Chemistry by Block × Vintage — matching the dashboard's four chemistry tables */}
+      {!loading && !error && displayVintage === null && chemistryCrossTabData && (
+        <View style={styles.chemistryCrossTabCard}>
+          <Pressable
+            style={styles.chemistryCrossTabHeader}
+            onPress={() => { Haptics.selectionAsync(); setChemistryCrossTabOpen(open => !open); }}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: chemistryCrossTabOpen }}
+            accessibilityLabel="Chemistry by Block times Vintage"
+          >
+            <View style={styles.chemistryCrossTabHeaderCopy}>
+              <View style={styles.chemistryCrossTabTitleRow}>
+                <Feather name="activity" size={14} color={colors.textSecondary} />
+                <Text style={styles.chemistryCrossTabTitle}>Chemistry by Block × Vintage</Text>
+              </View>
+              <Text style={styles.chemistryCrossTabSubtitle}>Brix, pH, TA and potential alcohol</Text>
+            </View>
+            <Feather name={chemistryCrossTabOpen ? "chevron-down" : "chevron-right"} size={16} color={colors.textSecondary} />
+          </Pressable>
+
+          {chemistryCrossTabOpen && (
+            <View style={styles.chemistryCrossTabContent}>
+              {chemistryCrossTabSort && (
+                <Pressable
+                  style={styles.chemistryCrossTabClearSort}
+                  onPress={() => { Haptics.selectionAsync(); setChemistryCrossTabSort(null); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear chemistry cross-tab sort"
+                >
+                  <Feather name="x" size={12} color={colors.primary} />
+                  <Text style={styles.chemistryCrossTabClearSortText}>Clear sort</Text>
+                </Pressable>
+              )}
+              {chemistryCrossTabData.tables.map(table => {
+                const vintageIndex = chemistryCrossTabSort?.col && chemistryCrossTabSort.col !== "name" && chemistryCrossTabSort.col !== "avg"
+                  ? chemistryCrossTabData.uniqueVintages.indexOf(chemistryCrossTabSort.col)
+                  : -1;
+                const rows = [...table.rows].sort((a, b) => {
+                  if (!chemistryCrossTabSort) return a.name.localeCompare(b.name);
+                  const direction = chemistryCrossTabSort.dir === "asc" ? 1 : -1;
+                  if (chemistryCrossTabSort.col === "name") return direction * a.name.localeCompare(b.name);
+                  const aValue = chemistryCrossTabSort.col === "avg" ? a.rowAverage : a.cells[vintageIndex];
+                  const bValue = chemistryCrossTabSort.col === "avg" ? b.rowAverage : b.cells[vintageIndex];
+                  if (aValue == null && bValue == null) return a.name.localeCompare(b.name);
+                  if (aValue == null) return 1;
+                  if (bValue == null) return -1;
+                  return direction * (aValue - bValue) || a.name.localeCompare(b.name);
+                });
+                const sortIcon = (col: string) =>
+                  chemistryCrossTabSort?.col === col
+                    ? chemistryCrossTabSort.dir === "asc" ? "arrow-up" : "arrow-down"
+                    : "minus";
+                return (
+                  <View key={table.label} style={styles.chemistryMetricSection}>
+                    <Text style={styles.chemistryMetricLabel}>{table.label}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View>
+                        <View style={[styles.chemistryCrossTabRow, styles.chemistryCrossTabHeaderRow]}>
+                          <Pressable style={styles.chemistryBlockCell} onPress={() => toggleChemistryCrossTabSort("name")}>
+                            <Text style={styles.chemistryHeaderLabel}>Block</Text>
+                            <Feather name={sortIcon("name")} size={9} color={chemistryCrossTabSort?.col === "name" ? colors.primary : colors.textSecondary} />
+                          </Pressable>
+                          {chemistryCrossTabData.uniqueVintages.map(vintage => (
+                            <Pressable key={vintage} style={styles.chemistryValueCell} onPress={() => toggleChemistryCrossTabSort(vintage)}>
+                              <Text style={[styles.chemistryHeaderLabel, chemistryCrossTabSort?.col === vintage && styles.chemistryHeaderLabelActive]}>{vintage}</Text>
+                              <Feather name={sortIcon(vintage)} size={9} color={chemistryCrossTabSort?.col === vintage ? colors.primary : colors.textSecondary} />
+                            </Pressable>
+                          ))}
+                          <Pressable style={[styles.chemistryValueCell, styles.chemistryAverageCell]} onPress={() => toggleChemistryCrossTabSort("avg")}>
+                            <Text style={[styles.chemistryHeaderLabel, chemistryCrossTabSort?.col === "avg" && styles.chemistryHeaderLabelActive]}>Avg all</Text>
+                            <Feather name={sortIcon("avg")} size={9} color={chemistryCrossTabSort?.col === "avg" ? colors.primary : colors.textSecondary} />
+                          </Pressable>
+                        </View>
+                        {rows.map((row, index) => (
+                          <View key={row.blockId} style={[styles.chemistryCrossTabRow, styles.chemistryCrossTabDataRow, index < rows.length - 1 && styles.chemistryCrossTabDataRowBorder]}>
+                            <View style={styles.chemistryBlockCell}><Text style={styles.chemistryBlockName} numberOfLines={1}>{row.name}</Text></View>
+                            {row.cells.map((value, index) => <View key={chemistryCrossTabData.uniqueVintages[index]} style={styles.chemistryValueCell}><Text style={styles.chemistryValue}>{value != null ? value.toFixed(table.precision) : "—"}</Text></View>)}
+                            <View style={[styles.chemistryValueCell, styles.chemistryAverageCell]}><Text style={styles.chemistryValue}>{row.rowAverage != null ? row.rowAverage.toFixed(table.precision) : "—"}</Text></View>
+                          </View>
+                        ))}
+                        <View style={[styles.chemistryCrossTabRow, styles.chemistryCrossTabFooterRow]}>
+                          <View style={styles.chemistryBlockCell}><Text style={styles.chemistryFooterValue}>All blocks</Text></View>
+                          {table.columnAverages.map((value, index) => <View key={chemistryCrossTabData.uniqueVintages[index]} style={styles.chemistryValueCell}><Text style={styles.chemistryFooterValue}>{value != null ? value.toFixed(table.precision) : "—"}</Text></View>)}
+                          <View style={[styles.chemistryValueCell, styles.chemistryAverageCell]}><Text style={styles.chemistryFooterValue}>{table.grandAverage != null ? table.grandAverage.toFixed(table.precision) : "—"}</Text></View>
+                        </View>
+                      </View>
+                    </ScrollView>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Must Chemistry summary card */}
       {!loading && !error && totals.count > 0 &&
         (totals.avgBrix != null || totals.avgPh != null || totals.avgTa != null || totals.avgPotAlc != null) && (
@@ -2558,6 +2735,47 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
+  // Chemistry by Block × Vintage cross-tab
+  chemistryCrossTabCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  chemistryCrossTabHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background,
+  },
+  chemistryCrossTabHeaderCopy: { flex: 1, gap: 2 },
+  chemistryCrossTabTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  chemistryCrossTabTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
+  chemistryCrossTabSubtitle: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  chemistryCrossTabContent: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: spacing.sm, gap: spacing.md },
+  chemistryCrossTabClearSort: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 3, marginHorizontal: spacing.md },
+  chemistryCrossTabClearSortText: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.primary, textDecorationLine: "underline" },
+  chemistryMetricSection: { gap: spacing.xs },
+  chemistryMetricLabel: { marginHorizontal: spacing.md, fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.3 },
+  chemistryCrossTabRow: { flexDirection: "row", alignItems: "stretch" },
+  chemistryCrossTabHeaderRow: { backgroundColor: colors.background, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border },
+  chemistryCrossTabDataRow: { minHeight: 40 },
+  chemistryCrossTabDataRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  chemistryCrossTabFooterRow: { minHeight: 40, backgroundColor: colors.background, borderTopWidth: 2, borderTopColor: colors.border },
+  chemistryBlockCell: { width: 132, minHeight: 40, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", gap: 3 },
+  chemistryValueCell: { width: 82, minHeight: 40, paddingHorizontal: spacing.xs, borderLeftWidth: 1, borderLeftColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3 },
+  chemistryAverageCell: { width: 90 },
+  chemistryHeaderLabel: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.2 },
+  chemistryHeaderLabelActive: { color: colors.primary },
+  chemistryBlockName: { fontFamily: fonts.medium, fontSize: fontSize.xs, color: colors.text, flexShrink: 1 },
+  chemistryValue: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.text, fontVariant: ["tabular-nums"] },
+  chemistryFooterValue: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.text, fontVariant: ["tabular-nums"] },
   listContent: { paddingBottom: spacing.xl },
   emptyContainer: { flex: 1, justifyContent: "center" },
   row: {
