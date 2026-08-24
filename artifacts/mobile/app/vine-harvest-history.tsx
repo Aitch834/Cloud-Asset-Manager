@@ -141,6 +141,12 @@ function EditHarvestModal({
     }
   }, [visible, record, blocks]);
 
+  const linkedBlockAreaHa = selectedBlock?.areaHa ?? null;
+  const tonnesPerHa =
+    record?.yieldKg != null && linkedBlockAreaHa != null && linkedBlockAreaHa > 0
+      ? record.yieldKg / 1000 / linkedBlockAreaHa
+      : null;
+
   const handleSave = async () => {
     if (!record) return;
     setSaving(true);
@@ -188,6 +194,7 @@ function EditHarvestModal({
                 {record.yieldKg != null && (
                   <Text style={editStyles.summaryLine}>
                     <Text style={editStyles.summaryBold}>{record.yieldKg} kg</Text>
+                    {tonnesPerHa != null ? ` · ${tonnesPerHa.toFixed(2)} t/ha` : ""}
                     {record.vintageYear ? ` · ${record.vintageYear}` : ""}
                   </Text>
                 )}
