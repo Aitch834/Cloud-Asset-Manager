@@ -2,10 +2,29 @@ import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail, type AddressObject } from "mailparser";
 import { Readable } from "stream";
 
-const IMAP_HOST = "imap.secureserver.net";
-const IMAP_PORT = 993;
-const IMAP_USER = process.env.TITAN_IMAP_USER ?? "hello@bdefarmtrac.co.uk";
+const DEFAULT_IMAP_HOST = "imap.titan.email";
+const DEFAULT_IMAP_PORT = 993;
+const DEFAULT_IMAP_USER = "hello@bdefarmtrac.co.uk";
+const DEFAULT_IMAP_CONNECTION_TIMEOUT_MS = 15_000;
 const IMAP_PASS = process.env.TITAN_IMAP_PASSWORD ?? "";
+
+function positiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function getImapConnectionConfig(env: NodeJS.ProcessEnv = process.env) {
+  return {
+    host: env.TITAN_IMAP_HOST?.trim() || DEFAULT_IMAP_HOST,
+    port: positiveInteger(env.TITAN_IMAP_PORT, DEFAULT_IMAP_PORT),
+    user: env.TITAN_IMAP_USER?.trim() || DEFAULT_IMAP_USER,
+    connectionTimeout: positiveInteger(
+      env.TITAN_IMAP_CONNECTION_TIMEOUT_MS,
+      DEFAULT_IMAP_CONNECTION_TIMEOUT_MS,
+    ),
+  };
+}
 
 export interface InboxEmail {
   uid: number;
@@ -47,17 +66,19 @@ function attachmentMetas(parsed: ParsedMail): EmailAttachmentMeta[] {
 }
 
 function createClient(): ImapFlow {
+  const config = getImapConnectionConfig();
   const client = new ImapFlow({
-    host: IMAP_HOST,
-    port: IMAP_PORT,
+    host: config.host,
+    port: config.port,
     secure: true,
     auth: {
-      user: IMAP_USER,
+      user: config.user,
       pass: IMAP_PASS,
     },
+    connectionTimeout: config.connectionTimeout,
     logger: false,
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: true,
     },
   });
   // Prevent unhandled 'error' events from crashing the process when the
