@@ -74,3 +74,4 @@
 - [Defra plant health alerts](defra-plant-health-alerts.md) — Defra confirms there is currently no API or structured subscription feed; use official portal links/manual publication rather than scraping
 - [Vineyard Magazine advert](vineyard-magazine-ad.md) — approved portrait CMYK artwork is the version to use for the next magazine issue
 - [Mutable sync queue revisions](mutable-sync-queue-revisions.md) — queued edits need payload-aware completion/failure or an older in-flight request can discard a newer local revision
+- [Workspace-root package updates](workspace-root-package-updates.md) — the package installer cannot pass pnpm's required -w flag; reconcile reviewed monorepo manifests with pnpm install

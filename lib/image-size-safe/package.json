@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/image-size-safe",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./index.cjs",
+  "exports": "./index.cjs",
+  "scripts": {
+    "test": "node ./test.cjs"
+  }
+}
