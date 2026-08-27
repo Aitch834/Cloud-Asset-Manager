@@ -32,6 +32,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 
 import { formatDate, formatDateLong, ConfirmDialog, PRODUCTION_TYPE_OPTIONS, EMPTY_SIRE, EMPTY_STRAW, EMPTY_HERD, EMPTY_PLAN, EMPTY_ANIMAL, PrintHerdRegisterDialog, PrintVetPlanDialog, getHerdNumberConfig, getBreedPlaceholder, getHerdNamePlaceholder, ANIMAL_SPECIES_FALLBACK, ANIMAL_STATUS_LABELS, MOVEMENT_TYPE_LABELS, OUTCOME_COLOURS, DOC_TYPE_LABELS } from "./shared";
 import { useFarmMeta } from "@/pages/viticulture/shared";
+import { useFarmName } from "@/hooks/use-farm-name";
 import type { Farm, Herd, VetHealthPlan, VetHealthPlanActionCompletion, VetHealthPlanAction, MortalityRecord, FallenStockContractor, FeedRecord, WaterRecord, Animal, Sire, StrawInventory, AnimalDoc, VaccHistoryRecord, AnimalProfile } from "./shared";
 import { HerdsSection } from "./HerdsSection";
 import { VetHealthPlansSection } from "./VetHealthPlansSection";
@@ -134,6 +135,7 @@ const LIVESTOCK_TAB_IDS: LivestockTab[] = ["herds","vet-plans","mortality","cont
 
 export default function LivestockPage() {
   const { farmId } = useAppStore();
+  const farmName = useFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<LivestockTab>({ page: "livestock", farmId, validIds: LIVESTOCK_TAB_IDS, defaultTab: "herds", urlOverride: typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null });
 
   if (!farmId) return <Redirect href="/select" />;
@@ -198,7 +200,7 @@ export default function LivestockPage() {
       </TabBar>
       <ErrorBoundary key={tab}>
         {tab === "herds" && <HerdsSection farmId={farmId} />}
-        {tab === "animals" && <AnimalsSection farmId={farmId} />}
+        {tab === "animals" && <AnimalsSection farmId={farmId} farmName={farmName} />}
         {tab === "vet-plans" && <VetHealthPlansSection farmId={farmId} />}
         {tab === "mortality" && <MortalitySection farmId={farmId} />}
         {tab === "contractors" && <FallenStockContractorsSection farmId={farmId} />}

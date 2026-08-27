@@ -20,6 +20,7 @@ import { Link } from "wouter";
 import { useAppStore } from "@/hooks/use-app-store";
 import { printProReport } from "@/lib/print-report";
 import { PhotoPanel } from "@/pages/fly-tipping/PhotoPanel";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,7 @@ function emptyForm(): Omit<Incident, "id"|"farmId"|"createdAt"|"photos"> {
 
 export default function FarmIncidentsPage() {
   const { farmId } = useAppStore();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -476,6 +478,14 @@ export default function FarmIncidentsPage() {
     printProReport({
       title: `Farm Incident Report — ${inc.incidentType}`,
       subtitle: `Reported: ${fmt(inc.dateDiscovered)}`,
+      farmName: rawFarmName,
+      authority: inc.policeAttended ? "Police" : inc.fireAttended ? "Fire & Rescue Service" : inc.eaAttended ? "Environment Agency" : undefined,
+      authorityReferenceLabel: inc.policeAttended ? "Police reference" : inc.fireAttended ? "Fire reference" : inc.eaAttended ? "Environment Agency reference" : undefined,
+      authorityReference: inc.policeAttended ? inc.policeRefNumber : inc.fireAttended ? inc.fireRefNumber : inc.eaAttended ? inc.eaRefNumber : null,
+      additionalReferences: [
+        ...(inc.crimeReference ? [{ label: "Crime reference", value: inc.crimeReference }] : []),
+        ...(inc.insuranceClaimRef ? [{ label: "Insurance claim reference", value: inc.insuranceClaimRef }] : []),
+      ],
       tableHtml,
     });
   };

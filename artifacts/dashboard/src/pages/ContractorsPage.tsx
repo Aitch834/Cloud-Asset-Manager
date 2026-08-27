@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { printProReport } from "@/lib/print-report";
 import { cn } from "@/lib/utils";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 
 const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
@@ -517,6 +518,7 @@ function ExpandedContractorSection({ contractor, farmId, targetRamsId }: { contr
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ContractorsPage() {
   const { farmId } = useAppStore();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const qc = useQueryClient();
   const { toast } = useToast();
   if (!farmId) return <Redirect href="/select" />;
@@ -633,6 +635,8 @@ export default function ContractorsPage() {
     printProReport({
       title: "Contractor H&S File",
       subtitle: `${filtered.length} contractors on record`,
+      farmName: rawFarmName,
+      authority: "Red Tractor",
       tableHtml: `<table><thead><tr><th>Company</th><th>Trade</th><th>Address</th><th>Contacts</th><th>PLI No.</th><th>PLI Expiry</th><th>RAMS</th><th>First On-Site</th><th>Last On-Site</th></tr></thead><tbody>${rows}</tbody></table>`,
     });
   }

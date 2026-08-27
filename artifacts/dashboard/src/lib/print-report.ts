@@ -3,14 +3,24 @@ import type { RefObject } from "react";
 export interface ProReportOptions {
   title: string;
   subtitle?: string;
-  farmName?: string;
+  farmName: string | undefined;
   farmAddress?: string;
   contactPhone?: string;
   cphNumber?: string;
   sbiNumber?: string;
   redTractorId?: string;
+  authority?: string;
+  authorityReferenceLabel?: string;
+  authorityReference?: string | null;
+  authorityReferenceRequired?: boolean;
+  additionalReferences?: Array<{
+    label: string;
+    value?: string | null;
+    required?: boolean;
+  }>;
   recordCount?: number;
   recordLabel?: string;
+  /** Trusted report structure. Callers must escape any untrusted text embedded in it. */
   tableHtml: string;
   footerNote?: string;
   landscape?: boolean;
@@ -25,7 +35,8 @@ const CSS = (pageSize: string) => `
   .hdr-left h1 { font-size: 12px; font-weight: 700; color: #1a3a1a; margin: 0 0 4px; }
   .hdr-left p { font-size: 7.5px; color: #374151; margin: 4px 0; line-height: 1.5; }
   .hdr-right { text-align: right; font-size: 7px; color: #374151; line-height: 1.8; }
-  .rt-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 6.5px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .authority-badge { display: inline-block; background: #1a3a1a; color: #fff; font-size: 6.5px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; margin-bottom: 4px; text-transform: uppercase; }
+  .missing-meta { margin: 0 0 8px; padding: 6px 8px; border: 1px solid #f59e0b; background: #fffbeb; color: #92400e; font-size: 7.5px; font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 7.5px; }
   thead tr { background: #1a3a1a; }
   thead th { padding: 4px 5px; color: #fff; font-weight: 700; font-size: 6.5px; text-transform: uppercase; letter-spacing: 0.05em; border-right: 1px solid #2d5a2d; text-align: left; white-space: nowrap; }
@@ -39,41 +50,65 @@ const CSS = (pageSize: string) => `
 `;
 
 export function buildProReport(opts: ProReportOptions): string {
+  const farmName = opts.farmName?.trim() || "Holding name not configured";
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const idMeta = [
-    opts.cphNumber ? `CPH: ${opts.cphNumber}` : null,
-    opts.sbiNumber ? `SBI: ${opts.sbiNumber}` : null,
-    opts.redTractorId ? `Red Tractor ID: ${opts.redTractorId}` : null,
-  ].filter(Boolean).join("  ·  ");
+  const references = [
+    { label: "CPH", value: opts.cphNumber, required: false },
+    { label: "SBI", value: opts.sbiNumber, required: false },
+    { label: "Red Tractor ID", value: opts.redTractorId, required: opts.authority === "Red Tractor" },
+    ...(opts.authorityReferenceLabel
+      ? [{ label: opts.authorityReferenceLabel, value: opts.authorityReference, required: !!opts.authorityReferenceRequired }]
+      : []),
+    ...(opts.additionalReferences ?? []),
+  ];
+  const idMeta = references
+    .filter(ref => !!ref.value)
+    .map(ref => `${escapeHtml(ref.label)}: ${escapeHtml(ref.value!)}`)
+    .join("  ·  ");
+  const missingReferences = [
+    ...(!opts.farmName?.trim() ? ["Holding name"] : []),
+    ...references.filter(ref => ref.required && !ref.value).map(ref => ref.label),
+  ];
   const pageSize = opts.landscape !== false ? "A4 landscape" : "A4";
   const recordStr = opts.recordCount !== undefined
-    ? `${opts.recordCount} ${opts.recordLabel ?? "record"}${opts.recordCount !== 1 ? "s" : ""}`
+    ? `${opts.recordCount} ${escapeHtml(opts.recordLabel ?? "record")}${opts.recordCount !== 1 ? "s" : ""}`
     : "";
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>${opts.title}${opts.farmName ? ` — ${opts.farmName}` : ""}</title>
+<title>${escapeHtml(opts.title)} — ${escapeHtml(farmName)}</title>
 <style>${CSS(pageSize)}</style></head><body>
 <div class="hdr">
   <div class="hdr-left">
-    <h1>${opts.title}</h1>
-    ${opts.farmName ? `<p><strong>${opts.farmName}</strong>${idMeta ? `  ·  ${idMeta}` : ""}</p>` : ""}
-    ${opts.farmAddress ? `<p style="color:#555">${opts.farmAddress}</p>` : ""}
-    ${opts.contactPhone ? `<p style="color:#555">Tel: ${opts.contactPhone}</p>` : ""}
-    ${opts.subtitle ? `<p style="color:#444">${opts.subtitle}</p>` : ""}
-    ${opts.extraMeta ? `<p style="color:#444">${opts.extraMeta}</p>` : ""}
+    <h1>${escapeHtml(opts.title)}</h1>
+    <p><strong>${escapeHtml(farmName)}</strong>${idMeta ? `  ·  ${idMeta}` : ""}</p>
+    ${opts.farmAddress ? `<p style="color:#555">${escapeHtml(opts.farmAddress)}</p>` : ""}
+    ${opts.contactPhone ? `<p style="color:#555">Tel: ${escapeHtml(opts.contactPhone)}</p>` : ""}
+    ${opts.subtitle ? `<p style="color:#444">${escapeHtml(opts.subtitle)}</p>` : ""}
+    ${opts.extraMeta ? `<p style="color:#444">${escapeHtml(opts.extraMeta)}</p>` : ""}
   </div>
   <div class="hdr-right">
-    <div class="rt-badge">RED TRACTOR</div><br>
+    ${opts.authority ? `<div class="authority-badge">${escapeHtml(opts.authority)}</div><br>` : ""}
     <span>Printed: ${today}</span>
     ${recordStr ? `<br><span>${recordStr}</span>` : ""}
   </div>
 </div>
+${missingReferences.length ? `<div class="missing-meta">Required report information missing: ${missingReferences.map(escapeHtml).join(", ")}. Add it in Farm Settings before submitting this report.</div>` : ""}
 ${opts.tableHtml}
 <div class="footer">
-  <span>${opts.footerNote ?? "Retain records for a minimum of 3 years and make available at Red Tractor audit inspection."}</span>
+  <span>${escapeHtml(opts.footerNote ?? "Farm record produced by BDE Farm Trac.")}</span>
   <span>BDE Farm Trac · ${today}</span>
 </div>
 </body></html>`;
+}
+
+/** Escapes untrusted text before it is interpolated into report HTML. */
+export function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export function openPrintWindow(html: string): void {
@@ -89,20 +124,27 @@ export function printProReport(opts: ProReportOptions): void {
   openPrintWindow(buildProReport(opts));
 }
 
-export function printFromRef(ref: RefObject<HTMLDivElement | null>, title: string, landscape = true): void {
+export function printElementReport(
+  element: HTMLElement | null,
+  options: Omit<ProReportOptions, "tableHtml">,
+): void {
+  if (!element) return;
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll("button,input,select,textarea,[data-print-exclude]").forEach(node => node.remove());
+  clone.querySelectorAll<HTMLElement>("[hidden]").forEach(node => node.removeAttribute("hidden"));
+  const inheritedStyles = Array.from(document.head.querySelectorAll('style,link[rel="stylesheet"]'))
+    .map(node => node.outerHTML)
+    .join("");
+  const html = buildProReport({ ...options, tableHtml: clone.outerHTML })
+    .replace("<head>", `<head><base href="${escapeHtml(document.baseURI)}">${inheritedStyles}`);
+  openPrintWindow(html);
+}
+
+export function printFromRef(
+  ref: RefObject<HTMLDivElement | null>,
+  options: Omit<ProReportOptions, "tableHtml">,
+): void {
   if (!ref.current) return;
   const content = ref.current.innerHTML;
-  const pageSize = landscape ? "A4 landscape" : "A4";
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>${title}</title>
-<style>
-  @page { size: ${pageSize}; margin: 1cm 1.2cm; }
-  *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  body { margin: 0; padding: 0; background: #fff; font-family: Arial, Helvetica, sans-serif; }
-  div[style*="overflow"] { overflow: visible !important; }
-  tr { page-break-inside: avoid; }
-  div[style*="box-shadow"] { box-shadow: none !important; border-radius: 0 !important; }
-</style>
-</head><body>${content}</body></html>`;
-  openPrintWindow(html);
+  openPrintWindow(buildProReport({ ...options, tableHtml: content }));
 }

@@ -16,6 +16,29 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
+import { printProReport } from "@/lib/print-report";
+
+const escapeHtml = (value: unknown) => String(value ?? "—")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+function printTasksReport({ title, subtitle, farm, tasks }: {
+  title: string; subtitle: string; farm: any; tasks: Array<Assignment | ReportTask>;
+}) {
+  printProReport({
+    title,
+    subtitle,
+    farmName: farm?.name,
+    farmAddress: farm?.address,
+    contactPhone: farm?.phone,
+    cphNumber: farm?.cphNumber,
+    sbiNumber: farm?.sbiNumber,
+    redTractorId: farm?.redTractorId,
+    recordCount: tasks.length,
+    recordLabel: "task",
+    tableHtml: `<table><thead><tr><th>Task</th><th>Status</th><th>Assigned to</th><th>Module</th><th>Due date</th><th>Raised</th><th>Completed</th></tr></thead><tbody>${tasks.map(task => `<tr><td>${escapeHtml(task.title)}</td><td>${escapeHtml((STATUS_CONFIG[task.status]?.label ?? task.status))}</td><td>${escapeHtml(task.staffName)}</td><td>${escapeHtml(task.module ?? "General")}</td><td>${escapeHtml(fmtDate(task.dueDate))}</td><td>${escapeHtml(fmtDate(task.createdAt))}</td><td>${escapeHtml(fmtDate(task.completedAt))}</td></tr>`).join("")}</tbody></table>`,
+  });
+}
 
 type Assignment = {
   id: number;
@@ -505,7 +528,7 @@ function ModuleGroup({ moduleName, tasks, forceOpen }: { moduleName: string; tas
   );
 }
 
-function ReportsView({ farmId }: { farmId: number }) {
+function ReportsView({ farmId, farm }: { farmId: number; farm: any }) {
   const [period, setPeriod] = useState("this-month");
   const [printing, setPrinting] = useState(false);
 
@@ -558,7 +581,12 @@ function ReportsView({ farmId }: { farmId: number }) {
           </span>
         )}
         <button
-          onClick={() => { setPrinting(true); setTimeout(() => { window.print(); }, 50); }}
+          onClick={() => printTasksReport({
+            title: "Task Board Report",
+            subtitle: data ? `Period: ${PERIOD_OPTIONS.find(o => o.value === period)?.label} — ${fmtPeriodLabel(period, data.startDate, data.endDate)}` : "Task report",
+            farm,
+            tasks,
+          })}
           className="ml-auto flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-black/[0.03] transition-colors"
         >
           <Printer className="w-3.5 h-3.5" />
@@ -741,6 +769,10 @@ export default function TaskBoardPage() {
     queryKey: ["farm-members", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/members`).then(r => r.json()),
   });
+  const { data: farm } = useQuery<any>({
+    queryKey: ["farm", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+  });
 
   const records = data?.records ?? [];
   const staff = staffData?.members ?? [];
@@ -840,7 +872,7 @@ export default function TaskBoardPage() {
         </div>
 
         {/* Reports view */}
-        {view === "reports" && <ReportsView farmId={farmId} />}
+        {view === "reports" && <ReportsView farmId={farmId} farm={farm?.farm ?? farm?.record ?? farm} />}
 
         {/* Board view */}
         {view === "board" && <>
@@ -946,7 +978,12 @@ export default function TaskBoardPage() {
             {filtered.length} assignment{filtered.length !== 1 ? "s" : ""}
           </span>
           <button
-            onClick={() => { setBoardPrinting(true); setTimeout(() => { window.print(); }, 50); }}
+            onClick={() => printTasksReport({
+              title: "Task Board",
+              subtitle: `${deptFilter !== "all" ? `Department: ${deptFilter} · ` : ""}${memberFilter !== "all" ? `Staff: ${memberFilter} · ` : ""}${moduleFilter !== "all" ? `Module: ${moduleFilter} · ` : ""}Sorted by: ${SORT_OPTIONS.find(o => o.value === sortOrder)?.label}`,
+              farm: farm?.farm ?? farm?.record ?? farm,
+              tasks: [...pending, ...completed],
+            })}
             className="flex items-center gap-1.5 text-sm border border-border rounded-lg px-3 py-1.5 bg-white hover:bg-black/[0.03] transition-colors"
           >
             <Printer className="w-3.5 h-3.5" />

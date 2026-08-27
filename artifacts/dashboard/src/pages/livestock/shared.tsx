@@ -25,7 +25,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport, escapeHtml } from "@/lib/print-report";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -353,12 +353,12 @@ export function PrintHerdRegisterDialog({ farmId, herds, onClose }: { farmId: nu
     const rows = herds.length === 0
       ? `<tr><td colspan="6" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No herds recorded</td></tr>`
       : herds.map(h => `<tr>
-          <td><strong>${h.name}</strong></td>
-          <td>${h.type ? herdSpeciesDisplayLabel(h.type) + (herdProductionSubtype(h.type, (h as any).productionType) ? ` (${herdProductionSubtype(h.type, (h as any).productionType)})` : "") : "—"}</td>
-          <td>${h.breed || "—"}</td>
-          <td style="font-family:monospace">${h.herdNumber || "—"}</td>
+          <td><strong>${escapeHtml(h.name)}</strong></td>
+          <td>${escapeHtml(h.type ? herdSpeciesDisplayLabel(h.type) + (herdProductionSubtype(h.type, (h as any).productionType) ? ` (${herdProductionSubtype(h.type, (h as any).productionType)})` : "") : "—")}</td>
+          <td>${escapeHtml(h.breed || "—")}</td>
+          <td style="font-family:monospace">${escapeHtml(h.herdNumber || "—")}</td>
           <td>${h.isActive ? "Active" : "Inactive"}</td>
-          <td style="color:#6b7280">${h.notes || "—"}</td>
+          <td style="color:#6b7280">${escapeHtml(h.notes || "—")}</td>
         </tr>`).join("");
     const tableHtml = `<table><thead><tr>
       <th>Name</th><th>Species</th><th>Breed</th><th>Herd / Flock No.</th><th>Status</th><th>Notes</th>
@@ -489,12 +489,13 @@ export function PrintVetPlanDialog({ farmId, plan, onClose }: { farmId: number; 
   ].filter(s => s.value);
 
   const handleVetPrint = () => {
+    const e = escapeHtml;
     const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Vet Health Plan ${plan.planYear}</title>
+<html lang="en"><head><meta charset="utf-8"><title>Vet Health Plan ${e(plan.planYear)}</title>
 <style>body{font-family:Arial,sans-serif;font-size:11px;color:#000;margin:0;padding:24px}.hdr{display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:12px}.hdr h1{font-size:13px;font-weight:700;margin:0 0 4px}.hdr p{font-size:10px;color:#374151;margin:4px 0}.hdr-r{text-align:right;font-size:10px;color:#374151;line-height:1.8}.hdr-r b{display:block;font-size:12px;font-weight:600;color:#000}.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 32px;padding:10px 0;border-bottom:1px solid #e5e7eb;margin-bottom:12px}.meta-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555}.section{border:1px solid #e5e7eb;border-radius:4px;padding:10px;margin-bottom:8px}.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin:0 0 4px}.section-body{white-space:pre-line;line-height:1.5}.sig{border-top:1px solid #e5e7eb;padding-top:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:32px}.sigline{border-bottom:1px solid #999;height:32px;margin:24px 0 4px}.note{font-size:9px;color:#555;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}@media print{@page{margin:1.5cm}}</style>
-</head><body><div class="hdr"><div><h1>${farm?.name ?? "Farm"}</h1>${farm?.address ? `<p>${farm.address}${farm.postcode ? ", " + farm.postcode : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${farm.cphNumber}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${farm.redTractorId}</span></p>` : ""}</div><div class="hdr-r"><b>Vet Health Plan ${plan.planYear}</b>Plan date: <b>${formatDateLong(plan.planDate)}</b>${plan.reviewDate ? `<br>Review due: ${formatDateLong(plan.reviewDate)}` : ""}<br>Printed: ${printedDate}</div></div>
-<div class="meta"><div><div class="meta-label">Attending Vet</div><div style="font-weight:600">${plan.vetName}</div></div>${plan.practiceName ? `<div><div class="meta-label">Practice</div><div style="font-weight:600">${plan.practiceName}</div></div>` : ""}${plan.practicePhone ? `<div><div class="meta-label">Phone</div><div>${plan.practicePhone}</div></div>` : ""}${plan.practiceAddress ? `<div><div class="meta-label">Address</div><div>${plan.practiceAddress}</div></div>` : ""}</div>
-${sections.length === 0 ? `<p style="color:#555;font-style:italic;text-align:center;padding:12px">No plan content recorded.</p>` : sections.map(s => `<div class="section"><p class="section-label">${s.label}</p><p class="section-body">${s.value ?? ""}</p></div>`).join("")}
+</head><body><div class="hdr"><div><h1>${e(farm?.name ?? "Farm")}</h1>${farm?.address ? `<p>${e(farm.address)}${farm.postcode ? ", " + e(farm.postcode) : ""}</p>` : ""}${farm?.cphNumber ? `<p>CPH: <span style="font-family:monospace;font-weight:600">${e(farm.cphNumber)}</span></p>` : ""}${farm?.redTractorId ? `<p>Red Tractor ID: <span style="font-family:monospace;font-weight:600">${e(farm.redTractorId)}</span></p>` : ""}</div><div class="hdr-r"><b>Vet Health Plan ${e(plan.planYear)}</b>Plan date: <b>${e(formatDateLong(plan.planDate))}</b>${plan.reviewDate ? `<br>Review due: ${e(formatDateLong(plan.reviewDate))}` : ""}<br>Printed: ${e(printedDate)}</div></div>
+<div class="meta"><div><div class="meta-label">Attending Vet</div><div style="font-weight:600">${e(plan.vetName)}</div></div>${plan.practiceName ? `<div><div class="meta-label">Practice</div><div style="font-weight:600">${e(plan.practiceName)}</div></div>` : ""}${plan.practicePhone ? `<div><div class="meta-label">Phone</div><div>${e(plan.practicePhone)}</div></div>` : ""}${plan.practiceAddress ? `<div><div class="meta-label">Address</div><div>${e(plan.practiceAddress)}</div></div>` : ""}</div>
+${sections.length === 0 ? `<p style="color:#555;font-style:italic;text-align:center;padding:12px">No plan content recorded.</p>` : sections.map(s => `<div class="section"><p class="section-label">${e(s.label)}</p><p class="section-body">${e(s.value ?? "")}</p></div>`).join("")}
 <div class="sig"><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555">Farmer Signature</p><div class="sigline"></div><p style="font-size:9px;color:#555">Name &amp; Date</p></div><div><p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555">Vet Signature</p><div class="sigline"></div><p style="font-size:9px;color:#555">Name &amp; Date</p></div></div>
 <div class="note">This veterinary health plan is an on-farm record required by Red Tractor Livestock Standards. Retain for a minimum of 3 years and make available for inspection at audit.</div>
 </body></html>`;

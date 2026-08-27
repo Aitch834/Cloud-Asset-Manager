@@ -25,7 +25,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport, escapeHtml } from "@/lib/print-report";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -179,6 +180,7 @@ function calcPct(aff: number | null, tot: number | null): string | null {
 }
 
 export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
+  const rawFarmName = useRawFarmName(farmId);
   const qc = useQueryClient();
   const { toast } = useToast();
   const base = `/api/farms/${farmId}/welfare-outcome-assessments`;
@@ -345,8 +347,8 @@ export function WelfareOutcomeSection({ farmId }: { farmId: number }) {
   }
 
   function printReport() {
-    const rows = records.map(r => `<tr><td>${formatDate(r.assessmentDate)}</td><td>${r.species}</td><td>${r.assessorType === "internal" ? "Internal" : "External"}</td><td>${r.assessorName}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.sampleSize ?? "—"}</td><td>${r.lamenessScore ?? "—"}</td><td>${r.overallOutcome.toUpperCase()}</td><td>${formatDate(r.nextAssessmentDue)}</td></tr>`).join("");
-    printProReport({ title: "Welfare Outcome Assessment Register", subtitle: `${records.length} assessments on record`, tableHtml: `<table><thead><tr><th>Date</th><th>Species</th><th>Type</th><th>Assessor</th><th>Herd/Flock</th><th>Sample</th><th>Lameness</th><th>Outcome</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
+    const rows = records.map(r => `<tr><td>${escapeHtml(formatDate(r.assessmentDate))}</td><td>${escapeHtml(r.species)}</td><td>${r.assessorType === "internal" ? "Internal" : "External"}</td><td>${escapeHtml(r.assessorName)}</td><td>${escapeHtml(r.herdFlockRef ?? "—")}</td><td>${escapeHtml(r.sampleSize ?? "—")}</td><td>${escapeHtml(r.lamenessScore ?? "—")}</td><td>${escapeHtml(r.overallOutcome.toUpperCase())}</td><td>${escapeHtml(formatDate(r.nextAssessmentDue))}</td></tr>`).join("");
+    printProReport({ title: "Welfare Outcome Assessment Register", subtitle: `${records.length} assessments on record`, farmName: rawFarmName, authority: "Red Tractor", tableHtml: `<table><thead><tr><th>Date</th><th>Species</th><th>Type</th><th>Assessor</th><th>Herd/Flock</th><th>Sample</th><th>Lameness</th><th>Outcome</th><th>Next Due</th></tr></thead><tbody>${rows}</tbody></table>` });
   }
 
   const OUTCOME_COL: Record<string, string> = { good: "bg-green-50 text-green-700", acceptable: "bg-blue-50 text-blue-700", "needs-improvement": "bg-amber-50 text-amber-700", poor: "bg-red-50 text-red-700" };

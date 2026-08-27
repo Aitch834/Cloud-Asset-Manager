@@ -1335,12 +1335,31 @@ function StorageTab({ storages, harvests, farmId, loading, onRefresh, toast }: a
 
 function PrintTab({ harvests, transports, storages, farm }: any) {
   const printRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
   const [reportType, setReportType] = useState<"summary" | "detail">("summary");
 
   const isDetail = reportType === "detail";
 
   const handlePrint = () => {
-    printFromRef(printRef, "Harvest Records — Red Tractor Audit", !isDetail);
+    const farmName = farm?.name;
+    if (!farmName) {
+      toast({ title: "Holding name required", description: "Add a holding name in Farm Settings before printing this report.", variant: "destructive" });
+      return;
+    }
+    printFromRef(printRef, {
+      title: "Harvest Records — Red Tractor Audit",
+      farmName,
+      cphNumber: farm.cphNumber,
+      redTractorId: farm.redTractorId,
+      authority: "Red Tractor",
+      authorityReferenceLabel: "Red Tractor Member ID",
+      authorityReference: farm.redTractorId,
+      authorityReferenceRequired: true,
+      landscape: !isDetail,
+      recordCount: harvests.length,
+      recordLabel: "harvest record",
+      footerNote: "Harvest records retained for Red Tractor Combinable Crops assurance and audit.",
+    });
   };
 
   const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });

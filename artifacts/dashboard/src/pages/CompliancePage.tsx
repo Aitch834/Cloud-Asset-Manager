@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { escapeHtml, printElementReport } from "@/lib/print-report";
 import {
   ShieldCheck, AlertTriangle, Package, Edit2, Printer,
   Plus, Trash2, Phone, Mail, Save, Info, Bug, Target,
@@ -785,7 +786,20 @@ export default function CompliancePage() {
   }
 
   // ── Print
-  function printPlan() { window.print(); }
+  function printPlan() {
+    const fd = farmDetail as Record<string, unknown> | null;
+    const isBiosecurity = tab === "biosecurity";
+    printElementReport(document.querySelector("[data-compliance-plan-report]"), {
+      title: isBiosecurity ? "Farm Biosecurity Plan" : "Feed Supply Contingency Plan",
+      farmName: typeof fd?.name === "string" ? fd.name : undefined,
+      farmAddress: fd?.address ? String(fd.address) : undefined,
+      cphNumber: fd?.cphNumber ? String(fd.cphNumber) : undefined,
+      sbiNumber: fd?.sbiNumber ? String(fd.sbiNumber) : undefined,
+      redTractorId: fd?.redTractorId ? String(fd.redTractorId) : undefined,
+      authority: "Red Tractor",
+      landscape: false,
+    });
+  }
 
   function printDeclarationForm() {
     const fd = farmDetail as Record<string, unknown> | null;
@@ -793,6 +807,7 @@ export default function CompliancePage() {
     const farmAddr  = fd ? String(fd.address  ?? "") : "";
     const farmPost  = fd ? String(fd.postcode  ?? "") : "";
     const farmCph   = fd ? String(fd.cphNumber ?? "") : "";
+    const redTractorId = fd ? String(fd.redTractorId ?? "") : "";
     const b = bio as Record<string, unknown> | null;
     const restrictedAreas   = b ? String(b.restrictedAreas   ?? "") : "";
     const visitorProcedures = b ? String(b.visitorProcedures ?? "") : "";
@@ -802,15 +817,25 @@ export default function CompliancePage() {
     const aphaPhone = b ? String(b.aphaPhone ?? "03000 200 301") : "03000 200 301";
 
     function ruleLines(text: string, fallback: string): string {
-      if (!text.trim()) return `<li>${fallback}</li>`;
-      return text.split(/\n+/).filter(Boolean).slice(0, 5).map(l => `<li>${l.trim()}</li>`).join("");
+      if (!text.trim()) return `<li>${escapeHtml(fallback)}</li>`;
+      return text.split(/\n+/).filter(Boolean).slice(0, 5).map(l => `<li>${escapeHtml(l.trim())}</li>`).join("");
     }
+
+    const escapedFarmName = escapeHtml(farmName);
+    const escapedFarmAddr = escapeHtml(farmAddr);
+    const escapedFarmPost = escapeHtml(farmPost);
+    const escapedFarmCph = escapeHtml(farmCph);
+    const escapedRedTractorId = escapeHtml(redTractorId);
+    const escapedVetName = escapeHtml(vetName || "See farm office");
+    const escapedVetPhone = escapeHtml(vetPhone);
+    const escapedAphaPhone = escapeHtml(aphaPhone);
+    const escapedFormVersion = escapeHtml(new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" }));
 
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Visitor Biosecurity Declaration — ${farmName}</title>
+<title>Visitor Biosecurity Declaration — ${escapedFarmName}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #111; background: #fff; }
@@ -854,11 +879,12 @@ export default function CompliancePage() {
 <div class="header">
   <div class="header-left">
     <h1>Visitor &amp; Contractor<br>Biosecurity Declaration</h1>
-    <p>${farmName}${farmAddr ? " · " + farmAddr : ""}${farmPost ? ", " + farmPost : ""}</p>
+    <p>${escapedFarmName}${farmAddr ? " · " + escapedFarmAddr : ""}${farmPost ? ", " + escapedFarmPost : ""}</p>
   </div>
   <div class="header-right">
-    ${farmCph ? `<strong>CPH: ${farmCph}</strong>` : ""}
-    <div>Form version: ${new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</div>
+    ${farmCph ? `<strong>CPH: ${escapedFarmCph}</strong>` : ""}
+    ${redTractorId ? `<div>Red Tractor ID: ${escapedRedTractorId}</div>` : ""}
+    <div>Form version: ${escapedFormVersion}</div>
     <div>Red Tractor Assured</div>
   </div>
 </div>
@@ -923,8 +949,8 @@ export default function CompliancePage() {
 <div class="footer">
   <div class="emergency">
     <strong>Emergency contacts:</strong>&nbsp;
-    Farm contact: <strong>${vetName || "See farm office"}</strong>${vetPhone ? " — " + vetPhone : ""}&nbsp;&nbsp;|&nbsp;&nbsp;
-    APHA (disease suspicion): <strong>${aphaPhone}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;
+    Farm contact: <strong>${escapedVetName}</strong>${vetPhone ? " — " + escapedVetPhone : ""}&nbsp;&nbsp;|&nbsp;&nbsp;
+    APHA (disease suspicion): <strong>${escapedAphaPhone}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;
     Emergency services: <strong>999</strong>
   </div>
   <div>Please leave this form with the farm contact when you depart.</div>
@@ -957,7 +983,7 @@ export default function CompliancePage() {
 
       {/* ══ TAB 1: BIOSECURITY PLAN ══════════════════════════════════════════ */}
       {tab === "biosecurity" && (
-        <div className="max-w-4xl">
+        <div className="max-w-4xl" data-compliance-plan-report>
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -1107,7 +1133,7 @@ export default function CompliancePage() {
 
       {/* ══ TAB 2: FEED CONTINGENCY PLAN ══════════════════════════════════════ */}
       {tab === "contingency" && (
-        <div className="max-w-4xl">
+        <div className="max-w-4xl" data-compliance-plan-report>
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="font-semibold text-gray-800">Feed Supply Contingency Plan</h3>

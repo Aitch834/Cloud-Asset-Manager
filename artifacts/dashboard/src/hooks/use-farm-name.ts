@@ -12,10 +12,17 @@ export function useFarmsList() {
   });
 }
 
+// Raw farm name for uses where a missing name must remain distinguishable from a
+// display fallback, such as compliance and regulatory report headers.
+export function useRawFarmName(farmId: number): string | undefined {
+  const { data } = useFarmsList();
+  const name = Array.isArray(data?.farms)
+    ? (data.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
+    : undefined;
+  return typeof name === "string" ? name : undefined;
+}
+
 // Display name for a farm, with a stable fallback while loading / if missing.
 export function useFarmName(farmId: number): string {
-  const { data } = useFarmsList();
-  return ((Array.isArray(data?.farms)
-    ? (data.farms.find((f: Record<string, unknown>) => f.id === farmId) as Record<string, unknown> | undefined)?.name as string | undefined
-    : undefined) ?? `Farm ${farmId}`);
+  return useRawFarmName(farmId) ?? `Farm ${farmId}`;
 }

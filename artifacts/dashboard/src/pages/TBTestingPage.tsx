@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordReport } from "@/lib/record-report";
 import { AlertTriangle, CheckCircle2, Clock, Plus, Printer, TestTube } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
@@ -62,6 +64,7 @@ export default function TBTestingPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"records" | "restrictions" | "analytics">({ page: "tb-testing", farmId, validIds: ["records", "restrictions", "analytics"], defaultTab: "records" });
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -120,6 +123,16 @@ export default function TBTestingPage() {
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY }); setOpen(true); };
   const openEdit = (t: TBTest) => { setEditing(t); setForm({ ...t }); setOpen(true); };
   const f = (field: string, val: any) => setForm((p: any) => ({ ...p, [field]: val }));
+  const printTest = (test: TBTest) => printRecordReport({
+    title: "TB Test Record",
+    farmName: rawFarmName,
+    subtitle: `${test.species} · ${test.testDate}`,
+    authority: "APHA",
+    authorityReferenceLabel: "APHA case reference",
+    authorityReference: test.aphaCaseRef,
+    record: test,
+    footerNote: "Official tuberculosis testing record for APHA compliance.",
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,7 +190,7 @@ export default function TBTestingPage() {
                         {t.nextTestDueDate && <span className="text-blue-700">Next: {t.nextTestDueDate}</span>}
                       </div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); printTest(t); }}><Printer className="w-4 h-4" /></Button>
                   </div>
                 );
               })}

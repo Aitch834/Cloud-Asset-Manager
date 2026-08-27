@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordReport } from "@/lib/record-report";
 import { AlertTriangle, Plus, Printer } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -29,6 +31,7 @@ export default function BeekeepingPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"apiaries" | "inspections" | "honey" | "analytics">({ page: "beekeeping", farmId, validIds: ["apiaries", "inspections", "honey", "analytics"], defaultTab: "apiaries" });
   const [apiaryId, setApiaryId] = useState<number | null>(null);
   const [apiaryOpen, setApiaryOpen] = useState(false);
@@ -90,6 +93,15 @@ export default function BeekeepingPage() {
   const fh = (field: string, val: any) => setHoneyForm((p: any) => ({ ...p, [field]: val }));
 
   const getApiaryName = (id: number) => apiaries.find(a => a.id === id)?.apiaryName ?? `Apiary ${id}`;
+  const printInspection = (inspection: Inspection) => printRecordReport({
+    title: "Hive Inspection Record",
+    farmName: rawFarmName,
+    authority: inspection.notificationSentToApha ? "APHA" : undefined,
+    authorityReferenceLabel: inspection.notificationSentToApha ? "BeeBase registration" : undefined,
+    authorityReference: inspection.notificationSentToApha ? apiaries.find(a => a.id === inspection.apiaryId)?.beebaseRegistration : undefined,
+    subtitle: `${getApiaryName(inspection.apiaryId)}${inspection.hiveRef ? ` — Hive ${inspection.hiveRef}` : ""}`,
+    record: { ...inspection, apiaryName: getApiaryName(inspection.apiaryId) },
+  });
 
   return (
     <AppLayout title="Beekeeping">
@@ -161,7 +173,7 @@ export default function BeekeepingPage() {
                         {diseased && <Badge className="text-xs bg-amber-100 text-amber-800"><AlertTriangle className="w-3 h-3 mr-1 inline" />{i.diseaseSigns}</Badge>}
                         {i.notificationSentToApha && <Badge className="text-xs bg-blue-100 text-blue-800">APHA notified</Badge>}
                       </div>
-                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); printInspection(i); }}><Printer className="w-4 h-4" /></Button>
                     </div>
                     <div className="text-xs text-muted-foreground space-x-3">
                       {i.inspectedBy && <span>By: {i.inspectedBy}</span>}

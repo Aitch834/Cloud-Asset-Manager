@@ -187,7 +187,6 @@ export default function ThirdPartyGrainOutloadingScreen() {
     try {
       await appendToList(STORAGE_KEYS.THIRD_PARTY_GRAIN_OUTLOADINGS, record);
       await refreshPendingCount();
-      const farmName = currentFarm?.name ?? "Unknown Farm";
       Alert.alert(
         "Outloading Recorded",
         intakeId
@@ -196,11 +195,11 @@ export default function ThirdPartyGrainOutloadingScreen() {
         [
           {
             text: "Print Docket",
-            onPress: async () => { await print(grainOutloadingDocketHtml(record, farmName)); router.back(); },
+            onPress: async () => { await print(grainOutloadingDocketHtml(record, currentFarm)); router.back(); },
           },
           {
             text: "Share PDF",
-            onPress: async () => { await savePdf(grainOutloadingDocketHtml(record, farmName), "Grain Outloading Docket"); router.back(); },
+            onPress: async () => { await savePdf(grainOutloadingDocketHtml(record, currentFarm), "Grain Outloading Docket"); router.back(); },
           },
           { text: "Done", onPress: () => router.back() },
         ],

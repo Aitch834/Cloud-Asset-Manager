@@ -4,6 +4,7 @@ import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persis
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
 import { useQuery } from "@tanstack/react-query";
+import { printElementReport } from "@/lib/print-report";
 import {
   TrendingUp, TrendingDown, Printer, ChevronDown, ChevronUp, Grape, AlertTriangle, Search,
   ArrowUp, ArrowDown, ArrowUpDown,
@@ -969,7 +970,23 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
   const printButton = (
     <button
-      onClick={() => { ensureSeasonPrintStyle(); window.print(); }}
+      onClick={() => printElementReport(document.getElementById(SEASON_PRINT_ID), {
+        title: "Vintage Season Report",
+        subtitle: year == null ? "All vintages" : `Vintage ${year}`,
+        farmName: typeof farmMeta?.name === "string" ? farmMeta.name : undefined,
+        farmAddress: farmMeta?.address ? String(farmMeta.address) : undefined,
+        cphNumber: farmMeta?.cphNumber ? String(farmMeta.cphNumber) : undefined,
+        sbiNumber: farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : undefined,
+        authority: "WineGB",
+        authorityReferenceLabel: "WineGB membership number",
+        authorityReference: farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : null,
+        authorityReferenceRequired: true,
+        additionalReferences: [
+          { label: "APPA reference", value: farmMeta?.appaRef ? String(farmMeta.appaRef) : null },
+          { label: "FSA Wine production reference", value: farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : null },
+        ],
+        landscape: true,
+      })}
       className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex items-center gap-1.5 hover:bg-muted/50"
     >
       <Printer className="w-3.5 h-3.5" />Print / Save PDF
@@ -2256,7 +2273,23 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
             {vintageYears.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <button
-            onClick={() => { ensureEntPrintStyle(); window.print(); }}
+            onClick={() => printElementReport(document.getElementById(ENT_PRINT_ID), {
+              title: "Viticulture Enterprise Report",
+              subtitle: `Vintage ${year}`,
+              farmName: typeof farmMeta?.name === "string" ? farmMeta.name : undefined,
+              farmAddress: farmMeta?.address ? String(farmMeta.address) : undefined,
+              cphNumber: farmMeta?.cphNumber ? String(farmMeta.cphNumber) : undefined,
+              sbiNumber: farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : undefined,
+              authority: "WineGB",
+              authorityReferenceLabel: "WineGB membership number",
+              authorityReference: farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : null,
+              authorityReferenceRequired: true,
+              additionalReferences: [
+                { label: "APPA reference", value: farmMeta?.appaRef ? String(farmMeta.appaRef) : null },
+                { label: "FSA Wine production reference", value: farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : null },
+              ],
+              landscape: true,
+            })}
             className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex items-center gap-1.5 hover:bg-muted/50"
           >
             <Printer className="w-3.5 h-3.5" />Print

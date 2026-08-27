@@ -423,7 +423,20 @@ export default function WasteDisposalPage() {
   };
 
   const handlePrint = () => {
-    printFromRef(printRef, "Waste Disposal Duty of Care Register");
+    const farmName = farmRecord?.name;
+    if (!farmName) {
+      toast({ title: "Holding name required", description: "Add a holding name in Farm Settings before printing this report.", variant: "destructive" });
+      return;
+    }
+    printFromRef(printRef, {
+      title: "Waste Disposal Duty of Care Register",
+      farmName,
+      cphNumber: farmRecord.cphNumber,
+      authority: "Environment Agency",
+      recordCount: reportRecords.length,
+      recordLabel: "waste record",
+      footerNote: "Duty of Care waste records. Retain waste transfer notes for at least two years.",
+    });
   };
 
   const hazardCount = reportRecords.filter(r => r.ewcCode?.includes("*")).length;

@@ -12,6 +12,7 @@ import { useAppStore } from "@/hooks/use-app-store";
 import { useUpload } from "@workspace/object-storage-web";
 import { Plus, Trash2, Pencil, FileText, Upload, Loader2, X, ExternalLink, PoundSterling, AlertTriangle, CheckCircle2, Clock, Info, Eye, ClipboardList, ArrowRight, CalendarDays, Archive, ChevronDown, Leaf, Download, Printer } from "lucide-react";
 import { downloadCsvFile } from "@/lib/csv";
+import { printProReport } from "@/lib/print-report";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useLocation } from "wouter";
 
@@ -465,7 +466,7 @@ function SchemeNameCombobox({ value, onChange, schemeNames, compact = false }: S
   );
 }
 
-function AgriEnvTab({ farmId }: { farmId: number | null }) {
+function AgriEnvTab({ farmId, farm }: { farmId: number | null; farm: Record<string, unknown> | null | undefined }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -844,6 +845,25 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
     downloadCsvFile(exportFilename(), rows);
   }
 
+  const printReport = () => printProReport({
+    title: "Agri-environment Scheme Record",
+    farmName: typeof farm?.name === "string"
+      ? farm.name
+      : typeof farm?.farmName === "string"
+        ? farm.farmName
+        : undefined,
+    farmAddress: farm?.address ? String(farm.address) : undefined,
+    cphNumber: farm?.cphNumber ? String(farm.cphNumber) : undefined,
+    sbiNumber: farm?.sbiNumber ? String(farm.sbiNumber) : undefined,
+    authority: "RPA",
+    authorityReferenceLabel: "RPA customer reference",
+    authorityReference: farm?.rpaCustomerReference ? String(farm.rpaCustomerReference) : null,
+    recordCount: filteredProjects.length,
+    recordLabel: "scheme",
+    landscape: true,
+    tableHtml: document.getElementById("agri-env-print-report")?.innerHTML ?? "",
+  });
+
   return (
     <div>
       {/* Print styles */}
@@ -864,7 +884,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           Record agri-environment scheme agreements — FiPL, SFI, Countryside Stewardship, ELMs, AONB stewardship and any other scheme.
         </p>
         <div className="ae-print-hide" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 16 }}>
-          <Button variant="outline" size="sm" onClick={() => window.print()} disabled={projects.length === 0}
+          <Button variant="outline" size="sm" onClick={printReport} disabled={projects.length === 0}
             style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Printer size={14} /> Print
           </Button>
@@ -1412,7 +1432,7 @@ function AgriEnvTab({ farmId }: { farmId: number | null }) {
           aeExportStatus !== "all" ? (AE_PROJECT_STATUS_CFG[aeExportStatus]?.label ?? aeExportStatus) : null,
         ].filter(Boolean).join(" · ");
         return (
-          <div style={{ display: "none" }} className="ae-print-only">
+          <div id="agri-env-print-report" style={{ display: "none" }} className="ae-print-only">
             <div style={{ fontFamily: "Georgia, serif", color: "#111827", padding: "0 0 24px" }}>
               <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>Agri-environment Scheme Record</h1>
               <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 24 }}>
@@ -1763,6 +1783,18 @@ export default function GrantsPage() {
 
   const { uploadFile } = useUpload();
 
+  const { data: farm } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm", farmId],
+    queryFn: async () => {
+      const response = await fetch(`/api/farms/${farmId}`);
+      if (!response.ok) throw new Error("Failed to load farm details");
+      const result = await response.json();
+      return (result.record ?? result) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data, isLoading } = useQuery({
     queryKey: ["grants", farmId],
     queryFn: async () => {
@@ -2034,7 +2066,24 @@ export default function GrantsPage() {
           </div>
           {mainTab === "capital" && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <Button variant="outline" size="sm" onClick={() => window.print()} disabled={records.length === 0}
+              <Button variant="outline" size="sm" onClick={() => printProReport({
+                title: "Equipment & Capital Grants",
+                farmName: typeof farm?.name === "string"
+                  ? farm.name
+                  : typeof farm?.farmName === "string"
+                    ? farm.farmName
+                    : undefined,
+                farmAddress: farm?.address ? String(farm.address) : undefined,
+                cphNumber: farm?.cphNumber ? String(farm.cphNumber) : undefined,
+                sbiNumber: farm?.sbiNumber ? String(farm.sbiNumber) : undefined,
+                authority: "RPA",
+                authorityReferenceLabel: "RPA customer reference",
+                authorityReference: farm?.rpaCustomerReference ? String(farm.rpaCustomerReference) : null,
+                recordCount: exportFilteredRecords.length,
+                recordLabel: "grant",
+                landscape: true,
+                tableHtml: document.getElementById("capital-grants-print-report")?.innerHTML ?? "",
+              })} disabled={records.length === 0}
                 style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Printer size={14} /> Print
               </Button>
@@ -2402,7 +2451,7 @@ export default function GrantsPage() {
 
         {/* Print-only grants report */}
         {exportFilteredRecords.length > 0 && (
-          <div className="grants-cap-print" style={{ display: "none" }}>
+          <div id="capital-grants-print-report" className="grants-cap-print" style={{ display: "none" }}>
             <div style={{ fontFamily: "Georgia, serif", color: "#111827", padding: "0 0 24px" }}>
               <h1 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>Equipment &amp; Capital Grants</h1>
               <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 24 }}>
@@ -2709,7 +2758,7 @@ export default function GrantsPage() {
         />
       </>}
 
-      {mainTab === "agrienv" && <AgriEnvTab farmId={farmId} />}
+      {mainTab === "agrienv" && <AgriEnvTab farmId={farmId} farm={farm} />}
       </div>
     </AppLayout>
   );

@@ -30,6 +30,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { downloadCsvFile } from "@/lib/csv";
 import { printProReport } from "@/lib/print-report";
 import { ArableFarmSettingsChecklist } from "@/components/ArableFarmSettingsChecklist";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -428,6 +429,7 @@ type Tab = "certification" | "field-conversion" | "seed-sourcing" | "input-log" 
 
 export default function OrganicArablePage() {
   const { farmId } = useAppStore();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const { toast } = useToast();
   const qc = useQueryClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -826,6 +828,8 @@ export default function OrganicArablePage() {
   function printCerts() {
     printProReport({
       title: "Organic Arable — Certification Register",
+      farmName: rawFarmName,
+      authority: "Organic certification",
       recordCount: filteredCerts.length, recordLabel: "certificate",
       footerNote: "Organic Arable Certification Register — UK Retained EU Organic Regulation",
       tableHtml: `<table><thead><tr><th>Certifier</th><th>Certificate No.</th><th>Operator No.</th><th>Status</th><th>Certified</th><th>Renewal Due</th><th>Next Inspection</th><th>Scope</th></tr></thead><tbody>${
@@ -836,6 +840,8 @@ export default function OrganicArablePage() {
   function printConvs() {
     printProReport({
       title: "Organic Arable — Field Conversion Register",
+      farmName: rawFarmName,
+      authority: "Organic certification",
       recordCount: filteredConvs.length, recordLabel: "field",
       footerNote: "Organic Arable Field Conversion Register — UK Retained EU Organic Regulation",
       landscape: false,
@@ -847,6 +853,8 @@ export default function OrganicArablePage() {
   function printSeeds() {
     printProReport({
       title: "Organic Arable — Seed Sourcing Log",
+      farmName: rawFarmName,
+      authority: "Organic certification",
       recordCount: filteredSeeds.length, recordLabel: "record",
       footerNote: "Organic seed sourcing log — derogation records must be retained for inspection",
       tableHtml: `<table><thead><tr><th>Date</th><th>Crop</th><th>Variety</th><th>Seed Type</th><th>Qty (kg)</th><th>Supplier</th><th>PO Ref</th><th>GRN Ref</th><th>Derogation Ref</th><th>Batch/Lot</th></tr></thead><tbody>${
@@ -857,6 +865,8 @@ export default function OrganicArablePage() {
   function printInputs() {
     printProReport({
       title: "Organic Arable — Permitted Input Register",
+      farmName: rawFarmName,
+      authority: "Organic certification",
       recordCount: filteredInputs.length, recordLabel: "application",
       footerNote: "Organic Arable Input Register — Annex II permitted inputs only (UK Retained EU Reg 2018/848)",
       tableHtml: `<table><thead><tr><th>Date</th><th>Product / Substance</th><th>Type</th><th>Status</th><th>Field</th><th>Qty Applied</th><th>Area (ha)</th><th>Certifier Approval</th></tr></thead><tbody>${
@@ -867,6 +877,8 @@ export default function OrganicArablePage() {
   function printHarvests() {
     printProReport({
       title: "Organic Arable — Harvest Declarations",
+      farmName: rawFarmName,
+      authority: "Organic certification",
       recordCount: filteredHarvests.length, recordLabel: "declaration",
       footerNote: "Organic Arable Harvest Declarations — retain for 5 years and make available at certifier inspection",
       tableHtml: `<table><thead><tr><th>Harvest Date</th><th>Crop</th><th>Variety</th><th>Field</th><th>Yield (t)</th><th>Status</th><th>Buyer</th><th>Sale Date</th><th>Price (£/t)</th><th>Premium %</th><th>Decl. Ref</th></tr></thead><tbody>${

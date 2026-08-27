@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
+import { printElementReport } from "@/lib/print-report";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STRAW_TYPES = ["Wheat Straw", "Barley Straw", "Oat Straw", "Oilseed Rape Straw"];
@@ -1122,9 +1123,12 @@ function InventoryDialog({ open, onClose, farmId, editRow, existingInventory, ba
 
 // ─── Straw Sale Invoice Print ─────────────────────────────────────────────────
 function StrawSaleInvoicePrint({ sale, farmId, onClose }: { sale: any; farmId: number; onClose: () => void }) {
+  const invoiceRef = React.useRef<HTMLDivElement>(null);
   const { data: farm } = useQuery<any>({
     queryKey: ["farm-for-straw-invoice", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(response => response.record ?? response),
     staleTime: 60_000,
   });
 
@@ -1153,7 +1157,7 @@ function StrawSaleInvoicePrint({ sale, farmId, onClose }: { sale: any; farmId: n
             <Printer size={16} />Invoice Preview — {sale.invoiceRef}
           </DialogTitle>
         </DialogHeader>
-        <div className="p-6 border rounded-lg bg-white text-sm">
+        <div ref={invoiceRef} className="p-6 border rounded-lg bg-white text-sm">
           <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-800">
             <div>
               <p className="text-xl font-bold text-gray-900">{farm?.name || "—"}</p>
@@ -1230,7 +1234,18 @@ function StrawSaleInvoicePrint({ sale, farmId, onClose }: { sale: any; farmId: n
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={() => window.print()}>
+          <Button onClick={() => printElementReport(invoiceRef.current, {
+            title: `Straw Sale Invoice ${sale.invoiceRef ?? ""}`,
+            farmName: farm?.name,
+            farmAddress: farm?.address,
+            contactPhone: farm?.phone,
+            cphNumber: farm?.cphNumber,
+            sbiNumber: farm?.sbiNumber,
+            redTractorId: farm?.redTractorId,
+            recordCount: 1,
+            recordLabel: "invoice",
+            landscape: false,
+          })}>
             <Printer size={14} className="mr-1.5" />Print / Save as PDF
           </Button>
         </DialogFooter>
@@ -2088,10 +2103,17 @@ export default function StrawManagementPage() {
 
   const { data: farmDetail } = useQuery<any>({
     queryKey: ["farm-detail", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" }).then(r => r.ok ? r.json() : null),
+    queryFn: () => fetch(`/api/farms/${farmId}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(response => response?.record ?? response),
     enabled: !!farmId, staleTime: 300_000,
   });
-  const farmName: string = farmDetail?.name ?? farmDetail?.farmName ?? `Farm ${farmId}`;
+  const rawFarmName = typeof farmDetail?.name === "string"
+    ? farmDetail.name
+    : typeof farmDetail?.farmName === "string"
+      ? farmDetail.farmName
+      : undefined;
+  const farmName = rawFarmName ?? `Farm ${farmId}`;
 
   const { data: balingOps = [], isLoading: loadBaling } = useQuery<any[]>({
     queryKey: ["straw-baling-ops", farmId],
@@ -3068,7 +3090,7 @@ export default function StrawManagementPage() {
 
       {/* ── Batch Print Dialog ── */}
       {printDlg.open && printDlg.row && (
-        <BatchPrintDialog open={printDlg.open} onClose={() => setPrintDlg({ open: false })} batch={printDlg.row} farmName={farmName} />
+        <BatchPrintDialog open={printDlg.open} onClose={() => setPrintDlg({ open: false })} batch={printDlg.row} farmName={farmName} rawFarmName={rawFarmName} />
       )}
 
       {/* ── Hot Works Permit Dialog ── */}
@@ -3294,40 +3316,22 @@ function FusariumKitStockSection({ farmId }: { farmId: number }) {
 }
 
 // ─── Batch Print Dialog ───────────────────────────────────────────────────────
-function BatchPrintDialog({ open, onClose, batch, farmName }: {
-  open: boolean; onClose: () => void; batch: any; farmName: string;
+function BatchPrintDialog({ open, onClose, batch, farmName, rawFarmName }: {
+  open: boolean; onClose: () => void; batch: any; farmName: string; rawFarmName: string | undefined;
 }) {
   const printDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const printableFarmName = rawFarmName?.trim() || "Holding name not configured";
 
   const handlePrint = () => {
     const el = document.getElementById("batch-print-content");
     if (!el) return;
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { window.print(); return; }
-    win.document.write(`<!DOCTYPE html><html><head><title>Batch Sheet — ${batch.batchRef || `#${batch.id}`}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #111; padding: 20mm 15mm; }
-  h1 { font-size: 18pt; margin-bottom: 2mm; }
-  h2 { font-size: 11pt; font-weight: 700; color: #166534; border-bottom: 1px solid #166534; padding-bottom: 1mm; margin: 5mm 0 2mm; text-transform: uppercase; letter-spacing: 0.04em; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 8mm; margin-bottom: 2mm; }
-  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1mm 8mm; margin-bottom: 2mm; }
-  .row { display: flex; flex-direction: column; padding: 1mm 0; }
-  .label { font-size: 8pt; color: #555; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 0.5mm; }
-  .value { font-size: 11pt; }
-  .badge { display: inline-block; border-radius: 3px; padding: 1px 5px; font-size: 9pt; font-weight: 700; }
-  .badge-green { background: #dcfce7; color: #166534; }
-  .badge-amber { background: #fef3c7; color: #92400e; }
-  .badge-red { background: #fee2e2; color: #991b1b; }
-  .header-bar { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #166534; padding-bottom: 3mm; margin-bottom: 5mm; }
-  .notes { border: 1px solid #ccc; padding: 3mm; min-height: 15mm; border-radius: 3px; font-size: 10pt; margin-top: 1mm; }
-  .footer { margin-top: 8mm; font-size: 8pt; color: #888; border-top: 1px solid #ddd; padding-top: 2mm; display: flex; justify-content: space-between; }
-  .sig-box { border: 1px solid #aaa; height: 15mm; margin-top: 1mm; border-radius: 3px; }
-  @media print { body { padding: 10mm; } }
-</style></head><body>${el.innerHTML}</body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 400);
+    printElementReport(el, {
+      title: `Straw Batch Sheet — ${batch.batchRef || `#${batch.id}`}`,
+      farmName: rawFarmName,
+      recordCount: 1,
+      recordLabel: "batch",
+      landscape: false,
+    });
   };
 
   const riskBadge = (level: string | null) => {
@@ -3343,7 +3347,7 @@ function BatchPrintDialog({ open, onClose, batch, farmName }: {
     <div class="header-bar">
       <div>
         <h1>Straw Batch Sheet</h1>
-        <div style="font-size:10pt;color:#555;">${farmName}</div>
+        <div style="font-size:10pt;color:#555;">${printableFarmName}</div>
       </div>
       <div style="text-align:right;font-size:9pt;color:#555;">
         <div>Printed: ${printDate}</div>
@@ -3414,7 +3418,7 @@ function BatchPrintDialog({ open, onClose, batch, farmName }: {
 
     <div class="footer">
       <span>BDE Farm Trac — Straw Management Module</span>
-      <span>${batch.batchRef || `Batch #${batch.id}`} | ${farmName} | ${printDate}</span>
+      <span>${batch.batchRef || `Batch #${batch.id}`} | ${printableFarmName} | ${printDate}</span>
     </div>`;
 
   return (

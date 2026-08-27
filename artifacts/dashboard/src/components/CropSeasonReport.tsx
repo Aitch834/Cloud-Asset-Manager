@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
+import { printElementReport } from "@/lib/print-report";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -277,25 +278,6 @@ const EmptySection = ({ msg }: { msg: string }) => (
   <p className="text-xs text-gray-400 italic py-3">{msg}</p>
 );
 
-// ── Print styles (injected once) ──────────────────────────────────────────────
-
-const PRINT_STYLE_ID = "crop-season-report-print";
-function ensurePrintStyle() {
-  if (document.getElementById(PRINT_STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = PRINT_STYLE_ID;
-  style.textContent = `
-    @media print {
-      body > *:not(#crop-season-report-print-root) { display: none !important; }
-      #crop-season-report-print-root { display: block !important; position: fixed; inset: 0; overflow: auto; background: white; z-index: 99999; padding: 24px; }
-      .no-print { display: none !important; }
-      table { page-break-inside: avoid; }
-      .report-section { page-break-inside: avoid; margin-bottom: 20px; }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 interface Props {
@@ -356,17 +338,33 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
     staleTime: 5 * 60 * 1000,
   });
 
-  React.useEffect(() => { ensurePrintStyle(); }, []);
+  const { data: farm } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm", safeFarmId],
+    queryFn: () => fetch(`/api/farms/${safeFarmId}`).then(async r => {
+      if (!r.ok) throw new Error("Failed to load farm details");
+      const result = await r.json();
+      return (result.record ?? result) as Record<string, unknown>;
+    }),
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handlePrint = () => {
-    const root = document.getElementById("crop-season-report-root");
-    if (root) {
-      const clone = root.cloneNode(true) as HTMLElement;
-      clone.id = "crop-season-report-print-root";
-      document.body.appendChild(clone);
-      window.print();
-      document.body.removeChild(clone);
-    }
+    if (!data) return;
+    printElementReport(document.getElementById("crop-season-report-root"), {
+      title: "Season Production Report",
+      subtitle: `${data.assignment.fieldName} · ${data.assignment.cropName}${data.assignment.year ? ` · ${data.assignment.year} season` : ""}`,
+      farmName: typeof farm?.name === "string"
+        ? farm.name
+        : typeof farm?.farmName === "string"
+          ? farm.farmName
+          : undefined,
+      farmAddress: farm?.address ? String(farm.address) : undefined,
+      cphNumber: farm?.cphNumber ? String(farm.cphNumber) : undefined,
+      sbiNumber: farm?.sbiNumber ? String(farm.sbiNumber) : undefined,
+      authority: data.assignment.isNvz ? "NVZ" : undefined,
+      landscape: true,
+    });
   };
 
   const open = assignmentId !== null;

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { printRecordReport } from "@/lib/record-report";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecordAttachments } from "@/components/ui/RecordAttachments";
 import {
@@ -120,9 +121,12 @@ export default function AHWRPage() {
   });
 
   // Farm info — for SBI auto-population
-  const farmQ = useQuery<{ sbiNumber?: string | null; name?: string }>({
+  const farmQ = useQuery<{
+    sbiNumber?: string | null; name?: string; address?: string | null; phone?: string | null;
+    cphNumber?: string | null; redTractorId?: string | null;
+  }>({
     queryKey: ["farms", farmId, "info"],
-    queryFn: () => api.get(`/farms/${farmId}`).then(r => r.farm ?? r),
+    queryFn: () => api.get(`/farms/${farmId}`).then(response => response.record ?? response),
     enabled: !!farmId,
   });
 
@@ -284,6 +288,24 @@ export default function AHWRPage() {
   const outcomeLabel = (o: string | null | undefined) =>
     OUTCOMES.find(x => x.key === o)?.label ?? "";
 
+  function printReview(record: AHWR) {
+    printRecordReport({
+      title: "Annual Health & Welfare Review",
+      subtitle: `${record.species} review — ${record.reviewDate}`,
+      farmName: farmQ.data?.name ?? "",
+      farmAddress: farmQ.data?.address ?? undefined,
+      contactPhone: farmQ.data?.phone ?? undefined,
+      cphNumber: farmQ.data?.cphNumber ?? undefined,
+      sbiNumber: farmQ.data?.sbiNumber ?? undefined,
+      redTractorId: farmQ.data?.redTractorId ?? undefined,
+      authority: "SFI / ELM",
+      authorityReferenceLabel: "AHWR Reference",
+      authorityReference: record.ahwrRef,
+      authorityReferenceRequired: true,
+      record,
+    });
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -362,7 +384,7 @@ export default function AHWRPage() {
                           <Badge className="bg-amber-100 text-amber-800 text-xs">Overdue</Badge>
                         )}
                       </div>
-                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}>
+                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); printReview(r); }}>
                         <Printer className="w-4 h-4" />
                       </Button>
                     </div>

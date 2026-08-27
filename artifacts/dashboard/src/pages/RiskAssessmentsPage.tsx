@@ -16,10 +16,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { ShieldAlert, Plus, Search, Pencil, Trash2, AlertTriangle, Clock, CheckCircle2, ShieldCheck, FlaskConical, Zap, ChevronDown, ChevronRight, Flame, Loader2, Paperclip, File as FileIcon, Printer, ClipboardList, QrCode, Eye } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { BuyerCombobox } from "@/components/sales/BuyerCombobox";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import QRCode from "qrcode";
+import { printHtml } from "@/lib/utils";
 
 type Tab = "risk" | "coshh" | "pat" | "fire";
 const RISK_ASSESSMENTS_TAB_IDS: Tab[] = ["risk", "coshh", "pat", "fire"];
@@ -132,6 +133,13 @@ const fmt = (d: string | null | undefined) => {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
+
+const escapeHtml = (value: unknown) => String(value ?? "—")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+export const buildPatEquipmentQrPayload = (farmId: number, assetNumber: string) =>
+  `BDE:F${farmId}:${assetNumber}`;
 
 const isOverdue = (reviewDate: string | null) => {
   if (!reviewDate) return false;
@@ -919,19 +927,54 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
   const [testingEqId, setTestingEqId] = useState<number | null>(null);
   const [testForm, setTestForm] = useState<typeof EMPTY_PAT_TEST>(EMPTY_PAT_TEST);
   const [deleteTestId, setDeleteTestId] = useState<{ testId: number; eqId: number } | null>(null);
-  const [printLabelEq, setPrintLabelEq] = useState<PatEquipment | null>(null);
   const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
   const autoOpened = useRef(false);
 
-  function handlePrintLabel(eq: PatEquipment) {
-    const el = document.getElementById("pat-label-print-area");
-    if (!el) return;
-    const style = document.createElement("style");
-    style.id = "__pat-print-style";
-    style.textContent = `@media print { body > *:not(#pat-label-print-area) { display: none !important; } #pat-label-print-area { display: flex !important; position: fixed; inset: 0; background: #fff; align-items: center; justify-content: center; z-index: 99999; } }`;
-    document.head.appendChild(style);
-    setPrintLabelEq(eq);
-    setTimeout(() => { window.print(); document.head.removeChild(style); setPrintLabelEq(null); }, 80);
+  async function handlePrintLabel(eq: PatEquipment) {
+    if (!eq.assetNumber) return;
+
+    const payload = buildPatEquipmentQrPayload(farmId, eq.assetNumber);
+    try {
+      const qrDataUrl = await QRCode.toDataURL(payload, {
+        width: 280,
+        margin: 1,
+        errorCorrectionLevel: "M",
+        color: { dark: "#1e1e2e", light: "#ffffff" },
+      });
+      const equipmentIdentity = [eq.make, eq.model].filter(Boolean).join(" ");
+      const serialNumber = eq.serialNumber || "—";
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>PAT label — ${escapeHtml(eq.assetNumber)}</title>
+<style>
+  @page { size: 70mm 92mm; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { width: 70mm; height: 92mm; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1e1e2e; }
+  .label { width: 70mm; height: 92mm; padding: 4mm; border: 0.7mm solid #7c3aed; border-radius: 3mm; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+  .heading { color: #6d28d9; font-size: 7pt; font-weight: 700; letter-spacing: .16em; text-align: center; text-transform: uppercase; }
+  .qr { width: 42mm; height: 42mm; margin: 2.5mm 0 1.5mm; image-rendering: pixelated; }
+  .asset-label { color: #6b7280; font-size: 6.5pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .asset-number { color: #1e1e2e; font-family: "Courier New", monospace; font-size: 14pt; font-weight: 700; letter-spacing: .08em; line-height: 1.2; text-align: center; word-break: break-word; }
+  .equipment { margin-top: 1.5mm; color: #1e1e2e; font-size: 9pt; font-weight: 700; line-height: 1.2; text-align: center; word-break: break-word; }
+  .identity { margin-top: .75mm; color: #4b5563; font-size: 7pt; line-height: 1.2; text-align: center; word-break: break-word; }
+  .instruction { margin-top: auto; padding-top: 1.5mm; border-top: .25mm solid #ddd6fe; color: #6b7280; font-size: 6.5pt; line-height: 1.25; text-align: center; }
+</style></head><body>
+  <main class="label">
+    <div class="heading">BDE Farm Trac · PAT Equipment</div>
+    <img class="qr" src="${escapeHtml(qrDataUrl)}" alt="QR code for asset ${escapeHtml(eq.assetNumber)}">
+    <div class="asset-label">Asset number</div>
+    <div class="asset-number">${escapeHtml(eq.assetNumber)}</div>
+    <div class="equipment">${escapeHtml(eq.itemName)}</div>
+    ${equipmentIdentity ? `<div class="identity">${escapeHtml(equipmentIdentity)}</div>` : ""}
+    <div class="identity">Serial: ${escapeHtml(serialNumber)}</div>
+    <div class="instruction">Scan with BDE Farm Trac app to log PAT test</div>
+  </main>
+</body></html>`;
+
+      printHtml(html, `pat-label-${eq.assetNumber}.html`);
+    } catch {
+      toast({ title: "Could not generate PAT label", variant: "destructive" });
+    }
   }
 
   const { data, isLoading } = useQuery<{ records: PatEquipment[] }>({
@@ -1434,21 +1477,6 @@ function PatTestingTab({ farmId, openId }: { farmId: number; openId?: number | n
         </DialogContent>
       </Dialog>
 
-      {/* Hidden print-area — shown only during window.print() via injected @media print style */}
-      <div id="pat-label-print-area" style={{ display: "none" }}>
-        {printLabelEq && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, border: "2.5px solid #7c3aed", borderRadius: 14, background: "#fff", minWidth: 210 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: "#7c3aed", textTransform: "uppercase" as const, marginBottom: 10 }}>BDE Farm Trac — PAT Equipment</div>
-            <QRCodeSVG value={`BDE:F${farmId}:${printLabelEq.assetNumber}`} size={160} level="M" includeMargin={true} />
-            <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, marginTop: 10, color: "#1e1e2e" }}>{printLabelEq.assetNumber}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#1e1e2e", marginTop: 5, textAlign: "center" as const }}>{printLabelEq.itemName}</div>
-            {(printLabelEq.make || printLabelEq.model) && (
-              <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>{[printLabelEq.make, printLabelEq.model].filter(Boolean).join(" ")}</div>
-            )}
-            <div style={{ fontSize: 9, color: "#999", marginTop: 8, textAlign: "center" as const }}>Scan with BDE Farm Trac app to log PAT test</div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

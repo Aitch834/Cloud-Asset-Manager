@@ -11,6 +11,7 @@ import {
 } from "@/lib/storage";
 import { syncRefData } from "@/lib/refCache";
 import type { Farm, UserProfile } from "@/lib/types";
+import { mapApiFarm, type ApiFarm } from "@/lib/utils/mapApiFarm";
 
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -61,20 +62,8 @@ async function fetchFarmsFromApi(token: string | null): Promise<Farm[] | null> {
       headers: buildApiHeaders(token),
     });
     if (!res.ok) return null;
-    const data = await res.json() as { farms?: Array<{ id: number; name: string; tenantSlug: string; sectorArable: boolean; sectorBeef: boolean; sectorDairy: boolean; sectorPigs: boolean; sectorPoultry: boolean; sectorViticulture: boolean; idleBarrelDays?: number | null; approachingNeutralFills?: number | null; }> };
-    return (data.farms ?? []).map((f) => ({
-      id: String(f.id),
-      name: f.name,
-      tenantSlug: f.tenantSlug,
-      sectorArable: f.sectorArable,
-      sectorBeef: f.sectorBeef,
-      sectorDairy: f.sectorDairy,
-      sectorPigs: f.sectorPigs,
-      sectorPoultry: f.sectorPoultry,
-      sectorViticulture: f.sectorViticulture ?? false,
-      idleBarrelDays: f.idleBarrelDays ?? null,
-      approachingNeutralFills: f.approachingNeutralFills ?? null,
-    }));
+    const data = await res.json() as { farms?: ApiFarm[] };
+    return (data.farms ?? []).map(mapApiFarm);
   } catch {
     return null;
   }

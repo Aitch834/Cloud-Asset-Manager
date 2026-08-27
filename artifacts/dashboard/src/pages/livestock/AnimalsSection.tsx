@@ -25,7 +25,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport, escapeHtml } from "@/lib/print-report";
+import { useFarmName, useRawFarmName } from "@/hooks/use-farm-name";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -123,9 +124,10 @@ function AnimalQuickViewDialog({ animal, herds, farmId, onClose, onEdit, onProfi
 }
 
 // ─── Animal Profile Dialog ─────────────────────────────────────────────────────
-function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
-  animal: Animal; farmId: number; onClose: () => void; onEdit: (a: Animal) => void;
+function AnimalProfileDialog({ animal, farmId, farmName, onClose, onEdit }: {
+  animal: Animal; farmId: number; farmName: string; onClose: () => void; onEdit: (a: Animal) => void;
 }) {
+  const rawFarmName = useRawFarmName(farmId);
   const [tab, setTab] = useState<"overview" | "medicines" | "vaccinations" | "movements" | "breeding" | "health" | "tb-tests" | "documents">("overview");
 
   const { data, isLoading } = useQuery<AnimalProfile>({
@@ -212,6 +214,7 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
     const d = data;
     const a = animal;
     const fmtD = (s: string | null | undefined) => s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+    const e = escapeHtml;
 
     const overviewRows = [
       ["UK Ear Tag", a.earTagNumber || "—"], ["EID Transponder", a.eidNumber || "—"],
@@ -221,36 +224,38 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
       ["Arrived on Holding", fmtD(a.acquisitionDate)], ["Acquired From", a.acquisitionSource || "—"],
       ["Current Status", ANIMAL_STATUS_LABELS[a.status] ?? a.status],
     ];
-    const overviewHtml = `<div class="section-head">Animal Overview</div><table><tbody>${overviewRows.map(([k, v]) => `<tr><td style="font-weight:600;width:35%">${k}</td><td>${v}</td></tr>`).join("")}${a.notes ? `<tr><td style="font-weight:600">Notes</td><td>${a.notes}</td></tr>` : ""}</tbody></table>`;
+    const overviewHtml = `<div class="section-head">Animal Overview</div><table><tbody>${overviewRows.map(([k, v]) => `<tr><td style="font-weight:600;width:35%">${e(k)}</td><td>${e(v)}</td></tr>`).join("")}${a.notes ? `<tr><td style="font-weight:600">Notes</td><td>${e(a.notes)}</td></tr>` : ""}</tbody></table>`;
 
-    const medicinesHtml = d.medicines.length === 0 ? "" : `<div class="section-head">Medicine Records (${d.medicines.length})</div><table><thead><tr><th>Date</th><th>Medicine</th><th>Dosage</th><th>Route</th><th>Administered By</th><th>Vet</th><th>Withdrawal Ends</th><th>Reason</th><th>Type</th></tr></thead><tbody>${d.medicines.map(m => `<tr><td>${fmtD(m.administeredDate)}</td><td>${m.medicineName}</td><td>${m.dosage || "—"}</td><td>${m.administrationRoute || "—"}</td><td>${m.administeredBy || "—"}</td><td>${m.vetName || "—"}</td><td>${fmtD(m.withdrawalEndDate)}</td><td>${m.reason || "—"}</td><td>${m._source === "herd_treatment" ? (m.treatmentScope === "group" ? "Group" : "Herd") : "Individual"}</td></tr>`).join("")}</tbody></table>`;
+    const medicinesHtml = d.medicines.length === 0 ? "" : `<div class="section-head">Medicine Records (${e(d.medicines.length)})</div><table><thead><tr><th>Date</th><th>Medicine</th><th>Dosage</th><th>Route</th><th>Administered By</th><th>Vet</th><th>Withdrawal Ends</th><th>Reason</th><th>Type</th></tr></thead><tbody>${d.medicines.map(m => `<tr><td>${e(fmtD(m.administeredDate))}</td><td>${e(m.medicineName)}</td><td>${e(m.dosage || "—")}</td><td>${e(m.administrationRoute || "—")}</td><td>${e(m.administeredBy || "—")}</td><td>${e(m.vetName || "—")}</td><td>${e(fmtD(m.withdrawalEndDate))}</td><td>${e(m.reason || "—")}</td><td>${m._source === "herd_treatment" ? (m.treatmentScope === "group" ? "Group" : "Herd") : "Individual"}</td></tr>`).join("")}</tbody></table>`;
 
-    const movementsHtml = d.movements.length === 0 ? "" : `<div class="section-head">Movement History (${d.movements.length})</div><table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Licence No.</th><th>BCMS Ref</th><th>Reason</th></tr></thead><tbody>${d.movements.map(m => `<tr><td>${fmtD(m.movementDate)}</td><td>${MOVEMENT_TYPE_LABELS[m.movementType] ?? m.movementType}</td><td>${m.fromLocation || "—"}</td><td>${m.toLocation || "—"}</td><td>${m.licenceNumber || "—"}</td><td>${m.bcmsSubmissionRef || "—"}</td><td>${m.reason || "—"}</td></tr>`).join("")}</tbody></table>`;
+    const movementsHtml = d.movements.length === 0 ? "" : `<div class="section-head">Movement History (${e(d.movements.length)})</div><table><thead><tr><th>Date</th><th>Type</th><th>From</th><th>To</th><th>Licence No.</th><th>BCMS Ref</th><th>Reason</th></tr></thead><tbody>${d.movements.map(m => `<tr><td>${e(fmtD(m.movementDate))}</td><td>${e(MOVEMENT_TYPE_LABELS[m.movementType] ?? m.movementType)}</td><td>${e(m.fromLocation || "—")}</td><td>${e(m.toLocation || "—")}</td><td>${e(m.licenceNumber || "—")}</td><td>${e(m.bcmsSubmissionRef || "—")}</td><td>${e(m.reason || "—")}</td></tr>`).join("")}</tbody></table>`;
 
-    const tbHtml = animalTbHistory.length === 0 ? "" : `<div class="section-head">TB Test History (${animalTbHistory.length})</div><table><thead><tr><th>Injection Date</th><th>Reading Date</th><th>Test Type</th><th>Herd / Flock</th><th>Testing Vet</th><th>Stage</th><th>Result</th><th>Reactors</th><th>Inconc.</th></tr></thead><tbody>${animalTbHistory.map(t => `<tr><td>${fmtD(t.testDate)}</td><td>${fmtD(t.readingDate)}</td><td>${t.testType.replace(/-/g, " ")}</td><td>${t.herdFlockRef || "—"}</td><td>${t.testingVet || "—"}</td><td>${t.readingDate ? "Complete" : "Reading pending"}</td><td>${t.readingDate ? t.outcome.toUpperCase() : "Awaiting"}</td><td>${t.reactors}</td><td>${t.inconclusives}</td></tr>`).join("")}</tbody></table>`;
+    const tbHtml = animalTbHistory.length === 0 ? "" : `<div class="section-head">TB Test History (${e(animalTbHistory.length)})</div><table><thead><tr><th>Injection Date</th><th>Reading Date</th><th>Test Type</th><th>Herd / Flock</th><th>Testing Vet</th><th>Stage</th><th>Result</th><th>Reactors</th><th>Inconc.</th></tr></thead><tbody>${animalTbHistory.map(t => `<tr><td>${e(fmtD(t.testDate))}</td><td>${e(fmtD(t.readingDate))}</td><td>${e(t.testType.replace(/-/g, " "))}</td><td>${e(t.herdFlockRef || "—")}</td><td>${e(t.testingVet || "—")}</td><td>${t.readingDate ? "Complete" : "Reading pending"}</td><td>${t.readingDate ? e(t.outcome.toUpperCase()) : "Awaiting"}</td><td>${e(t.reactors)}</td><td>${e(t.inconclusives)}</td></tr>`).join("")}</tbody></table>`;
 
-    const healthHtml = !d.diseaseIncidents || d.diseaseIncidents.length === 0 ? "" : `<div class="section-head">Health & Disease Incidents (${d.diseaseIncidents.length})</div><table><thead><tr><th>Date</th><th>Type</th><th>Status</th><th>Symptoms</th><th>Diagnosis</th><th>Vet</th><th>Treatment</th></tr></thead><tbody>${d.diseaseIncidents.map(inc => `<tr><td>${fmtD(inc.incidentDate)}</td><td style="text-transform:capitalize">${inc.incidentType?.replace(/_/g, " ") || "—"}</td><td style="text-transform:capitalize">${inc.status}${inc._involvedAs === "mortality" ? " (Mortality)" : ""}</td><td>${inc.symptomsObserved || "—"}</td><td>${inc.confirmedDiagnosis || inc.suspectedDiagnosis || "—"}</td><td>${inc.vetName || (inc.vetCalled ? "Yes" : "No")}</td><td>${inc.treatmentGiven || "—"}</td></tr>`).join("")}</tbody></table>`;
+    const healthHtml = !d.diseaseIncidents || d.diseaseIncidents.length === 0 ? "" : `<div class="section-head">Health & Disease Incidents (${e(d.diseaseIncidents.length)})</div><table><thead><tr><th>Date</th><th>Type</th><th>Status</th><th>Symptoms</th><th>Diagnosis</th><th>Vet</th><th>Treatment</th></tr></thead><tbody>${d.diseaseIncidents.map(inc => `<tr><td>${e(fmtD(inc.incidentDate))}</td><td style="text-transform:capitalize">${e(inc.incidentType?.replace(/_/g, " ") || "—")}</td><td style="text-transform:capitalize">${e(inc.status)}${inc._involvedAs === "mortality" ? " (Mortality)" : ""}</td><td>${e(inc.symptomsObserved || "—")}</td><td>${e(inc.confirmedDiagnosis || inc.suspectedDiagnosis || "—")}</td><td>${e(inc.vetName || (inc.vetCalled ? "Yes" : "No"))}</td><td>${e(inc.treatmentGiven || "—")}</td></tr>`).join("")}</tbody></table>`;
 
-    const calvingHtml = showBreeding && d.calvings.length > 0 ? `<div class="section-head">Calving Records (${d.calvings.length})</div><table><thead><tr><th>Date</th><th>Calves</th><th>Calf Sex</th><th>Calf Tag</th><th>Outcome</th><th>Ease Score</th><th>Assistance</th><th>Vet</th></tr></thead><tbody>${d.calvings.map(c => `<tr><td>${fmtD(c.calvingDate)}</td><td>${c.numberOfCalves}</td><td>${c.calfSex || "—"}</td><td>${c.calfEarTag || "—"}</td><td>${c.calfOutcome || "—"}</td><td>${c.calvingEaseScore ?? "—"}</td><td>${c.assistanceRequired ? "Yes" : "No"}</td><td>${c.vetAttended ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table>` : "";
+    const calvingHtml = showBreeding && d.calvings.length > 0 ? `<div class="section-head">Calving Records (${e(d.calvings.length)})</div><table><thead><tr><th>Date</th><th>Calves</th><th>Calf Sex</th><th>Calf Tag</th><th>Outcome</th><th>Ease Score</th><th>Assistance</th><th>Vet</th></tr></thead><tbody>${d.calvings.map(c => `<tr><td>${e(fmtD(c.calvingDate))}</td><td>${e(c.numberOfCalves)}</td><td>${e(c.calfSex || "—")}</td><td>${e(c.calfEarTag || "—")}</td><td>${e(c.calfOutcome || "—")}</td><td>${e(c.calvingEaseScore ?? "—")}</td><td>${c.assistanceRequired ? "Yes" : "No"}</td><td>${c.vetAttended ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table>` : "";
 
     const mortalityHtml = d.mortality ? `<div class="section-head">Mortality &amp; Disposal Record</div><table><tbody>
-      <tr><td style="font-weight:600;width:35%">Date of Death</td><td>${fmtD(d.mortality.dateOfDeath)}</td></tr>
-      <tr><td style="font-weight:600">Cause of Death</td><td>${d.mortality.causeOfDeath}</td></tr>
-      <tr><td style="font-weight:600">Disposal Method</td><td>${d.mortality.disposalMethod}</td></tr>
-      ${d.mortality.disposalOperator ? `<tr><td style="font-weight:600">Disposal Operator</td><td>${d.mortality.disposalOperator}</td></tr>` : ""}
-      ${d.mortality.disposalRef ? `<tr><td style="font-weight:600">Disposal Reference</td><td>${d.mortality.disposalRef}</td></tr>` : ""}
-      ${d.mortality.contractorName ? `<tr><td style="font-weight:600">Collection Contractor</td><td>${d.mortality.contractorName}</td></tr>` : ""}
-      ${d.mortality.contractorApprovalNumber ? `<tr><td style="font-weight:600">APHA Approval No.</td><td>${d.mortality.contractorApprovalNumber}</td></tr>` : ""}
-      ${d.mortality.contractorOperatorType ? `<tr><td style="font-weight:600">Operator Type</td><td>${d.mortality.contractorOperatorType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td></tr>` : ""}
-      <tr><td style="font-weight:600">Vet Attended</td><td>${d.mortality.veterinaryAttended ? (d.mortality.vetName ? `Yes — ${d.mortality.vetName}` : "Yes") : "No"}</td></tr>
-      <tr><td style="font-weight:600">Post-Mortem</td><td>${d.mortality.postMortemCarriedOut ? (d.mortality.postMortemFindings ? `Yes — ${d.mortality.postMortemFindings}` : "Yes") : "No"}</td></tr>
-      <tr><td style="font-weight:600">BCMS Notified</td><td>${d.mortality.bcmsNotified ? (d.mortality.bcmsNotificationRef ? `Yes — Ref: ${d.mortality.bcmsNotificationRef}` : "Yes") : "No"}</td></tr>
-      ${d.mortality.notes ? `<tr><td style="font-weight:600">Notes</td><td>${d.mortality.notes}</td></tr>` : ""}
+      <tr><td style="font-weight:600;width:35%">Date of Death</td><td>${e(fmtD(d.mortality.dateOfDeath))}</td></tr>
+      <tr><td style="font-weight:600">Cause of Death</td><td>${e(d.mortality.causeOfDeath)}</td></tr>
+      <tr><td style="font-weight:600">Disposal Method</td><td>${e(d.mortality.disposalMethod)}</td></tr>
+      ${d.mortality.disposalOperator ? `<tr><td style="font-weight:600">Disposal Operator</td><td>${e(d.mortality.disposalOperator)}</td></tr>` : ""}
+      ${d.mortality.disposalRef ? `<tr><td style="font-weight:600">Disposal Reference</td><td>${e(d.mortality.disposalRef)}</td></tr>` : ""}
+      ${d.mortality.contractorName ? `<tr><td style="font-weight:600">Collection Contractor</td><td>${e(d.mortality.contractorName)}</td></tr>` : ""}
+      ${d.mortality.contractorApprovalNumber ? `<tr><td style="font-weight:600">APHA Approval No.</td><td>${e(d.mortality.contractorApprovalNumber)}</td></tr>` : ""}
+      ${d.mortality.contractorOperatorType ? `<tr><td style="font-weight:600">Operator Type</td><td>${e(d.mortality.contractorOperatorType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()))}</td></tr>` : ""}
+      <tr><td style="font-weight:600">Vet Attended</td><td>${e(d.mortality.veterinaryAttended ? (d.mortality.vetName ? `Yes — ${d.mortality.vetName}` : "Yes") : "No")}</td></tr>
+      <tr><td style="font-weight:600">Post-Mortem</td><td>${e(d.mortality.postMortemCarriedOut ? (d.mortality.postMortemFindings ? `Yes — ${d.mortality.postMortemFindings}` : "Yes") : "No")}</td></tr>
+      <tr><td style="font-weight:600">BCMS Notified</td><td>${e(d.mortality.bcmsNotified ? (d.mortality.bcmsNotificationRef ? `Yes — Ref: ${d.mortality.bcmsNotificationRef}` : "Yes") : "No")}</td></tr>
+      ${d.mortality.notes ? `<tr><td style="font-weight:600">Notes</td><td>${e(d.mortality.notes)}</td></tr>` : ""}
     </tbody></table>` : "";
 
     const html = buildProReport({
       title: `Animal Record — ${a.earTagNumber || a.tagNumber || `Animal #${a.id}`}`,
       subtitle: `${a.species}${a.breed ? ` · ${a.breed}` : ""}${a.sex ? ` · ${a.sex}` : ""}`,
+      farmName: rawFarmName,
+      authority: "APHA",
       landscape: false,
       footerNote: "This report documents the full history of this animal on the holding. Retain for a minimum of 3 years.",
       tableHtml: overviewHtml + medicinesHtml + movementsHtml + tbHtml + healthHtml + calvingHtml + mortalityHtml,
@@ -753,9 +758,10 @@ function AnimalProfileDialog({ animal, farmId, onClose, onEdit }: {
   );
 }
 
-export function AnimalsSection({ farmId }: { farmId: number }) {
+export function AnimalsSection({ farmId, farmName }: { farmId: number; farmName?: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const resolvedFarmName = useFarmName(farmId);
   const animalSpecies = useLookupStrings("livestock_species", ANIMAL_SPECIES_FALLBACK);
   const base = `/api/farms/${farmId}/animals`;
 
@@ -767,13 +773,8 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
     queryKey: ["herds", farmId],
     queryFn: () => fetch(`/api/farms/${farmId}/herds`).then(r => r.json()),
   });
-  const { data: farmData } = useQuery<{ record: { name: string } }>({
-    queryKey: ["farm", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
-  });
   const animals = animalsData?.records ?? [];
   const herds = herdsData?.records ?? [];
-  const farmName = farmData?.record?.name ?? "BDE Farm";
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "livestock-animals", filter: "status", farmId, defaultValue: "active" });
@@ -1193,6 +1194,7 @@ export function AnimalsSection({ farmId }: { farmId: number }) {
         <AnimalProfileDialog
           animal={profileAnimal}
           farmId={farmId}
+          farmName={farmName ?? resolvedFarmName}
           onClose={() => setProfileAnimal(null)}
           onEdit={a => { setProfileAnimal(null); openEdit(a); }}
         />

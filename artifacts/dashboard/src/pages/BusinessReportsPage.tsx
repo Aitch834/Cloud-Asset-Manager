@@ -6,6 +6,7 @@ import { agriEnvDoubleCountRisk, calcGrossMarginTxIncomeTotal, AGRI_ENV_CATS } f
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
+import { printElementReport } from "@/lib/print-report";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1839,6 +1840,17 @@ export default function BusinessReportsPage() {
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
   const [exportFn, setExportFn] = useState<ExportFn | null>(null);
+  const { data: farm } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["farm", farmId],
+    queryFn: async () => {
+      const response = await fetch(apiUrl(`/farms/${farmId}`), { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to load farm details");
+      const data = await response.json();
+      return (data.record ?? data) as Record<string, unknown>;
+    },
+    enabled: !!farmId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const onRegisterExport = useCallback((fn: ExportFn) => {
     setExportFn(() => fn);
@@ -1912,7 +1924,25 @@ export default function BusinessReportsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.print()}
+            onClick={() => printElementReport(document.getElementById("business-report-content"), {
+              title: ({
+                "gross-margin": "Gross Margin Report", pl: "Profit & Loss Statement",
+                "input-costs": "Input Costs Report", "grain-position": "Grain Position Report",
+                subsidies: "Subsidy Income Report", "year-on-year": "Year-on-Year Report",
+                assets: "Asset Register", benchmarking: "Farm Benchmarking Report",
+              } as Record<Tab, string>)[tab],
+              subtitle: showYearSelector ? `Financial year ${year}` : undefined,
+              farmName: typeof farm?.name === "string"
+                ? farm.name
+                : typeof farm?.farmName === "string"
+                  ? farm.farmName
+                  : undefined,
+              farmAddress: farm?.address ? String(farm.address) : undefined,
+              cphNumber: farm?.cphNumber ? String(farm.cphNumber) : undefined,
+              sbiNumber: farm?.sbiNumber ? String(farm.sbiNumber) : undefined,
+              redTractorId: farm?.redTractorId ? String(farm.redTractorId) : undefined,
+              landscape: true,
+            })}
             style={{ gap: "0.375rem", display: "flex", alignItems: "center" }}
           >
             <Printer size={14} />
@@ -1931,7 +1961,7 @@ export default function BusinessReportsPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: "1.25rem" }}>
+      <div id="business-report-content" style={{ marginTop: "1.25rem" }}>
         {tab === "gross-margin" && <GrossMarginTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
         {tab === "pl" && <PLTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}
         {tab === "input-costs" && <InputCostsTab farmId={farmId} year={year} onRegisterExport={onRegisterExport} />}

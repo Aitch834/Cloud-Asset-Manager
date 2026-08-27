@@ -25,7 +25,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport, escapeHtml } from "@/lib/print-report";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -43,6 +44,7 @@ interface DipCert { id: number; userId: string; certificateType: string; certifi
 const EMPTY_DIP: Omit<SheepDippingRecord, "id" | "farmId" | "stockItemName" | "stockItemUnit" | "stockItemStorageLocation"> = { dipDate: "", productName: "", mappNumber: null, activeIngredient: null, dipType: "plunge", dipConcentrationPct: null, volumeOfDipLitres: null, sheepCount: 0, herdFlockRef: null, operatorName: "", operatorCertNumber: null, operatorCertExpiry: null, bathFillDate: null, daysSinceLastUse: null, topUpVolumeAdded: null, disposalMethod: null, disposalQuantityLitres: null, disposalDate: null, disposalContractorName: null, disposalWasteTransferNoteRef: null, withdrawalPeriodDays: null, withdrawalClearDate: null, stockItemId: null, quantityUsed: null, documentPath: null, documentUrl: null, documentName: null, notes: null };
 
 export function SheepDippingSection({ farmId }: { farmId: number }) {
+  const rawFarmName = useRawFarmName(farmId);
   const qc = useQueryClient();
   const { toast } = useToast();
   const base = `/api/farms/${farmId}/sheep-dipping-records`;
@@ -98,8 +100,8 @@ export function SheepDippingSection({ farmId }: { farmId: number }) {
   function openEdit(r: SheepDippingRecord) { setEditing(r); setPendingDoc(null); setForm({ dipDate: r.dipDate, productName: r.productName, mappNumber: r.mappNumber ?? null, activeIngredient: r.activeIngredient ?? null, dipType: r.dipType, dipConcentrationPct: r.dipConcentrationPct ?? null, volumeOfDipLitres: r.volumeOfDipLitres ?? null, sheepCount: r.sheepCount, herdFlockRef: r.herdFlockRef ?? null, operatorName: r.operatorName, operatorCertNumber: r.operatorCertNumber ?? null, operatorCertExpiry: r.operatorCertExpiry ?? null, bathFillDate: r.bathFillDate ?? null, daysSinceLastUse: r.daysSinceLastUse, topUpVolumeAdded: r.topUpVolumeAdded ?? null, disposalMethod: r.disposalMethod ?? null, disposalQuantityLitres: r.disposalQuantityLitres ?? null, disposalDate: r.disposalDate ?? null, disposalContractorName: r.disposalContractorName ?? null, disposalWasteTransferNoteRef: r.disposalWasteTransferNoteRef ?? null, withdrawalPeriodDays: r.withdrawalPeriodDays, withdrawalClearDate: r.withdrawalClearDate ?? null, stockItemId: r.stockItemId ?? null, quantityUsed: r.quantityUsed ?? null, documentPath: r.documentPath ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
-    const rows = records.map(r => `<tr><td>${formatDate(r.dipDate)}</td><td>${r.productName}</td><td>${r.dipType}</td><td>${r.sheepCount}</td><td>${r.operatorName}</td><td>${r.operatorCertNumber ?? "—"}</td><td>${r.disposalMethod ?? "—"}</td><td>${r.withdrawalPeriodDays != null ? r.withdrawalPeriodDays + " days" : "—"}</td><td>${formatDate(r.withdrawalClearDate)}</td></tr>`).join("");
-    printProReport({ title: "Sheep Dipping Register", subtitle: `${records.length} dipping records`, tableHtml: `<table><thead><tr><th>Dip Date</th><th>Product</th><th>Type</th><th>Sheep Count</th><th>Operator</th><th>Cert No.</th><th>Disposal</th><th>W/drawal</th><th>Clear Date</th></tr></thead><tbody>${rows}</tbody></table>` });
+    const rows = records.map(r => `<tr><td>${escapeHtml(formatDate(r.dipDate))}</td><td>${escapeHtml(r.productName)}</td><td>${escapeHtml(r.dipType)}</td><td>${escapeHtml(r.sheepCount)}</td><td>${escapeHtml(r.operatorName)}</td><td>${escapeHtml(r.operatorCertNumber ?? "—")}</td><td>${escapeHtml(r.disposalMethod ?? "—")}</td><td>${escapeHtml(r.withdrawalPeriodDays != null ? r.withdrawalPeriodDays + " days" : "—")}</td><td>${escapeHtml(formatDate(r.withdrawalClearDate))}</td></tr>`).join("");
+    printProReport({ title: "Sheep Dipping Register", subtitle: `${records.length} dipping records`, farmName: rawFarmName, authority: "Red Tractor", tableHtml: `<table><thead><tr><th>Dip Date</th><th>Product</th><th>Type</th><th>Sheep Count</th><th>Operator</th><th>Cert No.</th><th>Disposal</th><th>W/drawal</th><th>Clear Date</th></tr></thead><tbody>${rows}</tbody></table>` });
   }
 
   return (

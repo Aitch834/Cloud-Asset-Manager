@@ -15,15 +15,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Sprout, Plus, Pencil, Trash2, Printer } from "lucide-react";
+import { printProReport } from "@/lib/print-report";
 
 const PRINT_ID = "regen-evidence-pack-print";
-function ensurePrintStyle() {
-  if (document.getElementById(PRINT_ID + "-css")) return;
-  const s = document.createElement("style");
-  s.id = PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{visibility:hidden!important}#${PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:32px 40px!important}#${PRINT_ID} *{visibility:visible!important}.no-print{display:none!important;visibility:hidden!important}.print-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}.print-table th{background:#f3f4f6;text-align:left;padding:6px 8px;font-weight:600;border:1px solid #d1d5db}.print-table td{padding:5px 8px;border:1px solid #e5e7eb}.print-section{margin-bottom:24px}.print-section h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:4px;margin-bottom:8px}}`;
-  document.head.appendChild(s);
-}
 
 const TAB_IDS = ["practices", "soil", "summary"] as const;
 type RegenTab = (typeof TAB_IDS)[number];
@@ -204,7 +198,12 @@ export default function RegenerativePage() {
     queryFn: () => api.get(`/farms/${farmId}`),
     enabled: !!farmId,
   });
-  const farmName: string = (farmQ.data as any)?.name ?? (farmQ.data as any)?.farmName ?? `Farm ${farmId}`;
+  const rawFarmName = typeof (farmQ.data as any)?.name === "string"
+    ? (farmQ.data as any).name
+    : typeof (farmQ.data as any)?.farmName === "string"
+      ? (farmQ.data as any).farmName
+      : undefined;
+  const farmName = rawFarmName ?? `Farm ${farmId}`;
 
   const practicesQ = useQuery({
     queryKey: ["regen-practices", farmId],
@@ -370,7 +369,18 @@ export default function RegenerativePage() {
                 <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
               </Select>
-              <Button variant="outline" size="sm" className="ml-2" onClick={() => { ensurePrintStyle(); window.print(); }}>
+              <Button variant="outline" size="sm" className="ml-2" onClick={() => printProReport({
+                title: "Regenerative Farming Evidence Pack",
+                subtitle: `Season year: ${selYear}`,
+                farmName: rawFarmName,
+                farmAddress: (farmQ.data as any)?.address,
+                cphNumber: (farmQ.data as any)?.cphNumber,
+                sbiNumber: (farmQ.data as any)?.sbiNumber,
+                recordCount: practices.filter((r: any) => yearOf(r) === selYear).length,
+                recordLabel: "practice record",
+                landscape: true,
+                tableHtml: document.getElementById(PRINT_ID)?.innerHTML ?? "",
+              })}>
                 <Printer size={14} className="mr-1" />Print Evidence Pack
               </Button>
             </div>

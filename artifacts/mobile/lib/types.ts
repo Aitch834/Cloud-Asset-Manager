@@ -9,6 +9,20 @@ export interface Farm {
   id: string;
   name: string;
   tenantSlug: string;
+  /** County Parish Holding number used to identify a livestock holding. */
+  cphNumber?: string | null;
+  /** Single Business Identifier issued by the Rural Payments Agency. */
+  sbiNumber?: string | null;
+  /** Red Tractor assurance membership / certificate identifier. */
+  redTractorId?: string | null;
+  /** WineGB membership number. */
+  wineGbMembershipNumber?: string | null;
+  /** APHA registration reference for the holding or winery. */
+  aphaRegistrationNumber?: string | null;
+  /** Food Standards Agency wine-registration reference. */
+  fsaWineRegistrationNumber?: string | null;
+  /** Food Standards Agency Vineyard Register reference. */
+  vineyardRegisterNumber?: string | null;
   sectorArable: boolean;
   sectorBeef: boolean;
   sectorDairy: boolean;

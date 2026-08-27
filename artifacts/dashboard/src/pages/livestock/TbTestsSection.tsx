@@ -25,7 +25,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
-import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printProReport, openPrintWindow, buildProReport, escapeHtml } from "@/lib/print-report";
+import { useRawFarmName } from "@/hooks/use-farm-name";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -41,6 +42,7 @@ interface TbTest { id: number; farmId: number; testDate: string; readingDate: st
 const EMPTY_TB: Omit<TbTest, "id" | "farmId"> = { testDate: "", readingDate: null, testType: "routine-skin", species: "cattle", herdFlockRef: null, herdId: null, animalsTested: null, animalEarTags: null, reactors: 0, inconclusives: 0, outcome: "clear", aphaOfficer: null, aphaCaseRef: null, movementRestriction: false, restrictionLiftedDate: null, nextTestDueDate: null, testingVet: null, documentUrl: null, documentName: null, documentPath: null, movementId: null, notes: null };
 
 export function TbTestsSection({ farmId }: { farmId: number }) {
+  const rawFarmName = useRawFarmName(farmId);
   const qc = useQueryClient();
   const { toast } = useToast();
   const base = `/api/farms/${farmId}/tb-tests`;
@@ -76,8 +78,8 @@ export function TbTestsSection({ farmId }: { farmId: number }) {
   function openEdit(r: TbTest) { setEditing(r); setPendingDoc(null); setForm({ testDate: r.testDate, readingDate: r.readingDate ?? null, testType: r.testType, species: r.species, herdFlockRef: r.herdFlockRef ?? null, herdId: r.herdId ?? null, animalsTested: r.animalsTested, animalEarTags: r.animalEarTags ?? null, reactors: r.reactors, inconclusives: r.inconclusives, outcome: r.outcome, aphaOfficer: r.aphaOfficer ?? null, aphaCaseRef: r.aphaCaseRef ?? null, movementRestriction: r.movementRestriction, restrictionLiftedDate: r.restrictionLiftedDate ?? null, nextTestDueDate: r.nextTestDueDate ?? null, testingVet: r.testingVet ?? null, documentUrl: r.documentUrl ?? null, documentName: r.documentName ?? null, documentPath: r.documentPath ?? null, movementId: r.movementId ?? null, notes: r.notes ?? null }); setShowForm(true); }
 
   function printReport() {
-    const rows = records.map(r => `<tr><td>${formatDate(r.testDate)}</td><td>${r.testType.replace(/-/g," ")}</td><td>${r.species}</td><td>${r.herdFlockRef ?? "—"}</td><td>${r.animalsTested ?? "—"}</td><td>${r.reactors}</td><td>${r.inconclusives}</td><td>${r.outcome.toUpperCase()}</td><td>${r.movementRestriction ? "YES" : "No"}</td><td>${formatDate(r.nextTestDueDate)}</td><td style="text-align:center;color:${r.movementId ? "#166534" : "#9ca3af"};font-weight:${r.movementId ? "700" : "400"}">${r.movementId ? "✓ Linked" : "—"}</td></tr>`).join("");
-    printProReport({ title: "TB Test Register", subtitle: `${records.length} test records`, tableHtml: `<table><thead><tr><th>Test Date</th><th>Test Type</th><th>Species</th><th>Herd/Flock</th><th>Tested</th><th>Reactors</th><th>Inconc.</th><th>Outcome</th><th>Restriction</th><th>Next Due</th><th>Movement Linked</th></tr></thead><tbody>${rows}</tbody></table>` });
+    const rows = records.map(r => `<tr><td>${escapeHtml(formatDate(r.testDate))}</td><td>${escapeHtml(r.testType.replace(/-/g," "))}</td><td>${escapeHtml(r.species)}</td><td>${escapeHtml(r.herdFlockRef ?? "—")}</td><td>${escapeHtml(r.animalsTested ?? "—")}</td><td>${escapeHtml(r.reactors)}</td><td>${escapeHtml(r.inconclusives)}</td><td>${escapeHtml(r.outcome.toUpperCase())}</td><td>${r.movementRestriction ? "YES" : "No"}</td><td>${escapeHtml(formatDate(r.nextTestDueDate))}</td><td style="text-align:center;color:${r.movementId ? "#166534" : "#9ca3af"};font-weight:${r.movementId ? "700" : "400"}">${r.movementId ? "✓ Linked" : "—"}</td></tr>`).join("");
+    printProReport({ title: "TB Test Register", subtitle: `${records.length} test records`, farmName: rawFarmName, authority: "APHA", tableHtml: `<table><thead><tr><th>Test Date</th><th>Test Type</th><th>Species</th><th>Herd/Flock</th><th>Tested</th><th>Reactors</th><th>Inconc.</th><th>Outcome</th><th>Restriction</th><th>Next Due</th><th>Movement Linked</th></tr></thead><tbody>${rows}</tbody></table>` });
   }
 
 

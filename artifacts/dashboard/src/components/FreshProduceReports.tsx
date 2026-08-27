@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printElementReport } from "@/lib/print-report";
 import { TrendingUp, Printer, ChevronDown, ChevronUp, Leaf, Package } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -28,15 +30,6 @@ function fmtDate(d: string | null | undefined) {
 }
 function monthLabel(m: string) {
   return new Date(m + "-01").toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-}
-
-const PRINT_ID = "fresh-produce-reports-print";
-function ensurePrintStyle() {
-  if (document.getElementById(PRINT_ID + "-css")) return;
-  const s = document.createElement("style");
-  s.id = PRINT_ID + "-css";
-  s.textContent = `@media print{body>*{visibility:hidden!important}#${PRINT_ID}{visibility:visible!important;display:block!important;position:fixed!important;inset:0!important;overflow:auto!important;background:#fff!important;z-index:99999!important;padding:24px!important}#${PRINT_ID} *{visibility:visible!important}.no-print{display:none!important;visibility:hidden!important}table{page-break-inside:auto}tr{page-break-inside:avoid}}`;
-  document.head.appendChild(s);
 }
 
 function Collapsible({ title, open, setOpen, children }: { title: string; open: boolean; setOpen: (v: boolean) => void; children: React.ReactNode }) {
@@ -75,6 +68,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function FreshProduceReports({ farmId }: { farmId: number }) {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const farmName = useRawFarmName(farmId);
   const currentYear = new Date().getFullYear();
   const [year, setYear] = usePersistedNumberFilter({ page: "fresh-produce-reports", filter: "year", farmId, defaultValue: currentYear });
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -165,7 +160,7 @@ export function FreshProduceReports({ farmId }: { farmId: number }) {
   const hasData = harvest.length > 0 || intake.length > 0;
 
   return (
-    <div id={PRINT_ID} className="space-y-5">
+    <div ref={reportRef} className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h2 className="text-lg font-semibold">Fresh Produce Season Report</h2>
@@ -175,7 +170,7 @@ export function FreshProduceReports({ farmId }: { farmId: number }) {
           <select className="h-9 rounded-lg border border-border bg-background px-3 text-sm" value={year} onChange={e => setYear(parseInt(e.target.value))}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <button onClick={() => { ensurePrintStyle(); window.print(); }} className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex items-center gap-1.5 hover:bg-muted/50">
+          <button onClick={() => printElementReport(reportRef.current, { title: "Fresh Produce Report", subtitle: `${year} harvest and intake report`, farmName })} className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex items-center gap-1.5 hover:bg-muted/50">
             <Printer className="w-3.5 h-3.5" />Print
           </button>
         </div>

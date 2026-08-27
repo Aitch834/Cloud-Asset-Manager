@@ -121,18 +121,17 @@ export default function ThirdPartyGrainIntakeScreen() {
     try {
       await appendToList(STORAGE_KEYS.THIRD_PARTY_GRAIN_INTAKES, record);
       await refreshPendingCount();
-      const farmName = currentFarm?.name ?? "Unknown Farm";
       Alert.alert(
         "Intake Recorded",
         "Third-party grain intake saved and queued for sync.",
         [
           {
             text: "Print Docket",
-            onPress: async () => { await print(grainIntakeDocketHtml(record, farmName)); router.back(); },
+            onPress: async () => { await print(grainIntakeDocketHtml(record, currentFarm)); router.back(); },
           },
           {
             text: "Share PDF",
-            onPress: async () => { await savePdf(grainIntakeDocketHtml(record, farmName), "Grain Intake Docket"); router.back(); },
+            onPress: async () => { await savePdf(grainIntakeDocketHtml(record, currentFarm), "Grain Intake Docket"); router.back(); },
           },
           { text: "Done", onPress: () => router.back() },
         ],

@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordReport } from "@/lib/record-report";
 import { AlertTriangle, Bird, CheckCircle2, Clock, FileText, Info, Leaf, Plus, Printer } from "lucide-react";
 
 type Certification = {
@@ -90,6 +92,7 @@ export default function OrganicPoultryPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"certification" | "access" | "feed" | "derogations">({ page: "organic-poultry", farmId, validIds: ["certification", "access", "feed", "derogations"], defaultTab: "certification" });
 
   const [certOpen, setCertOpen] = useState(false);
@@ -192,6 +195,17 @@ export default function OrganicPoultryPage() {
   const today = new Date().toISOString().slice(0, 10);
   const expiredCerts = certs.filter(c => c.expiryDate && c.expiryDate < today);
   const pendingDerogs = derogs.filter(d => d.status === "pending").length;
+  const printCertification = (certification: Certification) => printRecordReport({
+    title: "Organic Poultry Certification Record",
+    farmName: rawFarmName,
+    subtitle: certification.certificateType.replace(/_/g, " "),
+    authority: certification.certifyingBody,
+    authorityReferenceLabel: "Certificate number",
+    authorityReference: certification.certificateNumber,
+    authorityReferenceRequired: true,
+    record: certification,
+    footerNote: "Organic poultry record under Regulation (EU) 2018/848 (retained in UK law).",
+  });
 
   return (
     <AppLayout title="Organic Poultry">
@@ -259,7 +273,7 @@ export default function OrganicPoultryPage() {
                         <Badge className={`text-xs ${STATUS_BADGE[c.status] ?? "bg-gray-100 text-gray-600"}`}>{c.status}</Badge>
                         {isExpired && <Badge className="bg-red-100 text-red-800 text-xs">EXPIRED</Badge>}
                       </div>
-                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); printCertification(c); }}><Printer className="w-4 h-4" /></Button>
                     </div>
                     <div className="text-xs text-muted-foreground space-y-0.5">
                       <p>Type: {c.certificateType.replace(/_/g, " ").replace(/\b\w/g, x => x.toUpperCase())}{c.certificateNumber ? ` · No: ${c.certificateNumber}` : ""}</p>

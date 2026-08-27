@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordReport } from "@/lib/record-report";
 import { BarChart3, Plus, Printer, Stethoscope } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -67,6 +69,7 @@ export default function EquinePage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"horses" | "health" | "analytics">({ page: "equine", farmId, validIds: ["horses", "health", "analytics"], defaultTab: "horses" });
   const [search, setSearch] = useState("");
   const [selectedHorse, setSelectedHorse] = useState<number | null>(null);
@@ -132,6 +135,15 @@ export default function EquinePage() {
   const getHorseName = (id: number) => horses.find(h => h.id === id)?.horseName ?? `Horse ${id}`;
   const fh = (field: string, val: any) => setHorseForm((p: any) => ({ ...p, [field]: val }));
   const fe = (field: string, val: any) => setEventForm((p: any) => ({ ...p, [field]: val }));
+  const printHealthEvent = (event: EquineHealthEvent) => printRecordReport({
+    title: "Equine Health Event Record",
+    farmName: rawFarmName,
+    subtitle: `${getHorseName(event.horseId)} · ${event.eventDate}`,
+    authority: "Equine Identification Regulations",
+    authorityReferenceLabel: "Horse passport number",
+    authorityReference: horses.find(h => h.id === event.horseId)?.passportNumber,
+    record: { ...event, horseName: getHorseName(event.horseId) },
+  });
 
   const today = new Date().toISOString().slice(0, 10);
   const currentYear = new Date().getFullYear();
@@ -281,7 +293,7 @@ export default function EquinePage() {
                       {e.cost && <span>Cost: £{e.cost}</span>}
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={ev => { ev.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                  <Button size="sm" variant="ghost" onClick={ev => { ev.stopPropagation(); printHealthEvent(e); }}><Printer className="w-4 h-4" /></Button>
                 </div>
               ))}
             </div>

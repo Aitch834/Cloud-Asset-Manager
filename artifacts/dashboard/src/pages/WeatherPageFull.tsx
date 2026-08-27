@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordsReport } from "@/lib/record-report";
 import { Plus, Trash2, Cloud, TrendingUp, Truck, Loader2, MapPin, Cpu, AlertTriangle, Pencil, Eye, Printer } from "lucide-react";
 import {
   LineChart,
@@ -603,7 +605,7 @@ function calibrationStatus(r: any): { label: string; color: string; bg: string }
   return { label: "OK", color: "#166534", bg: "#f0fdf4" };
 }
 
-function DevicesTab({ farmId }: { farmId: number }) {
+function DevicesTab({ farmId, farmName }: { farmId: number; farmName: string | undefined }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -660,6 +662,23 @@ function DevicesTab({ farmId }: { farmId: number }) {
   });
 
   const knownMfgModels = mfgSel && mfgSel !== "Other" ? (MANUFACTURER_CATALOGUE[mfgSel] ?? []) : [];
+  const printRegister = () => printRecordsReport({
+    title: "Weather Device Register",
+    farmName,
+    subtitle: "Calibrated weather instruments used to support pesticide application records.",
+    authority: "HSE",
+    footerNote: "Weather device register retained to support pesticide application compliance records.",
+    columns: [
+      { label: "Device name", value: r => r.name },
+      { label: "Manufacturer", value: r => r.manufacturer },
+      { label: "Model", value: r => r.model },
+      { label: "Serial number", value: r => r.serialNumber },
+      { label: "Installation type", value: r => INSTALL_LABELS[String(r.installationType)] ?? r.installationType },
+      { label: "Last calibrated", value: r => fmt(r.calibrationDate as string | null) },
+      { label: "Calibration due", value: r => fmt(r.calibrationDueDate as string | null) },
+    ],
+    records,
+  });
 
   const DeviceFormFields = () => (
     <div className="space-y-3 py-2">
@@ -768,7 +787,7 @@ function DevicesTab({ farmId }: { farmId: number }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 12 }}>
         <p className="text-sm text-muted-foreground">Register vehicle-mounted and portable weather devices. Serial numbers and calibration dates are stored here and linked to readings automatically.</p>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          {records.length > 0 && <Button size="sm" variant="outline" onClick={() => window.print()}><Printer size={14} className="mr-1" />Print Register</Button>}
+          {records.length > 0 && <Button size="sm" variant="outline" onClick={printRegister}><Printer size={14} className="mr-1" />Print Register</Button>}
           <Button size="sm" onClick={() => { setForm(EMPTY_DEV_FORM); setMfgSel(""); setMdlSel(""); setAddOpen(true); }}><Plus size={14} className="mr-1" />Add Device</Button>
         </div>
       </div>
@@ -1114,6 +1133,7 @@ function ConnectedStationsTab({ farmId }: { farmId: number }) {
 
 export default function WeatherPageFull() {
   const { farmId } = useAppStore();
+  const farmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<Tab>({ page: "weather", farmId, validIds: WEATHER_TAB_IDS, defaultTab: "readings" });
 
   return (
@@ -1132,7 +1152,7 @@ export default function WeatherPageFull() {
         {farmId && tab === "readings" && <ReadingsTab farmId={farmId} />}
         {farmId && tab === "chart" && <ChartTab farmId={farmId} />}
         {farmId && tab === "vehicle" && <VehicleReadingsTab farmId={farmId} />}
-        {farmId && tab === "devices" && <DevicesTab farmId={farmId} />}
+        {farmId && tab === "devices" && <DevicesTab farmId={farmId} farmName={farmName} />}
         {farmId && tab === "stations" && <ConnectedStationsTab farmId={farmId} />}
       </div>
     </AppLayout>

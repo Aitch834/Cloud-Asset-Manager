@@ -26,7 +26,7 @@ const PAGE_STYLE = `
   .doc-title { text-align: right; }
   .doc-title h2 { font-size: 13pt; font-weight: 700; color: #1a1a1a; margin: 0 0 3px 0; }
   .doc-title p { font-size: 8.5pt; color: #666; margin: 0; }
-  .farm-bar { background: #f4f8f4; border: 1px solid #c8ddc8; border-radius: 4px; padding: 7px 10px; margin-bottom: 12px; display: flex; gap: 28px; font-size: 9.5pt; }
+  .farm-bar { background: #f4f8f4; border: 1px solid #c8ddc8; border-radius: 4px; padding: 7px 10px; margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 5px 28px; font-size: 9.5pt; }
   .farm-bar span { color: #444; } .farm-bar strong { color: #1a1a1a; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10pt; }
   th { background: #1a5c1a; color: #fff; padding: 6px 8px; text-align: left; font-size: 9.5pt; }
@@ -46,23 +46,84 @@ const PAGE_STYLE = `
   .pill.between { background: #2471a3; }
 `;
 
-function docHeader(farmName: string, docTitle: string, docRef: string, date: string) {
+type ComplianceScheme = "red-tractor" | "winegb";
+type RequiredHeaderField = "cphNumber" | "sbiNumber" | "redTractorId" | "wineGbMembershipNumber";
+
+interface HeaderOptions {
+  complianceScheme?: ComplianceScheme;
+  requiredHoldingReferences?: Array<Extract<RequiredHeaderField, "cphNumber" | "sbiNumber">>;
+}
+
+/**
+ * Standard holding identity header. Assurance branding is opt-in: a report is
+ * never represented as Red Tractor or WineGB merely because the farm has an ID.
+ */
+function docHeader(
+  farm: Farm | string | null,
+  docTitle: string,
+  docRef: string,
+  date: string,
+  options: HeaderOptions = {},
+) {
+  const farmRecord = typeof farm === "object" ? farm : null;
+  const farmName = typeof farm === "string" ? farm : rawFmt(farmRecord?.name, "Unknown Farm");
+  const references: Array<{ label: string; value: string | null | undefined }> = [
+    { label: "CPH", value: farmRecord?.cphNumber },
+    { label: "SBI", value: farmRecord?.sbiNumber },
+  ];
+
+  if (options.complianceScheme === "red-tractor") {
+    references.push({ label: "Red Tractor ID", value: farmRecord?.redTractorId });
+  }
+  if (options.complianceScheme === "winegb") {
+    references.push(
+      { label: "WineGB Membership", value: farmRecord?.wineGbMembershipNumber },
+      { label: "APHA Ref.", value: farmRecord?.aphaRegistrationNumber },
+      { label: "FSA Wine Production Ref.", value: farmRecord?.fsaWineRegistrationNumber },
+      { label: "FSA Vine Register Ref.", value: farmRecord?.vineyardRegisterNumber },
+    );
+  }
+
+  const referenceHtml = references
+    .filter(({ value }) => Boolean(value?.trim()))
+    .map(({ label, value }) => `<span>${label}: <strong>${efmt(value)}</strong></span>`)
+    .join("");
+  const requiredFields: RequiredHeaderField[] = [...(options.requiredHoldingReferences ?? [])];
+  if (options.complianceScheme === "red-tractor") requiredFields.push("redTractorId");
+  if (options.complianceScheme === "winegb") requiredFields.push("wineGbMembershipNumber");
+  const labels: Record<RequiredHeaderField, string> = {
+    cphNumber: "CPH number",
+    sbiNumber: "SBI number",
+    redTractorId: "Red Tractor ID",
+    wineGbMembershipNumber: "WineGB membership number",
+  };
+  const missing = requiredFields
+    .filter((field) => !farmRecord?.[field]?.trim())
+    .map((field) => labels[field]);
+  const assuranceLabel = options.complianceScheme === "red-tractor"
+    ? "Red Tractor assurance"
+    : options.complianceScheme === "winegb"
+      ? "WineGB"
+      : null;
+
   return `
     <div class="header">
       <div class="logo-block">
         <h1>BDE Farm Trac</h1>
-        <p>Red Tractor Compliance Platform</p>
+        <p>${assuranceLabel ? `${assuranceLabel} record` : "Farm record platform"}</p>
       </div>
       <div class="doc-title">
-        <h2>${docTitle}</h2>
-        <p>Ref: ${docRef}</p>
-        <p>Date: ${date}</p>
+        <h2>${escHtml(docTitle)}</h2>
+        <p>Ref: ${escHtml(docRef)}</p>
+        <p>Date: ${escHtml(date)}</p>
       </div>
     </div>
     <div class="farm-bar">
-      <span>Farm: <strong>${farmName}</strong></span>
+      <span>Holding: <strong>${escHtml(farmName)}</strong></span>
+      ${referenceHtml}
       <span>Printed: <strong>${new Date().toLocaleString("en-GB")}</strong></span>
-    </div>`;
+    </div>
+    ${missing.length ? `<div class="warning-box">⚠ <strong>Required holding reference missing:</strong> ${missing.join(", ")}. This ${assuranceLabel ?? "compliance"} record is not ready for audit use.</div>` : ""}`;
 }
 
 function docFooter(docTitle: string) {
@@ -82,25 +143,49 @@ function escHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function fmt(val: string | undefined | null, fallback = "—") {
+/** Normalise an optional text value for an HTML text node. */
+function rawFmt(val: string | undefined | null, fallback = "—") {
   return val && val.trim() ? val.trim() : fallback;
 }
 
-/** Like fmt() but HTML-escapes the result — use for user-supplied strings in HTML templates. */
+/** Format and escape every record, holding, and reference value used in a template. */
+function fmt(val: string | undefined | null, fallback = "—"): string {
+  return escHtml(rawFmt(val, fallback));
+}
+
+/** Alias retained for the report templates that explicitly mark escaped values. */
 function efmt(val: string | undefined | null, fallback = "—"): string {
-  return escHtml(fmt(val, fallback));
+  return fmt(val, fallback);
 }
 
 function fmtDate(iso: string | undefined | null) {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }); }
-  catch { return iso; }
+  try { return escHtml(new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })); }
+  catch { return escHtml(iso); }
 }
 
 function fmtDateTime(iso: string | undefined | null) {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
-  catch { return iso; }
+  try { return escHtml(new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })); }
+  catch { return escHtml(iso); }
+}
+
+/**
+ * Image sources are interpolated into an attribute, so escaping alone is not
+ * sufficient. Permit only browser-safe remote images and the local URI forms
+ * Expo uses for captured signatures.
+ */
+function safeImageUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const url = value.trim();
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(url)) return escHtml(url);
+  if (/^(?:file|content|asset):\/\//i.test(url)) return escHtml(url);
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? escHtml(url) : null;
+  } catch {
+    return null;
+  }
 }
 
 function yesNo(val: boolean) {
@@ -113,7 +198,7 @@ export function livestockMovementHtml(record: LivestockMovement, farm: Farm | nu
   const ref = fmt(record.movementRef, `MOV-${record.id.slice(-6).toUpperCase()}`);
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Livestock Movement Certificate", ref, fmtDate(record.movementDate))}
+    ${docHeader(farm, "Livestock Movement Certificate", ref, fmtDate(record.movementDate), { requiredHoldingReferences: ["cphNumber"] })}
     <div class="warning-box">
       ⚠ This document must accompany the animals during transport and be retained by the keeper for 3 years.
       Cattle movements must be reported to BCMS/CTS. Sheep movements must be recorded in the flock register.
@@ -168,7 +253,7 @@ export function medicineRecordHtml(record: MedicineRecord, farm: Farm | null): s
   const ref = `MED-${record.id.slice(-6).toUpperCase()}`;
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Medicine Administration Record", ref, fmtDate(record.administeredDate))}
+    ${docHeader(farm, "Medicine Administration Record", ref, fmtDate(record.administeredDate), { requiredHoldingReferences: ["cphNumber"] })}
     <div class="warning-box">
       ⚠ This record must be retained for a minimum of 5 years under the Veterinary Medicines Regulations 2013.
       Observe all withdrawal periods before the animal enters the food chain.
@@ -227,10 +312,10 @@ export function sprayRecordHtml(record: SprayRecord, farm: Farm | null): string 
   const end = record.endTime ? fmtDateTime(record.endTime) : "—";
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Spray Application Record", ref, fmtDate(record.createdAt))}
+    ${docHeader(farm, "Spray Application Record", ref, fmtDate(record.createdAt), { requiredHoldingReferences: ["sbiNumber"] })}
     <div class="warning-box">
       ⚠ This record must be retained for a minimum of 3 years. The operator must hold a valid BASIS/FACTS certificate.
-      All products must be applied in accordance with the product label and current Red Tractor requirements.
+      All products must be applied in accordance with the product label and applicable assurance requirements.
     </div>
 
     <div class="section-heading">Field &amp; Product</div>
@@ -283,7 +368,7 @@ export function livestockCheckHtml(record: LivestockCheck, farm: Farm | null): s
     ? "#1a5c1a" : record.overallCondition === "fair" ? "#b7950b" : "#c0392b";
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Livestock Daily Health Check", ref, fmtDate(record.checkDate))}
+    ${docHeader(farm, "Livestock Daily Health Check", ref, fmtDate(record.checkDate), { requiredHoldingReferences: ["cphNumber"] })}
 
     <div class="section-heading">Herd / Flock</div>
     <table>
@@ -295,8 +380,8 @@ export function livestockCheckHtml(record: LivestockCheck, farm: Farm | null): s
     <div class="section-heading">Health Assessment</div>
     <table>
       <tr><td class="label">Overall Condition</td><td><strong style="color:${conditionColour};text-transform:capitalize">${fmt(record.overallCondition)}</strong></td></tr>
-      <tr><td class="label">Sick / Injured Animals</td><td>${record.sickCount || "0"}</td></tr>
-      <tr><td class="label">Mortalities</td><td>${record.mortalityCount || "0"}</td></tr>
+      <tr><td class="label">Sick / Injured Animals</td><td>${fmt(record.sickCount, "0")}</td></tr>
+      <tr><td class="label">Mortalities</td><td>${fmt(record.mortalityCount, "0")}</td></tr>
     </table>
 
     <div class="section-heading">Welfare Checks</div>
@@ -325,7 +410,7 @@ export function biofuelDeclarationHtml(record: BiofuelDeliveryRecord, farm: Farm
   const ref = fmt(record.sustainabilityDeclarationRef, `RTFO-${record.id.slice(-6).toUpperCase()}`);
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "RTFO Sustainability Declaration", ref, fmtDate(record.deliveryDate))}
+    ${docHeader(farm, "RTFO Sustainability Declaration", ref, fmtDate(record.deliveryDate), { requiredHoldingReferences: ["sbiNumber"] })}
     <div class="warning-box">
       ⚠ This declaration must be provided to the biofuel buyer and retained by the farm for audit purposes
       under the Renewable Transport Fuel Obligations (RTFO) Order 2007 (as amended).
@@ -380,7 +465,7 @@ export function visitorLogHtml(record: VisitorLogEntry, farm: Farm | null): stri
   const ref = `VIS-${record.id.slice(-6).toUpperCase()}`;
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Visitor / Contractor Record", ref, fmtDate(record.createdAt))}
+    ${docHeader(farm, "Visitor / Contractor Record", ref, fmtDate(record.createdAt))}
 
     <div class="section-heading">Visitor Details</div>
     <table>
@@ -420,7 +505,7 @@ export function cleaningRecordHtml(record: CleaningRecord, farm: Farm | null): s
   const ref = `CLN-${record.id.slice(-6).toUpperCase()}`;
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Cleaning & Disinfection Record", ref, fmtDate(record.cleanedDate))}
+    ${docHeader(farm, "Cleaning & Disinfection Record", ref, fmtDate(record.cleanedDate))}
 
     <div class="section-heading">Area &amp; Method</div>
     <table>
@@ -465,7 +550,7 @@ export function nvzApplicationHtml(record: NvzApplication, farm: Farm | null): s
   const ref = `NVZ-${record.id.slice(-6).toUpperCase()}`;
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "NVZ Fertiliser Application Record", ref, fmtDate(record.applicationDate))}
+    ${docHeader(farm, "NVZ Fertiliser Application Record", ref, fmtDate(record.applicationDate), { requiredHoldingReferences: ["sbiNumber"] })}
     <div class="warning-box">
       ⚠ Farms in Nitrate Vulnerable Zones must keep records of all nitrogen applications for 5 years.
       Total nitrogen applications must not exceed the permitted amount for the field.
@@ -510,7 +595,7 @@ export function pestControlHtml(record: PestControlVisit, farm: Farm | null): st
   const ref = `PEST-${record.id.slice(-6).toUpperCase()}`;
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Pest Control Visit Record", ref, fmtDate(record.visitDate))}
+    ${docHeader(farm, "Pest Control Visit Record", ref, fmtDate(record.visitDate))}
 
     <div class="section-heading">Visit Details</div>
     <table>
@@ -548,7 +633,7 @@ export function poultryWelfareCheckHtml(record: PoultryWelfareCheck, farm: Farm 
   const ammoniaColour = record.ammoniaLevel === "none" || record.ammoniaLevel === "low" ? "#1a5c1a" : record.ammoniaLevel === "moderate" ? "#b7950b" : "#c0392b";
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Poultry Daily Welfare Check", ref, fmtDate(record.checkDate))}
+    ${docHeader(farm, "Poultry Daily Welfare Check", ref, fmtDate(record.checkDate), { complianceScheme: "red-tractor", requiredHoldingReferences: ["cphNumber"] })}
     <div class="warning-box" style="background:#fff8e1;border-color:#f9a825;color:#5d4037;">
       &#x26A0; Red Tractor Poultry Standard — daily welfare inspections must be completed and retained for a minimum of 3 years.
     </div>
@@ -563,7 +648,7 @@ export function poultryWelfareCheckHtml(record: PoultryWelfareCheck, farm: Farm 
 
     <div class="section-heading">Environment</div>
     <table>
-      <tr><td class="label">Ambient Temperature</td><td>${record.ambientTempC ? `${record.ambientTempC} °C` : "—"}</td></tr>
+      <tr><td class="label">Ambient Temperature</td><td>${record.ambientTempC ? `${fmt(record.ambientTempC)} °C` : "—"}</td></tr>
       <tr><td class="label">Ventilation / Airflow OK</td><td>${yesNo(record.ventilationOk)}</td></tr>
       <tr><td class="label">Lighting Adequate</td><td>${yesNo(record.lightingOk)}</td></tr>
       <tr><td class="label">Ammonia Level</td><td><strong style="color:${ammoniaColour};text-transform:capitalize">${fmt(record.ammoniaLevel)}</strong></td></tr>
@@ -579,8 +664,8 @@ export function poultryWelfareCheckHtml(record: PoultryWelfareCheck, farm: Farm 
 
     <div class="section-heading">Mortality &amp; Health</div>
     <table>
-      <tr><td class="label">Daily Mortalities</td><td>${record.dailyMortalities || "0"}</td></tr>
-      <tr><td class="label">Sick / Injured Birds</td><td>${record.sickInjuredCount || "0"}</td></tr>
+      <tr><td class="label">Daily Mortalities</td><td>${fmt(record.dailyMortalities, "0")}</td></tr>
+      <tr><td class="label">Sick / Injured Birds</td><td>${fmt(record.sickInjuredCount, "0")}</td></tr>
       <tr><td class="label">Overall Welfare Outcome</td><td><strong style="color:${welfareColour};text-transform:uppercase">${fmt(record.overallWelfare)}</strong></td></tr>
     </table>
 
@@ -605,7 +690,7 @@ export function pigWelfareCheckHtml(record: PigWelfareCheck, farm: Farm | null):
   const beddingColour = record.beddingCondition === "clean" ? "#1a5c1a" : record.beddingCondition === "damp" ? "#b7950b" : "#c0392b";
 
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Pig Daily Welfare Check", ref, fmtDate(record.checkDate))}
+    ${docHeader(farm, "Pig Daily Welfare Check", ref, fmtDate(record.checkDate), { complianceScheme: "red-tractor", requiredHoldingReferences: ["cphNumber"] })}
     <div class="warning-box" style="background:#fff8e1;border-color:#f9a825;color:#5d4037;">
       &#x26A0; Red Tractor Pigs Standard — pigs must be inspected at least once per day and all observations recorded.
     </div>
@@ -613,7 +698,7 @@ export function pigWelfareCheckHtml(record: PigWelfareCheck, farm: Farm | null):
     <div class="section-heading">Group / Pen Details</div>
     <table>
       <tr><td class="label">Group / Pen Name</td><td><strong>${fmt(record.groupName)}</strong></td></tr>
-      <tr><td class="label">Pigs in Group</td><td>${record.pigsInGroup || "—"}</td></tr>
+      <tr><td class="label">Pigs in Group</td><td>${fmt(record.pigsInGroup)}</td></tr>
       <tr><td class="label">Check Date &amp; Time</td><td>${fmtDateTime(record.checkDate)}</td></tr>
       <tr><td class="label">Checked By</td><td>${fmt(record.checkedBy)}</td></tr>
     </table>
@@ -631,8 +716,8 @@ export function pigWelfareCheckHtml(record: PigWelfareCheck, farm: Farm | null):
     <table>
       <tr><td class="label">Tail Biting Observed</td><td>${yesNo(record.tailBitingObserved)}</td></tr>
       <tr><td class="label">Fighting / Aggression</td><td>${yesNo(record.aggression)}</td></tr>
-      <tr><td class="label">Sick / Injured Pigs</td><td>${record.sickInjuredCount || "0"}</td></tr>
-      <tr><td class="label">Mortalities</td><td>${record.mortalityCount || "0"}</td></tr>
+      <tr><td class="label">Sick / Injured Pigs</td><td>${fmt(record.sickInjuredCount, "0")}</td></tr>
+      <tr><td class="label">Mortalities</td><td>${fmt(record.mortalityCount, "0")}</td></tr>
       <tr><td class="label">Overall Welfare Outcome</td><td><strong style="color:${welfareColour};text-transform:uppercase">${fmt(record.overallWelfare)}</strong></td></tr>
     </table>
 
@@ -654,7 +739,7 @@ export function pigWelfareCheckHtml(record: PigWelfareCheck, farm: Farm | null):
 export function cropDispatchDocketHtml(record: HaulageConfirmation, farm: Farm | null): string {
   const ref = `DOCKET-${record.id.slice(-8).toUpperCase()}`;
   const body = `
-    ${docHeader(fmt(farm?.name, "Unknown Farm"), "Crop Dispatch Docket", ref, fmtDateTime(record.confirmationDate))}
+    ${docHeader(farm, "Crop Dispatch Docket", ref, fmtDateTime(record.confirmationDate))}
 
     <div class="warning-box">
       ⚠ This docket must travel with the load and be retained by the driver. A copy must be kept on farm for a minimum of 5 years.
@@ -701,7 +786,7 @@ export function cropDispatchDocketHtml(record: HaulageConfirmation, farm: Farm |
     </div>
 
     <p style="margin-top:10px;font-size:9pt;color:#555">
-      Docket Ref: ${ref} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy travels with load
+      Docket Ref: ${fmt(ref)} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy travels with load
     </p>
 
     ${docFooter("Crop Dispatch Docket")}`;
@@ -709,17 +794,18 @@ export function cropDispatchDocketHtml(record: HaulageConfirmation, farm: Farm |
   return wrap(body);
 }
 
-export function grainIntakeDocketHtml(record: ThirdPartyGrainIntakeMobile, farmName: string): string {
+export function grainIntakeDocketHtml(record: ThirdPartyGrainIntakeMobile, farm: Farm | null): string {
   const ref = record.lotReference || `INT-${record.id.slice(-8).toUpperCase()}`;
-  const sigHtml = record.customerSignature
-    ? `<img src="${record.customerSignature}" style="max-width:260px;max-height:80px;display:block;margin-top:4px;" />`
+  const signatureUrl = safeImageUrl(record.customerSignature);
+  const sigHtml = signatureUrl
+    ? `<img src="${signatureUrl}" style="max-width:260px;max-height:80px;display:block;margin-top:4px;" />`
     : `<div style="height:60px;border-bottom:1px solid #333;margin-top:4px;"></div>`;
 
   const body = `
-    ${docHeader(farmName, "Third-Party Grain Intake Docket", ref, fmtDate(record.intakeDate))}
+    ${docHeader(farm, "Third-Party Grain Intake Docket", ref, fmtDate(record.intakeDate))}
 
     <div class="warning-box">
-      ⚠ This docket confirms receipt of third-party grain into store. Both parties should retain a copy. Keep records for a minimum of 5 years for Red Tractor traceability.
+      ⚠ This docket confirms receipt of third-party grain into store. Both parties should retain a copy. Keep records for a minimum of 5 years for traceability.
     </div>
 
     <div class="section-heading">Customer / Depositor</div>
@@ -747,7 +833,7 @@ export function grainIntakeDocketHtml(record: ThirdPartyGrainIntakeMobile, farmN
 
     <div class="section-heading">Storage</div>
     <table>
-      <tr><td class="label">Holding / Store</td><td><strong>${farmName}</strong></td></tr>
+      <tr><td class="label">Holding / Store</td><td><strong>${fmt(farm?.name, "Unknown Farm")}</strong></td></tr>
       ${record.bayOrBin ? `<tr><td class="label">Bay / Bin Allocated</td><td>${fmt(record.bayOrBin)}</td></tr>` : ""}
     </table>
 
@@ -772,7 +858,7 @@ export function grainIntakeDocketHtml(record: ThirdPartyGrainIntakeMobile, farmN
     </div>
 
     <p style="margin-top:10px;font-size:9pt;color:#555">
-      Lot Ref: ${ref} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy to customer
+       Lot Ref: ${fmt(ref)} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy to customer
     </p>
 
     ${docFooter("Third-Party Grain Intake Docket")}`;
@@ -1220,7 +1306,7 @@ export function vineScoutingHistoryHtml(
   return wrap(body, extraCss);
 }
 
-export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobile, farmName: string): string {
+export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobile, farm: Farm | null): string {
   const lotLabel = record.intakeLotRef || (record.intakeId ? `Intake #${record.intakeId}` : "—");
   const ref = `OUT-${record.id.slice(-8).toUpperCase()}`;
   const movementLabels: Record<string, string> = {
@@ -1231,17 +1317,17 @@ export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobil
   };
 
   const body = `
-    ${docHeader(farmName, "Grain Outloading Docket", ref, fmtDate(record.movementDate))}
+    ${docHeader(farm, "Grain Outloading Docket", ref, fmtDate(record.movementDate))}
 
     <div class="warning-box">
-      ⚠ This docket confirms grain movement from store. Both parties should retain a copy. Keep records for a minimum of 5 years for Red Tractor traceability.
+      ⚠ This docket confirms grain movement from store. Both parties should retain a copy. Keep records for a minimum of 5 years for traceability.
     </div>
 
     <div class="section-heading">Lot / Customer Details</div>
     <table>
       <tr><td class="label">Customer / Farm Name</td><td><strong>${fmt(record.intakeCustomerName)}</strong></td></tr>
       <tr><td class="label">Lot / Batch Reference</td><td><strong>${fmt(lotLabel)}</strong></td></tr>
-      <tr><td class="label">Movement Type</td><td><strong>${movementLabels[record.movementType] ?? record.movementType}</strong></td></tr>
+      <tr><td class="label">Movement Type</td><td><strong>${fmt(movementLabels[record.movementType] ?? record.movementType)}</strong></td></tr>
       <tr><td class="label">Movement Date</td><td>${fmtDate(record.movementDate)}</td></tr>
     </table>
 
@@ -1273,7 +1359,7 @@ export function grainOutloadingDocketHtml(record: ThirdPartyGrainOutloadingMobil
     </div>
 
     <p style="margin-top:10px;font-size:9pt;color:#555">
-      Docket Ref: ${ref} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy travels with load
+       Docket Ref: ${fmt(ref)} &nbsp;|&nbsp; Generated by BDE Farm Trac &nbsp;|&nbsp; Keep original on farm, copy travels with load
     </p>
 
     ${docFooter("Grain Outloading Docket")}`;

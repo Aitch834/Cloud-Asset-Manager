@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordReport } from "@/lib/record-report";
 import { Baby, Plus, Printer, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -58,6 +60,7 @@ export default function LambingRecordsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"records" | "analytics">({ page: "lambing-records", farmId, validIds: ["records", "analytics"], defaultTab: "records" });
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -161,6 +164,12 @@ export default function LambingRecordsPage() {
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY }); setOpen(true); };
   const openEdit = (r: LambingRecord) => { setEditing(r); setForm({ ...r }); setOpen(true); };
   const f = (field: string, val: any) => setForm((p: any) => ({ ...p, [field]: val }));
+  const printLambingRecord = (record: LambingRecord) => printRecordReport({
+    title: "Lambing Record",
+    farmName: rawFarmName,
+    subtitle: record.eweEarTag ? `Ewe ${record.eweEarTag} · ${record.lambingDate}` : record.lambingDate,
+    record: { ...record, flockName: flocks.find(flock => flock.id === record.flockId)?.flockName ?? null },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,7 +225,7 @@ export default function LambingRecordsPage() {
                       {r.fostered && <span>Fostered</span>}
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Printer className="w-4 h-4" /></Button>
+                  <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); printLambingRecord(r); }}><Printer className="w-4 h-4" /></Button>
                 </div>
               ))}
             </div>

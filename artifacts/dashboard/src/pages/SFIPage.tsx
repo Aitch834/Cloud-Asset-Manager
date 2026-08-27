@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
-import { printProReport } from "@/lib/print-report";
+import { escapeHtml, printProReport } from "@/lib/print-report";
 import { Plus, Trash2, Pencil, Printer, FileText, PoundSterling, AlertTriangle, CheckCircle2, Clock, Leaf, ExternalLink, Info } from "lucide-react";
 
 const fmt = (d: string | null | undefined) => {
@@ -153,9 +153,15 @@ export default function SFIPage() {
     enabled: !!farmId,
     select: d => d.records ?? [],
   });
+  const farmQ = useQuery({
+    queryKey: ["farm-detail", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    enabled: !!farmId,
+  });
 
   const agreements: any[] = agreementsQ.data ?? [];
   const actions: any[] = actionsQ.data ?? [];
+  const farmRecord = farmQ.data?.record ?? null;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["sfi-agreements", farmId] });
@@ -223,6 +229,11 @@ export default function SFIPage() {
   }
 
   function handlePrintActions() {
+    const farmName = farmRecord?.name;
+    if (!farmName) {
+      toast({ title: "Holding name required", description: "Add a holding name in Farm Settings before printing this report.", variant: "destructive" });
+      return;
+    }
     const rows = actions.map((a: any) => {
       const cfg = COMPLIANCE_CONFIG[a.complianceStatus] ?? COMPLIANCE_CONFIG.not_started;
       const linkedAg = agreements.find((ag: any) => ag.id === a.agreementId);
@@ -232,10 +243,10 @@ export default function SFIPage() {
         ? `${fmt(a.nextEvidenceDate)}${isOverdue ? ' <span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 4px;font-size:6px">Overdue</span>' : daysLeft !== null && daysLeft <= 60 ? ` <span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:1px 4px;font-size:6px">${daysLeft}d</span>` : ""}`
         : "—";
       return `<tr>
-        <td style="font-family:monospace;font-size:7px;color:#1a3a1a">${linkedAg ? `${linkedAg.agreementNumber}<br><span style="color:#6b7280;font-size:6px">${linkedAg.schemeName}</span>` : "—"}</td>
-        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${a.actionCode}</td>
-        <td>${a.actionTitle}</td>
-        <td style="font-family:monospace;font-size:7px">${a.landParcelReference || "—"}</td>
+        <td style="font-family:monospace;font-size:7px;color:#1a3a1a">${linkedAg ? `${escapeHtml(linkedAg.agreementNumber)}<br><span style="color:#6b7280;font-size:6px">${escapeHtml(linkedAg.schemeName)}</span>` : "—"}</td>
+        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${escapeHtml(a.actionCode)}</td>
+        <td>${escapeHtml(a.actionTitle)}</td>
+        <td style="font-family:monospace;font-size:7px">${escapeHtml(a.landParcelReference || "—")}</td>
         <td>${a.eligibleAreaHa ? Number(a.eligibleAreaHa).toFixed(2) : "—"}</td>
         <td>${fmtMoney(a.annualPaymentAmount)}</td>
         <td>${fmt(a.lastEvidenceDate)}</td>
@@ -245,6 +256,13 @@ export default function SFIPage() {
     }).join("");
     printProReport({
       title: "SFI / ELM Actions Register",
+      farmName,
+      cphNumber: farmRecord.cphNumber,
+      sbiNumber: farmRecord.sbiNumber,
+      authority: "Rural Payments Agency",
+      authorityReferenceLabel: "RPA SBI Number",
+      authorityReference: farmRecord.sbiNumber,
+      authorityReferenceRequired: true,
       subtitle: `${actions.length} enrolled action${actions.length !== 1 ? "s" : ""} — Total estimated annual payment: ${fmtMoney(totalAnnualPayment)}`,
       tableHtml: `<table><thead><tr><th>Agreement</th><th>Code</th><th>Action Title</th><th>Land Parcel Ref</th><th>Area (ha)</th><th>Annual Payment</th><th>Last Evidence</th><th>Next Evidence</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
       footerNote: "SFI / ELM records are for farm record-keeping. Submit applications and evidence through the RPA Rural Payments service. Retain for a minimum of 5 years.",
@@ -252,19 +270,24 @@ export default function SFIPage() {
   }
 
   function handlePrintAgreements() {
+    const farmName = farmRecord?.name;
+    if (!farmName) {
+      toast({ title: "Holding name required", description: "Add a holding name in Farm Settings before printing this report.", variant: "destructive" });
+      return;
+    }
     const scConfig: Record<string, { label: string; bg: string; color: string }> = AGREEMENT_STATUS_CONFIG;
     const rows = agreements.map((ag: any) => {
       const sc = scConfig[ag.status] ?? scConfig.active;
       const agActions = actions.filter((a: any) => a.agreementId === ag.id);
       const agPayment = agActions.reduce((s: number, a: any) => s + (parseFloat(a.annualPaymentAmount ?? "0") || 0), 0);
       return `<tr>
-        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${ag.agreementNumber}</td>
-        <td style="font-weight:600">${ag.schemeName}</td>
+        <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${escapeHtml(ag.agreementNumber)}</td>
+        <td style="font-weight:600">${escapeHtml(ag.schemeName)}</td>
         <td>${fmt(ag.agreementStartDate)}</td>
         <td>${fmt(ag.agreementEndDate)}</td>
         <td style="font-weight:600;color:#166534">${ag.totalAnnualPayment ? fmtMoney(ag.totalAnnualPayment) : "—"}</td>
-        <td>${ag.managingBody || "—"}</td>
-        <td>${ag.agentOrAdvisorName || "—"}</td>
+        <td>${escapeHtml(ag.managingBody || "—")}</td>
+        <td>${escapeHtml(ag.agentOrAdvisorName || "—")}</td>
         <td>${agActions.length}</td>
         <td style="color:#166534">${agPayment > 0 ? fmtMoney(agPayment) : "—"}</td>
         <td><span style="background:${sc.bg};color:${sc.color};padding:1px 5px;border-radius:4px;font-size:6.5px;font-weight:600">${sc.label}</span></td>
@@ -272,6 +295,13 @@ export default function SFIPage() {
     }).join("");
     printProReport({
       title: "SFI / ELM Agreements Register",
+      farmName,
+      cphNumber: farmRecord.cphNumber,
+      sbiNumber: farmRecord.sbiNumber,
+      authority: "Rural Payments Agency",
+      authorityReferenceLabel: "RPA SBI Number",
+      authorityReference: farmRecord.sbiNumber,
+      authorityReferenceRequired: true,
       subtitle: `${agreements.length} agreement${agreements.length !== 1 ? "s" : ""} — Total estimated annual payment: ${fmtMoney(totalAnnualPayment)}`,
       recordCount: agreements.length,
       recordLabel: "agreement",
@@ -281,6 +311,11 @@ export default function SFIPage() {
   }
 
   function handlePrintComplianceReport() {
+    const farmName = farmRecord?.name;
+    if (!farmName) {
+      toast({ title: "Holding name required", description: "Add a holding name in Farm Settings before printing this report.", variant: "destructive" });
+      return;
+    }
     const today2 = new Date();
     const statRows = [
       ["Active Agreements", String(agreements.filter((a: any) => a.status === "active").length)],
@@ -304,13 +339,13 @@ export default function SFIPage() {
       const agPayment = agActions.reduce((s: number, a: any) => s + (parseFloat(a.annualPaymentAmount ?? "0") || 0), 0);
 
       const agHead = `<div class="section-head" style="margin-top:16px">
-        <span style="font-family:monospace;color:#1d4ed8">${ag.agreementNumber}</span>
-        &nbsp;·&nbsp;${ag.schemeName}
+        <span style="font-family:monospace;color:#1d4ed8">${escapeHtml(ag.agreementNumber)}</span>
+        &nbsp;·&nbsp;${escapeHtml(ag.schemeName)}
         &nbsp;·&nbsp;<span style="background:${sc.bg};color:${sc.color};padding:1px 6px;border-radius:4px;font-size:7px;font-weight:600">${sc.label}</span>
         &nbsp;·&nbsp;${fmt(ag.agreementStartDate)} → ${fmt(ag.agreementEndDate)}
         &nbsp;·&nbsp;Annual value: <strong>${ag.totalAnnualPayment ? fmtMoney(ag.totalAnnualPayment) : "not recorded"}</strong>
-        ${ag.managingBody ? `&nbsp;·&nbsp;${ag.managingBody}` : ""}
-        ${ag.agentOrAdvisorName ? `&nbsp;·&nbsp;Agent: ${ag.agentOrAdvisorName}` : ""}
+        ${ag.managingBody ? `&nbsp;·&nbsp;${escapeHtml(ag.managingBody)}` : ""}
+        ${ag.agentOrAdvisorName ? `&nbsp;·&nbsp;Agent: ${escapeHtml(ag.agentOrAdvisorName)}` : ""}
       </div>`;
 
       if (agActions.length === 0) {
@@ -325,12 +360,12 @@ export default function SFIPage() {
           ? `${fmt(a.nextEvidenceDate)}${isOverdue ? ' <span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 3px;font-size:5.5px">Overdue</span>' : daysLeft !== null && daysLeft <= 60 ? ` <span style="background:#fef9c3;color:#854d0e;border-radius:3px;padding:1px 3px;font-size:5.5px">${daysLeft}d</span>` : ""}`
           : "—";
         return `<tr>
-          <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${a.actionCode}</td>
-          <td>${a.actionTitle}</td>
-          <td style="font-family:monospace;font-size:7px">${a.landParcelReference || "—"}</td>
+          <td style="font-family:monospace;font-weight:700;color:#1d4ed8">${escapeHtml(a.actionCode)}</td>
+          <td>${escapeHtml(a.actionTitle)}</td>
+          <td style="font-family:monospace;font-size:7px">${escapeHtml(a.landParcelReference || "—")}</td>
           <td>${a.eligibleAreaHa ? Number(a.eligibleAreaHa).toFixed(2) : "—"}</td>
           <td>${fmtMoney(a.annualPaymentAmount)}</td>
-          <td>${a.evidenceRequired || "—"}</td>
+          <td>${escapeHtml(a.evidenceRequired || "—")}</td>
           <td>${fmt(a.lastEvidenceDate)}</td>
           <td>${nextEvCell}</td>
           <td><span style="background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};padding:1px 4px;border-radius:4px;font-size:6px">${cfg.label}</span></td>
@@ -349,6 +384,13 @@ export default function SFIPage() {
 
     printProReport({
       title: "SFI / ELM Compliance Report",
+      farmName,
+      cphNumber: farmRecord.cphNumber,
+      sbiNumber: farmRecord.sbiNumber,
+      authority: "Rural Payments Agency",
+      authorityReferenceLabel: "RPA SBI Number",
+      authorityReference: farmRecord.sbiNumber,
+      authorityReferenceRequired: true,
       subtitle: `${agreements.length} agreement${agreements.length !== 1 ? "s" : ""} · ${actions.length} enrolled action${actions.length !== 1 ? "s" : ""} · Est. total annual payment: ${fmtMoney(totalAnnualPayment)}`,
       tableHtml: `${summaryTable}${agreementSections}`,
       footerNote: "SFI / ELM records are for farm record-keeping purposes. Submit applications and evidence through the RPA Rural Payments service. Retain for a minimum of 5 years and make available at RPA inspection.",

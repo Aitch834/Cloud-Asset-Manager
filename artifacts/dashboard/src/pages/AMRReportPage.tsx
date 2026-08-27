@@ -8,6 +8,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useRawFarmName } from "@/hooks/use-farm-name";
+import { printRecordsReport } from "@/lib/record-report";
 import { AlertTriangle, Download, HeartPulse, Info, Printer, TrendingDown, TrendingUp, CheckCircle2, XCircle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie,
@@ -41,6 +43,7 @@ const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
 export default function AMRReportPage() {
   const { farmId } = useAppStore();
+  const rawFarmName = useRawFarmName(farmId ?? 0);
   const [year, setYear] = usePersistedNumberFilter({ page: "amr-report", filter: "year", farmId, defaultValue: currentYear });
   const [tab, setTab] = usePersistedTab<"summary" | "species" | "trend" | "ruma">({ page: "amr-report", farmId, validIds: ["summary", "species", "trend", "ruma"], defaultTab: "summary" });
 
@@ -59,6 +62,23 @@ export default function AMRReportPage() {
   const trend = report && report.prevYearMgPerPcu != null
     ? report.mgPerPcu - report.prevYearMgPerPcu
     : null;
+  const printReport = () => {
+    if (!report) return;
+    printRecordsReport({
+      title: `Antimicrobial Usage (AMR) Report — ${report.year}`,
+      farmName: rawFarmName,
+      subtitle: `Total use ${(report.totalUseMg / 1000).toFixed(1)} g · ${report.mgPerPcu.toFixed(1)} mg/PCU · RUMA category ${report.rumaCategory}`,
+      authority: "RUMA / VMD",
+      footerNote: "Annual antimicrobial usage report. Review with the prescribing veterinary surgeon and retain supporting medicine records.",
+      columns: [
+        { label: "Antibiotic class", value: r => r.className },
+        { label: "Total use (mg)", value: r => Number(r.totalMg).toLocaleString() },
+        { label: "Share", value: r => `${Number(r.percent).toFixed(1)}%` },
+        { label: "HP-CIA", value: r => r.isCritical },
+      ],
+      records: report.byClass,
+    });
+  };
 
   return (
     <AppLayout title="Antimicrobial Usage (AMR) Report">
@@ -77,7 +97,7 @@ export default function AMRReportPage() {
           </Select>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="w-4 h-4 mr-1" />Print Report</Button>
+          <Button variant="outline" size="sm" onClick={printReport} disabled={!report}><Printer className="w-4 h-4 mr-1" />Print Report</Button>
           <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Export CSV</Button>
         </div>
       </div>
