@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { getImapConnectionConfig } from "../src/lib/imap";
 
 assert.deepEqual(getImapConnectionConfig({}), {
-  host: "imap.titan.email",
+  host: "imap.123-reg.co.uk",
   port: 993,
   user: "hello@bdefarmtrac.co.uk",
   connectionTimeout: 15_000,

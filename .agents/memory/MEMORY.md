@@ -75,3 +75,4 @@
 - [Vineyard Magazine advert](vineyard-magazine-ad.md) — approved portrait CMYK artwork is the version to use for the next magazine issue
 - [Mutable sync queue revisions](mutable-sync-queue-revisions.md) — queued edits need payload-aware completion/failure or an older in-flight request can discard a newer local revision
 - [Workspace-root package updates](workspace-root-package-updates.md) — the package installer cannot pass pnpm's required -w flag; reconcile reviewed monorepo manifests with pnpm install
+- [Admin mailbox provider](admin-mailbox-provider.md) — 123 Reg webmail credentials authenticate on its legacy IMAP service, not Titan; verify auth before changing providers

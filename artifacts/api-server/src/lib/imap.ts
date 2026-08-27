@@ -2,7 +2,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail, type AddressObject } from "mailparser";
 import { Readable } from "stream";
 
-const DEFAULT_IMAP_HOST = "imap.titan.email";
+const DEFAULT_IMAP_HOST = "imap.123-reg.co.uk";
 const DEFAULT_IMAP_PORT = 993;
 const DEFAULT_IMAP_USER = "hello@bdefarmtrac.co.uk";
 const DEFAULT_IMAP_CONNECTION_TIMEOUT_MS = 15_000;
