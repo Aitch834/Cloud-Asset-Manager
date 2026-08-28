@@ -31,6 +31,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
+import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
@@ -106,6 +107,12 @@ interface ScoutingRecord {
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function scoutYear(date: string | null | undefined): number | null {
+  const year = date?.trim().slice(0, 4);
+  if (!year || !/^\d{4}$/.test(year)) return null;
+  return Number(year);
 }
 
 function dateOnly(d: string | null | undefined): string | null {
@@ -652,7 +659,7 @@ export default function VineScoutingHistoryScreen() {
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-scouting-history", currentFarm?.id, user?.id);
 
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
-  const { records, loading, refreshing, error, refresh } = useApiFetch<ScoutingRecord>(
+  const { records, loading, refreshing, error, refresh, recordsFarmId } = useApiFetch<ScoutingRecord>(
     currentFarm?.id,
     "/api/farms/:farmId/vineyard-scouting",
   );
@@ -666,6 +673,7 @@ export default function VineScoutingHistoryScreen() {
     : [];
 
   const [search, setSearch] = useState("");
+  const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [pressureFilter, setPressureFilter] = useState<"__all__" | "1" | "2" | "3">("__all__");
@@ -693,6 +701,46 @@ export default function VineScoutingHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  // Sorted unique scouting years descending, matching the vintage picker used
+  // by the harvest history screen.
+  const scoutingYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const record of displayRecords) {
+      const year = scoutYear(record.scoutDate);
+      if (year !== null) years.add(year);
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [displayRecords]);
+
+  // Wait for both the persisted preference and this farm's successful records
+  // before resolving the initial selection. This prevents a previous farm's
+  // year from being applied to the current list and preserves "All years".
+  const resolvedVintageForFarm = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (vintageLoadedForFarmId !== currentFarm?.id) return;
+    if (recordsFarmId !== currentFarm?.id) return;
+    if (scoutingYears.length === 0) return;
+    if (resolvedVintageForFarm.current === currentFarm?.id) return;
+    resolvedVintageForFarm.current = currentFarm?.id;
+    if (selectedVintage === null) return;
+    if (selectedVintage !== undefined && scoutingYears.includes(selectedVintage)) return;
+    setSelectedVintage(scoutingYears[0]);
+  }, [
+    vintageLoadedForFarmId,
+    recordsFarmId,
+    scoutingYears,
+    selectedVintage,
+    setSelectedVintage,
+    currentFarm?.id,
+  ]);
+
+  const displayVintage = selectedVintage ?? null;
+
+  const yearFilteredRecords = useMemo(() => {
+    if (displayVintage === null) return displayRecords;
+    return displayRecords.filter(record => scoutYear(record.scoutDate) === displayVintage);
+  }, [displayRecords, displayVintage]);
+
   // Blocks that have at least one record — used to populate the block filter chips
   const recordBlockIds = useMemo(() => {
     const ids = new Set<number>();
@@ -709,10 +757,10 @@ export default function VineScoutingHistoryScreen() {
 
   // Block-filtered records (applied before free-text search)
   const blockFilteredRecords = useMemo(() => {
-    if (selectedBlockIds.length === 0) return displayRecords;
+    if (selectedBlockIds.length === 0) return yearFilteredRecords;
     const idSet = new Set(selectedBlockIds);
-    return displayRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
-  }, [displayRecords, selectedBlockIds]);
+    return yearFilteredRecords.filter(r => r.blockId != null && idSet.has(r.blockId));
+  }, [yearFilteredRecords, selectedBlockIds]);
 
   const filtered = useMemo(() => {
     let rows = blockFilteredRecords;
@@ -929,10 +977,16 @@ export default function VineScoutingHistoryScreen() {
         </View>
       )}
 
-      {(search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__") ? (
+      {(search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__" || displayVintage !== null) ? (
         <View style={styles.clearFiltersRow}>
           <Pressable
-            onPress={() => { setSearch(""); setDateFrom(""); setDateTo(""); setPressureFilter("__all__"); }}
+            onPress={() => {
+              setSearch("");
+              setDateFrom("");
+              setDateTo("");
+              setPressureFilter("__all__");
+              setSelectedVintage(null);
+            }}
             style={styles.clearFiltersChip}
             hitSlop={6}
           >
@@ -972,6 +1026,36 @@ export default function VineScoutingHistoryScreen() {
           );
         })}
       </ScrollView>
+
+      {/* Season/year filter chips */}
+      {scoutingYears.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.yearFilterScroll}
+          contentContainerStyle={styles.yearFilterScrollContent}
+        >
+          <Pressable
+            style={[styles.yearChip, displayVintage === null && styles.yearChipActive]}
+            onPress={() => { Haptics.selectionAsync(); setSelectedVintage(null); }}
+          >
+            <Text style={[styles.yearChipText, displayVintage === null && styles.yearChipTextActive]}>
+              All years
+            </Text>
+          </Pressable>
+          {scoutingYears.map(year => (
+            <Pressable
+              key={year}
+              style={[styles.yearChip, displayVintage === year && styles.yearChipActive]}
+              onPress={() => { Haptics.selectionAsync(); setSelectedVintage(year); }}
+            >
+              <Text style={[styles.yearChipText, displayVintage === year && styles.yearChipTextActive]}>
+                {year}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Block filter chips */}
       {filterBlocks.length > 0 && (
@@ -1063,7 +1147,7 @@ export default function VineScoutingHistoryScreen() {
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
               <Text style={styles.emptyTitle}>No scouting records</Text>
               <Text style={styles.emptyText}>
-                {search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__"
+                {search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__" || displayVintage !== null
                   ? "No records match the current filters."
                   : selectedBlockIds.length > 0
                     ? "No records for the selected block(s)."
@@ -1590,6 +1674,35 @@ const styles = StyleSheet.create({
   },
   pressureChipTextActive: {
     color: colors.primary,
+  },
+  // Season/year filter chips
+  yearFilterScroll: { flexGrow: 0 },
+  yearFilterScrollContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    gap: spacing.xs,
+    flexDirection: "row",
+  },
+  yearChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  yearChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  yearChipText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  yearChipTextActive: {
+    color: colors.textInverse,
   },
   // Block filter chips
   blockFilterScroll: { flexGrow: 0 },
