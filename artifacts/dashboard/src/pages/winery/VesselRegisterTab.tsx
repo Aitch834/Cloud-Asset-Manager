@@ -1146,7 +1146,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         c.clean_date ? fmtDate(c.clean_date) : "—",
         String(c.clean_type ?? "—"),
         c.rinse_completed === true || c.rinse_completed === "true" ? "Yes" : c.rinse_completed === false || c.rinse_completed === "false" ? "No" : "—",
-        [c.cleaning_product, c.concentration_pct != null ? `${String(c.concentration_pct)}%` : null].filter(Boolean).join(" / ") || "—",
+        [c.cleaning_product, [c.concentration_pct != null ? `${String(c.concentration_pct)}%` : null, c.contact_time_min != null ? `${String(c.contact_time_min)} min` : null, c.water_temp_c != null ? `${String(c.water_temp_c)} °C` : null].filter(Boolean).join(" · ") || null].filter(Boolean).join(" / ") || "—",
         String(c.operator_name ?? "—"),
         String(c.notes ?? ""),
       ]),
