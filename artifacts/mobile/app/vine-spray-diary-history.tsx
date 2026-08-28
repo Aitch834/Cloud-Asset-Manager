@@ -88,6 +88,7 @@ interface SprayDiaryRecord {
   ratePerHectare: number | null;
   rateUnit: string | null;
   areaTreatedHa: number | null;
+  totalQuantityApplied: number | null;
   harvestIntervalDays: number | null;
   windSpeedMph: number | null;
   temperatureCelsius: number | null;
@@ -114,6 +115,11 @@ interface SprayDiaryPhoto {
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function numericValue(value: number | string | null | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -1489,6 +1495,58 @@ function SprayDiaryRow({
   );
 }
 
+// ─── Product Summary ──────────────────────────────────────────────────────────
+
+interface SprayProductSummaryRow {
+  applications: number;
+  totalAreaHa: number;
+  totalQty: number;
+}
+
+function SprayProductSummary({
+  rows,
+}: {
+  rows: Array<[string, SprayProductSummaryRow]>;
+}) {
+  return (
+    <View style={styles.summaryCard}>
+      <View style={styles.summaryHeading}>
+        <Text style={styles.summaryTitle}>Product Summary</Text>
+        <Text style={styles.summarySubtitle}>Totals for the spray diary entries shown below</Text>
+      </View>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.summaryScrollContent}
+      >
+        <View style={styles.summaryTable}>
+          <View style={[styles.summaryTableRow, styles.summaryTableHeader]}>
+            <Text style={[styles.summaryCell, styles.summaryProductCell, styles.summaryHeaderText]}>Product</Text>
+            <Text style={[styles.summaryCell, styles.summaryApplicationsCell, styles.summaryHeaderText]}>Applications</Text>
+            <Text style={[styles.summaryCell, styles.summaryAreaCell, styles.summaryHeaderText]}>Total Area (ha)</Text>
+            <Text style={[styles.summaryCell, styles.summaryQuantityCell, styles.summaryHeaderText]}>Total Qty Used</Text>
+          </View>
+          {rows.map(([product, stats]) => (
+            <View key={product} style={styles.summaryTableRow}>
+              <Text style={[styles.summaryCell, styles.summaryProductCell, styles.summaryProductText]} numberOfLines={1}>
+                {product}
+              </Text>
+              <Text style={[styles.summaryCell, styles.summaryApplicationsCell]}>{stats.applications}</Text>
+              <Text style={[styles.summaryCell, styles.summaryAreaCell, styles.summaryNumberText]}>
+                {stats.totalAreaHa.toFixed(2)}
+              </Text>
+              <Text style={[styles.summaryCell, styles.summaryQuantityCell, styles.summaryNumberText]}>
+                {stats.totalQty.toFixed(2)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function VineSprayDiaryHistoryScreen() {
@@ -1589,6 +1647,22 @@ export default function VineSprayDiaryHistoryScreen() {
 
     return result;
   }, [blockFilteredRecords, search, canonFrom, canonTo, blocks]);
+
+  const productSummary = useMemo(() => {
+    const summary = new Map<string, SprayProductSummaryRow>();
+    for (const record of filtered) {
+      const product = record.productName?.trim() || "Unknown";
+      const existing = summary.get(product) ?? { applications: 0, totalAreaHa: 0, totalQty: 0 };
+      existing.applications += 1;
+      existing.totalAreaHa += numericValue(record.areaTreatedHa);
+      existing.totalQty += numericValue(record.totalQuantityApplied);
+      summary.set(product, existing);
+    }
+    return [...summary.entries()].sort(
+      ([productA, statsA], [productB, statsB]) =>
+        statsB.applications - statsA.applications || productA.localeCompare(productB),
+    );
+  }, [filtered]);
 
   const handleSaved = (recordId: number, updated: Partial<SprayDiaryRecord>) => {
     setLocalUpdates(prev => ({
@@ -1861,6 +1935,9 @@ export default function VineSprayDiaryHistoryScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListHeaderComponent={
+            filtered.length > 0 ? <SprayProductSummary rows={productSummary} /> : null
+          }
           renderItem={({ item }) => (
             <SprayDiaryRow
               item={item}
@@ -2183,6 +2260,67 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   listContent: { paddingBottom: spacing.xl },
+  summaryCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  summaryHeading: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  summaryTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  summarySubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  summaryScrollContent: { paddingBottom: 1 },
+  summaryTable: { minWidth: 535 },
+  summaryTableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 38,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  summaryTableHeader: {
+    backgroundColor: colors.background,
+  },
+  summaryCell: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    textAlign: "right",
+  },
+  summaryProductCell: { width: 175, textAlign: "left" },
+  summaryApplicationsCell: { width: 105 },
+  summaryAreaCell: { width: 125 },
+  summaryQuantityCell: { width: 130 },
+  summaryHeaderText: {
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+  },
+  summaryProductText: {
+    fontFamily: fonts.medium,
+  },
+  summaryNumberText: {
+    fontFamily: "monospace",
+  },
   emptyContainer: { flex: 1, justifyContent: "center" },
   row: {
     flexDirection: "row",
