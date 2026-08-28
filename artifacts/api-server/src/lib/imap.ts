@@ -15,12 +15,20 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeProxyUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `socks5://${trimmed}`;
+}
+
 export function getImapConnectionConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
     host: env.TITAN_IMAP_HOST?.trim() || DEFAULT_IMAP_HOST,
     port: positiveInteger(env.TITAN_IMAP_PORT, DEFAULT_IMAP_PORT),
     user: env.TITAN_IMAP_USER?.trim() || DEFAULT_IMAP_USER,
-    proxyUrl: env.TITAN_IMAP_PROXY_URL?.trim() || undefined,
+    proxyUrl: normalizeProxyUrl(env.TITAN_IMAP_PROXY_URL),
     connectionTimeout: positiveInteger(
       env.TITAN_IMAP_CONNECTION_TIMEOUT_MS,
       DEFAULT_IMAP_CONNECTION_TIMEOUT_MS,

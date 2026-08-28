@@ -31,5 +31,11 @@ assert.equal(
   getImapConnectionConfig({ TITAN_IMAP_CONNECTION_TIMEOUT_MS: "-1" }).connectionTimeout,
   15_000,
 );
+assert.equal(
+  getImapConnectionConfig({
+    TITAN_IMAP_PROXY_URL: "user:pass@criterium.usefixie.com:1080",
+  }).proxyUrl,
+  "socks5://user:pass@criterium.usefixie.com:1080",
+);
 
 console.log("Titan IMAP configuration tests passed");
