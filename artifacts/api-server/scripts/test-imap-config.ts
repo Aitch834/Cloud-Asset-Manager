@@ -37,5 +37,12 @@ assert.equal(
   }).proxyUrl,
   "socks5://user:pass@criterium.usefixie.com:1080",
 );
+assert.equal(
+  getImapConnectionConfig({
+    TITAN_IMAP_PROXY_URL:
+      "Proxy endpoint: user:pass@criterium.usefixie.com:1080 (copy this value)",
+  }).proxyUrl,
+  "socks5://user:pass@criterium.usefixie.com:1080",
+);
 
 console.log("Titan IMAP configuration tests passed");

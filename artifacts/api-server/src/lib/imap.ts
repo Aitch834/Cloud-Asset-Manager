@@ -18,9 +18,13 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 function normalizeProxyUrl(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `socks5://${trimmed}`;
+  const embeddedEndpoint = trimmed.match(
+    /(?:socks5h?:\/\/)?[^\s"'=:@]+:[^\s"'@]+@[a-z0-9.-]+:\d+/i,
+  )?.[0];
+  const endpoint = (embeddedEndpoint ?? trimmed).replace(/^socks5h:\/\//i, "socks5://");
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(endpoint)
+    ? endpoint
+    : `socks5://${endpoint}`;
 }
 
 export function getImapConnectionConfig(env: NodeJS.ProcessEnv = process.env) {
