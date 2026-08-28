@@ -12,3 +12,5 @@ The admin mailbox is a 123 Reg account hosted on its legacy IMAP service. Do not
 Replit Autoscale outbound IPs can change after republishing. A republish moved production onto an egress route that timed out against every 123 Reg backend even though the same credentials and endpoints still worked from development. DNS-address failover alone therefore is not durable for this mailbox.
 
 **Why:** The legacy provider appears sensitive to the deployment's outbound route, while Autoscale does not guarantee a static egress IP. A fixed-egress proxy keeps the mailbox traffic on stable addresses across publishes and scale events.
+
+Production use has since been confirmed working again after configuring the Fixie SOCKS endpoint and republishing the API.
