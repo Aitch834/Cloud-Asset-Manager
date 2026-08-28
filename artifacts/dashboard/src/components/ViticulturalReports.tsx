@@ -795,6 +795,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
   // Block filter state for spray diary and scouting sections (null = all blocks shown)
   const [selectedSprayBlocks, setSelectedSprayBlocks] = useState<Set<number> | null>(null);
   const [selectedScoutBlocks, setSelectedScoutBlocks] = useState<Set<number> | null>(null);
+  const [scoutingLogOpen, setScoutingLogOpen] = useState(true);
 
   // Reset spray/scout block filters when the vintage year changes
   useEffect(() => {
@@ -1757,74 +1758,79 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                 farmId={farmId}
               />
             )}
-          <div className="p-4 space-y-3">
-            {/* Peak pressure per disease */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-              {DISEASE_SERIES.map(d => {
-                const peak = diseasePeak[d.key] ?? 0;
-                return (
-                  <div key={d.key} className="rounded-lg border border-border bg-background p-2.5">
-                    <p className="text-xs text-foreground/50 leading-tight">{d.label}</p>
-                    <p className={`text-sm font-bold mt-0.5 ${PRESSURE_COLOR[peak]}`}>
-                      {PRESSURE_LABEL[peak] ?? "—"}
-                    </p>
-                    <p className="text-xs text-foreground/30">peak this season</p>
-                  </div>
-                );
-              })}
+            <div className="p-4">
+              {/* Peak pressure per disease */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                {DISEASE_SERIES.map(d => {
+                  const peak = diseasePeak[d.key] ?? 0;
+                  return (
+                    <div key={d.key} className="rounded-lg border border-border bg-background p-2.5">
+                      <p className="text-xs text-foreground/50 leading-tight">{d.label}</p>
+                      <p className={`text-sm font-bold mt-0.5 ${PRESSURE_COLOR[peak]}`}>
+                        {PRESSURE_LABEL[peak] ?? "—"}
+                      </p>
+                      <p className="text-xs text-foreground/30">peak this season</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Scouting log table */}
-            <div className="overflow-x-auto rounded-lg border border-border/50">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-muted/20 text-foreground/60">
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">Block</th>
-                    <th className="px-3 py-2 text-left">Scouted By</th>
-                    <th className="px-3 py-2 text-left">Downy</th>
-                    <th className="px-3 py-2 text-left">Powdery</th>
-                    <th className="px-3 py-2 text-left">Botrytis</th>
-                    <th className="px-3 py-2 text-left">Phomopsis</th>
-                    <th className="px-3 py-2 text-left">Leafhopper</th>
-                    <th className="px-3 py-2 text-left">Spider Mite</th>
-                    <th className="px-3 py-2 text-left">Alerts</th>
-                    <th className="px-3 py-2 text-left">Action Taken</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleScouts.map(s => {
-                    const alerts = [
-                      s.vineWeevilSighted && "Vine Weevil",
-                      s.eutypaDiebackSighted && "Eutypa",
-                      s.xylellaFastidiosa && "⚠ Xylella",
-                      s.phytophthoraViticola && "Phytophthora",
-                    ].filter(Boolean).join(", ");
-                    const pl = (v: unknown) => {
-                      const p = PRESSURE_LABEL[n(v)];
-                      const c = PRESSURE_COLOR[n(v)];
-                      return <span className={c}>{p}</span>;
-                    };
-                    return (
-                      <tr key={s.id} className="border-t border-border/40">
-                        <td className="px-3 py-1.5">{fmtDate(s.scoutDate)}</td>
-                        <td className="px-3 py-1.5">{blockName(s.blockId)}</td>
-                        <td className="px-3 py-1.5">{fmt(s.scoutedBy)}</td>
-                        <td className="px-3 py-1.5">{pl(s.downyMildewPressure)}</td>
-                        <td className="px-3 py-1.5">{pl(s.powderyMildewPressure)}</td>
-                        <td className="px-3 py-1.5">{pl(s.botrytisPressure)}</td>
-                        <td className="px-3 py-1.5">{pl(s.phomopsisPressure)}</td>
-                        <td className="px-3 py-1.5">{pl(s.leafhopperPressure)}</td>
-                        <td className="px-3 py-1.5">{pl(s.spiderMitePressure)}</td>
-                        <td className="px-3 py-1.5 text-red-700 font-medium">{alerts || "—"}</td>
-                        <td className="px-3 py-1.5 max-w-[200px] truncate">{fmt(s.actionTaken)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            <Collapsible
+              title={`Disease Scouting Log — ${seasonScouts.length} round${seasonScouts.length !== 1 ? "s" : ""}`}
+              open={scoutingLogOpen}
+              setOpen={setScoutingLogOpen}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/20 text-foreground/60">
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">Block</th>
+                      <th className="px-3 py-2 text-left">Scouted By</th>
+                      <th className="px-3 py-2 text-left">Downy</th>
+                      <th className="px-3 py-2 text-left">Powdery</th>
+                      <th className="px-3 py-2 text-left">Botrytis</th>
+                      <th className="px-3 py-2 text-left">Phomopsis</th>
+                      <th className="px-3 py-2 text-left">Leafhopper</th>
+                      <th className="px-3 py-2 text-left">Spider Mite</th>
+                      <th className="px-3 py-2 text-left">Alerts</th>
+                      <th className="px-3 py-2 text-left">Action Taken</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleScouts.map(s => {
+                      const alerts = [
+                        s.vineWeevilSighted && "Vine Weevil",
+                        s.eutypaDiebackSighted && "Eutypa",
+                        s.xylellaFastidiosa && "⚠ Xylella",
+                        s.phytophthoraViticola && "Phytophthora",
+                      ].filter(Boolean).join(", ");
+                      const pl = (v: unknown) => {
+                        const p = PRESSURE_LABEL[n(v)];
+                        const c = PRESSURE_COLOR[n(v)];
+                        return <span className={c}>{p}</span>;
+                      };
+                      return (
+                        <tr key={s.id} className="border-t border-border/40">
+                          <td className="px-3 py-1.5">{fmtDate(s.scoutDate)}</td>
+                          <td className="px-3 py-1.5">{blockName(s.blockId)}</td>
+                          <td className="px-3 py-1.5">{fmt(s.scoutedBy)}</td>
+                          <td className="px-3 py-1.5">{pl(s.downyMildewPressure)}</td>
+                          <td className="px-3 py-1.5">{pl(s.powderyMildewPressure)}</td>
+                          <td className="px-3 py-1.5">{pl(s.botrytisPressure)}</td>
+                          <td className="px-3 py-1.5">{pl(s.phomopsisPressure)}</td>
+                          <td className="px-3 py-1.5">{pl(s.leafhopperPressure)}</td>
+                          <td className="px-3 py-1.5">{pl(s.spiderMitePressure)}</td>
+                          <td className="px-3 py-1.5 text-red-700 font-medium">{alerts || "—"}</td>
+                          <td className="px-3 py-1.5 max-w-[200px] truncate">{fmt(s.actionTaken)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Collapsible>
           </>
         )}
       </div>}
