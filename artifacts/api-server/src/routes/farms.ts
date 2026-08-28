@@ -30,6 +30,7 @@ import {
   cropVarietiesTable,
   cropDocumentsTable,
   fieldCropAssignmentsTable,
+  bydvAssessmentsTable,
   seedBatchesTable,
   seedPurchaseOrdersTable,
   seedStocktakesTable,
@@ -1736,6 +1737,134 @@ router.delete("/farms/:farmId/seed-storage-checks/:recordId", requireAuth, requi
 });
 
 // ─── Field-Crop Assignments ─────────────────────────
+
+const BYDV_TOOL_URL = "https://bydvtool.ahdb.org.uk/";
+const BYDV_MODES = new Set(["spray_decision", "sow_decision"]);
+const BYDV_CROPS = new Set(["winter_wheat", "winter_barley"]);
+const BYDV_RESULTS = new Set(["high_risk", "moderate_risk", "lower_risk", "action_window", "other"]);
+const BYDV_DECISIONS = new Set(["monitor_crop", "review_spray_programme", "review_sowing_timing", "seek_agronomist_advice", "no_change", "other"]);
+
+function isIsoDateOnly(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function nullableText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+router.get("/farms/:farmId/bydv-assessments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const records = await db
+    .select({
+      id: bydvAssessmentsTable.id,
+      farmId: bydvAssessmentsTable.farmId,
+      fieldId: bydvAssessmentsTable.fieldId,
+      fieldName: fieldsTable.name,
+      fieldReference: fieldsTable.fieldReference,
+      assessmentDate: bydvAssessmentsTable.assessmentDate,
+      assessmentMode: bydvAssessmentsTable.assessmentMode,
+      cropType: bydvAssessmentsTable.cropType,
+      variety: bydvAssessmentsTable.variety,
+      sowDate: bydvAssessmentsTable.sowDate,
+      emergenceDate: bydvAssessmentsTable.emergenceDate,
+      surroundedByArable: bydvAssessmentsTable.surroundedByArable,
+      insecticideProgramme: bydvAssessmentsTable.insecticideProgramme,
+      resultStatus: bydvAssessmentsTable.resultStatus,
+      resultNotes: bydvAssessmentsTable.resultNotes,
+      internalDecision: bydvAssessmentsTable.internalDecision,
+      assessorName: bydvAssessmentsTable.assessorName,
+      sourceUrl: bydvAssessmentsTable.sourceUrl,
+      createdAt: bydvAssessmentsTable.createdAt,
+      updatedAt: bydvAssessmentsTable.updatedAt,
+    })
+    .from(bydvAssessmentsTable)
+    .innerJoin(fieldsTable, eq(bydvAssessmentsTable.fieldId, fieldsTable.id))
+    .where(eq(bydvAssessmentsTable.farmId, farmId))
+    .orderBy(desc(bydvAssessmentsTable.assessmentDate), desc(bydvAssessmentsTable.id));
+  res.json({ records });
+});
+
+router.post("/farms/:farmId/bydv-assessments", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const fieldId = Number(req.body.fieldId);
+  if (!Number.isInteger(fieldId) || fieldId <= 0) { res.status(400).json({ error: "A valid field is required" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId))).limit(1);
+  if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  if (!isIsoDateOnly(req.body.assessmentDate) || !isIsoDateOnly(req.body.sowDate)) { res.status(400).json({ error: "Assessment date and sow date are required" }); return; }
+  if (req.body.emergenceDate && !isIsoDateOnly(req.body.emergenceDate)) { res.status(400).json({ error: "Emergence date is invalid" }); return; }
+  if (!BYDV_MODES.has(req.body.assessmentMode) || !BYDV_CROPS.has(req.body.cropType) || !BYDV_RESULTS.has(req.body.resultStatus) || !BYDV_DECISIONS.has(req.body.internalDecision)) {
+    res.status(400).json({ error: "One or more BYDV assessment selections are invalid" });
+    return;
+  }
+  const [record] = await db.insert(bydvAssessmentsTable).values({
+    farmId,
+    fieldId,
+    assessmentDate: req.body.assessmentDate,
+    assessmentMode: req.body.assessmentMode,
+    cropType: req.body.cropType,
+    variety: nullableText(req.body.variety),
+    sowDate: req.body.sowDate,
+    emergenceDate: req.body.emergenceDate || null,
+    surroundedByArable: req.body.surroundedByArable === true,
+    insecticideProgramme: nullableText(req.body.insecticideProgramme),
+    resultStatus: req.body.resultStatus,
+    resultNotes: nullableText(req.body.resultNotes),
+    internalDecision: req.body.internalDecision,
+    assessorName: nullableText(req.body.assessorName),
+    sourceUrl: BYDV_TOOL_URL,
+  }).returning();
+  res.status(201).json({ record });
+});
+
+router.put("/farms/:farmId/bydv-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "write"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  const fieldId = Number(req.body.fieldId);
+  if (!Number.isInteger(recordId) || !Number.isInteger(fieldId)) { res.status(400).json({ error: "Invalid record or field" }); return; }
+  const [field] = await db.select({ id: fieldsTable.id }).from(fieldsTable).where(and(eq(fieldsTable.id, fieldId), eq(fieldsTable.farmId, farmId))).limit(1);
+  if (!field) { res.status(400).json({ error: "Field not found on this farm" }); return; }
+  if (!isIsoDateOnly(req.body.assessmentDate) || !isIsoDateOnly(req.body.sowDate)) { res.status(400).json({ error: "Assessment date and sow date are required" }); return; }
+  if (req.body.emergenceDate && !isIsoDateOnly(req.body.emergenceDate)) { res.status(400).json({ error: "Emergence date is invalid" }); return; }
+  if (!BYDV_MODES.has(req.body.assessmentMode) || !BYDV_CROPS.has(req.body.cropType) || !BYDV_RESULTS.has(req.body.resultStatus) || !BYDV_DECISIONS.has(req.body.internalDecision)) {
+    res.status(400).json({ error: "One or more BYDV assessment selections are invalid" });
+    return;
+  }
+  const [record] = await db.update(bydvAssessmentsTable).set({
+    fieldId,
+    assessmentDate: req.body.assessmentDate,
+    assessmentMode: req.body.assessmentMode,
+    cropType: req.body.cropType,
+    variety: nullableText(req.body.variety),
+    sowDate: req.body.sowDate,
+    emergenceDate: req.body.emergenceDate || null,
+    surroundedByArable: req.body.surroundedByArable === true,
+    insecticideProgramme: nullableText(req.body.insecticideProgramme),
+    resultStatus: req.body.resultStatus,
+    resultNotes: nullableText(req.body.resultNotes),
+    internalDecision: req.body.internalDecision,
+    assessorName: nullableText(req.body.assessorName),
+    sourceUrl: BYDV_TOOL_URL,
+    updatedAt: new Date(),
+  }).where(and(eq(bydvAssessmentsTable.id, recordId), eq(bydvAssessmentsTable.farmId, farmId))).returning();
+  if (!record) { res.status(404).json({ error: "BYDV assessment not found" }); return; }
+  res.json({ record });
+});
+
+router.delete("/farms/:farmId/bydv-assessments/:recordId", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "delete"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const recordId = Number(req.params.recordId);
+  if (!Number.isInteger(recordId)) { res.status(400).json({ error: "Invalid record" }); return; }
+  const [deleted] = await db.delete(bydvAssessmentsTable).where(and(eq(bydvAssessmentsTable.id, recordId), eq(bydvAssessmentsTable.farmId, farmId))).returning({ id: bydvAssessmentsTable.id });
+  if (!deleted) { res.status(404).json({ error: "BYDV assessment not found" }); return; }
+  res.json({ ok: true });
+});
+
 router.get("/farms/:farmId/field-crops", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;

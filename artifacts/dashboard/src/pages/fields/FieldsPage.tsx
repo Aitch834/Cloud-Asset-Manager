@@ -86,6 +86,7 @@ import {
 import { SeedDrillingSection } from "./SeedDrillingSection";
 import { CropRotationPlanner } from "./CropRotationPlanner";
 import { GrasslandSection } from "./GrasslandSection";
+import { BydvAssessmentSection } from "./BydvAssessmentSection";
 
 export default function FieldsPage() {
   const { farmId } = useAppStore();
@@ -109,10 +110,10 @@ export default function FieldsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [tab, setTab] = usePersistedTab<"fields" | "crops" | "seed" | "tenure" | "rotation" | "map" | "grassland">({
+  const [tab, setTab] = usePersistedTab<"fields" | "crops" | "seed" | "bydv" | "tenure" | "rotation" | "map" | "grassland">({
     page: "fields",
     farmId,
-    validIds: ["fields", "crops", "seed", "tenure", "rotation", "map", "grassland"],
+    validIds: ["fields", "crops", "seed", "bydv", "tenure", "rotation", "map", "grassland"],
     defaultTab: "fields",
     // When arriving via a deep-link ?editFieldId=, always land on the Fields tab
     // so the FieldCardMenu renders and the edit dialog can auto-open.
@@ -591,6 +592,7 @@ export default function FieldsPage() {
         <TabButton active={tab === "fields"} onClick={() => setTab("fields")}>Fields</TabButton>
         <TabButton active={tab === "crops"} onClick={() => setTab("crops")}>Crops Register</TabButton>
         <TabButton active={tab === "seed"} onClick={() => setTab("seed")}>Seed Records</TabButton>
+        <TabButton active={tab === "bydv"} onClick={() => setTab("bydv")}>BYDV Risk</TabButton>
         <TabButton active={tab === "tenure"} onClick={() => setTab("tenure")}>Land Tenure</TabButton>
         <TabButton active={tab === "rotation"} onClick={() => setTab("rotation")}>Crop Rotation</TabButton>
         <TabButton active={tab === "map"} onClick={() => setTab("map")}>Field Map</TabButton>
@@ -2875,6 +2877,9 @@ export default function FieldsPage() {
 
       {/* ── SEED RECORDS TAB ── */}
       {tab === "seed" && <SeedDrillingSection farmId={farmId} fields={fields} />}
+
+      {/* ── AHDB BYDV DECISION SUPPORT TAB ── */}
+      {tab === "bydv" && <BydvAssessmentSection farmId={farmId} fields={fields} assignments={assignments} />}
 
       {/* ── CROP ROTATION PLANNER TAB ── */}
       {tab === "rotation" && <CropRotationPlanner farmId={farmId} fields={fields} fieldsLoading={fieldsLoading} />}

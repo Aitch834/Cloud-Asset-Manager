@@ -76,3 +76,4 @@
 - [Mutable sync queue revisions](mutable-sync-queue-revisions.md) — queued edits need payload-aware completion/failure or an older in-flight request can discard a newer local revision
 - [Workspace-root package updates](workspace-root-package-updates.md) — the package installer cannot pass pnpm's required -w flag; reconcile reviewed monorepo manifests with pnpm install
 - [Admin mailbox provider](admin-mailbox-provider.md) — 123 Reg webmail credentials authenticate on its legacy IMAP service, not Titan; verify auth before changing providers
+- [AHDB BYDV integration boundary](ahdb-bydv-boundary.md) — store farmer-entered AHDB outcomes and decisions; link to AHDB, but never copy, scrape, or imply ownership of its risk model
