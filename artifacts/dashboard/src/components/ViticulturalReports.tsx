@@ -91,11 +91,6 @@ function useVitData(farmId: number) {
   };
 }
 
-const BLOCK_COLORS = [
-  "#7c3aed", "#2563eb", "#16a34a", "#dc2626", "#d97706",
-  "#0891b2", "#db2777", "#65a30d", "#9333ea", "#0f766e",
-];
-
 const DISEASE_SERIES = [
   { key: "downyMildewPressure", label: "Downy Mildew", color: "#7c3aed" },
   { key: "powderyMildewPressure", label: "Powdery Mildew", color: "#8b5cf6" },
