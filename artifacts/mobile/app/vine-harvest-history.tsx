@@ -102,6 +102,15 @@ function formatDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function formatBlockLabel(
+  blockName: string | null | undefined,
+  variety: string | null | undefined,
+): string {
+  const name = blockName?.trim() || "Block";
+  const trimmedVariety = variety?.trim();
+  return trimmedVariety ? `${name} (${trimmedVariety})` : name;
+}
+
 function showBlockAreaExplanation() {
   Alert.alert(
     "Block area not set",
@@ -713,6 +722,7 @@ export default function VineHarvestHistoryScreen() {
   const [chemistryCrossTabSort, setChemistryCrossTabSort] = usePersistedChemistryCrossTabSort(currentFarm?.id);
   const [chemistryCrossTabOpen, setChemistryCrossTabOpen] = useState(true);
   const [varietyTableOpen, setVarietyTableOpen] = usePersistedVarietyTableOpen(currentFarm?.id);
+  const [selectedYieldBlockId, setSelectedYieldBlockId] = useState<number | null>(null);
 
   // Offline-pending records that haven't synced yet
   const [offlinePending, setOfflinePending] = useState<OfflineHarvestEntry[]>([]);
@@ -956,6 +966,64 @@ export default function VineHarvestHistoryScreen() {
       hasUnsynced,
     };
   }, [blockFilteredRecords, vintageRecords, blocks, offlinePendingForVintage]);
+
+  const yieldByBlockChartData = useMemo(() => {
+    const blockMap = new Map(blocks.map(block => [block.id, block]));
+    const totalsByBlock = new Map<number, number>();
+
+    for (const record of [...blockFilteredRecords, ...offlinePendingForVintage]) {
+      if (record.blockId == null) continue;
+      totalsByBlock.set(
+        record.blockId,
+        (totalsByBlock.get(record.blockId) ?? 0) + (Number(record.yieldKg ?? 0) || 0),
+      );
+    }
+
+    const varieties = Array.from(totalsByBlock.keys())
+      .map(blockId => String(blockMap.get(blockId)?.variety ?? "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    const varietyColorMap = new Map<string, string>();
+    for (const variety of Array.from(new Set(varieties))) {
+      varietyColorMap.set(
+        variety,
+        YIELD_CHART_COLORS[varietyColorMap.size % YIELD_CHART_COLORS.length],
+      );
+    }
+
+    const rows = Array.from(totalsByBlock.entries())
+      .map(([blockId, totalKg]) => {
+        const block = blockMap.get(blockId);
+        const fallbackName = [...blockFilteredRecords, ...offlinePendingForVintage]
+          .find(record => record.blockId === blockId && record.blockName)?.blockName;
+        const blockName = block?.blockName ?? fallbackName ?? `Block ${blockId}`;
+        const variety = String(block?.variety ?? "").trim();
+        const areaHa = block?.areaHa != null && Number(block.areaHa) > 0 ? Number(block.areaHa) : null;
+        return {
+          blockId,
+          blockName,
+          variety,
+          totalKg,
+          tonnesPerHa: areaHa != null && totalKg > 0 ? totalKg / 1000 / areaHa : null,
+          color: variety ? (varietyColorMap.get(variety) ?? colors.primary) : "#94a3b8",
+        };
+      })
+      .sort((a, b) => b.totalKg - a.totalKg || a.blockName.localeCompare(b.blockName));
+
+    return {
+      rows,
+      maxKg: rows.reduce((max, row) => Math.max(max, row.totalKg), 0),
+    };
+  }, [blockFilteredRecords, offlinePendingForVintage, blocks]);
+
+  useEffect(() => {
+    if (
+      selectedYieldBlockId != null &&
+      !yieldByBlockChartData.rows.some(row => row.blockId === selectedYieldBlockId)
+    ) {
+      setSelectedYieldBlockId(null);
+    }
+  }, [selectedYieldBlockId, yieldByBlockChartData.rows]);
 
   // Per-vintage chemistry averages for the all-years trend view. Keep this
   // independent of the selected vintage so the trend remains useful while a
@@ -1556,6 +1624,64 @@ export default function VineHarvestHistoryScreen() {
               </Text>
             </View>
           )}
+        </View>
+      )}
+
+      {!loading && !error && yieldByBlockChartData.rows.length > 0 && (
+        <View style={styles.yieldBlockChartCard}>
+          <View style={styles.yieldBlockChartHeader}>
+            <Feather name="bar-chart-2" size={14} color={colors.textSecondary} />
+            <Text style={styles.yieldBlockChartTitle}>Yield by Block</Text>
+            <Text style={styles.yieldBlockChartHint}>Tap a bar for details</Text>
+          </View>
+          <View style={styles.yieldBlockChart}>
+            {yieldByBlockChartData.rows.map(row => {
+              const selected = selectedYieldBlockId === row.blockId;
+              const widthPercent = yieldByBlockChartData.maxKg > 0
+                ? Math.max((row.totalKg / yieldByBlockChartData.maxKg) * 100, 1)
+                : 1;
+              return (
+                <View key={row.blockId}>
+                  <Pressable
+                    style={[styles.yieldBlockBarRow, selected && styles.yieldBlockBarRowSelected]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedYieldBlockId(current => current === row.blockId ? null : row.blockId);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${formatBlockLabel(row.blockName, row.variety)}, ${row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 })} kilograms`}
+                  >
+                    <Text style={styles.yieldBlockBarName} numberOfLines={1}>{row.blockName}</Text>
+                    <View style={styles.yieldBlockBarTrack}>
+                      <View
+                        style={[
+                          styles.yieldBlockBarFill,
+                          { width: `${widthPercent}%` as any, backgroundColor: row.color },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.yieldBlockBarValue}>
+                      {row.totalKg >= 1000
+                        ? `${(row.totalKg / 1000).toFixed(2)} t`
+                        : `${row.totalKg.toFixed(0)} kg`}
+                    </Text>
+                  </Pressable>
+                  {selected && (
+                    <View style={styles.yieldBlockTooltip}>
+                      <Text style={styles.yieldBlockTooltipLabel}>
+                        {formatBlockLabel(row.blockName, row.variety)}
+                      </Text>
+                      <Text style={styles.yieldBlockTooltipValue}>
+                        {row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 0 })} kg
+                        {row.tonnesPerHa != null ? ` · ${row.tonnesPerHa.toFixed(2)} t/ha` : ""}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
       )}
 
@@ -2565,6 +2691,89 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     flex: 1,
+  },
+  yieldBlockChartCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  yieldBlockChartHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  yieldBlockChartTitle: {
+    flex: 1,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  yieldBlockChartHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  yieldBlockChart: {
+    padding: spacing.sm,
+    gap: spacing.xs,
+  },
+  yieldBlockBarRow: {
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    gap: 5,
+  },
+  yieldBlockBarRowSelected: {
+    backgroundColor: colors.borderLight,
+  },
+  yieldBlockBarName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  yieldBlockBarTrack: {
+    height: 12,
+    backgroundColor: colors.border,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  yieldBlockBarFill: {
+    height: "100%",
+    borderRadius: 6,
+  },
+  yieldBlockBarValue: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: "right",
+  },
+  yieldBlockTooltip: {
+    marginHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.text,
+    borderRadius: radius.md,
+  },
+  yieldBlockTooltipLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: colors.surface,
+  },
+  yieldBlockTooltipValue: {
+    marginTop: 2,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.surface,
+    opacity: 0.82,
   },
   // Yield by Block × Vintage cross-tab
   yieldCrossTabCard: {
