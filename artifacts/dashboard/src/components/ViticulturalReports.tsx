@@ -2121,6 +2121,26 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     () => ops.filter(o => new Date(o.operationDate).getFullYear() === year),
     [ops, year],
   );
+  const opsBlockInfos: BlockInfo[] = useMemo(() => {
+    const seen = new Map<number, BlockInfo>();
+    yearOps.forEach(o => {
+      if (o.blockId != null && !seen.has(o.blockId)) {
+        const bl = blockMap[o.blockId];
+        if (bl) seen.set(o.blockId, { id: o.blockId, name: bl.blockName, variety: bl.variety ?? "" });
+      }
+    });
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [yearOps, blockMap]);
+  const [selectedOpsBlocks, setSelectedOpsBlocks] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    setSelectedOpsBlocks(null);
+  }, [year]);
+  const visibleYearOps = useMemo(
+    () => selectedOpsBlocks == null
+      ? yearOps
+      : yearOps.filter(o => o.blockId != null && selectedOpsBlocks.has(o.blockId)),
+    [yearOps, selectedOpsBlocks],
+  );
   const yearSprays = useMemo(
     () => sprays.filter(s => new Date(s.applicationDate).getFullYear() === year),
     [sprays, year],
@@ -2155,13 +2175,14 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
   // Operations hours by type
   const opsByType = useMemo(() => {
     const m: Record<string, number> = {};
-    yearOps.forEach(o => {
+    visibleYearOps.forEach(o => {
       const t = o.operationType ?? "Other";
       m[t] = (m[t] ?? 0) + n(o.hoursWorked);
     });
     return Object.entries(m).sort(([, a], [, b]) => b - a);
-  }, [yearOps]);
+  }, [visibleYearOps]);
   const totalOpsHours = yearOps.reduce((s, o) => s + n(o.hoursWorked), 0);
+  const visibleTotalOpsHours = visibleYearOps.reduce((s, o) => s + n(o.hoursWorked), 0);
 
   // Spray summary
   const sprayByProduct = useMemo(() => {
@@ -2602,6 +2623,15 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
               open={forcePrint || openSections.has("ops")}
               setOpen={() => toggleSection("ops")}
             >
+              <>
+                {opsBlockInfos.length >= 8 && (
+                  <BlockFilterStrip
+                    blockInfos={opsBlockInfos}
+                    selectedIds={selectedOpsBlocks}
+                    onChangeIds={setSelectedOpsBlocks}
+                    farmId={farmId}
+                  />
+                )}
               <div className="p-4 space-y-3">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {opsByType.map(([type, hours]) => (
@@ -2625,7 +2655,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {yearOps.map(o => (
+                      {visibleYearOps.map(o => (
                         <tr key={o.id} className="border-t border-border/40 hover:bg-muted/20">
                           <td className="px-3 py-1.5">{fmtDate(o.operationDate)}</td>
                           <td className="px-3 py-1.5">{blockName(o.blockId)}</td>
@@ -2640,13 +2670,14 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
                     <tfoot>
                       <tr className="border-t-2 border-border bg-muted/20 font-semibold">
                         <td className="px-3 py-1.5" colSpan={5}>Total</td>
-                        <td className="px-3 py-1.5 text-right font-mono font-bold">{totalOpsHours.toFixed(1)}</td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold">{visibleTotalOpsHours.toFixed(1)}</td>
                         <td className="px-3 py-1.5" />
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </div>
+              </>
             </Collapsible>
           )}
 
