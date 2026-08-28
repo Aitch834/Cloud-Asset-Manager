@@ -697,6 +697,24 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               render: r => {
                 const recordId = r.id as number;
                 const linked = blocks.find(b => b.id === r.blockId);
+                const photoCount = Number(r.photoCount ?? 0);
+                const photoBadge = Number.isFinite(photoCount) && photoCount > 0 ? (
+                  <button
+                    type="button"
+                    title={`View ${photoCount} ${photoCount === 1 ? "photo" : "photos"}`}
+                    aria-label={`View ${photoCount} ${photoCount === 1 ? "photo" : "photos"}`}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setPhotoOnlyRecordId(recordId);
+                      setPhotoLightboxIndex(0);
+                      setPhotoLightboxOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-3 h-3" />
+                    {photoCount} {photoCount === 1 ? "photo" : "photos"}
+                  </button>
+                ) : null;
 
                 // ── Inline "change block" select mode ──────────────────────────
                 if (changingBlockRecordId === recordId) {
@@ -738,13 +756,15 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                       >
                         Cancel
                       </button>
+                      {photoBadge}
                     </div>
                   );
                 }
 
                 if (linked) return (
-                  <span className="inline-flex items-center gap-1.5 group">
+                  <span className="inline-flex items-center gap-1.5 flex-wrap group">
                     <span className="text-sm">{String(linked.blockName)}</span>
+                    {photoBadge}
                     <button
                       type="button"
                       title="Change block link"
@@ -764,9 +784,10 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
                   </span>
                 );
                 return (
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                  <span className="inline-flex items-center gap-1.5 flex-wrap text-xs text-amber-600">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
                     Not linked
+                    {photoBadge}
                   </span>
                 );
               },
@@ -777,29 +798,6 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
             { key: "ratePerHectare", label: "Rate/ha", render: r => r.ratePerHectare ? `${fmtNum(r.ratePerHectare)} ${fmt(r.rateUnit)}` : "—" },
             { key: "areaTreatedHa", label: "Area (ha)", render: r => fmtNum(r.areaTreatedHa, 4) },
             { key: "operatorName", label: "Operator" },
-            {
-              key: "photoCount",
-              label: "Photos",
-              render: r => {
-                const count = typeof r.photoCount === "number" ? r.photoCount : 0;
-                if (count === 0) return <span className="text-foreground/30 text-xs">—</span>;
-                return (
-                  <button
-                    type="button"
-                    title="View photos"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setPhotoOnlyRecordId(r.id as number);
-                      setPhotoLightboxIndex(0);
-                      setPhotoLightboxOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded-full px-2 py-0.5 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
-                  >
-                    <Camera className="w-3 h-3" />{count}
-                  </button>
-                );
-              },
-            },
           ]}
           rows={filteredSpray}
           onView={setView} onEdit={openEdit} onDelete={r => crud.remove.mutate(r.id as number)} deleteMutation={crud.remove}
