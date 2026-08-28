@@ -85,6 +85,7 @@ const PRESSURE_NUMERIC_FIELDS: (keyof ScoutingRecord)[] = [
 interface ScoutingRecord {
   id: number;
   scoutDate: string | null;
+  nextScoutDate: string | null;
   blockId: number | null;
   blockName: string | null;
   scoutedBy: string | null;
@@ -105,6 +106,23 @@ interface ScoutingRecord {
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function dateOnly(d: string | null | undefined): string | null {
+  const value = d?.trim().slice(0, 10);
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function isPastDate(d: string | null | undefined): boolean {
+  const date = dateOnly(d);
+  if (!date) return false;
+  const today = new Date();
+  const todayKey = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  return date < todayKey;
 }
 
 function pressureBadge(value: number | null): { label: string; color: string } | null {
@@ -504,6 +522,7 @@ function ScoutingRow({
   const linked = !!item.blockId;
   const hasNotifiable = item.xylellaFastidiosa || item.phytophthoraViticola;
   const hasBoolPests = item.vineWeevilSighted || item.eutypaDiebackSighted;
+  const isOverdue = isPastDate(item.nextScoutDate);
 
   const handlePress = () => {
     Haptics.selectionAsync();
@@ -523,7 +542,7 @@ function ScoutingRow({
   };
 
   return (
-    <Pressable style={styles.card} onPress={handlePress}>
+    <Pressable style={[styles.card, isOverdue && styles.cardOverdue]} onPress={handlePress}>
       {/* ── Header row: date + actions ── */}
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
@@ -558,6 +577,22 @@ function ScoutingRow({
           </Pressable>
           <Feather name="chevron-right" size={16} color={colors.textSecondary} />
         </View>
+      </View>
+
+      {/* ── Next scouting due ── */}
+      <View style={[styles.nextDueRow, isOverdue && styles.nextDueRowOverdue]}>
+        <Feather
+          name={isOverdue ? "alert-triangle" : "calendar"}
+          size={13}
+          color={isOverdue ? colors.error : colors.textSecondary}
+        />
+        <Text style={[styles.nextDueText, isOverdue && styles.nextDueTextOverdue]}>
+          {isOverdue
+            ? `Overdue · ${formatDate(item.nextScoutDate)}`
+            : item.nextScoutDate
+            ? `Next: ${formatDate(item.nextScoutDate)}`
+            : "Next: Not scheduled"}
+        </Text>
       </View>
 
       {/* ── Notifiable banner ── */}
@@ -1231,6 +1266,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     gap: spacing.sm,
   },
+  cardOverdue: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.error,
+    paddingLeft: spacing.lg - 4,
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1243,6 +1283,26 @@ const styles = StyleSheet.create({
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   deleteBtn: { padding: 4 },
   separator: { height: 1, backgroundColor: colors.border, marginLeft: spacing.lg },
+  nextDueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+  },
+  nextDueRowOverdue: {
+    backgroundColor: colors.errorBg,
+  },
+  nextDueText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  nextDueTextOverdue: {
+    color: colors.error,
+  },
   // Pressure pills grid
   pressureGrid: {
     flexDirection: "row",
