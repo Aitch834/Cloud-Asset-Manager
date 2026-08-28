@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AbrKitStockSection, SccEquipmentSection } from "@/pages/DairyPage";
 import { AbrProcurementSection } from "@/pages/dairy/AbrProcurementSection";
 import { DairyEnterpriseReport } from "@/components/DairyEnterpriseReport";
+import { printBirthRecordReport } from "@/lib/birth-record-report";
+import { useFarmReportMeta } from "@/hooks/use-farm-name";
 import { ResponsiveContainer, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart } from "recharts";
 
 const PIE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
@@ -652,12 +654,38 @@ function EaseScoreBadge({ v }: { v?: number | null }) {
 export function KiddingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const farmMeta = useFarmReportMeta(farmId);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<KiddingRecord | null>(null);
   const [viewRec, setViewRec] = useState<KiddingRecord | null>(null);
   const blank: Partial<KiddingRecord> = { kiddingDate: today(), birthOutcome: "live-single", kidCount: 1, assistanceRequired: false, vetAttended: false, eidApplied: false };
   const [form, setForm] = useState<Partial<KiddingRecord>>(blank);
   const set = (k: keyof KiddingRecord, v: unknown) => setForm(p => ({ ...p, [k]: v }));
+
+  const printBirthRecord = (record: KiddingRecord) => printBirthRecordReport({
+    species: "goat",
+    recordId: record.id,
+    ...farmMeta,
+    birthDate: record.kiddingDate,
+    damLabel: record.doeLisTag,
+    offspring: Array.from({ length: Math.max(1, record.kidCount ?? 1) }, (_, index) => ({
+      label: `Kid ${index + 1}`,
+      outcome: record.birthOutcome,
+      sex: record.kidSex,
+      tag: index === 0 ? record.kidEidTag : null,
+      eid: index === 0 ? record.lisTagNumber : null,
+      weightKg: index === 0 ? record.kidBirthWeightKg : null,
+      colostrum: record.colostrumGivenWithin2Hours == null ? null : record.colostrumGivenWithin2Hours ? "Within 2 hours" : "Not within 2 hours",
+    })),
+    ease: record.easeScore,
+    assistance: record.assistanceRequired,
+    assistanceType: record.assistanceType,
+    vet: record.vetAttended ? record.vetName || "Veterinary attendance recorded" : "No veterinary attendance recorded",
+    complications: [record.doeMilkingStatus ? `Milking status: ${record.doeMilkingStatus}` : null, record.doeComplications].filter(Boolean).join(" · ") || null,
+    colostrumWithin2Hours: record.colostrumGivenWithin2Hours,
+    registration: record.eidApplied ? `EID applied${record.eidAppliedDate ? ` on ${fmt(record.eidAppliedDate)}` : ""}${record.lisTagNumber ? ` · LIS ${record.lisTagNumber}` : ""}` : "EID pending",
+    notes: record.notes,
+  });
 
   const { data, isLoading } = useQuery({ queryKey: ["goat-dairy-kidding", farmId], queryFn: () => fetch(api(`farms/${farmId}/goat-dairy/kidding-records`)).then(r => r.json()) });
   const records: KiddingRecord[] = data?.records ?? [];
@@ -752,7 +780,7 @@ export function KiddingTab({ farmId }: { farmId: number }) {
               {viewRec.notes && <div className="col-span-2"><p className="text-xs text-muted-foreground uppercase tracking-wide">Notes</p><p className="font-medium">{viewRec.notes}</p></div>}
               <div className="col-span-2 border-t pt-3"><RecordAttachments farmId={farmId} recordType="goat-dairy-kidding" recordId={viewRec.id} /></div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setViewRec(null)}>Close</Button><Button variant="outline" onClick={() => printBirthRecord(viewRec)}><Printer className="w-4 h-4 mr-1" />Farm Birth Record</Button><Button onClick={() => { setEditing(viewRec); setForm(viewRec); setOpen(true); setViewRec(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       )}

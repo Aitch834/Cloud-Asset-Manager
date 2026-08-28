@@ -188,6 +188,68 @@ function safeImageUrl(value: string | null | undefined): string | null {
   }
 }
 
+export interface FarmBirthRecordPrintData {
+  species: "cattle" | "sheep" | "goat";
+  recordId: string;
+  birthDate?: string | null;
+  dam?: string | null;
+  damDetails?: string | null;
+  sire?: string | null;
+  ease?: string | number | null;
+  assistance?: string | boolean | null;
+  vet?: string | boolean | null;
+  operator?: string | null;
+  complications?: string | null;
+  colostrum?: string | boolean | null;
+  disposition?: string | null;
+  registration?: string | null;
+  disposal?: string | null;
+  notes?: string | null;
+  evidence?: string | null;
+  offspring: Array<{
+    label: string;
+    outcome?: string | null;
+    sex?: string | null;
+    tag?: string | null;
+    eid?: string | null;
+    weightKg?: string | number | null;
+  }>;
+}
+
+function birthValue(value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value).replace(/_/g, " ");
+}
+
+export function farmBirthRecordHtml(data: FarmBirthRecordPrintData, farm: Farm | null): string {
+  const speciesLabel = data.species === "cattle" ? "Calving" : data.species === "sheep" ? "Lambing" : "Kidding";
+  const row = (label: string, value: unknown) => `<tr><td class="label">${escHtml(label)}</td><td>${escHtml(birthValue(value))}</td></tr>`;
+  const offspringRows = data.offspring.map(child => `<tr>
+    <td>${escHtml(child.label)}</td><td>${escHtml(birthValue(child.outcome))}</td><td>${escHtml(birthValue(child.sex))}</td>
+    <td>${escHtml(birthValue(child.tag))}</td><td>${escHtml(birthValue(child.eid))}</td>
+    <td>${escHtml(child.weightKg == null || child.weightKg === "" ? "—" : `${birthValue(child.weightKg)} kg`)}</td>
+  </tr>`).join("");
+
+  return wrap(`
+    ${docHeader(farm, `${speciesLabel} — Farm Birth Record`, data.recordId, data.birthDate || "")}
+    <div class="warning-box"><strong>Farm record only.</strong> This document is not an official statutory birth certificate, passport, BCMS/LIS submission, or breed-registration document.</div>
+    <div class="section-heading">Birth event and parentage</div>
+    <table>${row("Birth date", fmtDate(data.birthDate))}${row("Record reference", data.recordId)}${row("Dam", data.dam)}${row("Dam details", data.damDetails)}${row("Sire / sire reference", data.sire)}</table>
+    <div class="section-heading">Offspring details</div>
+    <table><thead><tr><th>Offspring</th><th>Outcome</th><th>Sex</th><th>Tag</th><th>EID</th><th>Birth weight</th></tr></thead><tbody>${offspringRows || `<tr><td colspan="6">No offspring details recorded.</td></tr>`}</tbody></table>
+    <div class="section-heading">Delivery, care and follow-up</div>
+    <table>
+      ${row("Ease score", data.ease)}${row("Assistance", data.assistance)}${row("Vet attendance", data.vet)}
+      ${row("Recorded by / operator", data.operator)}${row("Complications", data.complications)}${row("Colostrum", data.colostrum)}
+      ${row("Disposition", data.disposition)}${row("Passport / EID / LIS registration", data.registration)}
+      ${row("Perinatal disposal", data.disposal)}${row("Evidence / attachments", data.evidence)}${row("Notes", data.notes)}
+    </table>
+    <div class="sig-row"><div class="sig-box"><div class="sig-label">Recorded by / signature</div><div class="sig-line">Name and date</div></div><div class="sig-box"><div class="sig-label">Reviewed by / signature</div><div class="sig-line">Name and date</div></div></div>
+    ${docFooter("Farm Birth Record")}
+  `);
+}
+
 function yesNo(val: boolean) {
   return `<strong style="color:${val ? "#1a5c1a" : "#c0392b"}">${val ? "YES ✓" : "NO ✗"}</strong>`;
 }

@@ -31,6 +31,8 @@ import { STORAGE_KEYS, appendToList, generateId } from "@/lib/storage";
 import type { LambingRecord } from "@/lib/types";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
+import { farmBirthRecordHtml } from "@/lib/printTemplates";
+import { usePrint } from "@/lib/hooks/usePrint";
 
 const EASE_OPTIONS = [
   { key: 1, label: "1 — Unassisted", color: "#16a34a" },
@@ -151,6 +153,7 @@ export default function LambingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { triggerSync } = useSync();
+  const { print, savePdf } = usePrint();
   const sheepAlert = useDiseaseAlert("sheep");
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
@@ -248,8 +251,34 @@ export default function LambingRecordScreen() {
       await appendToList(STORAGE_KEYS.LAMBING_RECORDS, { ...record, documentUrl } as LambingRecord);
       await triggerSync();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const html = farmBirthRecordHtml({
+        species: "sheep",
+        recordId: record.id,
+        birthDate: record.lambingDate,
+        dam: record.eweEarTag,
+        ease: record.lambingEaseScore,
+        offspring: Array.from({ length: record.numberOfLambs }, (_, index) => {
+          const n = index + 1;
+          return {
+            label: `Lamb ${n}`,
+            outcome: record[`lambOutcome${n}` as keyof LambingRecord] as string,
+            sex: record[`lambSex${n}` as keyof LambingRecord] as string,
+            tag: record[`lambEarTag${n}` as keyof LambingRecord] as string,
+          };
+        }),
+        assistance: record.assistanceRequired,
+        vet: record.vetAttended,
+        operator: record.attendedBy,
+        colostrum: record.colostrumGivenWithin2Hours ? "Given within 2 hours" : "Not within 2 hours",
+        disposition: record.fosteringRequired ? `Fostering required${record.fosteringDetails ? ` — ${record.fosteringDetails}` : ""}` : null,
+        disposal: [record.perinatalCollectionDate, record.perinatalCollectionRef, record.perinatalDisposalMethod, record.perinatalDisposalNotes].filter(Boolean).join(" · ") || null,
+        notes: record.notes,
+        evidence: documentUrl ? "Photo evidence attached" : "No attachment",
+      }, currentFarm);
       Alert.alert("Saved", "Lambing record saved successfully.", [
         { text: "OK", onPress: () => router.back() },
+        { text: "Print", onPress: () => { void print(html).finally(() => router.back()); } },
+        { text: "Save PDF", onPress: () => { void savePdf(html, "Farm Birth Record").finally(() => router.back()); } },
       ]);
     } catch {
       Alert.alert("Error", "Failed to save record. Please try again.");

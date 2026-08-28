@@ -26,3 +26,29 @@ export function useRawFarmName(farmId: number): string | undefined {
 export function useFarmName(farmId: number): string {
   return useRawFarmName(farmId) ?? `Farm ${farmId}`;
 }
+
+export interface FarmReportMeta {
+  farmName?: string;
+  farmAddress?: string;
+  contactPhone?: string;
+  cphNumber?: string;
+  sbiNumber?: string;
+}
+
+export function useFarmReportMeta(farmId: number): FarmReportMeta {
+  const { data } = useFarmsList();
+  const farm = Array.isArray(data?.farms)
+    ? data.farms.find((candidate: Record<string, unknown>) => candidate.id === farmId)
+    : undefined;
+  const text = (key: string) => {
+    const value = farm?.[key];
+    return typeof value === "string" && value.trim() ? value : undefined;
+  };
+  return {
+    farmName: text("name"),
+    farmAddress: text("address") ?? ([text("addressLine1"), text("addressLine2"), text("postcode")].filter(Boolean).join(", ") || undefined),
+    contactPhone: text("contactPhone"),
+    cphNumber: text("cphNumber"),
+    sbiNumber: text("sbiNumber"),
+  };
+}

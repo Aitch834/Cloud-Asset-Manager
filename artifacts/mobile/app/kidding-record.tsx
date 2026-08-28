@@ -29,6 +29,8 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
+import { farmBirthRecordHtml } from "@/lib/printTemplates";
+import { usePrint } from "@/lib/hooks/usePrint";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -66,6 +68,7 @@ export default function KiddingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("kidding", currentFarm?.id, user?.id);
@@ -121,10 +124,34 @@ export default function KiddingRecordScreen() {
       await appendToList(STORAGE_KEYS.PENDING_SYNC, payload);
       await refreshPendingCount();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const aliveCount = payload.kidsAlive ?? Math.max(0, payload.litterSize - (payload.kidsStillborn ?? 0));
+      const stillbornCount = payload.kidsStillborn ?? 0;
+      const html = farmBirthRecordHtml({
+        species: "goat",
+        recordId: payload.id,
+        birthDate: payload.kiddingDate,
+        dam: payload.doeTagNumber || payload.doeName,
+        damDetails: [payload.doeName, payload.breed, payload.flockGroup].filter(Boolean).join(" · ") || null,
+        sire: payload.sireTagNumber,
+        ease: payload.easeScore,
+        offspring: Array.from({ length: payload.litterSize }, (_, index) => ({
+          label: `Kid ${index + 1}`,
+          outcome: index < aliveCount ? "Live" : index < aliveCount + stillbornCount ? "Stillborn" : "Unknown",
+        })),
+        vet: payload.attendedByVet,
+        colostrum: payload.colostrumGiven ? "Given" : "Not recorded as given",
+        disposition: stillbornCount ? `${stillbornCount} stillborn` : "No stillbirth recorded",
+        notes: payload.notes,
+        evidence: payload.photoUri ? "Photo evidence attached" : "No attachment",
+      }, currentFarm);
       Alert.alert(
         "Kidding recorded",
         `Kidding record for ${doeTagNumber || doeName} saved. Will sync when connected.`,
-        [{ text: "OK", onPress: () => router.back() }]
+        [
+          { text: "OK", onPress: () => router.back() },
+          { text: "Print", onPress: () => { void print(html).finally(() => router.back()); } },
+          { text: "Save PDF", onPress: () => { void savePdf(html, "Farm Birth Record").finally(() => router.back()); } },
+        ]
       );
     } catch {
       Alert.alert("Error", "Failed to save the record. Please try again.");

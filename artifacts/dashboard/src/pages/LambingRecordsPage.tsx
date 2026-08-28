@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useRawFarmName } from "@/hooks/use-farm-name";
-import { printRecordReport } from "@/lib/record-report";
+import { useFarmReportMeta } from "@/hooks/use-farm-name";
+import { printBirthRecordReport } from "@/lib/birth-record-report";
 import { Baby, Plus, Printer, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -60,7 +60,7 @@ export default function LambingRecordsPage() {
   const { farmId } = useAppStore();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const rawFarmName = useRawFarmName(farmId ?? 0);
+  const farmMeta = useFarmReportMeta(farmId ?? 0);
   const [tab, setTab] = usePersistedTab<"records" | "analytics">({ page: "lambing-records", farmId, validIds: ["records", "analytics"], defaultTab: "records" });
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -164,12 +164,38 @@ export default function LambingRecordsPage() {
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY }); setOpen(true); };
   const openEdit = (r: LambingRecord) => { setEditing(r); setForm({ ...r }); setOpen(true); };
   const f = (field: string, val: any) => setForm((p: any) => ({ ...p, [field]: val }));
-  const printLambingRecord = (record: LambingRecord) => printRecordReport({
-    title: "Lambing Record",
-    farmName: rawFarmName,
-    subtitle: record.eweEarTag ? `Ewe ${record.eweEarTag} · ${record.lambingDate}` : record.lambingDate,
-    record: { ...record, flockName: flocks.find(flock => flock.id === record.flockId)?.flockName ?? null },
-  });
+  const printLambingRecord = (record: LambingRecord) => {
+    const tags = (record.lambEarTags || "").split(/[,\n;]/).map(part => part.trim()).filter(Boolean);
+    const weights = (record.birthWeightsKg || "").split(/[,\n;]/).map(part => part.trim()).filter(Boolean);
+    const mortalityReasons = (record.mortalityReasons || "").split(/[,\n;]/).map(part => part.trim()).filter(Boolean);
+    printBirthRecordReport({
+      species: "sheep",
+      recordId: record.id,
+      ...farmMeta,
+      birthDate: record.lambingDate,
+      damLabel: record.eweEarTag,
+      damAge: record.eweAgeYears,
+      damCondition: record.eweBcs,
+      offspring: Array.from({ length: Math.max(1, record.numberOfLambs) }, (_, index) => {
+        const isMortality = index >= Math.max(0, record.numberOfLambs - record.mortalityCount);
+        return {
+          label: `Lamb ${index + 1}`,
+          outcome: isMortality ? mortalityReasons[index - (record.numberOfLambs - record.mortalityCount)] || "Mortality recorded" : "Live",
+          sex: record.sexOfLambs,
+          tag: tags[index],
+          weightKg: weights[index],
+          colostrum: record.colostrumGiven ? "Given" : "Not recorded as given",
+        };
+      }),
+      ease: record.lambingEase ? EASE_LABELS[record.lambingEase] ?? record.lambingEase : null,
+      assistance: record.assistanceRequired,
+      assistanceType: record.assistanceType,
+      colostrumWithin2Hours: record.colostrumGiven,
+      fostering: record.fostered ? `Yes${record.fosterEweTag ? ` — foster ewe ${record.fosterEweTag}` : ""}` : "No",
+      disposition: record.mortalityCount > 0 ? `${record.mortalityCount} mortality${record.mortalityCount === 1 ? "" : "ies"}: ${record.mortalityReasons || "reason not recorded"}` : "No mortality recorded",
+      notes: [flocks.find(flock => flock.id === record.flockId)?.flockName ? `Flock: ${flocks.find(flock => flock.id === record.flockId)?.flockName}` : null, record.notes].filter(Boolean).join(" · ") || null,
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

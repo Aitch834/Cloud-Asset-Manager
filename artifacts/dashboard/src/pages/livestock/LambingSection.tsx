@@ -26,6 +26,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { printProReport, openPrintWindow, buildProReport } from "@/lib/print-report";
+import { printBirthRecordReport } from "@/lib/birth-record-report";
+import { useFarmReportMeta } from "@/hooks/use-farm-name";
 import { LabSelector } from "@/components/ui/LabSelector";
 import { useFarmMembers, memberFullName } from "@/hooks/use-farm-members";
 import { StaffSelect } from "@/components/ui/staff-select";
@@ -143,6 +145,7 @@ function LambSection({ n, form, set }: {
 export function LambingSection({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const farmMeta = useFarmReportMeta(farmId);
   const todayStr = () => new Date().toISOString().slice(0, 10);
   const EMPTY: Partial<LambingRecord> = { numberOfLambs: 1, lambingDate: todayStr(), assistanceRequired: false, vetAttended: false, fosteringRequired: false };
 
@@ -155,6 +158,48 @@ export function LambingSection({ farmId }: { farmId: number }) {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const CURRENT_YEAR = new Date().getFullYear();
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "livestock-lambing", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
+
+  const printBirthRecord = (record: LambingRecord) => {
+    const offspring = Array.from({ length: Math.max(1, record.numberOfLambs ?? 1) }, (_, index) => {
+      const n = index + 1;
+      const get = (field: string) => record[`${field}${n}` as keyof LambingRecord] as string | number | null | undefined;
+      return {
+        label: `Lamb ${n}`,
+        outcome: get("lambOutcome"),
+        sex: get("lambSex"),
+        tag: get("lambEarTag"),
+        eid: get("lambEidNumber"),
+        animalId: get("lambAnimalId"),
+        weightKg: get("lambBirthWeightKg"),
+        colostrum: record.colostrumGivenWithin2Hours == null ? null : record.colostrumGivenWithin2Hours ? "Within 2 hours" : "Not within 2 hours",
+      };
+    });
+    const contractor = contractors.find(candidate => candidate.id === record.perinatalDisposalContractorId);
+    printBirthRecordReport({
+      species: "sheep",
+      recordId: record.id,
+      ...farmMeta,
+      birthDate: record.lambingDate,
+      damLabel: record.eweEarTag,
+      damId: record.eweAnimalId,
+      offspring,
+      sire: record.ramEarTag ?? record.sireRegisterId,
+      sireBreed: record.ramBreed,
+      conceptionMethod: record.conceptionMethod,
+      ease: record.lambingEaseScore,
+      assistance: record.assistanceRequired,
+      assistanceType: record.assistanceType,
+      vet: record.vetAttended ? record.vetName || "Veterinary attendance recorded" : "No veterinary attendance recorded",
+      complications: record.eweComplications,
+      colostrumWithin2Hours: record.colostrumGivenWithin2Hours,
+      colostrumSource: record.colostrumSource,
+      fostering: record.fosteringRequired ? record.fosteringDetails || "Required" : "No",
+      registration: offspring.some(child => child.eid) ? "EID details recorded in offspring table" : null,
+      perinatalDisposal: [contractor ? `${contractor.name} (${contractor.approvalNumber})` : null, record.perinatalCollectionDate, record.perinatalCollectionRef, record.perinatalDisposalMethod, record.perinatalDisposalNotes].filter(Boolean).join(" · ") || null,
+      notes: record.notes,
+      attachmentCount: lambingAttachMap[record.id] ?? 0,
+    });
+  };
 
   const { data, isLoading } = useQuery<{ records: LambingRecord[] }>({
     queryKey: ["lambing-records", farmId],
@@ -541,6 +586,7 @@ ${yearlyStats.length > 1 ? `<h3>Season-by-Season Perinatal Mortality Trend</h3>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button variant="outline" onClick={() => printBirthRecord(viewRecord)}><Printer className="w-4 h-4 mr-1" />Farm Birth Record</Button>
               <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
             </DialogFooter>
           </DialogContent>

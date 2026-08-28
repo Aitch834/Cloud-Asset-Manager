@@ -28,6 +28,8 @@ import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyCalvingRecord } from "@/lib/types";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
+import { farmBirthRecordHtml } from "@/lib/printTemplates";
+import { usePrint } from "@/lib/hooks/usePrint";
 
 const CALVING_EASE = ["Unassisted", "Easy pull", "Hard pull", "Mechanical assistance", "C-section"];
 const CALF_OUTCOMES = ["Live", "Stillbirth", "Weak — survived", "Weak — died"];
@@ -98,6 +100,7 @@ export default function CalvingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const { print, savePdf } = usePrint();
   const dairyAlert = useDiseaseAlert("dairy");
 
   const [cowEarTag, setCowEarTag] = useState("");
@@ -185,10 +188,36 @@ export default function CalvingRecordScreen() {
     try {
       await appendToList(STORAGE_KEYS.DAIRY_CALVING_RECORDS, { ...record, documentUrl } as DairyCalvingRecord);
       await refreshPendingCount();
+      const html = farmBirthRecordHtml({
+        species: "cattle",
+        recordId: record.id,
+        birthDate: record.calvingDate,
+        dam: record.cowEarTag,
+        ease: record.calvingEaseScore,
+        offspring: Array.from({ length: Math.max(1, record.numberOfCalves) }, (_, index) => ({
+          label: `Calf ${index + 1}`,
+          outcome: record.calfOutcome,
+          sex: record.calfSex,
+          tag: index === 0 ? record.calfEarTag : null,
+        })),
+        assistance: record.assistanceRequired,
+        vet: record.vetAttended ? record.vetName || "Attended" : "No",
+        complications: record.cowComplications,
+        colostrum: `Within 2 hours: ${record.colostrumGivenWithin2Hours ? "Yes" : "No"} · Within 6 hours: ${record.colostrumGivenWithin6Hours ? "Yes" : "No"} · ${record.colostrumSource || "Source not recorded"}${record.colostrumVolumeFirstFeedLitres ? ` · ${record.colostrumVolumeFirstFeedLitres} L` : ""}`,
+        disposition: record.calfDisposition,
+        registration: record.bcmsPassportApplied ? "BCMS passport applied" : "BCMS passport pending",
+        disposal: [record.perinatalCollectionDate, record.perinatalCollectionRef, record.perinatalDisposalMethod, record.perinatalDisposalNotes].filter(Boolean).join(" · ") || null,
+        notes: record.notes,
+        evidence: documentUrl ? "Photo evidence attached" : "No attachment",
+      }, currentFarm);
       Alert.alert(
         "Calving Record Saved",
         "The calving record has been saved and will sync when connected.",
-        [{ text: "Done", onPress: () => router.back() }],
+        [
+          { text: "Done", onPress: () => router.back() },
+          { text: "Print", onPress: () => { void print(html).finally(() => router.back()); } },
+          { text: "Save PDF", onPress: () => { void savePdf(html, "Farm Birth Record").finally(() => router.back()); } },
+        ],
       );
     } catch (err) {
       console.error("Save calving error:", err);

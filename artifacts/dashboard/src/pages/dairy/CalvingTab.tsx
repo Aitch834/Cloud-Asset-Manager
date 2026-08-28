@@ -27,6 +27,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openPrintWindow } from "@/lib/print-report";
+import { printBirthRecordReport } from "@/lib/birth-record-report";
+import { useFarmReportMeta } from "@/hooks/use-farm-name";
 import { VMD_MEDICINES } from "@/data/vmdMedicines";
 import { useToast } from "@/hooks/use-toast";
 import { api, formatDate, today, EaseScoreBadge } from "./shared";
@@ -57,6 +59,7 @@ interface CalvingRecord {
 export function CalvingTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const farmMeta = useFarmReportMeta(farmId);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CalvingRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<CalvingRecord | null>(null);
@@ -65,6 +68,51 @@ export function CalvingTab({ farmId }: { farmId: number }) {
   const [showManualVet, setShowManualVet] = useState(false);
   const CURRENT_YEAR = new Date().getFullYear();
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "dairy-calving", filter: "year", farmId, defaultValue: String(CURRENT_YEAR) });
+
+  const printBirthRecord = (record: CalvingRecord) => {
+    const offspringCount = Math.max(1, record.numberOfCalves ?? 1, record.calfOutcome2 || record.calfSex2 || record.calfEarTag2 ? 2 : 0);
+    const offspring = Array.from({ length: offspringCount }, (_, index) => {
+      const suffix = index === 0 ? "" : String(index + 1);
+      const get = (field: string) => record[`${field}${suffix}` as keyof CalvingRecord] as string | number | null | undefined;
+      return {
+        label: `Calf ${index + 1}`,
+        outcome: get("calfOutcome"),
+        sex: get("calfSex"),
+        tag: get("calfEarTag"),
+        animalId: get("calfAnimalId"),
+        weightKg: get("calfBirthWeightKg"),
+        colostrum: index === 0
+          ? `Within 2 hours: ${record.colostrumGivenWithin2Hours == null ? "—" : record.colostrumGivenWithin2Hours ? "Yes" : "No"} · Within 6 hours: ${record.colostrumGivenWithin6Hours == null ? "—" : record.colostrumGivenWithin6Hours ? "Yes" : "No"}`
+          : null,
+      };
+    });
+    printBirthRecordReport({
+      species: "cattle",
+      recordId: record.id,
+      ...farmMeta,
+      birthDate: record.calvingDate,
+      damLabel: record.cowEarTag,
+      damId: record.cowAnimalId,
+      offspring,
+      sire: record.sireRegisterId,
+      sireBreed: record.sireBreed ?? record.calfBreed,
+      conceptionMethod: record.conceptionMethod,
+      ease: record.calvingEaseScore ? `${record.calvingEaseScore} — ${["", "Unassisted", "Easy assist", "Hard assist", "Vet / caesarean"][record.calvingEaseScore] ?? "Recorded"}` : null,
+      assistance: record.assistanceRequired,
+      assistanceType: record.assistanceType,
+      vet: record.vetAttended ? record.vetName || "Veterinary attendance recorded" : "No veterinary attendance recorded",
+      complications: record.cowComplications,
+      colostrumWithin2Hours: record.colostrumGivenWithin2Hours,
+      colostrumWithin6Hours: record.colostrumGivenWithin6Hours,
+      colostrumSource: record.colostrumSource,
+      colostrumVolume: record.colostrumVolumeFirstFeedLitres,
+      disposition: record.calfDisposition,
+      registration: record.bcmsPassportApplied == null ? null : record.bcmsPassportApplied ? "BCMS passport applied" : "BCMS passport pending",
+      perinatalDisposal: [record.perinatalCollectionDate, record.perinatalCollectionRef, record.perinatalDisposalMethod, record.perinatalDisposalNotes].filter(Boolean).join(" · ") || null,
+      notes: record.notes,
+      attachmentCount: calvingAttachMap[record.id] ?? 0,
+    });
+  };
 
   const { data, isLoading } = useQuery<{ records: CalvingRecord[] }>({
     queryKey: ["dairy-calving", farmId],
@@ -411,6 +459,7 @@ export function CalvingTab({ farmId }: { farmId: number }) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setViewRecord(null)}>Close</Button>
+              <Button variant="outline" onClick={() => printBirthRecord(viewRecord)}><Printer className="w-4 h-4 mr-1" />Farm Birth Record</Button>
               <Button onClick={() => { openEdit(viewRecord); setViewRecord(null); }}><Pencil className="w-4 h-4 mr-1" />Edit</Button>
             </DialogFooter>
           </DialogContent>
