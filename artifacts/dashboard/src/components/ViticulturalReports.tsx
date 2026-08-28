@@ -1217,6 +1217,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               selectedIds={selectedBlockIds}
               onChangeIds={_persistBlockIds}
               farmId={farmId}
+              persistKey="trend-chart-group-by-variety"
               colors={trendBlockColors}
             />
           )}
@@ -2849,23 +2850,36 @@ function BlockFilterStrip({
   selectedIds,
   onChangeIds,
   farmId,
+  persistKey,
   colors,
 }: {
   blockInfos: BlockInfo[];
   selectedIds: Set<number> | null;
   onChangeIds: (ids: Set<number> | null) => void;
   farmId: number;
+  persistKey?: string;
   colors?: Record<number, string>;
 }) {
   const [search, setSearch] = useState("");
-  const [groupByVarietyStr, setGroupByVarietyStr] = usePersistedFilter({
+  const [ephemeralGroupByVariety, setEphemeralGroupByVariety] = useState(false);
+  // Keep hook order stable; only strips with persistKey use the persisted value.
+  const [persistedGroupByVarietyStr, setPersistedGroupByVarietyStr] = usePersistedFilter({
     page: "vintage-season-report",
-    filter: "group-by-variety",
+    filter: persistKey ?? "group-by-variety",
     farmId,
     defaultValue: "false",
     validValues: ["true", "false"] as const,
   });
-  const groupByVariety = groupByVarietyStr === "true";
+  const groupByVariety = persistKey
+    ? persistedGroupByVarietyStr === "true"
+    : ephemeralGroupByVariety;
+  const setGroupByVariety = (value: boolean) => {
+    if (persistKey) {
+      setPersistedGroupByVarietyStr(value ? "true" : "false");
+    } else {
+      setEphemeralGroupByVariety(value);
+    }
+  };
 
   const showSearch = blockInfos.length >= 8;
   const searchLower = search.trim().toLowerCase();
@@ -2948,7 +2962,7 @@ function BlockFilterStrip({
         {showSearch && new Set(blockInfos.map(b => b.variety)).size > 1 && (
           <button
             type="button"
-            onClick={() => setGroupByVarietyStr(groupByVariety ? "false" : "true")}
+            onClick={() => setGroupByVariety(!groupByVariety)}
             className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
               groupByVariety
                 ? "bg-purple-600 border-purple-600 text-white"
