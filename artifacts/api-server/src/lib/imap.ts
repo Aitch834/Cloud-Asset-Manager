@@ -1,6 +1,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail, type AddressObject } from "mailparser";
 import { Readable } from "stream";
+import { resolve4 } from "node:dns/promises";
 
 const DEFAULT_IMAP_HOST = "imap.123-reg.co.uk";
 const DEFAULT_IMAP_PORT = 993;
@@ -65,20 +66,24 @@ function attachmentMetas(parsed: ParsedMail): EmailAttachmentMeta[] {
   }));
 }
 
-function createClient(): ImapFlow {
-  const config = getImapConnectionConfig();
+function buildClient(
+  config: ReturnType<typeof getImapConnectionConfig>,
+  host: string,
+  connectionTimeout: number,
+): ImapFlow {
   const client = new ImapFlow({
-    host: config.host,
+    host,
     port: config.port,
     secure: true,
     auth: {
       user: config.user,
       pass: IMAP_PASS,
     },
-    connectionTimeout: config.connectionTimeout,
+    connectionTimeout,
     logger: false,
     tls: {
       rejectUnauthorized: true,
+      servername: config.host,
     },
   });
   // Prevent unhandled 'error' events from crashing the process when the
@@ -86,6 +91,55 @@ function createClient(): ImapFlow {
   // by the try/catch in each exported function.
   client.on("error", () => {});
   return client;
+}
+
+function isRetryableConnectionError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code ?? "")
+    : "";
+  return [
+    "CONNECT_TIMEOUT",
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "EHOSTUNREACH",
+    "ENETUNREACH",
+    "ETIMEDOUT",
+  ].includes(code);
+}
+
+async function createClient(): Promise<ImapFlow> {
+  const config = getImapConnectionConfig();
+  let resolvedHosts: string[] = [];
+
+  try {
+    resolvedHosts = await resolve4(config.host);
+  } catch (error) {
+    console.warn(`[IMAP] Could not resolve ${config.host}; trying the hostname directly`, error);
+  }
+
+  const hosts = [...new Set([...resolvedHosts, config.host])];
+  const attemptTimeout = hosts.length > 1
+    ? Math.min(config.connectionTimeout, 5_000)
+    : config.connectionTimeout;
+  let lastError: unknown;
+
+  for (const [index, host] of hosts.entries()) {
+    const client = buildClient(config, host, attemptTimeout);
+    try {
+      await client.connect();
+      return client;
+    } catch (error) {
+      lastError = error;
+      try { client.close(); } catch {}
+
+      if (!isRetryableConnectionError(error) || index === hosts.length - 1) {
+        throw error;
+      }
+      console.warn(`[IMAP] Connection to ${host} failed; trying another resolved endpoint`);
+    }
+  }
+
+  throw lastError ?? new Error("No IMAP endpoints were available");
 }
 
 function addressString(addr: AddressObject | AddressObject[] | undefined): string {
@@ -113,11 +167,10 @@ export async function fetchInbox(limit = 50): Promise<InboxEmail[]> {
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
   const results: InboxEmail[] = [];
 
   try {
-    await client.connect();
     await client.mailboxOpen("INBOX");
 
     const status = await client.status("INBOX", { messages: true });
@@ -187,10 +240,9 @@ export async function fetchEmail(uid: number): Promise<FullEmail> {
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
 
   try {
-    await client.connect();
     await client.mailboxOpen("INBOX");
 
     let fullEmail: FullEmail | null = null;
@@ -259,10 +311,9 @@ export async function fetchAttachment(folder: string, uid: number, index: number
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
 
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
 
     let file: EmailAttachmentFile | null = null;
@@ -300,9 +351,8 @@ export async function fetchAttachment(folder: string, uid: number, index: number
 export async function markAsRead(uid: number): Promise<void> {
   if (!IMAP_PASS) return;
 
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen("INBOX");
     await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true });
     await client.logout();
@@ -315,9 +365,8 @@ export async function markAsRead(uid: number): Promise<void> {
 export async function markAsUnread(uid: number): Promise<void> {
   if (!IMAP_PASS) return;
 
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen("INBOX");
     await client.messageFlagsRemove(String(uid), ["\\Seen"], { uid: true });
     await client.logout();
@@ -330,9 +379,8 @@ export async function markAsUnread(uid: number): Promise<void> {
 export async function deleteEmail(uid: number): Promise<void> {
   if (!IMAP_PASS) return;
 
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen("INBOX");
 
     const trashBoxes = ["Trash", "Deleted Messages", "INBOX.Trash", "[Gmail]/Trash"];
@@ -363,9 +411,8 @@ export async function isImapConfigured(): Promise<boolean> {
 
 export async function listMailboxes(): Promise<string[]> {
   if (!IMAP_PASS) return [];
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     const boxes: string[] = [];
     const tree = await client.list();
     for (const mb of tree) {
@@ -388,11 +435,10 @@ export async function getUnreadCounts(folders: string[]): Promise<Record<string,
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
   const counts: Record<string, number> = {};
 
   try {
-    await client.connect();
     for (const folder of folders) {
       try {
         const status = await client.status(folder, { unseen: true });
@@ -415,11 +461,10 @@ export async function fetchFolder(folder: string, limit = 50): Promise<InboxEmai
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
   const results: InboxEmail[] = [];
 
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
 
     const status = await client.status(folder, { messages: true });
@@ -489,10 +534,9 @@ export async function fetchEmailFromFolder(folder: string, uid: number): Promise
     throw new Error("IMAP password not configured (TITAN_IMAP_PASSWORD missing)");
   }
 
-  const client = createClient();
+  const client = await createClient();
 
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
 
     let fullEmail: FullEmail | null = null;
@@ -554,9 +598,8 @@ export async function fetchEmailFromFolder(folder: string, uid: number): Promise
 
 export async function markFolderEmailRead(folder: string, uid: number): Promise<void> {
   if (!IMAP_PASS) return;
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
     await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true });
     await client.logout();
@@ -568,9 +611,8 @@ export async function markFolderEmailRead(folder: string, uid: number): Promise<
 
 export async function permanentlyDeleteFromFolder(folder: string, uid: number): Promise<void> {
   if (!IMAP_PASS) return;
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
     await client.messageFlagsAdd(String(uid), ["\\Deleted"], { uid: true });
     await client.messageDelete(String(uid), { uid: true });
@@ -583,9 +625,8 @@ export async function permanentlyDeleteFromFolder(folder: string, uid: number): 
 
 export async function moveToInbox(folder: string, uid: number): Promise<void> {
   if (!IMAP_PASS) return;
-  const client = createClient();
+  const client = await createClient();
   try {
-    await client.connect();
     await client.mailboxOpen(folder);
     await client.messageMove(String(uid), "INBOX", { uid: true });
     await client.logout();
