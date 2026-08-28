@@ -257,6 +257,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                   {!readOnly && (
                     <div className="flex items-center gap-1">
                       {stillIn && (
+                        <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
@@ -274,6 +275,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                         >
                           Rack out
                         </Button>
+                        </RadixTooltipTrigger><RadixTooltipContent>Record the date wine left this barrel</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                       )}
                       <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(f)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                       <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(f.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete fill record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
