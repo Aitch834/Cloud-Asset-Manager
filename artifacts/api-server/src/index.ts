@@ -59,6 +59,7 @@ const ENV_SPEC: EnvSpec[] = [
   { key: "TITAN_IMAP_HOST",           description: "Mailbox IMAP host (default: imap.123-reg.co.uk)",         required: false },
   { key: "TITAN_IMAP_PORT",           description: "Titan IMAP port (default: 993)",                           required: false },
   { key: "TITAN_IMAP_USER",           description: "Titan IMAP username (default: hello@bdefarmtrac.co.uk)",  required: false },
+  { key: "TITAN_IMAP_PROXY_URL",      description: "Secret fixed-egress HTTP/SOCKS proxy URL for IMAP",       required: false },
   { key: "TITAN_IMAP_CONNECTION_TIMEOUT_MS", description: "Titan IMAP connection timeout (default: 15000)",  required: false },
   { key: "TITAN_IMAP_PASSWORD",       description: "Titan IMAP password — enables admin email inbox",        required: false },
   { key: "CREDENTIAL_ENCRYPTION_KEY", description: "AES-256 key for encrypting stored LIS/BCMS credentials", required: false },

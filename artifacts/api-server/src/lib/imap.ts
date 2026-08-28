@@ -20,6 +20,7 @@ export function getImapConnectionConfig(env: NodeJS.ProcessEnv = process.env) {
     host: env.TITAN_IMAP_HOST?.trim() || DEFAULT_IMAP_HOST,
     port: positiveInteger(env.TITAN_IMAP_PORT, DEFAULT_IMAP_PORT),
     user: env.TITAN_IMAP_USER?.trim() || DEFAULT_IMAP_USER,
+    proxyUrl: env.TITAN_IMAP_PROXY_URL?.trim() || undefined,
     connectionTimeout: positiveInteger(
       env.TITAN_IMAP_CONNECTION_TIMEOUT_MS,
       DEFAULT_IMAP_CONNECTION_TIMEOUT_MS,
@@ -70,6 +71,7 @@ function buildClient(
   config: ReturnType<typeof getImapConnectionConfig>,
   host: string,
   connectionTimeout: number,
+  proxy?: string,
 ): ImapFlow {
   const client = new ImapFlow({
     host,
@@ -80,6 +82,7 @@ function buildClient(
       pass: IMAP_PASS,
     },
     connectionTimeout,
+    proxy,
     logger: false,
     tls: {
       rejectUnauthorized: true,
@@ -91,6 +94,20 @@ function buildClient(
   // by the try/catch in each exported function.
   client.on("error", () => {});
   return client;
+}
+
+export function imapErrorLogDetails(error: unknown): { code?: string; message: string } {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code ?? "") || undefined
+    : undefined;
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  return {
+    code,
+    message: rawMessage.replace(
+      /\b(https?|socks(?:4a?|5)?):\/\/[^@\s/]+@/gi,
+      "$1://[credentials-redacted]@",
+    ),
+  };
 }
 
 function isRetryableConnectionError(error: unknown): boolean {
@@ -109,6 +126,26 @@ function isRetryableConnectionError(error: unknown): boolean {
 
 async function createClient(): Promise<ImapFlow> {
   const config = getImapConnectionConfig();
+
+  if (config.proxyUrl) {
+    const proxiedClient = buildClient(
+      config,
+      config.host,
+      config.connectionTimeout,
+      config.proxyUrl,
+    );
+    try {
+      await proxiedClient.connect();
+      return proxiedClient;
+    } catch (error) {
+      try { proxiedClient.close(); } catch {}
+      console.warn(
+        "[IMAP] Fixed-egress proxy connection failed; falling back to direct endpoints",
+        imapErrorLogDetails(error),
+      );
+    }
+  }
+
   let resolvedHosts: string[] = [];
 
   try {
