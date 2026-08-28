@@ -42,6 +42,10 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedYearFilter("fermentation", farmId);
   const [fermSearch, setFermSearch] = useState("");
   const [fermSignedFilter, setFermSignedFilter] = usePersistedFilter({ page: "fermentation-records", filter: "signed", farmId, defaultValue: "all" });
+  const FERMENTATION_SORT_COLS = ["vintage_year", "batch_ref", "wine_colour", "vessel_ref", "start_date", "start_brix", "end_brix", "end_ph", "end_ta_gl"] as const;
+  type FermentationSortCol = typeof FERMENTATION_SORT_COLS[number];
+  const [sortCol, setSortCol] = usePersistedFilter({ page: "fermentation-records", filter: "sort-col", farmId, defaultValue: "start_date", validValues: FERMENTATION_SORT_COLS });
+  const [sortDir, setSortDir] = usePersistedFilter({ page: "fermentation-records", filter: "sort-dir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] });
   const [so2FromPressing, setSo2FromPressing] = useState(false);
   const [formTab, setFormTab] = useState<"setup" | "progress">("setup");
   const [trailRecord, setTrailRecord] = useState<Record<string, unknown> | null>(null);
@@ -152,6 +156,43 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
     () => filteredByYear.filter(r => r.audit_signature == null || r.audit_signature === "").length,
     [filteredByYear],
   );
+  const toggleSort = (col: FermentationSortCol) => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir(col === "start_date" ? "desc" : "asc");
+    }
+  };
+  const SortIcon = ({ col }: { col: FermentationSortCol }) => {
+    if (sortCol !== col) return <ArrowUpDown className="w-3 h-3 ml-1 text-muted-foreground/50" />;
+    return sortDir === "asc" ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
+  const thSort = (col: FermentationSortCol, label: string, align: "left" | "right" = "left") => (
+    <th
+      className={`${align === "right" ? "text-right" : "text-left"} p-3 font-medium cursor-pointer select-none hover:bg-muted/60 transition-colors whitespace-nowrap`}
+      onClick={() => toggleSort(col)}
+    >
+      <span className="inline-flex items-center gap-0.5">{label}<SortIcon col={col} /></span>
+    </th>
+  );
+  const displayRows = [...filtered].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const col = sortCol as FermentationSortCol;
+    const valueFor = (r: Record<string, unknown>) => col === "vessel_ref"
+      ? String(r.vessel_ref ?? vessels.find(v => v.id === r.vessel_id)?.vessel_ref ?? "")
+      : String(r[col] ?? "");
+    if (col === "start_brix" || col === "end_brix" || col === "end_ph" || col === "end_ta_gl") {
+      const av = parseFloat(valueFor(a));
+      const bv = parseFloat(valueFor(b));
+      const aNull = isNaN(av), bNull = isNaN(bv);
+      if (aNull && bNull) return 0;
+      if (aNull) return 1;
+      if (bNull) return -1;
+      return (av - bv) * dir;
+    }
+    return valueFor(a).localeCompare(valueFor(b)) * dir;
+  });
   const fermentCsvCols = [
     { key: "vintage_year", label: "Vintage" },
     { key: "batch_ref", label: "Batch Ref" },
@@ -278,22 +319,22 @@ export function FermentationRecordsTab({ farmId }: { farmId: number }) {
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/40"><tr>
-              <th className="text-left p-3 font-medium">Vintage</th>
-              <th className="text-left p-3 font-medium">Batch</th>
-              <th className="text-left p-3 font-medium">Colour</th>
-              <th className="text-left p-3 font-medium">Vessel</th>
-              <th className="text-left p-3 font-medium">Start</th>
+              {thSort("vintage_year", "Vintage")}
+              {thSort("batch_ref", "Batch")}
+              {thSort("wine_colour", "Colour")}
+              {thSort("vessel_ref", "Vessel")}
+              {thSort("start_date", "Start")}
               <th className="text-left p-3 font-medium">Type</th>
-              <th className="text-right p-3 font-medium">Start Brix</th>
-              <th className="text-right p-3 font-medium">End Brix</th>
-              <th className="text-right p-3 font-medium">End pH</th>
-              <th className="text-right p-3 font-medium">End TA (g/L)</th>
+              {thSort("start_brix", "Start Brix", "right")}
+              {thSort("end_brix", "End Brix", "right")}
+              {thSort("end_ph", "End pH", "right")}
+              {thSort("end_ta_gl", "End TA (g/L)", "right")}
               <th className="text-left p-3 font-medium">Status</th>
               <th className="text-left p-3 font-medium">Sign-off</th>
               <th className="p-3"></th>
             </tr></thead>
             <tbody className="divide-y">
-              {filtered.map(r => (
+              {displayRows.map(r => (
                 <tr key={String(r.id)} className="hover:bg-muted/20">
                   <td className="p-3">{fmt(r.vintage_year)}</td>
                   <td className="p-3 font-mono text-xs">{fmt(r.batch_ref)}</td>

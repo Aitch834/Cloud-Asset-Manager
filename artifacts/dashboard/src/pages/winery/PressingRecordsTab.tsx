@@ -45,26 +45,28 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
   const [pressingSearch, setPressingSearch] = useState("");
   const [pressingNonCompliantOnly, setPressingNonCompliantOnly] = useState(false);
   const [signedFilter, setSignedFilter] = usePersistedFilter({ page: "pressing-records", filter: "signed", farmId, defaultValue: "all" });
-  const pressingSortKey = `pressing-sort-${farmId}`;
   const PRESSING_SORT_COLS = ["date", "batch_ref", "grapes_pressed_kg", "total_juice_litres", "press_efficiency_l_per_kg", "juice_brix", "juice_ph", "juice_turbidity"] as const;
   type PressingSort = typeof PRESSING_SORT_COLS[number];
-  const [pressingSortCol, setPressingSortColRaw] = useState<PressingSort>(() => {
-    try { const v = localStorage.getItem(`pressing-sort-${farmId}-col`); return (PRESSING_SORT_COLS as readonly string[]).includes(v ?? "") ? v as PressingSort : "date"; } catch { return "date"; }
-  });
-  const [pressingSortDir, setPressingSortDirRaw] = useState<"asc" | "desc">(() => {
-    try { const v = localStorage.getItem(`pressing-sort-${farmId}-dir`); return v === "asc" ? "asc" : "desc"; } catch { return "desc"; }
-  });
-  // Re-sync when farmId changes (component may stay mounted across farm switches)
+  const [pressingSortCol, setPressingSortCol] = usePersistedFilter({ page: "pressing-records", filter: "sort-col", farmId, defaultValue: "date", validValues: PRESSING_SORT_COLS });
+  const [pressingSortDir, setPressingSortDir] = usePersistedFilter({ page: "pressing-records", filter: "sort-dir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] });
+  // Preserve sort choices saved by the previous pressing-specific implementation
+  // when a user first opens this tab after the shared hook migration.
   useEffect(() => {
     try {
-      const col = localStorage.getItem(`${pressingSortKey}-col`);
-      setPressingSortColRaw((PRESSING_SORT_COLS as readonly string[]).includes(col ?? "") ? col as PressingSort : "date");
-      const dir = localStorage.getItem(`${pressingSortKey}-dir`);
-      setPressingSortDirRaw(dir === "asc" ? "asc" : "desc");
-    } catch { /**/ }
-  }, [pressingSortKey]);
-  const setPressingSortCol = (col: PressingSort) => { try { localStorage.setItem(`${pressingSortKey}-col`, col); } catch { /**/ } setPressingSortColRaw(col); };
-  const setPressingSortDir = (dir: "asc" | "desc") => { try { localStorage.setItem(`${pressingSortKey}-dir`, dir); } catch { /**/ } setPressingSortDirRaw(dir); };
+      const sharedColKey = `pressing-records-sort-col-filter-${farmId}`;
+      const sharedDirKey = `pressing-records-sort-dir-filter-${farmId}`;
+      const legacyCol = localStorage.getItem(`pressing-sort-${farmId}-col`);
+      const legacyDir = localStorage.getItem(`pressing-sort-${farmId}-dir`);
+      if (localStorage.getItem(sharedColKey) === null && legacyCol && (PRESSING_SORT_COLS as readonly string[]).includes(legacyCol)) {
+        setPressingSortCol(legacyCol);
+      }
+      if (localStorage.getItem(sharedDirKey) === null && (legacyDir === "asc" || legacyDir === "desc")) {
+        setPressingSortDir(legacyDir);
+      }
+    } catch { /* localStorage unavailable */ }
+    // Migration is intentionally re-run only when the active farm changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId]);
   const [pressTypeOther, setPressTypeOther] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
