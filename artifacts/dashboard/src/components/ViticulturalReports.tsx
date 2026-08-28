@@ -857,6 +857,15 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
       .filter((bi): bi is BlockInfo => bi !== null);
   }, [blockYieldTrendData.blockLines, blocks]);
 
+  const trendBlockColors: Record<number, string> = useMemo(() => {
+    const colors: Record<number, string> = {};
+    for (const line of blockYieldTrendData.blockLines) {
+      const block = trendBlockInfos.find(info => info.name === line.key);
+      if (block) colors[block.id] = line.color;
+    }
+    return colors;
+  }, [blockYieldTrendData.blockLines, trendBlockInfos]);
+
   // Derive visible block names from selected IDs (null = all visible)
   const visibleBlockNames: Set<string> | null = useMemo(() => {
     if (selectedBlockIds == null) return null;
@@ -1213,6 +1222,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
               selectedIds={selectedBlockIds}
               onChangeIds={_persistBlockIds}
               farmId={farmId}
+              colors={trendBlockColors}
             />
           )}
           <div className="p-4 print-block-chart-cap">
@@ -2844,11 +2854,13 @@ function BlockFilterStrip({
   selectedIds,
   onChangeIds,
   farmId,
+  colors,
 }: {
   blockInfos: BlockInfo[];
   selectedIds: Set<number> | null;
   onChangeIds: (ids: Set<number> | null) => void;
   farmId: number;
+  colors?: Record<number, string>;
 }) {
   const [search, setSearch] = useState("");
   const [groupByVarietyStr, setGroupByVarietyStr] = usePersistedFilter({
@@ -3002,9 +3014,14 @@ function BlockFilterStrip({
                       key={b.id}
                       type="button"
                       onClick={() => toggleBlock(b.id)}
+                      style={active && colors?.[b.id]
+                        ? { backgroundColor: colors[b.id], borderColor: colors[b.id] }
+                        : undefined}
                       className={`h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
                         active
-                          ? "bg-purple-600 border-purple-600 text-white"
+                          ? colors?.[b.id]
+                            ? "text-white hover:opacity-90"
+                            : "bg-purple-600 border-purple-600 text-white"
                           : "border-border bg-background text-foreground/40 hover:text-foreground/70"
                       }`}
                       title={active ? `Hide ${b.name}` : `Show ${b.name}`}
@@ -3024,9 +3041,14 @@ function BlockFilterStrip({
                 key={b.id}
                 type="button"
                 onClick={() => toggleBlock(b.id)}
+                style={active && colors?.[b.id]
+                  ? { backgroundColor: colors[b.id], borderColor: colors[b.id] }
+                  : undefined}
                 className={`h-6 px-2 rounded-full text-xs font-medium border transition-colors ${
                   active
-                    ? "bg-purple-600 border-purple-600 text-white"
+                    ? colors?.[b.id]
+                      ? "text-white hover:opacity-90"
+                      : "bg-purple-600 border-purple-600 text-white"
                     : "border-border bg-background text-foreground/40 hover:text-foreground/70"
                 }`}
                 title={active ? `Hide ${b.name}` : `Show ${b.name}`}
