@@ -30,17 +30,17 @@ export function useApiFields(farmId: string | undefined) {
   );
 
   // Pass undefined to the underlying hook in demo mode (skips API call entirely)
-  const { items, loading, fromCache, lastError, loadedForFarmId } = useApiFieldsHook(isDemo ? undefined : farmId);
+  const { items, loading, fromCache, lastError, loadedForFarmId, refresh } = useApiFieldsHook(isDemo ? undefined : farmId);
 
   // While farm context is still initialising, show a loading state rather than
   // an empty field picker — avoids a premature "no fields" flash
   if (!farmId) {
-    return { fields: [], loading: true, error: null, fromCache: false, loadedForFarmId: undefined };
+    return { fields: [], loading: true, error: null, fromCache: false, loadedForFarmId: undefined, refresh };
   }
 
   // Demo mode — serve pre-defined demo fields immediately, no API needed
   if (isDemo) {
-    return { fields: demoFields, loading: false, error: null, fromCache: false, loadedForFarmId: farmId };
+    return { fields: demoFields, loading: false, error: null, fromCache: false, loadedForFarmId: farmId, refresh };
   }
 
   return {
@@ -49,5 +49,6 @@ export function useApiFields(farmId: string | undefined) {
     error: items.length === 0 && lastError ? lastError : null,
     fromCache,
     loadedForFarmId,
+    refresh,
   };
 }

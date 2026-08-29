@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -72,7 +72,14 @@ export default function SeedRateCalculatorScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
-  const { fields, loading: fieldsLoading, fromCache: fieldsFromCache, error: fieldsError, loadedForFarmId: fieldsLoadedForFarmId } = useApiFields(farmId);
+  const {
+    fields,
+    loading: fieldsLoading,
+    fromCache: fieldsFromCache,
+    error: fieldsError,
+    loadedForFarmId: fieldsLoadedForFarmId,
+    refresh: refreshFields,
+  } = useApiFields(farmId);
 
   const [selectedFieldName, setSelectedFieldName] = useState("");
   const [soilType, setSoilType] = useState("");
@@ -81,6 +88,7 @@ export default function SeedRateCalculatorScreen() {
   const [targetPopulation, setTargetPopulation] = useState(String(STANDARD_TARGET_POPULATION_M2));
   const [tgwGrams, setTgwGrams] = useState("");
   const [showNoSoilHint, setShowNoSoilHint] = useState(false);
+  const shouldRefreshFieldsOnFocus = useRef(false);
 
   // `restoredForFarmId` tracks which farm's AsyncStorage read has fully completed.
   // Using state (not a ref) ensures the persist effect only activates in the same
@@ -157,6 +165,31 @@ export default function SeedRateCalculatorScreen() {
     }
   }, [farmId, restoredForFarmId, selectedFieldName, soilType]);
 
+  // Refresh the field list after returning from the Field Register so a newly
+  // saved soil type is reflected in the calculator without requiring a reload.
+  useFocusEffect(
+    useCallback(() => {
+      if (!shouldRefreshFieldsOnFocus.current) return;
+      shouldRefreshFieldsOnFocus.current = false;
+      refreshFields();
+    }, [refreshFields]),
+  );
+
+  // The refresh may first restore the old cached list before the API response
+  // arrives. Re-apply the selected field's soil type whenever the list changes,
+  // but leave a manually chosen calculator value alone when the field is still
+  // unset.
+  useEffect(() => {
+    if (!selectedFieldName) return;
+    const field = fields.find((item) => item.name === selectedFieldName);
+    if (!field?.soilType) return;
+    const chip = mapFieldSoilTypeToChip(field.soilType);
+    if (chip) {
+      setSoilType(chip);
+      setShowNoSoilHint(false);
+    }
+  }, [fields, selectedFieldName]);
+
   const handleFieldChange = (field: ApiField) => {
     if (field.soilType) {
       const chip = mapFieldSoilTypeToChip(field.soilType);
@@ -169,6 +202,20 @@ export default function SeedRateCalculatorScreen() {
     } else {
       setShowNoSoilHint(true);
     }
+  };
+
+  const selectedField = useMemo(
+    () => fields.find((field) => field.name === selectedFieldName),
+    [fields, selectedFieldName],
+  );
+
+  const openSelectedFieldInRegister = () => {
+    if (!selectedField) return;
+    shouldRefreshFieldsOnFocus.current = true;
+    router.push({
+      pathname: "/field-edit",
+      params: { fieldId: String(selectedField.id) },
+    });
   };
 
   const handleBlackgrassToggle = () => {
@@ -232,9 +279,23 @@ export default function SeedRateCalculatorScreen() {
             {showNoSoilHint && (
               <View style={styles.noSoilHint}>
                 <Feather name="alert-circle" size={13} color="#92400e" style={{ marginTop: 1 }} />
-                <Text style={styles.noSoilHintText}>
-                  No soil type on record — set it in the Field Register to auto-fill next time
-                </Text>
+                <View style={styles.noSoilHintContent}>
+                  <Text style={styles.noSoilHintText}>
+                    No soil type on record — set it in the Field Register to auto-fill next time.
+                  </Text>
+                  {selectedField && (
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel={`Go to Field Register for ${selectedField.name}`}
+                      testID="seed-rate-field-register-link"
+                      onPress={openSelectedFieldInRegister}
+                      style={styles.fieldRegisterLink}
+                    >
+                      <Text style={styles.fieldRegisterLinkText}>Go to Field Register</Text>
+                      <Feather name="arrow-right" size={13} color="#92400e" />
+                    </Pressable>
+                  )}
+                </View>
                 <Pressable onPress={() => setShowNoSoilHint(false)} hitSlop={8}>
                   <Feather name="x" size={14} color="#92400e" />
                 </Pressable>
@@ -454,5 +515,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#fcd34d",
   },
-  noSoilHintText: { flex: 1, fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", lineHeight: 16 },
+  noSoilHintContent: { flex: 1, gap: 4 },
+  noSoilHintText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#92400e", lineHeight: 16 },
+  fieldRegisterLink: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
+  fieldRegisterLinkText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    color: "#92400e",
+    textDecorationLine: "underline",
+  },
 });
