@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -187,6 +188,10 @@ function todayIso(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function parseIsoDateLocal(iso: string): Date {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
 interface LogMovementModalProps {
   visible: boolean;
   farmId: string;
@@ -914,12 +919,15 @@ function FillCard({
   fill,
   onEdit,
   onDelete,
+  onRackOut,
 }: {
   fill: BarrelFill;
   onEdit?: (fill: BarrelFill) => void;
   onDelete?: (fill: BarrelFill) => void;
+  onRackOut?: (fill: BarrelFill) => void;
 }) {
   const title = [fill.wine_name, fill.variety].filter(Boolean).join(" · ") || "Unnamed fill";
+  const isActive = !fill.rack_out_date;
   return (
     <View style={styles.card}>
       <View style={[styles.cardHeader, { justifyContent: "space-between" }]}>
@@ -934,28 +942,39 @@ function FillCard({
             <Text style={styles.cardMeta}>{fill.batch_ref}</Text>
           ) : null}
         </View>
-        {(onEdit || onDelete) && (
-          <View style={{ flexDirection: "row", gap: 4, marginLeft: 8 }}>
-            {onEdit && (
-              <TouchableOpacity
-                onPress={() => onEdit(fill)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.cardActionBtn}
-              >
-                <Feather name="edit-2" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-            {onDelete && (
-              <TouchableOpacity
-                onPress={() => onDelete(fill)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.cardActionBtn}
-              >
-                <Feather name="trash-2" size={14} color="#ef4444" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        <View style={{ flexDirection: "row", gap: 4, marginLeft: 8, alignItems: "center" }}>
+          {isActive && onRackOut && (
+            <TouchableOpacity
+              onPress={() => onRackOut(fill)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.rackOutBtn}
+              testID={`rack-out-action-${fill.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Rack out fill ${fill.fill_number ?? ""}`}
+            >
+              <Feather name="log-out" size={12} color={colors.textInverse} />
+              <Text style={styles.rackOutBtnText}>Rack out</Text>
+            </TouchableOpacity>
+          )}
+          {onEdit && (
+            <TouchableOpacity
+              onPress={() => onEdit(fill)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.cardActionBtn}
+            >
+              <Feather name="edit-2" size={14} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          {onDelete && (
+            <TouchableOpacity
+              onPress={() => onDelete(fill)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.cardActionBtn}
+            >
+              <Feather name="trash-2" size={14} color="#ef4444" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <Text style={styles.cardTitle}>{title}</Text>
@@ -1272,6 +1291,7 @@ export default function WineryVesselDetailScreen() {
   const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
   const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
   const [editingFill, setEditingFill] = useState<BarrelFill | null>(null);
+  const [rackingOutFill, setRackingOutFill] = useState<BarrelFill | null>(null);
 
   // Track current vessel location so sequential movements pre-fill the right origin
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
@@ -1485,6 +1505,7 @@ export default function WineryVesselDetailScreen() {
                 fill={f}
                 onEdit={r => setEditingFill(r)}
                 onDelete={handleDeleteFill}
+                onRackOut={r => setRackingOutFill(r)}
               />
             ))
           )}
@@ -1571,6 +1592,14 @@ export default function WineryVesselDetailScreen() {
             record={editingFill}
             onClose={() => setEditingFill(null)}
             onSuccess={() => { setEditingFill(null); refresh(); triggerBarrelRefresh(); }}
+          />
+          <RackOutModal
+            visible={rackingOutFill !== null}
+            farmId={currentFarm.id}
+            vesselId={params.vesselId}
+            fill={rackingOutFill}
+            onClose={() => setRackingOutFill(null)}
+            onSuccess={() => { setRackingOutFill(null); refresh(); }}
           />
           <EditMaintenanceModal
             visible={editingMaintenance !== null}
@@ -1789,6 +1818,20 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 4,
   },
+  rackOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+  },
+  rackOutBtnText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.textInverse,
+  },
   cardTitle: {
     fontSize: fontSize.sm,
     fontFamily: fonts.semiBold,
@@ -1937,6 +1980,69 @@ const formStyles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
     paddingBottom: spacing.xxl,
+  },
+  dateSheetBody: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  sheetSubtitle: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  nativeDatePicker: {
+    alignSelf: "center",
+  },
+  androidDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  androidDateText: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontFamily: fonts.medium,
+    color: colors.text,
+  },
+  sheetActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  sheetCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  sheetCancelText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+  },
+  sheetConfirm: {
+    flex: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  sheetConfirmText: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: colors.textInverse,
   },
   errorBanner: {
     flexDirection: "row",
@@ -2578,6 +2684,14 @@ function LogFillModal({ visible, farmId, vesselId, nextFillNumber, onClose, onSu
   );
 }
 
+interface RackOutModalProps {
+  visible: boolean;
+  farmId: string;
+  vesselId: string;
+  fill: BarrelFill | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}
 interface EditFillModalProps {
   visible: boolean;
   farmId: string;
@@ -2585,4 +2699,171 @@ interface EditFillModalProps {
   record: BarrelFill | null;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+function dateToIso(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function RackOutModal({ visible, farmId, vesselId, fill, onClose, onSuccess }: RackOutModalProps) {
+  const [rackOutDate, setRackOutDate] = useState(todayIso());
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible || !fill) return;
+    setRackOutDate(todayIso());
+    setError(null);
+  }, [visible, fill]);
+
+  function setDateFromPicker(selectedDate?: Date) {
+    if (selectedDate) setRackOutDate(dateToIso(selectedDate));
+  }
+
+  async function handleSubmit() {
+    if (!fill) return;
+    if (!rackOutDate) {
+      setError("Rack-out date is required.");
+      return;
+    }
+    if (fill.fill_date && rackOutDate < fill.fill_date.slice(0, 10)) {
+      setError("Rack-out date cannot be before the rack-in date.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const apiBase = getApiBase();
+      if (!apiBase) throw new Error("No API domain configured.");
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${apiBase}/api/farms/${farmId}/winery-vessels/${vesselId}/fills/${fill.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          fillNumber: fill.fill_number,
+          wineName: fill.wine_name,
+          vintageYear: fill.vintage_year,
+          variety: fill.variety,
+          volumeLitres: fill.volume_litres,
+          fillDate: fill.fill_date,
+          rackOutDate,
+          batchRef: fill.batch_ref,
+          operatorName: fill.operator_name,
+          notes: fill.notes,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Server error (${res.status})`);
+      }
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rack out this fill.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleClose() {
+    if (submitting) return;
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <View style={formStyles.sheet}>
+        <View style={formStyles.sheetHeader}>
+          <Text style={formStyles.sheetTitle}>Rack out fill</Text>
+          <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+            <Feather name="x" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <View style={formStyles.dateSheetBody}>
+          {fill ? (
+            <Text style={formStyles.sheetSubtitle}>
+              Choose the date that fill {fill.fill_number ?? ""} was racked out.
+            </Text>
+          ) : null}
+          {error ? (
+            <View style={formStyles.errorBanner}>
+              <Feather name="alert-circle" size={14} color={colors.error} />
+              <Text style={formStyles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {Platform.OS === "ios" ? (
+            <DateTimePicker
+              value={parseIsoDateLocal(rackOutDate)}
+              mode="date"
+              display="spinner"
+              maximumDate={new Date()}
+              minimumDate={fill?.fill_date ? parseIsoDateLocal(fill.fill_date.slice(0, 10)) : undefined}
+              onChange={(_event: DateTimePickerEvent, selectedDate?: Date) => setDateFromPicker(selectedDate)}
+              style={formStyles.nativeDatePicker}
+            />
+          ) : Platform.OS === "android" ? (
+            <Pressable
+              style={formStyles.androidDateRow}
+              onPress={() => {
+                void DateTimePickerAndroid.open({
+                  value: parseIsoDateLocal(rackOutDate),
+                  mode: "date",
+                  maximumDate: new Date(),
+                  minimumDate: fill?.fill_date ? parseIsoDateLocal(fill.fill_date.slice(0, 10)) : undefined,
+                  onChange: (_event: DateTimePickerEvent, selectedDate?: Date) => setDateFromPicker(selectedDate),
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Selected rack-out date: ${formatIsoDate(rackOutDate)}. Tap to change.`}
+            >
+              <Feather name="calendar" size={18} color={colors.primary} />
+              <Text style={formStyles.androidDateText}>{formatIsoDate(rackOutDate)}</Text>
+              <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+            </Pressable>
+          ) : (
+            <TextInput
+              style={formStyles.input}
+              value={rackOutDate}
+              onChangeText={setRackOutDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="numbers-and-punctuation"
+              testID="rack-out-date-input"
+            />
+          )}
+
+          <View style={formStyles.sheetActions}>
+            <Pressable onPress={handleClose} style={formStyles.sheetCancel} disabled={submitting}>
+              <Text style={formStyles.sheetCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { void handleSubmit(); }}
+              style={[formStyles.sheetConfirm, submitting && formStyles.submitBtnDisabled]}
+              disabled={submitting}
+              testID="rack-out-save"
+              accessibilityRole="button"
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color={colors.textInverse} />
+              ) : (
+                <Text style={formStyles.sheetConfirmText}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function formatIsoDate(iso: string): string {
+  return parseIsoDateLocal(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
