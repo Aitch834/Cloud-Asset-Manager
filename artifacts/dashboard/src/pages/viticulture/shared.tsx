@@ -172,6 +172,24 @@ export function printExciseReturn(
   const fsaWineRefHtml = fsaWineProductionRef
     ? `FSA Wine Production Ref: <strong>${esc(fsaWineProductionRef)}</strong>`
     : `<span class="fsa-missing">&#9888; FSA Wine Production Ref not set</span>`;
+  const winegbMembershipNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
+  const winegbRefHtml = winegbMembershipNumber
+    ? `WineGB Membership No: <strong>${esc(winegbMembershipNumber)}</strong>`
+    : `<span class="fsa-missing">&#9888; WineGB Membership No not set</span>`;
+
+  const anyMissingRef = !addressRaw || !appaRef || !fsaWineProductionRef || !winegbMembershipNumber;
+  const missingRefWarningBlock = anyMissingRef
+    ? `<div class="missing-refs-notice">
+        <strong>&#9888; Missing header information</strong> &mdash;
+        the field(s) marked below (${[
+          !addressRaw ? "Farm Address" : "",
+          !appaRef ? "APPA Ref" : "",
+          !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
+          !winegbMembershipNumber ? "WineGB Membership No" : "",
+        ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
+        Add them before submitting this return.
+      </div>`
+    : "";
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
   <title>HMRC Alcohol Duty Return — ${esc(farmName)}</title>
@@ -192,12 +210,14 @@ export function printExciseReturn(
     .badge-spr { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .badge-std { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
     .fsa-missing { display: inline-block; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; border-radius: 3px; padding: 1px 7px; font-weight: 700; font-size: 10.5px; }
+    .missing-refs-notice { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 4px; padding: 7px 12px; font-size: 12px; margin-bottom: 16px; }
     .notice { background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 16px; }
     .footer { margin-top: 28px; font-size: 11px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
     @media print {
       body { margin: 20px; }
       button { display: none; }
       .fsa-missing { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fbbf24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .missing-refs-notice { background: #fffbeb !important; border: 1px solid #fbbf24 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style></head><body>
   <div class="header">
@@ -209,6 +229,7 @@ export function printExciseReturn(
         ${vatNumber ? `VAT Reg No: ${vatNumber}<br>` : ""}
         ${appaRefHtml}<br>
         ${fsaWineRefHtml}<br>
+        ${winegbRefHtml}<br>
         Return Period: <strong>${d(record.periodStart)} &ndash; ${d(record.periodEnd)}</strong>
       </div>
     </div>
@@ -218,6 +239,8 @@ export function printExciseReturn(
       <div class="meta" style="margin-top:6px;font-size:13px">Status: <strong>${String(record.status ?? "draft").toUpperCase()}</strong></div>
     </div>
   </div>
+
+  ${missingRefWarningBlock}
 
   <div class="notice">
     <strong>How to submit:</strong> Log in to your HMRC Business Tax Account at
