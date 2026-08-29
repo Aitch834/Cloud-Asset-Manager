@@ -561,23 +561,96 @@ router.get("/farms/:farmId/vineyard-harvest/winery-contacts", requireAuth, requi
 
 router.get("/farms/:farmId/vineyard-scouting", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db
-    .select({
-      ...getTableColumns(vineyardScoutingTable),
-      photoCount: sql<number>`count(${vineyardScoutingPhotosTable.id})::int`,
-      captionCount: sql<number>`count(${vineyardScoutingPhotosTable.id}) filter (where ${vineyardScoutingPhotosTable.caption} is not null and ${vineyardScoutingPhotosTable.caption} <> '')::int`,
-    })
-    .from(vineyardScoutingTable)
-    .leftJoin(
-      vineyardScoutingPhotosTable,
-      and(
-        eq(vineyardScoutingPhotosTable.scoutingId, vineyardScoutingTable.id),
-        eq(vineyardScoutingPhotosTable.farmId, vineyardScoutingTable.farmId),
-      ),
-    )
-    .where(eq(vineyardScoutingTable.farmId, farmId))
-    .groupBy(vineyardScoutingTable.id)
-    .orderBy(desc(vineyardScoutingTable.scoutDate));
+  type ScoutingListDbRow = {
+    id: number;
+    farmId: number;
+    blockId: number | null;
+    plantingId: number | null;
+    scoutDate: string;
+    scoutedBy: string | null;
+    downyMildewPressure: number | null;
+    powderyMildewPressure: number | null;
+    botrytisPressure: number | null;
+    phomopsisPressure: number | null;
+    eutypaDiebackSighted: boolean | null;
+    vineWeevilSighted: boolean | null;
+    leafhopperPressure: number | null;
+    spiderMitePressure: number | null;
+    xylellaFastidiosa: boolean | null;
+    phytophthoraViticola: boolean | null;
+    actionTaken: string | null;
+    sprayApplied: boolean | null;
+    sprayProduct: string | null;
+    nextScoutDate: string | null;
+    notes: string | null;
+    createdAt: string;
+    photoCount: number;
+    captionCount: number;
+    coverPhotoId: number | null;
+    coverPhotoObjectPath: string | null;
+  };
+
+  // Pick the explicitly-marked cover, or the first photo by the same ordering
+  // used by the photo gallery. The lateral join keeps this to one photo per
+  // record rather than multiplying the list response.
+  const result = await db.execute(sql`
+    SELECT
+      s.id,
+      s.farm_id AS "farmId",
+      s.block_id AS "blockId",
+      s.planting_id AS "plantingId",
+      s.scout_date AS "scoutDate",
+      s.scouted_by AS "scoutedBy",
+      s.downy_mildew_pressure AS "downyMildewPressure",
+      s.powdery_mildew_pressure AS "powderyMildewPressure",
+      s.botrytis_pressure AS "botrytisPressure",
+      s.phomopsis_pressure AS "phomopsisPressure",
+      s.eutypa_dieback_sighted AS "eutypaDiebackSighted",
+      s.vine_weevil_sighted AS "vineWeevilSighted",
+      s.leafhopper_pressure AS "leafhopperPressure",
+      s.spider_mite_pressure AS "spiderMitePressure",
+      s.xylella_fastidiosa AS "xylellaFastidiosa",
+      s.phytophthora_viticola AS "phytophthoraViticola",
+      s.action_taken AS "actionTaken",
+      s.spray_applied AS "sprayApplied",
+      s.spray_product AS "sprayProduct",
+      s.next_scout_date AS "nextScoutDate",
+      s.notes,
+      s.created_at AS "createdAt",
+      COUNT(p.id)::int AS "photoCount",
+      COUNT(p.id) FILTER (WHERE p.caption IS NOT NULL AND p.caption <> '')::int AS "captionCount",
+      cover_photo.id AS "coverPhotoId",
+      cover_photo.object_path AS "coverPhotoObjectPath"
+    FROM vineyard_scouting s
+    LEFT JOIN vineyard_scouting_photos p
+      ON p.scouting_id = s.id
+      AND p.farm_id = s.farm_id
+    LEFT JOIN LATERAL (
+      SELECT sp.id, sp.object_path
+      FROM vineyard_scouting_photos sp
+      WHERE sp.scouting_id = s.id
+        AND sp.farm_id = s.farm_id
+      ORDER BY sp.is_cover DESC, sp.sort_order ASC NULLS LAST, sp.uploaded_at ASC, sp.id ASC
+      LIMIT 1
+    ) cover_photo ON TRUE
+    WHERE s.farm_id = ${farmId}
+    GROUP BY s.id, cover_photo.id, cover_photo.object_path
+    ORDER BY s.scout_date DESC
+  `);
+
+  const records = await Promise.all((result.rows as ScoutingListDbRow[]).map(async (row) => {
+    let coverPhotoUrl: string | null = null;
+    if (row.coverPhotoObjectPath) {
+      try {
+        coverPhotoUrl = await _scoutingPhotoStorage.getPresignedDownloadUrl(row.coverPhotoObjectPath, 300);
+      } catch {
+        // A missing storage object should not make the history list fail.
+      }
+    }
+
+    const { coverPhotoObjectPath: _coverPhotoObjectPath, ...record } = row;
+    return { ...record, coverPhotoUrl };
+  }));
   res.json({ records });
 });
 

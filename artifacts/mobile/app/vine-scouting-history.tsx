@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -104,6 +105,8 @@ interface ScoutingRecord {
   actionTaken: string | null;
   notes: string | null;
   photoCount: number | null;
+  coverPhotoId: number | null;
+  coverPhotoUrl: string | null;
 }
 function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -195,12 +198,13 @@ interface EditScoutingModalProps {
   farmId: string;
   blocks: VineBlock[];
   blocksLoading: boolean;
+  initialPhotoId: number | null;
   onClose: () => void;
   onSaved: (recordId: number, updated: Partial<ScoutingRecord>) => void;
   onPhotoCountChange: (recordId: number, count: number) => void;
 }
 
-function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved, onPhotoCountChange }: EditScoutingModalProps) {
+function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, initialPhotoId, onClose, onSaved, onPhotoCountChange }: EditScoutingModalProps) {
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -401,6 +405,7 @@ function EditScoutingModal({ visible, record, farmId, blocks, blocksLoading, onC
               <ScoutingPhotoSection
                 farmId={farmId}
                 scoutingId={record.id}
+                initialPhotoId={initialPhotoId}
                 onPhotoCountChange={(count) => onPhotoCountChange(record.id, count)}
               />
             )}
@@ -524,7 +529,7 @@ function ScoutingRow({
   onDelete,
 }: {
   item: ScoutingRecord;
-  onEdit: (record: ScoutingRecord) => void;
+  onEdit: (record: ScoutingRecord, photoId?: number | null) => void;
   onDelete: (id: number) => void;
 }) {
   const linked = !!item.blockId;
@@ -573,6 +578,24 @@ function ScoutingRow({
           </View>
         </View>
         <View style={styles.cardActions}>
+          {item.coverPhotoUrl ? (
+            <Pressable
+              style={styles.coverThumbnailButton}
+              onPress={(event) => {
+                event.stopPropagation();
+                onEdit(item, item.coverPhotoId);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Open scouting cover photo"
+              hitSlop={4}
+            >
+              <Image
+                source={{ uri: item.coverPhotoUrl }}
+                style={styles.coverThumbnail}
+                resizeMode="cover"
+              />
+            </Pressable>
+          ) : null}
           {!!item.photoCount && item.photoCount > 0 && (
             <View style={styles.photoBadge}>
               <Feather name="camera" size={11} color={colors.primary} />
@@ -680,6 +703,7 @@ export default function VineScoutingHistoryScreen() {
   const [pressureFilter, setPressureFilter] = usePersistedPressureFilter(currentFarm?.id);
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
+  const [initialPhotoId, setInitialPhotoId] = useState<number | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
@@ -818,6 +842,7 @@ export default function VineScoutingHistoryScreen() {
       [recordId]: { ...(prev[recordId] ?? {}), ...updated },
     }));
     setEditingRecord(null);
+    setInitialPhotoId(null);
     // If the blockId changed (link/unlink), notify the home screen immediately
     // so its compliance gap banner reflects the new count without waiting for
     // the next navigation focus event.
@@ -1162,7 +1187,14 @@ export default function VineScoutingHistoryScreen() {
           contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <ScoutingRow item={item} onEdit={setEditingRecord} onDelete={handleDelete} />
+            <ScoutingRow
+              item={item}
+              onEdit={(record, photoId) => {
+                setInitialPhotoId(photoId ?? null);
+                setEditingRecord(record);
+              }}
+              onDelete={handleDelete}
+            />
           )}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -1203,7 +1235,11 @@ export default function VineScoutingHistoryScreen() {
         farmId={currentFarm?.id ?? ""}
         blocks={blocks}
         blocksLoading={blocksLoading}
-        onClose={() => setEditingRecord(null)}
+        initialPhotoId={initialPhotoId}
+        onClose={() => {
+          setEditingRecord(null);
+          setInitialPhotoId(null);
+        }}
         onSaved={handleSaved}
         onPhotoCountChange={handlePhotoCountChange}
       />
@@ -1401,6 +1437,17 @@ const styles = StyleSheet.create({
   },
   cardHeaderLeft: { flex: 1, gap: 4 },
   cardActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
+  coverThumbnailButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.sm,
+    overflow: "hidden",
+    backgroundColor: colors.background,
+  },
+  coverThumbnail: {
+    width: "100%",
+    height: "100%",
+  },
   rowDate: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },

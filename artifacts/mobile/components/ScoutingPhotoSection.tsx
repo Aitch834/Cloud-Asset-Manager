@@ -887,11 +887,14 @@ export function ScoutingPhotoSection({
   farmId,
   scoutingId,
   onPhotoCountChange,
+  initialPhotoId,
 }: {
   farmId: string | number;
   scoutingId: number;
   /** Called whenever the local photo list grows or shrinks. */
   onPhotoCountChange?: (count: number) => void;
+  /** Opens the lightbox on this photo after the gallery has loaded. */
+  initialPhotoId?: number | null;
 }) {
   const [photos, setPhotos] = useState<ScoutingPhoto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -910,6 +913,7 @@ export function ScoutingPhotoSection({
   // Synchronous guard so rapid / multi-touch presses on different broken thumbnails
   // cannot start two concurrent reloads before React commits the first state update.
   const reloadInFlightRef = useRef(false);
+  const openedInitialPhotoRef = useRef<number | null>(null);
 
   // Notify parent whenever the local photo count changes (add or delete).
   // We skip the very first render (when photos is still the initial []) so we
@@ -945,6 +949,22 @@ export function ScoutingPhotoSection({
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
   }, [loadPhotos]);
+
+  // A history row can ask the section to open a specific photo before its
+  // gallery request has completed. Wait for the response, then translate the
+  // photo ID into the current list index used by the lightbox.
+  useEffect(() => {
+    if (initialPhotoId == null) {
+      openedInitialPhotoRef.current = null;
+      return;
+    }
+    if (openedInitialPhotoRef.current === initialPhotoId || photos.length === 0) return;
+    const index = photos.findIndex((photo) => photo.id === initialPhotoId);
+    if (index >= 0) {
+      openedInitialPhotoRef.current = initialPhotoId;
+      setLightboxIndex(index);
+    }
+  }, [initialPhotoId, photos]);
 
   useEffect(() => {
     if (!captionSaveWarning) return;
