@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { getSecret } from "@/lib/auth";
 import { setNavGuard } from "@/lib/nav-guard";
 import {
@@ -1086,7 +1087,7 @@ export default function AdPdfGenerator() {
   });
 
   // Resolvability status — checked separately so the warning reflects the server-side fallback logic
-  const { data: brandAssetStatus, refetch: refetchBrandAssetStatus } = useQuery<{ logoResolvable: boolean; qrResolvable: boolean }>({
+  const { data: brandAssetStatus, isLoading: brandAssetStatusLoading, refetch: refetchBrandAssetStatus } = useQuery<{ logoResolvable: boolean; qrResolvable: boolean }>({
     queryKey: ["brand-assets-status"],
     queryFn: fetchBrandAssetStatus,
   });
@@ -1757,55 +1758,75 @@ export default function AdPdfGenerator() {
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-          {brandAssetStatus && (
+          {brandAssetStatusLoading ? (
+            <div className="h-9 rounded-md bg-muted/60 animate-pulse" aria-hidden="true" />
+          ) : brandAssetStatus ? (
             <BrandAssetWarning status={brandAssetStatus} variant="compact" />
-          )}
-          <div className="flex flex-wrap gap-3">
-            {/* Wrap in a span when disabled-by-missing-assets so the title tooltip is reachable
-                (disabled buttons have pointer-events-none and cannot receive hover events). */}
-            <span
-              title={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
-              className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}
-              aria-label={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
-            >
-              <Button
-                variant="outline"
-                onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
-                disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets || missingTemplatePlaceholders.length > 0}
-                size="lg"
-                className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
-              >
-                {previewMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
-                ) : bgUrlCheckStatus === "checking" ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
-                ) : (
-                  <><Eye className="w-4 h-4 mr-2" />Preview</>
+          ) : null}
+          <TooltipProvider>
+            <div className="flex flex-wrap gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                    <Button
+                      variant="outline"
+                      onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
+                      disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      size="lg"
+                      className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                    >
+                      {previewMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
+                      ) : bgUrlCheckStatus === "checking" ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
+                      ) : (
+                        <><Eye className="w-4 h-4 mr-2" />Preview</>
+                      )}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {(brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                  <TooltipContent>
+                    {brandAssetStatusLoading
+                      ? "Checking brand assets — please wait…"
+                      : hasMissingAssets
+                      ? missingAssetsTitle
+                      : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}
+                  </TooltipContent>
                 )}
-              </Button>
-            </span>
+              </Tooltip>
 
-            <span
-              title={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
-              className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}
-              aria-label={hasMissingAssets ? missingAssetsTitle : missingTemplatePlaceholders.length > 0 ? `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}` : undefined}
-            >
-              <Button
-                onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
-                disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || hasMissingAssets || missingTemplatePlaceholders.length > 0}
-                size="lg"
-                className={hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
-              >
-                {mutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
-                ) : bgUrlCheckStatus === "checking" ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
-                ) : (
-                  "Generate & Download CMYK PDF"
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                    <Button
+                      onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
+                      disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      size="lg"
+                      className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                    >
+                      {mutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
+                      ) : bgUrlCheckStatus === "checking" ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking image URL…</>
+                      ) : (
+                        "Generate & Download CMYK PDF"
+                      )}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {(brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                  <TooltipContent>
+                    {brandAssetStatusLoading
+                      ? "Checking brand assets — please wait…"
+                      : hasMissingAssets
+                      ? missingAssetsTitle
+                      : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}
+                  </TooltipContent>
                 )}
-              </Button>
-            </span>
-          </div>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
 
           {missingTemplatePlaceholders.length > 0 && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200">
