@@ -32,6 +32,10 @@ const { apiFetch } = require("../lib/apiFetch") as {
 };
 
 import { patchPhotoCaption } from "../lib/vineBlockPhotosApi";
+import {
+  CAPTION_SAVE_ERROR_MESSAGE,
+  handleCaptionSaveFailure,
+} from "../lib/vineBlockPhotosHelpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -180,5 +184,31 @@ describe("patchPhotoCaption — caption-save PATCH result (API-sync layer)", () 
     if (result.ok) {
       expect(result.trimmedCaption).toBeNull();
     }
+  });
+});
+
+// ===========================================================================
+// Platform-specific failure feedback
+// ===========================================================================
+
+describe("handleCaptionSaveFailure — platform feedback", () => {
+  it("keeps iOS Alert.prompt users informed with an alert", () => {
+    const setInlineError = jest.fn();
+    const showAlert = jest.fn();
+
+    handleCaptionSaveFailure("ios", setInlineError, showAlert);
+
+    expect(showAlert).toHaveBeenCalledWith("Error", CAPTION_SAVE_ERROR_MESSAGE);
+    expect(setInlineError).not.toHaveBeenCalled();
+  });
+
+  it("shows the failure inline for the caption sheet on Android", () => {
+    const setInlineError = jest.fn();
+    const showAlert = jest.fn();
+
+    handleCaptionSaveFailure("android", setInlineError, showAlert);
+
+    expect(setInlineError).toHaveBeenCalledWith(CAPTION_SAVE_ERROR_MESSAGE);
+    expect(showAlert).not.toHaveBeenCalled();
   });
 });

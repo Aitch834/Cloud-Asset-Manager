@@ -1,8 +1,27 @@
 /**
- * Pure message-builder helpers for the vine-block-photos delete flow.
+ * Pure helpers for the vine-block-photos screen.
  * Kept in a separate file so they can be unit-tested without importing any
  * React Native modules.
  */
+
+export const CAPTION_SAVE_ERROR_MESSAGE = "Could not save the caption. Please try again.";
+
+/**
+ * Preserve platform-specific failure feedback for caption saves:
+ * iOS edits captions through Alert.prompt, while Android and other platforms
+ * render the error inside CaptionSheet.
+ */
+export function handleCaptionSaveFailure(
+  platform: string,
+  setInlineError: (message: string) => void,
+  showAlert: (title: string, message: string) => void,
+): void {
+  if (platform === "ios") {
+    showAlert("Error", CAPTION_SAVE_ERROR_MESSAGE);
+  } else {
+    setInlineError(CAPTION_SAVE_ERROR_MESSAGE);
+  }
+}
 
 /**
  * Returns the confirmation message for the grid long-press delete flow.

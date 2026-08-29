@@ -44,7 +44,11 @@ import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
-import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
+import {
+  buildGridDeleteMessage,
+  buildLightboxDeleteMessage,
+  handleCaptionSaveFailure,
+} from "@/lib/vineBlockPhotosHelpers";
 import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, executePhotoReload, applyOptimisticReorder, executePhotoReorder, executePhotoSetCover, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
@@ -1098,12 +1102,14 @@ function CaptionSheet({
   visible,
   initialCaption,
   saving,
+  error,
   onSave,
   onClose,
 }: {
   visible: boolean;
   initialCaption: string | null;
   saving: boolean;
+  error?: string | null;
   onSave: (caption: string) => void;
   onClose: () => void;
 }) {
@@ -1140,6 +1146,9 @@ function CaptionSheet({
             returnKeyType="done"
             onSubmitEditing={() => onSave(text)}
           />
+          {error !== null && error !== undefined ? (
+            <Text style={styles.sheetError}>{error}</Text>
+          ) : null}
           <View style={styles.sheetRow}>
             <Pressable style={styles.sheetCancel} onPress={onClose}>
               <Text style={styles.sheetCancelText}>Cancel</Text>
@@ -1322,6 +1331,7 @@ export default function VineBlockPhotosScreen() {
   // Caption sheet state
   const [captionPhoto, setCaptionPhoto] = useState<BlockPhoto | null>(null);
   const [captionSaving, setCaptionSaving] = useState(false);
+  const [captionError, setCaptionError] = useState<string | null>(null);
 
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
@@ -1543,9 +1553,14 @@ export default function VineBlockPhotosScreen() {
           prev.map((p) => (p.id === photo.id ? { ...p, caption: result.trimmedCaption } : p)),
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCaptionError(null);
         setCaptionPhoto(null);
       } else {
-        Alert.alert("Error", "Could not save the caption. Please try again.");
+        handleCaptionSaveFailure(
+          Platform.OS,
+          setCaptionError,
+          (title, message) => Alert.alert(title, message),
+        );
       }
     } finally {
       setCaptionSaving(false);
@@ -1577,6 +1592,7 @@ export default function VineBlockPhotosScreen() {
       return;
     }
 
+    setCaptionError(null);
     setCaptionPhoto(photo);
   }, [saveCaptionForPhoto]);
 
@@ -1945,8 +1961,12 @@ export default function VineBlockPhotosScreen() {
           visible={captionPhoto !== null}
           initialCaption={captionPhoto?.caption ?? null}
           saving={captionSaving}
+          error={captionError}
           onSave={handleSaveCaption}
-          onClose={() => setCaptionPhoto(null)}
+          onClose={() => {
+            setCaptionPhoto(null);
+            setCaptionError(null);
+          }}
         />
       ) : null}
     </View>
@@ -2321,6 +2341,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
     backgroundColor: colors.background,
+    marginBottom: spacing.md,
+  },
+  sheetError: {
+    color: colors.error,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+    marginTop: -spacing.xs,
     marginBottom: spacing.md,
   },
   sheetRow: {
