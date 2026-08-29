@@ -271,6 +271,58 @@ function MissingParcelRefBanner({
   );
 }
 
+// ─── Manage Parcel Refs ───────────────────────────────────────────────────────
+
+function ManageParcelRefsSection({
+  blocks,
+  onBlockPress,
+}: {
+  blocks: VineBlock[];
+  onBlockPress: (block: VineBlock) => void;
+}) {
+  if (blocks.length === 0) return null;
+
+  return (
+    <View style={styles.manageBlocksSection}>
+      <View style={styles.manageBlocksHeader}>
+        <View style={styles.manageBlocksTitleRow}>
+          <Feather name="map-pin" size={16} color={colors.primary} />
+          <Text style={styles.manageBlocksTitle}>Manage blocks</Text>
+        </View>
+        <Text style={styles.manageBlocksCount}>{blocks.length}</Text>
+      </View>
+      <Text style={styles.manageBlocksHint}>
+        Review or update the Parcel / Field Ref for any vineyard block.
+      </Text>
+      <View style={styles.manageBlocksList}>
+        {blocks.map((block, index) => {
+          const parcelRef = block.fieldParcelRef?.trim();
+          return (
+            <Pressable
+              key={block.id}
+              onPress={() => onBlockPress(block)}
+              style={[
+                styles.manageBlockItem,
+                index < blocks.length - 1 && styles.manageBlockItemBorder,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit Parcel / Field Ref for ${block.blockName}`}
+            >
+              <View style={styles.manageBlockDetails}>
+                <Text style={styles.manageBlockName}>{block.blockName}</Text>
+                <Text style={[styles.manageBlockRef, !parcelRef && styles.manageBlockRefMissing]}>
+                  {parcelRef || "Not set"}
+                </Text>
+              </View>
+              <Feather name="edit-2" size={14} color={colors.primary} />
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Edit Parcel Ref Modal ────────────────────────────────────────────────────
 
 function EditParcelRefModal({
@@ -282,7 +334,7 @@ function EditParcelRefModal({
   block: VineBlock | null;
   farmId: number | undefined;
   onClose: () => void;
-  onSaved: (blockId: number) => void;
+  onSaved: (blockId: number, fieldParcelRef: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
@@ -312,7 +364,7 @@ function EditParcelRefModal({
         body: JSON.stringify({ fieldParcelRef: trimmed }),
       });
       if (!res.ok) throw new Error("Failed to save");
-      onSaved(block.id);
+      onSaved(block.id, trimmed);
       onClose();
     } catch {
       setError("Failed to save. Please try again.");
@@ -334,7 +386,11 @@ function EditParcelRefModal({
         style={styles.modalOverlay}
       >
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Add Parcel / Field Ref</Text>
+          <Text style={styles.modalTitle}>
+            {block?.fieldParcelRef?.trim()
+              ? "Edit Parcel / Field Ref"
+              : "Add Parcel / Field Ref"}
+          </Text>
           {!!block && (
             <Text style={styles.modalSubtitle}>{block.blockName}</Text>
           )}
@@ -410,9 +466,10 @@ export default function VineRegisterScreen() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "removed">("active");
   const [addEntryVisible, setAddEntryVisible] = useState(false);
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
-  // Track blocks whose ref has been saved this session so the banner hides
-  // them immediately without needing a full re-fetch of the blocks list.
+  // Keep saved refs local so the missing-ref banner and manage list stay
+  // accurate immediately without needing a full re-fetch of the blocks list.
   const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
+  const [savedParcelRefs, setSavedParcelRefs] = useState<Record<number, string>>({});
 
   const sbiMissing = !identifiersLoading && !sbiNumber;
   const sectorMissing = !currentFarm?.sectorViticulture;
@@ -420,8 +477,14 @@ export default function VineRegisterScreen() {
 
   // Only show the parcel ref banner when the farm has the Viticulture sector
   // enabled (same condition as the desktop RPA buttons).
+  const manageableBlocks: VineBlock[] = blocks.map(block =>
+    savedParcelRefs[block.id] === undefined
+      ? block
+      : { ...block, fieldParcelRef: savedParcelRefs[block.id] },
+  );
+
   const missingParcelRefBlocks: VineBlock[] = currentFarm?.sectorViticulture
-    ? blocks.filter(
+    ? manageableBlocks.filter(
         b =>
           !savedBlockIds.has(b.id) &&
           (!b.fieldParcelRef || String(b.fieldParcelRef).trim() === ""),
@@ -461,8 +524,9 @@ export default function VineRegisterScreen() {
     });
   }, [records, farmName, currentFarm?.name, sbiNumber, address, vitiMeta]);
 
-  const handleBlockSaved = useCallback((blockId: number) => {
+  const handleBlockSaved = useCallback((blockId: number, fieldParcelRef: string) => {
     setSavedBlockIds(prev => new Set([...prev, blockId]));
+    setSavedParcelRefs(prev => ({ ...prev, [blockId]: fieldParcelRef }));
   }, []);
 
   const activeRecords = records.filter(r => !r.isRemovedFromRegister);
@@ -593,6 +657,14 @@ export default function VineRegisterScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           contentContainerStyle={
             filtered.length === 0 ? styles.emptyContainer : styles.listContent
+          }
+          ListHeaderComponent={
+            !blocksLoading ? (
+              <ManageParcelRefsSection
+                blocks={manageableBlocks}
+                onBlockPress={setEditingBlock}
+              />
+            ) : null
           }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => <RegisterRow item={item} />}
@@ -735,6 +807,89 @@ const styles = StyleSheet.create({
     color: "#92400e",
     flex: 1,
     marginRight: spacing.sm,
+  },
+  // ── Manage Parcel Refs ────────────────────────────────────────────────────
+  manageBlocksSection: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  manageBlocksHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  manageBlocksTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  manageBlocksTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  manageBlocksCount: {
+    minWidth: 24,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    color: "#fff",
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.xs,
+    textAlign: "center",
+  },
+  manageBlocksHint: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  manageBlocksList: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  manageBlockItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 54,
+  },
+  manageBlockItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  manageBlockDetails: {
+    flex: 1,
+    marginRight: spacing.sm,
+    gap: 2,
+  },
+  manageBlockName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  manageBlockRef: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  manageBlockRefMissing: {
+    color: "#b45309",
+    fontFamily: fonts.medium,
   },
   // ── Edit Parcel Ref Modal ──────────────────────────────────────────────────
   modalOverlay: {
