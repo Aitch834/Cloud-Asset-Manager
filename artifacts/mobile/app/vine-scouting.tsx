@@ -1,7 +1,7 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,9 +24,12 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
+import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { apiFetch } from "@/lib/apiFetch";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ScoutingPhotoSection } from "@/components/ScoutingPhotoSection";
+import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -71,6 +74,10 @@ function BooleanToggle({ label, value, onChange, urgent }: { label: string; valu
 export default function VineScoutingScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
+  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-scouting", currentFarm?.id, user?.id);
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const { members } = useApiFarmMembers(currentFarm?.id);
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
@@ -193,6 +200,18 @@ export default function VineScoutingScreen() {
           </Pressable>
           <Text style={styles.title}>Vineyard Disease Scouting</Text>
         </View>
+
+        <IdentifierBanner
+          justSaved={justSaved && !identifiersLoading}
+          loading={identifiersLoading}
+          missingIdentifiers={missingIdentifiers}
+          bannerDismissed={bannerDismissed}
+          onClearJustSaved={clearJustSaved}
+          onDismiss={dismissBanner}
+          cphMissing={!cphNumber}
+          sbiMissing={!sbiNumber}
+          context="scouting records"
+        />
 
         {/* ── Form (hidden once saved) ── */}
         {savedRecordId === null ? (
