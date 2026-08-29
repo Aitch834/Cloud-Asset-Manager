@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
+import { updatePhotoCaption } from "@/lib/scoutingLightboxHelpers";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -1033,7 +1034,7 @@ export function ScoutingPhotoSection({
       });
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setPhotos((prev) => prev.map((p) => p.id === photoId ? { ...p, caption: trimmed || null } : p));
+        setPhotos((prev) => updatePhotoCaption(prev, photoId, trimmed || null));
       } else {
         Alert.alert("Save Failed", "Could not save the caption. Please try again.");
       }

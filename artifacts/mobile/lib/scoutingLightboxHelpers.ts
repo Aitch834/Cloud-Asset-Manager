@@ -56,3 +56,19 @@ export function currentPhotoId(
 ): number | null {
   return photos[currentIndex]?.id ?? null;
 }
+
+/**
+ * Apply a caption save to the matching photo without relying on its array
+ * position.  The lightbox index can change while the PATCH is in flight, so
+ * caption updates must follow the stable photo ID rather than the current
+ * display index.
+ */
+export function updatePhotoCaption<T extends { id: number; caption: string | null }>(
+  photos: ReadonlyArray<T>,
+  photoId: number,
+  caption: string | null,
+): T[] {
+  return photos.map((photo) =>
+    photo.id === photoId ? { ...photo, caption } : photo,
+  );
+}

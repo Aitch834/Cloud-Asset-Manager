@@ -24,6 +24,7 @@ import {
   showCounter,
   counterText,
   currentPhotoId,
+  updatePhotoCaption,
 } from "../lib/scoutingLightboxHelpers";
 
 // ---------------------------------------------------------------------------
@@ -217,5 +218,44 @@ describe("currentPhotoId — always targets the displayed photo", () => {
     // 3 photos; user at 2; photo 303 deleted → newLength=2; clamp to 1 → id 202
     const newIndex = clampIndexAfterDelete(2, 2);
     expect(currentPhotoId(photos.slice(0, 2), newIndex)).toBe(202);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Caption save stays associated with its photo while navigating
+// ---------------------------------------------------------------------------
+
+describe("updatePhotoCaption — caption save while the lightbox navigates", () => {
+  type TestPhoto = { id: number; caption: string | null };
+
+  const initialPhotos: TestPhoto[] = [
+    { id: 101, caption: "First photo" },
+    { id: 202, caption: "Second photo" },
+    { id: 303, caption: "Third photo" },
+  ];
+
+  it("keeps photo 2's caption visible after saving photo 1 and swiping immediately", () => {
+    // The save response may arrive after currentIndex has moved to photo 2.
+    const photosAfterSave = updatePhotoCaption(initialPhotos, 101, "Updated first photo");
+    const currentIndexAfterSwipe = 1;
+
+    expect(photosAfterSave[currentIndexAfterSwipe].caption).toBe("Second photo");
+  });
+
+  it("shows the saved caption when swiping back to photo 1", () => {
+    const photosAfterSave = updatePhotoCaption(initialPhotos, 101, "Updated first photo");
+    const currentIndexAfterSwipingBack = 0;
+
+    expect(photosAfterSave[currentIndexAfterSwipingBack].caption).toBe("Updated first photo");
+  });
+
+  it("does not change other photos when applying a caption save by ID", () => {
+    const photosAfterSave = updatePhotoCaption(initialPhotos, 101, "Updated first photo");
+
+    expect(photosAfterSave).toEqual([
+      { id: 101, caption: "Updated first photo" },
+      { id: 202, caption: "Second photo" },
+      { id: 303, caption: "Third photo" },
+    ]);
   });
 });
