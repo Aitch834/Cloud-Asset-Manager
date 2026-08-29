@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState, useEffect } from "react";
 import {
   Alert,
@@ -130,10 +131,16 @@ export default function FieldInspectionScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { fields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const {
+    fields,
+    loading: fieldsLoading,
+    error: fieldsError,
+    loadedForFarmId: fieldsLoadedForFarmId,
+  } = useApiFields(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
   const [fieldName, setFieldName] = useState("");
+  const [restoredForFarmId, setRestoredForFarmId] = useState<string | undefined>(undefined);
   const [cropType, setCropType] = useState("");
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
   const [growthStage, setGrowthStage] = useState("");
@@ -145,6 +152,60 @@ export default function FieldInspectionScreen() {
   const [notes, setNotes] = useState("");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
+
+  // Reset the selection and restoration marker whenever the active farm changes.
+  // This prevents a field from one farm being shown while another farm's list loads.
+  useEffect(() => {
+    setRestoredForFarmId(undefined);
+    setFieldName("");
+  }, [currentFarm?.id]);
+
+  // Restore the last field only after the fields hook confirms its list belongs
+  // to the active farm.  The saved name is checked against that live list so
+  // removed or renamed fields never get restored into a new inspection.
+  useEffect(() => {
+    const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
+    if (!farmId || fieldsLoading || restoredForFarmId === farmId) return;
+    if (fieldsLoadedForFarmId !== farmId) return;
+
+    let cancelled = false;
+    const storageKey = `bde_field_inspection_last_field_${farmId}`;
+
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (cancelled) return;
+
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw) as { fieldName?: string };
+          if (saved.fieldName && fields.some((field) => field.name === saved.fieldName)) {
+            setFieldName(saved.fieldName);
+          }
+        } catch {
+          // Ignore malformed stored values.
+        }
+      }
+
+      setRestoredForFarmId(farmId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFarm?.id, fieldsLoading, fields, fieldsLoadedForFarmId, restoredForFarmId]);
+
+  // Persist after restoration completes so the empty state during a farm
+  // switch cannot overwrite the previous selection before it is read.
+  useEffect(() => {
+    const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
+    if (!farmId || restoredForFarmId !== farmId) return;
+
+    const storageKey = `bde_field_inspection_last_field_${farmId}`;
+    if (fieldName) {
+      AsyncStorage.setItem(storageKey, JSON.stringify({ fieldName }));
+    } else {
+      AsyncStorage.removeItem(storageKey);
+    }
+  }, [currentFarm?.id, restoredForFarmId, fieldName]);
 
   // Load staff members for inspector picker
   useEffect(() => {
