@@ -264,6 +264,25 @@ export default function VineOperationScreen() {
           <Input placeholder="Additional observations…" value={notes} onChangeText={setNotes} multiline numberOfLines={4} />
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Quick Links</Text>
+          <Text style={styles.quickLinkHint}>Jump to a related record for this vineyard operation</Text>
+          <Pressable
+            style={styles.quickLinkBtn}
+            onPress={() => {
+              if (selectedBlock?.id) {
+                router.push({ pathname: "/vine-spray-diary", params: { blockId: String(selectedBlock.id) } });
+              } else {
+                router.push("/vine-spray-diary");
+              }
+            }}
+          >
+            <Feather name="droplet" size={16} color={colors.primary} />
+            <Text style={styles.quickLinkText}>Log Spray Diary Entry</Text>
+            <Feather name="arrow-right" size={16} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+
         <Button title={saving ? "Saving…" : "Save Operation"} onPress={handleSave} disabled={saving} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -289,4 +308,7 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: fontSize.xs, fontFamily: fonts.medium, color: colors.textSecondary },
   chipTextSelected: { color: "#fff" },
+  quickLinkHint: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: colors.textSecondary },
+  quickLinkBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+  quickLinkText: { flex: 1, fontSize: fontSize.sm, fontFamily: fonts.medium, color: colors.text },
 });
