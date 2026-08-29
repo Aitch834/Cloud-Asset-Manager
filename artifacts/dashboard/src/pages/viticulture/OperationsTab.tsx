@@ -9,6 +9,7 @@ import {
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
   Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink,
+  Camera, ChevronLeft,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -57,6 +58,19 @@ import { CaneWeightsSection } from "./CaneWeightsSection";
 
 type Operation = Record<string, unknown>;
 
+type OperationPhoto = {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+  mimeType: string | null;
+};
+
+function isOperationPhoto(attachment: Record<string, unknown>): boolean {
+  const mimeType = String(attachment.mimeType ?? "").toLowerCase();
+  const fileName = String(attachment.fileName ?? "");
+  return mimeType.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(fileName);
+}
+
 export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Operation>(farmId, "vineyard-operations", "vineyard-operations");
   const farmName = useFarmName(farmId);
@@ -67,6 +81,8 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const [current, setCurrent] = useState<Operation | null>(null);
   const [form, setForm] = useState<Operation>({});
   const [viewing, setViewing] = useState<Operation | null>(null);
+  const [lightboxOperationId, setLightboxOperationId] = useState<number | null>(null);
+  const [lightboxPhotoIndex, setLightboxPhotoIndex] = useState(0);
   const [raiseTaskFor, setRaiseTaskFor] = useState<Operation | null>(null);
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "year", farmId, defaultValue: String(new Date().getFullYear()) });
   const [blockFilter, setBlockFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "block", farmId, defaultValue: highlightBlockId ? String(highlightBlockId) : "__all__" });
@@ -78,6 +94,29 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
   const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-operations", filter: "print-block", farmId, defaultValue: "__all__" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: operationPhotos = [], isLoading: operationPhotosLoading } = useQuery<OperationPhoto[]>({
+    queryKey: ["vineyard-operation-photos", farmId, lightboxOperationId],
+    queryFn: async () => {
+      const recordTypes = ["vineyard-operation", "vineyard-operations"];
+      const responses = await Promise.all(recordTypes.map(recordType =>
+        fetch(api(`farms/${farmId}/record-attachments?recordType=${recordType}&recordId=${lightboxOperationId}`), { credentials: "include" })
+          .then(r => { if (!r.ok) throw new Error("Failed to load operation photos"); return r.json(); })
+      ));
+      const uniquePhotos = new globalThis.Map<number, OperationPhoto>();
+      for (const response of responses) {
+        for (const attachment of (Array.isArray(response) ? response : [])) {
+          if (isOperationPhoto(attachment) && typeof attachment.id === "number") {
+            uniquePhotos.set(attachment.id, attachment as OperationPhoto);
+          }
+        }
+      }
+      return Array.from(uniquePhotos.values());
+    },
+    enabled: lightboxOperationId !== null,
+    staleTime: 0,
+  });
+  const currentOperationPhoto = operationPhotos[lightboxPhotoIndex] ?? null;
 
   const isSbiInvalid = !!farmMeta && !!String(farmMeta.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmMeta.sbiNumber ?? "").trim());
 
@@ -361,6 +400,26 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
           { key: "pruningWeightKgPerVine", label: "Wt (kg/vine)", render: r => fmtNum(r.pruningWeightKgPerVine, 3) },
           { key: "operatorName", label: "Operator" },
           { key: "hoursWorked", label: "Hours", render: r => fmtNum(r.hoursWorked, 1) },
+          {
+            key: "photoCount",
+            label: "Photos",
+            render: r => {
+              const count = Number(r.photoCount ?? 0);
+              if (count === 0) return <span className="text-muted-foreground text-xs">—</span>;
+              return (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setLightboxOperationId(r.id as number); setLightboxPhotoIndex(0); }}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium hover:bg-primary/20 transition-colors"
+                  title="View photos"
+                  aria-label={`View ${count} ${count === 1 ? "photo" : "photos"}`}
+                >
+                  <Camera className="w-3 h-3" />
+                  {count}
+                </button>
+              );
+            },
+          },
         ]}
         rows={filteredOperations}
         onView={setViewing}
@@ -390,6 +449,16 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
               {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
             </div>
           )}
+          {viewing && typeof viewing.id === "number" && (
+            <div className="border-t pt-3 mt-1">
+              <RecordAttachments
+                farmId={farmId}
+                recordType="vineyard-operation"
+                recordId={viewing.id}
+                onAttachmentsChange={() => { void queryClient.refetchQueries({ queryKey: ["vineyard-operations", farmId] }); }}
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
             <RaiseTaskBtn onClick={() => { setRaiseTaskFor(viewing); setViewing(null); }} />
@@ -404,6 +473,81 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
             )}
             <Button onClick={() => { openEdit(viewing!); setViewing(null); }}>Edit</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Operation Photo Lightbox */}
+      <Dialog
+        open={lightboxOperationId !== null}
+        onOpenChange={o => { if (!o) { setLightboxOperationId(null); setLightboxPhotoIndex(0); } }}
+      >
+        <DialogContent className="max-w-3xl p-2">
+          <DialogHeader className="px-2 pt-2 pb-1">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Camera className="w-4 h-4 text-muted-foreground" />
+              Operation Photos
+              {operationPhotos.length > 0 && (
+                <span className="text-xs text-muted-foreground font-normal">
+                  {lightboxPhotoIndex + 1} / {operationPhotos.length}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {operationPhotosLoading && (
+            <div className="flex justify-center items-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!operationPhotosLoading && operationPhotos.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-12">No photos attached to this operation.</p>
+          )}
+
+          {!operationPhotosLoading && currentOperationPhoto && (
+            <div className="relative group/lightbox">
+              <img
+                src={currentOperationPhoto.fileUrl}
+                alt={currentOperationPhoto.fileName || "Operation photo"}
+                className="w-full max-h-[70vh] object-contain rounded-lg bg-gray-50"
+                onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
+              />
+
+              {operationPhotos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxPhotoIndex(i => (i - 1 + operationPhotos.length) % operationPhotos.length)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxPhotoIndex(i => (i + 1) % operationPhotos.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 hover:bg-black/70 text-white p-1.5 transition-colors"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div className="flex gap-1.5 mt-3 overflow-x-auto pb-1 px-1 justify-center">
+                    {operationPhotos.map((photo, index) => (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        onClick={() => setLightboxPhotoIndex(index)}
+                        className={`w-14 h-14 shrink-0 rounded border-2 overflow-hidden transition-colors ${index === lightboxPhotoIndex ? "border-primary" : "border-transparent hover:border-muted-foreground/40"}`}
+                        aria-label={`View photo ${index + 1}`}
+                      >
+                        <img src={photo.fileUrl} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

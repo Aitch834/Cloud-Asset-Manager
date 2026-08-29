@@ -433,7 +433,27 @@ router.delete("/farms/:farmId/vineyard-phenology/:id", requireAuth, requireTenan
 
 router.get("/farms/:farmId/vineyard-operations", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
-  const records = await db.select().from(vineyardOperationsTable).where(eq(vineyardOperationsTable.farmId, farmId)).orderBy(desc(vineyardOperationsTable.operationDate));
+  const records = await db
+    .select({
+      ...getTableColumns(vineyardOperationsTable),
+      photoCount: sql<number>`count(${farmRecordAttachmentsTable.id}) filter (where
+        COALESCE(${farmRecordAttachmentsTable.mimeType}, '') ILIKE 'image/%'
+        OR lower(${farmRecordAttachmentsTable.fileName}) LIKE ANY (ARRAY['%.jpg', '%.jpeg', '%.png', '%.gif', '%.webp', '%.avif'])
+      )::int`,
+    })
+    .from(vineyardOperationsTable)
+    .leftJoin(
+      farmRecordAttachmentsTable,
+      and(
+        eq(farmRecordAttachmentsTable.farmId, vineyardOperationsTable.farmId),
+        inArray(farmRecordAttachmentsTable.recordType, ["vineyard-operation", "vineyard-operations"]),
+        eq(farmRecordAttachmentsTable.recordId, vineyardOperationsTable.id),
+        isNull(farmRecordAttachmentsTable.deletedAt),
+      ),
+    )
+    .where(eq(vineyardOperationsTable.farmId, farmId))
+    .groupBy(vineyardOperationsTable.id)
+    .orderBy(desc(vineyardOperationsTable.operationDate));
   res.json({ records });
 });
 

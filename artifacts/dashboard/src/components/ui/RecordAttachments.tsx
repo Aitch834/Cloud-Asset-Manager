@@ -26,6 +26,7 @@ interface RecordAttachmentsProps {
   recordType: string;
   recordId: number;
   compact?: boolean;
+  onAttachmentsChange?: () => void;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -40,7 +41,7 @@ function isImage(mimeType: string | null, fileName: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(fileName);
 }
 
-export function RecordAttachments({ farmId, recordType, recordId, compact = false }: RecordAttachmentsProps) {
+export function RecordAttachments({ farmId, recordType, recordId, compact = false, onAttachmentsChange }: RecordAttachmentsProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { uploadFile } = useUpload();
@@ -79,6 +80,7 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
         }),
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
+      onAttachmentsChange?.();
       toast({ title: "Attachment uploaded" });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
@@ -95,6 +97,7 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
         credentials: "include",
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
+      onAttachmentsChange?.();
       toast({ title: "Attachment removed" });
     } catch {
       toast({ title: "Failed to remove attachment", variant: "destructive" });
