@@ -643,6 +643,17 @@ const recordOptions: RecordOption[] = [
     requiresSectors: ["dairy"],
   },
   {
+    id: "dct-history",
+    title: "DCT History",
+    description: "Browse dry cow therapy records by month and export the selected month as a CSV",
+    icon: "list",
+    color: "#0e7490",
+    bgColor: "#cffafe",
+    route: "/dct-history",
+    moduleKeys: ["dairy-management"],
+    requiresSectors: ["dairy"],
+  },
+  {
     id: "body-condition-score",
     title: "Body Condition Score",
     description: "Record BCS assessments per cow or group on the 1–5 scale with action tracking",

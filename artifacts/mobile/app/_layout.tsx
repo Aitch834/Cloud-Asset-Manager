@@ -143,6 +143,7 @@ function RootLayoutNav() {
         <Stack.Screen name="organic-inputs-list" options={{ headerShown: false }} />
         <Stack.Screen name="organic-milk-collection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="tb-test" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="dct-history" options={{ headerShown: false }} />
         <Stack.Screen name="welfare-outcome" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="ppe-issue" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="labour-timesheet" options={{ headerShown: false, presentation: "modal" }} />
