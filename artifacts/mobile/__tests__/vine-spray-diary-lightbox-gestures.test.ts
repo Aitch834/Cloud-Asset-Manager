@@ -23,7 +23,8 @@
  *   3. Swipe-down dismiss (swipeDownShouldDismiss)
  *   4. Horizontal swipe navigation (resolveHorizSwipe / navigationIndexAfterSwipe)
  *   5. Pinch-to-zoom clamping (clampScale)
- *   6. End-to-end swipe sequences
+ *   6. Delete and navigation-boundary safeguards
+ *   7. End-to-end swipe sequences
  */
 
 import {
@@ -37,6 +38,9 @@ import {
   resolveHorizSwipe,
   navigationIndexAfterSwipe,
   clampScale,
+  clampIndexAfterDelete,
+  displayedIndexAfterPhotosChange,
+  currentPhotoId,
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
   MIN_SCALE,
@@ -286,7 +290,118 @@ describe("clampScale — custom bounds", () => {
 });
 
 // ===========================================================================
-// 6. End-to-end swipe sequences
+// 6. Delete and navigation-boundary safeguards
+//    Spray Diary uses swipe navigation rather than chevron buttons. A blocked
+//    swipe is the equivalent boundary assertion: no out-of-range photo can be
+//    reached, just as a hidden chevron cannot be pressed.
+// ===========================================================================
+
+describe("single photo — no navigation controls", () => {
+  it("hides the counter and blocks both navigation directions", () => {
+    expect(showCounter(1)).toBe(false);
+    expect(resolveHorizSwipe(-200, SWIPE_HORIZ_THRESHOLD, 0, 1)).toBe("snap");
+    expect(resolveHorizSwipe(200, SWIPE_HORIZ_THRESHOLD, 0, 1)).toBe("snap");
+  });
+});
+
+describe("delete shrink guard — deleting the last photo closes", () => {
+  it("returns the close signal when the gallery becomes empty", () => {
+    expect(clampIndexAfterDelete(0, 0)).toBe(-1);
+  });
+});
+
+describe("delete shrink guard — deleting a middle photo clamps safely", () => {
+  it("keeps the same index when a later photo remains in that slot", () => {
+    // [A,B,C], viewing B, then C is deleted.
+    expect(clampIndexAfterDelete(1, 2)).toBe(1);
+  });
+
+  it("moves to the adjacent photo when the displayed photo is deleted", () => {
+    // [A,B,C], viewing C, then C is deleted → [A,B].
+    expect(clampIndexAfterDelete(2, 2)).toBe(1);
+  });
+
+  it("clamps to the only remaining photo", () => {
+    expect(clampIndexAfterDelete(1, 1)).toBe(0);
+  });
+});
+
+describe("production selection transition after deleting the displayed photo", () => {
+  const originalPhotos = [{ id: 101 }, { id: 202 }, { id: 303 }];
+
+  it("keeps the same slot when the displayed middle photo is deleted", () => {
+    const photosAfterDelete = originalPhotos.filter((photo) => photo.id !== 202);
+    const nextIndex = displayedIndexAfterPhotosChange(
+      photosAfterDelete,
+      202,
+      1,
+    );
+
+    expect(nextIndex).toBe(1);
+    expect(currentPhotoId(photosAfterDelete, nextIndex)).toBe(303);
+  });
+
+  it("moves back to the adjacent photo when the displayed last photo is deleted", () => {
+    const photosAfterDelete = originalPhotos.filter((photo) => photo.id !== 303);
+    const nextIndex = displayedIndexAfterPhotosChange(
+      photosAfterDelete,
+      303,
+      2,
+    );
+
+    expect(nextIndex).toBe(1);
+    expect(currentPhotoId(photosAfterDelete, nextIndex)).toBe(202);
+  });
+
+  it("follows a surviving photo ID when an earlier photo is deleted", () => {
+    const photosAfterDelete = originalPhotos.filter((photo) => photo.id !== 101);
+    const nextIndex = displayedIndexAfterPhotosChange(
+      photosAfterDelete,
+      303,
+      2,
+    );
+
+    expect(nextIndex).toBe(1);
+    expect(currentPhotoId(photosAfterDelete, nextIndex)).toBe(303);
+  });
+});
+
+describe("navigation boundaries — chevron-equivalent swipe guards", () => {
+  it("blocks the previous direction at the first photo", () => {
+    expect(resolveHorizSwipe(200, SWIPE_HORIZ_THRESHOLD, 0, 3)).toBe("snap");
+  });
+
+  it("blocks the next direction at the last photo", () => {
+    expect(resolveHorizSwipe(-200, SWIPE_HORIZ_THRESHOLD, 2, 3)).toBe("snap");
+  });
+
+  it("allows both directions from an interior photo", () => {
+    expect(resolveHorizSwipe(-200, SWIPE_HORIZ_THRESHOLD, 1, 3)).toBe("next");
+    expect(resolveHorizSwipe(200, SWIPE_HORIZ_THRESHOLD, 1, 3)).toBe("prev");
+  });
+});
+
+describe("currentPhotoId — actions target the displayed photo", () => {
+  const photos = [{ id: 101 }, { id: 202 }, { id: 303 }];
+
+  it("resolves the current photo after navigation, not the opening photo", () => {
+    expect(currentPhotoId(photos, 0)).toBe(101);
+    expect(currentPhotoId(photos, 2)).toBe(303);
+  });
+
+  it("resolves the adjacent photo after deleting the displayed last photo", () => {
+    const clampedIndex = clampIndexAfterDelete(2, 2);
+    expect(currentPhotoId(photos.slice(0, 2), clampedIndex)).toBe(202);
+  });
+
+  it("returns null when there is no displayed photo", () => {
+    expect(currentPhotoId([], 0)).toBeNull();
+    expect(currentPhotoId(photos, 5)).toBeNull();
+  });
+});
+
+// ===========================================================================
+// 7. End-to-end swipe sequences
 //    Simulate realistic user journeys through a 3-photo spray diary gallery.
 // ===========================================================================
 

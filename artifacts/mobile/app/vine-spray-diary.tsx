@@ -49,16 +49,17 @@ import {
   SWIPE_HORIZ_THRESHOLD,
   MIN_SCALE,
   MAX_SCALE,
-} from "@/lib/lightboxGestureConstants";
+  DIR_NONE,
+  DIR_HORIZ,
+  DIR_VERT,
+  clampIndexAfterDelete,
+  displayedIndexAfterPhotosChange,
+  currentPhotoId as resolveCurrentPhotoId,
+} from "@/lib/vineSprayDiaryLightboxHelpers";
 
 const today = new Date().toISOString().split("T")[0];
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// Gesture direction lock values (local — mirrors vineBlockLightboxHelpers.ts)
-const DIR_NONE = 0;
-const DIR_HORIZ = 1;
-const DIR_VERT = 2;
 
 // 4-minute background refresh for presigned URLs (matching vine-block-photos.tsx pattern)
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
@@ -227,30 +228,39 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
   const [currentPhotoId, setCurrentPhotoId] = useState<number | null>(
     photos[Math.min(initialIndex, Math.max(photos.length - 1, 0))]?.id ?? null,
   );
+  const lastDisplayedIndexRef = useRef(
+    clampIndexAfterDelete(initialIndex, photos.length),
+  );
 
-  const currentIndex = useMemo(() => {
-    if (currentPhotoId == null) return 0;
-    const idx = photos.findIndex((p) => p.id === currentPhotoId);
-    return idx >= 0 ? idx : 0;
-  }, [photos, currentPhotoId]);
+  const resolvedIndex = useMemo(
+    () => displayedIndexAfterPhotosChange(
+      photos,
+      currentPhotoId,
+      lastDisplayedIndexRef.current,
+    ),
+    [photos, currentPhotoId],
+  );
+  const currentIndex = Math.max(resolvedIndex, 0);
 
   // Worklet-accessible mirrors of JS-thread state
   const indexSv = useSharedValue(initialIndex);
   const totalSv = useSharedValue(photos.length);
 
-  useEffect(() => { indexSv.value = currentIndex; }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    indexSv.value = currentIndex;
+    if (resolvedIndex >= 0) lastDisplayedIndexRef.current = resolvedIndex;
+  }, [currentIndex, resolvedIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { totalSv.value = photos.length; }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close or clamp when photos shrink (e.g. delete while lightbox is open)
   useEffect(() => {
     if (!visible) return;
-    if (photos.length === 0) { onClose(); return; }
-    const stillExists = photos.some((p) => p.id === currentPhotoId);
-    if (!stillExists && currentPhotoId != null) {
-      const clampedIdx = Math.min(indexSv.value, photos.length - 1);
-      setCurrentPhotoId(photos[clampedIdx]?.id ?? null);
+    if (resolvedIndex < 0) { onClose(); return; }
+    const resolvedPhotoId = resolveCurrentPhotoId(photos, resolvedIndex);
+    if (resolvedPhotoId !== currentPhotoId) {
+      setCurrentPhotoId(resolvedPhotoId);
     }
-  }, [photos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [photos, resolvedIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Always-fresh photos reference for worklet callbacks
   const photosRef = useRef(photos);
@@ -278,6 +288,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
     if (visible) {
       const idx = Math.min(initialIndex, Math.max(photosRef.current.length - 1, 0));
       setCurrentPhotoId(photosRef.current[idx]?.id ?? null);
+      lastDisplayedIndexRef.current = idx;
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -424,6 +435,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
 
   const photo = photos[currentIndex];
   const uri = photo?.downloadUrl ?? null;
+  const displayedPhotoId = resolveCurrentPhotoId(photos, currentIndex);
 
   // Reset image error when navigating to a new photo or URLs are refreshed
   if (prevUriRef.current !== uri) {
@@ -448,7 +460,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
           </Pressable>
 
           {/* Delete button */}
-          {photo ? (
+          {photo && displayedPhotoId != null ? (
             <Pressable
               style={[lbStyles.deleteBtn, { top: insets.top + 12 }]}
               hitSlop={16}
@@ -458,7 +470,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
                   "Are you sure you want to delete this photo? This cannot be undone.",
                   [
                     { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: () => onDelete(photo.id) },
+                    { text: "Delete", style: "destructive", onPress: () => onDelete(displayedPhotoId) },
                   ],
                 );
               }}

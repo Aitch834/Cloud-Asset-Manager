@@ -16,20 +16,22 @@
  */
 
 // ---------------------------------------------------------------------------
-// Gesture threshold constants
+// Gesture threshold constants — canonical source is lightboxGestureConstants.ts
 // ---------------------------------------------------------------------------
 
-/** Minimum downward translation (px) required to dismiss the lightbox. */
-export const SWIPE_DOWN_THRESHOLD = 120;
+import {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+} from "./lightboxGestureConstants";
 
-/** Minimum horizontal translation (px) required to navigate between photos. */
-export const SWIPE_HORIZ_THRESHOLD = 60;
-
-/** Minimum scale factor (identity / no zoom). */
-export const MIN_SCALE = 1;
-
-/** Maximum pinch-to-zoom scale factor. */
-export const MAX_SCALE = 5;
+export {
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_HORIZ_THRESHOLD,
+  MIN_SCALE,
+  MAX_SCALE,
+};
 
 // ---------------------------------------------------------------------------
 // Counter display
@@ -156,6 +158,28 @@ export function clampIndexAfterDelete(
 ): number {
   if (newLength === 0) return -1;
   return Math.min(currentIndex, newLength - 1);
+}
+
+/**
+ * Resolve the displayed index after the photo array changes.
+ *
+ * When the displayed photo still exists, follow its stable ID because deleting
+ * an earlier photo shifts its index. When that ID was deleted, preserve the
+ * last displayed index and clamp it into the new array so the next photo in
+ * that slot is shown (or the previous photo when the old last photo was
+ * deleted). Returns -1 when no photos remain.
+ */
+export function displayedIndexAfterPhotosChange(
+  photos: ReadonlyArray<{ id: number }>,
+  displayedPhotoId: number | null,
+  lastDisplayedIndex: number,
+): number {
+  if (photos.length === 0) return -1;
+  if (displayedPhotoId != null) {
+    const survivingIndex = photos.findIndex((photo) => photo.id === displayedPhotoId);
+    if (survivingIndex >= 0) return survivingIndex;
+  }
+  return clampIndexAfterDelete(lastDisplayedIndex, photos.length);
 }
 
 // ---------------------------------------------------------------------------
