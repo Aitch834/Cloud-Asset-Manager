@@ -31,11 +31,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const crud = useWineryCrud(farmId, "winery-bottling", "winery-bottling");
   const { data: vessels = [] } = useVessels(farmId);
   const { data: pressingRecords = [] } = usePressing(farmId);
-  const { data: bottlingMachines = [] } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["winery-bottling-machines", farmId],
-    queryFn: () => fetchWineryJson(`farms/${farmId}/winery-bottling-machines`).then(d => (d as { records: Record<string, unknown>[] }).records ?? []),
-    staleTime: 60_000,
-  });
+  const { data: bottlingMachines = [] } = useWineryCrud(farmId, "winery-bottling-machines", "winery-bottling-machines");
   const { staffNames, isLoading: staffLoading } = useStaff(farmId);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -46,6 +42,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [yearFilter, setYearFilter] = usePersistedYearFilter("bottling", farmId);
   const [bottlingSearch, setBottlingSearch] = useState("");
+  const [bottlingMachineFilter, setBottlingMachineFilter] = useState("all");
   const [bottlingSignedFilter, setBottlingSignedFilter] = usePersistedFilter({ page: "bottling-records", filter: "signed", farmId, defaultValue: "all" });
   const BOTTLING_SORT_COLS = ["bottling_date", "lot_code", "batch_ref", "wine_colour", "volume_bottled_litres", "bottles_produced"] as const;
   type BottlingSortCol = typeof BOTTLING_SORT_COLS[number];
@@ -323,7 +320,10 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const years = Array.from(new Set(crud.data.map(r => String(r.vintage_year)).filter(Boolean))).sort().reverse();
   if (!years.includes(String(new Date().getFullYear()))) years.unshift(String(new Date().getFullYear()));
   const filteredByYear = yearFilter === "all" ? crud.data : crud.data.filter(r => String(r.vintage_year) === yearFilter);
-  const bottlingFilteredBySearch = bottlingSearch.trim() === "" ? filteredByYear : filteredByYear.filter(r => {
+  const filteredByMachine = bottlingMachineFilter === "all"
+    ? filteredByYear
+    : filteredByYear.filter(r => String(r.bottling_machine_id ?? "") === bottlingMachineFilter);
+  const bottlingFilteredBySearch = bottlingSearch.trim() === "" ? filteredByMachine : filteredByMachine.filter(r => {
     const q = bottlingSearch.trim().toLowerCase();
     return String(r.batch_ref ?? "").toLowerCase().includes(q)
       || String(r.lot_code ?? "").toLowerCase().includes(q)
@@ -413,6 +413,12 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
     // Export-only: the bottling importer ignores unknown headers.
     ...SIGN_OFF_CSV_COLUMNS,
   ];
+  const selectedBottlingMachine = bottlingMachineFilter === "all"
+    ? null
+    : bottlingMachines.find(m => String(m.id) === bottlingMachineFilter);
+  const bottlingMachineLabel = selectedBottlingMachine
+    ? String(selectedBottlingMachine.machine_ref)
+    : bottlingMachineFilter === "all" ? "All machines" : bottlingMachineFilter;
 
   return (
     <div className="space-y-4">
@@ -450,6 +456,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             onChange={e => setBottlingSearch(e.target.value)}
           />
         </div>
+        <span className="text-xs text-muted-foreground">Machine:</span>
+        <Select value={bottlingMachineFilter} onValueChange={setBottlingMachineFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All machines</SelectItem>
+            {bottlingMachines.map(m => (
+              <SelectItem key={String(m.id)} value={String(m.id)}>
+                {String(m.machine_ref)}{m.machine_type ? ` (${String(m.machine_type)})` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <span className="text-xs text-muted-foreground">Sign-off:</span>
         <Select value={bottlingSignedFilter} onValueChange={v => setBottlingSignedFilter(v as "all" | "signed" | "unsigned")}>
           <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -479,6 +497,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
             csvComment(`Bottling Records — ${farmNameBottling}`),
             csvComment(`Vintage: ${yearFilter === "all" ? "All vintages" : yearFilter}`),
             csvComment(`Search filter: ${searchTrim || "None"}`),
+            csvComment(`Machine filter: ${bottlingMachineLabel}`),
           ];
           if (nonCompliantRows.length > 0) {
             const lotList = nonCompliantRows.map(r => r.lot_code ? String(r.lot_code) : "(no lot code)").join(", ");
@@ -489,6 +508,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
           // download is identifiable.
           const parts = ["bottling-records"];
           if (yearFilter !== "all") parts.push(yearFilter);
+          if (bottlingMachineFilter !== "all") parts.push(`machine-${csvSlug(bottlingMachineLabel)}`);
           if (searchTrim) parts.push(`search-${csvSlug(searchTrim)}`);
           exportCSV(filtered, `${parts.join("-")}.csv`, bottlingCsvCols, prefixLines.length > 0 ? prefixLines : undefined);
         }} disabled={!filtered.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
