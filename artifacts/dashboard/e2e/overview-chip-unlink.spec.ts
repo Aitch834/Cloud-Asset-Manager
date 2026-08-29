@@ -51,6 +51,7 @@ const FARM_ID = 5; // Highfield Vineyard — viticulture module enabled
 
 /** Unique sentinel so rows can be found without relying on position */
 const RUN_TAG = `E2E-1277-${Date.now()}`;
+const PHENOLOGY_RUN_TAG = `E2E-1695-${Date.now()}`;
 
 // ─── State-file helpers ───────────────────────────────────────────────────────
 
@@ -91,6 +92,14 @@ async function getFirstBlockId(): Promise<number> {
   return active[0].id as number;
 }
 
+async function getFirstActiveBlock(): Promise<{ id: number; blockName: string }> {
+  const data = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`);
+  const records = (data.records ?? data.data ?? []) as Array<Record<string, unknown>>;
+  const active = records.filter((b) => b.isActive !== false);
+  if (!active.length) throw new Error(`Farm ${FARM_ID} has no active vineyard blocks`);
+  return { id: active[0].id as number, blockName: String(active[0].blockName ?? active[0].id) };
+}
+
 async function createLinkedScoutingRecord(blockId: number): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
@@ -108,6 +117,24 @@ async function createLinkedScoutingRecord(blockId: number): Promise<number> {
         phomopsisPressure: 0,
         leafhopperPressure: 0,
         spiderMitePressure: 0,
+      }),
+    },
+  )) as { record: { id: number } };
+  return record.id;
+}
+
+async function createUnlinkedPhenologyRecord(): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { record } = (await devFetch(
+    `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        observationDate: today,
+        observer: PHENOLOGY_RUN_TAG,
+        bbchStage: "09",
+        bbchDescription: "E2E block reassignment",
       }),
     },
   )) as { record: { id: number } };
@@ -243,6 +270,19 @@ async function clickOverviewTab(page: import("@playwright/test").Page) {
   await expect(page.getByText("Active Blocks", { exact: true })).toBeVisible({ timeout: 20_000 });
 }
 
+/**
+ * SPA-navigate to a named viticulture tab without changing the document URL
+ * or reloading the page.
+ */
+async function clickViticultureTab(
+  page: import("@playwright/test").Page,
+  tabName: string,
+) {
+  const btn = page.locator("button", { hasText: new RegExp(`^${tabName}$`) }).first();
+  await expect(btn).toBeVisible({ timeout: 10_000 });
+  await btn.click();
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 test.describe("Overview chip count — unlink path", () => {
@@ -364,6 +404,67 @@ test.describe("Overview chip count — unlink path", () => {
     } finally {
       await deleteRecord(
         `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+      ).catch(() => {});
+    }
+  });
+});
+
+test.describe("Overview chip count — phenology block assignment", () => {
+  /**
+   * A phenology observation starts unlinked, then is assigned to a block from
+   * the edit dialog. The Overview tab is reached with an in-page tab click
+   * only; no page navigation or manual refresh is allowed after the save.
+   */
+  test("phenology block assignment decrements the Overview chip immediately", async ({ page }) => {
+    const block = await getFirstActiveBlock();
+    const phenologyId = await createUnlinkedPhenologyRecord();
+
+    try {
+      // The Overview query sees the API-seeded unlinked observation.
+      await signInAndOpenViticultureTab(page, "overview");
+      const initialCount = await readOverviewChipCount(page, /phenology/i);
+      expect(initialCount, "seeded phenology observation must appear as unlinked").toBeGreaterThan(0);
+
+      // Move to Phenology via the tab bar, not a page reload.
+      await clickViticultureTab(page, "Phenology");
+      const row = page.locator("tr", { hasText: PHENOLOGY_RUN_TAG });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      // DataTable actions are View, Edit, Delete; click Edit.
+      await row.getByRole("button").nth(1).click();
+      const dialog = page
+        .locator('[role="dialog"]')
+        .filter({ hasText: "Edit Phenology Observation" });
+      await expect(dialog).toBeVisible({ timeout: 5_000 });
+
+      // The first combobox in the edit dialog is the Block selector.
+      await dialog.getByRole("combobox").first().click();
+      await page.getByRole("option", { name: block.blockName, exact: true }).click();
+      await dialog.getByRole("button", { name: /^save$/i }).click();
+
+      await expect(dialog).toBeHidden({ timeout: 10_000 });
+      await expect(row.getByText(block.blockName, { exact: true })).toBeVisible({ timeout: 10_000 });
+
+      // Return to Overview with the SPA tab control. The shared query cache
+      // must already contain the refetched record before this component mounts.
+      await clickOverviewTab(page);
+      const afterCount = await readOverviewChipCount(page, /phenology/i);
+      expect(
+        afterCount,
+        `Phenology chip must be ${initialCount - 1} after assigning the block (was ${initialCount})`,
+      ).toBe(initialCount - 1);
+      const phenologyChip = page
+        .locator("button.rounded-full")
+        .filter({ hasText: /phenology/i })
+        .first();
+      if (initialCount === 1) {
+        await expect(phenologyChip).toBeHidden();
+      } else {
+        await expect(phenologyChip).toBeVisible();
+      }
+    } finally {
+      await deleteRecord(
+        `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology/${phenologyId}`,
       ).catch(() => {});
     }
   });
