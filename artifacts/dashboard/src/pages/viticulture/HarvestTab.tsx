@@ -1340,9 +1340,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         }}
       />
 
-      {/* FSA / APPA registration pre-flight check */}
-      <FsaCompletenessBar farmId={farmId} />
-
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">

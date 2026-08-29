@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { usePersistedFilter, usePersistedNumberFilter } from "@/hooks/use-persisted-filter";
 import { YearCompareSelector, COMPARE_COLORS } from "@/components/analytics/YearCompareSelector";
 import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
+import { FsaCompletenessBar } from "@/components/viticulture/FsaCompletenessBar";
 import { useQuery } from "@tanstack/react-query";
 import { printElementReport } from "@/lib/print-report";
 import {
@@ -1000,6 +1001,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
 
   return (
     <div id={SEASON_PRINT_ID} className="space-y-5">
+      <FsaCompletenessBar farmId={farmId} />
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
@@ -2289,6 +2291,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
 
   return (
     <div id={ENT_PRINT_ID} className="space-y-5">
+      <FsaCompletenessBar farmId={farmId} />
       {/* ── Controls ── */}
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>

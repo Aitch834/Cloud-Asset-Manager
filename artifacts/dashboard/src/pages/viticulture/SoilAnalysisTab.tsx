@@ -53,7 +53,7 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useFarmMembers } from "@/hooks/use-farm-members";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, FsaCompletenessBar } from "./shared";
 
 type SoilSampleStatus = "pending_collection" | "collected" | "awaiting_results" | "complete";
 
@@ -260,6 +260,7 @@ export function SoilAnalysisTab({ farmId, blocks }: { farmId: number; blocks: Re
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

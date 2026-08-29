@@ -232,6 +232,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-gray-700 font-medium">Wine Batch Production Register</p>

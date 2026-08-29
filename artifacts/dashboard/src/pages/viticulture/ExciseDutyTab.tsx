@@ -230,6 +230,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
 
   return (
     <div className="space-y-4">
+      <FsaCompletenessBar farmId={farmId} />
       <div className="flex items-start justify-between gap-4">
         <div><h3 className="font-semibold text-sm">Excise Duty Returns</h3><p className="text-xs text-muted-foreground mt-0.5">HMRC wine duty log (Excise Notice 163). All wine produced — including tasting volumes — is dutiable. Small Producer Relief (SPR) applies under {sprThresholdHl.toLocaleString()} hl/year.</p></div>
         <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Return</Button>
@@ -541,4 +542,3 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
 }
 
 // ─── Winery: Tastings & Tours ────────────────────────────────────────────────────
-
