@@ -30,7 +30,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { downloadCsvFile } from "@/lib/csv";
+import { buildViticultureUnlinkedWarningText, downloadCsvFile } from "@/lib/csv";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -54,7 +54,6 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { buildDiseaseScoutingDetailedCsvRows } from "@/lib/disease-scouting-csv";
 import { fmt, fmtDate, fmtNum, today, printDiseaseScouting, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 
 type Scouting = Record<string, unknown>;
@@ -511,15 +510,18 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               const alerts = [e.xylella && "Xylella", e.phytophthora && "Phytophthora viticola", e.eutypa && "Eutypa Dieback", e.vineWeevil && "Vine Weevil"].filter(Boolean).join("; ");
               return [e.label, String(e.visits), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", pLbl(e.maxDowny), pLbl(e.maxPowdery), pLbl(e.maxBotrytis), pLbl(e.maxPhomopsis), String(e.totalPhotos), alerts || "None"];
             });
-            const unlinkedCount2 = filteredScouting.filter(r => !r.blockId).length;
+            // ── Build per-record rows ─────────────────────────────────────────────────
+            const recordRows = filteredScouting.map(r => [fmtDate(r.scoutDate), String(blockName(r.blockId)), r.blockId ? "Yes" : "No", String(r.scoutedBy ?? ""), pLbl(Number(r.downyMildewPressure) || 0), pLbl(Number(r.powderyMildewPressure) || 0), pLbl(Number(r.botrytisPressure) || 0), pLbl(Number(r.phomopsisPressure) || 0), pLbl(Number(r.leafhopperPressure) || 0), pLbl(Number(r.spiderMitePressure) || 0), r.vineWeevilSighted ? "Yes" : "No", r.eutypaDiebackSighted ? "Yes" : "No", r.xylellaFastidiosa ? "ALERT" : "No", r.phytophthoraViticola ? "ALERT" : "No", fmtDate(r.nextScoutDate), String(r.actionTaken ?? ""), String(r.notes ?? ""), String(Number(r.photoCount) || 0), String(Number(r.captionCount) || 0)]);
+            const unlinkedWarning = buildViticultureUnlinkedWarningText(filteredScouting);
             downloadCsvFile("vineyard-scouting.csv", [
-              ...(unlinkedCount2 > 0 ? [[`WARNING: ${unlinkedCount2} record${unlinkedCount2 === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`]] : []),
+              ...(unlinkedWarning ? [[unlinkedWarning]] : []),
               ["BLOCK SUMMARY"],
               ["Block", "Visits", "First Visit", "Last Visit", "Max Downy", "Max Powdery", "Max Botrytis", "Max Phomopsis", "Total Photos", "Alerts"],
               ...summaryRows,
               [],
               ["DETAILED SCOUTING RECORDS"],
-               ...buildDiseaseScoutingDetailedCsvRows(filteredScouting, blocks, { formatDate: fmtDate, pressureLabel: pLbl }),
+              ["Scout Date", "Block", "Block Linked", "Scouted By", "Downy Mildew", "Powdery Mildew", "Botrytis", "Phomopsis", "Leafhopper", "Spider Mite", "Vine Weevil", "Eutypa Dieback", "Xylella", "Phytophthora viticola", "Next Scout Date", "Action Taken", "Notes", "Photos", "Captioned Photos"],
+              ...recordRows,
             ]);
           }} disabled={!filteredScouting.length}><FileDown className="w-4 h-4 mr-1" />Export CSV</Button>
           <Select value={printBlockFilter} onValueChange={setPrintBlockFilter}>

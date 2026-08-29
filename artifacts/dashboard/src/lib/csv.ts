@@ -87,8 +87,22 @@ export function buildViticultureCsvContent(
 }
 
 /**
- * Build the warning row string for viticulture CSV exports when some records
- * are not linked to a vineyard block. Returns undefined when all records are linked.
+ * Build the warning message for viticulture CSV exports when some records are
+ * not linked to a vineyard block. Returns undefined when all records are linked.
+ *
+ * This is the unquoted form for callers that pass the value through buildCsv
+ * (such as downloadCsvFile).
+ */
+export function buildViticultureUnlinkedWarningText(
+  rows: Record<string, unknown>[],
+): string | undefined {
+  const n = rows.filter(r => !r["blockId"]).length;
+  if (n === 0) return undefined;
+  return `WARNING: ${n} record${n === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`;
+}
+
+/**
+ * Build the warning row string for viticulture CSV exports.
  *
  * The returned string is already double-quoted so it can be passed directly to
  * buildViticultureCsvContent / exportCSV as the warningRow parameter.
@@ -96,9 +110,8 @@ export function buildViticultureCsvContent(
 export function buildViticultureUnlinkedWarning(
   rows: Record<string, unknown>[],
 ): string | undefined {
-  const n = rows.filter(r => !r["blockId"]).length;
-  if (n === 0) return undefined;
-  return `"WARNING: ${n} record${n === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete"`;
+  const warning = buildViticultureUnlinkedWarningText(rows);
+  return warning === undefined ? undefined : quoteCsvCell(warning);
 }
 
 /**

@@ -3,9 +3,8 @@
  *
  * Every viticulture tab that exports CSV (Phenology, Scouting, Spray Diary,
  * and the three Harvest export functions) now uses the shared production
- * helpers `buildViticultureUnlinkedWarning` and `buildViticultureCsvContent`
- * from `@/lib/csv`. This file tests those helpers directly, so any regression
- * in their logic will break these tests.
+ * warning helpers from `@/lib/csv`. This file tests those helpers and the
+ * Scouting download serialization boundary.
  *
  * Two properties are verified:
  *   1. Warning row present (with correct N, singular vs. plural) when unlinked
@@ -13,19 +12,24 @@
  *   2. Warning row absent when all records are linked.
  *
  * Coverage:
- *   - buildViticultureUnlinkedWarning  (shared helper, used by all tabs)
+ *   - buildViticultureUnlinkedWarning  (pre-quoted shared helper used by
+ *                                       raw-string CSV assembly callers)
+ *   - buildViticultureUnlinkedWarningText (raw warning used by Scouting's
+ *                                          downloadCsvFile path)
  *   - buildViticultureCsvContent       (used by exportCSV → Phenology,
- *                                       Scouting, Spray Diary)
+ *                                       Spray Diary)
  *   - HarvestTab's warningLine pattern (`_w ? _w + "\n" : ""`, used in
  *                                       exportHarvestCSV / exportBlockSummaryCSV
  *                                       / exportWineGBSurveyCSV)
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   buildCsv,
   buildViticultureUnlinkedWarning,
+  buildViticultureUnlinkedWarningText,
   buildViticultureCsvContent,
+  downloadCsvFile,
 } from "./csv";
 import { buildDiseaseScoutingDetailedCsvRows } from "./disease-scouting-csv";
 
@@ -188,6 +192,39 @@ describe("buildViticultureUnlinkedWarning", () => {
   });
 });
 
+describe("downloadCsvFile warning serialization", () => {
+  it("serializes the raw Scouting warning as one CSV cell without embedded quotes", async () => {
+    const rows = [LINKED, UNLINKED];
+    const warning = buildViticultureUnlinkedWarningText(rows)!;
+    let downloadedBlob: Blob | undefined;
+    const anchor = { href: "", download: "", click: vi.fn() };
+
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => anchor),
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        downloadedBlob = blob;
+        return "blob:test";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+
+    try {
+      downloadCsvFile("vineyard-scouting.csv", [[warning]]);
+
+      expect(anchor.click).toHaveBeenCalledOnce();
+      const csv = await downloadedBlob!.text();
+      const csvWithoutBom = csv.charCodeAt(0) === 0xfeff ? csv.slice(1) : csv;
+      const firstCell = parseCsvLine(csvWithoutBom.split("\n")[0])[0];
+      expect(firstCell).toBe(warning);
+      expect(csvWithoutBom.split("\n")[0]).not.toContain('"""');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 // ─── Disease Scouting detailed-record Notes column ────────────────────────────
 //
 // ScoutingTab uses downloadCsvFile, which serialises these rows with buildCsv.
@@ -234,13 +271,13 @@ describe("Disease Scouting CSV — Notes column", () => {
   });
 });
 
-// ─── buildViticultureCsvContent — Phenology / Scouting / Spray Diary path ────
+// ─── buildViticultureCsvContent — Phenology / Spray Diary path ────────────────
 //
 // These tabs call:
 //   exportCSV(rows, filename, cols, buildViticultureUnlinkedWarning(rows))
 // which delegates the content-building to buildViticultureCsvContent.
 
-describe("buildViticultureCsvContent — exportCSV path (Phenology, Scouting, Spray Diary)", () => {
+describe("buildViticultureCsvContent — exportCSV path (Phenology, Spray Diary)", () => {
   describe("all records linked → no warning", () => {
     it("does NOT include a WARNING line", () => {
       const warning = buildViticultureUnlinkedWarning([LINKED]);
