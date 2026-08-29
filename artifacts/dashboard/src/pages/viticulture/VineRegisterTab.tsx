@@ -618,14 +618,6 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       {/* FSA / APPA completeness bar */}
       <FsaCompletenessBar farmId={farmId} />
 
-      {/* Farm address missing warning */}
-      <FarmSettingsWarning
-        missingFields={farmRecord && !farmRecord.address ? ["Farm address"] : []}
-        settingsSection="Contact & Address"
-        onNavigate={() => setLocation("/settings/farm")}
-        targetId="settings-address"
-      />
-
       {/* APPA Ref missing warning */}
       <FarmSettingsWarning
         missingFields={farmRecord && !farmRecord.appaRef ? ["APPA Ref"] : []}
