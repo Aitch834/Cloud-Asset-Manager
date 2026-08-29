@@ -33,6 +33,11 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
+import {
+  buildWinegbSeasonYears,
+  isWinegbMutationResultCurrent,
+  winegbYearOf,
+} from "@/lib/winegbSeasons";
 
 /**
  * Normalise a grower-typed date to YYYY-MM-DD.
@@ -86,15 +91,19 @@ interface WinegbSubmission {
   submittedAt: string | null;
 }
 
-function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
-  const seasonYear = new Date().getFullYear();
+function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: string; seasonYear: number }) {
+  const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
+  const isCurrentSeason = seasonYear === currentYear;
 
   const [collapsed, setCollapsed] = useState(false);
   const [submissions, setSubmissions] = useState<Record<string, WinegbSubmission>>({});
   const [loadingPanel, setLoadingPanel] = useState(true);
   const [toggling, setToggling] = useState<WinegbSurveyKey | null>(null);
   const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
+  const seasonYearRef = useRef(seasonYear);
+  seasonYearRef.current = seasonYear;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -102,9 +111,12 @@ function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
   }, []);
 
   const fetchSubmissions = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    setLoadingPanel(true);
+    setSubmissions({});
     try {
       const res = await apiFetch(`/api/farms/${farmId}/winegb-submissions?year=${seasonYear}`);
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
       if (res.ok) {
         const json = await res.json() as { submissions: Record<string, WinegbSubmission> };
         setSubmissions(json.submissions ?? {});
@@ -112,7 +124,7 @@ function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
     } catch {
       // silently ignore network errors for the panel
     } finally {
-      if (mountedRef.current) setLoadingPanel(false);
+      if (mountedRef.current && requestId === requestIdRef.current) setLoadingPanel(false);
     }
   }, [farmId, seasonYear]);
 
@@ -131,6 +143,10 @@ function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
         body: JSON.stringify({ submitted: !current, year: seasonYear }),
       });
       if (res.ok) {
+        if (
+          !mountedRef.current ||
+          !isWinegbMutationResultCurrent(seasonYear, seasonYearRef.current)
+        ) return;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setSubmissions(prev => ({
           ...prev,
@@ -188,8 +204,8 @@ function WinegbSubmissionsPanel({ farmId }: { farmId: string }) {
               {WINEGB_SURVEYS.map(survey => {
                 const state = submissions[survey.key];
                 const isSubmitted = state?.submitted ?? false;
-                const isOverdue = !isSubmitted && currentMonth > Math.max(...survey.months);
-                const isInSeason = !isSubmitted && survey.months.includes(currentMonth);
+                const isOverdue = isCurrentSeason && !isSubmitted && currentMonth > Math.max(...survey.months);
+                const isInSeason = isCurrentSeason && !isSubmitted && survey.months.includes(currentMonth);
                 const isPending = toggling === survey.key;
 
                 let rowStyle = wgStyles.surveyRowDefault;
@@ -490,12 +506,39 @@ export default function VinePhenologyHistoryScreen() {
   );
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
 
+  const currentYear = new Date().getFullYear();
   const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [winegbYears, setWinegbYears] = useState<number[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editingRecord, setEditingRecord] = useState<PhenologyRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<PhenologyRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    const farmId = currentFarm?.id;
+    if (!farmId) {
+      setWinegbYears([]);
+      return () => { active = false; };
+    }
+
+    void apiFetch(`/api/farms/${farmId}/winegb-submissions-history`)
+      .then(async res => {
+        if (!active || !res.ok) return;
+        const payload = await res.json() as { years?: unknown };
+        if (!active || !Array.isArray(payload.years)) return;
+        setWinegbYears(payload.years.filter((year): year is number =>
+          typeof year === "number" && Number.isInteger(year),
+        ));
+      })
+      .catch(() => {
+        // The visible phenology records still provide a useful local fallback.
+      });
+
+    return () => { active = false; };
+  }, [currentFarm?.id]);
 
   const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
   const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
@@ -512,8 +555,19 @@ export default function VinePhenologyHistoryScreen() {
       });
   }, [records, localUpdates, deletedIds]);
 
+  const years = useMemo(
+    () => buildWinegbSeasonYears(
+      currentYear,
+      winegbYears,
+      displayRecords.map(r => r.observationDate),
+    ),
+    [currentYear, displayRecords, winegbYears],
+  );
+  const selectedSeasonYear = yearFilter === "all" ? currentYear : Number(yearFilter);
+
   const filtered = useMemo(() => {
     let result = displayRecords;
+    if (yearFilter !== "all") result = result.filter(r => winegbYearOf(r.observationDate) === yearFilter);
     if (canonFrom) result = result.filter(r => r.observationDate && r.observationDate >= canonFrom);
     if (canonTo) result = result.filter(r => r.observationDate && r.observationDate <= canonTo);
     if (search.trim()) {
@@ -526,7 +580,7 @@ export default function VinePhenologyHistoryScreen() {
       );
     }
     return result;
-  }, [displayRecords, search, canonFrom, canonTo]);
+  }, [displayRecords, yearFilter, search, canonFrom, canonTo]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
@@ -573,7 +627,7 @@ export default function VinePhenologyHistoryScreen() {
       />
 
       {currentFarm?.id && (
-        <WinegbSubmissionsPanel farmId={String(currentFarm.id)} />
+        <WinegbSubmissionsPanel farmId={String(currentFarm.id)} seasonYear={selectedSeasonYear} />
       )}
 
       {unlinkedCount > 0 && (
@@ -596,6 +650,25 @@ export default function VinePhenologyHistoryScreen() {
           clearButtonMode="while-editing"
         />
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.yearScroll}
+        contentContainerStyle={styles.yearScrollContent}
+      >
+        {["all", ...years].map(y => (
+          <Pressable
+            key={y}
+            onPress={() => setYearFilter(y)}
+            style={[styles.yearPill, yearFilter === y && styles.yearPillActive]}
+          >
+            <Text style={[styles.yearPillText, yearFilter === y && styles.yearPillTextActive]}>
+              {y === "all" ? "All years" : y}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       {/* Date range filter */}
       <View style={styles.dateRangeRow}>
@@ -830,6 +903,34 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  yearScroll: {
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  yearScrollContent: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  yearPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  yearPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  yearPillText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  yearPillTextActive: {
+    color: colors.textInverse,
   },
   dateRangeRow: {
     flexDirection: "row",
