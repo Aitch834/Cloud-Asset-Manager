@@ -523,7 +523,7 @@ function PressureGrid({ record }: { record: ScoutingRecord }) {
 
 // ─── Record Row ───────────────────────────────────────────────────────────────
 
-function ScoutingRow({
+export function ScoutingRow({
   item,
   onEdit,
   onDelete,
@@ -597,7 +597,7 @@ function ScoutingRow({
             </Pressable>
           ) : null}
           {!!item.photoCount && item.photoCount > 0 && (
-            <View style={styles.photoBadge}>
+            <View style={styles.photoBadge} testID={`scouting-photo-badge-${item.id}`}>
               <Feather name="camera" size={11} color={colors.primary} />
               <Text style={styles.photoBadgeText}>{item.photoCount}</Text>
             </View>

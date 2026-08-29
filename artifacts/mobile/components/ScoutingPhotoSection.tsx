@@ -866,6 +866,7 @@ export function ScoutingPhotoThumbnail({
   return (
     <Pressable
       style={photoStyles.thumbnail}
+      testID={`scouting-photo-${photo.id}`}
       onLongPress={reloading ? undefined : handleLongPress}
       onPressOut={handlePressOut}
       onPress={() => onPress(photo)}
