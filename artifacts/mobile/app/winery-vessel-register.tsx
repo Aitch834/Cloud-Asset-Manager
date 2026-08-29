@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -149,6 +150,26 @@ function idleDays(emptySince: string): number {
   const emptyDate = new Date(emptySince);
   const now = new Date();
   return Math.floor((now.getTime() - emptyDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+const LAST_VIEWED_VESSEL_STORAGE_PREFIX = "vessel-register-last-viewed-vessel-filter";
+
+function lastViewedVesselStorageKey(farmId: string | number): string {
+  return `${LAST_VIEWED_VESSEL_STORAGE_PREFIX}-${farmId}`;
+}
+
+function navigateToVessel(vessel: WineryVessel): void {
+  router.push({
+    pathname: "/winery-vessel-detail",
+    params: {
+      vesselId: String(vessel.id),
+      vesselRef: vessel.vessel_ref,
+      vesselType: vessel.vessel_type ?? "",
+      notes: vessel.notes ?? "",
+      cellarZone: vessel.cellar_zone ?? "",
+      cellarPosition: vessel.cellar_position ?? "",
+    },
+  });
 }
 
 // ── Fill form ─────────────────────────────────────────────────────────────────
@@ -538,11 +559,13 @@ function VesselRow({
   idleBarrelDaysThreshold,
   approachingNeutralFillsThreshold,
   onLogFill,
+  onOpen,
 }: {
   vessel: WineryVessel;
   idleBarrelDaysThreshold?: number | null;
   approachingNeutralFillsThreshold?: number | null;
   onLogFill?: () => void;
+  onOpen?: () => void;
 }) {
   const barrel = isBarrelType(vessel.vessel_type);
   const active = String(vessel.status ?? "active") === "active";
@@ -558,22 +581,14 @@ function VesselRow({
     "";
   const capacityLabel = vessel.capacity_litres ? `${vessel.capacity_litres} L` : null;
 
-  const handlePress = () => {
-    router.push({
-      pathname: "/winery-vessel-detail",
-      params: {
-        vesselId: String(vessel.id),
-        vesselRef: vessel.vessel_ref,
-        vesselType: vessel.vessel_type ?? "",
-        notes: vessel.notes ?? "",
-        cellarZone: vessel.cellar_zone ?? "",
-        cellarPosition: vessel.cellar_position ?? "",
-      },
-    });
-  };
-
   return (
-    <Pressable onPress={handlePress} style={({ pressed }) => [styles.row, hasAlerts && styles.rowAlert, pressed && styles.rowPressed]}>
+    <Pressable
+      onPress={() => {
+        onOpen?.();
+        navigateToVessel(vessel);
+      }}
+      style={({ pressed }) => [styles.row, hasAlerts && styles.rowAlert, pressed && styles.rowPressed]}
+    >
       {/* Left: ref + meta */}
       <View style={styles.rowMain}>
         <View style={styles.rowHeader}>
@@ -750,6 +765,41 @@ export default function WineryVesselRegisterScreen() {
 
   // ── Log-fill quick-action modal ────────────────────────────────────────────
   const [logFillVessel, setLogFillVessel] = useState<WineryVessel | null>(null);
+  const [lastViewedVesselId, setLastViewedVesselId] = useState<string | null>(null);
+  const lastViewedStorageKey = currentFarm?.id
+    ? lastViewedVesselStorageKey(currentFarm.id)
+    : null;
+
+  // Keep the shortcut scoped to the active farm and ignore a late storage
+  // response if the grower switches farms while it is loading.
+  useEffect(() => {
+    setLastViewedVesselId(null);
+    if (!currentFarm?.id || !lastViewedStorageKey) return;
+    let cancelled = false;
+    void AsyncStorage.getItem(lastViewedStorageKey)
+      .then(storedId => {
+        if (!cancelled) setLastViewedVesselId(storedId?.trim() || null);
+      })
+      .catch(() => {
+        if (!cancelled) setLastViewedVesselId(null);
+      });
+    return () => { cancelled = true; };
+  }, [currentFarm?.id, lastViewedStorageKey]);
+
+  const lastViewedVessel =
+    farmConfirmed && lastViewedVesselId
+      ? records.find(vessel => String(vessel.id) === lastViewedVesselId) ?? null
+      : null;
+
+  async function dismissLastViewedVessel(): Promise<void> {
+    setLastViewedVesselId(null);
+    if (!lastViewedStorageKey) return;
+    try {
+      await AsyncStorage.removeItem(lastViewedStorageKey);
+    } catch {
+      // The shortcut is already hidden locally; a later screen load can retry.
+    }
+  }
 
   function toggleFlag(flag: AlertFlag) {
     setAlertFlag(alertFlag === flag ? null : flag);
@@ -831,6 +881,35 @@ export default function WineryVesselRegisterScreen() {
         </Pressable>
         <Text style={styles.title}>Vessel Register</Text>
       </View>
+
+      {lastViewedVessel && (
+        <View style={styles.lastViewedBanner}>
+          <Pressable
+            onPress={() => navigateToVessel(lastViewedVessel)}
+            style={({ pressed }) => [styles.lastViewedAction, pressed && styles.lastViewedPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Return to ${lastViewedVessel.vessel_ref}`}
+          >
+            <Feather name="corner-up-left" size={16} color={colors.primary} />
+            <View style={styles.lastViewedCopy}>
+              <Text style={styles.lastViewedEyebrow}>Last viewed vessel</Text>
+              <Text style={styles.lastViewedRef} numberOfLines={1}>
+                Return to {lastViewedVessel.vessel_ref}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={17} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            onPress={() => { void dismissLastViewedVessel(); }}
+            style={styles.lastViewedDismiss}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss last viewed vessel shortcut"
+          >
+            <Feather name="x" size={16} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      )}
 
       {/* Summary / filter bar — only shown once module identity is confirmed for
           the current farm so stale counts from a previous farm never appear. */}
@@ -914,6 +993,7 @@ export default function WineryVesselRegisterScreen() {
               idleBarrelDaysThreshold={barrelAlertThresholds.idleBarrelDays}
               approachingNeutralFillsThreshold={barrelAlertThresholds.approachingNeutralFills}
               onLogFill={() => setLogFillVessel(item)}
+              onOpen={() => setLastViewedVesselId(String(item.id))}
             />
           )}
           renderSectionHeader={({ section }) => (
@@ -983,6 +1063,49 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.text,
     flex: 1,
+  },
+  lastViewedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#eff6ff",
+  },
+  lastViewedAction: {
+    flex: 1,
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  lastViewedPressed: {
+    opacity: 0.7,
+  },
+  lastViewedCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  lastViewedEyebrow: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+  },
+  lastViewedRef: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: colors.primary,
+  },
+  lastViewedDismiss: {
+    alignSelf: "stretch",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    borderLeftWidth: 1,
+    borderLeftColor: "#bfdbfe",
   },
   summaryBar: {
     flexDirection: "row",

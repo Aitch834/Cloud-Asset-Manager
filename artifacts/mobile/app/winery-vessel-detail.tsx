@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { router, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -90,6 +91,12 @@ interface BarrelMovement {
   reason: string | null;
   operator_name: string | null;
   notes: string | null;
+}
+
+const LAST_VIEWED_VESSEL_STORAGE_PREFIX = "vessel-register-last-viewed-vessel-filter";
+
+function lastViewedVesselStorageKey(farmId: string | number): string {
+  return `${LAST_VIEWED_VESSEL_STORAGE_PREFIX}-${farmId}`;
 }
 
 // ── Hook: fetch all three sub-resources in parallel ───────────────────────────
@@ -1292,6 +1299,18 @@ export default function WineryVesselDetailScreen() {
   const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
   const [editingFill, setEditingFill] = useState<BarrelFill | null>(null);
   const [rackingOutFill, setRackingOutFill] = useState<BarrelFill | null>(null);
+
+  // Remember the vessel that was actually opened, scoped by farm so the
+  // register never offers a shortcut into another farm's cellar.
+  useEffect(() => {
+    if (!currentFarm?.id || !params.vesselId) return;
+    void AsyncStorage.setItem(
+      lastViewedVesselStorageKey(currentFarm.id),
+      String(params.vesselId),
+    ).catch(() => {
+      // Best effort: the detail screen remains usable if local storage is unavailable.
+    });
+  }, [currentFarm?.id, params.vesselId]);
 
   // Track current vessel location so sequential movements pre-fill the right origin
   const [currentZone, setCurrentZone] = useState(params.cellarZone ?? "");
