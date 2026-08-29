@@ -44,6 +44,9 @@ const PAGE_STYLE = `
   .pill.off { background: #c0392b; }
   .pill.on { background: #1a5c1a; }
   .pill.between { background: #2471a3; }
+  .operation-details td { background: #f1f6f1 !important; color: #3f4f3f; font-size: 8.5pt; padding-top: 4px; padding-bottom: 4px; }
+  .operation-details strong { color: #1a5c1a; }
+  .operation-detail { display: inline-block; margin-right: 16px; }
 `;
 
 type ComplianceScheme = "red-tractor" | "winegb";
@@ -1108,6 +1111,12 @@ export interface VineOperationsRow {
   operatorName: string | null;
   hoursWorked: number | null;
   notes: string | null;
+  pruningSystem?: string | null;
+  budsPerVineTarget?: number | null;
+  budsPerVineActual?: number | null;
+  pruningWeightKgPerVine?: number | null;
+  shootsRemovedPct?: number | null;
+  leavesRemovedZone?: string | null;
 }
 
 export function vineOperationsHtml(
@@ -1154,6 +1163,15 @@ export function vineOperationsHtml(
     </div>`;
 
   const tableRows = records.map((r) => {
+    const operationDetails = [
+      r.pruningSystem?.trim() ? `<span class="operation-detail">Pruning system: <strong>${efmt(r.pruningSystem)}</strong></span>` : "",
+      r.budsPerVineTarget != null ? `<span class="operation-detail">Target buds/vine: <strong>${r.budsPerVineTarget}</strong></span>` : "",
+      r.budsPerVineActual != null ? `<span class="operation-detail">Actual buds/vine: <strong>${r.budsPerVineActual}</strong></span>` : "",
+      r.pruningWeightKgPerVine != null ? `<span class="operation-detail">Pruning weight: <strong>${r.pruningWeightKgPerVine} kg/vine</strong></span>` : "",
+      r.shootsRemovedPct != null ? `<span class="operation-detail">Shoots removed: <strong>${r.shootsRemovedPct}%</strong></span>` : "",
+      r.leavesRemovedZone?.trim() ? `<span class="operation-detail">Leaves removed zone: <strong>${efmt(r.leavesRemovedZone)}</strong></span>` : "",
+    ].filter(Boolean).join("");
+
     return `
       <tr>
         <td>${fmtDate(r.operationDate)}</td>
@@ -1162,7 +1180,8 @@ export function vineOperationsHtml(
         <td>${efmt(r.operatorName)}</td>
         <td>${r.hoursWorked != null ? `${r.hoursWorked} hr${r.hoursWorked === 1 ? "" : "s"}` : "—"}</td>
         <td style="font-size:8.5pt">${efmt(r.notes)}</td>
-      </tr>`;
+      </tr>
+      ${operationDetails ? `<tr class="operation-details"><td colspan="6"><strong>Pruning / canopy:</strong> ${operationDetails}</td></tr>` : ""}`;
   }).join("");
 
   const tableEmpty = `<tr><td colspan="6" style="text-align:center;color:#888;padding:16px 8px;">No operation records match the current filter.</td></tr>`;

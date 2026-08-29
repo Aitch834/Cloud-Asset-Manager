@@ -567,6 +567,12 @@ export default function VineOperationsHistoryScreen() {
         operatorName: r.operatorName,
         hoursWorked: r.hoursWorked,
         notes: r.notes,
+        pruningSystem: r.pruningSystem,
+        budsPerVineTarget: r.budsPerVineTarget,
+        budsPerVineActual: r.budsPerVineActual,
+        pruningWeightKgPerVine: r.pruningWeightKgPerVine,
+        shootsRemovedPct: r.shootsRemovedPct,
+        leavesRemovedZone: r.leavesRemovedZone,
       }));
       const html = vineOperationsHtml(
         rows,
