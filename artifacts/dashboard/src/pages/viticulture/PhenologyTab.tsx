@@ -8,7 +8,7 @@ import {
   BarChart3, Bug, Scissors, ShieldAlert, CheckCircle2, XCircle, AlertTriangle,
   FileDown, Pencil, Map, FileText, Receipt, CalendarCheck, ShieldCheck, Wine,
   Droplet, FlaskConical, ChevronRight, Package, TrendingUp, BookOpen, Printer,
-  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link,
+  Award, Globe, BadgeAlert, Beaker, Wrench, Gauge, Link, Unlink,
 } from "lucide-react";
 import {
   ViticulturalAnalyticsTab,
@@ -311,6 +311,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-phenology", filter: "print-block", farmId, defaultValue: "__all__" });
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinks, setBulkLinks] = useState<Record<number, number | null>>({});
+  const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
 
   // Sync block filter when navigating from a block card
   useEffect(() => {
@@ -362,6 +363,24 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   });
 
   const bulkLinkCount = Object.values(bulkLinks).filter(v => v !== null).length;
+
+  const unlinkMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(api(`farms/${farmId}/vineyard-phenology/${id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId: null }),
+      });
+      if (!r.ok) throw new Error("Failed to unlink phenology record");
+      return r.json();
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["vineyard-phenology", farmId] });
+      setUnlinkRecordId(null);
+      toast({ title: "Block link removed", description: "The phenology observation is no longer linked to a block." });
+    },
+  });
 
   // ── Restore all persisted survey offers on mount ─────────────────────────
   useEffect(() => {
@@ -649,7 +668,32 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
       <DataTable
         cols={[
           { key: "observationDate", label: "Date", render: r => fmtDate(r.observationDate) },
-          { key: "blockId", label: "Block", render: r => fmt(blockName(r.blockId)) },
+          {
+            key: "blockId",
+            label: "Block",
+            render: r => {
+              const linked = blocks.find(b => b.id === r.blockId);
+              if (linked) return (
+                <span className="inline-flex items-center gap-1.5 group">
+                  <span className="text-sm">{String(linked.blockName)}</span>
+                  <button
+                    type="button"
+                    title="Remove block link"
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={e => { e.stopPropagation(); setUnlinkRecordId(r.id as number); }}
+                  >
+                    <Unlink className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+              return (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Not linked
+                </span>
+              );
+            },
+          },
           { key: "bbchStage", label: "BBCH Stage" },
           { key: "bbchDescription", label: "Description" },
           { key: "percentageReached", label: "% Reached", render: r => r.percentageReached ? `${r.percentageReached}%` : "—" },
@@ -660,6 +704,18 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
+      />
+
+      {/* Unlink confirm */}
+      <ConfirmDialog
+        open={unlinkRecordId !== null}
+        title="Remove block link?"
+        message="This phenology observation will no longer be linked to its block. You can re-link it at any time from the edit form or the bulk-link tool."
+        confirmLabel="Unlink"
+        confirmVariant="destructive"
+        onConfirm={() => unlinkMutation.mutate(unlinkRecordId!)}
+        onCancel={() => { setUnlinkRecordId(null); unlinkMutation.reset(); }}
+        mutation={unlinkMutation}
       />
 
       {/* View Dialog */}

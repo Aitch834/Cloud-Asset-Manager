@@ -52,6 +52,8 @@ const FARM_ID = 5; // Highfield Vineyard — viticulture module enabled
 /** Unique sentinel so rows can be found without relying on position */
 const RUN_TAG = `E2E-1277-${Date.now()}`;
 const PHENOLOGY_RUN_TAG = `E2E-1695-${Date.now()}`;
+const PHENOLOGY_UNLINK_RUN_TAG = `E2E-1740-PHENOLOGY-${Date.now()}`;
+const OPERATIONS_UNLINK_RUN_TAG = `E2E-1740-OPERATIONS-${Date.now()}`;
 
 // ─── State-file helpers ───────────────────────────────────────────────────────
 
@@ -141,6 +143,25 @@ async function createUnlinkedPhenologyRecord(): Promise<number> {
   return record.id;
 }
 
+async function createLinkedPhenologyRecord(blockId: number): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { record } = (await devFetch(
+    `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        observationDate: today,
+        observer: PHENOLOGY_UNLINK_RUN_TAG,
+        blockId,
+        bbchStage: "09",
+        bbchDescription: "E2E phenology unlink",
+      }),
+    },
+  )) as { record: { id: number } };
+  return record.id;
+}
+
 async function createLinkedSprayRecord(blockId: number): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { record } = (await devFetch(
@@ -153,6 +174,24 @@ async function createLinkedSprayRecord(blockId: number): Promise<number> {
         productName: `E2E-Spray-${RUN_TAG}`,
         blockId,
         operatorName: RUN_TAG,
+      }),
+    },
+  )) as { record: { id: number } };
+  return record.id;
+}
+
+async function createLinkedOperationRecord(blockId: number): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { record } = (await devFetch(
+    `${apiBase()}/api/farms/${FARM_ID}/vineyard-operations`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operationDate: today,
+        operationType: "Winter Pruning",
+        blockId,
+        operatorName: OPERATIONS_UNLINK_RUN_TAG,
       }),
     },
   )) as { record: { id: number } };
@@ -430,8 +469,9 @@ test.describe("Overview chip count — phenology block assignment", () => {
       const row = page.locator("tr", { hasText: PHENOLOGY_RUN_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
 
+      // Scope to the actions cell so the inline unlink button is excluded.
       // DataTable actions are View, Edit, Delete; click Edit.
-      await row.getByRole("button").nth(1).click();
+      await row.locator("td").last().getByRole("button").nth(1).click();
       const dialog = page
         .locator('[role="dialog"]')
         .filter({ hasText: "Edit Phenology Observation" });
@@ -465,6 +505,96 @@ test.describe("Overview chip count — phenology block assignment", () => {
     } finally {
       await deleteRecord(
         `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology/${phenologyId}`,
+      ).catch(() => {});
+    }
+  });
+});
+
+test.describe("Overview chip count — additional unlink paths", () => {
+  /**
+   * A linked phenology observation is unlinked from its row. The Overview tab
+   * is reached with an in-page tab click only, so the chip must reflect the
+   * unlinkMutation refetch without a full page reload.
+   */
+  test("phenology unlink increments Overview chip count immediately", async ({ page }) => {
+    const blockId = await getFirstBlockId();
+    const phenologyId = await createLinkedPhenologyRecord(blockId);
+
+    try {
+      await signInAndOpenViticultureTab(page, "overview");
+      const initialCount = await readOverviewChipCount(page, /phenology/i);
+
+      await clickViticultureTab(page, "Phenology");
+      const row = page.locator("tr", { hasText: PHENOLOGY_UNLINK_RUN_TAG });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      await row.hover();
+      const unlinkBtn = row.getByTitle("Remove block link");
+      await expect(unlinkBtn).toBeVisible({ timeout: 5_000 });
+      await unlinkBtn.click({ force: true });
+
+      const dialog = page
+        .locator('[role="dialog"]')
+        .filter({ hasText: "Remove block link?" });
+      await expect(dialog).toBeVisible({ timeout: 5_000 });
+      await dialog.getByRole("button", { name: /^unlink$/i }).click();
+      await expect(row.getByText("Not linked")).toBeVisible({ timeout: 10_000 });
+
+      await clickOverviewTab(page);
+      const afterCount = await readOverviewChipCount(page, /phenology/i);
+      expect(
+        afterCount,
+        `Phenology chip must be ${initialCount + 1} after unlinking (was ${initialCount})`,
+      ).toBe(initialCount + 1);
+      await expect(
+        page.locator("button.rounded-full").filter({ hasText: /phenology/i }).first(),
+      ).toBeVisible();
+    } finally {
+      await deleteRecord(
+        `${apiBase()}/api/farms/${FARM_ID}/vineyard-phenology/${phenologyId}`,
+      ).catch(() => {});
+    }
+  });
+
+  /**
+   * The same cache-refresh assertion for Pruning & Canopy Operations.
+   */
+  test("Pruning & Canopy unlink increments Overview chip count immediately", async ({ page }) => {
+    const blockId = await getFirstBlockId();
+    const operationId = await createLinkedOperationRecord(blockId);
+
+    try {
+      await signInAndOpenViticultureTab(page, "overview");
+      const initialCount = await readOverviewChipCount(page, /pruning & canopy/i);
+
+      await clickViticultureTab(page, "Pruning & Canopy");
+      const row = page.locator("tr", { hasText: OPERATIONS_UNLINK_RUN_TAG });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      await row.hover();
+      const unlinkBtn = row.getByTitle("Remove block link");
+      await expect(unlinkBtn).toBeVisible({ timeout: 5_000 });
+      await unlinkBtn.click({ force: true });
+
+      const dialog = page
+        .locator('[role="dialog"]')
+        .filter({ hasText: "Remove block link?" });
+      await expect(dialog).toBeVisible({ timeout: 5_000 });
+      await dialog.getByRole("button", { name: /^unlink$/i }).click();
+      await expect(row.getByText("Not linked")).toBeVisible({ timeout: 10_000 });
+
+      await clickOverviewTab(page);
+      const afterCount = await readOverviewChipCount(page, /pruning & canopy/i);
+      expect(
+        afterCount,
+        `Pruning & Canopy chip must be ${initialCount + 1} after unlinking (was ${initialCount})`,
+      ).toBe(initialCount + 1);
+      await expect(
+        page.locator("button.rounded-full").filter({ hasText: /pruning & canopy/i }).first(),
+      ).toBeVisible();
+    } finally {
+      await deleteRecord(
+        `${apiBase()}/api/farms/${FARM_ID}/vineyard-operations/${operationId}`,
       ).catch(() => {});
     }
   });
