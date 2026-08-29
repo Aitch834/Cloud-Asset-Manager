@@ -715,7 +715,7 @@ export default function HomeScreen() {
             <SectionHeader title="WineGB Surveys" />
             <Pressable
               style={styles.winegbNudgeBanner}
-              onPress={() => router.push("/vine-phenology")}
+              onPress={() => router.push("/vine-phenology-history")}
             >
               <View style={styles.winegbNudgeIconWrap}>
                 <Feather name="globe" size={18} color="#059669" />
@@ -727,7 +727,7 @@ export default function HomeScreen() {
                     : `${winegbPendingCount} WineGB surveys to submit`}
                 </Text>
                 <Text style={styles.unlinkedSubtitle}>
-                  Record a phenology observation to mark as submitted
+                  Open the checklist to mark surveys as submitted
                 </Text>
               </View>
               <Feather name="chevron-right" size={18} color={colors.textSecondary} />
