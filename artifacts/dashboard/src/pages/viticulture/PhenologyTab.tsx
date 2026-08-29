@@ -557,9 +557,9 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
           <div className="flex-1 min-w-0">
             <span className="font-medium">WineGB {banner.surveyName}</span>
             <span>
-              {" "}— WineGB are collecting UK-wide data on {banner.label} this season. Submit your figures to their{" "}
+              {" "}— WineGB are collecting UK-wide data on {banner.label} this season. Submit your figures directly to WineGB:{" "}
               <a href="https://winegb.co.uk/production/vineyards-wineries/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 font-medium hover:text-emerald-900">
-                Vineyard Survey →
+                Submit to WineGB →
               </a>
             </span>
           </div>
