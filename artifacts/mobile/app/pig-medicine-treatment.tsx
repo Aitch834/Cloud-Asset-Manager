@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { PigPenPicker } from "@/components/ui/PigPenPicker";
 import { colors } from "@/constants/colors";
@@ -23,6 +24,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiPigFlocks } from "@/lib/hooks/useApiPigFlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
@@ -42,6 +44,7 @@ export default function PigMedicineTreatmentScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const pigAlert = useDiseaseAlert("pig");
   const { flocks, loading: flocksLoading, fromCache, error: flocksError } = useApiPigFlocks(currentFarm?.id);
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
@@ -136,6 +139,7 @@ export default function PigMedicineTreatmentScreen() {
         <Text style={styles.title}>Medicine Treatment</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={pigAlert} sector="Pig" />
 
       <IdentifierBanner
         justSaved={justSaved}

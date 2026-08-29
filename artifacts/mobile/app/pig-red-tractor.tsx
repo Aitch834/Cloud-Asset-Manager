@@ -15,12 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigRedTractorChecklist } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
@@ -156,6 +158,7 @@ export default function PigRedTractorScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const pigAlert = useDiseaseAlert("pig");
   const [saving, setSaving] = useState(false);
 
   const [assessedBy, setAssessedBy] = useState(user?.name || "");
@@ -241,6 +244,7 @@ export default function PigRedTractorScreen() {
         <Text style={styles.title}>Pig Red Tractor Checklist</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={pigAlert} sector="Pig" />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView

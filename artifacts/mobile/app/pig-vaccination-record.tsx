@@ -6,12 +6,14 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiPigFlocks, type ApiPigFlock } from "@/lib/hooks/useApiPigFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
@@ -50,6 +52,7 @@ export default function PigVaccinationRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const pigAlert = useDiseaseAlert("pig");
   const { flocks, loading: flocksLoading } = useApiPigFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -130,6 +133,7 @@ export default function PigVaccinationRecordScreen() {
         <Text style={styles.headerTitle}>Pig Vaccination Record</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={pigAlert} sector="Pig" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <Text style={styles.sectionTitle}>Herd / Group</Text>

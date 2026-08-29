@@ -6,12 +6,14 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiSheepFlocks } from "@/lib/hooks/useApiSheepFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
@@ -33,6 +35,7 @@ export default function SheepDiseaseMonitoringScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const sheepAlert = useDiseaseAlert("sheep");
   const { flocks, loading: flocksLoading } = useApiSheepFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +97,7 @@ export default function SheepDiseaseMonitoringScreen() {
         <Text style={styles.headerTitle}>Sheep Disease Monitoring</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={sheepAlert} sector="Sheep" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         <Text style={styles.sectionTitle}>Flock</Text>

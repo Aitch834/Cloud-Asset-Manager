@@ -6,6 +6,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
@@ -13,6 +14,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
@@ -35,6 +37,7 @@ export default function GoatWeighRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const goatAlert = useDiseaseAlert("goat");
   const { flocks, loading: flocksLoading } = useApiGoatFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -107,6 +110,7 @@ export default function GoatWeighRecordScreen() {
         <Text style={styles.headerTitle}>Goat Weigh-In Record</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={goatAlert} sector="Goat" />
       <IdentifierBanner
         justSaved={justSaved}
         loading={identifiersLoading}

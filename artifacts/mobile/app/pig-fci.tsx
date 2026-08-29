@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { PigPenPicker } from "@/components/ui/PigPenPicker";
 import { colors } from "@/constants/colors";
@@ -22,6 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiPigFlocks } from "@/lib/hooks/useApiPigFlocks";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { PigFciDocument } from "@/lib/types";
@@ -37,6 +39,7 @@ export default function PigFciScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const pigAlert = useDiseaseAlert("pig");
   const { flocks, loading: flocksLoading, fromCache, error: flocksError } = useApiPigFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -109,6 +112,7 @@ export default function PigFciScreen() {
         <Text style={styles.title}>Pig FCI Document</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={pigAlert} sector="Pig" />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">

@@ -6,6 +6,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
@@ -13,6 +14,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useApiSheepFlocks } from "@/lib/hooks/useApiSheepFlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
@@ -35,6 +37,7 @@ export default function SheepMatingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const sheepAlert = useDiseaseAlert("sheep");
   const { flocks, loading: flocksLoading } = useApiSheepFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -103,6 +106,7 @@ export default function SheepMatingRecordScreen() {
         <Text style={styles.headerTitle}>Sheep Mating / Tupping</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={sheepAlert} sector="Sheep" />
       <IdentifierBanner
         justSaved={justSaved}
         loading={identifiersLoading}
