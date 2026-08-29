@@ -31,6 +31,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
+import { usePersistedPressureFilter } from "@/lib/hooks/usePersistedPressureFilter";
 import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
@@ -676,7 +677,7 @@ export default function VineScoutingHistoryScreen() {
   const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [pressureFilter, setPressureFilter] = useState<"__all__" | "1" | "2" | "3">("__all__");
+  const [pressureFilter, setPressureFilter] = usePersistedPressureFilter(currentFarm?.id);
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<ScoutingRecord>>>({});
