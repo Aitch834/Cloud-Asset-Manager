@@ -27,6 +27,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
+import { usePersistedVineRegisterStatusFilter } from "@/lib/hooks/usePersistedVineRegisterStatusFilter";
 import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
 import { kvGet } from "@/lib/database";
 
@@ -467,7 +468,7 @@ export default function VineRegisterScreen() {
   const { blocks, loading: blocksLoading } = useApiVineBlocks(farmIdStr);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "removed">("active");
+  const [statusFilter, setStatusFilter] = usePersistedVineRegisterStatusFilter(farmIdStr);
   const [addEntryVisible, setAddEntryVisible] = useState(false);
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
   // Keep saved refs local so the missing-ref banner and manage list stay
