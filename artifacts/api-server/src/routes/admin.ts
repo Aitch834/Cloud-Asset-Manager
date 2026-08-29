@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import os from "os";
 import crypto from "crypto";
 import dns from "dns";
+import https from "https";
 import { db, tenantsTable, farmsTable, subscriptionsTable, modulesTable, userTenantsTable, usersTable, supportTicketsTable, supportTicketMessagesTable, adminEmailsSentTable, emailTemplatesTable, leadsTable, rolesTable, invoicesTable, platformConfigTable, platformAuditLogTable, helpArticlesTable, adTemplatesTable, adCopyPresetsTable } from "@workspace/db";
 import { eq, and, count, desc, sql, asc, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
@@ -3051,6 +3052,202 @@ router.delete("/admin/ad-copy-presets/:id", requireAuth, async (req: Request, re
   res.json({ success: true });
 });
 
+// ─── Background image URL probe ──────────────────────────────────────────────
+// Server-side HEAD/GET probe so CORS-restricted CDN URLs are handled correctly.
+//
+// SSRF protections (stricter than the global fetch path):
+//  1. HTTPS-only — HTTP is rejected before any network I/O.
+//  2. DNS + private-IP guard on EVERY hop — each redirect target is resolved and
+//     checked before the connection is made (prevents SSRF via open redirects).
+//  3. IP-pinned connection — we connect to the resolved IP address directly and
+//     set the Host/SNI headers manually.  This closes the DNS-rebinding window
+//     that exists when hostname resolution and TCP connection are separate steps.
+//  4. Redirects are followed manually (redirect: "manual") so we own the full
+//     chain; Node's automatic redirect follower would bypass checks 2 and 3.
+//  5. ok:true only when HTTP 2xx AND content-type starts with "image/".
+
+type BgHttpResult = {
+  statusCode: number;
+  location: string | undefined;
+  contentType: string | null;
+  body?: Buffer;
+};
+
+/** Make one HTTPS request to a validated (already DNS-checked) URL via IP. */
+function bgProbeRequest(
+  ip: string,
+  family: number,
+  parsed: URL,
+  method: "HEAD" | "GET",
+  timeoutMs: number,
+  readBody: boolean,
+): Promise<BgHttpResult> {
+  return new Promise((resolve, reject) => {
+    const port = parsed.port ? parseInt(parsed.port, 10) : 443;
+    // IPv6 addresses must not have brackets in the `host` option
+    const cleanIp = ip.replace(/^\[/, "").replace(/\]$/, "");
+    const tlsServername = parsed.hostname.replace(/^\[/, "").replace(/\]$/, "");
+    const options: https.RequestOptions = {
+      host: cleanIp,
+      port,
+      family: family as 4 | 6,
+      path: (parsed.pathname || "/") + parsed.search,
+      method,
+      headers: {
+        Host: parsed.host,
+        "User-Agent": "BDEFarmTracAdRenderer/1.0",
+      },
+      servername: tlsServername, // TLS SNI
+      rejectUnauthorized: true,
+    };
+    let settled = false;
+    let req: ReturnType<typeof https.request>;
+    const settle = (val: BgHttpResult) => {
+      if (settled) return; settled = true;
+      clearTimeout(timer);
+      resolve(val);
+    };
+    const fail = (err: Error) => {
+      if (settled) return; settled = true;
+      clearTimeout(timer);
+      reject(err);
+    };
+    // Timer covers the full round-trip including body drain — not cleared on headers alone
+    const timer = setTimeout(() => {
+      req.destroy(new Error("Probe timed out"));
+      fail(new Error("Probe timed out"));
+    }, timeoutMs);
+    req = https.request(options, (rsp) => {
+      const result = {
+        statusCode: rsp.statusCode ?? 0,
+        location: Array.isArray(rsp.headers.location)
+          ? rsp.headers.location[0]
+          : rsp.headers.location,
+        contentType: (typeof rsp.headers["content-type"] === "string"
+          ? rsp.headers["content-type"]
+          : rsp.headers["content-type"]?.[0]) ?? null,
+      };
+      // Redirect bodies are never needed. Destroy them before following the next hop.
+      if (!readBody || (result.statusCode >= 300 && result.statusCode < 400)) {
+        rsp.destroy();
+        settle(result);
+        return;
+      }
+
+      // The renderer is the only caller that reads a body. Enforce the same 10 MB
+      // cap as the existing renderer and keep the deadline active until completion.
+      const chunks: Buffer[] = [];
+      let total = 0;
+      rsp.on("data", (chunk: Buffer) => {
+        total += chunk.length;
+        if (total > BG_MAX_BYTES) {
+          rsp.destroy();
+          fail(new Error("Background image exceeds the 10 MB limit."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      rsp.on("end", () => settle({ ...result, body: Buffer.concat(chunks) }));
+      rsp.on("error", (err) => fail(err));
+    });
+    req.on("error", (err) => { fail(err); });
+    req.end();
+  });
+}
+
+/** Resolve hostname, block private IPs, return first address. */
+async function bgResolveHostname(hostname: string): Promise<{ address: string; family: number }> {
+  let addrs: dns.LookupAddress[];
+  try {
+    addrs = await dns.promises.lookup(hostname, { all: true });
+  } catch {
+    throw new Error(`Cannot resolve host: ${hostname}`);
+  }
+  for (const { address } of addrs) {
+    if (isPrivateIp(address)) {
+      throw new Error(`Host resolves to a private/reserved address: ${address}`);
+    }
+  }
+  return addrs[0];
+}
+
+/** Follow redirects manually, validating and IP-pinning every hop. */
+async function bgRequestWithMethod(
+  startUrl: string,
+  method: "HEAD" | "GET",
+  readBody: boolean,
+): Promise<BgHttpResult> {
+  const MAX_REDIRECTS = 5;
+  let current = startUrl;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    let parsed: URL;
+    try { parsed = new URL(current); } catch { throw new Error(`Invalid URL after redirect: ${current}`); }
+    if (parsed.protocol !== "https:") throw new Error("Redirect target must also use HTTPS");
+    if (parsed.port && parsed.port !== "443") throw new Error("Background image URL must use HTTPS on port 443");
+    const { address, family } = await bgResolveHostname(parsed.hostname);
+    const result = await bgProbeRequest(address, family, parsed, method, BG_FETCH_TIMEOUT_MS, readBody);
+    if (result.statusCode >= 300 && result.statusCode < 400 && result.location) {
+      if (hop === MAX_REDIRECTS) throw new Error("Too many redirects");
+      current = new URL(result.location, current).toString();
+      continue;
+    }
+    return result;
+  }
+  throw new Error("Redirect loop");
+}
+
+/** Try a HEAD probe against a fully-validated URL. */
+async function bgProbeWithMethod(
+  startUrl: string,
+  method: "HEAD" | "GET",
+): Promise<{ statusCode: number; contentType: string | null }> {
+  const result = await bgRequestWithMethod(startUrl, method, false);
+  return { statusCode: result.statusCode, contentType: result.contentType };
+}
+
+router.get("/admin/check-bg-url", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (!(await checkPlatformAdmin(req, res))) return;
+  const { url } = req.query as { url?: string };
+  if (!url || typeof url !== "string") {
+    res.status(400).json({ ok: false, contentType: null, error: "url query param required" });
+    return;
+  }
+
+  // Basic URL + protocol validation before any network I/O
+  let parsed: URL;
+  try { parsed = new URL(url); } catch {
+    res.status(400).json({ ok: false, contentType: null, error: "Invalid URL" });
+    return;
+  }
+  if (parsed.protocol !== "https:") {
+    res.status(400).json({ ok: false, contentType: null, error: "Only HTTPS URLs are supported" });
+    return;
+  }
+
+  try {
+    // HEAD probe first — avoids downloading the full image body
+    let statusCode: number;
+    let contentType: string | null;
+    try {
+      ({ statusCode, contentType } = await bgProbeWithMethod(url, "HEAD"));
+      // If host rejects HEAD, fall back to a GET probe
+      if (statusCode === 405) {
+        ({ statusCode, contentType } = await bgProbeWithMethod(url, "GET"));
+      }
+    } catch {
+      // Network/DNS/redirect error on HEAD — attempt GET fallback once
+      ({ statusCode, contentType } = await bgProbeWithMethod(url, "GET"));
+    }
+
+    // ok only when HTTP 2xx AND image content-type (matches what the renderer requires)
+    const ok = statusCode >= 200 && statusCode < 300 && !!contentType?.startsWith("image/");
+    res.json({ ok, contentType });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.json({ ok: false, contentType: null, error: msg });
+  }
+});
+
 // ─── Ad brand-asset resolvability status ─────────────────────────────────────
 // Returns whether logo and QR can be resolved from DB config or legacy on-disk
 // fallback files, so the frontend can warn before a render produces a blank PDF.
@@ -3246,27 +3443,70 @@ const BG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const BG_FETCH_TIMEOUT_MS = 10_000;     // 10 s
 
 function isPrivateIp(addr: string): boolean {
+  // Strip IPv6 brackets if present
+  const a = addr.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+
   // IPv4 private/reserved ranges
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(addr);
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(a);
   if (v4) {
-    const [, a, b] = v4.map(Number);
+    const [, o1, o2, o3, o4] = v4.map(Number);
     if (
-      a === 10 ||
-      a === 127 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254) ||
-      (a === 0) ||
-      (a === 100 && b >= 64 && b <= 127) || // RFC 6598 shared
-      (a === 198 && (b === 18 || b === 19))  // RFC 2544
+      [o1, o2, o3, o4].some((octet) => octet < 0 || octet > 255) ||
+      o1 === 0 ||                                 // 0.0.0.0/8  — unspecified
+      o1 === 10 ||                                // 10.0.0.0/8  — private
+      o1 === 127 ||                               // 127.0.0.0/8 — loopback
+      (o1 === 100 && o2 >= 64 && o2 <= 127) ||   // 100.64.0.0/10 — RFC 6598 shared
+      (o1 === 169 && o2 === 254) ||               // 169.254.0.0/16 — link-local
+      (o1 === 172 && o2 >= 16 && o2 <= 31) ||    // 172.16.0.0/12  — private
+      (o1 === 192 && o2 === 0 && o3 === 0) ||    // 192.0.0.0/24   — IETF protocol assignments
+      (o1 === 192 && o2 === 168) ||               // 192.168.0.0/16 — private
+      (o1 === 192 && o2 === 0 && o3 === 2) ||    // 192.0.2.0/24   — documentation
+      (o1 === 192 && o2 === 31 && o3 === 196) ||  // 192.31.196.0/24 — documentation
+      (o1 === 192 && o2 === 52 && o3 === 193) ||  // 192.52.193.0/24 — documentation
+      (o1 === 192 && o2 === 88 && o3 === 99) ||   // 192.88.99.0/24  — deprecated 6to4 relay
+      (o1 === 198 && (o2 === 18 || o2 === 19)) || // 198.18.0.0/15  — RFC 2544 benchmarking
+      (o1 === 198 && o2 === 51 && o3 === 100) ||  // 198.51.100.0/24 — documentation
+      (o1 === 203 && o2 === 0 && o3 === 113) ||   // 203.0.113.0/24 — documentation
+      o1 >= 224                                      // multicast/reserved
     ) return true;
     return false;
   }
-  // IPv6: loopback, link-local, unique-local
-  const lower = addr.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-  if (lower === "::1") return true;
-  if (lower.startsWith("fe80:")) return true;
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+
+  // Parse IPv6 into 128 bits so compressed, IPv4-compatible, mapped, and
+  // reserved forms are checked consistently instead of by string prefix.
+  if (a.includes(":")) {
+    const parts = a.includes(".") ? (() => {
+      const split = a.lastIndexOf(":");
+      const dotted = a.slice(split + 1).split(".").map(Number);
+      if (dotted.length !== 4 || dotted.some((octet) => octet < 0 || octet > 255)) return null;
+      const hexTail = `${((dotted[0] << 8) | dotted[1]).toString(16)}:${((dotted[2] << 8) | dotted[3]).toString(16)}`;
+      return `${a.slice(0, split + 1)}${hexTail}`;
+    })() : a;
+    if (!parts) return true;
+    const halves = parts.split("::");
+    if (halves.length > 2) return true;
+    const left = halves[0] ? halves[0].split(":") : [];
+    const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+    const groups = halves.length === 2
+      ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right]
+      : parts.split(":");
+    if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return true;
+    const value = groups.reduce((result, group) => (result << 16n) | BigInt(parseInt(group, 16)), 0n);
+    const low32 = Number(value & 0xffffffffn);
+    // IPv4-mapped (::ffff/96) and IPv4-compatible (::/96) forms can route to
+    // IPv4 services. Treat every compatible form as unsafe, not just dotted ones.
+    if ((value >> 32n) === 0xffffn || (value >> 32n) === 0n) {
+      const mappedV4 = `${low32 >>> 24}.${(low32 >>> 16) & 255}.${(low32 >>> 8) & 255}.${low32 & 255}`;
+      return isPrivateIp(mappedV4) || (value >> 32n) === 0n;
+    }
+    if (value === 0n || value === 1n) return true; // unspecified / loopback
+    if ((value >> 121n) === 0x7en) return true; // fc00::/7 — unique-local
+    if ((value >> 118n) === 0x3fan || (value >> 118n) === 0x3fbn) return true; // fe80::/10 + fec0::/10
+    if ((value >> 120n) === 0xffn) return true; // multicast
+    if ((value >> 96n) === 0x20010db8n) return true; // documentation
+    if ((value >> 80n) === 0x200100000002n) return true; // benchmarking
+  }
+
   return false;
 }
 
@@ -3274,57 +3514,27 @@ async function fetchExternalImage(rawUrl: string): Promise<Buffer> {
   let parsed: URL;
   try { parsed = new URL(rawUrl); } catch { throw new Error("Invalid background image URL."); }
   if (parsed.protocol !== "https:") throw new Error("Background image URL must use HTTPS.");
+  if (parsed.port && parsed.port !== "443") throw new Error("Background image URL must use HTTPS on port 443.");
 
-  // Resolve DNS and block private addresses (prevents SSRF to internal services)
-  const hostname = parsed.hostname;
-  let addresses: dns.LookupAddress[];
+  // Use the exact same per-hop validation and IP-pinned transport as the probe.
+  // This makes the render sink itself safe against private redirects and DNS rebinding.
+  let result: BgHttpResult;
   try {
-    addresses = await dns.promises.lookup(hostname, { all: true });
-  } catch {
-    throw new Error(`Cannot resolve background image host: ${hostname}`);
-  }
-  for (const { address } of addresses) {
-    if (isPrivateIp(address)) {
-      throw new Error("Background image URL resolves to a private or reserved address.");
-    }
-  }
-
-  // Fetch with timeout and size cap
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), BG_FETCH_TIMEOUT_MS);
-  let resp: Response;
-  try {
-    resp = await fetch(rawUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "BDEFarmTracAdRenderer/1.0" },
-      redirect: "follow",
-    }) as unknown as Response;
+    result = await bgRequestWithMethod(rawUrl, "GET", true);
   } catch (err: unknown) {
     throw new Error(`Background image fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    clearTimeout(timer);
   }
-  if (!(resp as unknown as { ok: boolean }).ok) {
-    throw new Error(`Background image fetch failed (HTTP ${(resp as unknown as { status: number }).status}).`);
+  if (result.statusCode < 200 || result.statusCode >= 300) {
+    throw new Error(`Background image fetch failed (HTTP ${result.statusCode}).`);
   }
 
   // Validate Content-Type is an image
-  const ct = (resp as unknown as { headers: { get(k: string): string | null } }).headers.get("content-type") ?? "";
+  const ct = result.contentType ?? "";
   if (!ct.startsWith("image/")) {
     throw new Error(`Background URL returned non-image content-type: ${ct || "(none)"}`);
   }
-
-  // Enforce size limit
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  const reader = (resp as unknown as { body: ReadableStream<Uint8Array> | null }).body;
-  if (!reader) throw new Error("Background image response had no body.");
-  for await (const chunk of reader as AsyncIterable<Uint8Array>) {
-    total += chunk.length;
-    if (total > BG_MAX_BYTES) throw new Error("Background image exceeds the 10 MB limit.");
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
+  if (!result.body) throw new Error("Background image response had no body.");
+  return result.body;
 }
 
 /**

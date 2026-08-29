@@ -1131,18 +1131,19 @@ export default function AdPdfGenerator() {
     if (!trimmed) { setBgUrlCheckStatus("idle"); return; }
     setBgUrlCheckStatus("checking");
     bgUrlChecking.current = trimmed;
-    const img = new Image();
-    img.onload = () => {
-      if (bgUrlChecking.current !== trimmed) return; // stale
-      bgUrlLastChecked.current = trimmed;
-      setBgUrlCheckStatus("ok");
-    };
-    img.onerror = () => {
-      if (bgUrlChecking.current !== trimmed) return; // stale
-      bgUrlLastChecked.current = trimmed;
-      setBgUrlCheckStatus("unreachable");
-    };
-    img.src = trimmed;
+    const params = new URLSearchParams({ url: trimmed });
+    fetch(`/api/admin/check-bg-url?${params.toString()}`, { headers: adminHeaders() })
+      .then((res) => res.json())
+      .then((data: { ok: boolean }) => {
+        if (bgUrlChecking.current !== trimmed) return; // stale
+        bgUrlLastChecked.current = trimmed;
+        setBgUrlCheckStatus(data.ok ? "ok" : "unreachable");
+      })
+      .catch(() => {
+        if (bgUrlChecking.current !== trimmed) return; // stale
+        bgUrlLastChecked.current = trimmed;
+        setBgUrlCheckStatus("unreachable");
+      });
   }
 
   /**
