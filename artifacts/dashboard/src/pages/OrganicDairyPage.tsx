@@ -3247,6 +3247,7 @@ function downloadCalvingCsv(records: OrgCalvingRecord[], farmName: string, month
   const headers = [
     "Calving Date", "Dam Tag", "Calves",
     "Calf Tag", "Calf Sex", "Outcome",
+    "Calf 2 Tag", "Calf 2 Sex", "Calf 2 Outcome",
     "Ease Score", "Colostrum ≤2h", "Organic Colostrum",
     "Organic Status", "BCMS Passport", "Notes",
   ];
@@ -3257,6 +3258,9 @@ function downloadCalvingCsv(records: OrgCalvingRecord[], farmName: string, month
     r.calfEarTag ?? "",
     r.calfSex ?? "",
     r.calfOutcome ?? "",
+    r.calfEarTag2 ?? "",
+    r.calfSex2 ?? "",
+    r.calfOutcome2 ?? "",
     r.calvingEaseScore != null ? `${r.calvingEaseScore} — ${easeLabel[r.calvingEaseScore] ?? ""}` : "",
     r.colostrumGivenWithin2Hours === true ? "Yes" : r.colostrumGivenWithin2Hours === false ? "No" : "",
     r.colostrumFromOrganicDam === true ? "Yes" : r.colostrumFromOrganicDam === false ? "No" : "",
