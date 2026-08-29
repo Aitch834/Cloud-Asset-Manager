@@ -104,7 +104,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node artifacts/mobile/scripts/check-sync-registration.mjs"
+args = "node artifacts/mobile/scripts/check-sync-registration.mjs && pnpm --filter @workspace/mobile run check:external-urls"
 
 [workflows.workflow.metadata]
 isValidation = true
