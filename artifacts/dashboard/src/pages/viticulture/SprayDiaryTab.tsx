@@ -538,6 +538,13 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
   return (
     <div className="space-y-4">
       <FsaCompletenessBar farmId={farmId} />
+      {/* APPA Ref missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
+        settingsSection="Viticulture & Wine"
+        onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
+      />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-semibold text-sm">Spray Diary</h3>

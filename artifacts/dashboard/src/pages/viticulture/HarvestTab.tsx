@@ -1237,6 +1237,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         </div>
       )}
       <FsaCompletenessBar farmId={farmId} />
+      {/* APPA Ref missing warning */}
+      <FarmSettingsWarning
+        missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
+        settingsSection="Viticulture & Wine"
+        onNavigate={() => setLocation("/settings/farm")}
+        targetId="settings-appa-ref"
+      />
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Harvest & Vintage Records</p>
