@@ -18,6 +18,7 @@ import {
 import { useAppStore } from "@/hooks/use-app-store";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiUrl as api } from "@/lib/api";
 import { Redirect } from "wouter";
 import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -57,6 +58,10 @@ const ASSURANCE_BODIES = [
 ] as const;
 
 type SectorKey = typeof SECTORS[number]["key"];
+type IrrigationDefaultField =
+  | "irrigationCostPerMmHa"
+  | "irrigationCropPricePerTonne"
+  | "irrigationApplicationRateMm";
 
 type Farm = any;
 
@@ -108,6 +113,8 @@ interface FarmFormData {
   winegbMembershipNumber: string;
   harvestStrictStorage: boolean;
   irrigationCostPerMmHa: string;
+  irrigationCropPricePerTonne: string;
+  irrigationApplicationRateMm: string;
   irrigationAbstractionSource: string;
   idleBarrelDays: string;
   approachingNeutralFills: string;
@@ -185,6 +192,8 @@ function farmToFormData(farm: Farm & {
     winegbMembershipNumber: (farm as any).winegbMembershipNumber || "",
     harvestStrictStorage: !!(farm as any).harvestStrictStorage,
     irrigationCostPerMmHa: (farm as any).irrigationCostPerMmHa?.toString() || "",
+    irrigationCropPricePerTonne: (farm as any).irrigationCropPricePerTonne?.toString() || "",
+    irrigationApplicationRateMm: (farm as any).irrigationApplicationRateMm?.toString() || "",
     irrigationAbstractionSource: (farm as any).irrigationAbstractionSource || "",
     idleBarrelDays: (farm as any).idleBarrelDays?.toString() || "",
     approachingNeutralFills: (farm as any).approachingNeutralFills?.toString() || "",
@@ -2487,6 +2496,32 @@ export default function FarmSettings() {
   const [w3wNoKey, setW3wNoKey] = useState(false);
   const [coordsCopied, setCoordsCopied] = useState(false);
 
+  const clearIrrigationDefault = useMutation({
+    mutationFn: async (field: IrrigationDefaultField) => {
+      const res = await fetch(api(`farms/${farmId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [field]: null }),
+      });
+      if (!res.ok) {
+        const message = await res.text().catch(() => "");
+        throw new Error(message || `Request failed (${res.status})`);
+      }
+      return res.json();
+    },
+    onSuccess: (_data, field) => {
+      setFormData(prev => prev ? { ...prev, [field]: "" } : prev);
+      queryClient.invalidateQueries({ queryKey: ["farm-detail", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-dashboard", farmId] });
+      queryClient.invalidateQueries({ queryKey: ["farm-settings", farmId] });
+      toast({ title: "Irrigation default cleared" });
+    },
+    onError: () => {
+      toast({ title: "Failed to clear irrigation default", variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (currentFarm && currentFarm.id !== loadedFarmId) {
       setFormData(farmToFormData(currentFarm));
@@ -3433,15 +3468,31 @@ export default function FarmSettings() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <Label htmlFor="settings-irrig-cost">Irrigation Cost (£ per mm per ha)</Label>
-                <Input
-                  id="settings-irrig-cost"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g. 3.50"
-                  value={formData.irrigationCostPerMmHa}
-                  onChange={e => updateField("irrigationCostPerMmHa", e.target.value)}
-                />
+                <div className="flex gap-2 items-center mt-1">
+                  <Input
+                    id="settings-irrig-cost"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 3.50"
+                    value={formData.irrigationCostPerMmHa}
+                    onChange={e => updateField("irrigationCostPerMmHa", e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 shrink-0"
+                    onClick={() => clearIrrigationDefault.mutate("irrigationCostPerMmHa")}
+                    disabled={!formData.irrigationCostPerMmHa || clearIrrigationDefault.isPending}
+                    title="Clear the saved farm default"
+                  >
+                    {clearIrrigationDefault.isPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <X className="w-3.5 h-3.5 mr-1" />}
+                    Clear
+                  </Button>
+                </div>
                 {!formData.irrigationCostPerMmHa && platformConfig?.["irrigation.costPerMmHa"] ? (
                   <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
                     Using platform default: £{Number(platformConfig["irrigation.costPerMmHa"]).toFixed(2)}/mm/ha
@@ -3451,6 +3502,68 @@ export default function FarmSettings() {
                     Combined pump + abstraction cost per mm applied per hectare. Leave blank to use the platform default.
                   </p>
                 )}
+              </div>
+              <div>
+                <Label htmlFor="settings-irrig-crop-price">Saved Crop Price (£ per tonne)</Label>
+                <div className="flex gap-2 items-center mt-1">
+                  <div
+                    id="settings-irrig-crop-price"
+                    aria-live="polite"
+                    className="flex-1 min-h-10 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    {formData.irrigationCropPricePerTonne
+                      ? `£${Number(formData.irrigationCropPricePerTonne).toFixed(2)} / tonne`
+                      : "Not set"}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 shrink-0"
+                    onClick={() => clearIrrigationDefault.mutate("irrigationCropPricePerTonne")}
+                    disabled={!formData.irrigationCropPricePerTonne || clearIrrigationDefault.isPending}
+                    title="Clear the saved farm default"
+                  >
+                    {clearIrrigationDefault.isPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <X className="w-3.5 h-3.5 mr-1" />}
+                    Clear
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Saved from the Irrigation Advisor and used as the farm default across devices.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="settings-irrig-app-rate">Saved Application Rate (mm)</Label>
+                <div className="flex gap-2 items-center mt-1">
+                  <div
+                    id="settings-irrig-app-rate"
+                    aria-live="polite"
+                    className="flex-1 min-h-10 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm"
+                  >
+                    {formData.irrigationApplicationRateMm
+                      ? `${Number(formData.irrigationApplicationRateMm).toFixed(2)} mm`
+                      : "Not set"}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 shrink-0"
+                    onClick={() => clearIrrigationDefault.mutate("irrigationApplicationRateMm")}
+                    disabled={!formData.irrigationApplicationRateMm || clearIrrigationDefault.isPending}
+                    title="Clear the saved farm default"
+                  >
+                    {clearIrrigationDefault.isPending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <X className="w-3.5 h-3.5 mr-1" />}
+                    Clear
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Saved from the Irrigation Advisor and used as the farm default across devices.
+                </p>
               </div>
               <div>
                 <Label htmlFor="settings-irrig-source">Default Abstraction Source</Label>
