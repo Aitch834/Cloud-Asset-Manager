@@ -34,6 +34,7 @@ import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineOperationsHtml, type VineOperationsRow } from "@/lib/printTemplates";
+import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 interface OperationRecord {
   id: number;
@@ -586,6 +587,9 @@ export default function VineOperationsHistoryScreen() {
   const handleSaved = useCallback((recordId: number, updated: Partial<OperationRecord>) => {
     setLocalUpdates(prev => ({ ...prev, [recordId]: { ...(prev[recordId] ?? {}), ...updated } }));
     setEditingRecord(null);
+    if ("blockId" in updated) {
+      vineyardCountEvents.emit();
+    }
   }, []);
 
   const handleDelete = useCallback(async (id: number) => {
