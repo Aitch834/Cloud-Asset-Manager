@@ -304,6 +304,25 @@ export function OverviewTab({
     { label: "Phenology", count: phenology.data.filter(r => !r.blockId).length, tabId: "phenology" },
   ];
 
+  const complianceChecks = [
+    { label: "FSA Vine Register up to date", ok: register.data.length > 0 },
+    { label: "All active blocks on vine register", ok: register.data.filter(r => !r.isRemovedFromRegister).length >= activeBlocks.length },
+    { label: "Disease scouting undertaken this season", ok: scouting.data.length > 0 },
+    { label: "Vintage harvest records complete", ok: harvest.data.length > 0 },
+    { label: "Pruning / canopy records logged", ok: operations.data.length > 0 },
+    { label: "No Xylella suspicion outstanding", ok: !xylellaAlert },
+    { label: "All scouting records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "scouting")!.count === 0, tabId: "scouting", unlinkedCount: unlinkedItems.find(i => i.tabId === "scouting")!.count },
+    { label: "All spray diary records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "spray-diary")!.count === 0, tabId: "spray-diary", unlinkedCount: unlinkedItems.find(i => i.tabId === "spray-diary")!.count },
+    { label: "All phenology records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "phenology")!.count === 0, tabId: "phenology", unlinkedCount: unlinkedItems.find(i => i.tabId === "phenology")!.count },
+    { label: "All harvest records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "harvest")!.count === 0, tabId: "harvest", unlinkedCount: unlinkedItems.find(i => i.tabId === "harvest")!.count },
+    { label: "All pruning & canopy records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "operations")!.count === 0, tabId: "operations", unlinkedCount: unlinkedItems.find(i => i.tabId === "operations")!.count },
+  ];
+  const failingCount = complianceChecks.filter(item => !item.ok).length;
+  const sortedComplianceChecks = complianceChecks
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => Number(a.item.ok) - Number(b.item.ok) || a.index - b.index)
+    .map(({ item }) => item);
+
   return (
     <div className="space-y-6">
       <FsaCompletenessBar farmId={farmId} />
@@ -374,21 +393,36 @@ export function OverviewTab({
         </div>
       </div>
       <div className="bg-white rounded-lg border p-4">
-        <p className="font-semibold text-sm mb-2">UK Vineyard Compliance Checklist</p>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <p className="font-semibold text-sm">UK Vineyard Compliance Checklist</p>
+            <p
+              role="status"
+              className={`mt-1 text-xs font-medium ${failingCount > 0 ? "text-red-700" : "text-green-700"}`}
+            >
+              {failingCount > 0
+                ? `${failingCount} of ${complianceChecks.length} checks need attention`
+                : `All ${complianceChecks.length} checks are up to date`}
+            </p>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold shrink-0 ${
+              failingCount > 0
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-green-200 bg-green-50 text-green-700"
+            }`}
+          >
+            {failingCount > 0 ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            {failingCount} to fix
+          </span>
+        </div>
+        {failingCount > 0 && (
+          <p className="mb-3 text-xs text-red-700">
+            Checks needing attention are shown first. Select a red linked-record check to fix it.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-          {[
-            { label: "FSA Vine Register up to date", ok: register.data.length > 0 },
-            { label: "All active blocks on vine register", ok: register.data.filter(r => !r.isRemovedFromRegister).length >= activeBlocks.length },
-            { label: "Disease scouting undertaken this season", ok: scouting.data.length > 0 },
-            { label: "Vintage harvest records complete", ok: harvest.data.length > 0 },
-            { label: "Pruning / canopy records logged", ok: operations.data.length > 0 },
-            { label: "No Xylella suspicion outstanding", ok: !xylellaAlert },
-            { label: "All scouting records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "scouting")!.count === 0, tabId: "scouting", unlinkedCount: unlinkedItems.find(i => i.tabId === "scouting")!.count },
-            { label: "All spray diary records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "spray-diary")!.count === 0, tabId: "spray-diary", unlinkedCount: unlinkedItems.find(i => i.tabId === "spray-diary")!.count },
-            { label: "All phenology records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "phenology")!.count === 0, tabId: "phenology", unlinkedCount: unlinkedItems.find(i => i.tabId === "phenology")!.count },
-            { label: "All harvest records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "harvest")!.count === 0, tabId: "harvest", unlinkedCount: unlinkedItems.find(i => i.tabId === "harvest")!.count },
-            { label: "All pruning & canopy records linked to blocks", ok: unlinkedItems.find(i => i.tabId === "operations")!.count === 0, tabId: "operations", unlinkedCount: unlinkedItems.find(i => i.tabId === "operations")!.count },
-          ].map((item, i) => {
+          {sortedComplianceChecks.map((item, i) => {
             const isClickable = !item.ok && item.tabId;
             const handleClick = isClickable
               ? () => (onNavigateWithBulkLink ? onNavigateWithBulkLink(item.tabId!) : onNavigate?.(item.tabId!))
@@ -396,14 +430,18 @@ export function OverviewTab({
             return (
               <div
                 key={i}
-                className={`flex items-center gap-2${isClickable ? " cursor-pointer hover:bg-red-50 rounded px-1 -mx-1 transition-colors" : ""}`}
+                className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${
+                  item.ok
+                    ? "border-green-100 bg-green-50/30"
+                    : `border-red-200 bg-red-50/60 text-red-900${isClickable ? " cursor-pointer hover:bg-red-100" : ""}`
+                }`}
                 onClick={handleClick}
                 role={isClickable ? "button" : undefined}
                 tabIndex={isClickable ? 0 : undefined}
                 onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick?.(); } } : undefined}
               >
                 {item.ok ? <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
-                <span className={item.ok ? "" : "text-muted-foreground"}>{item.label}</span>
+                <span className={item.ok ? "" : "font-medium"}>{item.label}</span>
                 {!item.ok && item.unlinkedCount != null && item.unlinkedCount > 0 && (
                   <span className="ml-auto rounded-full bg-red-100 border border-red-200 px-1.5 py-0.5 text-xs font-semibold text-red-700 shrink-0">
                     {item.unlinkedCount} unlinked
