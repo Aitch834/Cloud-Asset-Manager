@@ -1369,6 +1369,10 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                   forecastDailyMm: data.forecastDailyMm,
                   dailyEtcMm: todayEtC,
                   fieldCapacityMm: fieldCapacity,
+                  cropProfile,
+                  plantingDate: data.assignment?.plantingDate,
+                  harvestDate: data.assignment?.expectedHarvestDate,
+                  referenceDate: new Date().toISOString().slice(0, 10),
                 });
                 if (!vr) return null;
                 const { projectedSmd, forecastTotal, verdict } = vr;

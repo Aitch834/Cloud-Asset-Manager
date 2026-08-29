@@ -250,15 +250,40 @@ function computeForecastVerdict(opts: {
   forecastDailyMm: Array<{ date: string; mm: number }>;
   dailyEtcMm: number;
   fieldCapacityMm: number;
+  cropProfile?: CropProfile | null;
+  plantingDate?: string | null;
+  harvestDate?: string | null;
+  /** Date represented by dailyEtcMm; defaults to today. */
+  referenceDate?: string;
 }): ForecastVerdictResult | null {
-  const { currentSmdMm, forecastDailyMm, dailyEtcMm, fieldCapacityMm } = opts;
+  const {
+    currentSmdMm,
+    forecastDailyMm,
+    dailyEtcMm,
+    fieldCapacityMm,
+    cropProfile,
+    plantingDate,
+    harvestDate,
+    referenceDate,
+  } = opts;
   if (currentSmdMm <= 0 || forecastDailyMm.length === 0) return null;
+
+  const hasCropTiming = !!cropProfile && !!plantingDate;
+  const today = referenceDate ?? new Date().toISOString().slice(0, 10);
+  const referenceKc = hasCropTiming
+    ? getKc(cropProfile!, plantingDate!, harvestDate ?? undefined, today)
+    : 1;
+  const referenceEt0 = referenceKc > 0 ? dailyEtcMm / referenceKc : dailyEtcMm;
 
   let smd = currentSmdMm;
   let forecastTotal = 0;
   for (const day of forecastDailyMm) {
     forecastTotal += day.mm;
-    smd = Math.max(0, Math.min(fieldCapacityMm, smd + dailyEtcMm - day.mm));
+    const kc = hasCropTiming
+      ? getKc(cropProfile!, plantingDate!, harvestDate ?? undefined, day.date)
+      : 1;
+    const forecastEtc = referenceEt0 * kc;
+    smd = Math.max(0, Math.min(fieldCapacityMm, smd + forecastEtc - day.mm));
   }
 
   const verdict: ForecastVerdict =
@@ -1110,6 +1135,10 @@ export default function IrrigationAdvisorScreen() {
                   forecastDailyMm: data.forecastDailyMm,
                   dailyEtcMm: currentDailyEtcMm,
                   fieldCapacityMm: fieldCapacity,
+                  cropProfile,
+                  plantingDate: data.assignment?.plantingDate,
+                  harvestDate: data.assignment?.expectedHarvestDate,
+                  referenceDate: new Date().toISOString().slice(0, 10),
                 });
                 if (!vr) return null;
                 const { projectedSmd, forecastTotal, verdict } = vr;

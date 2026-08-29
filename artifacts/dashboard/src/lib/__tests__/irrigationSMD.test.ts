@@ -372,4 +372,39 @@ describe("computeForecastVerdict — daily water-balance verdict", () => {
     expect(result!.projectedSmd).toBeCloseTo(30, 6);
     expect(result!.verdict).toBe("insufficient");
   });
+
+  it("recalculates forecast ETc from each day's interpolated Kc", () => {
+    const profile = {
+      label: "Test crop",
+      Kc_ini: 1,
+      Kc_mid: 2,
+      Kc_end: 2,
+      fracDev: 0,
+      fracMid: 0.5,
+      fracLate: 1,
+      Ky: 1,
+      criticalSmdMm: 30,
+      typicalYieldTha: 1,
+    };
+    const forecast = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-08-${String(i + 2).padStart(2, "0")}`,
+      mm: 22,
+    }));
+
+    const result = computeForecastVerdict({
+      currentSmdMm: 50,
+      forecastDailyMm: forecast,
+      dailyEtcMm: 10,
+      fieldCapacityMm: 100,
+      cropProfile: profile,
+      plantingDate: "2026-08-01",
+      harvestDate: "2026-08-11",
+      referenceDate: "2026-08-01",
+    });
+
+    // The interpolated Kc produces 120 mm of ETc over the forecast, leaving
+    // 16 mm SMD. A flat 10 mm/day value would incorrectly clamp to zero.
+    expect(result!.projectedSmd).toBeCloseTo(16, 6);
+    expect(result!.verdict).toBe("partial");
+  });
 });
