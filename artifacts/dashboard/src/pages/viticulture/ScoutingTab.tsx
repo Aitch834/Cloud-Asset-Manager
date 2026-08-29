@@ -477,7 +477,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
           </Select>
           <Button size="sm" variant="outline" onClick={() => {
             // ── Build per-block summary (visits, date range, max pressures, total photos) ──
-            const bMap: Record<string, { label: string; visits: number; minDate: string; maxDate: string; maxDowny: number; maxPowdery: number; maxBotrytis: number; maxPhomopsis: number; vineWeevil: boolean; eutypa: boolean; xylella: boolean; phytophthora: boolean; totalPhotos: number }> = {};
+            const bMap: Record<string, { label: string; visits: number; minDate: string; maxDate: string; maxDowny: number; maxPowdery: number; maxBotrytis: number; maxPhomopsis: number; vineWeevil: boolean; eutypa: boolean; xylella: boolean; phytophthora: boolean; totalPhotos: number; totalCaptionedPhotos: number }> = {};
             const bKeys: string[] = [];
             for (const r of filteredScouting) {
               const bid = r.blockId != null ? Number(r.blockId) : null;
@@ -485,12 +485,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
               if (!bMap[key]) {
                 const bl = bid != null && !isNaN(bid) && bid > 0 ? blocks.find(b => b.id === bid) : undefined;
                 const label = bl ? String(bl.blockName ?? key) : (key === "unlinked" ? "No block linked" : String(bid));
-                bMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false, phytophthora: false, totalPhotos: 0 };
+                bMap[key] = { label, visits: 0, minDate: "", maxDate: "", maxDowny: 0, maxPowdery: 0, maxBotrytis: 0, maxPhomopsis: 0, vineWeevil: false, eutypa: false, xylella: false, phytophthora: false, totalPhotos: 0, totalCaptionedPhotos: 0 };
                 bKeys.push(key);
               }
               const e = bMap[key];
               e.visits++;
               e.totalPhotos += Number(r.photoCount) || 0;
+              e.totalCaptionedPhotos += Number(r.captionCount) || 0;
               const sd = String(r.scoutDate ?? "");
               if (sd && (!e.minDate || sd < e.minDate)) e.minDate = sd;
               if (sd && (!e.maxDate || sd > e.maxDate)) e.maxDate = sd;
@@ -508,7 +509,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             const summaryRows = sortedKeys.map(key => {
               const e = bMap[key];
               const alerts = [e.xylella && "Xylella", e.phytophthora && "Phytophthora viticola", e.eutypa && "Eutypa Dieback", e.vineWeevil && "Vine Weevil"].filter(Boolean).join("; ");
-              return [e.label, String(e.visits), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", pLbl(e.maxDowny), pLbl(e.maxPowdery), pLbl(e.maxBotrytis), pLbl(e.maxPhomopsis), String(e.totalPhotos), alerts || "None"];
+              return [e.label, String(e.visits), e.minDate ? new Date(e.minDate).toLocaleDateString("en-GB") : "", e.maxDate ? new Date(e.maxDate).toLocaleDateString("en-GB") : "", pLbl(e.maxDowny), pLbl(e.maxPowdery), pLbl(e.maxBotrytis), pLbl(e.maxPhomopsis), String(e.totalPhotos), String(e.totalCaptionedPhotos), alerts || "None"];
             });
             // ── Build per-record rows ─────────────────────────────────────────────────
             const recordRows = filteredScouting.map(r => [fmtDate(r.scoutDate), String(blockName(r.blockId)), r.blockId ? "Yes" : "No", String(r.scoutedBy ?? ""), pLbl(Number(r.downyMildewPressure) || 0), pLbl(Number(r.powderyMildewPressure) || 0), pLbl(Number(r.botrytisPressure) || 0), pLbl(Number(r.phomopsisPressure) || 0), pLbl(Number(r.leafhopperPressure) || 0), pLbl(Number(r.spiderMitePressure) || 0), r.vineWeevilSighted ? "Yes" : "No", r.eutypaDiebackSighted ? "Yes" : "No", r.xylellaFastidiosa ? "ALERT" : "No", r.phytophthoraViticola ? "ALERT" : "No", fmtDate(r.nextScoutDate), String(r.actionTaken ?? ""), String(r.notes ?? ""), String(Number(r.photoCount) || 0), String(Number(r.captionCount) || 0)]);
@@ -516,7 +517,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
             downloadCsvFile("vineyard-scouting.csv", [
               ...(unlinkedWarning ? [[unlinkedWarning]] : []),
               ["BLOCK SUMMARY"],
-              ["Block", "Visits", "First Visit", "Last Visit", "Max Downy", "Max Powdery", "Max Botrytis", "Max Phomopsis", "Total Photos", "Alerts"],
+              ["Block", "Visits", "First Visit", "Last Visit", "Max Downy", "Max Powdery", "Max Botrytis", "Max Phomopsis", "Total Photos", "Total Captioned Photos", "Alerts"],
               ...summaryRows,
               [],
               ["DETAILED SCOUTING RECORDS"],
