@@ -111,9 +111,23 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       if (!r.ok) throw new Error("Failed to save");
       return r.json();
     },
+    onMutate: async ({ blockId, fieldParcelRef }) => {
+      const queryKey = ["vineyard-blocks", farmId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousBlock = queryClient
+        .getQueryData<Record<string, unknown>[]>(queryKey)
+        ?.find(block => Number(block.id) === blockId);
+
+      queryClient.setQueryData<Record<string, unknown>[]>(queryKey, currentBlocks =>
+        currentBlocks?.map(block =>
+          Number(block.id) === blockId ? { ...block, fieldParcelRef } : block,
+        ),
+      );
+
+      return { previousBlock };
+    },
     onSuccess: (_data, { blockId, fieldParcelRef }) => {
       savingBlockRefIdsRef.current[blockId] = false;
-      queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
       setSavingBlockRefIds(current => ({ ...current, [blockId]: false }));
       setSavedBlockRefIds(current => ({ ...current, [blockId]: true }));
       setBlockRefDrafts(current => ({ ...current, [blockId]: fieldParcelRef }));
@@ -122,9 +136,22 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
         delete next[blockId];
         return next;
       });
+      // Farm-scoped writes commit from the response "finish" handler, so an
+      // immediate GET can still see the old blank ref and clobber this update.
+      window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
+      }, 250);
     },
-    onError: (_error, { blockId }) => {
+    onError: (_error, { blockId }, context) => {
       savingBlockRefIdsRef.current[blockId] = false;
+      if (context?.previousBlock) {
+        const previousBlock = context.previousBlock;
+        queryClient.setQueryData<Record<string, unknown>[]>(["vineyard-blocks", farmId], currentBlocks =>
+          currentBlocks?.map(block =>
+            Number(block.id) === blockId ? previousBlock : block,
+          ),
+        );
+      }
       setSavingBlockRefIds(current => ({ ...current, [blockId]: false }));
       setBlockRefErrors(current => ({ ...current, [blockId]: "Failed to save — please try again." }));
       toast({ title: "Failed to save Parcel / Field Ref", variant: "destructive" });
