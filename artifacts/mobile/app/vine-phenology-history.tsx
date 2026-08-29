@@ -38,6 +38,7 @@ import {
   isWinegbMutationResultCurrent,
   winegbYearOf,
 } from "@/lib/winegbSeasons";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 /**
  * Normalise a grower-typed date to YYYY-MM-DD.
@@ -72,6 +73,7 @@ function canonicaliseDate(raw: string): string | null {
 
 type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
 
+const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
 interface WinegbSurvey {
   key: WinegbSurveyKey;
   label: string;
@@ -250,6 +252,15 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: string; season
           <Text style={wgStyles.hint}>
             Tap a row to mark it as submitted. Tick each survey once you've submitted your data to WineGB.
           </Text>
+          <Pressable
+            style={wgStyles.externalLink}
+            onPress={() => void openExternalUrl(WINEGB_SURVEY_URL)}
+            accessibilityRole="link"
+            accessibilityLabel="Submit to WineGB"
+            testID="submit-to-winegb-link"
+          >
+            <Text style={wgStyles.externalLinkText}>Submit to WineGB ↗</Text>
+          </Pressable>
         </>
       )}
     </View>
@@ -1208,5 +1219,16 @@ const wgStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     lineHeight: 16,
+  },
+  externalLink: {
+    alignSelf: "flex-start",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  externalLinkText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    textDecorationLine: "underline",
   },
 });
