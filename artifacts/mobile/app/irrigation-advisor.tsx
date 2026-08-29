@@ -698,7 +698,12 @@ export default function IrrigationAdvisorScreen() {
     return () => clearInterval(intervalId);
   }, [lastUpdatedAt, refreshing]);
 
-  const handleRefresh = () => { setRefreshing(true); setError(""); setReloadToken(t => t + 1); };
+  const handleRefresh = () => {
+    forecastUserEdited.current = false;
+    setRefreshing(true);
+    setError("");
+    setReloadToken(t => t + 1);
+  };
 
   // ── Compute SMD and scenarios ─────────────────────────────────────────────
   const { smdSeries, currentSmd, currentDailyEtcMm, fieldCapacity, cropProfile, scenarios, selectedField } = useMemo(() => {
