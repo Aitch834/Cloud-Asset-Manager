@@ -15,11 +15,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyBcsRecord } from "@/lib/types";
@@ -90,6 +92,7 @@ export default function BodyConditionScoreScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const dairyAlert = useDiseaseAlert("dairy");
 
   const [cowEarTag, setCowEarTag] = useState("");
   const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split("T")[0]);
@@ -172,6 +175,8 @@ export default function BodyConditionScoreScreen() {
           <Text style={styles.dairyBadgeText}>Dairy</Text>
         </View>
       </View>
+
+      <DiseaseAlertBanner alert={dairyAlert} sector="Dairy" />
 
       <ScrollView
         style={{ flex: 1 }}

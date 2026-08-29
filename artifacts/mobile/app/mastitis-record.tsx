@@ -15,11 +15,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useSync } from "@/lib/context/SyncContext";
 import { STORAGE_KEYS, appendToList } from "@/lib/storage";
 import type { DairyMastitisRecord } from "@/lib/types";
@@ -62,6 +64,7 @@ export default function MastitisRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const dairyAlert = useDiseaseAlert("dairy");
 
   const [cowEarTag, setCowEarTag] = useState("");
   const [onsetDate, setOnsetDate] = useState(new Date().toISOString().split("T")[0]);
@@ -154,6 +157,8 @@ export default function MastitisRecordScreen() {
           <Text style={styles.alertBadgeText}>Health</Text>
         </View>
       </View>
+
+      <DiseaseAlertBanner alert={dairyAlert} sector="Dairy" />
 
       <ScrollView
         style={{ flex: 1 }}

@@ -17,11 +17,13 @@ import {
 import Svg, { G, Line, Rect, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { buildMastitisCsv, type MastitisCsvRecord } from "@/lib/mastitisCsv";
 import { buildMastitisTrendCsv } from "@/lib/mastitisTrendCsv";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
@@ -208,6 +210,7 @@ export default function MastitisHistoryScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id != null ? String(currentFarm.id) : undefined;
+  const dairyAlert = useDiseaseAlert("dairy");
 
   const { records: serverRecords, loading, refreshing, error, refresh } =
     useApiFetch<MastitisRecord>(farmId, "/api/farms/:farmId/dairy/mastitis-records");
@@ -400,6 +403,8 @@ export default function MastitisHistoryScreen() {
         <Text style={styles.title}>Mastitis History</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      <DiseaseAlertBanner alert={dairyAlert} sector="Dairy" />
 
       {loading ? (
         <View style={styles.centre}>
