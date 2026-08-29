@@ -1211,6 +1211,16 @@ const recordOptions: RecordOption[] = [
     moduleKeys: ["viticulture"],
   },
   {
+    id: "vine-phenology-history",
+    title: "Phenology History",
+    description: "View past vineyard phenology observations and review growth stage records across your blocks",
+    icon: "clock",
+    color: "#7c3aed",
+    bgColor: "#ede9fe",
+    route: "/vine-phenology-history",
+    moduleKeys: ["viticulture"],
+  },
+  {
     id: "vine-operation",
     title: "Vineyard Operation",
     description: "Log canopy management activities: pruning (with bud counts), shoot thinning, leaf removal, topping, wire lifting and soil cultivation",
