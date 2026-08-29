@@ -708,11 +708,11 @@ function SprayPhotoThumbnail({
 function SprayDiaryPhotoSection({
   farmId,
   sprayDiaryId,
-  onPhotosChanged,
+  onPhotoCountChange,
 }: {
   farmId: string | number;
   sprayDiaryId: number;
-  onPhotosChanged?: (count: number) => void;
+  onPhotoCountChange?: (count: number) => void;
 }) {
   const [photos, setPhotos] = useState<SprayDiaryPhoto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -728,8 +728,8 @@ function SprayDiaryPhotoSection({
   const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
 
   // Stable ref so loadPhotos (memoised) can call the callback without it as a dep
-  const onPhotosChangedRef = useRef(onPhotosChanged);
-  onPhotosChangedRef.current = onPhotosChanged;
+  const onPhotoCountChangeRef = useRef(onPhotoCountChange);
+  onPhotoCountChangeRef.current = onPhotoCountChange;
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -741,7 +741,7 @@ function SprayDiaryPhotoSection({
         setPhotos(fetched);
         // Only notify after a confirmed successful response — never on mount before
         // the request completes, so we don't overwrite a valid count with 0
-        onPhotosChangedRef.current?.(fetched.length);
+        onPhotoCountChangeRef.current?.(fetched.length);
       }
     } catch {
       // no-op on silent refresh; leave parent count unchanged on failure
@@ -811,7 +811,7 @@ function SprayDiaryPhotoSection({
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         const next = photos.filter((p) => p.id !== photoId);
         setPhotos(next);
-        onPhotosChangedRef.current?.(next.length);
+        onPhotoCountChangeRef.current?.(next.length);
       } else {
         Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
       }
@@ -1049,10 +1049,10 @@ interface EditSprayDiaryModalProps {
   blocksLoading: boolean;
   onClose: () => void;
   onSaved: (recordId: number, updated: Partial<SprayDiaryRecord>) => void;
-  onPhotosChanged?: (count: number) => void;
+  onPhotoCountChange: (recordId: number, count: number) => void;
 }
 
-function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved, onPhotosChanged }: EditSprayDiaryModalProps) {
+function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, onClose, onSaved, onPhotoCountChange }: EditSprayDiaryModalProps) {
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -1314,7 +1314,11 @@ function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, o
 
             {/* ── Photos ── */}
             {record && (
-              <SprayDiaryPhotoSection farmId={farmId} sprayDiaryId={record.id} onPhotosChanged={onPhotosChanged} />
+              <SprayDiaryPhotoSection
+                farmId={farmId}
+                sprayDiaryId={record.id}
+                onPhotoCountChange={(count) => onPhotoCountChange(record.id, count)}
+              />
             )}
 
             {/* ── Quick Links ── */}
@@ -1678,6 +1682,15 @@ export default function VineSprayDiaryHistoryScreen() {
     }
   };
 
+  // Called by the photo section whenever its confirmed local photo list changes,
+  // so the matching history row updates without waiting for a list refresh.
+  const handlePhotoCountChange = useCallback((recordId: number, count: number) => {
+    setLocalUpdates(prev => ({
+      ...prev,
+      [recordId]: { ...(prev[recordId] ?? {}), photoCount: count },
+    }));
+  }, []);
+
   const handleDelete = async (id: number) => {
     // Optimistically remove from the list
     setDeletedIds(prev => new Set(prev).add(id));
@@ -1971,13 +1984,7 @@ export default function VineSprayDiaryHistoryScreen() {
         blocksLoading={blocksLoading}
         onClose={() => setEditingRecord(null)}
         onSaved={handleSaved}
-        onPhotosChanged={(count) => {
-          if (!editingRecord) return;
-          setLocalUpdates(prev => ({
-            ...prev,
-            [editingRecord.id]: { ...(prev[editingRecord.id] ?? {}), photoCount: count },
-          }));
-        }}
+        onPhotoCountChange={handlePhotoCountChange}
       />
     </View>
   );
