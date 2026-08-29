@@ -19,10 +19,16 @@
  *   5. Close the Edit dialog.
  *   6. Assert exactly one "Block selection still pending" toast appears.
  *
+ * Path C — switch viticulture tabs
+ *   1. Open the block-change picker on a vine-register row.
+ *   2. Switch to the Operations sub-tab.
+ *   3. Assert the picker is cleared and the reminder toast appears.
+ *
  * The guard lives in:
  *   artifacts/dashboard/src/pages/viticulture/VineRegisterTab.tsx
  *   — pickerWasActive state, skipViewCloseToastRef ref
  *   — handleView, openEdit, View/Edit dialog onOpenChange handlers
+ *   — unmount cleanup for tab navigation
  *
  * Data strategy: two vineyard blocks and one vine-register entry are injected
  * via dev-bypass API. All seed data is deleted in a finally block.
@@ -279,6 +285,47 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       await expect(page.getByText("Block selection still pending")).toBeVisible({
         timeout: 4_000,
         message: "Toast must fire when the Edit dialog is dismissed while the picker is active",
+      });
+    } finally {
+      await deleteVineRegisterEntry(entryId).catch(() => undefined);
+      await deleteBlock(blockAId).catch(() => undefined);
+      await deleteBlock(blockBId).catch(() => undefined);
+    }
+  });
+
+  /**
+   * Path C: switching viticulture tabs while the picker is active → toast fires
+   * and the inline picker is no longer present after VineRegisterTab unmounts.
+   */
+  test("C — switching tabs while picker is active fires toast and clears picker", async ({ page }) => {
+    await setupClerkTestingToken({ page, userId: getTestUserId() });
+
+    const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
+    const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
+    const entryId = await createVineRegisterEntry(blockAId);
+
+    try {
+      await navigateToVineRegisterTab(page);
+
+      const row = page.locator("tr", { hasText: VINE_VARIETY });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      const changeBlockBtn = row.getByTitle("Change block link");
+      await changeBlockBtn.click({ force: true });
+
+      const pickerTrigger = row.locator('[role="combobox"]');
+      await expect(pickerTrigger).toBeVisible({
+        message: "Inline block-change picker must appear before switching tabs",
+      });
+
+      await page.getByRole("button", { name: /pruning & canopy/i }).click();
+
+      await expect(page.getByText("Block selection still pending")).toBeVisible({
+        timeout: 4_000,
+        message: "Switching viticulture tabs must remind the grower about the pending block change",
+      });
+      await expect(pickerTrigger).not.toBeVisible({
+        message: "The block-change picker must be cleared when Vine Register unmounts",
       });
     } finally {
       await deleteVineRegisterEntry(entryId).catch(() => undefined);

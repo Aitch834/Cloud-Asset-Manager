@@ -90,6 +90,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
   const [editingRefBlockId, setEditingRefBlockId] = useState<number | null>(null);
   const [editingRefValue, setEditingRefValue] = useState("");
+  const changingBlockEntryIdRef = useRef<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -123,6 +124,25 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     setChangingBlockEntryId(null);
     setPendingBlockId(null);
   }, []);
+
+  // Keep the latest picker state available to the unmount cleanup below.
+  useEffect(() => {
+    changingBlockEntryIdRef.current = changingBlockEntryId;
+  }, [changingBlockEntryId]);
+
+  // The parent conditionally mounts this tab, so switching viticulture tabs (or
+  // navigating away) unmounts it and would otherwise discard an active picker
+  // without the reminder used by the dialog-close paths.
+  useEffect(() => {
+    return () => {
+      if (changingBlockEntryIdRef.current !== null) {
+        toast({
+          title: "Block selection still pending",
+          description: "Your block change is waiting — save or cancel it in the table.",
+        });
+      }
+    };
+  }, [toast]);
 
   // Whether the picker was open when the view dialog was opened — used to show
   // a reminder toast so the grower knows their pending selection is still waiting.
