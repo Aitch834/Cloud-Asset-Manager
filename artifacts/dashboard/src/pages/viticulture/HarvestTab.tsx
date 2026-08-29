@@ -1336,14 +1336,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             : !/^\d{9}$/.test(String(farmMeta.sbiNumber ?? "").trim())
               ? ["SBI Number (invalid — must be exactly 9 digits)"]
               : []),
-          ...(!String(farmMeta.address ?? "").trim() ? ["Farm address"] : []),
+          ...(!String(farmMeta.address ?? "").trim() ? ["Farm Address"] : []),
         ] : []}
         settingsSection="Contact & Address"
         onNavigate={() => setLocation("/settings/farm")}
         fieldTargetIds={{
           "SBI Number": "settings-sbi",
           "SBI Number (invalid — must be exactly 9 digits)": "settings-sbi",
-          "Farm address": "settings-address",
+          "Farm Address": "settings-address",
         }}
       />
 
