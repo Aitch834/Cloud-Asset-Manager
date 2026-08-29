@@ -54,6 +54,19 @@ function formatDate(d: string | null | undefined): string {
   });
 }
 
+function isWithdrawalActive(withdrawalEndDate: string | null | undefined): boolean {
+  if (!withdrawalEndDate) return false;
+  const endDate = new Date(withdrawalEndDate);
+  return !Number.isNaN(endDate.getTime()) && endDate.getTime() > Date.now();
+}
+
+function formatWithdrawalEndDate(d: string): string {
+  return new Date(d).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 function monthLabel(year: number, month: number): string {
   return new Date(year, month, 1).toLocaleDateString("en-GB", {
     month: "long",
@@ -306,6 +319,14 @@ export default function MastitisHistoryScreen() {
 
   const hasAnyRecords = records.length > 0;
   const chartLabel = monthLabel(filterYear, filterMonth);
+  const activeWithdrawalCount = useMemo(() => {
+    const activeCows = new Set(
+      records
+        .filter((r) => isWithdrawalActive(r.withdrawalEndDate))
+        .map((r) => r.earTagNumber?.trim() || String(r.id)),
+    );
+    return activeCows.size;
+  }, [records]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -361,6 +382,16 @@ export default function MastitisHistoryScreen() {
                   </Text>
                 </View>
               )}
+
+                {activeWithdrawalCount > 0 && (
+                  <View style={styles.withdrawalBanner}>
+                    <Feather name="alert-triangle" size={16} color={colors.error} />
+                    <Text style={styles.withdrawalBannerText}>
+                      {activeWithdrawalCount} cow
+                      {activeWithdrawalCount !== 1 ? "s" : ""} still in withdrawal
+                    </Text>
+                  </View>
+                )}
 
               {hasAnyRecords && (
                 <View style={styles.chartCard}>
@@ -470,6 +501,7 @@ function ChartWithWidth({ data }: { data: TrendSlot[] }) {
 
 function MastitisCard({ record: r }: { record: MastitisRecord }) {
   const isChronic = r.outcome === "chronic" || !!r.chronicCase;
+  const withdrawalActive = isWithdrawalActive(r.withdrawalEndDate);
   const certStatus =
     r.treatmentProduct
       ? r.certifierNotified
@@ -486,6 +518,13 @@ function MastitisCard({ record: r }: { record: MastitisRecord }) {
         {isChronic && (
           <View style={styles.chronicBadge}>
             <Text style={styles.chronicText}>Chronic</Text>
+          </View>
+        )}
+        {withdrawalActive && r.withdrawalEndDate && (
+          <View style={styles.withdrawalBadge}>
+            <Text style={styles.withdrawalText}>
+              Withdrawal active — ends {formatWithdrawalEndDate(r.withdrawalEndDate)}
+            </Text>
           </View>
         )}
         {r._offline && (
@@ -766,5 +805,36 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: "#92400e",
     flex: 1,
+  },
+  withdrawalBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.errorBg,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  withdrawalBannerText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.error,
+    flex: 1,
+  },
+  withdrawalBadge: {
+    backgroundColor: colors.errorBg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  withdrawalText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.error,
   },
 });
