@@ -90,13 +90,16 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   );
   const [changingBlockEntryId, setChangingBlockEntryId] = useState<number | null>(null);
   const [pendingBlockId, setPendingBlockId] = useState<number | null>(null);
-  const [editingRefBlockId, setEditingRefBlockId] = useState<number | null>(null);
-  const [editingRefValue, setEditingRefValue] = useState("");
+  const [blockRefDrafts, setBlockRefDrafts] = useState<Record<number, string>>({});
+  const [savingBlockRefIds, setSavingBlockRefIds] = useState<Record<number, boolean>>({});
+  const [savedBlockRefIds, setSavedBlockRefIds] = useState<Record<number, boolean>>({});
+  const [blockRefErrors, setBlockRefErrors] = useState<Record<number, string>>({});
+  const savingBlockRefIdsRef = useRef<Record<number, boolean>>({});
   const changingBlockEntryIdRef = useRef<number | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Inline mutation to save a Parcel / Field Ref directly from the badge popover
+  // Inline mutation to save a Parcel / Field Ref directly from the RPA reference popover
   const saveBlockRefMutation = useMutation({
     mutationFn: async ({ blockId, fieldParcelRef }: { blockId: number; fieldParcelRef: string }) => {
       const r = await fetch(api(`farms/${farmId}/vineyard-blocks/${blockId}`), {
@@ -108,13 +111,54 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       if (!r.ok) throw new Error("Failed to save");
       return r.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, { blockId, fieldParcelRef }) => {
+      savingBlockRefIdsRef.current[blockId] = false;
       queryClient.invalidateQueries({ queryKey: ["vineyard-blocks", farmId] });
-      setEditingRefBlockId(null);
-      setEditingRefValue("");
+      setSavingBlockRefIds(current => ({ ...current, [blockId]: false }));
+      setSavedBlockRefIds(current => ({ ...current, [blockId]: true }));
+      setBlockRefDrafts(current => ({ ...current, [blockId]: fieldParcelRef }));
+      setBlockRefErrors(current => {
+        const next = { ...current };
+        delete next[blockId];
+        return next;
+      });
     },
-    onError: () => toast({ title: "Failed to save Parcel / Field Ref", variant: "destructive" }),
+    onError: (_error, { blockId }) => {
+      savingBlockRefIdsRef.current[blockId] = false;
+      setSavingBlockRefIds(current => ({ ...current, [blockId]: false }));
+      setBlockRefErrors(current => ({ ...current, [blockId]: "Failed to save — please try again." }));
+      toast({ title: "Failed to save Parcel / Field Ref", variant: "destructive" });
+    },
   });
+
+  const resetBlockRefEditor = () => {
+    setBlockRefDrafts({});
+    setSavedBlockRefIds({});
+    setBlockRefErrors({});
+    saveBlockRefMutation.reset();
+  };
+
+  const openBlockRefEditor = () => {
+    setBlockRefDrafts(Object.fromEntries(
+      blocks.map(block => [Number(block.id), String(block.fieldParcelRef ?? "")]),
+    ));
+    setSavedBlockRefIds({});
+    setBlockRefErrors({});
+  };
+
+  const saveBlockRef = (blockId: number) => {
+    const fieldParcelRef = (blockRefDrafts[blockId] ?? "").trim();
+    if (!fieldParcelRef || savingBlockRefIdsRef.current[blockId]) return;
+    savingBlockRefIdsRef.current[blockId] = true;
+    setSavingBlockRefIds(current => ({ ...current, [blockId]: true }));
+    setSavedBlockRefIds(current => ({ ...current, [blockId]: false }));
+    setBlockRefErrors(current => {
+      const next = { ...current };
+      delete next[blockId];
+      return next;
+    });
+    saveBlockRefMutation.mutate({ blockId, fieldParcelRef });
+  };
 
   // Reset dismiss state whenever a new block is highlighted
   useEffect(() => {
@@ -487,80 +531,90 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                 <Button size="sm" variant="outline" onClick={exportRpaCSV} disabled={!blocks.length} title="Export block data formatted for manual entry into the Rural Payments portal"><Globe className="w-4 h-4 mr-1" />RPA Reference Export</Button>
                 <span className="inline-flex items-center gap-1">
                   <Button size="sm" variant="outline" onClick={() => printRpaReference(blocks, farmName, farmRecord)} disabled={!blocks.length} title="Print a formatted PDF reference sheet for the Rural Payments portal"><Printer className="w-4 h-4 mr-1" />Print RPA Reference</Button>
-                  {missingRefBlocks.length > 0 && (
-                    <Popover onOpenChange={open => { if (!open) { setEditingRefBlockId(null); setEditingRefValue(""); saveBlockRefMutation.reset(); } }}>
+                  {blocks.length > 0 && (
+                    <Popover onOpenChange={open => { if (open) openBlockRefEditor(); else resetBlockRefEditor(); }}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="cursor-pointer inline-flex items-center gap-0.5 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                          title="Click to fill in missing Parcel / Field Refs"
+                          className={`cursor-pointer inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+                            missingRefBlocks.length > 0
+                              ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                              : "border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                          }`}
+                          title="Edit Parcel / Field Refs for all blocks"
                         >
-                          <AlertTriangle className="w-3 h-3 shrink-0 text-amber-500" />
-                          {missingRefBlocks.length} missing
+                          {missingRefBlocks.length > 0 ? (
+                            <>
+                              <AlertTriangle className="w-3 h-3 shrink-0 text-amber-500" />
+                              {missingRefBlocks.length} missing
+                            </>
+                          ) : (
+                            <>
+                              <Pencil className="w-3 h-3 shrink-0" />
+                              Edit refs
+                            </>
+                          )}
                           <ChevronDown className="w-3 h-3 shrink-0 text-amber-500" />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent align="end" className="w-80 p-3">
-                        <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3 shrink-0 text-amber-500" />
-                          {missingRefBlocks.length} block{missingRefBlocks.length === 1 ? "" : "s"} missing Parcel / Field Ref
+                      <PopoverContent align="end" className="w-[min(28rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto p-3">
+                        <p className="text-sm font-semibold text-foreground mb-1 flex items-center gap-1">
+                          <Pencil className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                          Edit Parcel / Field Refs
                         </p>
-                        <p className="text-xs text-muted-foreground mb-2">Click a block name to add its ref without leaving this page.</p>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Update any block’s reference here without opening the Blocks tab.
+                          {missingRefBlocks.length > 0 && ` ${missingRefBlocks.length} still missing.`}
+                        </p>
                         <ul className="space-y-2">
-                          {missingRefBlocks.map(b => {
+                          {blocks.map(b => {
                             const blockId = b.id as number;
-                            const isEditing = editingRefBlockId === blockId;
+                            const blockName = String(b.blockName ?? "Unnamed block");
+                            const draft = blockRefDrafts[blockId] ?? String(b.fieldParcelRef ?? "");
+                            const isSaving = !!savingBlockRefIds[blockId];
+                            const isSaved = !!savedBlockRefIds[blockId];
+                            const error = blockRefErrors[blockId];
+                            const hasRef = !!draft.trim();
                             return (
-                              <li key={blockId} className="text-xs">
-                                {isEditing ? (
-                                  <div className="space-y-1">
-                                    <p className="font-medium text-foreground truncate">{String(b.blockName ?? "Unnamed block")}</p>
-                                    <div className="flex gap-1">
-                                      <Input
-                                        autoFocus
-                                        value={editingRefValue}
-                                        onChange={e => setEditingRefValue(e.target.value)}
-                                        placeholder="e.g. SD1234 0001"
-                                        className="h-7 text-xs flex-1"
-                                        onKeyDown={e => {
-                                          if (e.key === "Enter" && editingRefValue.trim()) {
-                                            e.preventDefault();
-                                            saveBlockRefMutation.mutate({ blockId, fieldParcelRef: editingRefValue.trim() });
-                                          }
-                                          if (e.key === "Escape") { setEditingRefBlockId(null); setEditingRefValue(""); }
-                                        }}
-                                      />
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        disabled={!editingRefValue.trim() || saveBlockRefMutation.isPending}
-                                        onClick={() => saveBlockRefMutation.mutate({ blockId, fieldParcelRef: editingRefValue.trim() })}
-                                      >
-                                        {saveBlockRefMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => { setEditingRefBlockId(null); setEditingRefValue(""); }}
-                                      >
-                                        ✕
-                                      </Button>
-                                    </div>
-                                    {saveBlockRefMutation.isError && (
-                                      <p className="text-xs text-destructive">Failed to save — please try again.</p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="w-full text-left px-2 py-1.5 rounded hover:bg-amber-50 hover:text-amber-900 transition-colors flex items-center justify-between gap-2 group"
-                                    onClick={() => { setEditingRefBlockId(blockId); setEditingRefValue(""); saveBlockRefMutation.reset(); }}
+                              <li key={blockId} className="rounded-md border bg-muted/20 p-2 text-xs">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="font-medium text-foreground truncate">{blockName}</span>
+                                  {!hasRef && <span className="shrink-0 text-[10px] font-medium text-amber-700">Missing</span>}
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <Input
+                                    value={draft}
+                                    onChange={e => {
+                                      setBlockRefDrafts(current => ({ ...current, [blockId]: e.target.value }));
+                                      setSavedBlockRefIds(current => ({ ...current, [blockId]: false }));
+                                      setBlockRefErrors(current => {
+                                        const next = { ...current };
+                                        delete next[blockId];
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder="e.g. SD1234 0001"
+                                    aria-label={`Parcel / Field Ref for ${blockName}`}
+                                    className="h-8 text-xs flex-1"
+                                    disabled={isSaving}
+                                    onKeyDown={e => {
+                                      if (e.key === "Enter" && !isSaving) {
+                                        e.preventDefault();
+                                        saveBlockRef(blockId);
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="h-8 px-2.5 text-xs"
+                                    disabled={!draft.trim() || isSaving}
+                                    onClick={() => saveBlockRef(blockId)}
                                   >
-                                    <span className="truncate">{String(b.blockName ?? "Unnamed block")}</span>
-                                    <Pencil className="w-3 h-3 shrink-0 text-muted-foreground group-hover:text-amber-700" />
-                                  </button>
-                                )}
+                                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved ? <CheckCircle2 className="w-3 h-3" /> : "Save"}
+                                  </Button>
+                                </div>
+                                {isSaved && <p className="mt-1 text-[11px] text-green-700">Saved</p>}
+                                {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
                               </li>
                             );
                           })}
