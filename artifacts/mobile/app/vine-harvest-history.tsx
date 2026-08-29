@@ -409,6 +409,8 @@ function HarvestRow({
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
 
+const MAILTO_BODY_LIMIT = 1800;
+
 function buildHarvestReportMailto(
   records: HarvestRecord[],
   farmName: string,
@@ -417,7 +419,7 @@ function buildHarvestReportMailto(
   farmMeta: Record<string, unknown> | null,
   blocks: { id: number; blockName?: string | null }[],
   yearLabel?: string,
-): string {
+): { href: string; isTruncated: boolean } {
   const fsaVineRef = String(farmMeta?.fsaVineRegisterRef ?? "").trim();
   const fsaWineRef = String(farmMeta?.fsaWineProductionRef ?? "").trim();
   const printed = new Date().toLocaleDateString("en-GB");
@@ -482,7 +484,11 @@ function buildHarvestReportMailto(
   const subject = encodeURIComponent(
     `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
   );
-  return `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+  const encodedBody = encodeURIComponent(body);
+  return {
+    href: `mailto:?subject=${subject}&body=${encodedBody}`,
+    isTruncated: encodedBody.length > MAILTO_BODY_LIMIT,
+  };
 }
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
@@ -1453,7 +1459,7 @@ export default function VineHarvestHistoryScreen() {
     const yearLabel =
       displayVintage != null ? String(displayVintage) : undefined;
     const recordsToEmail = displayVintage != null ? vintageRecords : displayRecords;
-    const mailto = buildHarvestReportMailto(
+    const { href, isTruncated } = buildHarvestReportMailto(
       recordsToEmail,
       currentFarm?.name ?? "Farm",
       sbiNumber ?? null,
@@ -1462,7 +1468,27 @@ export default function VineHarvestHistoryScreen() {
       blocks,
       yearLabel,
     );
-    openExternalUrl(mailto);
+    if (isTruncated) {
+      Alert.alert(
+        "Email may be cut off",
+        "Your harvest report has too many records to fit in a single email — the message body may be truncated by your email app.\n\nFor a complete record, use the dashboard on desktop to export a CSV instead.",
+        [
+          {
+            text: "Open email anyway",
+            onPress: () => {
+              openExternalUrl(href).catch(() => {
+                Alert.alert("Could not open email", "No email app was found on this device.");
+              });
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      );
+      return;
+    }
+    openExternalUrl(href).catch(() => {
+      Alert.alert("Could not open email", "No email app was found on this device.");
+    });
   };
 
   return (
