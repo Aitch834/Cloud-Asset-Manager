@@ -1980,7 +1980,7 @@ export default function VineHarvestHistoryScreen() {
             <>
             {/* ── Proportional bar chart ── */}
             <View style={styles.varietyChart}>
-              {varietySummaryData.grandKg > 0 && varietySummaryData.rows.map((row) => {
+              {varietySummaryData.grandKg > 0 && sortedVarietyRows.map((row) => {
                 const pct = row.totalKg / varietySummaryData.grandKg;
                 const color = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
                 return (
@@ -2001,7 +2001,7 @@ export default function VineHarvestHistoryScreen() {
               })}
               {/* Legend */}
               <View style={styles.varietyLegend}>
-                {varietySummaryData.rows.map((row) => {
+                {sortedVarietyRows.map((row) => {
                   const color = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
                   return (
                     <View key={row.variety} style={styles.varietyLegendItem}>
