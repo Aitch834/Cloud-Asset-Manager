@@ -716,6 +716,75 @@ describe("dismissHint — fresh app load after dismissal confirms dismissed=true
 });
 
 // ===========================================================================
+// 5b. useUiPrefs bootstrap — reconnect flush
+//     An offline dismissal is durable in the pending queue even when its
+//     original PATCH failed.  A later successful bootstrap GET is the
+//     reconnect signal that must flush that queue to the server.
+// ===========================================================================
+
+describe("useUiPrefs bootstrap — flushes offline pending dismissals", () => {
+  const PREF_KEY = "winery_winegb_banner";
+
+  function seedPending(uid: string): void {
+    asyncStore.set(
+      `ui_prefs_pending_${uid}`,
+      JSON.stringify({ [PREF_KEY]: true }),
+    );
+  }
+
+  function makeBootstrapFetch(patchOk: boolean) {
+    return (_url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+      if ((opts?.method ?? "GET").toUpperCase() === "PATCH") {
+        return Promise.resolve({ ok: patchOk } as Partial<Response>);
+      }
+      return Promise.resolve(makeServerResponse({}));
+    };
+  }
+
+  it("flushes a pending offline dismissal after a successful bootstrap", async () => {
+    const uid = nextUid();
+    seedPending(uid);
+    mockApiFetch.mockImplementation(makeBootstrapFetch(true));
+
+    useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap effect
+    await drain();
+
+    // The pending queue is drained only after the bootstrap GET succeeds and
+    // the reconnect PATCH is accepted.
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    expect(cacheJson).toBeDefined();
+    const cache = JSON.parse(cacheJson!) as PrefsMap;
+    expect(cache[PREF_KEY]).toBe(true);
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/account/ui-prefs",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ [PREF_KEY]: true }),
+      }),
+    );
+  });
+
+  it("preserves the pending dismissal when the bootstrap flush PATCH fails", async () => {
+    const uid = nextUid();
+    seedPending(uid);
+    mockApiFetch.mockImplementation(makeBootstrapFetch(false));
+
+    useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap effect
+    await drain();
+
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending[PREF_KEY]).toBe(true);
+  });
+});
+
+// ===========================================================================
 // 6. Ordering guarantee: migration waits for bootstrap (prefsReady first)
 //    runUiPrefMigration awaits s.fetchPromise before writing, which ensures
 //    migrationChecked transitions to true ONLY after prefsReady is already
