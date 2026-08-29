@@ -51,6 +51,8 @@ interface OperationRecord {
   pruningWeightKgPerVine: number | null;
   shootsRemovedPct: number | null;
   leavesRemovedZone: string | null;
+  machineUsed: string | null;
+  contractorName: string | null;
 }
 
 function formatDate(d: string | null | undefined): string {
@@ -161,6 +163,8 @@ function EditOperationModal({
   const [pruningWeightKgPerVine, setPruningWeightKgPerVine] = useState("");
   const [shootsRemovedPct, setShootsRemovedPct] = useState("");
   const [leavesRemovedZone, setLeavesRemovedZone] = useState("");
+  const [machineUsed, setMachineUsed] = useState("");
+  const [contractorName, setContractorName] = useState("");
   const [hoursWorked, setHoursWorked] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -179,6 +183,8 @@ function EditOperationModal({
       setPruningWeightKgPerVine(record.pruningWeightKgPerVine != null ? String(record.pruningWeightKgPerVine) : "");
       setShootsRemovedPct(record.shootsRemovedPct != null ? String(record.shootsRemovedPct) : "");
       setLeavesRemovedZone(record.leavesRemovedZone ?? "");
+      setMachineUsed(record.machineUsed ?? "");
+      setContractorName(record.contractorName ?? "");
       setHoursWorked(record.hoursWorked != null ? String(record.hoursWorked) : "");
       setSelectedBlock(record.blockId ? (blocks.find(b => b.id === record.blockId) ?? null) : null);
     }
@@ -205,6 +211,8 @@ function EditOperationModal({
         pruningWeightKgPerVine: isPruning && pruningWeightKgPerVine ? Number(pruningWeightKgPerVine) : null,
         shootsRemovedPct: shootsRemovedPct ? Number(shootsRemovedPct) : null,
         leavesRemovedZone: leavesRemovedZone.trim() || null,
+        machineUsed: machineUsed.trim() || null,
+        contractorName: contractorName.trim() || null,
         hoursWorked: hoursWorked ? Number(hoursWorked) : null,
       };
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-operations/${record.id}`, {
@@ -359,6 +367,20 @@ function EditOperationModal({
             {/* Record Details */}
             <View style={editStyles.card}>
               <Text style={editStyles.sectionTitle}>Record Details</Text>
+
+              <Text style={editStyles.fieldLabel}>Machine / Equipment</Text>
+              <Input
+                placeholder="e.g. Pellenc pruner"
+                value={machineUsed}
+                onChangeText={setMachineUsed}
+              />
+
+              <Text style={editStyles.fieldLabel}>Contractor (if applicable)</Text>
+              <Input
+                placeholder="Contractor / company name"
+                value={contractorName}
+                onChangeText={setContractorName}
+              />
 
               <Text style={editStyles.fieldLabel}>Hours Worked</Text>
               <Input

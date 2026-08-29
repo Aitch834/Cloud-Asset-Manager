@@ -138,6 +138,10 @@ function EditOperationModal({
   const [budsPerVineTarget, setBudsPerVineTarget] = useState("");
   const [budsPerVineActual, setBudsPerVineActual] = useState("");
   const [pruningWeightKg, setPruningWeightKg] = useState("");
+  const [shootsRemovedPct, setShootsRemovedPct] = useState("");
+  const [leavesRemovedZone, setLeavesRemovedZone] = useState("");
+  const [machineUsed, setMachineUsed] = useState("");
+  const [contractorName, setContractorName] = useState("");
   const [hoursWorked, setHoursWorked] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -154,6 +158,10 @@ function EditOperationModal({
       setBudsPerVineTarget(record.budsPerVineTarget != null ? String(record.budsPerVineTarget) : "");
       setBudsPerVineActual(record.budsPerVineActual != null ? String(record.budsPerVineActual) : "");
       setPruningWeightKg(record.pruningWeightKgPerVine != null ? String(record.pruningWeightKgPerVine) : "");
+      setShootsRemovedPct(record.shootsRemovedPct != null ? String(record.shootsRemovedPct) : "");
+      setLeavesRemovedZone(record.leavesRemovedZone ?? "");
+      setMachineUsed(record.machineUsed ?? "");
+      setContractorName(record.contractorName ?? "");
       setHoursWorked(record.hoursWorked != null ? String(record.hoursWorked) : "");
       if (record.blockId) {
         setSelectedBlock(blocks.find(b => b.id === record.blockId) ?? null);
@@ -178,6 +186,10 @@ function EditOperationModal({
         budsPerVineTarget: isPruning && budsPerVineTarget ? Number(budsPerVineTarget) : null,
         budsPerVineActual: isPruning && budsPerVineActual ? Number(budsPerVineActual) : null,
         pruningWeightKgPerVine: isPruning && pruningWeightKg ? Number(pruningWeightKg) : null,
+        shootsRemovedPct: shootsRemovedPct ? Number(shootsRemovedPct) : null,
+        leavesRemovedZone: leavesRemovedZone.trim() || null,
+        machineUsed: machineUsed.trim() || null,
+        contractorName: contractorName.trim() || null,
         hoursWorked: hoursWorked ? Number(hoursWorked) : null,
       };
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-operations/${record.id}`, {
@@ -313,6 +325,35 @@ function EditOperationModal({
 
             <View style={editStyles.card}>
               <Text style={editStyles.sectionTitle}>Record Details</Text>
+
+              <Text style={editStyles.fieldLabel}>Shoots Removed (%)</Text>
+              <Input
+                placeholder="e.g. 30"
+                value={shootsRemovedPct}
+                onChangeText={setShootsRemovedPct}
+                keyboardType="numeric"
+              />
+
+              <Text style={editStyles.fieldLabel}>Leaves Removed Zone</Text>
+              <Input
+                placeholder="e.g. Fruit zone"
+                value={leavesRemovedZone}
+                onChangeText={setLeavesRemovedZone}
+              />
+
+              <Text style={editStyles.fieldLabel}>Machine / Equipment</Text>
+              <Input
+                placeholder="e.g. Pellenc pruner"
+                value={machineUsed}
+                onChangeText={setMachineUsed}
+              />
+
+              <Text style={editStyles.fieldLabel}>Contractor (if applicable)</Text>
+              <Input
+                placeholder="Contractor / company name"
+                value={contractorName}
+                onChangeText={setContractorName}
+              />
 
               <Text style={editStyles.fieldLabel}>Hours Worked</Text>
               <Input
