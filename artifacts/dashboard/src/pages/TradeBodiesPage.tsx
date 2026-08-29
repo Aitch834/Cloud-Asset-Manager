@@ -387,6 +387,14 @@ export default function TradeBodiesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {bodies.map((cfg) => {
                 const total = summaryQ.data?.totalsPerBody?.[cfg.body] ?? 0;
+                const hasNoRecordsThisYear =
+                  year === THIS_YEAR &&
+                  summaryQ.data?.year === year &&
+                  (cfg.type === "levy" || cfg.type === "statutory") &&
+                  !Object.prototype.hasOwnProperty.call(
+                    summaryQ.data.totalsPerBody,
+                    cfg.body,
+                  );
                 const reg = regByBody[cfg.body];
                 const badge = TYPE_BADGE[cfg.type];
                 return (
@@ -400,6 +408,12 @@ export default function TradeBodiesPage() {
                         {badge.label}
                       </span>
                     </div>
+                    {hasNoRecordsThisYear && (
+                      <div className="flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>No records this year — is this correct?</span>
+                      </div>
+                    )}
                     <div className="flex items-end justify-between pt-1">
                       <div>
                         <p className="text-xs text-muted-foreground">
