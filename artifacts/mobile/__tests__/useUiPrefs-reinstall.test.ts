@@ -832,6 +832,46 @@ describe("runUiPrefMigration ordering — waits for in-flight bootstrap to settl
   });
 });
 
+describe("runUiPrefBatchMigration ordering — waits for in-flight bootstrap to settle", () => {
+  it("awaits an active fetchPromise before reading the legacy key", async () => {
+    const uid = nextUid();
+    const legacyKey = "batch-legacy-key";
+    const migratedKey = "batch-new-key";
+    let resolveBootstrap!: (v: Partial<Response>) => void;
+
+    asyncStore.set(legacyKey, JSON.stringify([migratedKey]));
+
+    // Stall the bootstrap fetch so we can interleave a batch migration call.
+    mockApiFetch.mockReturnValue(
+      new Promise<Partial<Response>>((res) => { resolveBootstrap = res; }),
+    );
+
+    // Kick off bootstrap (sets s.fetchPromise on the singleton).
+    useUiPrefs(uid);
+    mockEffects[2]?.();
+
+    // Start migration — it must await the fetchPromise before reading storage.
+    const migrationPromise = runUiPrefBatchMigration(
+      uid,
+      legacyKey,
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    // The server is still stalled, so the batch migration must not have read
+    // the legacy key yet.
+    await drain(4);
+    expect(mockGetItem).not.toHaveBeenCalledWith(legacyKey);
+
+    // Unblock bootstrap, then the migration can read and promote the entry.
+    resolveBootstrap(makeServerResponse({}));
+    const result = await migrationPromise;
+    await drain();
+
+    expect(result).toBe("promoted");
+    expect(mockGetItem).toHaveBeenCalledWith(legacyKey);
+  });
+});
+
 // ===========================================================================
 // 7. runUiPrefBatchMigration — absent path
 //    Missing key, malformed JSON, and an empty parsed list must all produce
