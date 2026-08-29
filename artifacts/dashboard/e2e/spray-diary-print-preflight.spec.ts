@@ -6,7 +6,7 @@
  * dialog is skipped entirely when no unlinked records are present in the print
  * set.
  *
- * Four scenarios:
+ * Five scenarios:
  *
  *   A — Clicking Print with an unlinked record in the print set opens the
  *       pre-flight dialog (title "record isn't linked to a block" visible).
@@ -14,10 +14,13 @@
  *   B — Clicking "Link first" in the pre-flight dialog closes it and opens the
  *       bulk-link dialog.
  *
- *   C — Clicking "Print anyway" in the pre-flight dialog calls window.open()
+ *   C — A failed bulk-link PUT keeps the dialog open and displays its inline
+ *       mutation error.
+ *
+ *   D — Clicking "Print anyway" in the pre-flight dialog calls window.open()
  *       (the print popup appears / a new page/popup is emitted).
  *
- *   D — When the print-block filter is set to a block that has only linked
+ *   E — When the print-block filter is set to a block that has only linked
  *       records, clicking Print skips the dialog entirely and goes straight to
  *       printing.
  *
@@ -102,6 +105,27 @@ async function deleteSprayRecord(id: number) {
   await apiDelete(
     `${apiBase()}/api/farms/${FARM_ID}/vineyard-spray-diary/${id}`,
   );
+}
+
+async function getFirstVineyardBlock(): Promise<{ id: number; blockName: string }> {
+  const res = await fetch(
+    `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
+    {
+      headers: {
+        "x-dev-bypass": DEV_BYPASS,
+        "x-tenant-slug": TENANT_SLUG,
+      },
+    },
+  );
+  if (!res.ok)
+    throw new Error(`GET vineyard-blocks → ${res.status}`);
+  const body = (await res.json()) as {
+    blocks: { id: number; blockName: string }[];
+  };
+  const firstBlock = body.blocks?.[0];
+  if (!firstBlock)
+    throw new Error("No vineyard blocks found on farm 5 — test cannot run");
+  return firstBlock;
 }
 
 // ─── Navigation helper ────────────────────────────────────────────────────────
@@ -301,7 +325,88 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   });
 
   /**
-   * Scenario C — "Print anyway" causes window.open() to fire (a new popup /
+   * Scenario C — a failed bulk-link save keeps the dialog open and renders the
+   * inline DialogMutationError instead of leaving the user with only a toast.
+   */
+  test("C — failed bulk-link save keeps the dialog open and shows an inline error", async ({
+    page,
+  }) => {
+    await setupClerkTestingToken({ page, userId: getTestUserId() });
+
+    const firstBlock = await getFirstVineyardBlock();
+    const sprayId = await createSprayRecord(null);
+
+    try {
+      await navigateToSprayDiaryTab(page);
+
+      const row = page.locator("tr", { hasText: PRODUCT_TAG });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      await printButton(page).click();
+      const preflightDialog = page
+        .locator('[role="dialog"]')
+        .filter({ hasText: /record.*isn't linked to a block/i });
+      await expect(preflightDialog).toBeVisible({ timeout: 5_000 });
+      await preflightDialog.getByRole("button", { name: /link first/i }).click();
+
+      const bulkDialog = page
+        .locator('[role="dialog"]')
+        .filter({ hasText: /link unlinked spray records/i });
+      await expect(bulkDialog).toBeVisible({ timeout: 5_000 });
+
+      // Choose a real block so the Save button sends a PUT for the injected row.
+      const injectedRecord = bulkDialog
+        .getByText(PRODUCT_TAG, { exact: true })
+        .locator("..");
+      await injectedRecord.getByRole("combobox").click();
+      await page
+        .getByRole("option")
+        .filter({ hasText: firstBlock.blockName })
+        .first()
+        .click();
+
+      // Fail the actual link request.  The mutation should reject, not close the
+      // dialog, so growers can see the error and retry.
+      let intercepted = false;
+      await page.route(
+        `**/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+        async route => {
+          intercepted = true;
+          await route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Forced e2e failure" }),
+          });
+        },
+      );
+
+      await bulkDialog.getByRole("button", { name: /^save 1 link$/i }).click();
+
+      await expect.poll(
+        () => intercepted,
+        { message: "Bulk-link Save must issue the record PUT request" },
+      ).toBe(true);
+      await expect(bulkDialog).toBeVisible({
+        message: "Bulk-link dialog must stay open after a failed save",
+      });
+      await expect(
+        bulkDialog.getByTestId("dialog-error"),
+      ).toBeVisible({
+        message: "Failed bulk-link save must render the inline dialog error",
+      });
+      await expect(
+        bulkDialog.getByText(/some links could not be saved/i),
+      ).toBeVisible();
+    } finally {
+      await page.unroute(
+        `**/api/farms/${FARM_ID}/vineyard-spray-diary/${sprayId}`,
+      );
+      await deleteSprayRecord(sprayId);
+    }
+  });
+
+  /**
+   * Scenario D — "Print anyway" causes window.open() to fire (a new popup /
    * page is opened by the print helper).
    */
   test('"Print anyway" triggers a print popup (window.open is called)', async ({
@@ -347,7 +452,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   });
 
   /**
-   * Scenario D — When the print-block filter is scoped to a specific block that
+   * Scenario E — When the print-block filter is scoped to a specific block that
    * has only linked records, clicking Print skips the dialog entirely.
    *
    * Strategy: inject a record that IS linked to a block, then set the
