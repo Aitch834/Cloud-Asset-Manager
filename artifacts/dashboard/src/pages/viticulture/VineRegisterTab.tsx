@@ -58,6 +58,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 type VineReg = Record<string, unknown>;
 
+type TruncatedEmailType = "rpa-reference" | "vine-register";
 export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
   const farmName = useFarmName(farmId);
@@ -78,6 +79,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
   const [printFsaWarnOpen, setPrintFsaWarnOpen] = useState(false);
   const [emailTruncatedOpen, setEmailTruncatedOpen] = useState(false);
   const [pendingMailtoHref, setPendingMailtoHref] = useState("");
+  const [truncatedEmailType, setTruncatedEmailType] = useState<TruncatedEmailType>("rpa-reference");
 
   const isSbiInvalid = !!farmRecord && !!String(farmRecord.sbiNumber ?? "").trim() && !/^\d{9}$/.test(String(farmRecord.sbiNumber ?? "").trim());
   const isFsaIncomplete = !!farmRecord && (
@@ -583,6 +585,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
                     const { href, isTruncated } = buildRpaMailtoHref(blocks, farmName, farmRecord);
                     if (isTruncated) {
                       setPendingMailtoHref(href);
+                      setTruncatedEmailType("rpa-reference");
                       setEmailTruncatedOpen(true);
                     } else {
                       window.location.href = href;
@@ -593,7 +596,16 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           })()}
           <Button size="sm" variant="outline" onClick={() => { void downloadVineRegisterPdf(displayRows, farmName, farmFsaVineRef || undefined, farmRecord); }} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export PDF{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else if (isFsaIncomplete) { setPrintFsaWarnOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
-          <Button size="sm" variant="outline" onClick={() => emailVineRegister(displayRows, farmName, farmRecord)} disabled={!displayRows.length} title="Open your email client with a pre-filled Vine Register summary ready to send to an advisor or certifier"><Mail className="w-4 h-4 mr-1" />Email Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => {
+            const { href, isTruncated } = emailVineRegister(displayRows, farmName, farmRecord);
+            if (isTruncated) {
+              setPendingMailtoHref(href);
+              setTruncatedEmailType("vine-register");
+              setEmailTruncatedOpen(true);
+            } else {
+              window.location.href = href;
+            }
+          }} disabled={!displayRows.length} title="Open your email client with a pre-filled Vine Register summary ready to send to an advisor or certifier"><Mail className="w-4 h-4 mr-1" />Email Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Entry</Button>
         </div>
       </div>
@@ -1025,14 +1037,20 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               Email may be cut off
             </DialogTitle>
             <DialogDescription>
-              Your vineyard has many blocks and the email body exceeds the limit most email clients support (~2,000 characters). The draft will open but your email client may silently truncate the text.
+              {truncatedEmailType === "vine-register"
+                ? "Your Vine Register has many entries and the email body exceeds the limit most email clients support (~2,000 characters). The draft will open but your email client may silently truncate the text."
+                : "Your vineyard has many blocks and the email body exceeds the limit most email clients support (~2,000 characters). The draft will open but your email client may silently truncate the text."}
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Use <span className="font-medium">RPA Reference Export</span> to download a CSV — it contains all your blocks with no character limit.
+            Use <span className="font-medium">{truncatedEmailType === "vine-register" ? "Export CSV" : "RPA Reference Export"}</span> to download a CSV — it contains all your data with no character limit.
           </p>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); exportRpaCSV(); }}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => {
+              setEmailTruncatedOpen(false);
+              if (truncatedEmailType === "vine-register") exportCSV(displayRows, "vine-register.csv", csvCols);
+              else exportRpaCSV();
+            }}>
               <FileDown className="w-4 h-4 mr-1" />Download CSV instead
             </Button>
             <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); window.location.href = pendingMailtoHref; setPendingMailtoHref(""); }}>

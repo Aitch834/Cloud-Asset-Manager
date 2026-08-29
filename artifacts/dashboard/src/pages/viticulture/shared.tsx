@@ -648,11 +648,16 @@ export function emailRpaReference(
   window.location.href = href;
 }
 
+/**
+ * Builds the Vine Register email href without opening the email client.
+ * Callers should show a blocking confirmation before opening the href when
+ * `isTruncated` is true.
+ */
 export function emailVineRegister(
   records: Record<string, unknown>[],
   farmName: string,
   farmMeta?: Record<string, unknown> | null,
-) {
+): { href: string; isTruncated: boolean } {
   const fsaRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : "").trim();
   const fsaWineRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
   const sbi = (farmMeta?.sbiNumber ? String(farmMeta.sbiNumber) : "").trim();
@@ -719,7 +724,10 @@ export function emailVineRegister(
   const subject = encodeURIComponent(
     `FSA Vine Register — ${farmName}${fsaRef ? ` (Ref: ${fsaRef})` : ""}`,
   );
-  window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(body)}`;
+  const encodedBody = encodeURIComponent(body);
+  const href = `mailto:?subject=${subject}&body=${encodedBody}`;
+
+  return { href, isTruncated: encodedBody.length > MAILTO_BODY_LIMIT };
 }
 /** Escape a plain-text value for safe insertion into an HTML document. */
 function escHtml(v: unknown): string {
