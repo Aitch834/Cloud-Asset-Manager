@@ -505,7 +505,6 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
       toast({ title: "Failed to update block", variant: "destructive" });
     },
   });
-
   const sprayYears = Array.from(new Set(crud.data.map(r => new Date(r.applicationDate as string).getFullYear()))).sort((a, b) => b - a);
   if (!sprayYears.includes(new Date().getFullYear())) sprayYears.unshift(new Date().getFullYear());
   const filteredSpray = useMemo(() => {
