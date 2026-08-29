@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { kvGet, kvSet } from "@/lib/database";
 
 async function getAuthToken(): Promise<string | null> {
@@ -37,6 +37,10 @@ export interface CachedHookResult<T> {
   loading: boolean;
   fromCache: boolean;
   lastError: string | null;
+  /** Re-fetch the current farm and update the persistent cache. */
+  refresh: () => void;
+  /** Update the current farm's items locally and persist the updated cache. */
+  updateItems: (updater: (items: T[]) => T[]) => void;
   /** The farmId that the currently returned `items` were loaded for.
    *  `undefined` while a farm-switch is in progress and items are stale.
    *  Callers that validate items against the active farm should gate on
@@ -61,10 +65,18 @@ export function buildCachedApiHook<T>(
     // Reset to undefined when a new farmId is requested so callers can detect
     // the one-render lag where items are still from the previous farm.
     const [loadedForFarmId, setLoadedForFarmId] = useState<string | undefined>(undefined);
+    // Incrementing this value lets callers explicitly re-fetch the current
+    // farm without having to change the hook's farmId.
+    const [refreshVersion, setRefreshVersion] = useState(0);
+    const itemsRef = useRef<T[]>([]);
+    itemsRef.current = items;
+    const requestGenerationRef = useRef(0);
 
     useEffect(() => {
+      const requestGeneration = ++requestGenerationRef.current;
       if (!farmId) {
         setItems([]);
+        itemsRef.current = [];
         setLoading(false);
         setLastError(null);
         setLoadedForFarmId(undefined);
@@ -92,9 +104,14 @@ export function buildCachedApiHook<T>(
         // such as expired presigned URLs) are sanitized before they reach state.
         try {
           const cached = await kvGet(getCacheKey(farmId));
-          if (cached && !controller.signal.aborted) {
+          if (
+            cached &&
+            !controller.signal.aborted &&
+            requestGenerationRef.current === requestGeneration
+          ) {
             const parsed: T[] = JSON.parse(cached);
             const hydrated = cacheTransform ? parsed.map(cacheTransform) : parsed;
+            itemsRef.current = hydrated;
             setItems(hydrated);
             setLoadedForFarmId(farmId);
             setLoading(false);
@@ -138,7 +155,11 @@ export function buildCachedApiHook<T>(
           const json = await res.json();
           const fresh = transform(json);
 
-          if (!controller.signal.aborted) {
+          if (
+            !controller.signal.aborted &&
+            requestGenerationRef.current === requestGeneration
+          ) {
+            itemsRef.current = fresh;
             setItems(fresh);
             setLoadedForFarmId(farmId);
             setFromCache(false);
@@ -149,8 +170,13 @@ export function buildCachedApiHook<T>(
           // Save fresh data to cache for future offline use.
           // Apply cacheTransform (if provided) to strip fields that become
           // stale quickly (e.g. presigned URLs) before writing to storage.
-          const toCache = cacheTransform ? fresh.map(cacheTransform) : fresh;
-          await kvSet(getCacheKey(farmId), JSON.stringify(toCache));
+          if (
+            !controller.signal.aborted &&
+            requestGenerationRef.current === requestGeneration
+          ) {
+            const toCache = cacheTransform ? fresh.map(cacheTransform) : fresh;
+            await kvSet(getCacheKey(farmId), JSON.stringify(toCache));
+          }
         } catch (err: unknown) {
           // AbortError means the component unmounted before the request
           // finished — this is intentional and must not be surfaced as an error.
@@ -164,8 +190,27 @@ export function buildCachedApiHook<T>(
       })();
 
       return () => { controller.abort(); };
+    }, [farmId, refreshVersion]);
+
+    const refresh = useCallback(() => {
+      setRefreshVersion((version) => version + 1);
+    }, []);
+
+    const updateItems = useCallback((updater: (items: T[]) => T[]) => {
+      if (!farmId) return;
+      // A local save is authoritative over any load that started before it.
+      // Invalidate those loads before updating state or persistent storage.
+      requestGenerationRef.current += 1;
+      const updated = updater(itemsRef.current);
+      itemsRef.current = updated;
+      setItems(updated);
+      const toCache = cacheTransform ? updated.map(cacheTransform) : updated;
+      void kvSet(getCacheKey(farmId), JSON.stringify(toCache)).catch(() => {
+        // State is still updated for this session if persistent storage is
+        // temporarily unavailable; the next API load can repopulate the cache.
+      });
     }, [farmId]);
 
-    return { items, loading, fromCache, lastError, loadedForFarmId };
+    return { items, loading, fromCache, lastError, loadedForFarmId, refresh, updateItems };
   };
 }

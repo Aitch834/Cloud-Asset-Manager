@@ -66,6 +66,8 @@ jest.mock('react', () => ({
     }
   },
   useMemo: (fn: () => unknown, _deps?: unknown[]) => fn(),
+  useCallback: (fn: (...args: never[]) => unknown, _deps?: unknown[]) => fn,
+  useRef: (initial: unknown) => ({ current: initial }),
 }));
 
 // ---------------------------------------------------------------------------

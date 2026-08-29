@@ -183,6 +183,8 @@ export interface HookResult<T> {
   loading: boolean;
   fromCache: boolean;
   lastError: string | null;
+  refresh: () => void;
+  updateItems: (updater: (items: T[]) => T[]) => void;
 }
 
 /**
@@ -204,7 +206,10 @@ export async function runHook<T>(
 ): Promise<HookResult<T>> {
   ctx.slotCounter.value = 0;
   ctx.store.reset(initialSlots);
-  hookFn(farmId);
+  const hookResult = hookFn(farmId) as {
+    refresh?: () => void;
+    updateItems?: (updater: (items: T[]) => T[]) => void;
+  };
 
   if (ctx.capturedEffect.value) ctx.capturedEffect.value();
 
@@ -216,5 +221,12 @@ export async function runHook<T>(
     boolean,
     string | null,
   ];
-  return { items, loading, fromCache, lastError };
+  return {
+    items,
+    loading,
+    fromCache,
+    lastError,
+    refresh: hookResult.refresh ?? (() => {}),
+    updateItems: hookResult.updateItems ?? (() => {}),
+  };
 }

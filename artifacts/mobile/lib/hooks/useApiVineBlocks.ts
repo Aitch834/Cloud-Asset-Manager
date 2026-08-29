@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { buildCachedApiHook } from "./buildCachedApiHook";
 
 export interface VineBlock {
@@ -93,7 +93,7 @@ const useApiVineBlocksHook = buildCachedApiHook<VineBlock>(
 );
 
 export function useApiVineBlocks(farmId: string | undefined) {
-  const { items, loading, fromCache, lastError } = useApiVineBlocksHook(farmId);
+  const { items, loading, fromCache, lastError, refresh, updateItems } = useApiVineBlocksHook(farmId);
 
   // When a fresh API response arrives the items carry real presigned URLs.
   // Store them in the module-level cache so that subsequent renders (e.g.
@@ -109,11 +109,18 @@ export function useApiVineBlocks(farmId: string | undefined) {
   // items already carry fresh URLs; it only fills in gaps for items whose
   // coverPhotoUrl is null (i.e. loaded from AsyncStorage cache).
   const blocks = useMemo(() => overlayUrls(items), [items]);
+  const updateBlock = useCallback((blockId: number, updates: Partial<VineBlock>) => {
+    updateItems((current) =>
+      current.map((block) => block.id === blockId ? { ...block, ...updates } : block),
+    );
+  }, [updateItems]);
 
   return {
     blocks,
     loading,
     error: items.length === 0 && lastError ? lastError : null,
     fromCache,
+    refresh,
+    updateBlock,
   };
 }

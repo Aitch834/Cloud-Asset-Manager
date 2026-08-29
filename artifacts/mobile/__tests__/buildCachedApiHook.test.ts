@@ -79,6 +79,10 @@ jest.mock('react', () => ({
   },
   // useMemo: evaluate immediately — no dependency tracking needed in tests.
   useMemo: (fn: () => unknown, _deps?: unknown[]) => fn(),
+  // useCallback: return the callback unchanged; dependency tracking is not
+  // needed by this synchronous hook harness.
+  useCallback: (fn: (...args: never[]) => unknown, _deps?: unknown[]) => fn,
+  useRef: (initial: unknown) => ({ current: initial }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -280,6 +284,74 @@ describe('buildCachedApiHook — live state after API response', () => {
     expect(lastError).toBeNull();
     expect(global.fetch).not.toHaveBeenCalled();
     expect(mockKvSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildCachedApiHook — local cache update', () => {
+  it('updates state and cache without another fetch, then serves the update offline', async () => {
+    const updatedItem = { ...RAW_ITEM, name: 'Block A (updated)' };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ records: [RAW_ITEM] }),
+    } as unknown as Response);
+
+    const result = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
+    expect(result.items[0].name).toBe(RAW_ITEM.name);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    result.updateItems((items) => items.map((item) => item.id === RAW_ITEM.id ? updatedItem : item));
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockHarness.store.values[0]).toEqual([updatedItem]);
+    const stored = JSON.parse(mockKvSet.mock.calls[1][1]) as TestItem[];
+    expect(stored[0].name).toBe(updatedItem.name);
+
+    mockKvGet.mockResolvedValue(JSON.stringify([updatedItem]));
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+    mockHarness.capturedEffect.value = null;
+    const remounted = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
+    expect(remounted.items[0].name).toBe(updatedItem.name);
+  });
+
+  it('ignores an older in-flight fetch after a local update', async () => {
+    let resolveCache!: (value: string | null) => void;
+    mockKvGet.mockImplementation((key: string) => {
+      if (key === `test_cache_${FARM_ID}`) {
+        return new Promise<string | null>((resolve) => {
+          resolveCache = resolve;
+        });
+      }
+      return Promise.resolve(null);
+    });
+    const fetchHelper = makePendingFetch();
+    global.fetch = fetchHelper.mock;
+    const updatedItem = { ...RAW_ITEM, name: 'Block A (saved)' };
+
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[RAW_ITEM], true, false, null]);
+    mockHarness.capturedEffect.value = null;
+    const hookResult = useTestHook(FARM_ID) as {
+      updateItems: (updater: (items: TestItem[]) => TestItem[]) => void;
+    };
+    const effect = mockHarness.capturedEffect.value;
+    expect(effect).toBeDefined();
+    effect!();
+    resolveCache(null);
+    await drainAsync(4);
+    expect(fetchHelper.mock).toHaveBeenCalledTimes(1);
+
+    hookResult.updateItems((items) =>
+      items.map((item) => item.id === RAW_ITEM.id ? updatedItem : item),
+    );
+    fetchHelper.resolve({
+      ok: true,
+      json: async () => ({ records: [RAW_ITEM] }),
+    } as unknown as Response);
+    await drainAsync();
+
+    expect(mockHarness.store.values[0]).toEqual([updatedItem]);
+    expect(mockKvSet).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(mockKvSet.mock.calls[0][1])[0].name).toBe(updatedItem.name);
   });
 });
 

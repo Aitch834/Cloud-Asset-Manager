@@ -465,7 +465,7 @@ export default function VineRegisterScreen() {
     "/api/farms/:farmId/vine-register",
   );
   const farmIdStr = currentFarm?.id != null ? String(currentFarm.id) : undefined;
-  const { blocks, loading: blocksLoading } = useApiVineBlocks(farmIdStr);
+  const { blocks, loading: blocksLoading, updateBlock } = useApiVineBlocks(farmIdStr);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = usePersistedVineRegisterStatusFilter(farmIdStr);
@@ -532,7 +532,8 @@ export default function VineRegisterScreen() {
   const handleBlockSaved = useCallback((blockId: number, fieldParcelRef: string) => {
     setSavedBlockIds(prev => new Set([...prev, blockId]));
     setSavedParcelRefs(prev => ({ ...prev, [blockId]: fieldParcelRef }));
-  }, []);
+    updateBlock(blockId, { fieldParcelRef });
+  }, [updateBlock]);
 
   const activeRecords = records.filter(r => !r.isRemovedFromRegister);
   const totalAreaHa = activeRecords.reduce((sum, r) => {
