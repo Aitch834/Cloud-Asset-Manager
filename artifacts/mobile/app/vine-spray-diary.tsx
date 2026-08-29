@@ -649,7 +649,7 @@ function SprayDiaryPhotoSection({
         <Text style={styles.photoHint}>{photos.length} attached</Text>
       </View>
       <Text style={styles.helperText}>
-        Attach photos documenting application conditions, equipment, or treated areas. Long-press a photo to delete it.
+        Attach photos documenting application conditions, equipment, or treated areas. Tap to view full-screen · Long-press for options.
       </Text>
 
       {loading ? (
