@@ -479,7 +479,7 @@ interface LightboxProps {
   onEditCaption: (photo: BlockPhoto) => void;
   onReload: () => void;
   onSetCover: (photo: BlockPhoto) => void;
-  /** True while a silent URL refresh triggered by "Tap to reload" is in-flight. */
+  /** True while a silent URL refresh triggered by the lightbox is in-flight. */
   reloading?: boolean;
 }
 
@@ -568,6 +568,20 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   // Image error / retry state for the lightbox
   const [imgError, setImgError] = useState(false);
   const prevUriRef = useRef<string | null>(null);
+  /** True while the 2 s auto-retry timer is counting down. */
+  const [autoRetryPending, setAutoRetryPending] = useState(false);
+  /** Only one automatic retry is attempted for each photo view. */
+  const autoRetried = useRef(false);
+  const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelAutoRetry = useCallback(() => {
+    if (autoRetryTimer.current !== null) {
+      clearTimeout(autoRetryTimer.current);
+      autoRetryTimer.current = null;
+    }
+    setAutoRetryPending(false);
+    autoRetried.current = false;
+  }, []);
 
   const [saving, setSaving] = useState(false);
 
@@ -718,7 +732,14 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
     } else {
       bgOpacity.value = withTiming(0, { duration: 150 });
     }
+    cancelAutoRetry();
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset image/retry state when navigating to a different photo.
+  useEffect(() => {
+    setImgError(false);
+    cancelAutoRetry();
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Navigate to a specific index (called from worklet via runOnJS).
   // Uses photosRef so the closure never goes stale when photos are reordered.
@@ -860,6 +881,34 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const caption = photo?.caption ?? null;
   const hasMultiple = photos.length > 1;
 
+  // Auto-retry once when a presigned image URL expires.  If the refresh does
+  // not replace the URL, the existing manual "Tap to reload" fallback remains.
+  useEffect(() => {
+    if (!imgError || !photo || autoRetried.current) return;
+    autoRetried.current = true;
+    setAutoRetryPending(true);
+    autoRetryTimer.current = setTimeout(async () => {
+      autoRetryTimer.current = null;
+      setAutoRetryPending(false);
+      try {
+        await onReload();
+      } catch {
+        // Keep the existing image error so the manual fallback is shown.
+      } finally {
+        // The parent owns the actual reload state; this clears any remaining
+        // countdown state after the parent response updates the URL.
+        setAutoRetryPending(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (autoRetryTimer.current !== null) {
+        clearTimeout(autoRetryTimer.current);
+        autoRetryTimer.current = null;
+      }
+    };
+  }, [imgError]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Modal
       visible={visible}
@@ -961,7 +1010,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {/* Zoomable image */}
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
-            {reloading ? (
+            {reloading || autoRetryPending ? (
               <ActivityIndicator size="large" color="#fff" />
             ) : uri ? (
               (() => {
