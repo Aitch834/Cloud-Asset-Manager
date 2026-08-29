@@ -78,3 +78,4 @@
 - [Admin mailbox provider](admin-mailbox-provider.md) — 123 Reg webmail credentials authenticate on its legacy IMAP service, not Titan; verify auth before changing providers
 - [AHDB BYDV integration boundary](ahdb-bydv-boundary.md) — store farmer-entered AHDB outcomes and decisions; link to AHDB, but never copy, scrape, or imply ownership of its risk model
 - [Drizzle correlated subquery columns](drizzle-correlated-subquery-columns.md) — correlated columns can lose table qualification; verify SQL or prefer a typed join/grouped count
+- [Broken package command shims](broken-package-command-shims.md) — zero-byte node_modules/.bin commands cause misleading permission/ENOENT failures; invoke the installed package entry point to verify code

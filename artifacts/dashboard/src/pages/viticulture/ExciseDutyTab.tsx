@@ -51,7 +51,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar } from "./shared";
 
 const EXCISE_STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -78,6 +78,21 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   const [, setLocation] = useLocation();
   const farmName = useFarmName(farmId);
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
+  const isFsaIncomplete = !!farmMeta && (
+    !farmMeta.fsaVineRegisterRef || String(farmMeta.fsaVineRegisterRef).trim() === "" ||
+    !farmMeta.fsaWineProductionRef || String(farmMeta.fsaWineProductionRef).trim() === "" ||
+    !farmMeta.appaRef || String(farmMeta.appaRef).trim() === "" ||
+    !farmMeta.winegbMembershipNumber || String(farmMeta.winegbMembershipNumber).trim() === ""
+  );
+  const printReturn = () => {
+    if (isFsaIncomplete) {
+      setPrintFsaWarnOpen(true);
+      return;
+    }
+    if (view) {
+      printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated);
+    }
+  };
   const exciseMissingFields = farmMeta
     ? [
         !farmMeta.name && "Company / farm name",
@@ -100,6 +115,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [editing, setEditing] = useState<number | null>(null);
+  const [printFsaWarnOpen, setPrintFsaWarnOpen] = useState(false);
   const sf = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const openAdd = () => { setEditing(null); setForm({ status: "draft", smallProducerRelief: false }); setOpen(true); };
   const openEdit = (r: Record<string, unknown>) => { setEditing(r.id as number); setForm({ ...r }); setOpen(true); };
@@ -317,7 +333,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
               </div>
             )}
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated)}>
+              <Button variant="outline" onClick={printReturn}>
                 <Printer className="w-3.5 h-3.5 mr-1.5" />Print Return
               </Button>
               <Button onClick={() => setView(null)}>Close</Button>
@@ -325,6 +341,33 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Print — FSA/APPA refs incomplete soft-warn dialog */}
+      <Dialog open={printFsaWarnOpen} onOpenChange={o => { if (!o) setPrintFsaWarnOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Registration refs incomplete
+            </DialogTitle>
+            <DialogDescription>
+              Some FSA / APPA / WineGB reference numbers are missing. They will appear blank in the printed return. You can still print now and add them later.
+            </DialogDescription>
+          </DialogHeader>
+          <FsaCompletenessBar farmId={farmId} />
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setPrintFsaWarnOpen(false)}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => {
+              setPrintFsaWarnOpen(false);
+              if (view) {
+                printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated);
+              }
+            }}>
+              <Printer className="w-4 h-4 mr-1" />Print anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add / Edit dialog ── */}
       <Dialog open={open} onOpenChange={o => { if (!o) { setOpen(false); crud.add.reset(); crud.edit.reset(); } }}>

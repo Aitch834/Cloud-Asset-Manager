@@ -52,7 +52,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 
 import { apiUrl as api } from "@/lib/api";
-import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, emailOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning } from "./shared";
+import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, emailOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar } from "./shared";
 
 const WINE_COLOUR_OPTIONS = ["Red", "White", "Rosé", "Sparkling", "Orange", "Other"];
 const ADDITIVE_TYPE_OPTIONS = [
@@ -106,6 +106,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [emailTruncatedOpen, setEmailTruncatedOpen] = useState(false);
   const [pendingMailtoHref, setPendingMailtoHref] = useState("");
+  const [printFsaWarnOpen, setPrintFsaWarnOpen] = useState(false);
   const [vintageFilter, setVintageFilter] = usePersistedFilter({ page: "viticulture-wine-production", filter: "vintage", farmId, defaultValue: String(new Date().getFullYear()) });
 
   const { data, isLoading } = useQuery<{ records: Record<string, unknown>[] }>({
@@ -118,6 +119,19 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
   const [, setLocation] = useLocation();
   const farmName = useFarmName(farmId);
   const { farmRecord: farmMeta } = useFarmMeta(farmId);
+  const isFsaIncomplete = !!farmMeta && (
+    !farmMeta.fsaVineRegisterRef || String(farmMeta.fsaVineRegisterRef).trim() === "" ||
+    !farmMeta.fsaWineProductionRef || String(farmMeta.fsaWineProductionRef).trim() === "" ||
+    !farmMeta.appaRef || String(farmMeta.appaRef).trim() === "" ||
+    !farmMeta.winegbMembershipNumber || String(farmMeta.winegbMembershipNumber).trim() === ""
+  );
+  const printRegister = () => {
+    if (isFsaIncomplete) {
+      setPrintFsaWarnOpen(true);
+      return;
+    }
+    printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta);
+  };
   const organicMissingFields = farmMeta
     ? [
         !farmMeta.name && "Company / farm name",
@@ -233,7 +247,7 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
               }} title="Open your email client with a pre-filled organic wine production register ready to send to your certifying body or advisor">
                 <Mail className="h-3.5 w-3.5 mr-1.5" />Email Register
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta)}>
+              <Button variant="outline" size="sm" onClick={printRegister}>
                 <Printer className="h-3.5 w-3.5 mr-1.5" />Print Register
               </Button>
             </>
@@ -482,11 +496,33 @@ export function WineProductionTab({ farmId }: { farmId: number }) {
             Use <span className="font-medium">Print Register</span> to produce a complete record with no character limit.
           </p>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta); }}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); printRegister(); }}>
               <Printer className="w-4 h-4 mr-1" />Print instead
             </Button>
             <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setEmailTruncatedOpen(false); window.location.href = pendingMailtoHref; setPendingMailtoHref(""); }}>
               <Mail className="w-4 h-4 mr-1" />Open email anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print — FSA/APPA refs incomplete soft-warn dialog */}
+      <Dialog open={printFsaWarnOpen} onOpenChange={o => { if (!o) setPrintFsaWarnOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Registration refs incomplete
+            </DialogTitle>
+            <DialogDescription>
+              Some FSA / APPA / WineGB reference numbers are missing. They will appear blank in the printed register. You can still print now and add them later.
+            </DialogDescription>
+          </DialogHeader>
+          <FsaCompletenessBar farmId={farmId} />
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setPrintFsaWarnOpen(false)}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => { setPrintFsaWarnOpen(false); printOrganicWineRecords(records, farmName ?? `Farm ${farmId}`, farmMeta); }}>
+              <Printer className="w-4 h-4 mr-1" />Print anyway
             </Button>
           </DialogFooter>
         </DialogContent>
