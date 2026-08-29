@@ -884,6 +884,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const uri = photo?.downloadUrl ?? null;
   const caption = photo?.caption ?? null;
   const hasMultiple = photos.length > 1;
+  const retryBusy = reloading || autoRetryPending;
 
   // Auto-retry once when a presigned image URL expires.  If the refresh does
   // not replace the URL, the existing manual "Tap to reload" fallback remains.
@@ -1014,9 +1015,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {/* Zoomable image */}
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
-            {reloading || autoRetryPending ? (
-              <ActivityIndicator size="large" color="#fff" />
-            ) : uri ? (
+            {uri ? (
               (() => {
                 // Reset error flag whenever the URI changes (new photo navigated to,
                 // or URLs refreshed after a successful reload).
@@ -1026,20 +1025,34 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
                 }
                 return imgError ? (
                   <Pressable
-                    style={styles.lbRetryContainer}
+                    style={[
+                      styles.lbRetryContainer,
+                      retryBusy && styles.lbRetryContainerDisabled,
+                    ]}
                     onPress={onReload}
                     hitSlop={16}
+                    disabled={retryBusy}
                   >
-                    <Feather name="refresh-cw" size={36} color="rgba(255,255,255,0.85)" />
-                    <Text style={styles.lbRetryText}>Tap to reload</Text>
+                    {retryBusy ? (
+                      <ActivityIndicator size="large" color="#fff" />
+                    ) : (
+                      <>
+                        <Feather name="refresh-cw" size={36} color="rgba(255,255,255,0.85)" />
+                        <Text style={styles.lbRetryText}>Tap to reload</Text>
+                      </>
+                    )}
                   </Pressable>
                 ) : (
-                  <Image
-                    source={{ uri }}
-                    style={styles.lbImage}
-                    resizeMode="contain"
-                    onError={() => setImgError(true)}
-                  />
+                  retryBusy ? (
+                    <ActivityIndicator size="large" color="#fff" />
+                  ) : (
+                    <Image
+                      source={{ uri }}
+                      style={styles.lbImage}
+                      resizeMode="contain"
+                      onError={() => setImgError(true)}
+                    />
+                  )
                 );
               })()
             ) : (
@@ -2231,6 +2244,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
+  },
+  lbRetryContainerDisabled: {
+    opacity: 0.8,
   },
   lbRetryText: {
     color: "rgba(255,255,255,0.85)",
