@@ -112,32 +112,4 @@ describe("organic input offline edit sync", () => {
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     );
   });
-
-  it.each([402, 403])(
-    "clears a queued module-gated record when the server responds with %s",
-    async (status) => {
-      mockGetPendingSyncItems.mockResolvedValue([{
-        id: `queue-${status}`,
-        record_type: "bde_biofuel_field_declarations",
-        record_id: "record-1",
-        data_json: JSON.stringify({
-          farmId: "farm-7",
-          fieldId: 12,
-          eligible: true,
-        }),
-        retry_count: 4,
-      }]);
-      const fetchMock = jest.fn().mockResolvedValue({ ok: false, status });
-      global.fetch = fetchMock as typeof fetch;
-
-      await triggerManualSync();
-
-      expect(fetchMock).toHaveBeenCalled();
-      expect(mockMarkSyncItemCompletedIfUnchanged).toHaveBeenCalledWith(
-        `queue-${status}`,
-        expect.any(String),
-      );
-      expect(mockMarkSyncItemFailedIfUnchanged).not.toHaveBeenCalled();
-    },
-  );
 });

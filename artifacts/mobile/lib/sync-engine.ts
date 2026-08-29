@@ -744,12 +744,6 @@ async function uploadSyncItem(item: {
   });
 
   if (!response.ok) {
-    // A 402/403 from a module-gated endpoint means this farm cannot accept
-    // this record. Treat it like the module guards above: complete the local
-    // queue item so it does not keep retrying and leave a permanent badge.
-    if (response.status === 402 || response.status === 403) {
-      return {};
-    }
     throw new Error(`Server responded with ${response.status}`);
   }
   if (discardPendingOrganicInput && hasPendingOrganicServerId) {
