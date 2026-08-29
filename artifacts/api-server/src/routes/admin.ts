@@ -1214,8 +1214,34 @@ router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: 
     return;
   }
 
+  const hasContactFields = contactName !== undefined || contactEmail !== undefined || contactPhone !== undefined;
+  const [existingTenant] = hasContactFields
+    ? await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId)).limit(1)
+    : [undefined];
+  if (hasContactFields && !existingTenant) {
+    res.status(404).json({ error: "Tenant not found" });
+    return;
+  }
+
   const [updated] = await db.update(tenantsTable).set(updates).where(eq(tenantsTable.id, tenantId)).returning();
   if (!updated) { res.status(404).json({ error: "Tenant not found" }); return; }
+
+  if (existingTenant) {
+    const contactChanges = {
+      contactName: { previous: existingTenant.name, new: updated.name },
+      contactEmail: { previous: existingTenant.contactEmail, new: updated.contactEmail },
+      contactPhone: { previous: existingTenant.contactPhone ?? null, new: updated.contactPhone ?? null },
+    };
+    const contactChanged =
+      contactChanges.contactName.previous !== contactChanges.contactName.new ||
+      contactChanges.contactEmail.previous !== contactChanges.contactEmail.new ||
+      contactChanges.contactPhone.previous !== contactChanges.contactPhone.new;
+
+    if (contactChanged) {
+      await writeAuditLog(req.userId!, "tenant_contact_update", contactChanges, tenantId);
+    }
+  }
+
   res.json({ tenant: updated });
 });
 
