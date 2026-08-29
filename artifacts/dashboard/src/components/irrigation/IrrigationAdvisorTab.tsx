@@ -888,6 +888,10 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
     return [...historical, ...projected];
   }, [smdSeries, data, todaySmd, todayEtC, fieldCapacity]);
 
+  // Chart categories use MM-DD, so keep the marker in the same format as the
+  // historical and projected points rather than relying on a fixed index.
+  const todayChartDate = new Date().toISOString().slice(5, 10);
+
   const statusStyle = statusColour[smdStatus];
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -1157,6 +1161,14 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                       if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
                       return [`${Number(val).toFixed(2)} mm`, "ETc"];
                     }}
+                  />
+                  {/* Mark the boundary between historical data and projection. */}
+                  <ReferenceLine
+                    x={todayChartDate}
+                    stroke="#64748b"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                    label={{ value: "Today", position: "insideTop", fontSize: 10, fill: "#64748b" }}
                   />
                   {/* Critical threshold line */}
                   <ReferenceLine
