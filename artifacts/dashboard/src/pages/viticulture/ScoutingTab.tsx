@@ -731,7 +731,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       />}
 
       {/* View Dialog */}
-      <Dialog open={!!viewing} onOpenChange={o => { if (!o) setViewing(null); }}>
+      <Dialog open={!!viewing} onOpenChange={o => {
+        if (!o) {
+          setViewing(null);
+          setEditingCaptionPhotoId(null);
+          setCaptionEditValue("");
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Disease Scouting Record</DialogTitle></DialogHeader>
           {viewing && (
@@ -783,6 +789,80 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                             onError={e => { (e.target as HTMLImageElement).style.opacity = "0.3"; }}
                           />
                         </button>
+                        {editingCaptionPhotoId === (ph.id as number) ? (
+                          <div className="mt-1 space-y-1" onClick={e => e.stopPropagation()}>
+                            <Input
+                              value={captionEditValue}
+                              onChange={e => setCaptionEditValue(e.target.value)}
+                              placeholder="Add a caption…"
+                              aria-label={`Caption for ${String(ph.fileName ?? "photo")}`}
+                              className="h-7 w-full px-1.5 text-[10px]"
+                              autoFocus
+                              disabled={updateCaptionMutation.isPending}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  updateCaptionMutation.mutate({
+                                    scoutingId: viewing.id as number,
+                                    photoId: ph.id as number,
+                                    caption: captionEditValue,
+                                  });
+                                }
+                                if (e.key === "Escape") {
+                                  setEditingCaptionPhotoId(null);
+                                  setCaptionEditValue("");
+                                }
+                              }}
+                            />
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="sm"
+                                className="h-6 px-1.5 text-[10px]"
+                                onClick={() => updateCaptionMutation.mutate({
+                                  scoutingId: viewing.id as number,
+                                  photoId: ph.id as number,
+                                  caption: captionEditValue,
+                                })}
+                                disabled={updateCaptionMutation.isPending}
+                              >
+                                {updateCaptionMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-1.5 text-[10px]"
+                                onClick={() => {
+                                  setEditingCaptionPhotoId(null);
+                                  setCaptionEditValue("");
+                                }}
+                                disabled={updateCaptionMutation.isPending}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex items-start justify-center gap-0.5">
+                            <p
+                              className={`min-w-0 text-[10px] leading-tight text-center break-words ${ph.caption ? "text-muted-foreground italic" : "text-muted-foreground/50"}`}
+                              title={ph.caption ? String(ph.caption) : undefined}
+                            >
+                              {ph.caption ? String(ph.caption) : "No caption"}
+                            </p>
+                            <button
+                              type="button"
+                              title="Edit caption"
+                              aria-label={`Edit caption for ${String(ph.fileName ?? "photo")}`}
+                              onClick={() => {
+                                setEditingCaptionPhotoId(ph.id as number);
+                                setCaptionEditValue(String(ph.caption ?? ""));
+                              }}
+                              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        )}
                         {/* Cover badge (always visible when this is the cover) */}
                         {!!ph.isCover && (
                           <span className="absolute bottom-0.5 left-0.5 rounded-full bg-amber-500/90 text-white p-0.5 pointer-events-none">
