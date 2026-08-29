@@ -15,6 +15,7 @@
  *   7. Both chevrons visible when navigating in the middle
  *   8. Counter text always reflects current position
  *   9. Share / Delete target the currently displayed photo, not the tapped one
+ *  11. Auto-retry schedules at most one timer per photo view
  */
 
 import {
@@ -24,6 +25,7 @@ import {
   showCounter,
   counterText,
   currentPhotoId,
+  scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
 } from "../lib/scoutingLightboxHelpers";
 
@@ -257,5 +259,44 @@ describe("updatePhotoCaption — caption save while the lightbox navigates", () 
       { id: 202, caption: "Second photo" },
       { id: 303, caption: "Third photo" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Auto-retry is limited to one attempt per photo view
+// ---------------------------------------------------------------------------
+
+describe("scheduleScoutingPhotoAutoRetry", () => {
+  it("does not schedule a second timer when the first retry also fails", async () => {
+    const autoRetried = { current: false };
+    const scheduledCallbacks: Array<() => void | Promise<void>> = [];
+    const schedule = jest.fn(
+      (
+        callback: () => void | Promise<void>,
+        _delayMs: number,
+      ) => {
+        scheduledCallbacks.push(callback);
+        return 1 as ReturnType<typeof setTimeout>;
+      },
+    );
+    const retry = jest.fn().mockRejectedValue(new Error("presigned URL expired"));
+
+    expect(
+      scheduleScoutingPhotoAutoRetry(autoRetried, schedule, retry),
+    ).not.toBeNull();
+    expect(autoRetried.current).toBe(true);
+    expect(schedule).toHaveBeenCalledTimes(1);
+    expect(schedule).toHaveBeenLastCalledWith(expect.any(Function), 2000);
+
+    // Simulate the first timer firing and the URL refresh failing. The
+    // component keeps autoRetried.current set for the rest of this view.
+    await expect(scheduledCallbacks[0]()).rejects.toThrow(
+      "presigned URL expired",
+    );
+
+    expect(
+      scheduleScoutingPhotoAutoRetry(autoRetried, schedule, retry),
+    ).toBeNull();
+    expect(schedule).toHaveBeenCalledTimes(1);
   });
 });

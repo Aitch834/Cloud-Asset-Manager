@@ -58,6 +58,25 @@ export function currentPhotoId(
 }
 
 /**
+ * Claim the one automatic retry allowed for a photo view and schedule it.
+ * Returns null when a retry has already been claimed, even if the first
+ * scheduled attempt subsequently fails.
+ */
+export function scheduleScoutingPhotoAutoRetry(
+  autoRetried: { current: boolean },
+  schedule: (
+    callback: () => void | Promise<void>,
+    delayMs: number,
+  ) => ReturnType<typeof setTimeout>,
+  callback: () => void | Promise<void>,
+  delayMs = 2000,
+): ReturnType<typeof setTimeout> | null {
+  if (autoRetried.current) return null;
+  autoRetried.current = true;
+  return schedule(callback, delayMs);
+}
+
+/**
  * Apply a caption save to the matching photo without relying on its array
  * position.  The lightbox index can change while the PATCH is in flight, so
  * caption updates must follow the stable photo ID rather than the current

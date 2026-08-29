@@ -34,7 +34,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
-import { updatePhotoCaption } from "@/lib/scoutingLightboxHelpers";
+import {
+  scheduleScoutingPhotoAutoRetry,
+  updatePhotoCaption,
+} from "@/lib/scoutingLightboxHelpers";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -265,9 +268,8 @@ export function ScoutingPhotoLightbox({
   // if it fails the "Tap to reload" UI appears as the manual fallback.
   useEffect(() => {
     if (!imgError || !onReload || !photo || autoRetried.current) return;
-    autoRetried.current = true;
     setAutoRetryPending(true);
-    autoRetryTimer.current = setTimeout(async () => {
+    const timer = scheduleScoutingPhotoAutoRetry(autoRetried, setTimeout, async () => {
       autoRetryTimer.current = null;
       setAutoRetryPending(false);
       setReloading(true);
@@ -276,7 +278,8 @@ export function ScoutingPhotoLightbox({
       } finally {
         setReloading(false);
       }
-    }, 2000);
+    });
+    autoRetryTimer.current = timer;
     return () => {
       if (autoRetryTimer.current !== null) {
         clearTimeout(autoRetryTimer.current);
