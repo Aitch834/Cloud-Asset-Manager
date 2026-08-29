@@ -59,6 +59,34 @@ type Phenology = Record<string, unknown>;
 
 type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
 
+export type StoredOffer = { surveyName: string; label: string; surveyKey: WinegbSurveyKey; year: number };
+
+export function readStoredOffers(farmId: number): StoredOffer[] {
+  const prefix = `winegb-offer:${farmId}:`;
+  const currentYear = new Date().getFullYear();
+  const results: StoredOffer[] = [];
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          try {
+            const offer = JSON.parse(raw) as StoredOffer;
+            if (currentYear > offer.year) {
+              // Stale — from a previous season (more than 12 months in the past); discard silently
+              localStorage.removeItem(k);
+            } else {
+              results.push(offer);
+            }
+          } catch { localStorage.removeItem(k ?? ""); }
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return results;
+}
+
 // Maps BBCH stage codes to WineGB's five seasonal vineyard surveys.
 // surveyKey matches the WinegbSurveyKey union (null = no matching checklist entry).
 const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string; surveyKey: WinegbSurveyKey | null }> = {
@@ -268,7 +296,6 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   const [dismissedSurveys, setDismissedSurveys] = useState<Set<string>>(new Set());
 
   // ── localStorage helpers for persisted survey offer ────────────────────────
-  type StoredOffer = { surveyName: string; label: string; surveyKey: WinegbSurveyKey; year: number };
   const lsOfferKey = (surveyKey: WinegbSurveyKey, year: number) => `winegb-offer:${farmId}:${surveyKey}:${year}`;
 
   const writeStoredOffer = (offer: StoredOffer) => {
@@ -276,31 +303,6 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
   };
   const clearStoredOffer = (surveyKey: WinegbSurveyKey, year: number) => {
     try { localStorage.removeItem(lsOfferKey(surveyKey, year)); } catch { /* ignore */ }
-  };
-  const readStoredOffers = (): StoredOffer[] => {
-    const prefix = `winegb-offer:${farmId}:`;
-    const currentYear = new Date().getFullYear();
-    const results: StoredOffer[] = [];
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(prefix)) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            try {
-              const offer = JSON.parse(raw) as StoredOffer;
-              if (currentYear > offer.year) {
-                // Stale — from a previous season (more than 12 months in the past); discard silently
-                localStorage.removeItem(k);
-              } else {
-                results.push(offer);
-              }
-            } catch { localStorage.removeItem(k ?? ""); }
-          }
-        }
-      }
-    } catch { /* ignore */ }
-    return results;
   };
   const [raiseTaskFor, setRaiseTaskFor] = useState<Phenology | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
@@ -363,7 +365,7 @@ export function PhenologyTab({ farmId, blocks, highlightBlockId, onNavigate, req
 
   // ── Restore all persisted survey offers on mount ─────────────────────────
   useEffect(() => {
-    const offers = readStoredOffers();
+    const offers = readStoredOffers(farmId);
     if (offers.length) setWinegbSurveyBanners(offers);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farmId]);
