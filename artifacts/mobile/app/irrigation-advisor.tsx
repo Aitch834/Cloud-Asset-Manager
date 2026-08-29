@@ -298,6 +298,20 @@ const STATUS_STYLE: Record<SmdStatus, { bg: string; border: string; text: string
   "Critical":     { bg: "#fef2f2", border: "#fecaca", text: "#b91c1c", dot: "#ef4444", desc: "Deficit exceeds threshold — crop likely under stress." },
 };
 
+function formatRelativeUpdatedAt(timestamp: number, now = Date.now()): string {
+  const ageSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (ageSeconds < 60) return "Updated just now";
+
+  const ageMinutes = Math.floor(ageSeconds / 60);
+  if (ageMinutes < 60) return `Updated ${ageMinutes} min ago`;
+
+  const ageHours = Math.floor(ageMinutes / 60);
+  if (ageHours < 24) return `Updated ${ageHours} hr${ageHours === 1 ? "" : "s"} ago`;
+
+  const ageDays = Math.floor(ageHours / 24);
+  return `Updated ${ageDays} day${ageDays === 1 ? "" : "s"} ago`;
+}
+
 // ─── Log Application Modal ────────────────────────────────────────────────────
 
 const METHODS = [
@@ -621,6 +635,8 @@ export default function IrrigationAdvisorScreen() {
   // setState bail-out behaviour (React bails out of setState(same value)).
   const [reloadToken, setReloadToken] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
 
   // ── Cost defaults ────────────────────────────────────────────────────────
   const [costPerMmHa, setCostPerMmHa] = useState("3.50");
@@ -668,10 +684,19 @@ export default function IrrigationAdvisorScreen() {
             setExpectedRainfall("5");
           }
         }
+        setLastUpdatedAt(Date.now());
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load advisor data"))
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, [farmId, selectedFieldId, reloadToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (lastUpdatedAt === null || refreshing) return;
+
+    setRelativeTimeNow(Date.now());
+    const intervalId = setInterval(() => setRelativeTimeNow(Date.now()), 60_000);
+    return () => clearInterval(intervalId);
+  }, [lastUpdatedAt, refreshing]);
 
   const handleRefresh = () => { setRefreshing(true); setError(""); setReloadToken(t => t + 1); };
 
@@ -767,6 +792,11 @@ export default function IrrigationAdvisorScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Irrigation Advisor</Text>
           {currentFarm?.name ? <Text style={styles.headerSub}>{currentFarm.name}</Text> : null}
+          {lastUpdatedAt !== null && !loading && !refreshing ? (
+            <Text style={styles.updatedLabel}>
+              {formatRelativeUpdatedAt(lastUpdatedAt, relativeTimeNow)}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -1031,6 +1061,7 @@ const styles = StyleSheet.create({
   backBtn: { marginRight: spacing.sm, padding: 4 },
   headerTitle: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   headerSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  updatedLabel: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: 2 },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   emptyText: { fontFamily: fonts.regular, fontSize: fontSize.sm, color: colors.textSecondary, textAlign: "center" },
