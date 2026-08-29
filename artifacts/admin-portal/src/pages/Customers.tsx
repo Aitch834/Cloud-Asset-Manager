@@ -7,8 +7,9 @@ import { Search, ChevronRight, CheckCircle, XCircle, Building2, TrendingDown } f
 type Filter = "all" | "active" | "churned";
 
 export default function Customers() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedTenants = api.getCachedTenants();
+  const [tenants, setTenants] = useState<Tenant[]>(() => cachedTenants ?? []);
+  const [loading, setLoading] = useState(() => cachedTenants === null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const secret = getSecret()!;

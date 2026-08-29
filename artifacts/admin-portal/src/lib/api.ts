@@ -125,6 +125,9 @@ export interface Tenant {
   createdAt: string;
 }
 
+let tenantListCache: Tenant[] | null = null;
+let tenantListCacheRevision = 0;
+
 export interface Farm {
   id: number;
   tenantId: number;
@@ -377,8 +380,16 @@ export const api = {
   runSql: (query: string, limit: number, secret: string) =>
     post<SqlResult>("/admin/sql", { query, limit }, secret),
 
-  getTenants: (secret: string) =>
-    get<{ tenants: Tenant[] }>("/admin/tenants", secret),
+  getTenants: async (secret: string) => {
+    const requestRevision = tenantListCacheRevision;
+    const result = await get<{ tenants: Tenant[] }>("/admin/tenants", secret);
+    if (requestRevision === tenantListCacheRevision) {
+      tenantListCache = result.tenants;
+    }
+    return result;
+  },
+
+  getCachedTenants: () => tenantListCache ? [...tenantListCache] : null,
 
   getTenantDetail: (id: number, secret: string) =>
     get<{ tenant: Tenant; farms: Farm[]; subscriptions: Subscription[]; users: TenantUser[] }>(
@@ -507,8 +518,16 @@ export const api = {
   updateLead: (id: number, data: { status?: string; notes?: string; source?: string; sector?: string | null }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
 
-  updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) =>
-    patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret),
+  updateTenant: async (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) => {
+    const result = await patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret);
+    tenantListCacheRevision += 1;
+    if (tenantListCache) {
+      tenantListCache = tenantListCache.map((tenant) =>
+        tenant.id === result.tenant.id ? result.tenant : tenant
+      );
+    }
+    return result;
+  },
 
   updateFarm: (tenantId: number, farmId: number, data: { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null; emergencyContactPhone?: string | null }, secret: string) =>
     patch<{ farm: Farm }>(`/admin/tenants/${tenantId}/farms/${farmId}`, data, secret),
