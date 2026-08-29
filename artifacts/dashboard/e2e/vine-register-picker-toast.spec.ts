@@ -35,9 +35,12 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import { clerk } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -51,12 +54,12 @@ const FARM_ID = 5; // Highfield Vineyard — has viticulture module
  */
 const VINE_VARIETY = `E2E-1267-${Date.now()}`;
 
-/** Clerk user ID written by global-setup.ts */
-function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
-  if (!fs.existsSync(stateFile))
-    throw new Error("global-setup did not run — .test-user-id missing");
-  return fs.readFileSync(stateFile, "utf-8").trim();
+/** Clerk test-user email written by global-setup.ts. */
+function getTestUserEmail(): string {
+  const emailFile = path.join(__dirname, ".test-user-email");
+  if (!fs.existsSync(emailFile))
+    throw new Error("global-setup did not run — .test-user-email missing");
+  return fs.readFileSync(emailFile, "utf-8").trim();
 }
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -87,13 +90,21 @@ async function apiDelete(url: string): Promise<void> {
   if (!res.ok) throw new Error(`DELETE ${url} → ${res.status}`);
 }
 
+async function apiGet(url: string): Promise<Record<string, unknown>> {
+  const res = await fetch(url, {
+    headers: { "x-dev-bypass": DEV_BYPASS, "x-tenant-slug": TENANT_SLUG },
+  });
+  if (!res.ok) throw new Error(`GET ${url} → ${res.status}: ${await res.text()}`);
+  return res.json() as Promise<Record<string, unknown>>;
+}
+
 /** Create a minimal vineyard block and return its id. */
 async function createBlock(blockName: string): Promise<number> {
-  const { block } = await apiPost(
+  const { record } = await apiPost(
     `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
     { blockName, variety: "Chardonnay" },
-  ) as { block: { id: number } };
-  return block.id;
+  ) as { record: { id: number } };
+  return record.id;
 }
 
 /** Delete a vineyard block (cascade-deletes its planting record). */
@@ -103,11 +114,25 @@ async function deleteBlock(blockId: number): Promise<void> {
 
 /** Create a vine-register entry linked to a block and return its id. */
 async function createVineRegisterEntry(blockId: number): Promise<number> {
-  const { record } = await apiPost(
-    `${apiBase()}/api/farms/${FARM_ID}/vine-register`,
-    { registeredVariety: VINE_VARIETY, blockId, registeredAreaHa: "0.10" },
-  ) as { record: { id: number } };
-  return record.id;
+  const url = `${apiBase()}/api/farms/${FARM_ID}/vine-register`;
+  const body = { registeredVariety: VINE_VARIETY, blockId, registeredAreaHa: "0.10" };
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const { record } = await apiPost(url, body) as { record: { id: number } };
+      for (let readAttempt = 1; readAttempt <= 10; readAttempt += 1) {
+        const { records } = await apiGet(url) as { records: Array<{ id: number }> };
+        if (records.some(candidate => candidate.id === record.id)) return record.id;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      throw new Error(`Created vine-register entry ${record.id} was not readable`);
+    } catch (error) {
+      if (attempt === 3 || !String(error).includes("→ 500")) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+
+  throw new Error("Failed to create vine-register entry");
 }
 
 /** Delete a vine-register entry. */
@@ -120,6 +145,7 @@ async function deleteVineRegisterEntry(entryId: number): Promise<void> {
 async function navigateToVineRegisterTab(page: import("@playwright/test").Page) {
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
+  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
 
   // Seed localStorage so the Zustand store pre-selects Highfield Vineyard.
   await page.evaluate(([slug, farmId]) => {
@@ -133,20 +159,38 @@ async function navigateToVineRegisterTab(page: import("@playwright/test").Page) 
   // Hard-reload so the patched fetch + Zustand hydration pick up seeded state.
   await page.reload({ waitUntil: "networkidle" });
 
-  // Navigate to the Viticulture section.
-  await page.getByRole("link", { name: /viticulture/i }).click();
+  // Navigate directly after authentication so sidebar rendering cannot race
+  // the module-subscription request.
+  await page.goto("/dashboard/viticulture");
   await page.waitForLoadState("networkidle");
 
   // Click the "Vine Register" sub-tab if it is not already active.
-  const vineRegTab = page.getByRole("button", { name: /vine register/i });
+  const vineRegTab = page.getByRole("button", { name: "Vine Register", exact: true });
   if (await vineRegTab.isVisible({ timeout: 5_000 })) await vineRegTab.click();
 
   // Reload so the API-injected seed row appears in the query cache.
   await page.reload({ waitUntil: "networkidle" });
 
   // Re-click the sub-tab after the reload.
-  const vineRegTab2 = page.getByRole("button", { name: /vine register/i });
+  const vineRegTab2 = page.getByRole("button", { name: "Vine Register", exact: true });
   if (await vineRegTab2.isVisible({ timeout: 5_000 })) await vineRegTab2.click();
+}
+
+async function findSeededRow(page: import("@playwright/test").Page) {
+  const row = page.locator("tr", { hasText: VINE_VARIETY });
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (await row.isVisible({ timeout: 5_000 }).catch(() => false)) return row;
+    await page.reload({ waitUntil: "networkidle" });
+    const vineRegTab = page.getByRole("button", { name: "Vine Register", exact: true });
+    if (await vineRegTab.isVisible({ timeout: 5_000 }).catch(() => false)) await vineRegTab.click();
+  }
+
+  await expect(row).toBeVisible({
+    timeout: 5_000,
+    message: "Seeded vine-register row must appear after refreshing the target tab",
+  });
+  return row;
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -160,8 +204,6 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
    * branch condition is inverted, this test will fail.
    */
   test("A — dismiss View dialog fires 'Block selection still pending' toast", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
-
     // ── Seed: two blocks + one vine-register row linked to block A ──────────
     const blockAId = await createBlock(`E2E-1267-A-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-B-${Date.now()}`);
@@ -171,8 +213,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       await navigateToVineRegisterTab(page);
 
       // ── Find the seeded row in the table ────────────────────────────────
-      const row = page.locator("tr", { hasText: VINE_VARIETY });
-      await expect(row).toBeVisible({ timeout: 15_000 });
+      const row = await findSeededRow(page);
 
       // ── Open the inline block-change picker ──────────────────────────────
       // The ArrowLeftRight button is opacity-0 until hovered; use force:true.
@@ -185,23 +226,21 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
         message: "Inline block-change picker must appear after clicking ArrowLeftRight",
       });
 
-      // ── Open the View dialog via the Eye button (first icon button in row) ─
-      // The Eye button is the first size="icon" button rendered by DataTable.
-      // It comes before the Edit and Delete buttons.
-      const eyeBtn = row.locator("button").first();
+      // ── Open the View dialog via the Eye button in the actions cell ────────
+      const eyeBtn = row.locator("td").last().locator("button").first();
       await eyeBtn.click();
 
-      const viewDialog = page.locator('[role="dialog"]').filter({ hasText: "Vine Register Entry" });
+      const viewDialog = page.getByRole("dialog", { name: "Vine Register Entry", exact: true });
       await expect(viewDialog).toBeVisible({
         message: "View dialog must open when the Eye button is clicked",
       });
 
       // ── Close the View dialog via its Close button ───────────────────────
-      await viewDialog.getByRole("button", { name: "Close" }).click();
+      await viewDialog.getByRole("button", { name: "Close" }).first().click();
       await expect(viewDialog).not.toBeVisible();
 
       // ── Assert the reminder toast fires ─────────────────────────────────
-      await expect(page.getByText("Block selection still pending")).toBeVisible({
+      await expect(page.getByText("Block selection still pending", { exact: true })).toBeVisible({
         timeout: 4_000,
         message: "Toast must fire when the View dialog is dismissed while the picker is active",
       });
@@ -221,8 +260,6 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
    * on View-close (wrong path) instead of Edit-close (correct path).
    */
   test("B — View→Edit flow: no toast on View-close, toast fires on Edit-close", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
-
     // ── Seed ─────────────────────────────────────────────────────────────────
     const blockAId = await createBlock(`E2E-1267-C-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-D-${Date.now()}`);
@@ -231,8 +268,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
     try {
       await navigateToVineRegisterTab(page);
 
-      const row = page.locator("tr", { hasText: VINE_VARIETY });
-      await expect(row).toBeVisible({ timeout: 15_000 });
+      const row = await findSeededRow(page);
 
       // ── Open the inline block-change picker ──────────────────────────────
       const changeBlockBtn = row.getByTitle("Change block link");
@@ -244,10 +280,10 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       });
 
       // ── Open the View dialog ─────────────────────────────────────────────
-      const eyeBtn = row.locator("button").first();
+      const eyeBtn = row.locator("td").last().locator("button").first();
       await eyeBtn.click();
 
-      const viewDialog = page.locator('[role="dialog"]').filter({ hasText: "Vine Register Entry" });
+      const viewDialog = page.getByRole("dialog", { name: "Vine Register Entry", exact: true });
       await expect(viewDialog).toBeVisible({
         message: "View dialog must open when the Eye button is clicked",
       });
@@ -264,14 +300,15 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       // ── Assert NO toast fires while View closes / Edit opens ──────────────
       // Give React one render cycle to settle before checking.
       await page.waitForTimeout(500);
-      await expect(page.getByText("Block selection still pending")).not.toBeVisible({
+      await expect(page.getByText("Block selection still pending", { exact: true })).not.toBeVisible({
         message: "Toast must NOT fire when View dialog closes via the Edit button",
       });
 
       // ── Edit dialog must now be open ─────────────────────────────────────
-      const editDialog = page
-        .locator('[role="dialog"]')
-        .filter({ hasText: /Edit Vine Register Entry/i });
+      const editDialog = page.getByRole("dialog", {
+        name: "Edit Vine Register Entry",
+        exact: true,
+      });
       await expect(editDialog).toBeVisible({
         message: "Edit dialog must open after clicking Edit in the View dialog",
       });
@@ -282,7 +319,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       await expect(editDialog).not.toBeVisible();
 
       // ── Assert the reminder toast fires on Edit-close ─────────────────────
-      await expect(page.getByText("Block selection still pending")).toBeVisible({
+      await expect(page.getByText("Block selection still pending", { exact: true })).toBeVisible({
         timeout: 4_000,
         message: "Toast must fire when the Edit dialog is dismissed while the picker is active",
       });
@@ -298,8 +335,6 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
    * and the inline picker is no longer present after VineRegisterTab unmounts.
    */
   test("C — switching tabs while picker is active fires toast and clears picker", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
-
     const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
     const entryId = await createVineRegisterEntry(blockAId);
@@ -307,8 +342,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
     try {
       await navigateToVineRegisterTab(page);
 
-      const row = page.locator("tr", { hasText: VINE_VARIETY });
-      await expect(row).toBeVisible({ timeout: 15_000 });
+      const row = await findSeededRow(page);
 
       const changeBlockBtn = row.getByTitle("Change block link");
       await changeBlockBtn.click({ force: true });
@@ -320,7 +354,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
 
       await page.getByRole("button", { name: /pruning & canopy/i }).click();
 
-      await expect(page.getByText("Block selection still pending")).toBeVisible({
+      await expect(page.getByText("Block selection still pending", { exact: true })).toBeVisible({
         timeout: 4_000,
         message: "Switching viticulture tabs must remind the grower about the pending block change",
       });

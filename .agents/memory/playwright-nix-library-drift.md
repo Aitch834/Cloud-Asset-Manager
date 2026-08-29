@@ -7,4 +7,6 @@ Playwright browser downloads can advance to a build whose shared-library needs a
 
 **Why:** Installing the matching Playwright Chromium binary fixed the missing-executable error, but installing glib/nss/dbus through workspace packages still did not expose those libraries to Chromium because the launch configuration constructs its own `LD_LIBRARY_PATH`.
 
-**How to apply:** Treat this as test-infrastructure failure, not an app regression. Check the effective browser launch environment and replace stale hard-coded store paths with dynamically discovered current paths before rerunning browser specs.
+The Nix store may also contain both 32-bit and 64-bit outputs for the same library version. An existing path is not necessarily compatible with the downloaded browser.
+
+**How to apply:** Treat this as test-infrastructure failure, not an app regression. Check the effective browser launch environment and use `file -L` to verify that candidate libraries match the browser executable's ELF architecture. Replace stale or architecture-incompatible hard-coded paths with dynamically discovered current paths before rerunning browser specs.
