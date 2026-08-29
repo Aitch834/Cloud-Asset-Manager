@@ -43,3 +43,29 @@ export const WINEGB_SURVEY_MAP: Record<
   "85": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
   "89": { surveyName: "Harvest Survey", label: "harvest", surveyKey: "harvest" },
 };
+
+export function winegbPrefKey(surveyName: string, year: number): string {
+  return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
+}
+
+/**
+ * The single visibility decision used by Vine Phenology's save flow.
+ *
+ * Keeping the migration and preference checks together prevents a fast save
+ * from showing a survey prompt before the legacy preference migration settles.
+ */
+export function shouldOfferWinegbSurvey(params: {
+  stageCode: string;
+  year: number;
+  prefsReady: boolean;
+  migrationChecked: boolean;
+  isHintDismissed: (key: string) => boolean;
+}): boolean {
+  const survey = WINEGB_SURVEY_MAP[params.stageCode];
+  return Boolean(
+    survey &&
+      params.prefsReady &&
+      params.migrationChecked &&
+      !params.isHintDismissed(winegbPrefKey(survey.surveyName, params.year)),
+  );
+}

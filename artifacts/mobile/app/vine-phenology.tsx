@@ -34,7 +34,11 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
-import { WINEGB_SURVEY_MAP } from "@/lib/winegbSurveys";
+import {
+  WINEGB_SURVEY_MAP,
+  shouldOfferWinegbSurvey,
+  winegbPrefKey,
+} from "@/lib/winegbSurveys";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -67,11 +71,6 @@ const BBCH_STAGES: { code: string; desc: string; season: string }[] = [
 const seasons = Array.from(new Set(BBCH_STAGES.map(s => s.season)));
 
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
-
-// Returns the useUiPrefs key for a WineGB survey dismissal, scoped by survey name and season year.
-function winegbPrefKey(surveyName: string, year: number): string {
-  return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
-}
 
 export default function VinePhenologyScreen() {
   const insets = useSafeAreaInsets();
@@ -162,7 +161,13 @@ export default function VinePhenologyScreen() {
     // Show WineGB survey nudge for viticulture farms when a relevant BBCH stage is saved
     if (currentFarm?.sectorViticulture) {
       const survey = WINEGB_SURVEY_MAP[selectedStage.code];
-      if (survey && prefsReady && migrationChecked && !isHintDismissed(winegbPrefKey(survey.surveyName, currentSeasonYear))) {
+      if (shouldOfferWinegbSurvey({
+        stageCode: selectedStage.code,
+        year: currentSeasonYear,
+        prefsReady,
+        migrationChecked,
+        isHintDismissed,
+      })) {
         if (survey.surveyKey) {
           // This survey has a checklist entry — check if already ticked for the year,
           // then offer to mark it submitted via an Alert.

@@ -108,6 +108,7 @@ jest.mock("expo-secure-store", () => ({
 
 import { runUiPrefBatchMigration, useUiPrefs } from "../lib/hooks/useUiPrefs";
 import { useUiPrefBatchMigrationGuard } from "../lib/hooks/useUiPrefBatchMigrationGuard";
+import { shouldOfferWinegbSurvey, winegbPrefKey } from "../lib/winegbSurveys";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -142,14 +143,6 @@ function makeLegacyWinegbValue(surveyNames: string[]): string {
   return JSON.stringify(surveyNames);
 }
 
-/**
- * Returns the useUiPrefs pref key for a WineGB survey dismissal.
- * Mirrors the helper in vine-phenology.tsx.
- */
-function winegbPrefKey(surveyName: string, year: number): string {
-  return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
-}
-
 /** Returns the legacy key for a farm+year combination. */
 function winegbLegacyKey(farmId: string, year: number): string {
   return `bde_winegb_dismissed_${farmId}_${year}`;
@@ -162,6 +155,13 @@ function winegbLegacyKey(farmId: string, year: number): string {
 beforeEach(() => {
   jest.clearAllMocks();
   asyncStore.clear();
+  mockGetItem.mockImplementation(async (key: string) => asyncStore.get(key) ?? null);
+  mockSetItem.mockImplementation(async (key: string, value: string) => {
+    asyncStore.set(key, value);
+  });
+  mockRemoveItem.mockImplementation(async (key: string) => {
+    asyncStore.delete(key);
+  });
 
   mockEffects.length = 0;
   mockSlots.length = 0;
@@ -170,10 +170,10 @@ beforeEach(() => {
   mockApiFetch.mockResolvedValue(makeServerResponse({}));
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // 1. runUiPrefBatchMigration — absent path (no legacy WineGB key)
 //    Typical path: grower never had the old key, or it was already migrated.
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe("runUiPrefBatchMigration — absent (no legacy WineGB key)", () => {
   const YEAR = 2026;
@@ -253,11 +253,11 @@ describe("runUiPrefBatchMigration — absent (no legacy WineGB key)", () => {
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // 2. runUiPrefBatchMigration — promoted path
 //    Grower dismissed one or more WineGB surveys under the old key format.
 //    Each survey name must be promoted to a separate useUiPrefs key.
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe("runUiPrefBatchMigration — promoted (valid WineGB legacy entry found)", () => {
   const YEAR         = 2026;
@@ -347,10 +347,10 @@ describe("runUiPrefBatchMigration — promoted (valid WineGB legacy entry found)
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // 3. runUiPrefBatchMigration — retry path (AsyncStorage write fails)
 //    The legacy key must be retained so the migration retries next mount.
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
   const YEAR = 2026;
@@ -377,7 +377,7 @@ describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // 4. Shared hook guard — banner stays hidden during the async window
 //
 // The hook computes:
@@ -386,7 +386,7 @@ describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
 //
 // Before the migration promise resolves, `migrationChecked` is false, so
 // `showBanner` is false regardless of prefsReady — banner stays hidden.
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe("useUiPrefBatchMigrationGuard — conservative hide during async migration window", () => {
   const YEAR = 2026;
@@ -418,24 +418,140 @@ describe("useUiPrefBatchMigrationGuard — conservative hide during async migrat
     };
   }
 
-  it("migrationChecked is false before migration promise resolves (conservative hide)", async () => {
+  function makeHandleSave(params: {
+    stageCode: string;
+    year: number;
+    prefsReady: boolean;
+    migrationChecked: boolean;
+    isHintDismissed: (key: string) => boolean;
+  }): () => Promise<boolean> {
+    return async () => {
+      // Represents the fast appendToList + refreshPendingCount portion of save.
+      await Promise.resolve();
+      return shouldOfferWinegbSurvey(params);
+    };
+  }
+
+  function startDeferredMigration(params: {
+    userId: string;
+    farmId: string;
+    legacyValue: string | null;
+  }): {
+    initialMigrationChecked: boolean;
+    release: () => void;
+  } {
+    const legacyKey = winegbLegacyKey(params.farmId, YEAR);
+    let releaseLegacyRead!: () => void;
+    const legacyRead = new Promise<void>((resolve) => {
+      releaseLegacyRead = resolve;
+    });
+
+    mockGetItem.mockImplementation(async (key: string) => {
+      if (key === legacyKey) {
+        await legacyRead;
+        return params.legacyValue;
+      }
+      return asyncStore.get(key) ?? null;
+    });
+
+    const firstRender = renderGuard({
+      userId: params.userId,
+      farmId: params.farmId,
+    });
+    firstRender.runEffect();
+
+    return {
+      initialMigrationChecked: firstRender.migrationChecked,
+      release: releaseLegacyRead,
+    };
+  }
+
+  function isCachedPrefDismissed(uid: string, key: string): boolean {
+    const cacheJson = asyncStore.get(`ui_prefs_cache_${uid}`);
+    if (!cacheJson) return false;
+    const cache = JSON.parse(cacheJson) as PrefsMap;
+    return cache[key] === true;
+  }
+
+  it("does not show the banner when handleSave runs before migration resolves", async () => {
     const uid  = nextUid();
     const farm = nextFarm();
 
-    // Put a legacy key in the store so migration has real work to do.
-    asyncStore.set(
-      winegbLegacyKey(farm, YEAR),
-      makeLegacyWinegbValue(["Bud Burst Survey"]),
-    );
+    const deferred = startDeferredMigration({
+      userId: uid,
+      farmId: farm,
+      legacyValue: makeLegacyWinegbValue(["Fruit Set Survey"]),
+    });
+    await drain(4);
 
-    // Before migration runs the hook conservatively hides the banner.
-    const firstRender = renderGuard({ userId: uid, farmId: farm });
-    expect(firstRender.migrationChecked).toBe(false);
+    const handleSave = makeHandleSave({
+      stageCode: "71",
+      year: YEAR,
+      prefsReady: true,
+      migrationChecked: deferred.initialMigrationChecked,
+      isHintDismissed: (key) => isCachedPrefDismissed(uid, key),
+    });
 
-    // Run the hook effect, then render again after migration completes.
-    firstRender.runEffect();
+    await expect(handleSave()).resolves.toBe(false);
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(false);
+
+    deferred.release();
     await drain();
     expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
+  });
+
+  it("keeps a legacy Fruit Set dismissal hidden after migration completes", async () => {
+    const uid  = nextUid();
+    const farm = nextFarm();
+    const deferred = startDeferredMigration({
+      userId: uid,
+      farmId: farm,
+      legacyValue: makeLegacyWinegbValue(["Fruit Set Survey"]),
+    });
+
+    expect(deferred.initialMigrationChecked).toBe(false);
+    deferred.release();
+    await drain();
+
+    const migrationChecked = renderGuard({ userId: uid, farmId: farm }).migrationChecked;
+    expect(migrationChecked).toBe(true);
+    expect(isCachedPrefDismissed(uid, winegbPrefKey("Fruit Set Survey", YEAR))).toBe(true);
+
+    const handleSave = makeHandleSave({
+      stageCode: "71",
+      year: YEAR,
+      prefsReady: true,
+      migrationChecked,
+      isHintDismissed: (key) => isCachedPrefDismissed(uid, key),
+    });
+    await expect(handleSave()).resolves.toBe(false);
+  });
+
+  it("shows the banner on the next save after an undismissed migration", async () => {
+    const uid  = nextUid();
+    const farm = nextFarm();
+    const deferred = startDeferredMigration({
+      userId: uid,
+      farmId: farm,
+      legacyValue: null,
+    });
+
+    expect(deferred.initialMigrationChecked).toBe(false);
+    deferred.release();
+    await drain();
+
+    const migrationChecked = renderGuard({ userId: uid, farmId: farm }).migrationChecked;
+    expect(migrationChecked).toBe(true);
+    expect(isCachedPrefDismissed(uid, winegbPrefKey("Fruit Set Survey", YEAR))).toBe(false);
+
+    const handleSave = makeHandleSave({
+      stageCode: "71",
+      year: YEAR,
+      prefsReady: true,
+      migrationChecked,
+      isHintDismissed: (key) => isCachedPrefDismissed(uid, key),
+    });
+    await expect(handleSave()).resolves.toBe(true);
   });
 
   it("same-farm remount does NOT re-read AsyncStorage for the legacy key", async () => {
@@ -577,10 +693,10 @@ describe("useUiPrefBatchMigrationGuard — conservative hide during async migrat
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // 5. runUiPrefBatchMigration — waits for in-flight bootstrap before reading
 //    the legacy key (same ordering guarantee as runUiPrefMigration).
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe("runUiPrefBatchMigration — waits for active fetchPromise before reading legacy key", () => {
   const YEAR = 2026;
