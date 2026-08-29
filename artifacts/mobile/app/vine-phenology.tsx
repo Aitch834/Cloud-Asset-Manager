@@ -33,6 +33,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
+import { WINEGB_SURVEY_MAP } from "@/lib/winegbSurveys";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -63,33 +64,6 @@ const BBCH_STAGES: { code: string; desc: string; season: string }[] = [
 ];
 
 const seasons = Array.from(new Set(BBCH_STAGES.map(s => s.season)));
-
-type WinegbSurveyKey = "bud_burst" | "flowering" | "veraison" | "harvest";
-
-// Maps BBCH stage codes to WineGB's seasonal vineyard surveys.
-// surveyKey matches the server's WinegbSurveyKey (null = no checklist entry).
-const WINEGB_SURVEY_MAP: Record<string, { surveyName: string; label: string; surveyKey: WinegbSurveyKey | null }> = {
-  "05": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "07": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "09": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "11": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "13": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "15": { surveyName: "Bud Burst Survey", label: "bud burst", surveyKey: "bud_burst" },
-  "53": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "55": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "57": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "60": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "65": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "68": { surveyName: "Flowering Survey", label: "flowering", surveyKey: "flowering" },
-  "71": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
-  "73": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
-  "75": { surveyName: "Fruit Set Survey", label: "fruit set / berry development", surveyKey: null },
-  "77": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
-  "81": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
-  "83": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
-  "85": { surveyName: "Véraison Survey", label: "véraison", surveyKey: "veraison" },
-  "89": { surveyName: "Harvest Survey", label: "harvest", surveyKey: "harvest" },
-};
 
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
 

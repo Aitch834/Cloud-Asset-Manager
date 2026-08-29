@@ -38,6 +38,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
+import { WINEGB_SURVEY_KEYS } from "@/lib/winegbSurveys";
 
 interface RecentActivity {
   id: string;
@@ -269,8 +270,6 @@ export default function HomeScreen() {
       });
     } catch { /* ignore */ }
   }, [currentFarm?.id, isViticultureActive]);
-
-  const WINEGB_SURVEY_KEYS = ["bud_burst", "frost_damage", "flowering", "veraison", "harvest"] as const;
 
   const fetchWinegbSubmissions = useCallback(async () => {
     if (!currentFarm?.id || !isViticultureActive) {

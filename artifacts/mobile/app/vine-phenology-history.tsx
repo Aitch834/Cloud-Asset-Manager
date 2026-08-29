@@ -39,6 +39,11 @@ import {
   winegbYearOf,
 } from "@/lib/winegbSeasons";
 import { openExternalUrl } from "@/utils/openExternalUrl";
+import {
+  WINEGB_SURVEYS,
+  type WinegbSurvey,
+  type WinegbSurveyKey,
+} from "@/lib/winegbSurveys";
 
 /**
  * Normalise a grower-typed date to YYYY-MM-DD.
@@ -71,22 +76,7 @@ function canonicaliseDate(raw: string): string | null {
 
 // ─── WineGB Survey Panel ──────────────────────────────────────────────────────
 
-type WinegbSurveyKey = "bud_burst" | "frost_damage" | "flowering" | "veraison" | "harvest";
-
 const WINEGB_SURVEY_URL = "https://winegb.co.uk/production/vineyards-wineries/";
-interface WinegbSurvey {
-  key: WinegbSurveyKey;
-  label: string;
-  months: number[];
-}
-
-const WINEGB_SURVEYS: WinegbSurvey[] = [
-  { key: "bud_burst",    label: "Bud Burst",   months: [3, 4]    },
-  { key: "frost_damage", label: "Frost Damage", months: [3, 4, 5] },
-  { key: "flowering",    label: "Flowering",    months: [6, 7]    },
-  { key: "veraison",     label: "Véraison",     months: [8, 9]    },
-  { key: "harvest",      label: "Harvest",      months: [9, 10]   },
-];
 
 interface WinegbSubmission {
   submitted: boolean;
