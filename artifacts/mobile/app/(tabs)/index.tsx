@@ -535,6 +535,15 @@ export default function HomeScreen() {
             bgColor="#f0fdf4"
             onPress={() => router.push("/task-inbox")}
           />
+          {activeModuleKeys.includes("dairy-management") && (
+            <QuickAction
+              title="Mastitis History"
+              icon="bar-chart-2"
+              color="#2563eb"
+              bgColor="#dbeafe"
+              onPress={() => router.push("/mastitis-history")}
+            />
+          )}
           <QuickAction
             title="Spray Record"
             icon="droplet"
