@@ -29,6 +29,7 @@ import {
   Text,
   View,
 } from "react-native";
+import Svg, { Circle, G, Line, Polyline, Text as SvgText } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
@@ -38,6 +39,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
+import { buildSmdChartData, type SmdChartPoint } from "@/lib/irrigationAdvisorChart";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { scheduleSync } from "@/lib/sync-engine";
 
@@ -618,6 +620,125 @@ const fcStyles = StyleSheet.create({
   caption: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, textAlign: "center" },
 });
 
+// ─── SMD history + forecast chart ─────────────────────────────────────────────
+
+function SmdChart({
+  historical,
+  projected,
+  criticalSmd,
+  width,
+}: {
+  historical: SmdChartPoint[];
+  projected: SmdChartPoint[];
+  criticalSmd: number;
+  width: number;
+}) {
+  const CHART_HEIGHT = 184;
+  const PAD_LEFT = 32;
+  const PAD_RIGHT = 8;
+  const PAD_TOP = 14;
+  const PAD_BOTTOM = 28;
+  const plotW = Math.max(1, width - PAD_LEFT - PAD_RIGHT);
+  const plotH = CHART_HEIGHT - PAD_TOP - PAD_BOTTOM;
+  const allPoints = [...historical, ...projected];
+  const maxSmd = Math.max(...allPoints.map(point => point.smd), criticalSmd, 1);
+  const yMax = maxSmd <= 50 ? Math.ceil(maxSmd / 10) * 10 : Math.ceil(maxSmd / 25) * 25;
+  const pointX = (index: number) =>
+    PAD_LEFT + (allPoints.length > 1 ? (index / (allPoints.length - 1)) * plotW : plotW / 2);
+  const pointY = (smd: number) => PAD_TOP + plotH - (smd / yMax) * plotH;
+  const historicalPoints = historical
+    .map((point, index) => `${pointX(index)},${pointY(point.smd)}`)
+    .join(" ");
+  const projectedPoints = [historical[historical.length - 1], ...projected]
+    .map((point, index) => `${pointX(historical.length - 1 + index)},${pointY(point.smd)}`)
+    .join(" ");
+  const yTicks = [0, yMax / 2, yMax];
+
+  return (
+    <Svg width={width} height={CHART_HEIGHT}>
+      {yTicks.map(tick => {
+        const y = pointY(tick);
+        return (
+          <G key={tick}>
+            <Line x1={PAD_LEFT} y1={y} x2={PAD_LEFT + plotW} y2={y} stroke="#e2e8f0" strokeWidth={1} />
+            <SvgText x={PAD_LEFT - 5} y={y + 3.5} fontSize={9} fill="#64748b" textAnchor="end">
+              {tick}
+            </SvgText>
+          </G>
+        );
+      })}
+
+      <Line
+        x1={PAD_LEFT}
+        y1={pointY(criticalSmd)}
+        x2={PAD_LEFT + plotW}
+        y2={pointY(criticalSmd)}
+        stroke="#f97316"
+        strokeWidth={1}
+        strokeDasharray="4 3"
+      />
+      <SvgText x={PAD_LEFT + plotW - 2} y={pointY(criticalSmd) - 4} fontSize={8} fill="#c2410c" textAnchor="end">
+        Critical
+      </SvgText>
+
+      <Polyline
+        points={historicalPoints}
+        fill="none"
+        stroke="#2563eb"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {projected.length > 0 && (
+        <Polyline
+          points={projectedPoints}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+
+      <Circle
+        cx={pointX(historical.length - 1)}
+        cy={pointY(historical[historical.length - 1].smd)}
+        r={3.5}
+        fill="#2563eb"
+      />
+      {projected.map((point, index) => (
+        <Circle
+          key={point.date}
+          cx={pointX(historical.length + index)}
+          cy={pointY(point.smd)}
+          r={3}
+          fill="#dbeafe"
+          stroke="#60a5fa"
+          strokeWidth={1.5}
+        />
+      ))}
+
+      {allPoints.map((point, index) => {
+        const showLabel = index === 0 || index === historical.length - 1 || index === allPoints.length - 1;
+        if (!showLabel) return null;
+        return (
+          <SvgText
+            key={`${point.date}-label`}
+            x={pointX(index)}
+            y={PAD_TOP + plotH + 15}
+            fontSize={8}
+            fill="#64748b"
+            textAnchor="middle"
+          >
+            {point.date.slice(5)}
+          </SvgText>
+        );
+      })}
+    </Svg>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function IrrigationAdvisorScreen() {
@@ -631,6 +752,7 @@ export default function IrrigationAdvisorScreen() {
   const [error, setError] = useState("");
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null);
   const [showFieldPicker, setShowFieldPicker] = useState(false);
+  const [smdChartWidth, setSmdChartWidth] = useState(0);
   // Independent counter used to force a re-fetch on Retry without relying on
   // setState bail-out behaviour (React bails out of setState(same value)).
   const [reloadToken, setReloadToken] = useState(0);
@@ -767,6 +889,21 @@ export default function IrrigationAdvisorScreen() {
   const criticalSmd = cropProfile?.criticalSmdMm ?? 35;
   const smdStatus = getSmdStatus(currentSmd, criticalSmd);
   const statusStyle = STATUS_STYLE[smdStatus];
+  const smdChartData = useMemo(() => {
+    const historical = smdSeries.map(point => ({
+      date: point.date,
+      smd: Number(point.smd.toFixed(1)),
+    }));
+    return buildSmdChartData({
+      historical,
+      currentSmd,
+      currentDailyEtcMm,
+      fieldCapacity,
+      forecastDailyMm: data?.forecastDailyMm,
+      forecastRainfall7dMm: data?.forecastRainfall7dMm,
+      today: new Date().toISOString().slice(0, 10),
+    });
+  }, [smdSeries, data, currentSmd, currentDailyEtcMm, fieldCapacity]);
 
   function openLogModal(scenario: ScenarioResult) {
     if (!selectedField || !farmId) return;
@@ -894,6 +1031,48 @@ export default function IrrigationAdvisorScreen() {
               <Text style={styles.noStationNote}>⚠ Using UK climate normals — no weather station linked to this farm.</Text>
             )}
           </View>
+
+          {/* 30-day SMD history + 7-day projection */}
+          {smdChartData.historical.length > 0 && (
+            <View style={[styles.section, styles.smdChartCard]}>
+              <View style={styles.smdChartHeader}>
+                <Text style={styles.sectionLabel}>Soil Moisture Deficit</Text>
+                <Text style={styles.smdChartSubtitle}>
+                  {smdChartData.projected.length > 0
+                    ? "30-day history + 7-day projection"
+                    : "30-day history"}
+                </Text>
+              </View>
+              <View
+                style={styles.smdChart}
+                onLayout={event => {
+                  const nextWidth = event.nativeEvent.layout.width;
+                  if (nextWidth > 0 && nextWidth !== smdChartWidth) setSmdChartWidth(nextWidth);
+                }}
+              >
+                {smdChartWidth > 0 && (
+                  <SmdChart
+                    historical={smdChartData.historical}
+                    projected={smdChartData.projected}
+                    criticalSmd={criticalSmd}
+                    width={smdChartWidth}
+                  />
+                )}
+              </View>
+              <View style={styles.smdChartLegend}>
+                <View style={styles.smdChartLegendItem}>
+                  <View style={[styles.smdChartLegendLine, { backgroundColor: "#2563eb" }]} />
+                  <Text style={styles.smdChartLegendText}>Historical</Text>
+                </View>
+                {smdChartData.projected.length > 0 && (
+                  <View style={styles.smdChartLegendItem}>
+                    <View style={[styles.smdChartLegendLine, styles.smdChartLegendDashed]} />
+                    <Text style={styles.smdChartLegendText}>Projected (forecast rain)</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* Cost inputs */}
           <View style={styles.section}>
@@ -1091,6 +1270,15 @@ const styles = StyleSheet.create({
   smdBarLabels: { flexDirection: "row", justifyContent: "space-between" },
   smdBarLabel: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSecondary },
   noStationNote: { fontFamily: fonts.regular, fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  smdChartCard: { backgroundColor: "#fff", borderRadius: radius.lg, borderWidth: 1, borderColor: "#e2e8f0", padding: spacing.sm },
+  smdChartHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: spacing.xs },
+  smdChartSubtitle: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSecondary, textAlign: "right" },
+  smdChart: { width: "100%", height: 184, marginTop: spacing.xs },
+  smdChartLegend: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xs },
+  smdChartLegendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  smdChartLegendLine: { width: 18, height: 2, borderRadius: 1 },
+  smdChartLegendDashed: { backgroundColor: "transparent", borderTopWidth: 2, borderTopColor: "#60a5fa", borderStyle: "dashed" },
+  smdChartLegendText: { fontFamily: fonts.regular, fontSize: 10, color: colors.textSecondary },
 
   inputGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   inputCell: { width: "47%", gap: 4 },
