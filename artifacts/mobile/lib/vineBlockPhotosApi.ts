@@ -211,6 +211,52 @@ export async function executePhotoReorder(
   }
 }
 
+export interface PhotoSetCoverCallbacks {
+  setPhotos: (
+    updater: (photos: BlockPhotoRecord[]) => BlockPhotoRecord[],
+  ) => void;
+  showError: (message: string) => void;
+}
+
+/**
+ * Sets one photo as the block cover and applies the matching local state
+ * update only after the server accepts the PATCH.
+ *
+ * The callbacks keep this flow independent of React Native so a stale photo
+ * ID (for example, after another device deleted the photo) can be tested
+ * without rendering the full screen.  A failed request leaves local state
+ * untouched and reports an error to the caller.
+ */
+export async function executePhotoSetCover(
+  farmId: number | string,
+  blockId: number | string,
+  photoId: number | string,
+  callbacks: PhotoSetCoverCallbacks,
+): Promise<boolean> {
+  try {
+    const res = await apiFetch(
+      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCover: true }),
+      },
+    );
+    if (!res.ok) {
+      callbacks.showError("Could not set the cover photo. Please try again.");
+      return false;
+    }
+
+    callbacks.setPhotos((prev) =>
+      prev.map((photo) => ({ ...photo, isCover: photo.id === Number(photoId) })),
+    );
+    return true;
+  } catch {
+    callbacks.showError("Could not set the cover photo.");
+    return false;
+  }
+}
+
 export function applyPhotoUpdateIfCurrent(
   gen: number,
   getLatestGen: () => number,

@@ -45,7 +45,7 @@ import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import { buildGridDeleteMessage, buildLightboxDeleteMessage } from "@/lib/vineBlockPhotosHelpers";
-import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, executePhotoReload, applyOptimisticReorder, executePhotoReorder, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
+import { fetchBlockPhotos, applyPhotoUpdateIfCurrent, executePhotoReload, applyOptimisticReorder, executePhotoReorder, executePhotoSetCover, patchPhotoCaption } from "@/lib/vineBlockPhotosApi";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -1533,30 +1533,21 @@ export default function VineBlockPhotosScreen() {
 
   const handleSetCover = useCallback(async (photo: BlockPhoto) => {
     if (!currentFarm?.id || !selectedBlock) return;
-    try {
-      const res = await apiFetch(
-        `/api/farms/${currentFarm.id}/vineyard-blocks/${selectedBlock.id}/photos/${photo.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isCover: true }),
-        },
-      );
-      if (res.ok) {
-        // Update local photos state: clear isCover on all photos, set it on the promoted one
-        setPhotos((prev) =>
-          prev.map((p) => ({ ...p, isCover: p.id === photo.id })),
-        );
-        // Update the in-session URL cache so the block list shows the new
-        // cover thumbnail immediately when the grower navigates back, without
-        // waiting for the next background API refresh.
-        setCachedBlockCoverUrl(selectedBlock.id, photo.downloadUrl);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Alert.alert("Error", "Could not set the cover photo. Please try again.");
-      }
-    } catch {
-      Alert.alert("Error", "Could not set the cover photo.");
+    const ok = await executePhotoSetCover(
+      currentFarm.id,
+      selectedBlock.id,
+      photo.id,
+      {
+        setPhotos: (updater) => setPhotos(updater),
+        showError: (message) => Alert.alert("Error", message),
+      },
+    );
+    if (ok) {
+      // Update the in-session URL cache so the block list shows the new
+      // cover thumbnail immediately when the grower navigates back, without
+      // waiting for the next background API refresh.
+      setCachedBlockCoverUrl(selectedBlock.id, photo.downloadUrl);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [currentFarm?.id, selectedBlock]);
 
