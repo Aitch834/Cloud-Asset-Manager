@@ -1,4 +1,5 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -67,7 +68,13 @@ export default function SprayRecordScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
-  const { fields: apiFields, loading: fieldsLoading, error: fieldsError } = useApiFields(currentFarm?.id);
+  const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
+  const {
+    fields: apiFields,
+    loading: fieldsLoading,
+    error: fieldsError,
+    loadedForFarmId: fieldsLoadedForFarmId,
+  } = useApiFields(farmId);
   const { members, loading: membersLoading, error: membersError } = useApiFarmMembers(currentFarm?.id);
   const { products, loading: productsLoading } = useApiSprayProducts(currentFarm?.id);
   const bbchStages = useMobileLookup("spray_bbch_stages", []);
@@ -109,6 +116,59 @@ export default function SprayRecordScreen() {
   const [fieldName, setFieldName] = useState("");
   const [areaSprayedHa, setAreaSprayedHa] = useState("");
   const [areaAutoFilled, setAreaAutoFilled] = useState(false);
+  const [restoredForFarmId, setRestoredForFarmId] = useState<string | undefined>(undefined);
+
+  // Reset the picker as soon as the farm changes so a previous farm's field
+  // cannot be shown while the new farm's fields are loading.
+  useEffect(() => {
+    setRestoredForFarmId(undefined);
+    setFieldName("");
+    setAreaSprayedHa("");
+    setAreaAutoFilled(false);
+  }, [farmId]);
+
+  // Restore only after the fields hook confirms its list belongs to this farm.
+  // This avoids rejecting a valid saved field against one-render-old fields
+  // during a farm switch.
+  useEffect(() => {
+    if (!farmId || fieldsLoading || fieldsLoadedForFarmId !== farmId) return;
+    if (restoredForFarmId === farmId) return;
+
+    let cancelled = false;
+    const targetFarmId = farmId;
+    const storageKey = `bde_spray_record_last_field_${targetFarmId}`;
+
+    AsyncStorage.getItem(storageKey).then((raw) => {
+      if (cancelled) return;
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw) as { fieldName?: string };
+          if (saved.fieldName && apiFields.some((field) => field.name === saved.fieldName)) {
+            setFieldName(saved.fieldName);
+          }
+        } catch {
+          // Ignore malformed stored values.
+        }
+      }
+      setRestoredForFarmId(targetFarmId);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [farmId, fieldsLoading, fieldsLoadedForFarmId, apiFields, restoredForFarmId]);
+
+  // Do not let the initial empty state overwrite the saved field before the
+  // asynchronous restore has completed.
+  useEffect(() => {
+    if (!farmId || restoredForFarmId !== farmId) return;
+    const storageKey = `bde_spray_record_last_field_${farmId}`;
+    if (fieldName.trim()) {
+      AsyncStorage.setItem(storageKey, JSON.stringify({ fieldName: fieldName.trim() }));
+    } else {
+      AsyncStorage.removeItem(storageKey);
+    }
+  }, [farmId, restoredForFarmId, fieldName]);
 
   const [selectedProduct, setSelectedProduct] = useState<ApiSprayProduct | null>(null);
   const [manualProductName, setManualProductName] = useState("");
