@@ -843,7 +843,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-1 flex items-start justify-center gap-0.5">
+                          <div className="group/caption mt-1 flex items-start justify-center gap-0.5">
                             <p
                               className={`min-w-0 text-[10px] leading-tight text-center break-words ${ph.caption ? "text-muted-foreground italic" : "text-muted-foreground/50"}`}
                               title={ph.caption ? String(ph.caption) : undefined}
@@ -858,7 +858,7 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                                 setEditingCaptionPhotoId(ph.id as number);
                                 setCaptionEditValue(String(ph.caption ?? ""));
                               }}
-                              className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground hover:bg-muted group-hover/caption:opacity-100 focus:opacity-100 transition-opacity"
                             >
                               <Pencil className="w-2.5 h-2.5" />
                             </button>
