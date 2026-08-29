@@ -459,12 +459,16 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
           </Pressable>
 
           {/* Save to camera roll button */}
-          {photo && !imgError ? (
+          {photo ? (
             <Pressable
-              style={[lbStyles.saveBtn, { top: insets.top + 12 }]}
+              style={[
+                lbStyles.saveBtn,
+                { top: insets.top + 12 },
+                imgError && lbStyles.disabledAction,
+              ]}
               hitSlop={24}
               onPress={handleSaveToRoll}
-              disabled={saving}
+              disabled={imgError || saving}
             >
               {saving ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -475,12 +479,16 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
           ) : null}
 
           {/* Share button */}
-          {photo && !imgError ? (
+          {photo ? (
             <Pressable
-              style={[lbStyles.shareBtn, { top: insets.top + 12 }]}
+              style={[
+                lbStyles.shareBtn,
+                { top: insets.top + 12 },
+                imgError && lbStyles.disabledAction,
+              ]}
               hitSlop={24}
               onPress={handleShare}
-              disabled={sharing}
+              disabled={imgError || sharing}
             >
               {sharing ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -2698,6 +2706,9 @@ const lbStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  disabledAction: {
+    opacity: 0.4,
   },
   captionReadRow: {
     flexDirection: "row",
