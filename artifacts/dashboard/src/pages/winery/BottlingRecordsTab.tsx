@@ -329,6 +329,7 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
       || String(r.lot_code ?? "").toLowerCase().includes(q)
       || String(r.wine_colour ?? "").toLowerCase().includes(q)
       || String(r.operator_name ?? "").toLowerCase().includes(q)
+      || String(r.bottling_machine_ref ?? "").toLowerCase().includes(q)
       || String(r.notes ?? "").toLowerCase().includes(q);
   });
   const filtered = bottlingSignedFilter === "all"
