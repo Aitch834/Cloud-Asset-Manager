@@ -935,7 +935,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         </Pressable>
 
         {/* Save to camera roll button */}
-        {photo ? (
+        {photo && !imgError ? (
           <Pressable
             style={[styles.lbSaveBtn, { top: insets.top + 12 }]}
             hitSlop={24}
@@ -951,7 +951,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         ) : null}
 
         {/* Share button */}
-        {photo ? (
+        {photo && !imgError ? (
           <Pressable
             style={[styles.lbShareBtn, { top: insets.top + 12 }]}
             hitSlop={24}
