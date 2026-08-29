@@ -843,6 +843,7 @@ export function ScoutingPhotoSection({
   const [captionEditPhoto, setCaptionEditPhoto] = useState<ScoutingPhoto | null>(null);
   // ID of a freshly-uploaded photo awaiting an optional caption before the list reloads
   const [pendingCaptionPhotoId, setPendingCaptionPhotoId] = useState<number | null>(null);
+  const [captionSaveWarning, setCaptionSaveWarning] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
@@ -887,6 +888,12 @@ export function ScoutingPhotoSection({
       if (refreshTimer.current) clearInterval(refreshTimer.current);
     };
   }, [loadPhotos]);
+
+  useEffect(() => {
+    if (!captionSaveWarning) return;
+    const warningTimer = setTimeout(() => setCaptionSaveWarning(false), 4000);
+    return () => clearTimeout(warningTimer);
+  }, [captionSaveWarning]);
 
   useFocusEffect(
     useCallback(() => {
@@ -937,12 +944,16 @@ export function ScoutingPhotoSection({
     const photoId = pendingCaptionPhotoId;
     setPendingCaptionPhotoId(null);
     if (photoId && caption.trim()) {
-      // Best-effort PATCH — don't block the list reload if it fails
-      await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption: caption.trim() }),
-      }).catch(() => null);
+      try {
+        const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption: caption.trim() }),
+        });
+        if (!res.ok) setCaptionSaveWarning(true);
+      } catch {
+        setCaptionSaveWarning(true);
+      }
     }
     await loadPhotos();
   };
@@ -1121,6 +1132,13 @@ export function ScoutingPhotoSection({
         <Text style={photoStyles.addPhotoBtnText}>{uploading ? "Uploading…" : "Add Photo"}</Text>
       </Pressable>
 
+      {captionSaveWarning ? (
+        <View style={photoStyles.captionSaveWarning} pointerEvents="none" accessibilityRole="alert">
+          <Feather name="alert-triangle" size={16} color="#fff" />
+          <Text style={photoStyles.captionSaveWarningText}>Caption wasn’t saved.</Text>
+        </View>
+      ) : null}
+
       {/* Grid caption tooltip — shown while a captioned thumbnail is long-pressed */}
       {gridTooltipCaption != null ? (
         <View style={photoStyles.gridCaptionTooltip} pointerEvents="none">
@@ -1200,6 +1218,26 @@ const photoStyles = StyleSheet.create({
   thumbPlaceholderDisabled: { opacity: 0.45 },
   thumbReloadLabel: { fontSize: fontSize.xs, color: colors.textSecondary, textAlign: "center" },
   captionBelow: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 14 },
+  captionSaveWarning: {
+    position: "absolute",
+    top: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: "#b45309",
+    zIndex: 10,
+  },
+  captionSaveWarningText: {
+    color: "#fff",
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+  },
   gridCaptionTooltip: {
     position: "absolute",
     bottom: 80,
