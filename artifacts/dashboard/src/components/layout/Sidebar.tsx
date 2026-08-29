@@ -198,6 +198,11 @@ const financeNav: NavItem[] = [
   { name: "Haulage", href: "/haulage", icon: Truck, moduleKeys: ["haulage-transport"] },
 ];
 
+const tradeLevyNav: NavItem[] = [
+  { name: "AHDB Levy", href: "/ahdb-levy", icon: Landmark },
+  { name: "Trade Body Levies", href: "/trade-levies", icon: Landmark },
+];
+
 const environmentalNav: NavItem[] = [
   { name: "Environmental", href: "/environmental", icon: Leaf, moduleKeys: ["environmental"] },
   { name: "Woodland & Felling", href: "/woodland", icon: TreePine, moduleKeys: ["environmental"] },
@@ -290,7 +295,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredCoreNav, filteredPeopleNav, filteredFarmManagementNav, filteredLivestockNav,
   filteredBiosecurityNav, filteredComplianceNav, filteredOrganicFarmingNav,
   filteredSpecialistNav, filteredFinanceNav, filteredEnvironmentalNav,
-  filteredReportingNav, filteredDocumentsNav, filteredIntegrationsNav, filteredBottomNav, trialInfo,
+  filteredTradeLevyNav, filteredReportingNav, filteredDocumentsNav, filteredIntegrationsNav, filteredBottomNav, trialInfo,
 }: {
   onNavClick?: () => void;
   onLogout: () => void;
@@ -305,6 +310,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
   filteredOrganicFarmingNav: NavItem[];
   filteredSpecialistNav: NavItem[];
   filteredFinanceNav: NavItem[];
+  filteredTradeLevyNav: NavItem[];
   filteredEnvironmentalNav: NavItem[];
   filteredReportingNav: NavItem[];
   filteredDocumentsNav: NavItem[];
@@ -381,6 +387,7 @@ function SidebarInner({ onNavClick, onLogout, currentFarmName, currentFarmRedTra
         <NavSection title="Organic Farming" items={filteredOrganicFarmingNav} onNavClick={onNavClick} />
         <NavSection title="Specialist Modules" items={filteredSpecialistNav} onNavClick={onNavClick} />
         <NavSection title="Finance & Commercial" items={filteredFinanceNav} onNavClick={onNavClick} />
+        <NavSection title="Trade & Levy" items={filteredTradeLevyNav} onNavClick={onNavClick} />
         <NavSection title="Environmental" items={filteredEnvironmentalNav} onNavClick={onNavClick} />
         <NavSection title="Reporting" items={filteredReportingNav} onNavClick={onNavClick} />
         <NavSection title="Documents" items={filteredDocumentsNav} onNavClick={onNavClick} />
@@ -548,6 +555,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const filteredOrganicFarmingNav = filterNavItems(organicFarmingNav, activeModuleKeys, farmSectors, userRole);
   const filteredSpecialistNav = filterNavItems(specialistNav, activeModuleKeys, farmSectors, userRole);
   const filteredFinanceNav = filterNavItems(financeNav, activeModuleKeys, farmSectors, userRole);
+  const filteredTradeLevyNav = filterNavItems(tradeLevyNav, activeModuleKeys, farmSectors, userRole);
   const filteredEnvironmentalNav = filterNavItems(environmentalNav, activeModuleKeys, farmSectors, userRole);
   const filteredReportingNav = filterNavItems(reportingNav, activeModuleKeys, farmSectors, userRole);
   const filteredDocumentsNav = filterNavItems(documentsNav, activeModuleKeys, farmSectors, userRole);
@@ -574,6 +582,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     filteredOrganicFarmingNav,
     filteredSpecialistNav,
     filteredFinanceNav,
+    filteredTradeLevyNav,
     filteredEnvironmentalNav,
     filteredReportingNav,
     filteredDocumentsNav,
