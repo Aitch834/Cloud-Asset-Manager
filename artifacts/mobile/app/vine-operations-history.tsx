@@ -445,6 +445,12 @@ function OperationRow({
   onDelete: (id: number) => void;
 }) {
   const linked = !!item.blockId;
+  const pruningDetails = opTypeIsPruning(item.operationType)
+    ? [
+        item.pruningSystem,
+        item.budsPerVineActual != null ? `${item.budsPerVineActual} buds/vine` : null,
+      ].filter(Boolean).join(" · ")
+    : "";
 
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -475,7 +481,12 @@ function OperationRow({
             </View>
           )}
           {item.operationType ? (
-            <Text style={styles.rowSub} numberOfLines={1}>{item.operationType}</Text>
+            <View style={styles.operationTypeGroup}>
+              <Text style={styles.rowSub} numberOfLines={1}>{item.operationType}</Text>
+              {pruningDetails ? (
+                <Text style={styles.rowDetail} numberOfLines={1}>{pruningDetails}</Text>
+              ) : null}
+            </View>
           ) : null}
           {item.operatorName ? (
             <Text style={styles.rowSub} numberOfLines={1}>{item.operatorName}</Text>
@@ -1062,7 +1073,9 @@ const styles = StyleSheet.create({
   rowLeft: { flex: 1, gap: 4 },
   rowDate: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.text },
   rowMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
+  operationTypeGroup: { gap: 2 },
   rowSub: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
+  rowDetail: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   rowRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginLeft: spacing.sm },
   deleteBtn: { padding: 4 },
   clearFiltersRow: {
