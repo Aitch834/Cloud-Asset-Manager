@@ -188,7 +188,8 @@ const captionStyles = StyleSheet.create({
 // grower can retry.  It only closes automatically when the last photo is
 // successfully deleted (caller closes it otherwise via onClose).
 //
-// onEditCaption is optional — when provided a "Caption" action button is shown.
+// onEditCaption and onSetCover are optional — when provided their action
+// buttons are shown for the currently displayed photo.
 // ---------------------------------------------------------------------------
 
 export function ScoutingPhotoLightbox({
@@ -199,6 +200,7 @@ export function ScoutingPhotoLightbox({
   onDelete,
   onReload,
   onEditCaption,
+  onSetCover,
 }: {
   photos: ScoutingPhoto[];
   initialIndex: number;
@@ -209,12 +211,15 @@ export function ScoutingPhotoLightbox({
   onReload?: (id: number) => Promise<void>;
   /** When provided a "Caption" button appears in the action bar. */
   onEditCaption?: (photo: ScoutingPhoto) => void;
+  /** When provided, a "Cover" button appears for photos that are not the cover. */
+  onSetCover?: (photo: ScoutingPhoto) => void | Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [settingCover, setSettingCover] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [reloading, setReloading] = useState(false);
   /** True while the 2 s auto-retry timer is counting down (before the reload fires). */
@@ -241,6 +246,7 @@ export function ScoutingPhotoLightbox({
     setSaving(false);
     setSharing(false);
     setDeleting(false);
+    setSettingCover(false);
     setReloading(false);
     cancelAutoRetry();
   }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -259,6 +265,7 @@ export function ScoutingPhotoLightbox({
     setSaving(false);
     setSharing(false);
     setDeleting(false);
+    setSettingCover(false);
     setImgError(false);
     setReloading(false);
     cancelAutoRetry();
@@ -427,6 +434,16 @@ export function ScoutingPhotoLightbox({
     );
   }, [photo, deleting, onDelete, onClose]);
 
+  const handleSetCover = useCallback(async () => {
+    if (!photo || photo.isCover || !onSetCover || settingCover) return;
+    setSettingCover(true);
+    try {
+      await onSetCover(photo);
+    } finally {
+      setSettingCover(false);
+    }
+  }, [photo, onSetCover, settingCover]);
+
   if (!visible) return null;
 
   const uri = photo?.downloadUrl ?? null;
@@ -576,6 +593,22 @@ export function ScoutingPhotoLightbox({
             </Pressable>
           ) : null}
 
+          {/* Set as cover (optional) */}
+          {onSetCover && photo && !photo.isCover ? (
+            <Pressable
+              style={[lbStyles.actionBtn, settingCover && lbStyles.actionBtnDisabled]}
+              onPress={handleSetCover}
+              disabled={settingCover}
+            >
+              {settingCover ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="star" size={22} color="#fff" />
+              )}
+              <Text style={lbStyles.actionBtnText}>{settingCover ? "Setting…" : "Cover"}</Text>
+            </Pressable>
+          ) : null}
+
           {/* Delete */}
           <Pressable
             style={[lbStyles.actionBtn, lbStyles.actionBtnDanger]}
@@ -706,16 +739,16 @@ const lbStyles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     justifyContent: "center",
-    gap: 24,
+    gap: 8,
     paddingTop: 16,
-    paddingHorizontal: 32,
+    paddingHorizontal: 12,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   actionBtn: {
     alignItems: "center",
     gap: 6,
     paddingVertical: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
     borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.12)",
     flex: 1,
@@ -1233,6 +1266,7 @@ export function ScoutingPhotoSection({
         onReload={handleReload}
         onDelete={handleDeletePhoto}
         onEditCaption={handleOpenCaptionEdit}
+        onSetCover={handleSetCover}
       />
 
       {Platform.OS !== "ios" ? (
