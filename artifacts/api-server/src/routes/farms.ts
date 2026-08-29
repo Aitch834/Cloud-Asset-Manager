@@ -517,6 +517,7 @@ import { pollFieldClimateFarm, testFieldClimateCredentials } from "../lib/fieldc
 import { pollDavisFarm, testDavisCredentials } from "../lib/davis";
 import { pollZentraFarm, testZentraCredentials } from "../lib/zentra";
 import { computeFieldFiveInFiveScore, computeFarmFiveInFiveSummary } from "../lib/blackgrassFiveInFive";
+import { OpenMeteoCache, getOpenMeteoCacheKey } from "../lib/openMeteoCache";
 
 // Pool-level Drizzle for the week-ahead batch — each query gets its own
 // autocommit connection from the pool. One failure cannot cascade to others
@@ -23841,57 +23842,10 @@ router.delete("/farms/:farmId/irrigation-equipment/:id", requireAuth, requireTen
 // Returns field metadata + current-year crop assignment + 60-day sensor readings
 // so the dashboard can compute SMD and break-even scenarios client-side.
 
-// Simple in-memory cache for Open-Meteo forecasts.
-// Key: "lat,lng" (4 dp precision). TTL: 90 minutes.
-// The cache is doubly bounded:
-//   1. Expired entries are pruned on every write (TTL eviction).
-//   2. A hard cap of 500 live entries with LRU eviction ensures the Map
-//      can never grow without bound even within a single TTL window (e.g.
-//      when thousands of distinct farm coordinates are requested at once).
-const _openMeteoCacheTtlMs = 90 * 60 * 1000;
-const _openMeteoCacheMaxSize = 500;
-
-/** Minimal LRU cache backed by a Map (insertion-order → LRU is Map.keys().next()). */
-class _LruCache<K, V> {
-  private readonly _max: number;
-  private readonly _map: Map<K, V>;
-  constructor(max: number) { this._max = max; this._map = new Map(); }
-  get(key: K): V | undefined {
-    if (!this._map.has(key)) return undefined;
-    // Promote to most-recently-used by moving to end of insertion order.
-    const val = this._map.get(key)!;
-    this._map.delete(key);
-    this._map.set(key, val);
-    return val;
-  }
-  set(key: K, value: V): void {
-    if (this._map.has(key)) {
-      this._map.delete(key);
-    } else if (this._map.size >= this._max) {
-      // Evict the least-recently-used entry (first in insertion order).
-      this._map.delete(this._map.keys().next().value!);
-    }
-    this._map.set(key, value);
-  }
-  delete(key: K): void { this._map.delete(key); }
-  [Symbol.iterator](): IterableIterator<[K, V]> { return this._map[Symbol.iterator](); }
-}
-
-const _openMeteoCache = new _LruCache<string, {
-  fetchedAt: number;
-  forecastRainfall7dMm: number;
-  forecastDailyMm: Array<{ date: string; mm: number }>;
-}>(_openMeteoCacheMaxSize);
-
-/** Remove all entries whose TTL has elapsed. Called on every cache write. */
-function _pruneOpenMeteoCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of _openMeteoCache) {
-    if (now - entry.fetchedAt >= _openMeteoCacheTtlMs) {
-      _openMeteoCache.delete(key);
-    }
-  }
-}
+// Simple in-memory cache for Open-Meteo forecasts. It keeps the existing
+// 90-minute TTL and 500-entry LRU cap; see openMeteoCache.ts for the
+// two-precision read/write design.
+const _openMeteoCache = new OpenMeteoCache();
 
 router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -24016,10 +23970,12 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
       const lat = farmRow?.latitude ? parseFloat(farmRow.latitude) : null;
       const lng = farmRow?.longitude ? parseFloat(farmRow.longitude) : null;
       if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-        // Round to 4 decimal places (~11 m precision) for the cache key
-        const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-        const cached = _openMeteoCache.get(cacheKey);
-        if (cached && Date.now() - cached.fetchedAt < _openMeteoCacheTtlMs) {
+        // Read from the 2 dp (~1 km) bucket to collapse inconsistent GPS
+        // coordinates, but write with the 4 dp (~11 m) key for precise entries.
+        const cacheKey = getOpenMeteoCacheKey(lat, lng, 4);
+        const cacheLookupKey = getOpenMeteoCacheKey(lat, lng, 2);
+        const cached = _openMeteoCache.get(cacheKey, cacheLookupKey);
+        if (cached) {
           // Cache hit — return stored values without an outbound call
           forecastRainfall7dMm = cached.forecastRainfall7dMm;
           forecastDailyMm = cached.forecastDailyMm;
@@ -24048,7 +24004,6 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
                 forecastRainfall7dMm,
                 forecastDailyMm,
               });
-              _pruneOpenMeteoCache();
             }
           } finally {
             clearTimeout(timeout);

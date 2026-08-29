@@ -12,6 +12,7 @@
     "test:imap-config": "tsx scripts/test-imap-config.ts",
     "test:private-ip": "tsx scripts/test-private-ip.ts",
     "test:lis-first-production": "tsx scripts/test-lis-first-production-submission.ts",
+    "test:open-meteo-cache": "tsx scripts/test-open-meteo-cache.ts",
     "test:cache-guard": "node scripts/check-ad-brand-asset-cache-guard.mjs",
     "test:financial-export-columns": "node scripts/check-financial-export-columns.mjs"
   },
