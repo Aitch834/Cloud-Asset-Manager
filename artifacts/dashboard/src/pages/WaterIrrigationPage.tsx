@@ -499,10 +499,16 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => {
       const url = editing ? api(`farms/${farmId}/irrigation-records/${editing.id}`) : api(`farms/${farmId}/irrigation-records`);
-      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) });
+      return fetch(url, { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(b) }).then(async r => {
+        if (!r.ok) {
+          const t = await r.text().catch(() => "");
+          throw new Error(t || `Request failed (${r.status})`);
+        }
+        return r;
+      });
     },
-    onSuccess: () => {
-      if (form.irrigationMethod && form.irrigationMethod !== "__none__") saveLastMethod(farmId, String(form.irrigationMethod));
+    onSuccess: (_data, variables) => {
+      if (variables.irrigationMethod && variables.irrigationMethod !== "__none__") saveLastMethod(farmId, String(variables.irrigationMethod));
       qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]);
     },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
