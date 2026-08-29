@@ -1040,7 +1040,70 @@ describe("runUiPrefBatchMigration — promoted (multiple keys in one legacy entr
 });
 
 // ===========================================================================
-// 9. runUiPrefBatchMigration — retry path
+// 9. runUiPrefBatchMigration — concurrent dismissal serialization
+//     A dismissal can be queued while the migration is part-way through its
+//     read-modify-write cycle.  Both entries must survive in the pending
+//     queue so neither one is silently lost before the next server flush.
+// ===========================================================================
+
+describe("runUiPrefBatchMigration — preserves a concurrent dismissal", () => {
+  it("keeps both the migrated keys and a racing dismissHint in the pending queue", async () => {
+    const uid = nextUid();
+    const legacyKey = "winegb-multi-dismissed-concurrent-farm";
+    const migratedKey = "winegb_banner_dismissed_excise_concurrent";
+    const dismissedKey = "winegb_banner_dismissed_live";
+    const pendingKey = `ui_prefs_pending_${uid}`;
+    let releasePendingRead!: () => void;
+    const pendingReadGate = new Promise<void>((resolve) => {
+      releasePendingRead = resolve;
+    });
+    let pendingReadCount = 0;
+    let pendingReadStarted = false;
+
+    asyncStore.set(legacyKey, JSON.stringify([migratedKey]));
+    // Let both best-effort PATCHes settle, but keep their queue entries by
+    // simulating an offline/non-ok response.
+    mockApiFetch.mockResolvedValue({ ok: false });
+    mockGetItem.mockImplementation(async (key: string) => {
+      if (key === pendingKey && pendingReadCount++ === 0) {
+        pendingReadStarted = true;
+        await pendingReadGate;
+      }
+      return asyncStore.get(key) ?? null;
+    });
+
+    const { dismissHint } = useUiPrefs(uid);
+    dismissHint(dismissedKey);
+
+    // Hold the dismissal after its cache write and pending-queue read.  The
+    // migration is now genuinely concurrent with that read-modify-write.
+    await flushPromises();
+    expect(pendingReadStarted).toBe(true);
+
+    const migrationPromise = runUiPrefBatchMigration(
+      uid,
+      legacyKey,
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    // With the queue, migration waits behind the gated dismissal.  Without
+    // it, migration can write its own snapshot before the dismissal resumes.
+    await drain(4);
+    releasePendingRead();
+
+    await migrationPromise;
+    await drain();
+
+    const pendingJson = asyncStore.get(pendingKey);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending[migratedKey]).toBe(true);
+    expect(pending[dismissedKey]).toBe(true);
+  });
+});
+
+// ===========================================================================
+// 10. runUiPrefBatchMigration — retry path
 //    When a durable write fails (e.g. storage quota exceeded) the legacy key
 //    must be retained so the migration can be retried on the next mount.
 //    None of the new keys should be durably stored (the cache write is the
