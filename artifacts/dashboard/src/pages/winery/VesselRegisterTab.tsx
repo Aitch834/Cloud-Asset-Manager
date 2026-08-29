@@ -2256,22 +2256,23 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       location: "Location",
                       cleaning: "Cleaning",
                     };
-                    const counts: Record<VesselDetailTab, number | undefined> = {
-                      fills: fillsQuery.data?.length,
-                      maintenance: maintenanceQuery.data?.length,
-                      location: movementQuery.data?.length,
-                      cleaning: cleaningQuery.data?.length,
+                    const counts: Record<VesselDetailTab, number> = {
+                      fills: Number(view.fill_count ?? fillsQuery.data?.length ?? 0),
+                      maintenance: Number(view.maintenance_count ?? maintenanceQuery.data?.length ?? 0),
+                      location: Number(view.movement_count ?? movementQuery.data?.length ?? 0),
+                      cleaning: Number(view.clean_count ?? cleaningQuery.data?.length ?? 0),
                     };
                     const isActive = detailTab === tab;
                     return (
                       <button
                         key={tab}
                         onClick={() => setDetailTab(tab)}
+                        aria-label={`${labels[tab]}: ${counts[tab]} record${counts[tab] === 1 ? "" : "s"}`}
                         className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${isActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"}`}
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <span>{labels[tab]}</span>
-                          {counts[tab] !== undefined && counts[tab] > 0 && (
+                          {counts[tab] > 0 && (
                             <span
                               aria-label={`${counts[tab]} ${labels[tab].toLowerCase()} record${counts[tab] !== 1 ? "s" : ""}`}
                               className={`inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ${isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
