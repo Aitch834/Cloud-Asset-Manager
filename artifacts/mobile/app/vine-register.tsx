@@ -59,14 +59,25 @@ function formatDate(d: string | null | undefined): string {
 
 function RegisterRow({
   item,
+  onPress,
   onMarkRemoved,
 }: {
   item: VineRegisterEntry;
+  onPress: (entry: VineRegisterEntry) => void;
   onMarkRemoved: (entry: VineRegisterEntry) => void;
 }) {
   const isRemoved = !!item.isRemovedFromRegister;
   return (
-    <View style={[styles.row, isRemoved && styles.rowRemoved]}>
+    <Pressable
+      onPress={() => onPress(item)}
+      style={({ pressed }) => [
+        styles.row,
+        isRemoved && styles.rowRemoved,
+        pressed && styles.rowPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Edit vine register entry for ${item.registeredVariety ?? "unknown variety"}`}
+    >
       <View style={styles.rowLeft}>
         <Text style={styles.rowVariety}>{item.registeredVariety ?? "—"}</Text>
         <View style={styles.rowMeta}>
@@ -104,7 +115,10 @@ function RegisterRow({
               <Text style={styles.activeBadgeText}>Active</Text>
             </View>
             <Pressable
-              onPress={() => onMarkRemoved(item)}
+              onPress={event => {
+                event.stopPropagation();
+                onMarkRemoved(item);
+              }}
               style={styles.removeBtn}
               accessibilityRole="button"
               accessibilityLabel={`Mark ${item.registeredVariety ?? "this vine register entry"} as removed`}
@@ -117,7 +131,7 @@ function RegisterRow({
           </>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -504,6 +518,7 @@ export default function VineRegisterScreen() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = usePersistedVineRegisterStatusFilter(farmIdStr);
   const [addEntryVisible, setAddEntryVisible] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<VineRegisterEntry | null>(null);
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
   const [removingEntry, setRemovingEntry] = useState<VineRegisterEntry | null>(null);
   // Keep the removal result visible immediately after saving, without waiting
@@ -733,7 +748,11 @@ export default function VineRegisterScreen() {
           }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <RegisterRow item={item} onMarkRemoved={setRemovingEntry} />
+            <RegisterRow
+              item={item}
+              onPress={setEditingEntry}
+              onMarkRemoved={setRemovingEntry}
+            />
           )}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -769,11 +788,15 @@ export default function VineRegisterScreen() {
         onSaved={handleEntryRemoved}
       />
 
-      {/* Add Entry Modal */}
-      <AddEntryModal
-        visible={addEntryVisible}
+      {/* Add / Edit Entry Modal */}
+      <RegisterEntryModal
+        visible={addEntryVisible || !!editingEntry}
+        entry={editingEntry}
         farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
-        onClose={() => setAddEntryVisible(false)}
+        onClose={() => {
+          setAddEntryVisible(false);
+          setEditingEntry(null);
+        }}
         onSaved={refresh}
       />
     </View>
@@ -1200,6 +1223,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
   },
+  rowPressed: {
+    backgroundColor: colors.background,
+  },
   rowRemoved: {
     opacity: 0.55,
   },
@@ -1540,13 +1566,15 @@ const GI_OPTIONS = [
   "UK Table Wine", "No GI",
 ];
 
-function AddEntryModal({
+function RegisterEntryModal({
   visible,
+  entry,
   farmId,
   onClose,
   onSaved,
 }: {
   visible: boolean;
+  entry: VineRegisterEntry | null;
   farmId: number | undefined;
   onClose: () => void;
   onSaved: () => void;
@@ -1555,6 +1583,24 @@ function AddEntryModal({
   const [form, setForm] = useState<AddEntryForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setForm(
+      entry
+        ? {
+            registeredVariety: entry.registeredVariety ?? "",
+            registeredAreaHa: entry.registeredAreaHa ?? "",
+            giClassification: entry.giClassification ?? "",
+            wineColour: entry.wineColour ?? "",
+            fsaVineRegisterRef: entry.fsaVineRegisterRef ?? "",
+            dateRegistered: entry.dateRegistered?.slice(0, 10) ?? "",
+          }
+        : EMPTY_FORM,
+    );
+    setError(null);
+    setSaving(false);
+  }, [visible, entry]);
 
   const sf = (k: keyof AddEntryForm, v: string) =>
     setForm(prev => ({ ...prev, [k]: v }));
@@ -1601,8 +1647,11 @@ function AddEntryModal({
         fsaVineRegisterRef: form.fsaVineRegisterRef.trim() || null,
         dateRegistered: dateStr || null,
       };
-      const res = await apiFetch(`/api/farms/${farmId}/vine-register`, {
-        method: "POST",
+      const url = entry
+        ? `/api/farms/${farmId}/vine-register/${entry.id}`
+        : `/api/farms/${farmId}/vine-register`;
+      const res = await apiFetch(url, {
+        method: entry ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -1615,7 +1664,7 @@ function AddEntryModal({
     } finally {
       setSaving(false);
     }
-  }, [farmId, form, onSaved, onClose, reset]);
+  }, [farmId, form, entry, onSaved, onClose, reset]);
 
   return (
     <Modal
@@ -1641,7 +1690,9 @@ function AddEntryModal({
             >
               <Text style={addStyles.cancelText}>Cancel</Text>
             </Pressable>
-            <Text style={addStyles.sheetTitle}>Add Register Entry</Text>
+            <Text style={addStyles.sheetTitle}>
+              {entry ? "Edit Register Entry" : "Add Register Entry"}
+            </Text>
             <Pressable
               onPress={handleSave}
               style={[addStyles.saveBtn, saving && addStyles.saveBtnDisabled]}
