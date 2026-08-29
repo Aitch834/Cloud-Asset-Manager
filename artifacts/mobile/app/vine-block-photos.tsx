@@ -1265,6 +1265,7 @@ function PhotoThumbnail({
 
   return (
     <Pressable
+      testID={`vine-block-photo-${photo.id}`}
       style={styles.thumbnail}
       onLongPress={handleLongPress}
       onPressOut={handlePressOut}

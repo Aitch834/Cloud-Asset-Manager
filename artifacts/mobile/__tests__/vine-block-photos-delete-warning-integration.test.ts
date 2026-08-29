@@ -33,9 +33,191 @@ jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock("react-native", () => {
+  const React = require("react");
+  const host = (name: string) =>
+    React.forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<unknown>) =>
+        React.createElement(name, { ...props, ref }, props.children),
+    );
+  const flatten = (style: unknown): Record<string, unknown> => {
+    if (!Array.isArray(style)) return (style as Record<string, unknown>) ?? {};
+    return style.reduce(
+      (merged, item) => ({ ...merged, ...flatten(item) }),
+      {} as Record<string, unknown>,
+    );
+  };
+  const View = host("View");
+  const Text = host("Text");
+  const Pressable = host("Pressable");
+  const Image = host("Image");
+  const ScrollView = host("ScrollView");
+  const KeyboardAvoidingView = host("KeyboardAvoidingView");
+  const ActivityIndicator = host("ActivityIndicator");
+  const TextInput = host("TextInput");
+  const Modal = ({ visible, children, ...props }: Record<string, unknown>) =>
+    visible ? React.createElement("Modal", props, children) : null;
+  const FlatList = ({
+    data,
+    renderItem,
+    ListHeaderComponent,
+    ListFooterComponent,
+    ListEmptyComponent,
+    ...props
+  }: {
+    data: unknown[];
+    renderItem: (info: { item: unknown; index: number }) => React.ReactNode;
+    ListHeaderComponent?: React.ReactNode;
+    ListFooterComponent?: React.ReactNode;
+    ListEmptyComponent?: React.ReactNode;
+    [key: string]: unknown;
+  }) =>
+    React.createElement(
+      View,
+      props,
+      ListHeaderComponent,
+      data.length
+        ? data.map((item, index) =>
+            React.createElement(
+              React.Fragment,
+              { key: index },
+              renderItem({ item, index }),
+            ),
+          )
+        : ListEmptyComponent,
+      data.length ? ListFooterComponent : null,
+    );
+  return {
+    ActivityIndicator,
+    Alert: { alert: jest.fn(), prompt: jest.fn() },
+    Dimensions: { get: () => ({ width: 390, height: 844 }) },
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform: { OS: "android" },
+    Pressable,
+    ScrollView,
+    StyleSheet: {
+      create: (styles: Record<string, unknown>) => styles,
+      flatten,
+    },
+    Text,
+    TextInput,
+    View,
+  };
+});
+
+// The screen-rendering coverage below imports the full Expo screen. Keep the
+// test focused on the delete/count flow by replacing native-only dependencies
+// that are not exercised by this scenario.
+jest.mock("expo-file-system/legacy", () => ({
+  cacheDirectory: "file:///cache/",
+  downloadAsync: jest.fn(),
+}));
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Medium: "medium" },
+  NotificationFeedbackType: { Success: "success" },
+}));
+jest.mock("expo-image-picker", () => ({}));
+jest.mock("expo-media-library", () => ({}));
+jest.mock("expo-sharing", () => ({}));
+jest.mock("expo-router", () => ({
+  router: { back: jest.fn(), push: jest.fn() },
+  useFocusEffect: jest.fn(),
+}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const gesture = () => {
+    const chain = {
+      activateAfterLongPress: () => chain,
+      minDuration: () => chain,
+      numberOfTaps: () => chain,
+      onBegin: () => chain,
+      onEnd: () => chain,
+      onFinalize: () => chain,
+      onStart: () => chain,
+      onUpdate: () => chain,
+    };
+    return chain;
+  };
+  return {
+    Gesture: {
+      Pan: gesture,
+      Pinch: gesture,
+      Tap: gesture,
+      LongPress: gesture,
+      Simultaneous: (...gestures: unknown[]) => gestures[0],
+      Race: (...gestures: unknown[]) => gestures[0],
+    },
+    GestureDetector: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(ReactNative.View, null, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  return {
+    default: { View: ReactNative.View },
+    runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
+    useAnimatedStyle: (fn: () => unknown) => fn(),
+    useSharedValue: (value: unknown) => ({ value }),
+    withSpring: (value: unknown) => value,
+    withTiming: (value: unknown) => value,
+  };
+});
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  return {
+    Feather: ({ name, ...props }: { name: string; [key: string]: unknown }) =>
+      React.createElement(ReactNative.Text, props, name),
+  };
+});
+jest.mock("../lib/context/FarmContext", () => ({
+  useFarm: jest.fn(),
+}));
+jest.mock("../lib/hooks/useApiVineBlocks", () => ({
+  useApiVineBlocks: jest.fn(),
+  setCachedBlockCoverUrl: jest.fn(),
+}));
+jest.mock("../lib/hooks/useFarmIdentifiers", () => ({
+  useFarmIdentifiers: jest.fn(),
+}));
+jest.mock("../lib/hooks/useUiPrefs", () => ({
+  useUiPrefs: jest.fn(),
+}));
+jest.mock("../lib/uploadPhoto", () => ({
+  uploadPhotoToStorage: jest.fn(),
+  getApiBase: jest.fn(),
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { apiFetch } = require("../lib/apiFetch") as {
   apiFetch: jest.MockedFunction<() => Promise<Response>>;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useFarm } = require("../lib/context/FarmContext") as {
+  useFarm: jest.Mock;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useApiVineBlocks } = require("../lib/hooks/useApiVineBlocks") as {
+  useApiVineBlocks: jest.Mock;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useFarmIdentifiers } = require("../lib/hooks/useFarmIdentifiers") as {
+  useFarmIdentifiers: jest.Mock;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useUiPrefs } = require("../lib/hooks/useUiPrefs") as {
+  useUiPrefs: jest.Mock;
 };
 
 import {
@@ -47,6 +229,11 @@ import {
   buildGridDeleteMessage,
   buildLightboxDeleteMessage,
 } from "../lib/vineBlockPhotosHelpers";
+import React from "react";
+import { Alert, StyleSheet } from "react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import VineBlockPhotosScreen from "../app/vine-block-photos";
+import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,6 +273,111 @@ const EXPECTED_URL = `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos`;
 
 beforeEach(() => {
   (apiFetch as jest.MockedFunction<typeof apiFetch>).mockReset();
+});
+
+function makeBlock(overrides: Partial<VineBlock> = {}): VineBlock {
+  return {
+    id: BLOCK_ID,
+    blockName: "North Block",
+    blockRef: null,
+    fieldParcelRef: null,
+    variety: "Chardonnay",
+    rootstock: null,
+    areaHa: 1.2,
+    numberOfVines: 1000,
+    plantingStatus: "active",
+    isActive: true,
+    isOrganicBlock: false,
+    coverPhotoUrl: null,
+    photoCount: 2,
+    ...overrides,
+  };
+}
+
+function configureScreenMocks(block: VineBlock) {
+  useFarm.mockReturnValue({
+    currentFarm: { id: FARM_ID, name: "Test Farm" },
+    user: { id: "test-user" },
+  });
+  useApiVineBlocks.mockReturnValue({
+    blocks: [block],
+    loading: false,
+  });
+  useFarmIdentifiers.mockReturnValue({
+    address: "Test Farm Lane",
+    loading: false,
+  });
+  useUiPrefs.mockReturnValue({
+    prefsReady: true,
+    prefs: {},
+    setPref: jest.fn(),
+    isHintDismissed: () => true,
+    dismissHint: jest.fn(),
+  });
+}
+
+async function deletePhotoAndReturnToBlockList(
+  initialPhotos: BlockPhotoRecord[],
+): Promise<ReturnType<typeof render>> {
+  configureScreenMocks(makeBlock({ photoCount: initialPhotos.length }));
+  (apiFetch as jest.MockedFunction<typeof apiFetch>)
+    .mockResolvedValueOnce(okResponse({ photos: initialPhotos }))
+    .mockResolvedValueOnce(okResponse({}));
+
+  const screen = render(React.createElement(VineBlockPhotosScreen));
+  fireEvent.press(screen.getByText("North Block"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId(`vine-block-photo-${initialPhotos[0].id}`)).toBeTruthy();
+  });
+
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(
+    (_title, _message, buttons) => {
+      const deleteButton = buttons?.find((button) => button.text === "Delete");
+      deleteButton?.onPress?.();
+    },
+  );
+  const thumbnail = screen.getByTestId(`vine-block-photo-${initialPhotos[0].id}`);
+  fireEvent(thumbnail, "longPress");
+  fireEvent(thumbnail, "pressOut");
+
+  await waitFor(() => {
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos/${initialPhotos[0].id}`,
+      { method: "DELETE" },
+    );
+  });
+  await waitFor(() => {
+    expect(screen.getByText("Clear selection")).toBeTruthy();
+  });
+
+  fireEvent.press(screen.getByText("Clear selection"));
+  alert.mockRestore();
+  return screen;
+}
+
+describe("VineBlockPhotosScreen — block list count after delete", () => {
+  it("shows the decremented count when deleting one of two photos", async () => {
+    const screen = await deletePhotoAndReturnToBlockList([
+      makePhoto({ id: 1001, isCover: true }),
+      makePhoto({ id: 1002, isCover: false }),
+    ]);
+
+    expect(screen.getByText("1 photo")).toBeTruthy();
+    expect(screen.queryByText("2 photos")).toBeNull();
+  });
+
+  it("shows an amber No photos badge when deleting the last photo", async () => {
+    const screen = await deletePhotoAndReturnToBlockList([
+      makePhoto({ id: 1003, isCover: true }),
+    ]);
+
+    const noPhotosBadge = screen.getByText("No photos");
+    expect(noPhotosBadge).toBeTruthy();
+    expect(StyleSheet.flatten(noPhotosBadge.props.style)).toEqual(
+      expect.objectContaining({ color: "#b45309" }),
+    );
+  });
 });
 
 // ===========================================================================
