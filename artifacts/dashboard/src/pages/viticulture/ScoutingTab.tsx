@@ -111,6 +111,30 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { uploadFile } = useUpload();
+  const scoutingQueryKey = ["vineyard-scouting", farmId] as const;
+
+  const getScoutingCounts = (scoutingId: number) => {
+    const record = queryClient
+      .getQueryData<Scouting[]>(scoutingQueryKey)
+      ?.find(row => Number(row.id) === scoutingId);
+    return {
+      photoCount: Number(record?.photoCount ?? 0),
+      captionCount: Number(record?.captionCount ?? 0),
+    };
+  };
+
+  const setScoutingCounts = (
+    scoutingId: number,
+    counts: { photoCount: number; captionCount: number },
+  ) => {
+    queryClient.setQueryData<Scouting[]>(scoutingQueryKey, records =>
+      records?.map(record =>
+        Number(record.id) === scoutingId
+          ? { ...record, photoCount: counts.photoCount, captionCount: counts.captionCount }
+          : record,
+      ),
+    );
+  };
 
   // Fetch photos for the lightbox scouting record; refresh every 4 minutes to keep presigned URLs valid
   const { data: lightboxData, isLoading: lightboxLoading } = useQuery<{ photos: Record<string, unknown>[] }>({
@@ -280,11 +304,27 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       if (!r.ok) throw new Error("Failed to delete photo");
       return r.json();
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
+      const previousCounts = getScoutingCounts(variables.scoutingId);
+      const deletedPhoto = queryClient
+        .getQueryData<{ photos: Record<string, unknown>[] }>([
+          "vineyard-scouting-photos",
+          farmId,
+          variables.scoutingId,
+        ])
+        ?.photos.find(photo => Number(photo.id) === variables.photoId);
+      const deletedWasCaptioned = Boolean(String(deletedPhoto?.caption ?? "").trim());
+
       // Clamp index before refetch in case we deleted the last photo in the list
       setLightboxPhotoIndex(prev => Math.max(0, Math.min(prev, lightboxPhotos.length - 2)));
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, variables.scoutingId] });
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, variables.scoutingId] }),
+        queryClient.invalidateQueries({ queryKey: scoutingQueryKey }),
+      ]);
+      setScoutingCounts(variables.scoutingId, {
+        photoCount: Math.max(0, previousCounts.photoCount - 1),
+        captionCount: Math.max(0, previousCounts.captionCount - (deletedWasCaptioned ? 1 : 0)),
+      });
       setDeletePhotoId(null);
       setConfirmDeleteViewPhotoId(null);
       toast({ title: "Photo deleted", description: "The photo has been removed from this scouting record." });
@@ -330,8 +370,23 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
       if (!r.ok) throw new Error("Failed to update caption");
       return r.json();
     },
-    onSuccess: (_data, { scoutingId }) => {
-      queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, scoutingId] });
+    onSuccess: async (_data, { scoutingId, photoId, caption }) => {
+      const previousCounts = getScoutingCounts(scoutingId);
+      const photos = queryClient.getQueryData<{ photos: Record<string, unknown>[] }>(
+        ["vineyard-scouting-photos", farmId, scoutingId],
+      )?.photos ?? [];
+      const previousPhoto = photos.find(photo => Number(photo.id) === photoId);
+      const wasCaptioned = Boolean(String(previousPhoto?.caption ?? "").trim());
+      const isCaptioned = Boolean(caption.trim());
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, scoutingId] }),
+        queryClient.invalidateQueries({ queryKey: scoutingQueryKey }),
+      ]);
+      setScoutingCounts(scoutingId, {
+        photoCount: previousCounts.photoCount,
+        captionCount: Math.max(0, previousCounts.captionCount + Number(isCaptioned) - Number(wasCaptioned)),
+      });
       setEditingCaptionPhotoId(null);
       setCaptionEditValue("");
     },
@@ -355,8 +410,15 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         body: JSON.stringify(body),
       });
       if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error(t || `Error ${res.status}`); }
-      void queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] });
-      void queryClient.invalidateQueries({ queryKey: ["vineyard-scouting", farmId] });
+      const previousCounts = getScoutingCounts(lightboxScoutingId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["vineyard-scouting-photos", farmId, lightboxScoutingId] }),
+        queryClient.invalidateQueries({ queryKey: scoutingQueryKey }),
+      ]);
+      setScoutingCounts(lightboxScoutingId, {
+        photoCount: previousCounts.photoCount + 1,
+        captionCount: previousCounts.captionCount + (caption.trim() ? 1 : 0),
+      });
       toast({ title: "Photo added" });
     } catch {
       toast({ title: "Failed to upload photo", variant: "destructive" });
