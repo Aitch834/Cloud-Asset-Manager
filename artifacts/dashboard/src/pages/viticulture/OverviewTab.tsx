@@ -63,6 +63,16 @@ const WINEGB_SURVEYS_LIST = [
   { key: "harvest",      label: "Harvest",       months: [9, 10]   },
 ] as const;
 
+interface WinegbNudgeStorage {
+  expanded: boolean;
+  /** Survey keys that were pending when the user last changed the nudge state. */
+  pendingKeys: string[];
+}
+
+function winegbNudgeStorageKey(farmId: number, year: number) {
+  return `winegb-nudge-${farmId}-${year}`;
+}
+
 function WinegbOverviewNudge({
   farmId,
   onNavigateToSurveys,
@@ -73,7 +83,31 @@ function WinegbOverviewNudge({
   const year = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1; // 1-based
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const storageKey = winegbNudgeStorageKey(farmId, year);
+  const [expanded, setExpandedState] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as WinegbNudgeStorage;
+        return parsed.expanded;
+      }
+    } catch {
+      // Storage may be unavailable or contain an old malformed value.
+    }
+    return false;
+  });
+
+  const setExpanded = (nextExpanded: boolean, pendingKeys: string[]) => {
+    setExpandedState(nextExpanded);
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ expanded: nextExpanded, pendingKeys } satisfies WinegbNudgeStorage),
+      );
+    } catch {
+      // Storage may be unavailable; the in-memory state still works.
+    }
+  };
 
   const { data, isLoading } = useQuery<{
     submissions: Record<string, { submitted: boolean; submittedAt: string | null }>;
@@ -85,6 +119,29 @@ function WinegbOverviewNudge({
     enabled: !!farmId,
     staleTime: 60_000,
   });
+
+  // If a survey that was previously submitted becomes pending again, clear the
+  // saved collapsed state so the newly actionable nudge is not silently hidden.
+  useEffect(() => {
+    if (!data) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const stored = JSON.parse(raw) as WinegbNudgeStorage;
+      if (stored.expanded) return;
+
+      const currentPendingKeys = WINEGB_SURVEYS_LIST
+        .filter(s => !data.submissions[s.key]?.submitted)
+        .map(s => s.key);
+      const newlyPending = currentPendingKeys.filter(key => !stored.pendingKeys.includes(key));
+      if (newlyPending.length > 0) {
+        localStorage.removeItem(storageKey);
+        setExpandedState(false);
+      }
+    } catch {
+      // Ignore malformed or unavailable localStorage values.
+    }
+  }, [data, storageKey]);
 
   const toggleMutation = useMutation({
     mutationFn: async ({ key, submitted }: { key: string; submitted: boolean }) => {
@@ -155,7 +212,7 @@ function WinegbOverviewNudge({
         </div>
         <button
           type="button"
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => setExpanded(!expanded, pending.map(s => s.key))}
           className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           aria-label={expanded ? "Collapse survey checklist" : "Expand survey checklist"}
         >
