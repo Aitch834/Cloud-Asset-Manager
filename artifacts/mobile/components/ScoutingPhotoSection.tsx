@@ -37,6 +37,8 @@ import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
 import {
   getSwipeDirection,
   shouldAllowSwipe,
+  getPaginationItems,
+  isPaginationItemActive,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
 } from "@/lib/scoutingLightboxHelpers";
@@ -429,6 +431,7 @@ export function ScoutingPhotoLightbox({
 
   const uri = photo?.downloadUrl ?? null;
   const hasMultiple = photos.length > 1;
+  const paginationItems = getPaginationItems(photos.length, currentIndex);
 
   return (
     <Modal
@@ -504,6 +507,27 @@ export function ScoutingPhotoLightbox({
             </Pressable>
           ) : null}
         </View>
+
+        {/* At-a-glance photo position */}
+        {hasMultiple ? (
+          <View style={lbStyles.paginationDots} accessibilityLabel={`Photo ${currentIndex + 1} of ${photos.length}`}>
+            {paginationItems.map((item, itemPosition) =>
+              typeof item === "number" ? (
+                <View
+                  key={`photo-dot-${item}`}
+                  style={[
+                    lbStyles.paginationDot,
+                    isPaginationItemActive(item, currentIndex) && lbStyles.paginationDotActive,
+                  ]}
+                />
+              ) : (
+                <Text key={`${item}-${itemPosition}`} style={lbStyles.paginationEllipsis}>
+                  …
+                </Text>
+              ),
+            )}
+          </View>
+        ) : null}
 
         {/* Caption */}
         {photo?.caption ? (
@@ -616,6 +640,33 @@ const lbStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  paginationDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 10,
+    minHeight: 10,
+  },
+  paginationDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.55)",
+  },
+  paginationDotActive: {
+    backgroundColor: "#fff",
+    borderColor: "#fff",
+  },
+  paginationEllipsis: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    lineHeight: 10,
+    width: 7,
+    textAlign: "center",
   },
   reloadLabel: {
     marginTop: 10,

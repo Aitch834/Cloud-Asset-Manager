@@ -44,6 +44,7 @@ export function counterText(currentIndex: number, photosCount: number): string {
   return `${currentIndex + 1} / ${photosCount}`;
 }
 
+export type ScoutingPaginationItem = number | "leading-ellipsis" | "trailing-ellipsis";
 /**
  * Derive the id of the photo that Share / Delete should target.
  * Always resolves from the current display index so that navigating
@@ -92,6 +93,13 @@ export function updatePhotoCaption<T extends { id: number; caption: string | nul
   );
 }
 
+export function isPaginationItemActive(
+  item: ScoutingPaginationItem,
+  currentIndex: number,
+): boolean {
+  return typeof item === "number" && item === currentIndex;
+}
+
 /**
  * Whether a gesture should start swipe navigation.
  * Deletion takes priority over gesture direction so a swipe cannot race
@@ -113,4 +121,49 @@ export function getSwipeDirection(
 ): "next" | "previous" | null {
   if (deleting || Math.abs(dx) <= threshold) return null;
   return dx < 0 ? "next" : "previous";
+}
+
+/**
+ * Return a bounded set of photo positions for the lightbox pagination row.
+ * The active position and both ends remain visible while ellipses represent
+ * skipped positions in larger photo sets.
+ */
+export function getPaginationItems(
+  photosCount: number,
+  currentIndex: number,
+): ScoutingPaginationItem[] {
+  if (photosCount <= 0) return [];
+
+  const safeIndex = Math.min(Math.max(currentIndex, 0), photosCount - 1);
+  const maxItems = 7;
+  if (photosCount <= maxItems) {
+    return Array.from({ length: photosCount }, (_, index) => index);
+  }
+
+  const lastIndex = photosCount - 1;
+  if (safeIndex <= 2) {
+    return [
+      ...Array.from({ length: maxItems - 2 }, (_, index) => index),
+      "trailing-ellipsis",
+      lastIndex,
+    ];
+  }
+
+  if (safeIndex >= photosCount - 3) {
+    return [
+      0,
+      "leading-ellipsis",
+      ...Array.from({ length: maxItems - 2 }, (_, index) => lastIndex - (maxItems - 3) + index),
+    ];
+  }
+
+  return [
+    0,
+    "leading-ellipsis",
+    safeIndex - 1,
+    safeIndex,
+    safeIndex + 1,
+    "trailing-ellipsis",
+    lastIndex,
+  ];
 }

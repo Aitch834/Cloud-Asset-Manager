@@ -24,6 +24,8 @@ import {
   showRightChevron,
   showCounter,
   counterText,
+  getPaginationItems,
+  isPaginationItemActive,
   currentPhotoId,
   getSwipeDirection,
   scheduleScoutingPhotoAutoRetry,
@@ -185,7 +187,45 @@ describe("showCounter / counterText", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. Share / Delete target the currently displayed photo, not the tapped one
+// 9. Bounded pagination indicators keep the active position visible
+// ---------------------------------------------------------------------------
+
+describe("getPaginationItems", () => {
+  it("shows every position for a small multi-photo set", () => {
+    expect(getPaginationItems(5, 2)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("bounds a large set while keeping both ends and the active position", () => {
+    const items = getPaginationItems(100, 50);
+
+    expect(items).toEqual([0, "leading-ellipsis", 49, 50, 51, "trailing-ellipsis", 99]);
+    expect(items).toHaveLength(7);
+    expect(items).toContain(50);
+  });
+
+  it("moves the active window after navigation", () => {
+    const beforeSwipe = getPaginationItems(100, 50);
+    const afterSwipe = getPaginationItems(100, 51);
+
+    expect(beforeSwipe.filter((item) => isPaginationItemActive(item, 50))).toEqual([50]);
+    expect(afterSwipe.filter((item) => isPaginationItemActive(item, 51))).toEqual([51]);
+    expect(beforeSwipe).toContain(49);
+    expect(afterSwipe).not.toContain(49);
+    expect(afterSwipe).toContain(52);
+  });
+
+  it("clamps the active position into the bounded list after deletion", () => {
+    const newIndex = clampIndexAfterDelete(7, 7);
+    const items = getPaginationItems(7, newIndex);
+
+    expect(newIndex).toBe(6);
+    expect(items).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(items.filter((item) => isPaginationItemActive(item, newIndex))).toEqual([6]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Share / Delete target the currently displayed photo, not the tapped one
 // ---------------------------------------------------------------------------
 
 describe("currentPhotoId — always targets the displayed photo", () => {
@@ -226,7 +266,7 @@ describe("currentPhotoId — always targets the displayed photo", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 10. Caption save stays associated with its photo while navigating
+// 11. Caption save stays associated with its photo while navigating
 // ---------------------------------------------------------------------------
 
 describe("updatePhotoCaption — caption save while the lightbox navigates", () => {
@@ -265,7 +305,7 @@ describe("updatePhotoCaption — caption save while the lightbox navigates", () 
 });
 
 // ---------------------------------------------------------------------------
-// 11. Auto-retry is limited to one attempt per photo view
+// 12. Auto-retry is limited to one attempt per photo view
 // ---------------------------------------------------------------------------
 
 describe("scheduleScoutingPhotoAutoRetry", () => {
@@ -282,7 +322,6 @@ describe("scheduleScoutingPhotoAutoRetry", () => {
       },
     );
     const retry = jest.fn().mockRejectedValue(new Error("presigned URL expired"));
-
     expect(
       scheduleScoutingPhotoAutoRetry(autoRetried, schedule, retry),
     ).not.toBeNull();
@@ -304,7 +343,7 @@ describe("scheduleScoutingPhotoAutoRetry", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 11. Swipe navigation is blocked while deleting
+// 13. Swipe navigation is blocked while deleting
 // ---------------------------------------------------------------------------
 
 describe("shouldAllowSwipe — deletion takes priority over gestures", () => {
@@ -330,7 +369,7 @@ describe("shouldAllowSwipe — deletion takes priority over gestures", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 12. Completed swipes cannot navigate after deletion starts
+// 14. Completed swipes cannot navigate after deletion starts
 // ---------------------------------------------------------------------------
 
 describe("getSwipeDirection — deletion takes priority at release", () => {
