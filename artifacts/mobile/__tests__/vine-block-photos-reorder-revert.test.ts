@@ -234,6 +234,32 @@ describe("handleReorder pipeline — revert on PUT failure", () => {
     expect(finalPhotos.map((p) => p.id)).toEqual([201, 202, 203]);
   });
 
+  it("keeps the optimistic order when the recovery GET also throws", async () => {
+    (apiFetch as jest.MockedFunction<typeof apiFetch>)
+      .mockRejectedValueOnce(new Error("PUT network error"))
+      .mockRejectedValueOnce(new Error("GET network error"));
+
+    const finalPhotos = await runReorderPipeline(serverOrder, [203, 201, 202]);
+
+    // A failed recovery load must not clear the optimistic photos array.
+    expect(finalPhotos.map((p) => p.id)).toEqual([203, 201, 202]);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(apiFetch).toHaveBeenNthCalledWith(2, FETCH_URL);
+  });
+
+  it("keeps the optimistic order when the recovery GET returns non-OK", async () => {
+    (apiFetch as jest.MockedFunction<typeof apiFetch>)
+      .mockResolvedValueOnce(errorResponse(409))
+      .mockResolvedValueOnce(errorResponse(503));
+
+    const finalPhotos = await runReorderPipeline(serverOrder, [202, 203, 201]);
+
+    // A non-2xx recovery response is also an error and must preserve state.
+    expect(finalPhotos.map((p) => p.id)).toEqual([202, 203, 201]);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(apiFetch).toHaveBeenNthCalledWith(2, FETCH_URL);
+  });
+
   it("does NOT fetch from server when the PUT succeeds (2xx)", async () => {
     (apiFetch as jest.MockedFunction<typeof apiFetch>)
       .mockResolvedValueOnce(okResponse({})); // PUT succeeds — no GET
