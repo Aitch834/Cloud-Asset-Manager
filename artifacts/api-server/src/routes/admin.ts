@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
 import { fetchInbox, fetchEmail, fetchAttachment, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
+import { resolveStableVersionedValue } from "../lib/versioned-cache";
 
 // __dirname is not defined in ESM (tsx dev) — derive it from import.meta.url.
 // The production esbuild CJS bundle injects __dirname globally, so the catch
@@ -3163,9 +3164,45 @@ async function resolveAdBrandAssets(): Promise<{ logoUri: string; qrUri: string 
   return { logoUri, qrUri };
 }
 
-// Simple in-memory cache so rapid successive renders reuse the already-fetched URIs
-let _brandAssetCache: { logoUri: string; qrUri: string; cachedAt: number } | null = null;
-const BRAND_ASSET_CACHE_TTL_MS = 60 * 1000; // 60 seconds — short TTL so stale assets don't linger in PDFs after an upload
+// Version-keyed in-memory cache so concurrent renders never serve a mix of old and new assets.
+//
+// The cache key is a deterministic digest of both brand config rows rather than a
+// wall-clock TTL or timestamp.  This means:
+//   • A write (upload or delete) changes the stored content, which changes the version token,
+//     which causes a cache miss for the very next reader — even if two admins upload at the same
+//     time with identical updated_at timestamps.
+//   • Cache hits cost one cheap scalar DB query plus a string compare;
+//     the full resolveAdBrandAssets() is only called on a genuine miss.
+//   • Test overrides (PUT /admin/ad-brand-assets/cache) use a sentinel version "__override__"
+//     and fall back to a 60-second TTL so integration tests can inject known URIs without
+//     touching the DB.
+
+interface BrandAssetCache {
+  logoUri: string;
+  qrUri: string;
+  /** Content digest of the two brand rows, or "__override__" for test injections. */
+  version: string;
+  /** Wall-clock ms at cache write — only used for the "__override__" TTL fallback. */
+  cachedAt: number;
+}
+
+let _brandAssetCache: BrandAssetCache | null = null;
+const BRAND_ASSET_CACHE_TTL_MS = 60 * 1000; // used only for __override__ entries
+
+/** Cheap single-row query that returns a deterministic content version for both asset rows. */
+async function getBrandAssetVersion(): Promise<string> {
+  const result = await db.execute(sql`
+    SELECT MD5(
+      COALESCE(
+        JSONB_OBJECT_AGG(key, value)::text,
+        '{}'
+      )
+    ) AS version
+    FROM platform_config
+    WHERE key IN ('brand.adLogoDataUrl', 'brand.adQrDataUrl')
+  `);
+  return (result.rows[0] as { version: string } | undefined)?.version ?? "none";
+}
 
 /**
  * Cached wrapper around resolveAdBrandAssets(). Use this for PDF renders.
@@ -3174,13 +3211,29 @@ const BRAND_ASSET_CACHE_TTL_MS = 60 * 1000; // 60 seconds — short TTL so stale
  * _brandAssetCache with stale data before the next render clears it).
  */
 async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> {
-  // Return cached result if still fresh
-  if (_brandAssetCache && Date.now() - _brandAssetCache.cachedAt < BRAND_ASSET_CACHE_TTL_MS) {
+  // Test-override path: respect TTL so integration tests can inject known-empty/known-present URIs.
+  if (
+    _brandAssetCache &&
+    _brandAssetCache.version === "__override__" &&
+    Date.now() - _brandAssetCache.cachedAt < BRAND_ASSET_CACHE_TTL_MS
+  ) {
     return { logoUri: _brandAssetCache.logoUri, qrUri: _brandAssetCache.qrUri };
   }
 
-  const { logoUri, qrUri } = await resolveAdBrandAssets();
-  _brandAssetCache = { logoUri, qrUri, cachedAt: Date.now() };
+  // Normal path: one cheap version query, then a string compare.
+  // If the DB version matches what we cached we are done — no full resolve needed.
+  const dbVersion = await getBrandAssetVersion();
+  if (_brandAssetCache && _brandAssetCache.version === dbVersion) {
+    return { logoUri: _brandAssetCache.logoUri, qrUri: _brandAssetCache.qrUri };
+  }
+
+  // Cache miss (new version or first call) — resolve against a stable version.
+  const { value: { logoUri, qrUri }, version } = await resolveStableVersionedValue(
+    dbVersion,
+    resolveAdBrandAssets,
+    getBrandAssetVersion,
+  );
+  _brandAssetCache = { logoUri, qrUri, version, cachedAt: Date.now() };
   return { logoUri, qrUri };
 }
 
@@ -3634,7 +3687,7 @@ router.put("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, res
     res.status(400).json({ error: "logoUri and qrUri (strings) are required" });
     return;
   }
-  _brandAssetCache = { logoUri, qrUri, cachedAt: Date.now() };
+  _brandAssetCache = { logoUri, qrUri, version: "__override__", cachedAt: Date.now() };
   res.json({ overridden: true, logoUri: !!logoUri, qrUri: !!qrUri });
 });
 
