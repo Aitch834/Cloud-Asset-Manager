@@ -259,9 +259,12 @@ function MissingParcelRefBanner({
                 idx < blocks.length - 1 && styles.parcelBannerItemBorder,
               ]}
               accessibilityRole="button"
-              accessibilityLabel={`Add Parcel / Field Ref for ${block.blockName}`}
+              accessibilityLabel={`Parcel / Field Ref not set for ${block.blockName}. Tap to add it.`}
             >
               <Text style={styles.parcelBannerBlockName}>{block.blockName}</Text>
+              <View style={styles.parcelMissingBadge}>
+                <Text style={styles.parcelMissingBadgeText}>NOT SET</Text>
+              </View>
               <Feather name="edit-2" size={13} color="#b45309" />
             </Pressable>
           ))}
@@ -396,6 +399,7 @@ function EditParcelRefModal({
           )}
           <Text style={styles.modalHint}>
             Enter the reference used for this block in the Rural Payments portal.
+            You can also maintain it in Farm Settings &gt; Vineyard Blocks.
           </Text>
           <TextInput
             style={[styles.modalInput, !!error && styles.modalInputError]}
@@ -807,6 +811,21 @@ const styles = StyleSheet.create({
     color: "#92400e",
     flex: 1,
     marginRight: spacing.sm,
+  },
+  parcelMissingBadge: {
+    backgroundColor: "#fef3c7",
+    borderColor: "#f59e0b",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    marginRight: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  parcelMissingBadgeText: {
+    color: "#92400e",
+    fontFamily: fonts.semiBold,
+    fontSize: 10,
+    letterSpacing: 0.3,
   },
   // ── Manage Parcel Refs ────────────────────────────────────────────────────
   manageBlocksSection: {
