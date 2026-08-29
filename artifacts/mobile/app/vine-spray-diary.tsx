@@ -43,6 +43,7 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
+import { findPreselectedVineBlock } from "@/lib/vineSprayDiaryHelpers";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -761,10 +762,8 @@ export default function VineSprayDiaryScreen() {
   const [selectedBlock, setSelectedBlock] = useState<VineBlock | null>(null);
 
   useEffect(() => {
-    if (blockId && blocks.length > 0 && !blocksLoading) {
-      const match = blocks.find(b => String(b.id) === String(blockId));
-      if (match) setSelectedBlock(match);
-    }
+    const match = findPreselectedVineBlock(blockId, blocks, blocksLoading);
+    if (match) setSelectedBlock(match);
   }, [blockId, blocks, blocksLoading]);
 
   const [productName, setProductName] = useState("");
