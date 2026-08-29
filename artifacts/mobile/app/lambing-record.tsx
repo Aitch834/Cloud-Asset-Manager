@@ -308,6 +308,7 @@ export default function LambingRecordScreen() {
 
       <IdentifierBanner
         justSaved={justSaved && !identifiersLoading}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}

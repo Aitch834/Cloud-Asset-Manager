@@ -285,6 +285,7 @@ export default function VinePhenologyScreen() {
 
         <IdentifierBanner
           justSaved={justSaved && !identifiersLoading}
+          loading={identifiersLoading}
           missingIdentifiers={missingIdentifiers}
           bannerDismissed={bannerDismissed}
           onClearJustSaved={clearJustSaved}

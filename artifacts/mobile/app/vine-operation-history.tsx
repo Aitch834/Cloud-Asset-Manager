@@ -622,6 +622,7 @@ export default function VineOperationHistoryScreen() {
 
       <IdentifierBanner
         justSaved={justSaved && !identifiersLoading}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}

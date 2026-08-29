@@ -1499,6 +1499,7 @@ export default function VineHarvestHistoryScreen() {
 
       <IdentifierBanner
         justSaved={justSaved && !identifiersLoading}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}

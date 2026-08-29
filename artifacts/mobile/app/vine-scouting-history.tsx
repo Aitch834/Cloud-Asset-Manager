@@ -919,6 +919,7 @@ export default function VineScoutingHistoryScreen() {
 
       <IdentifierBanner
         justSaved={justSaved && !identifiersLoading}
+        loading={identifiersLoading}
         missingIdentifiers={missingIdentifiers}
         bannerDismissed={bannerDismissed}
         onClearJustSaved={clearJustSaved}
