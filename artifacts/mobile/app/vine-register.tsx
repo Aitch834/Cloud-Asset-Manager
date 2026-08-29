@@ -40,6 +40,8 @@ interface VineRegisterEntry {
   wineColour: string | null;
   dateRegistered: string | null;
   isRemovedFromRegister: boolean | null;
+  removalDate?: string | null;
+  removalReason?: string | null;
 }
 
 interface FarmVitiMeta {
@@ -55,7 +57,13 @@ function formatDate(d: string | null | undefined): string {
 
 // ─── Register Row ─────────────────────────────────────────────────────────────
 
-function RegisterRow({ item }: { item: VineRegisterEntry }) {
+function RegisterRow({
+  item,
+  onMarkRemoved,
+}: {
+  item: VineRegisterEntry;
+  onMarkRemoved: (entry: VineRegisterEntry) => void;
+}) {
   const isRemoved = !!item.isRemovedFromRegister;
   return (
     <View style={[styles.row, isRemoved && styles.rowRemoved]}>
@@ -85,21 +93,47 @@ function RegisterRow({ item }: { item: VineRegisterEntry }) {
           )}
         </View>
       </View>
-      {isRemoved ? (
-        <View style={styles.removedBadge}>
-          <Text style={styles.removedBadgeText}>Removed</Text>
-        </View>
-      ) : (
-        <View style={styles.activeBadge}>
-          <Text style={styles.activeBadgeText}>Active</Text>
-        </View>
-      )}
+      <View style={styles.rowRight}>
+        {isRemoved ? (
+          <View style={styles.removedBadge}>
+            <Text style={styles.removedBadgeText}>Removed</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeBadgeText}>Active</Text>
+            </View>
+            <Pressable
+              onPress={() => onMarkRemoved(item)}
+              style={styles.removeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Mark ${item.registeredVariety ?? "this vine register entry"} as removed`}
+              testID={`mark-removed-${item.id}`}
+              hitSlop={8}
+            >
+              <Feather name="x-circle" size={15} color={colors.error} />
+              <Text style={styles.removeBtnText}>Remove</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
-// ─── RPA Warning Banner ────────────────────────────────────────────────────────
-
+function isValidRemovalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
 function RpaWarningBanner({
   sbiMissing,
   sectorMissing,
@@ -471,10 +505,20 @@ export default function VineRegisterScreen() {
   const [statusFilter, setStatusFilter] = usePersistedVineRegisterStatusFilter(farmIdStr);
   const [addEntryVisible, setAddEntryVisible] = useState(false);
   const [editingBlock, setEditingBlock] = useState<VineBlock | null>(null);
+  const [removingEntry, setRemovingEntry] = useState<VineRegisterEntry | null>(null);
+  // Keep the removal result visible immediately after saving, without waiting
+  // for the list request to complete again.
+  const [savedEntryUpdates, setSavedEntryUpdates] = useState<
+    Record<number, Pick<VineRegisterEntry, "isRemovedFromRegister" | "removalDate" | "removalReason">>
+  >({});
   // Keep saved refs local so the missing-ref banner and manage list stay
   // accurate immediately without needing a full re-fetch of the blocks list.
   const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
   const [savedParcelRefs, setSavedParcelRefs] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    setSavedEntryUpdates({});
+  }, [farmIdStr]);
 
   const sbiMissing = !identifiersLoading && !sbiNumber;
   const sectorMissing = !currentFarm?.sectorViticulture;
@@ -535,7 +579,22 @@ export default function VineRegisterScreen() {
     updateBlock(blockId, { fieldParcelRef });
   }, [updateBlock]);
 
-  const activeRecords = records.filter(r => !r.isRemovedFromRegister);
+  const displayedRecords = records.map(record => ({
+    ...record,
+    ...(savedEntryUpdates[record.id] ?? {}),
+  }));
+
+  const handleEntryRemoved = useCallback((
+    entryId: number,
+    updated: Pick<VineRegisterEntry, "isRemovedFromRegister" | "removalDate" | "removalReason">,
+  ) => {
+    setSavedEntryUpdates(prev => ({ ...prev, [entryId]: updated }));
+    // The default Active filter would otherwise hide the row immediately,
+    // before the grower can see that the removal succeeded.
+    if (statusFilter === "active") setStatusFilter("all");
+  }, [setStatusFilter, statusFilter]);
+
+  const activeRecords = displayedRecords.filter(r => !r.isRemovedFromRegister);
   const totalAreaHa = activeRecords.reduce((sum, r) => {
     const area = parseFloat(r.registeredAreaHa ?? "");
     return sum + (isNaN(area) ? 0 : area);
@@ -543,10 +602,10 @@ export default function VineRegisterScreen() {
 
   const statusFiltered =
     statusFilter === "active"
-      ? records.filter(r => !r.isRemovedFromRegister)
+      ? displayedRecords.filter(r => !r.isRemovedFromRegister)
       : statusFilter === "removed"
-      ? records.filter(r => !!r.isRemovedFromRegister)
-      : records;
+      ? displayedRecords.filter(r => !!r.isRemovedFromRegister)
+      : displayedRecords;
 
   const filtered = search.trim()
     ? statusFiltered.filter(r =>
@@ -673,7 +732,9 @@ export default function VineRegisterScreen() {
             ) : null
           }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => <RegisterRow item={item} />}
+          renderItem={({ item }) => (
+            <RegisterRow item={item} onMarkRemoved={setRemovingEntry} />
+          )}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <Feather name="list" size={32} color={colors.textSecondary} />
@@ -698,6 +759,14 @@ export default function VineRegisterScreen() {
         farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
         onClose={() => setEditingBlock(null)}
         onSaved={handleBlockSaved}
+      />
+
+      {/* Mark entry as removed modal */}
+      <MarkRemovedModal
+        entry={removingEntry}
+        farmId={currentFarm?.id != null ? Number(currentFarm.id) : undefined}
+        onClose={() => setRemovingEntry(null)}
+        onSaved={handleEntryRemoved}
       />
 
       {/* Add Entry Modal */}
@@ -925,6 +994,51 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
+  removeModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  removeModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  removeModalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  removeModalIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.errorBg,
+  },
+  removeModalClose: {
+    padding: spacing.xs,
+    marginRight: -spacing.xs,
+  },
+  removeFieldGroup: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  removeFieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  reasonInput: {
+    minHeight: 70,
+    paddingTop: spacing.sm,
+  },
+  removeConfirmBtn: {
+    backgroundColor: colors.error,
+  },
   modalTitle: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.md,
@@ -1090,6 +1204,11 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   rowLeft: { flex: 1, gap: 3 },
+  rowRight: {
+    alignItems: "flex-end",
+    gap: spacing.xs,
+    marginLeft: spacing.sm,
+  },
   rowVariety: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
@@ -1123,6 +1242,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: "#166534",
+  },
+  removeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.error,
+    backgroundColor: colors.errorBg,
+  },
+  removeBtnText: {
+    fontFamily: fonts.medium,
+    fontSize: 10,
+    color: colors.error,
   },
   removedBadge: {
     backgroundColor: "#fef2f2",
@@ -1755,3 +1890,173 @@ const EMPTY_FORM: AddEntryForm = {
   fsaVineRegisterRef: "",
   dateRegistered: "",
 };
+
+function MarkRemovedModal({
+  entry,
+  farmId,
+  onClose,
+  onSaved,
+}: {
+  entry: VineRegisterEntry | null;
+  farmId: number | undefined;
+  onClose: () => void;
+  onSaved: (entryId: number, updated: Pick<VineRegisterEntry, "isRemovedFromRegister" | "removalDate" | "removalReason">) => void;
+}) {
+  const [removalDate, setRemovalDate] = useState("");
+  const [removalReason, setRemovalReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (entry) {
+      setRemovalDate(entry.removalDate ?? "");
+      setRemovalReason(entry.removalReason ?? "");
+      setError(null);
+    }
+  }, [entry]);
+
+  const handleClose = useCallback(() => {
+    if (saving) return;
+    setError(null);
+    onClose();
+  }, [onClose, saving]);
+
+  const handleSave = useCallback(async () => {
+    if (!entry || !farmId) return;
+    const date = removalDate.trim();
+    if (date && !isValidRemovalDate(date)) {
+      setError("Removal date must be in YYYY-MM-DD format and be a real calendar date.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = {
+        isRemovedFromRegister: true as const,
+        removalDate: date || null,
+        removalReason: removalReason.trim() || null,
+      };
+      const res = await apiFetch(`/api/farms/${farmId}/vine-register/${entry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+      if (!res.ok) {
+        const responseError = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof responseError?.error === "string"
+            ? responseError.error
+            : "Could not mark the entry as removed.",
+        );
+      }
+      onSaved(entry.id, updated);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reach the server. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [entry, farmId, onClose, onSaved, removalDate, removalReason]);
+
+  return (
+    <Modal
+      visible={!!entry}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
+        <View style={styles.removeModalCard}>
+          <View style={styles.removeModalHeader}>
+            <View style={styles.removeModalTitleRow}>
+              <View style={styles.removeModalIcon}>
+                <Feather name="x-circle" size={18} color={colors.error} />
+              </View>
+              <Text style={styles.modalTitle}>Mark as removed</Text>
+            </View>
+            <Pressable
+              onPress={handleClose}
+              style={styles.removeModalClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              disabled={saving}
+            >
+              <Feather name="x" size={20} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+          <Text style={styles.modalSubtitle}>
+            {entry?.registeredVariety ?? "This register entry"} will be marked as removed from the FSA vine register.
+          </Text>
+
+          <View style={styles.removeFieldGroup}>
+            <Text style={styles.removeFieldLabel}>Removal date (optional)</Text>
+            <TextInput
+              style={[styles.modalInput, !!error && styles.modalInputError]}
+              value={removalDate}
+              onChangeText={value => {
+                setRemovalDate(value);
+                setError(null);
+              }}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="numbers-and-punctuation"
+              returnKeyType="next"
+              editable={!saving}
+              testID="removal-date-input"
+            />
+          </View>
+          <View style={styles.removeFieldGroup}>
+            <Text style={styles.removeFieldLabel}>Reason (optional)</Text>
+            <TextInput
+              style={[styles.modalInput, styles.reasonInput, !!error && styles.modalInputError]}
+              value={removalReason}
+              onChangeText={value => {
+                setRemovalReason(value);
+                setError(null);
+              }}
+              placeholder="e.g. Vines grubbed up"
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              textAlignVertical="top"
+              editable={!saving}
+              testID="removal-reason-input"
+            />
+          </View>
+          {!!error && <Text style={styles.modalError}>{error}</Text>}
+
+          <View style={styles.modalButtons}>
+            <Pressable
+              onPress={handleClose}
+              style={[styles.modalBtn, styles.modalBtnCancel]}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel marking as removed"
+            >
+              <Text style={styles.modalBtnCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleSave()}
+              style={[styles.modalBtn, styles.removeConfirmBtn, saving && styles.modalBtnDisabled]}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Confirm mark as removed"
+              testID="confirm-mark-removed"
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={colors.textInverse} />
+              ) : (
+                <Text style={styles.modalBtnSaveText}>Mark as removed</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
