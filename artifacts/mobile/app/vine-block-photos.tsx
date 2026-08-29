@@ -970,7 +970,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {photo && !photo.isCover ? (
           <Pressable
             style={[styles.lbSetCoverBtn, { top: insets.top + 12 }]}
-            hitSlop={16}
+            hitSlop={24}
             onPress={() => onSetCover(photo)}
           >
             <Text style={styles.lbSetCoverIcon}>★</Text>
@@ -981,7 +981,7 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {photo ? (
           <Pressable
             style={[styles.lbDeleteBtn, { top: insets.top + 12 }]}
-            hitSlop={16}
+            hitSlop={24}
             onPress={() => {
               const photoId = resolveCurrentPhotoId(photos, currentIndex) ?? photo.id;
               const message = buildLightboxDeleteMessage(photos.length, photo.isCover);
