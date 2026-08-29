@@ -10,6 +10,7 @@ import {
   STORAGE_KEYS,
 } from "@/lib/storage";
 import { syncRefData } from "@/lib/refCache";
+import { refreshApiModules } from "@/lib/hooks/useApiModules";
 import type { Farm, UserProfile } from "@/lib/types";
 import { mapApiFarm, type ApiFarm } from "@/lib/utils/mapApiFarm";
 
@@ -245,6 +246,7 @@ const [FarmProviderInner, useFarm] = createContextHook(
       if (!token && !__DEV__) return;
       const apiFarms = await fetchFarmsFromApi(token);
       if (apiFarms === null) return;
+      const currentFarmId = currentFarm?.id;
       await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
       clearExpiredAgriEnvCaches(apiFarms.map((farm) => farm.id)).catch(() => {});
       setFarms(apiFarms);
@@ -253,6 +255,9 @@ const [FarmProviderInner, useFarm] = createContextHook(
         setCurrentFarmState(null);
         return;
       }
+      const selectedFarm = currentFarmId
+        ? (apiFarms.find((farm) => farm.id === currentFarmId) ?? apiFarms[0])
+        : apiFarms[0];
       setCurrentFarmState(prev => {
         if (!prev) return prev;
         const updated = apiFarms.find(f => f.id === prev.id);
@@ -260,7 +265,11 @@ const [FarmProviderInner, useFarm] = createContextHook(
         setItem(STORAGE_KEYS.CURRENT_FARM, next).catch(() => {});
         return next;
       });
-    }, []);
+      await Promise.allSettled([
+        syncRefData(selectedFarm.id),
+        refreshApiModules(selectedFarm.id, selectedFarm.tenantSlug),
+      ]);
+    }, [currentFarm?.id]);
 
     return { farms, currentFarm, setCurrentFarm, updateFarm, refreshFarms, user, isLoading };
   },

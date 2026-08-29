@@ -7,6 +7,8 @@ const mockClearExpiredAgriEnvCaches = jest.fn<Promise<void>, [Iterable<string | 
 const mockGetItem = jest.fn<Promise<unknown>, [string]>();
 const mockSetItem = jest.fn<Promise<void>, [string, unknown]>();
 const mockRemoveItem = jest.fn<Promise<void>, [string]>();
+const mockSyncRefData = jest.fn<Promise<void>, [string]>();
+const mockRefreshApiModules = jest.fn<Promise<void>, [string, string?]>();
 
 jest.mock("react", () => ({
   __esModule: true,
@@ -52,7 +54,11 @@ jest.mock("@/lib/storage", () => ({
 }));
 
 jest.mock("@/lib/refCache", () => ({
-  syncRefData: jest.fn(),
+  syncRefData: (...args: [string]) => mockSyncRefData(...args),
+}));
+
+jest.mock("@/lib/hooks/useApiModules", () => ({
+  refreshApiModules: (...args: [string, string?]) => mockRefreshApiModules(...args),
 }));
 
 require("../lib/context/FarmContext");
@@ -98,6 +104,8 @@ describe("FarmContext agri-environment cache reconciliation", () => {
     mockGetItem.mockResolvedValue(null);
     mockSetItem.mockResolvedValue(undefined);
     mockRemoveItem.mockResolvedValue(undefined);
+    mockSyncRefData.mockResolvedValue(undefined);
+    mockRefreshApiModules.mockResolvedValue(undefined);
 
     (global as Record<string, unknown>).__DEV__ = true;
     process.env.EXPO_PUBLIC_DOMAIN = "api.example.test";
@@ -166,5 +174,7 @@ describe("FarmContext agri-environment cache reconciliation", () => {
       "bde_current_farm",
       expect.objectContaining({ id: "42" }),
     );
+    expect(mockSyncRefData).toHaveBeenCalledWith("42");
+    expect(mockRefreshApiModules).toHaveBeenCalledWith("42", "authorized-farm");
   });
 });
