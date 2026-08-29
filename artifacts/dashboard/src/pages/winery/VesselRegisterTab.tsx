@@ -1223,6 +1223,32 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     defaultValue: "fills",
     validValues: VESSEL_DETAIL_TABS,
   });
+  const viticultureActive = useIsViticultureActive(farmId);
+
+  // Keep the detail-tab counts warm even when their tab has not been opened.
+  // These keys intentionally match the child tab queries below, so their
+  // records and badges share one cache and every existing mutation
+  // invalidation refreshes both views.
+  const fillsQuery = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-barrel-fills", farmId, view?.id],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${view!.id}/fills`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!view?.id && isBarrelVessel(view.vessel_type) && viticultureActive,
+  });
+  const maintenanceQuery = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-barrel-maintenance", farmId, view?.id],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${view!.id}/maintenance`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!view?.id && isBarrelVessel(view.vessel_type) && viticultureActive,
+  });
+  const movementQuery = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-barrel-movements", farmId, view?.id],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${view!.id}/movements`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!view?.id && isBarrelVessel(view.vessel_type) && viticultureActive,
+  });
+  const cleaningQuery = useQuery<Record<string, unknown>[]>({
+    queryKey: ["winery-vessel-cleans", farmId, view?.id],
+    queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-vessels/${view!.id}/cleans`)).records ?? []) as Record<string, unknown>[],
+    enabled: !!view?.id && isBarrelVessel(view.vessel_type) && viticultureActive,
+  });
 
   // Persist the last-viewed vessel ID so the detail dialog can be restored on return.
   // We use the hook for writes only; reads in the restore effect go directly to
@@ -2230,6 +2256,12 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       location: "Location",
                       cleaning: "Cleaning",
                     };
+                    const counts: Record<VesselDetailTab, number | undefined> = {
+                      fills: fillsQuery.data?.length,
+                      maintenance: maintenanceQuery.data?.length,
+                      location: movementQuery.data?.length,
+                      cleaning: cleaningQuery.data?.length,
+                    };
                     const isActive = detailTab === tab;
                     return (
                       <button
@@ -2237,7 +2269,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         onClick={() => setDetailTab(tab)}
                         className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${isActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40"}`}
                       >
-                        {labels[tab]}
+                        <span className="inline-flex items-center gap-1.5">
+                          <span>{labels[tab]}</span>
+                          {counts[tab] !== undefined && counts[tab] > 0 && (
+                            <span
+                              aria-label={`${counts[tab]} ${labels[tab].toLowerCase()} record${counts[tab] !== 1 ? "s" : ""}`}
+                              className={`inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ${isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}
+                            >
+                              {counts[tab]}
+                            </span>
+                          )}
+                        </span>
                       </button>
                     );
                   })}
