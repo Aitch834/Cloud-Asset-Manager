@@ -1,9 +1,9 @@
 /**
  * Tests confirming the WineGB survey banner migration Set guard behaviour.
  *
- * The vine-phenology screen uses a module-level `winegbMigratedSigs` Set (the
- * same pattern as `useIdentifierBannerDismiss`) to avoid re-reading AsyncStorage
- * on every remount when the user navigates away and back.
+ * The vine-phenology screen uses the shared batch-migration guard to avoid
+ * re-reading AsyncStorage on every remount when the user navigates away and
+ * back.
  *
  * Covers:
  *  1. runUiPrefBatchMigration — absent / promoted / retry result codes for the
@@ -20,15 +20,9 @@
  * Architecture note
  * -----------------
  * We avoid @testing-library/react-native (which pulls in ESM-only Expo modules
- * that crash the Node Jest environment) and instead exercise the migration
- * function directly and simulate the component's useEffect guard logic inline —
- * matching the approach used in useUiPrefs-reinstall.test.ts.
- *
- * The module-level `winegbMigratedSigs` Set inside vine-phenology.tsx is not
- * exported (it is an implementation detail of the screen).  Tests 3 and 4
- * therefore simulate the guard in a local Set — identical logic to the
- * component — so we can verify call-count behaviour without importing the
- * full React-Native screen module.
+ * that crash the Node Jest environment). The React mock below lets the tests
+ * invoke the shared hook's effect and re-render it without importing the full
+ * React-Native screen module.
  */
 
 // ---------------------------------------------------------------------------
@@ -113,6 +107,7 @@ jest.mock("expo-secure-store", () => ({
 // ---------------------------------------------------------------------------
 
 import { runUiPrefBatchMigration, useUiPrefs } from "../lib/hooks/useUiPrefs";
+import { useUiPrefBatchMigrationGuard } from "../lib/hooks/useUiPrefBatchMigrationGuard";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -158,11 +153,6 @@ function winegbPrefKey(surveyName: string, year: number): string {
 /** Returns the legacy key for a farm+year combination. */
 function winegbLegacyKey(farmId: string, year: number): string {
   return `bde_winegb_dismissed_${farmId}_${year}`;
-}
-
-/** Returns the migration sig for a userId+farmId pair. */
-function winegbMigSig(userId: string, farmId: string): string {
-  return `${userId}:${farmId}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,44 +378,32 @@ describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
 });
 
 // ===========================================================================
-// 4. Module-level Set guard — banner stays hidden during the async window
+// 4. Shared hook guard — banner stays hidden during the async window
 //
-// The component computes:
-//   migrationChecked = sig === null || winegbMigratedSigs.has(sig)
+// The hook computes:
+//   migrationChecked = sig === null || migratedSigs.has(sig)
 //   showBanner = prefsReady && migrationChecked && !isHintDismissed(key)
 //
 // Before the migration promise resolves, `migrationChecked` is false, so
 // `showBanner` is false regardless of prefsReady — banner stays hidden.
-//
-// We simulate the component's guard logic with a local Set (same pattern as
-// the component) so we can verify call-count behaviour without importing the
-// full React-Native screen module.
 // ===========================================================================
 
-describe("Module-level Set guard — conservative hide during async migration window", () => {
+describe("useUiPrefBatchMigrationGuard — conservative hide during async migration window", () => {
   const YEAR = 2026;
 
-  /**
-   * Simulates one "mount" of the vine-phenology component's migration effect.
-   *
-   * Returns whether the migration ran (i.e. AsyncStorage was read for the
-   * legacy key) and the resulting migration outcome.
-   */
-  async function simulateMount(params: {
-    migratedSigs: Set<string>;
+  function renderGuard(params: {
     userId: string;
     farmId: string;
-  }): Promise<{ ran: boolean; result: string | null }> {
-    const { migratedSigs, userId, farmId } = params;
-    const sig    = winegbMigSig(userId, farmId);
-    const legKey = winegbLegacyKey(farmId, YEAR);
+    legacyKey?: string;
+  }): { migrationChecked: boolean; runEffect: () => unknown } {
+    mockSlotIdx = 0;
+    mockEffects.length = 0;
+    const { userId, farmId } = params;
+    const legKey = params.legacyKey ?? winegbLegacyKey(farmId, YEAR);
 
-    if (migratedSigs.has(sig)) {
-      return { ran: false, result: null };
-    }
-
-    const result = await runUiPrefBatchMigration(
+    const migrationChecked = useUiPrefBatchMigrationGuard(
       userId,
+      farmId,
       legKey,
       (raw) => {
         const dismissed: string[] = JSON.parse(raw);
@@ -433,11 +411,11 @@ describe("Module-level Set guard — conservative hide during async migration wi
       },
     );
 
-    if (result !== "retry") {
-      migratedSigs.add(sig);
-    }
-
-    return { ran: true, result };
+    const effect = mockEffects[0] as (() => unknown) | undefined;
+    return {
+      migrationChecked,
+      runEffect: () => effect?.(),
+    };
   }
 
   it("migrationChecked is false before migration promise resolves (conservative hide)", async () => {
@@ -450,21 +428,14 @@ describe("Module-level Set guard — conservative hide during async migration wi
       makeLegacyWinegbValue(["Bud Burst Survey"]),
     );
 
-    const migratedSigs = new Set<string>();
-    const sig = winegbMigSig(uid, farm);
+    // Before migration runs the hook conservatively hides the banner.
+    const firstRender = renderGuard({ userId: uid, farmId: farm });
+    expect(firstRender.migrationChecked).toBe(false);
 
-    // Before migration runs: sig is not in the Set.
-    expect(migratedSigs.has(sig)).toBe(false);
-
-    // migrationChecked formula: false → banner conservatively hidden.
-    const migrationChecked = migratedSigs.has(sig);
-    expect(migrationChecked).toBe(false);
-
-    // Now run migration.
-    await simulateMount({ migratedSigs, userId: uid, farmId: farm });
-
-    // After migration: sig is in the Set.
-    expect(migratedSigs.has(sig)).toBe(true);
+    // Run the hook effect, then render again after migration completes.
+    firstRender.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
   });
 
   it("same-farm remount does NOT re-read AsyncStorage for the legacy key", async () => {
@@ -475,11 +446,11 @@ describe("Module-level Set guard — conservative hide during async migration wi
     // First mount: legacy key present → promoted.
     asyncStore.set(legKey, makeLegacyWinegbValue(["Bud Burst Survey"]));
 
-    const migratedSigs = new Set<string>();
-
-    const firstMount = await simulateMount({ migratedSigs, userId: uid, farmId: farm });
-    expect(firstMount.ran).toBe(true);
-    expect(firstMount.result).toBe("promoted");
+    const firstMount = renderGuard({ userId: uid, farmId: farm });
+    firstMount.runEffect();
+    await drain();
+    expect(firstMount.migrationChecked).toBe(false);
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
 
     // Record how many times the legacy key specifically was read after the
     // first mount.  We scope to the legacy key because the async best-effort
@@ -492,10 +463,12 @@ describe("Module-level Set guard — conservative hide during async migration wi
     ).length;
 
     // Second mount (same farm, same user — simulates navigate-away-and-back).
-    const secondMount = await simulateMount({ migratedSigs, userId: uid, farmId: farm });
+    const secondMount = renderGuard({ userId: uid, farmId: farm });
+    secondMount.runEffect();
+    await drain();
 
     // Guard should have short-circuited — legacy key must NOT have been read again.
-    expect(secondMount.ran).toBe(false);
+    expect(secondMount.migrationChecked).toBe(true);
     expect(
       mockGetItem.mock.calls.filter((c) => c[0] === legKey).length,
     ).toBe(legacyKeyReadsAfterFirst);
@@ -516,21 +489,39 @@ describe("Module-level Set guard — conservative hide during async migration wi
       makeLegacyWinegbValue(["Flowering Survey"]),
     );
 
-    const migratedSigs = new Set<string>();
-
     // Mount on Farm A.
-    const mountA = await simulateMount({ migratedSigs, userId: uid, farmId: farmA });
-    expect(mountA.ran).toBe(true);
-    expect(mountA.result).toBe("promoted");
-    expect(migratedSigs.has(winegbMigSig(uid, farmA))).toBe(true);
+    const mountA = renderGuard({ userId: uid, farmId: farmA });
+    mountA.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farmA }).migrationChecked).toBe(true);
 
     // Switch to Farm B — different sig, guard does not block.
-    expect(migratedSigs.has(winegbMigSig(uid, farmB))).toBe(false);
+    const mountB = renderGuard({ userId: uid, farmId: farmB });
+    expect(mountB.migrationChecked).toBe(false);
+    mountB.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farmB }).migrationChecked).toBe(true);
+  });
 
-    const mountB = await simulateMount({ migratedSigs, userId: uid, farmId: farmB });
-    expect(mountB.ran).toBe(true); // migration ran for farmB
-    expect(mountB.result).toBe("promoted");
-    expect(migratedSigs.has(winegbMigSig(uid, farmB))).toBe(true);
+  it("different legacy keys do not share a completed guard entry", async () => {
+    const uid  = nextUid();
+    const farm = nextFarm();
+    const legacyKeyA = `${winegbLegacyKey(farm, YEAR)}_a`;
+    const legacyKeyB = `${winegbLegacyKey(farm, YEAR)}_b`;
+
+    asyncStore.set(legacyKeyA, makeLegacyWinegbValue(["Bud Burst Survey"]));
+    asyncStore.set(legacyKeyB, makeLegacyWinegbValue(["Flowering Survey"]));
+
+    const migrationA = renderGuard({ userId: uid, farmId: farm, legacyKey: legacyKeyA });
+    migrationA.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farm, legacyKey: legacyKeyA }).migrationChecked).toBe(true);
+
+    const migrationB = renderGuard({ userId: uid, farmId: farm, legacyKey: legacyKeyB });
+    expect(migrationB.migrationChecked).toBe(false);
+    migrationB.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farm, legacyKey: legacyKeyB }).migrationChecked).toBe(true);
   });
 
   it("retry result leaves sig absent so the migration re-runs on next mount", async () => {
@@ -545,19 +536,19 @@ describe("Module-level Set guard — conservative hide during async migration wi
     // First write will fail → retry.
     mockSetItem.mockRejectedValueOnce(new Error("QuotaExceededError"));
 
-    const migratedSigs = new Set<string>();
+    const firstMount = renderGuard({ userId: uid, farmId: farm });
+    expect(firstMount.migrationChecked).toBe(false);
+    firstMount.runEffect();
+    await drain();
 
-    const firstMount = await simulateMount({ migratedSigs, userId: uid, farmId: farm });
-    expect(firstMount.result).toBe("retry");
-
-    // Sig must NOT be in the Set so the next mount retries.
-    expect(migratedSigs.has(winegbMigSig(uid, farm))).toBe(false);
+    // The retry must leave the guard unchecked.
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(false);
 
     // Next mount (writes now succeed) — migration runs again.
-    const secondMount = await simulateMount({ migratedSigs, userId: uid, farmId: farm });
-    expect(secondMount.ran).toBe(true);
-    expect(secondMount.result).toBe("promoted");
-    expect(migratedSigs.has(winegbMigSig(uid, farm))).toBe(true);
+    const secondMount = renderGuard({ userId: uid, farmId: farm });
+    secondMount.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
   });
 
   it("userId switch resets the guard (different sig per user)", async () => {
@@ -570,17 +561,19 @@ describe("Module-level Set guard — conservative hide during async migration wi
       makeLegacyWinegbValue(["Harvest Survey"]),
     );
 
-    const migratedSigs = new Set<string>();
-
     // User A mounts — migration runs.
-    await simulateMount({ migratedSigs, userId: uidA, farmId: farm });
-    expect(migratedSigs.has(winegbMigSig(uidA, farm))).toBe(true);
+    const mountA = renderGuard({ userId: uidA, farmId: farm });
+    mountA.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uidA, farmId: farm }).migrationChecked).toBe(true);
 
     // User B mounts on the same farm — different sig, migration runs for B.
     // (AsyncStorage would be re-read because the legacy key is farm-scoped.)
-    const mountB = await simulateMount({ migratedSigs, userId: uidB, farmId: farm });
-    expect(mountB.ran).toBe(true);
-    expect(migratedSigs.has(winegbMigSig(uidB, farm))).toBe(true);
+    const mountB = renderGuard({ userId: uidB, farmId: farm });
+    expect(mountB.migrationChecked).toBe(false);
+    mountB.runEffect();
+    await drain();
+    expect(renderGuard({ userId: uidB, farmId: farm }).migrationChecked).toBe(true);
   });
 });
 

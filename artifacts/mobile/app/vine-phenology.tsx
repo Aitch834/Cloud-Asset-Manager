@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -25,7 +25,8 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId } from "@/lib/storage";
-import { useUiPrefs, runUiPrefBatchMigration, dismissHintDurable } from "@/lib/hooks/useUiPrefs";
+import { useUiPrefs, dismissHintDurable } from "@/lib/hooks/useUiPrefs";
+import { useUiPrefBatchMigrationGuard } from "@/lib/hooks/useUiPrefBatchMigrationGuard";
 import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
@@ -72,26 +73,6 @@ function winegbPrefKey(surveyName: string, year: number): string {
   return `winegb_${surveyName.replace(/\s/g, "_").toLowerCase()}_${year}`;
 }
 
-// ---------------------------------------------------------------------------
-// Module-level migration tracking — mirrors the pattern in useIdentifierBannerDismiss.
-//
-// A module-level Set persists for the entire app session and is synchronously
-// readable at render time, avoiding the one-render lag that arises from useState
-// on context switches (userId / farmId change).
-//
-// Key format: `${userId}:${farmId}`
-//
-// A sig is added only when runUiPrefBatchMigration returns "promoted" or
-// "absent".  A "retry" result leaves the sig absent so the effect re-runs on
-// the next mount and attempts the migration again.
-// ---------------------------------------------------------------------------
-
-const winegbMigratedSigs = new Set<string>();
-
-function winegbMigSig(userId: string, farmId: string): string {
-  return `${userId}:${farmId}`;
-}
-
 export default function VinePhenologyScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
@@ -125,54 +106,15 @@ export default function VinePhenologyScreen() {
   const { dismissed: bannerDismissed, dismiss: dismissIdentifierBanner } = useIdentifierBannerDismiss("vine-phenology", currentFarm?.id, userId);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
 
-  // Used only to trigger re-renders when the module-level Set is updated after
-  // a migration completes.  The actual readiness is read from the Set.
-  const [, setMigrationEpoch] = useState(0);
-
-  // Compute migration readiness synchronously from the module-level Set so it
-  // is always correct at render time, even across context switches.
-  // When userId or farmId is absent there is nothing to migrate; treat as done.
-  const sig = userId && farmId ? winegbMigSig(userId, farmId) : null;
-  const migrationChecked = sig === null || winegbMigratedSigs.has(sig);
-
-  useEffect(() => {
-    // Without both identifiers there is no legacy key to check.
-    if (!userId || !farmId) return;
-
-    const currentSig = winegbMigSig(userId, farmId);
-
-    // Already successfully migrated this combination in this session.
-    if (winegbMigratedSigs.has(currentSig)) return;
-
-    let uiActive = true;
-
-    const legacyKey = `bde_winegb_dismissed_${farmId}_${currentSeasonYear}`;
-
-    // runUiPrefBatchMigration atomically writes all new pref keys to cache +
-    // pending queue before removing the legacy key, so an app crash or
-    // AsyncStorage failure cannot leave the grower without any record.
-    // On "retry" the legacy key is retained and will be re-attempted next mount.
-    void runUiPrefBatchMigration(
-      userId,
-      legacyKey,
-      (raw) => {
-        const dismissed: string[] = JSON.parse(raw);
-        return dismissed.map(surveyName => winegbPrefKey(surveyName, currentSeasonYear));
-      },
-    ).then((result) => {
-      // Add to Set only when migration completed (promoted or absent).
-      // A "retry" means a storage write failed and the legacy key was retained —
-      // do NOT add to the Set so the migration re-runs on the next mount.
-      if (result !== "retry") {
-        winegbMigratedSigs.add(currentSig);
-        if (uiActive) setMigrationEpoch((e) => e + 1);
-      }
-    });
-
-    return () => { uiActive = false; };
-  // currentSeasonYear never changes within a session.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farmId, userId]);
+  const migrationChecked = useUiPrefBatchMigrationGuard(
+    userId,
+    farmId,
+    `bde_winegb_dismissed_${farmId}_${currentSeasonYear}`,
+    (raw) => {
+      const dismissed: string[] = JSON.parse(raw);
+      return dismissed.map(surveyName => winegbPrefKey(surveyName, currentSeasonYear));
+    },
+  );
 
   const filteredStages = seasonFilter ? BBCH_STAGES.filter(s => s.season === seasonFilter) : BBCH_STAGES;
 
