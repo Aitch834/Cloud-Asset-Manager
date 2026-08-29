@@ -793,6 +793,24 @@ export default function VineScoutingHistoryScreen() {
     return rows;
   }, [blockFilteredRecords, search, pressureFilter, canonFrom, canonTo]);
 
+  const searchPressureFilterActive = search.trim().length > 0 || pressureFilter !== "__all__";
+  const pressureFilterDescription =
+    pressureFilter === "1" ? "Low or above" :
+    pressureFilter === "2" ? "Medium or above" :
+    pressureFilter === "3" ? "High only" :
+    null;
+  const searchPressureFilterDescription = [
+    search.trim() ? `"${search.trim()}"` : null,
+    pressureFilterDescription ? `pressure "${pressureFilterDescription}"` : null,
+  ].filter(Boolean).join(" and ");
+  const clearFilters = () => {
+    setSearch("");
+    setDateFrom("");
+    setDateTo("");
+    setPressureFilter("__all__");
+    setSelectedVintage(null);
+  };
+
   const handleSaved = (recordId: number, updated: Partial<ScoutingRecord>) => {
     setLocalUpdates(prev => ({
       ...prev,
@@ -980,19 +998,21 @@ export default function VineScoutingHistoryScreen() {
       {(search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__" || displayVintage !== null) ? (
         <View style={styles.clearFiltersRow}>
           <Pressable
-            onPress={() => {
-              setSearch("");
-              setDateFrom("");
-              setDateTo("");
-              setPressureFilter("__all__");
-              setSelectedVintage(null);
-            }}
+            onPress={clearFilters}
             style={styles.clearFiltersChip}
             hitSlop={6}
           >
             <Feather name="x" size={13} color={colors.primary} />
             <Text style={styles.clearFiltersText}>Clear filters</Text>
           </Pressable>
+          {searchPressureFilterActive && (
+            <View style={styles.matchCountChip}>
+              <Feather name="filter" size={12} color={colors.textSecondary} />
+              <Text style={styles.matchCountText}>
+                {filtered.length} {filtered.length === 1 ? "record" : "records"} matched
+              </Text>
+            </View>
+          )}
         </View>
       ) : null}
 
@@ -1145,14 +1165,31 @@ export default function VineScoutingHistoryScreen() {
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <Feather name="eye-off" size={32} color={colors.textSecondary} />
-              <Text style={styles.emptyTitle}>No scouting records</Text>
-              <Text style={styles.emptyText}>
-                {search.trim() || dateFrom.trim() || dateTo.trim() || pressureFilter !== "__all__" || displayVintage !== null
-                  ? "No records match the current filters."
-                  : selectedBlockIds.length > 0
-                    ? "No records for the selected block(s)."
-                  : "Scouting records you create will appear here."}
-              </Text>
+              {searchPressureFilterActive ? (
+                <>
+                  <Text style={styles.emptyTitle}>
+                    No scouting records match {searchPressureFilterDescription}
+                  </Text>
+                  <Text style={styles.emptyText}>
+                    Try adjusting your search or clear the filters to see all records.
+                  </Text>
+                  <Pressable onPress={clearFilters} style={styles.emptyClearButton} hitSlop={6}>
+                    <Feather name="x" size={13} color={colors.primary} />
+                    <Text style={styles.emptyClearText}>Clear filters</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyTitle}>No scouting records</Text>
+                  <Text style={styles.emptyText}>
+                    {dateFrom.trim() || dateTo.trim() || displayVintage !== null
+                      ? "No records match the current filters."
+                      : selectedBlockIds.length > 0
+                        ? "No records for the selected block(s)."
+                      : "Scouting records you create will appear here."}
+                  </Text>
+                </>
+              )}
             </View>
           }
         />
@@ -1620,6 +1657,9 @@ const styles = StyleSheet.create({
   },
   clearFiltersRow: {
     flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
@@ -1637,6 +1677,38 @@ const styles = StyleSheet.create({
   clearFiltersText: {
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
+    color: colors.primary,
+  },
+  matchCountChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  matchCountText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  emptyClearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  emptyClearText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
     color: colors.primary,
   },
   // Pressure filter chips
