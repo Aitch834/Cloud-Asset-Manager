@@ -30,6 +30,7 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
   const [postcode, setPostcode] = useState(farm.postcode ?? "");
   const [cphNumber, setCphNumber] = useState(farm.cphNumber ?? "");
   const [sbiNumber, setSbiNumber] = useState(farm.sbiNumber ?? "");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(farm.emergencyContactPhone ?? "");
   const [postcodeBlurred, setPostcodeBlurred] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,9 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
     postcodeBlurred &&
     postcodeVal.length > 0 &&
     !UK_POSTCODE_RE.test(postcodeVal);
+  const emergencyContactPhoneWarn =
+    emergencyContactPhone.trim().length > 0 &&
+    emergencyContactPhone.replace(/\D/g, "").length < 10;
 
   async function handleSave() {
     const normalisedPostcode = postcodeVal ? normalisePostcode(postcodeVal) : "";
@@ -55,6 +59,7 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
         postcode: normalisedPostcode || null,
         cphNumber: cphNumber.trim() || null,
         sbiNumber: sbiNumber.trim() || null,
+        emergencyContactPhone: emergencyContactPhone.trim() || null,
       }, secret);
       onSaved(result.farm);
       onClose();
@@ -155,6 +160,30 @@ function FarmEditDialog({ farm, tenantId, onClose, onSaved }: FarmEditDialogProp
                 placeholder="e.g. 123456789"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Emergency Contact Phone
+            </label>
+            <input
+              type="tel"
+              value={emergencyContactPhone}
+              onChange={(e) => setEmergencyContactPhone(e.target.value)}
+              className={`w-full px-3 py-2.5 text-sm rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-ring ${
+                emergencyContactPhoneWarn
+                  ? "border-amber-400 focus:ring-amber-400"
+                  : "border-input"
+              }`}
+              placeholder="e.g. 07700 900123"
+            />
+            {emergencyContactPhoneWarn ? (
+              <p className="mt-1.5 text-xs text-amber-600">
+                This doesn't look like a valid phone number — fewer than 10 digits. You can still save if you're sure.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-muted-foreground">Include country code if outside the UK</p>
+            )}
           </div>
 
           {error && (

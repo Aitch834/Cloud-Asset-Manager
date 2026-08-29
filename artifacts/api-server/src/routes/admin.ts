@@ -2631,7 +2631,7 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
 
   if (!farm) { res.status(404).json({ error: "Farm not found for this tenant" }); return; }
 
-  const { name, address, postcode, cphNumber, sbiNumber } = req.body as { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null };
+  const { name, address, postcode, cphNumber, sbiNumber, emergencyContactPhone } = req.body as { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null; emergencyContactPhone?: string | null };
   const updates: Record<string, string | null> = {};
   if (name !== undefined) {
     if (typeof name !== "string" || name.trim().length === 0) { res.status(400).json({ error: "Farm name cannot be empty" }); return; }
@@ -2642,6 +2642,7 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
   if (postcode !== undefined) updates.postcode = typeof postcode === "string" ? postcode.trim() || null : null;
   if (cphNumber !== undefined) updates.cphNumber = typeof cphNumber === "string" ? cphNumber.trim() || null : null;
   if (sbiNumber !== undefined) updates.sbiNumber = typeof sbiNumber === "string" ? sbiNumber.trim() || null : null;
+  if (emergencyContactPhone !== undefined) updates.emergencyContactPhone = typeof emergencyContactPhone === "string" ? emergencyContactPhone.trim() || null : null;
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
 
@@ -2649,7 +2650,7 @@ router.patch("/admin/tenants/:tenantId/farms/:farmId", requireAuth, async (req: 
     .update(farmsTable)
     .set(updates)
     .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, tenantId)))
-    .returning({ id: farmsTable.id, name: farmsTable.name, address: farmsTable.address, postcode: farmsTable.postcode, cphNumber: farmsTable.cphNumber, sbiNumber: farmsTable.sbiNumber });
+    .returning({ id: farmsTable.id, name: farmsTable.name, address: farmsTable.address, postcode: farmsTable.postcode, cphNumber: farmsTable.cphNumber, sbiNumber: farmsTable.sbiNumber, emergencyContactPhone: farmsTable.emergencyContactPhone });
 
   if (!updated) { res.status(404).json({ error: "Farm not found" }); return; }
 

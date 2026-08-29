@@ -133,6 +133,7 @@ export interface Farm {
   postcode?: string;
   cphNumber?: string;
   sbiNumber?: string;
+  emergencyContactPhone?: string;
   redTractorId?: string;
   totalAcreage?: number;
   isActive: boolean;
@@ -509,7 +510,7 @@ export const api = {
   updateTenant: (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) =>
     patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret),
 
-  updateFarm: (tenantId: number, farmId: number, data: { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null }, secret: string) =>
+  updateFarm: (tenantId: number, farmId: number, data: { name?: string; address?: string | null; postcode?: string | null; cphNumber?: string | null; sbiNumber?: string | null; emergencyContactPhone?: string | null }, secret: string) =>
     patch<{ farm: Farm }>(`/admin/tenants/${tenantId}/farms/${farmId}`, data, secret),
 
   generateReferralCode: (tenantId: number, secret: string) =>
