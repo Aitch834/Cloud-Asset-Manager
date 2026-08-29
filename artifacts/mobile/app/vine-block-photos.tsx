@@ -570,8 +570,11 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const hintDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Image error / retry state for the lightbox
-  const [imgError, setImgError] = useState(false);
-  const prevUriRef = useRef<string | null>(null);
+  // Track these by photo + URL rather than with a standalone boolean. That
+  // means navigating to another photo (or receiving a refreshed URL) resets
+  // the visual state immediately, without setting state during render.
+  const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
+  const [loadedImageKey, setLoadedImageKey] = useState<string | null>(null);
   /** True while the 2 s auto-retry timer is counting down. */
   const [autoRetryPending, setAutoRetryPending] = useState(false);
   /** Only one automatic retry is attempted for each photo view. */
@@ -739,9 +742,8 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
     cancelAutoRetry();
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset image/retry state when navigating to a different photo.
+  // Reset retry state when navigating to a different photo.
   useEffect(() => {
-    setImgError(false);
     cancelAutoRetry();
   }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -885,6 +887,11 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
   const caption = photo?.caption ?? null;
   const hasMultiple = photos.length > 1;
   const retryBusy = reloading || autoRetryPending;
+  // Include the photo ID so that two photos sharing a URL still have
+  // independent load/error states.
+  const imageKey = photo && uri ? `${photo.id}:${uri}` : null;
+  const imgError = imageKey !== null && failedImageKey === imageKey;
+  const imageReady = imageKey !== null && loadedImageKey === imageKey;
 
   // Auto-retry once when a presigned image URL expires.  If the refresh does
   // not replace the URL, the existing manual "Tap to reload" fallback remains.
@@ -1015,46 +1022,45 @@ function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReo
         {/* Zoomable image */}
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
-            {uri ? (
-              (() => {
-                // Reset error flag whenever the URI changes (new photo navigated to,
-                // or URLs refreshed after a successful reload).
-                if (prevUriRef.current !== uri) {
-                  prevUriRef.current = uri;
-                  if (imgError) setImgError(false);
-                }
-                return imgError ? (
+            {uri && imageKey ? (
+              imgError && !retryBusy ? (
                   <Pressable
-                    style={[
-                      styles.lbRetryContainer,
-                      retryBusy && styles.lbRetryContainerDisabled,
-                    ]}
+                    style={styles.lbRetryContainer}
                     onPress={onReload}
                     hitSlop={16}
                     disabled={retryBusy}
                   >
-                    {retryBusy ? (
-                      <ActivityIndicator size="large" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="refresh-cw" size={36} color="rgba(255,255,255,0.85)" />
-                        <Text style={styles.lbRetryText}>Tap to reload</Text>
-                      </>
-                    )}
+                    <Feather name="refresh-cw" size={36} color="rgba(255,255,255,0.85)" />
+                    <Text style={styles.lbRetryText}>Tap to reload</Text>
                   </Pressable>
-                ) : (
-                  retryBusy ? (
-                    <ActivityIndicator size="large" color="#fff" />
-                  ) : (
-                    <Image
-                      source={{ uri }}
-                      style={styles.lbImage}
-                      resizeMode="contain"
-                      onError={() => setImgError(true)}
-                    />
-                  )
-                );
-              })()
+              ) : (
+                <View style={styles.lbImageStage}>
+                  <Image
+                    key={imageKey}
+                    source={{ uri }}
+                    style={styles.lbImage}
+                    resizeMode="contain"
+                    onLoad={() => {
+                      setLoadedImageKey(imageKey);
+                      setFailedImageKey(null);
+                    }}
+                    onError={() => {
+                      // Keep the loading layer visible until this state
+                      // update swaps it directly for the retry overlay.
+                      setLoadedImageKey(null);
+                      setFailedImageKey(imageKey);
+                    }}
+                  />
+                  {(retryBusy || !imageReady) ? (
+                    <View
+                      style={styles.lbImageLoadingOverlay}
+                      pointerEvents="none"
+                    >
+                      <ActivityIndicator size="large" color="#fff" />
+                    </View>
+                  ) : null}
+                </View>
+              )
             ) : (
               <ActivityIndicator size="large" color="#fff" />
             )}
@@ -2237,9 +2243,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  lbImageStage: {
+    width: SCREEN.width,
+    height: SCREEN.height,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   lbImage: {
     width: SCREEN.width,
     height: SCREEN.height,
+  },
+  lbImageLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
   },
   lbRetryContainer: {
     alignItems: "center",
