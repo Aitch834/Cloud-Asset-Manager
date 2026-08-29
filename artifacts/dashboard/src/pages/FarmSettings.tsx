@@ -2458,6 +2458,10 @@ export default function FarmSettings() {
   const platformIdleBarrelDays = Number(platformConfig?.barrel_idle_days_default);
   const platformNeutralFills = Number(platformConfig?.barrel_neutral_fills_default);
   const platformRetirementThresholdPence = Number(platformConfig?.barrel_retirement_threshold_pence);
+  const platformIdleBarrelDaysHint =
+    platformConfig?.["winery.barrelIdleThresholdDays"] ?? platformConfig?.barrel_idle_days_default;
+  const platformNeutralFillsHint =
+    platformConfig?.["winery.barrelNeutralOakFills"] ?? platformConfig?.barrel_neutral_fills_default;
   const defaultIdleBarrelDays =
     Number.isInteger(platformIdleBarrelDays) && platformIdleBarrelDays > 0 ? platformIdleBarrelDays : 90;
   const defaultNeutralFills =
@@ -3410,9 +3414,15 @@ export default function FarmSettings() {
                     onChange={e => updateField("idleBarrelDays", e.target.value)}
                     className="mt-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    A barrel empty for longer than this many days is flagged as idle in the vessel register. Leave blank to use the platform default of {defaultIdleBarrelDays} days.
-                  </p>
+                  {!formData.idleBarrelDays && platformIdleBarrelDaysHint ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                      Using platform default: {platformIdleBarrelDaysHint} days
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A barrel empty for longer than this many days is flagged as idle in the vessel register. Leave blank to use the platform default of {defaultIdleBarrelDays} days.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="settings-approaching-neutral-fills">Neutral Oak Threshold (fills)</Label>
@@ -3425,9 +3435,15 @@ export default function FarmSettings() {
                     onChange={e => updateField("approachingNeutralFills", e.target.value)}
                     className="mt-1"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of {defaultNeutralFills} fills.
-                  </p>
+                  {!formData.approachingNeutralFills && platformNeutralFillsHint ? (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                      Using platform default: {platformNeutralFillsHint} fills
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Barrels at or beyond this fill number are flagged as approaching neutral oak influence. Leave blank to use the platform default of {defaultNeutralFills} fills.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="settings-barrel-retirement-threshold">Barrel Retirement Cost Threshold (£)</Label>
