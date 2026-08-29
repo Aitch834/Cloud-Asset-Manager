@@ -13,6 +13,7 @@ import { eq, and, count, desc, sql, asc, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/roleMiddleware";
 import { generateSetupGuidePdf } from "../lib/setup-guide-pdf";
 import { sendSetupGuideEmail, sendAdminEmail, sendTicketReplyEmail } from "../lib/mailer";
+import { isPrivateIp } from "../lib/private-ip";
 import { fetchInbox, fetchEmail, fetchAttachment, markAsRead, markAsUnread, deleteEmail, isImapConfigured, listMailboxes, fetchFolder, fetchEmailFromFolder, markFolderEmailRead, permanentlyDeleteFromFolder, moveToInbox, getUnreadCounts } from "../lib/imap";
 import { resolveStableVersionedValue } from "../lib/versioned-cache";
 
@@ -3441,74 +3442,6 @@ async function loadAdBrandAssets(): Promise<{ logoUri: string; qrUri: string }> 
  */
 const BG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const BG_FETCH_TIMEOUT_MS = 10_000;     // 10 s
-
-function isPrivateIp(addr: string): boolean {
-  // Strip IPv6 brackets if present
-  const a = addr.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-
-  // IPv4 private/reserved ranges
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(a);
-  if (v4) {
-    const [, o1, o2, o3, o4] = v4.map(Number);
-    if (
-      [o1, o2, o3, o4].some((octet) => octet < 0 || octet > 255) ||
-      o1 === 0 ||                                 // 0.0.0.0/8  — unspecified
-      o1 === 10 ||                                // 10.0.0.0/8  — private
-      o1 === 127 ||                               // 127.0.0.0/8 — loopback
-      (o1 === 100 && o2 >= 64 && o2 <= 127) ||   // 100.64.0.0/10 — RFC 6598 shared
-      (o1 === 169 && o2 === 254) ||               // 169.254.0.0/16 — link-local
-      (o1 === 172 && o2 >= 16 && o2 <= 31) ||    // 172.16.0.0/12  — private
-      (o1 === 192 && o2 === 0 && o3 === 0) ||    // 192.0.0.0/24   — IETF protocol assignments
-      (o1 === 192 && o2 === 168) ||               // 192.168.0.0/16 — private
-      (o1 === 192 && o2 === 0 && o3 === 2) ||    // 192.0.2.0/24   — documentation
-      (o1 === 192 && o2 === 31 && o3 === 196) ||  // 192.31.196.0/24 — documentation
-      (o1 === 192 && o2 === 52 && o3 === 193) ||  // 192.52.193.0/24 — documentation
-      (o1 === 192 && o2 === 88 && o3 === 99) ||   // 192.88.99.0/24  — deprecated 6to4 relay
-      (o1 === 198 && (o2 === 18 || o2 === 19)) || // 198.18.0.0/15  — RFC 2544 benchmarking
-      (o1 === 198 && o2 === 51 && o3 === 100) ||  // 198.51.100.0/24 — documentation
-      (o1 === 203 && o2 === 0 && o3 === 113) ||   // 203.0.113.0/24 — documentation
-      o1 >= 224                                      // multicast/reserved
-    ) return true;
-    return false;
-  }
-
-  // Parse IPv6 into 128 bits so compressed, IPv4-compatible, mapped, and
-  // reserved forms are checked consistently instead of by string prefix.
-  if (a.includes(":")) {
-    const parts = a.includes(".") ? (() => {
-      const split = a.lastIndexOf(":");
-      const dotted = a.slice(split + 1).split(".").map(Number);
-      if (dotted.length !== 4 || dotted.some((octet) => octet < 0 || octet > 255)) return null;
-      const hexTail = `${((dotted[0] << 8) | dotted[1]).toString(16)}:${((dotted[2] << 8) | dotted[3]).toString(16)}`;
-      return `${a.slice(0, split + 1)}${hexTail}`;
-    })() : a;
-    if (!parts) return true;
-    const halves = parts.split("::");
-    if (halves.length > 2) return true;
-    const left = halves[0] ? halves[0].split(":") : [];
-    const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
-    const groups = halves.length === 2
-      ? [...left, ...Array(8 - left.length - right.length).fill("0"), ...right]
-      : parts.split(":");
-    if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return true;
-    const value = groups.reduce((result, group) => (result << 16n) | BigInt(parseInt(group, 16)), 0n);
-    const low32 = Number(value & 0xffffffffn);
-    // IPv4-mapped (::ffff/96) and IPv4-compatible (::/96) forms can route to
-    // IPv4 services. Treat every compatible form as unsafe, not just dotted ones.
-    if ((value >> 32n) === 0xffffn || (value >> 32n) === 0n) {
-      const mappedV4 = `${low32 >>> 24}.${(low32 >>> 16) & 255}.${(low32 >>> 8) & 255}.${low32 & 255}`;
-      return isPrivateIp(mappedV4) || (value >> 32n) === 0n;
-    }
-    if (value === 0n || value === 1n) return true; // unspecified / loopback
-    if ((value >> 121n) === 0x7en) return true; // fc00::/7 — unique-local
-    if ((value >> 118n) === 0x3fan || (value >> 118n) === 0x3fbn) return true; // fe80::/10 + fec0::/10
-    if ((value >> 120n) === 0xffn) return true; // multicast
-    if ((value >> 96n) === 0x20010db8n) return true; // documentation
-    if ((value >> 80n) === 0x200100000002n) return true; // benchmarking
-  }
-
-  return false;
-}
 
 async function fetchExternalImage(rawUrl: string): Promise<Buffer> {
   let parsed: URL;

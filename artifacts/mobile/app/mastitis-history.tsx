@@ -22,26 +22,16 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { buildMastitisCsv, type MastitisCsvRecord } from "@/lib/mastitisCsv";
 import { buildMastitisTrendCsv } from "@/lib/mastitisTrendCsv";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import type { DairyMastitisRecord } from "@/lib/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface MastitisRecord {
+interface MastitisRecord extends MastitisCsvRecord {
   id: number | string;
   onsetDate: string;
-  earTagNumber?: string | null;
-  quartersAffected?: string | null;
-  clinicalGrade?: string | null;
-  treatmentProduct?: string | null;
-  standardWithdrawalDays?: number | null;
-  doubledWithdrawalDays?: number | null;
-  withdrawalEndDate?: string | null;
-  certifierNotified?: boolean | null;
-  outcome?: string | null;
-  chronicCase?: boolean | null;
-  attendingVet?: string | null;
   notes?: string | null;
   /** True for records saved on-device that have not yet synced to the server */
   _offline?: boolean;
@@ -236,14 +226,16 @@ export default function MastitisHistoryScreen() {
             earTagNumber: r.cowEarTag || null,
             quartersAffected: r.quartersAffected || null,
             clinicalGrade: r.clinicalGrade || null,
+            bacterialCultureResult: null,
+            sccAtOnset: r.sccAtOnset,
             treatmentProduct: r.treatmentProduct || null,
-            standardWithdrawalDays: null,
-            doubledWithdrawalDays: null,
+            treatmentStartDate: r.treatmentStartDate || null,
+            treatmentDurationDays: r.treatmentDurationDays || null,
             withdrawalEndDate: null,
-            certifierNotified: null,
+            vetConsulted: r.vetConsulted,
+            vetName: r.vetName || null,
             outcome: null,
-            chronicCase: null,
-            attendingVet: r.vetName || null,
+            outcomeDate: null,
             notes: r.notes || null,
             _offline: true,
           }));
@@ -301,7 +293,7 @@ export default function MastitisHistoryScreen() {
         (s) => s.year === d.getFullYear() && s.month === d.getMonth(),
       );
       if (!slot) continue;
-      if (r.outcome === "chronic" || r.chronicCase) {
+      if (r.outcome === "chronic") {
         slot.chronic += 1;
       } else {
         slot.regular += 1;
@@ -324,6 +316,7 @@ export default function MastitisHistoryScreen() {
   const hasAnyRecords = records.length > 0;
   const chartLabel = monthLabel(filterYear, filterMonth);
   const [csvExporting, setCsvExporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const activeWithdrawalCount = useMemo(() => {
     const activeCows = new Set(
       records
@@ -369,6 +362,27 @@ export default function MastitisHistoryScreen() {
       Alert.alert("Export failed", "Could not generate or share the CSV file.");
     } finally {
       setCsvExporting(false);
+    }
+  }
+
+  async function handleExport() {
+    if (monthRecords.length === 0) {
+      Alert.alert(
+        "Nothing to export",
+        `There are no mastitis records in ${chartLabel}.`,
+      );
+      return;
+    }
+
+    setExporting(true);
+    try {
+      await downloadMastitisCsv(
+        monthRecords,
+        currentFarm?.name ?? "farm",
+        chartLabel,
+      );
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -522,6 +536,23 @@ export default function MastitisHistoryScreen() {
                 </Pressable>
               </View>
 
+              <Pressable
+                onPress={handleExport}
+                disabled={exporting}
+                style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel="Download or share CSV for selected month"
+              >
+                {exporting ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Feather name="download" size={17} color={colors.primary} />
+                )}
+                <Text style={styles.exportBtnText}>
+                  {exporting ? "Preparing CSV…" : "Download / Share CSV"}
+                </Text>
+              </Pressable>
+
               {monthRecords.length > 0 && (
                 <Text style={styles.countLabel}>
                   {monthRecords.length} case
@@ -567,14 +598,8 @@ function ChartWithWidth({ data }: { data: TrendSlot[] }) {
 // ── Record card ───────────────────────────────────────────────────────────────
 
 function MastitisCard({ record: r }: { record: MastitisRecord }) {
-  const isChronic = r.outcome === "chronic" || !!r.chronicCase;
+  const isChronic = r.outcome === "chronic";
   const withdrawalActive = isWithdrawalActive(r.withdrawalEndDate);
-  const certStatus =
-    r.treatmentProduct
-      ? r.certifierNotified
-        ? { label: "Certifier notified", bg: "#dcfce7", color: "#15803d" }
-        : { label: "Notify certifier", bg: "#fef3c7", color: "#92400e" }
-      : null;
 
   return (
     <View style={styles.card}>
@@ -599,13 +624,6 @@ function MastitisCard({ record: r }: { record: MastitisRecord }) {
             <Text style={styles.offlineText}>Pending sync</Text>
           </View>
         )}
-        {certStatus && (
-          <View style={[styles.certBadge, { backgroundColor: certStatus.bg }]}>
-            <Text style={[styles.certText, { color: certStatus.color }]}>
-              {certStatus.label}
-            </Text>
-          </View>
-        )}
       </View>
 
       <Text style={styles.cardTitle}>
@@ -619,19 +637,22 @@ function MastitisCard({ record: r }: { record: MastitisRecord }) {
       {r.treatmentProduct ? (
         <Text style={styles.cardSub}>Treatment: {r.treatmentProduct}</Text>
       ) : null}
-      {r.doubledWithdrawalDays != null ? (
+      {r.withdrawalEndDate ? (
         <Text style={styles.cardSub}>
-          Doubled W/D: {r.doubledWithdrawalDays}d
-          {r.withdrawalEndDate
-            ? ` (ends ${formatDate(r.withdrawalEndDate)})`
-            : ""}
+          Withdrawal ends: {formatDate(r.withdrawalEndDate)}
         </Text>
       ) : null}
-      {r.outcome && r.outcome !== "chronic" ? (
+      {r.treatmentStartDate || r.treatmentDurationDays ? (
+        <Text style={styles.cardSub}>
+          Treatment: {r.treatmentStartDate ? formatDate(r.treatmentStartDate) : "—"}
+          {r.treatmentDurationDays ? ` · ${r.treatmentDurationDays} days` : ""}
+        </Text>
+      ) : null}
+      {r.outcome ? (
         <Text style={styles.cardSub}>Outcome: {r.outcome}</Text>
       ) : null}
-      {r.attendingVet ? (
-        <Text style={styles.cardSub}>Vet: {r.attendingVet}</Text>
+      {r.vetName ? (
+        <Text style={styles.cardSub}>Vet: {r.vetName}</Text>
       ) : null}
       {r.notes ? (
         <Text style={styles.cardNote} numberOfLines={2}>
@@ -794,6 +815,26 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  exportBtnDisabled: {
+    opacity: 0.55,
+  },
+  exportBtnText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.primary,
+  },
 
   // Cards
   card: {
@@ -837,15 +878,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: "#92400e",
-  },
-  certBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
-  },
-  certText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.xs,
   },
   cardTitle: {
     fontFamily: fonts.semiBold,
@@ -929,3 +961,44 @@ const styles = StyleSheet.create({
     color: colors.error,
   },
 });
+
+async function downloadMastitisCsv(
+  records: MastitisRecord[],
+  farmName: string,
+  selectedMonth: string,
+): Promise<void> {
+  const safeFarmName = farmName.replace(/[^a-z0-9]+/gi, "_");
+  const safeMonth = selectedMonth.replace(/[^a-z0-9]+/gi, "_");
+  const filename = `Mastitis_${safeFarmName}_${safeMonth}.csv`;
+  const csvContent = buildMastitisCsv(records);
+
+  if (Platform.OS === "web") {
+    try {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      Alert.alert("Export failed", "Could not generate the CSV file.");
+    }
+    return;
+  }
+
+  try {
+    const { shareAsync } = await import("expo-sharing");
+    const uri = `${FileSystem.cacheDirectory}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, csvContent, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    await shareAsync(uri, {
+      mimeType: "text/csv",
+      dialogTitle: "Share Mastitis CSV",
+      UTI: "public.comma-separated-values-text",
+    });
+  } catch {
+    Alert.alert("Export failed", "Could not generate or share the CSV file.");
+  }
+}
