@@ -707,14 +707,33 @@ router.put("/farms/:farmId", requireAuth, requireTenant, async (req: Request, re
 });
 
 /**
- * PATCH /farms/:farmId — update name, phone, CPH, SBI, address and/or postcode.
+ * PATCH /farms/:farmId — update profile fields and/or viticulture registration
+ * references without requiring the full Farm Settings form.
  * Used by the mobile app Farm Profile editor so growers can fix identifiers
  * without needing to open the full dashboard settings form.
  */
 router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
-  const { name, phone, cphNumber, sbiNumber, address, postcode, irrigationCostPerMmHa, irrigationCropPricePerTonne, irrigationApplicationRateMm } = req.body as { name?: string | null; phone?: string | null; cphNumber?: string | null; sbiNumber?: string | null; address?: string | null; postcode?: string | null; irrigationCostPerMmHa?: string | number | null; irrigationCropPricePerTonne?: string | number | null; irrigationApplicationRateMm?: string | number | null };
+  const {
+    name, phone, cphNumber, sbiNumber, address, postcode,
+    appaRef, fsaWineProductionRef, fsaVineRegisterRef, winegbMembershipNumber,
+    irrigationCostPerMmHa, irrigationCropPricePerTonne, irrigationApplicationRateMm,
+  } = req.body as {
+    name?: string | null;
+    phone?: string | null;
+    cphNumber?: string | null;
+    sbiNumber?: string | null;
+    address?: string | null;
+    postcode?: string | null;
+    appaRef?: string | null;
+    fsaWineProductionRef?: string | null;
+    fsaVineRegisterRef?: string | null;
+    winegbMembershipNumber?: string | null;
+    irrigationCostPerMmHa?: string | number | null;
+    irrigationCropPricePerTonne?: string | number | null;
+    irrigationApplicationRateMm?: string | number | null;
+  };
   if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
     res.status(400).json({ error: "Farm name cannot be empty" }); return;
   }
@@ -725,6 +744,10 @@ router.patch("/farms/:farmId", requireAuth, requireTenant, async (req: Request, 
     ...(sbiNumber !== undefined ? { sbiNumber: sbiNumber ?? null } : {}),
     ...(address !== undefined ? { address: address ?? null } : {}),
     ...(postcode !== undefined ? { postcode: postcode ?? null } : {}),
+    ...(appaRef !== undefined ? { appaRef: appaRef?.trim() || null } : {}),
+    ...(fsaWineProductionRef !== undefined ? { fsaWineProductionRef: fsaWineProductionRef?.trim() || null } : {}),
+    ...(fsaVineRegisterRef !== undefined ? { fsaVineRegisterRef: fsaVineRegisterRef?.trim() || null } : {}),
+    ...(winegbMembershipNumber !== undefined ? { winegbMembershipNumber: winegbMembershipNumber?.trim() || null } : {}),
     ...(irrigationCostPerMmHa !== undefined ? { irrigationCostPerMmHa: irrigationCostPerMmHa != null && irrigationCostPerMmHa !== "" ? String(irrigationCostPerMmHa) : null } : {}),
     ...(irrigationCropPricePerTonne !== undefined ? { irrigationCropPricePerTonne: irrigationCropPricePerTonne != null && irrigationCropPricePerTonne !== "" ? String(irrigationCropPricePerTonne) : null } : {}),
     ...(irrigationApplicationRateMm !== undefined ? { irrigationApplicationRateMm: irrigationApplicationRateMm != null && irrigationApplicationRateMm !== "" ? String(irrigationApplicationRateMm) : null } : {}),
