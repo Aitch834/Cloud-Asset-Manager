@@ -35,13 +35,14 @@ import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
 import {
+  getSwipeDirection,
+  shouldAllowSwipe,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
 } from "@/lib/scoutingLightboxHelpers";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
-
 const SCREEN = Dimensions.get("window");
 // 4-minute background refresh for presigned URLs
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
@@ -328,15 +329,16 @@ export function ScoutingPhotoLightbox({
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gs) =>
-        !deletingRef.current &&
-        Math.abs(gs.dx) > 10 && Math.abs(gs.dx) > Math.abs(gs.dy),
+        shouldAllowSwipe(deletingRef.current, gs.dx, gs.dy),
       onPanResponderRelease: (_evt, gs) => {
-        // Guard here too: a gesture that began before deletion started
-        // must not advance the index after the delete is confirmed.
-        if (deletingRef.current) return;
-        if (gs.dx < -SWIPE_THRESHOLD) {
+        const direction = getSwipeDirection(
+          deletingRef.current,
+          gs.dx,
+          SWIPE_THRESHOLD,
+        );
+        if (direction === "next") {
           setCurrentIndex((i) => Math.min(i + 1, photosLenRef.current - 1));
-        } else if (gs.dx > SWIPE_THRESHOLD) {
+        } else if (direction === "previous") {
           setCurrentIndex((i) => Math.max(i - 1, 0));
         }
       },

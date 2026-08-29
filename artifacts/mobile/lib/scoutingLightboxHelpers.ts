@@ -91,3 +91,26 @@ export function updatePhotoCaption<T extends { id: number; caption: string | nul
     photo.id === photoId ? { ...photo, caption } : photo,
   );
 }
+
+/**
+ * Whether a gesture should start swipe navigation.
+ * Deletion takes priority over gesture direction so a swipe cannot race
+ * with a photo removal that is already in flight.
+ */
+export function shouldAllowSwipe(deleting: boolean, dx: number, dy: number): boolean {
+  return !deleting && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
+}
+
+/**
+ * Resolve the navigation direction for a completed swipe.
+ * Returning null while deleting protects against a gesture that started
+ * before deletion began but was released after deletion became active.
+ */
+export function getSwipeDirection(
+  deleting: boolean,
+  dx: number,
+  threshold = 50,
+): "next" | "previous" | null {
+  if (deleting || Math.abs(dx) <= threshold) return null;
+  return dx < 0 ? "next" : "previous";
+}

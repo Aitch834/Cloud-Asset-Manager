@@ -25,8 +25,10 @@ import {
   showCounter,
   counterText,
   currentPhotoId,
+  getSwipeDirection,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
+  shouldAllowSwipe,
 } from "../lib/scoutingLightboxHelpers";
 
 // ---------------------------------------------------------------------------
@@ -298,5 +300,58 @@ describe("scheduleScoutingPhotoAutoRetry", () => {
       scheduleScoutingPhotoAutoRetry(autoRetried, schedule, retry),
     ).toBeNull();
     expect(schedule).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Swipe navigation is blocked while deleting
+// ---------------------------------------------------------------------------
+
+describe("shouldAllowSwipe — deletion takes priority over gestures", () => {
+  it.each([
+    [20, 0],
+    [-20, 0],
+    [100, 10],
+    [0, 0],
+    [5, 1],
+    [1000, -1000],
+  ])("returns false while deleting for dx=%s and dy=%s", (dx, dy) => {
+    expect(shouldAllowSwipe(true, dx, dy)).toBe(false);
+  });
+
+  it("allows a sufficiently horizontal gesture when not deleting", () => {
+    expect(shouldAllowSwipe(false, 20, 5)).toBe(true);
+  });
+
+  it("rejects gestures that are too short or too vertical when not deleting", () => {
+    expect(shouldAllowSwipe(false, 10, 0)).toBe(false);
+    expect(shouldAllowSwipe(false, 20, 20)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. Completed swipes cannot navigate after deletion starts
+// ---------------------------------------------------------------------------
+
+describe("getSwipeDirection — deletion takes priority at release", () => {
+  it.each([
+    [-51, "next"],
+    [51, "previous"],
+  ])("returns the expected direction when not deleting (dx=%s)", (dx, direction) => {
+    expect(getSwipeDirection(false, dx)).toBe(direction);
+  });
+
+  it.each([-51, 51, -500, 500])(
+    "returns null when a gesture releases after deletion starts (dx=%s)",
+    (dx) => {
+      // The gesture may have started before deletion, but the release must
+      // not navigate once deletion is active.
+      expect(getSwipeDirection(true, dx)).toBeNull();
+    },
+  );
+
+  it("returns null at or below the swipe threshold", () => {
+    expect(getSwipeDirection(false, 50)).toBeNull();
+    expect(getSwipeDirection(false, -50)).toBeNull();
   });
 });
