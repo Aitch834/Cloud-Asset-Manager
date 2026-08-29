@@ -302,6 +302,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
               <ViewField label="Rolling 12M Production (L)" value={fmtNum(view.annualProductionL)} />
               <ViewField label="Small Producer Relief" value={view.smallProducerRelief ? "Yes — SPR claimed" : "No"} />
               <ViewField label="Duty Rate (£ / 100 L)" value={view.dutyRatePer100L ? `£${fmtNum(view.dutyRatePer100L, 2)}` : "—"} />
+              <ViewField label="Duty Rates Reviewed" value={ratesLastUpdated ?? "HMRC August 2023"} />
               <ViewField label="Total Duty Payable" value={view.totalDutyPayable ? `£${fmtNum(view.totalDutyPayable, 2)}` : "—"} />
               <ViewField label="Submitted Date" value={fmtDate(view.submittedDate)} />
               <ViewField label="Paid Date" value={fmtDate(view.paidDate)} />
