@@ -237,7 +237,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-sm">Abstraction Meter Readings</h3><div className="flex items-center gap-2"><Select value={yearFilter} onValueChange={setYearFilter}><SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All years" /></SelectTrigger><SelectContent><SelectItem value="all">All years</SelectItem>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><Button size="sm" onClick={() => { setLicenceManuallySelected(false); setForm({}); setOpen(true); }}><Plus className="w-4 h-4 mr-1" />Log Reading</Button></div></div>
-      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
+      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <DataTable cols={[{ key: "readingDate", label: "Date", fmt: r => fmtDate(r.readingDate) }, { key: "licenceId", label: "Licence", fmt: r => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId)); return l ? `${String(l.licenceNumber)}${l.sourceType ? ` (${String(l.sourceType)})` : ""}` : fmt(r.licenceId); } }, { key: "meterReading", label: "Meter Reading" }, { key: "volumeAbstractedM3", label: "Abstracted (m³)" }, { key: "cumulativeYtdM3", label: "YTD (m³)" }, { key: "percentOfAnnualAllocation", label: "% of Allocation" }, { key: "readBy", label: "Read By" }]} rows={filteredReadings} onView={setViewRecord} onDelete={r => del.mutate(r.id as number)} deleteMutation={del} />}
 
       
       {viewRecord && (
@@ -246,7 +246,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
             <DialogHeader><DialogTitle>View Meter Reading</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Reading Date</p><p className="font-medium">{fmtDate(viewRecord.readingDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence</p><p className="font-medium">{(licences as any[]).find(l => l.id === viewRecord.licenceId)?.licenceNumber ?? "—"}</p></div>
+              <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Licence</p><p className="font-medium">{(() => { const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(viewRecord.licenceId)); return l ? `${String(l.licenceNumber)}${l.sourceType ? ` (${String(l.sourceType)})` : ""}` : "—"; })()}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Meter Reading</p><p className="font-medium">{fmt(viewRecord.meterReading)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Volume Abstracted (m³)</p><p className="font-medium">{fmt(viewRecord.volumeAbstractedM3)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">YTD Cumulative (m³)</p><p className="font-medium">{fmt(viewRecord.cumulativeYtdM3)}</p></div>
@@ -268,7 +268,7 @@ function MeterReadingsTab({ farmId }: { farmId: number }) {
             <div><Label>Licence *</Label>
               <Select value={form.licenceId ?? ""} onValueChange={v => { setLicenceManuallySelected(true); setForm(f => ({ ...f, licenceId: v })); }}>
                 <SelectTrigger><SelectValue placeholder="Select licence" /></SelectTrigger>
-                <SelectContent>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}</SelectItem>)}</SelectContent>
+                <SelectContent>{(licences as Record<string, unknown>[]).map(l => <SelectItem key={String(l.id)} value={String(l.id)}>{String(l.licenceNumber)}{l.sourceType ? ` (${String(l.sourceType)})` : ""}</SelectItem>)}</SelectContent>
               </Select>
               {licenceHint && <p className="text-[11px] text-blue-600 mt-1">{licenceHint}</p>}
             </div>
