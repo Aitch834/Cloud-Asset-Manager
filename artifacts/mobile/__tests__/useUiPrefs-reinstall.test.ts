@@ -1047,3 +1047,99 @@ describe("runUiPrefBatchMigration — retry (durable write fails)", () => {
     expect(asyncStore.has(LEGACY_KEY)).toBe(true);
   });
 });
+
+// ===========================================================================
+// 10. dismissHint — concurrent writes preserve every pending dismissal
+//
+// dismissHint's cache/pending read-modify-write runs in the per-user write
+// queue, while the PATCH runs outside it.  These tests exercise both sides of
+// that contract: concurrent durable writes must merge, and cleanup for an
+// earlier PATCH must not delete a key added during its network request.
+// ===========================================================================
+
+describe("dismissHint — concurrent dismissals preserve pending queue entries", () => {
+  function startHook(uid: string): void {
+    useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+  }
+
+  it("keeps both keys in the pending queue when concurrent PATCHes fail", async () => {
+    const uid = nextUid();
+    mockApiFetch.mockImplementation(
+      (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse({}));
+        }
+        return Promise.resolve({ ok: false } as Partial<Response>);
+      },
+    );
+
+    startHook(uid);
+    await drain();
+
+    const { dismissHint } = useUiPrefs(uid);
+    // Deliberately do not await between these calls: this is the rapid
+    // double-tap scenario the per-user write queue is intended to protect.
+    dismissHint("first_concurrent_banner");
+    dismissHint("second_concurrent_banner");
+    await drain();
+
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending).toEqual({
+      first_concurrent_banner: true,
+      second_concurrent_banner: true,
+    });
+  });
+
+  it("preserves a dismissal added while an earlier PATCH is in flight", async () => {
+    const uid = nextUid();
+    let resolveFirstPatch!: (response: Partial<Response>) => void;
+    let firstPatchStarted!: () => void;
+    const firstPatchStartedPromise = new Promise<void>((resolve) => {
+      firstPatchStarted = resolve;
+    });
+    let patchCount = 0;
+
+    mockApiFetch.mockImplementation(
+      (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse({}));
+        }
+
+        patchCount += 1;
+        if (patchCount === 1) {
+          firstPatchStarted();
+          return new Promise<Partial<Response>>((resolve) => {
+            resolveFirstPatch = resolve;
+          });
+        }
+
+        // Leave the later key pending so the assertion can inspect whether
+        // the first PATCH's cleanup incorrectly removed it.
+        return Promise.resolve({ ok: false } as Partial<Response>);
+      },
+    );
+
+    startHook(uid);
+    await drain();
+
+    const { dismissHint } = useUiPrefs(uid);
+    dismissHint("flush_window_first");
+    await firstPatchStartedPromise;
+
+    // The first PATCH has already snapshotted its queue.  This dismissal is
+    // written while that request is in flight, before its cleanup runs.
+    dismissHint("flush_window_second");
+    await drain(4);
+
+    resolveFirstPatch({ ok: true } as Partial<Response>);
+    await drain();
+
+    const pendingJson = asyncStore.get(`ui_prefs_pending_${uid}`);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending).toEqual({ flush_window_second: true });
+  });
+});
