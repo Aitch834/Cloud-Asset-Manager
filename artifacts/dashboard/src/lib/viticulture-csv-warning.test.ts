@@ -23,9 +23,11 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  buildCsv,
   buildViticultureUnlinkedWarning,
   buildViticultureCsvContent,
 } from "./csv";
+import { buildDiseaseScoutingDetailedCsvRows } from "./disease-scouting-csv";
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,70 @@ const COLS = [
   { key: "bbchStage", label: "BBCH Stage" },
   { key: "observer", label: "Observer" },
 ];
+
+const SCOUTING_BLOCKS = [{ id: 42, blockName: "East Field" }];
+
+const SCOUTING_RECORD: Record<string, unknown> = {
+  scoutDate: "2024-06-15",
+  blockId: 42,
+  scoutedBy: "Alice",
+  downyMildewPressure: 1,
+  powderyMildewPressure: 0,
+  botrytisPressure: 0,
+  phomopsisPressure: 0,
+  leafhopperPressure: 0,
+  spiderMitePressure: 0,
+  vineWeevilSighted: false,
+  eutypaDiebackSighted: false,
+  xylellaFastidiosa: false,
+  phytophthoraViticola: false,
+  nextScoutDate: null,
+  actionTaken: "Monitor",
+  photoCount: 0,
+  captionCount: 0,
+};
+
+const SCOUTING_FORMATTERS = {
+  formatDate: (value: unknown) => value ? String(value) : "—",
+  pressureLabel: (value: number) => ["None", "Low", "Medium", "High"][value] ?? "None",
+};
+
+function buildScoutingCsv(records: Record<string, unknown>[]): string {
+  return buildCsv([
+    ["DETAILED SCOUTING RECORDS"],
+    ...buildDiseaseScoutingDetailedCsvRows(records, SCOUTING_BLOCKS, SCOUTING_FORMATTERS),
+  ]);
+}
+
+/**
+ * Parse one line from the quoted CSV produced by buildCsv. This mirrors how
+ * Excel and Numbers read quoted commas and escaped quotes, without relying on
+ * a browser or a spreadsheet application in the unit test.
+ */
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const character = line[i];
+    if (character === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === "," && !quoted) {
+      cells.push(cell);
+      cell = "";
+    } else {
+      cell += character;
+    }
+  }
+  cells.push(cell);
+  return cells;
+}
 
 // ─── buildViticultureUnlinkedWarning ─────────────────────────────────────────
 
@@ -119,6 +185,52 @@ describe("buildViticultureUnlinkedWarning", () => {
   it("wraps the message in CSV double-quotes", () => {
     const result = buildViticultureUnlinkedWarning([UNLINKED])!;
     expect(result).toMatch(/^".*"$/);
+  });
+});
+
+// ─── Disease Scouting detailed-record Notes column ────────────────────────────
+//
+// ScoutingTab uses downloadCsvFile, which serialises these rows with buildCsv.
+// Assert the parsed cells rather than only searching the raw string: this
+// catches a missing blank cell shifting Photos and Captioned Photos left.
+
+describe("Disease Scouting CSV — Notes column", () => {
+  it("keeps Notes in the header and preserves noted records as one spreadsheet cell", () => {
+    const note = 'Inspect east row, then check the "lower canopy" again';
+    const csv = buildScoutingCsv([
+      { ...SCOUTING_RECORD, notes: note, photoCount: 3 },
+    ]);
+    const lines = csv.slice(1).split("\n"); // drop the Excel/Numbers BOM
+    const header = parseCsvLine(lines[1]);
+    const row = parseCsvLine(lines[2]);
+
+    expect(header[16]).toBe("Notes");
+    expect(header[17]).toBe("Photos");
+    expect(header[18]).toBe("Captioned Photos");
+    expect(row).toHaveLength(header.length);
+    expect(row[16]).toBe(note);
+    expect(row[17]).toBe("3");
+    expect(row[18]).toBe("0");
+  });
+
+  it("writes a blank Notes cell for records without notes instead of shifting later cells", () => {
+    const csv = buildScoutingCsv([
+      { ...SCOUTING_RECORD, notes: undefined },
+      { ...SCOUTING_RECORD, notes: null },
+    ]);
+    const lines = csv.slice(1).split("\n"); // drop the Excel/Numbers BOM
+    const header = parseCsvLine(lines[1]);
+    const rows = lines.slice(2).map(parseCsvLine);
+
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    for (const row of rows) {
+      expect(row).toHaveLength(header.length);
+      expect(row[16]).toBe("");
+      expect(row[16]).not.toBe("undefined");
+      expect(row[16]).not.toBe("null");
+      expect(row[17]).toBe("0");
+      expect(row[18]).toBe("0");
+    }
   });
 });
 
