@@ -1,9 +1,12 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
+import { buildMastitisTrendCsv } from "@/lib/mastitisTrendCsv";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import type { DairyMastitisRecord } from "@/lib/types";
 
@@ -319,6 +323,7 @@ export default function MastitisHistoryScreen() {
 
   const hasAnyRecords = records.length > 0;
   const chartLabel = monthLabel(filterYear, filterMonth);
+  const [csvExporting, setCsvExporting] = useState(false);
   const activeWithdrawalCount = useMemo(() => {
     const activeCows = new Set(
       records
@@ -327,6 +332,45 @@ export default function MastitisHistoryScreen() {
     );
     return activeCows.size;
   }, [records]);
+
+  async function exportTrendCsv() {
+    if (csvExporting || trendData.length === 0) return;
+
+    setCsvExporting(true);
+    const farmName = currentFarm?.name ?? "Farm";
+    const safeFarmName =
+      farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") ||
+      "farm";
+    const filename = `mastitis-trend-${safeFarmName}.csv`;
+    const csvContent = buildMastitisTrendCsv(trendData);
+
+    try {
+      if (Platform.OS === "web") {
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const { shareAsync } = await import("expo-sharing");
+        const uri = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(uri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await shareAsync(uri, {
+          mimeType: "text/csv",
+          dialogTitle: "Share Mastitis Trend CSV",
+          UTI: "public.comma-separated-values-text",
+        });
+      }
+    } catch {
+      Alert.alert("Export failed", "Could not generate or share the CSV file.");
+    } finally {
+      setCsvExporting(false);
+    }
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -395,7 +439,30 @@ export default function MastitisHistoryScreen() {
 
               {hasAnyRecords && (
                 <View style={styles.chartCard}>
-                  <Text style={styles.chartTitle}>12-Month Case Trend</Text>
+                  <View style={styles.chartHeader}>
+                    <Text style={styles.chartTitle}>12-Month Case Trend</Text>
+                    <Pressable
+                      onPress={exportTrendCsv}
+                      disabled={csvExporting}
+                      style={styles.exportButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Download mastitis trend CSV"
+                    >
+                      <Feather
+                        name="download"
+                        size={15}
+                        color={csvExporting ? colors.textTertiary : colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.exportButtonText,
+                          csvExporting && styles.exportButtonTextDisabled,
+                        ]}
+                      >
+                        Download CSV
+                      </Text>
+                    </Pressable>
+                  </View>
                   {/* Legend */}
                   <View style={styles.legend}>
                     <View style={styles.legendItem}>
@@ -652,7 +719,31 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  chartHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+  },
+  exportButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.primary,
+  },
+  exportButtonTextDisabled: {
+    color: colors.textTertiary,
   },
   legend: {
     flexDirection: "row",
