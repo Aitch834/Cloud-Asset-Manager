@@ -594,6 +594,12 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
   // to acknowledge detected near-miss typos before the save proceeds.
   const [awaitingTypoConfirm, setAwaitingTypoConfirm] = useState(false);
 
+  // A failed save is reported by the parent mutation. Return to the regular form
+  // state so the error is visible without leaving the confirmation panel open.
+  useEffect(() => {
+    if (saveError) setAwaitingTypoConfirm(false);
+  }, [saveError]);
+
   // Local preview values — filled by the author inside this form so they can
   // test specific copy without leaving and filling the page-level Customise section.
   const [localPreviewHeadline,    setLocalPreviewHeadline]    = useState(previewHeadline);
