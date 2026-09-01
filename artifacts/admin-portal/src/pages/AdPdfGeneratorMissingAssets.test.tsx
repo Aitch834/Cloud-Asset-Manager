@@ -57,6 +57,16 @@ function missing422(assets: string[]): Response {
   );
 }
 
+function missingPlaceholders422(placeholders: string[]): Response {
+  return jsonResponse(
+    {
+      error: "Cannot generate: missing required placeholders",
+      missingPlaceholders: placeholders,
+    },
+    422,
+  );
+}
+
 function successfulPdfResponse(): Response {
   return new Response(new Blob(["pdf"], { type: "application/pdf" }), {
     status: 200,
@@ -373,5 +383,114 @@ describe("AdPdfGenerator — missing-assets banner", () => {
       ).toBeDefined();
     });
     expect(previewAttempts).toBe(2);
+  });
+});
+
+describe("AdPdfGenerator — missing-placeholder response banner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Generate PDF — shows the missing-placeholder banner when POST /ad-pdf returns 422 missingPlaceholders", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf",
+          method: "POST",
+          response: () => missingPlaceholders422(["{{logo}}"]),
+        },
+      ]),
+    );
+
+    renderWithQueryClient(<AdPdfGenerator />);
+
+    await screen.findByRole("option", { name: /Test Template/i });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Generate & Download CMYK PDF/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot generate PDF/i)).toBeDefined();
+    });
+
+    const banner = screen.getByText(/Cannot generate PDF/i).closest("p");
+    expect(banner?.textContent).toMatch(
+      /the selected template is missing required placeholder/i,
+    );
+    expect(banner?.textContent).toMatch(/\{\{logo\}\}/);
+    expect(screen.getByText("Ad PDF Generator")).toBeDefined();
+  });
+
+  it("Preview — shows the missing-placeholder banner when GET /ad-pdf/preview returns 422 missingPlaceholders", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf/preview",
+          method: "GET",
+          response: () => missingPlaceholders422(["{{logo}}"]),
+        },
+      ]),
+    );
+
+    renderWithQueryClient(<AdPdfGenerator />);
+
+    await screen.findByRole("option", { name: /Test Template/i });
+    fireEvent.click(screen.getByRole("button", { name: /^Preview$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot generate preview/i)).toBeDefined();
+    });
+
+    const banner = screen.getByText(/Cannot generate preview/i).closest("p");
+    expect(banner?.textContent).toMatch(
+      /the selected template is missing required placeholder/i,
+    );
+    expect(banner?.textContent).toMatch(/\{\{logo\}\}/);
+    expect(screen.getByText("Ad PDF Generator")).toBeDefined();
+  });
+
+  it("Draft Preview — shows the missing-placeholder banner when POST /ad-pdf/preview-draft returns 422 missingPlaceholders", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf/preview-draft",
+          method: "POST",
+          response: () => missingPlaceholders422(["{{logo}}"]),
+        },
+      ]),
+    );
+
+    render(
+      <TemplateForm
+        initial={TEMPLATE}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isSaving={false}
+      />,
+    );
+
+    const previewBtn = screen.getByRole("button", { name: /^Preview$/i });
+    expect((previewBtn as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot generate preview/i)).toBeDefined();
+    });
+
+    const banner = screen.getByText(/Cannot generate preview/i).closest("p");
+    expect(banner?.textContent).toMatch(
+      /the following required placeholder is missing from the template/i,
+    );
+    expect(banner?.textContent).toMatch(/\{\{logo\}\}/);
+    expect(screen.getByRole("button", { name: /Save template/i })).toBeDefined();
   });
 });
