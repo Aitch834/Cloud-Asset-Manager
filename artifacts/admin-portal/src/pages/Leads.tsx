@@ -467,7 +467,14 @@ export default function Leads() {
         ))}
       </div>
 
-      <SectorBreakdown rows={sectorBreakdown} loading={loading} />
+      <SectorBreakdown
+        rows={sectorBreakdown}
+        loading={loading}
+        activeSector={filterSector === "all" ? null : filterSector}
+        onSectorClick={(sector) => {
+          setFilterSector((current) => current === sector ? "all" : sector);
+        }}
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
@@ -576,7 +583,14 @@ export default function Leads() {
   );
 }
 
-function SectorBreakdown({ rows, loading }: { rows: SectorStat[]; loading: boolean }) {
+interface SectorBreakdownProps {
+  rows: SectorStat[];
+  loading: boolean;
+  activeSector: string | null;
+  onSectorClick: (sector: string) => void;
+}
+
+function SectorBreakdown({ rows, loading, activeSector, onSectorClick }: SectorBreakdownProps) {
   if (loading) {
     return (
       <div className="bg-card border border-border rounded-xl p-6 mb-8">
@@ -619,6 +633,7 @@ function SectorBreakdown({ rows, loading }: { rows: SectorStat[]; loading: boole
         {rows.map((row) => {
           const widthPct = Math.round((row.total / maxTotal) * 100);
           const barColor = SECTOR_BAR_COLORS[row.sector] ?? "bg-gray-400";
+          const isActive = activeSector === row.sector;
           return (
             <div key={row.sector}>
               <div className="flex items-center justify-between text-xs mb-1">
@@ -635,12 +650,26 @@ function SectorBreakdown({ rows, loading }: { rows: SectorStat[]; loading: boole
                   )}
                 </div>
               </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <button
+                type="button"
+                onClick={() => onSectorClick(row.sector)}
+                aria-pressed={isActive}
+                aria-label={`${isActive ? "Clear" : "Filter"} leads by ${row.sector}`}
+                className="group block w-full rounded-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
                 <div
-                  className={`h-full rounded-full ${barColor} transition-all`}
-                  style={{ width: `${widthPct}%` }}
-                />
-              </div>
+                  className={`h-2 rounded-full bg-muted overflow-hidden transition-shadow ${
+                    isActive ? "ring-2 ring-primary ring-offset-1" : ""
+                  }`}
+                >
+                  <div
+                    className={`h-full rounded-full ${barColor} transition-all ${
+                      isActive ? "brightness-110" : "group-hover:brightness-110"
+                    }`}
+                    style={{ width: `${widthPct}%` }}
+                  />
+                </div>
+              </button>
             </div>
           );
         })}
