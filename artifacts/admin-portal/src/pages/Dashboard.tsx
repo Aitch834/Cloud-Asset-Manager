@@ -83,6 +83,15 @@ const SOURCE_COLORS = [
   "bg-rose-500", "bg-cyan-500", "bg-orange-500", "bg-indigo-500",
 ];
 
+const SECTOR_BAR_COLORS: Record<string, string> = {
+  "Beef & Dairy": "bg-orange-500",
+  "Sheep & Goat": "bg-amber-500",
+  "Arable": "bg-yellow-500",
+  "Viticulture": "bg-purple-500",
+  "Mixed Farming": "bg-teal-500",
+  "Agricultural Contracting": "bg-sky-500",
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +108,7 @@ export default function Dashboard() {
   const arr = stats ? ((stats.mrrPence * 12) / 100).toFixed(2) : "—";
 
   const totalLeads = stats?.leadSourceBreakdown?.reduce((s, e) => s + e.count, 0) ?? 0;
+  const totalSectorLeads = stats?.sectorBreakdown?.reduce((s, e) => s + e.count, 0) ?? 0;
   const topModules = stats?.moduleAdoption?.filter((m) => m.activeCount > 0) ?? [];
 
   return (
@@ -230,6 +240,43 @@ export default function Dashboard() {
                       <div key={entry.source}>
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="font-medium text-foreground">{entry.source}</span>
+                          <span className="text-muted-foreground">{entry.count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${color} transition-all`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Sector Breakdown */}
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">Sector Breakdown</h2>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {totalSectorLeads} leads with sector set
+                </span>
+              </div>
+              {(stats.sectorBreakdown?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No sector data yet. Sectors are set when leads register on the website.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {stats.sectorBreakdown.map((entry) => {
+                    const pct = totalSectorLeads > 0 ? Math.round((entry.count / totalSectorLeads) * 100) : 0;
+                    const color = SECTOR_BAR_COLORS[entry.sector] ?? "bg-gray-400";
+                    return (
+                      <div key={entry.sector}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium text-foreground">{entry.sector}</span>
                           <span className="text-muted-foreground">{entry.count} ({pct}%)</span>
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden">

@@ -77,6 +77,11 @@ export interface LeadSourceEntry {
   count: number;
 }
 
+export interface SectorBreakdownEntry {
+  sector: string;
+  count: number;
+}
+
 export interface ModuleAdoptionEntry {
   moduleKey: string;
   moduleName: string;
@@ -105,6 +110,7 @@ export interface Stats {
   churnedTenants: number;
   churnRatePct: number;
   leadSourceBreakdown: LeadSourceEntry[];
+  sectorBreakdown: SectorBreakdownEntry[];
   moduleAdoption: ModuleAdoptionEntry[];
   websiteVisits?: WebsiteVisitStats;
 }

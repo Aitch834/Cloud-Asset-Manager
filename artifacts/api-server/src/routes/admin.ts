@@ -250,6 +250,18 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
     count: Number(r.cnt),
   }));
 
+  const sectorResult = await db.execute(sql`
+    SELECT sector, COUNT(*) AS cnt
+    FROM registration_leads
+    WHERE sector IS NOT NULL AND BTRIM(sector) <> ''
+    GROUP BY sector
+    ORDER BY cnt DESC, sector ASC
+  `);
+  const sectorBreakdown = (sectorResult.rows as { sector: string; cnt: string }[]).map((r) => ({
+    sector: r.sector,
+    count: Number(r.cnt),
+  }));
+
   const moduleResult = await db.execute(sql`
     SELECT m.key AS module_key, m.name AS module_name, COUNT(s.id)::int AS active_count
     FROM modules m
@@ -307,6 +319,7 @@ router.get("/admin/stats", requireAuth, async (req: Request, res: Response): Pro
       churnedTenants,
       churnRatePct,
       leadSourceBreakdown,
+      sectorBreakdown,
       moduleAdoption,
       websiteVisits,
     },
