@@ -6,6 +6,12 @@ import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
+import {
+  restoreStoredTrailSection,
+  scrollToTrailSection,
+  TRAIL_SECTION_IDS,
+  TRAIL_STICKY_NAV_CLASSNAME,
+} from "@/lib/batch-trail-section-navigation";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown, Paperclip } from "lucide-react";
@@ -1234,13 +1240,11 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
   // ── Last-viewed section persistence ─────────────────────────────────────────
   // Stable localStorage key scoped per farm + batch (or vintage scope).
   const sectionKey = `bt-trail-section:${farmId}:${batchRef ?? `vintage:${vintageYear}`}`;
-  // Ordered list of all section IDs in the dialog (top → bottom). Only IDs
-  // that exist in the DOM at a given time contribute to detection, so sections
-  // that are absent (e.g. no SO₂ data) are silently skipped.
-  const TRAIL_SECTION_IDS = ["bt-pressing", "bt-so2", "bt-phta", "bt-fermentation", "bt-cellar", "bt-so2tests", "bt-bottling", "bt-barrel"];
   // Ref placed on the inner content wrapper so we can walk up to the
   // DialogContent's scrollable container without importing Radix internals.
   const contentBodyRef = useRef<HTMLDivElement>(null);
+  const sectionNavRef = useRef<HTMLElement>(null);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const getScrollContainer = (): HTMLElement | null => {
     let el: HTMLElement | null = contentBodyRef.current;
     while (el) {
@@ -1261,13 +1265,16 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
       let bestId: string | null = null;
       let bestDist = Infinity;
       for (const id of TRAIL_SECTION_IDS) {
-        const el = document.getElementById(id);
+        const el = contentBodyRef.current?.querySelector<HTMLElement>(`#${id}`);
         if (!el) continue;
         // Distance of the section's top edge from the container's top edge.
         const dist = Math.abs(el.getBoundingClientRect().top - cTop);
         if (dist < bestDist) { bestDist = dist; bestId = id; }
       }
-      if (bestId) { try { localStorage.setItem(sectionKey, bestId); } catch { /* quota */ } }
+      if (bestId) {
+        setActiveSectionId(bestId);
+        try { localStorage.setItem(sectionKey, bestId); } catch { /* quota */ }
+      }
     };
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
@@ -1281,25 +1288,36 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
     let cancelled = false;
     const tid = setTimeout(() => {
       if (cancelled) return;
-      let savedId: string | null = null;
-      try { savedId = localStorage.getItem(sectionKey); } catch { /* unavailable */ }
-      if (!savedId) return;
       const container = getScrollContainer();
-      const target = document.getElementById(savedId);
-      if (!target) {
-        // The section may have disappeared since the last visit (for example,
-        // after all records in that stage were deleted). Do not keep trying to
-        // restore a section that can no longer exist.
-        try { localStorage.removeItem(sectionKey); } catch { /* unavailable */ }
+      const contentBody = contentBodyRef.current;
+      if (!container || !contentBody) return;
+      const restoredId = restoreStoredTrailSection(
+        sectionKey,
+        contentBody,
+        container,
+        sectionNavRef.current?.offsetHeight ?? 0,
+      );
+      if (restoredId) {
+        setActiveSectionId(restoredId);
         return;
       }
-      if (!container) return;
-      const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
-      container.scrollBy({ top: offset, behavior: "instant" });
+      // Highlight the first rendered section without persisting it. Persisting
+      // during initialisation would overwrite a saved lower section before the
+      // restore attempt gets a chance to read it.
+      const firstRenderedId = TRAIL_SECTION_IDS.find(id => contentBody.querySelector(`#${id}`));
+      setActiveSectionId(firstRenderedId ?? null);
     }, 160);
     return () => { cancelled = true; clearTimeout(tid); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, sectionKey]);
+
+  const jumpToSection = (id: string) => {
+    const container = getScrollContainer();
+    const contentBody = contentBodyRef.current;
+    if (!container || !contentBody) return;
+    if (!scrollToTrailSection(id, contentBody, container, "smooth", sectionNavRef.current?.offsetHeight ?? 0)) return;
+    setActiveSectionId(id);
+  };
 
   const handleBatchHighlight = (ref: string) => {
     setHighlightedBatch(prev => {
@@ -1384,6 +1402,43 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
     );
   };
 
+  const sectionSummary = data ? computeSo2Summary(pressing, data) : null;
+  const hasPressingDetails = !!(data && (
+    pressing.press_type || pressing.grapes_pressed_kg || pressing.press_wine_litres ||
+    pressing.juice_brix || pressing.juice_ph || pressing.juice_ta_gl ||
+    pressing.operator_name || pressing.settling_method || pressing.juice_turbidity
+  ));
+  const hasOtherPressingFiles = !!(isVintageScoped && data && vintagePressingAttachments && (data.pressings ?? []).some(p => {
+    const pid = p.id != null ? Number(p.id) : null;
+    return pid != null && (vintagePressingAttachments.get(pid) ?? []).length > 0;
+  }));
+  const hasPressingSection = !!(data && (
+    hasPressingDetails ||
+    (pressing.id != null && Number(pressing.id) > 0) ||
+    data.pressAdditions.length > 0 ||
+    !!pressing.notes ||
+    hasOtherPressingFiles
+  ));
+  const hasPhTaSection = !!(data && computePhTaStagePoints(
+    computePrimaryPhTa(pressing, data.fermentation, data.bottling),
+    data.so2Tests,
+  ).length > 0);
+  const trailNavSections = data ? [
+    { id: "bt-pressing", label: "Pressing", hasRecords: hasPressingSection },
+    { id: "bt-so2", label: "SO₂ Summary", hasRecords: !!sectionSummary?.hasAny },
+    { id: "bt-phta", label: "pH & TA", hasRecords: hasPhTaSection },
+    { id: "bt-fermentation", label: "Fermentation", hasRecords: data.fermentation.length > 0 },
+    { id: "bt-cellar", label: "Cellar Ops", hasRecords: data.cellarOps.length > 0 },
+    { id: "bt-so2tests", label: "SO₂ Tests", hasRecords: data.so2Tests.length > 0 },
+    { id: "bt-bottling", label: "Bottling", hasRecords: data.bottling.length > 0 },
+    {
+      id: "bt-barrel",
+      label: "Barrel Provenance",
+      hasRecords: (Array.isArray(data.barrelFills) && data.barrelFills.length > 0) ||
+        (Array.isArray(data.barrelVessels) && data.barrelVessels.length > 0),
+    },
+  ].filter(section => section.hasRecords) : [];
+
   return (
     <>
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -1418,7 +1473,36 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
               <Badge className="text-xs bg-amber-100 text-amber-800 border-0 font-normal">Not yet signed</Badge>
             )}
           </DialogTitle>
-          {isVintageScoped ? (
+        </DialogHeader>
+        {data && trailNavSections.length > 0 && (
+            <nav
+              ref={sectionNavRef}
+              aria-label="Batch Trail sections"
+              className={TRAIL_STICKY_NAV_CLASSNAME}
+              data-testid="batch-trail-section-nav"
+            >
+              {trailNavSections.map(section => {
+                const isActive = activeSectionId === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                      isActive
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-border bg-background text-muted-foreground hover:border-blue-400 hover:text-foreground"
+                    }`}
+                    aria-current={isActive ? "location" : undefined}
+                    data-testid={`batch-trail-section-chip-${section.id}`}
+                    onClick={() => jumpToSection(section.id)}
+                  >
+                    {section.label}
+                  </button>
+                );
+              })}
+            </nav>
+        )}
+        {isVintageScoped ? (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>This pressing record has no batch reference. Results show all winery records for Vintage {vintageYear} — they may span multiple batches.</span>
@@ -1427,8 +1511,7 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             <DialogDescription>
               {`All records linked to this pressing batch${pressing.vintage_year ? ` (Vintage ${String(pressing.vintage_year)})` : ""}. Press date: ${fmtDate(pressing.press_date)}.`}
             </DialogDescription>
-          )}
-        </DialogHeader>
+        )}
 
         {!hasQuery && <p className="text-sm text-muted-foreground py-4">No batch reference or vintage year available for this pressing record.</p>}
         {isLoading && <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
@@ -1694,7 +1777,9 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
             })()}
 
             {/* SO₂ cumulative summary */}
-            <div id="bt-so2"><So2SummaryBlock summary={computeSo2Summary(pressing, data)} /></div>
+             {sectionSummary?.hasAny && (
+               <div id="bt-so2"><So2SummaryBlock summary={sectionSummary} /></div>
+             )}
 
             {/* pH & TA analytical history — stage merge logic shared via lib/ph-ta-stages */}
             {(() => {
