@@ -200,7 +200,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
         <div className="border rounded-lg p-3 mb-3 bg-muted/20 space-y-3">
           <p className="text-xs font-medium text-muted-foreground">{editingFill ? "Edit fill record" : "New fill record"}</p>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label className="text-xs">Fill Number *</Label><Input type="number" min="1" value={form.fillNumber ?? ""} onChange={e => sf("fillNumber", e.target.value)} className="h-8 text-xs" /></div>
+            <div><Label htmlFor={`barrel-fill-number-${vesselId}`} className="text-xs">Fill Number *</Label><Input id={`barrel-fill-number-${vesselId}`} type="number" min="1" value={form.fillNumber ?? ""} onChange={e => sf("fillNumber", e.target.value)} className="h-8 text-xs" /></div>
             <div><Label className="text-xs">Vintage Year</Label><Input type="number" min="1900" max="2100" value={form.vintageYear ?? ""} onChange={e => sf("vintageYear", e.target.value)} className="h-8 text-xs" placeholder="e.g. 2024" /></div>
             <div><Label className="text-xs">Wine Name</Label><Input value={form.wineName ?? ""} onChange={e => sf("wineName", e.target.value)} className="h-8 text-xs" placeholder="e.g. Bacchus 2024" /></div>
             <div><Label className="text-xs">Variety</Label><Input value={form.variety ?? ""} onChange={e => sf("variety", e.target.value)} className="h-8 text-xs" placeholder="e.g. Chardonnay" /></div>
@@ -320,8 +320,9 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                       </Button>
                     </div>
                     <div>
-                      <Label className="text-xs text-amber-800">Notes (optional)</Label>
+                      <Label htmlFor={`rack-out-note-${fillId}`} className="text-xs text-amber-800">Notes (optional)</Label>
                       <Textarea
+                        id={`rack-out-note-${fillId}`}
                         value={rackOutNote}
                         onChange={e => setRackOutNote(e.target.value)}
                         placeholder="e.g. blending trial, bottling ahead of schedule…"
