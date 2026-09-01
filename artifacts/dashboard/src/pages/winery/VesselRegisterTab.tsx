@@ -1751,12 +1751,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         return;
                       }
                       const [summaryBody, fillSummaryBody, maintSummaryBody] = await Promise.all([summaryRes.json(), fillSummaryRes.json(), maintSummaryRes.json()]);
-                      // Build lookup: vesselId → { lastCleanDate, cleanCount }
-                      const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number }>();
+                      // Build lookup: vesselId → latest cleaning summary.
+                      // Measurement values come from the same latest clean row
+                      // represented in the barrel history print report.
+                      const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number; lastContactTimeMin: string; lastWaterTempC: string }>();
                       for (const row of (summaryBody.records ?? []) as Record<string, unknown>[]) {
                         cleanMap.set(Number(row.vessel_id), {
                           lastCleanDate: row.last_clean_date ? fmtDate(row.last_clean_date) : "",
                           cleanCount: Number(row.clean_count ?? 0),
+                          lastContactTimeMin: row.last_contact_time_min != null ? String(row.last_contact_time_min) : "",
+                          lastWaterTempC: row.last_water_temp_c != null ? String(row.last_water_temp_c) : "",
                         });
                       }
                       // Build lookup: vesselId → { lastFillDate, lastRackOutDate }
@@ -1796,6 +1800,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         { key: "_last_rack_out_date", label: "Last Rack-out Date", fmt: (r) => fillMap.get(Number(r.id))?.lastRackOutDate ?? "" },
                         { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
                         { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
+                        { key: "_contact_time_min", label: "Contact Time (min)", fmt: (r) => cleanMap.get(Number(r.id))?.lastContactTimeMin ?? "" },
+                        { key: "_water_temp_c", label: "Water Temp (°C)", fmt: (r) => cleanMap.get(Number(r.id))?.lastWaterTempC ?? "" },
                         { key: "_maint_total", label: "Total Cooperage Cost (£)", fmt: (r) => {
                           const entry = maintMap.get(Number(r.id));
                           return entry && entry.totalPence > 0 ? (entry.totalPence / 100).toFixed(2) : "";

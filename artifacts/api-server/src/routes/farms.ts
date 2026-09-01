@@ -38744,14 +38744,30 @@ router.get("/farms/:farmId/winery-vessels/:vesselId/cleans", requireAuth, requir
   const rows = await db.execute(sql`SELECT * FROM winery_vessel_cleans WHERE farm_id=${farmId} AND vessel_id=${parseInt(req.params.vesselId as string)} ORDER BY clean_date DESC`);
   res.json({ records: rows.rows });
 });
-// Bulk cleaning summary — one row per vessel (last_clean_date, clean_count) for the health CSV export
+// Bulk cleaning summary — one row per vessel for the health CSV export.
+// The latest clean's measurements are included so the downloaded health
+// summary carries the same cleaning details as the barrel history print.
 router.get("/farms/:farmId/winery-vessels-clean-summary", requireAuth, requireTenant, requireModuleByKey("viticulture", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.execute(sql`
-    SELECT vessel_id, COUNT(*)::int AS clean_count, MAX(clean_date) AS last_clean_date
-    FROM winery_vessel_cleans
-    WHERE farm_id = ${farmId}
-    GROUP BY vessel_id
+    SELECT summary.vessel_id,
+           summary.clean_count,
+           summary.last_clean_date,
+           latest.contact_time_min AS last_contact_time_min,
+           latest.water_temp_c AS last_water_temp_c
+    FROM (
+      SELECT vessel_id, COUNT(*)::int AS clean_count, MAX(clean_date) AS last_clean_date
+      FROM winery_vessel_cleans
+      WHERE farm_id = ${farmId}
+      GROUP BY vessel_id
+    ) summary
+    JOIN LATERAL (
+      SELECT contact_time_min, water_temp_c
+      FROM winery_vessel_cleans
+      WHERE farm_id = ${farmId} AND vessel_id = summary.vessel_id
+      ORDER BY clean_date DESC, id DESC
+      LIMIT 1
+    ) latest ON true
   `);
   res.json({ records: rows.rows });
 });
