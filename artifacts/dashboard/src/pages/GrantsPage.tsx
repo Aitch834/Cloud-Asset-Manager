@@ -2253,7 +2253,7 @@ export default function GrantsPage() {
               <div style={{ width: 1, height: 18, background: "#e5e7eb" }} />
               <SchemeNameCombobox
                 value={screenScheme}
-                onChange={v => { setScreenScheme(v); setQuickFilter(""); setStatusFilter("all"); }}
+                onChange={setScreenScheme}
                 schemeNames={uniqueGrantSchemeNames}
                 compact
               />
