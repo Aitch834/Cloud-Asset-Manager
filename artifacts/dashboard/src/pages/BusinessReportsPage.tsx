@@ -1000,10 +1000,13 @@ function SubsidiesTab({ farmId, year, onRegisterExport }: { farmId: number; year
     enabled: !!farmId,
   });
 
-  const schemes: any[] = data?.schemes ?? [];
-  const subsidyTx: any[] = (data?.subsidyTransactions ?? []).filter((t: any) => ["Agri-Environment Scheme", "Grant / Subsidy"].includes(t.category ?? ""));
-  const agriEnvProjects: any[] = data?.agriEnvProjects ?? [];
-  const agriEnvMilestones: any[] = data?.agriEnvMilestones ?? [];
+  const schemes: any[] = useMemo(() => data?.schemes ?? [], [data?.schemes]);
+  const subsidyTx: any[] = useMemo(
+    () => (data?.subsidyTransactions ?? []).filter((t: any) => ["Agri-Environment Scheme", "Grant / Subsidy"].includes(t.category ?? "")),
+    [data?.subsidyTransactions],
+  );
+  const agriEnvProjects: any[] = useMemo(() => data?.agriEnvProjects ?? [], [data?.agriEnvProjects]);
+  const agriEnvMilestones: any[] = useMemo(() => data?.agriEnvMilestones ?? [], [data?.agriEnvMilestones]);
 
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);

@@ -48,6 +48,7 @@
 - [Record unknown && JSX TypeScript error](record-unknown-jsx.md) — `{record.field && <JSX />}` when record is `Record<string,unknown>` yields `unknown`, not ReactNode; fix with `{!!record.field && <JSX />}`
 - [Enter-opens-dialog ghost close](enter-opens-dialog-ghost-close.md) — Enter handlers that open a Radix dialog must preventDefault or the keystroke leaks into the dialog and instantly closes it
 - [Clerk e2e login needs DB tenant mapping](clerk-e2e-login-tenant-mapping.md) — tester's programmatic Clerk sub must be inserted into users+user_tenants; dashboard serves built dist, rebuild before e2e
+- [Clerk E2E user quota](clerk-e2e-user-quota.md) — dashboard Playwright global setup can fail before tests when the shared development Clerk instance reaches 100 users
 - [Recharts same-side Y axes](recharts-same-side-axes.md) — same-orientation YAxis components auto-offset side by side, no overlap; prove via SSR renderToStaticMarkup if a review disputes it
 - [Drizzle 23505 catch needs err.cause.code](drizzle-23505-err-cause.md) — drizzle wraps pg errors; `err.code` is undefined, unique-violation code is on `err.cause.code`; verify with a live duplicate request
 - [Silent mutation failures](mutation-fetch-no-ok-check.md) — bare fetch() in mutationFn never rejects on 500; ~480 dashboard write-mutations lack res.ok checks, so error toasts never fire
