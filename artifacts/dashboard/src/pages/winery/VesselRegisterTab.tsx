@@ -1377,7 +1377,14 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     const close = () => setZoneMenu(null);
     document.addEventListener("click", close);
     document.addEventListener("contextmenu", close);
-    return () => { document.removeEventListener("click", close); document.removeEventListener("contextmenu", close); };
+    // Capture scroll events from the window and nested scroll containers so a
+    // fixed-position menu never stays detached from the chip that opened it.
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("contextmenu", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [!!zoneMenu]);
   // isFullFilter: "" = show all, "true" = full only, "false" = empty only
   const [isFullFilter, setIsFullFilter] = usePersistedFilter({ page: "vessel-register", filter: "is-full", farmId, defaultValue: "", validValues: IS_FULL_VALUES });
