@@ -13,6 +13,18 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type CreateLeadBodySector =
+  (typeof CreateLeadBodySector)[keyof typeof CreateLeadBodySector];
+
+export const CreateLeadBodySector = {
+  "Beef_&_Dairy": "Beef & Dairy",
+  "Sheep_&_Goat": "Sheep & Goat",
+  Arable: "Arable",
+  Viticulture: "Viticulture",
+  Mixed_Farming: "Mixed Farming",
+  Agricultural_Contracting: "Agricultural Contracting",
+} as const;
+
 export interface CreateLeadBody {
   businessName: string;
   contactName: string;
@@ -22,6 +34,7 @@ export interface CreateLeadBody {
   farmCount: number;
   modulesInterested: string[];
   message?: string;
+  sector?: CreateLeadBodySector;
 }
 
 export interface Lead {

@@ -58,6 +58,7 @@ export * from "./createHerdBody";
 export * from "./createInspectionBody";
 export * from "./createInvitationBody";
 export * from "./createLeadBody";
+export * from "./createLeadBodySector";
 export * from "./createMaintenanceLogBody";
 export * from "./createMedicineRecordBody";
 export * from "./createMovementBody";

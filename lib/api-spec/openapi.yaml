@@ -3271,6 +3271,15 @@ components:
             type: string
         message:
           type: string
+        sector:
+          type: string
+          enum:
+            - Beef & Dairy
+            - Sheep & Goat
+            - Arable
+            - Viticulture
+            - Mixed Farming
+            - Agricultural Contracting
       required:
         - businessName
         - contactName

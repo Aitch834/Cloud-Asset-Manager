@@ -26,6 +26,16 @@ export const CreateLeadBody = zod.object({
   farmCount: zod.number().min(1),
   modulesInterested: zod.array(zod.string()),
   message: zod.string().optional(),
+  sector: zod
+    .enum([
+      "Beef & Dairy",
+      "Sheep & Goat",
+      "Arable",
+      "Viticulture",
+      "Mixed Farming",
+      "Agricultural Contracting",
+    ])
+    .optional(),
 });
 
 /**

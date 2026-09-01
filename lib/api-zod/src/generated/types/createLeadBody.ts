@@ -5,6 +5,7 @@
  * BDE Farm Trac API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateLeadBodySector } from "./createLeadBodySector";
 
 export interface CreateLeadBody {
   businessName: string;
@@ -15,4 +16,5 @@ export interface CreateLeadBody {
   farmCount: number;
   modulesInterested: string[];
   message?: string;
+  sector?: CreateLeadBodySector;
 }
