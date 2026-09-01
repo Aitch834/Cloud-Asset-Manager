@@ -1027,8 +1027,8 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   const tocHtml = _tocEntries.length > 1 ? `
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:14px">
   <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;margin-bottom:5px">Contents</p>
-  <div style="display:flex;flex-wrap:wrap;gap:3px 18px">
-    ${_tocEntries.map(e => `<a href="#s${e.num}" class="toc-link" style="font-size:10px;color:#374151;white-space:nowrap;text-decoration:none"><span style="font-weight:700;font-family:monospace;color:#6b7280">\u00a7${e.num}</span>\u2002${escHtml(e.title)}</a>`).join("")}
+  <div class="toc-list" style="display:flex;flex-wrap:wrap;gap:3px 18px">
+    ${_tocEntries.map(e => `<a href="#s${e.num}" class="toc-link" style="font-size:10px;color:#374151;white-space:nowrap;text-decoration:none"><span class="toc-number" style="font-weight:700;font-family:monospace;color:#6b7280">\u00a7${e.num}</span><span class="toc-title">\u2002${escHtml(e.title)}</span></a>`).join("")}
   </div>
 </div>` : "";
 
@@ -1059,6 +1059,11 @@ export async function printBatchTrail(farmId: number, pressing: Record<string, u
   @media print {
     a[href]:not(.toc-link)::after { content: none !important; }
     .toc-link[data-page-num]::after { content: " · p." attr(data-page-num); font-size: 9px; color: #9ca3af; }
+    .toc-list { display: block !important; }
+    .toc-link { display: grid; grid-template-columns: 2.5em minmax(0, 1fr) 4.5em; column-gap: 8px; align-items: baseline; width: 100%; white-space: normal !important; }
+    .toc-number { white-space: nowrap; }
+    .toc-title { min-width: 0; }
+    .toc-link[data-page-num]::after { justify-self: end; white-space: nowrap; }
     body { padding: 0; }
     @page { size: A4 portrait; margin: 16mm 14mm; }
     .signoff { display: block; page-break-inside: avoid; }
