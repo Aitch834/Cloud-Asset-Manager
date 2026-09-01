@@ -1613,7 +1613,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             ];
             const handlePrint = () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
-              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Approaching Neutral"];
+              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Approaching Neutral", "Last Clean Date"];
               const rows = exportBarrels.map(r => {
                 const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
                 return [
@@ -1632,6 +1632,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   r.empty_since ? fmtDate(r.empty_since) : "\u2014",
                   idleDays,
                   Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
+                  fmtDate(r.last_cleaned_date),
                 ];
               });
 
