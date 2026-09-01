@@ -419,6 +419,18 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
   const bottlingMachineLabel = selectedBottlingMachine
     ? String(selectedBottlingMachine.machine_ref)
     : bottlingMachineFilter === "all" ? "All machines" : bottlingMachineFilter;
+  const vesselById = useMemo(
+    () => new Map(vessels.map(v => [String(v.id), v])),
+    [vessels],
+  );
+  const sourceVesselFor = (r: Record<string, unknown>) =>
+    r.source_vessel_id != null ? vesselById.get(String(r.source_vessel_id)) : undefined;
+  const sourceVesselCapacity = (r: Record<string, unknown>) => {
+    const vessel = sourceVesselFor(r);
+    // Fall back to the joined value on the bottling row while the shared vessel
+    // register query is still loading (the CSV uses this same joined value).
+    return vessel?.capacity_litres ?? r.vessel_capacity_litres;
+  };
 
   return (
     <div className="space-y-4">
@@ -539,6 +551,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
               {thSort("lot_code", "Lot Code")}
               {thSort("batch_ref", "Batch")}
               {thSort("wine_colour", "Colour")}
+              <th className="text-left p-3 font-medium">Source Vessel</th>
+              <th className="text-right p-3 font-medium">Capacity (L)</th>
               {thSort("volume_bottled_litres", "Volume (L)", "right")}
               {thSort("bottles_produced", "Bottles", "right")}
               {crud.data.some(r => r.bottling_machine_id != null) && <th className="text-left p-3 font-medium">Machine</th>}
@@ -562,6 +576,8 @@ export function BottlingRecordsTab({ farmId }: { farmId: number }) {
                       {(r.is_organic === true || r.is_organic === "true") && <span className="inline-flex items-center gap-0.5 text-xs bg-green-100 text-green-800 rounded px-1.5 py-0.5"><Leaf className="w-3 h-3" />Organic</span>}
                     </div>
                   </td>
+                  <td className="p-3 font-mono text-xs">{fmt(r.source_vessel_ref ?? sourceVesselFor(r)?.vessel_ref)}</td>
+                  <td className="p-3 text-right">{fmtNum(sourceVesselCapacity(r), 0)}</td>
                   <td className="p-3 text-right">{fmtNum(r.volume_bottled_litres, 0)}</td>
                   <td className="p-3 text-right">{fmt(r.bottles_produced)}</td>
                   {crud.data.some(r2 => r2.bottling_machine_id != null) && <td className="p-3 text-xs text-muted-foreground">{fmt(r.bottling_machine_ref)}</td>}
