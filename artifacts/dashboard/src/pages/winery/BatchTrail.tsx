@@ -1286,7 +1286,14 @@ export function BatchTrailDialog({ farmId, pressing, farmName, onClose }: { farm
       if (!savedId) return;
       const container = getScrollContainer();
       const target = document.getElementById(savedId);
-      if (!container || !target) return;
+      if (!target) {
+        // The section may have disappeared since the last visit (for example,
+        // after all records in that stage were deleted). Do not keep trying to
+        // restore a section that can no longer exist.
+        try { localStorage.removeItem(sectionKey); } catch { /* unavailable */ }
+        return;
+      }
+      if (!container) return;
       const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top - 8;
       container.scrollBy({ top: offset, behavior: "instant" });
     }, 160);
