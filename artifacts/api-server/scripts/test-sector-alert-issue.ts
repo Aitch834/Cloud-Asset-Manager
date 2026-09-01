@@ -4,7 +4,8 @@
  * This test uses the production issue-notification function and mailer, but
  * points SMTP at a local capture server so no real advisor receives a test
  * email. It verifies county selection, advisor deduplication, delivery-outbox
- * persistence, the episode completion flag, and retry deduplication.
+ * persistence, the episode completion flag, failed-delivery retry age, and
+ * retry deduplication.
  *
  * Run with:
  *   pnpm --filter @workspace/api-server run test:sector-alert-issue
@@ -22,6 +23,8 @@ type CapturedMessage = {
 };
 
 class SmtpCaptureServer {
+  rejectData = false;
+
   private readonly server = net.createServer((socket) => {
     socket.setEncoding("utf8");
     let buffer = "";
@@ -63,8 +66,12 @@ class SmtpCaptureServer {
           currentRecipient = match?.[1]?.toLowerCase() ?? "";
           socket.write("250 2.1.5 recipient ok\r\n");
         } else if (command === "DATA") {
-          inData = true;
-          socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+          if (this.rejectData) {
+            socket.write("451 4.3.0 temporary test failure\r\n");
+          } else {
+            inData = true;
+            socket.write("354 End data with <CR><LF>.<CR><LF>\r\n");
+          }
         } else if (command === "RSET") {
           socket.write("250 2.0.0 reset\r\n");
         } else if (command === "QUIT") {
@@ -117,6 +124,7 @@ async function main(): Promise<void> {
   const tokenPrefix = `sector-alert-e2e-token-${suffix}`;
   const smtp = new SmtpCaptureServer();
   const smtpPort = await smtp.listen();
+  const issuedAt = new Date(Date.now() - (3 * 86_400_000) - (5 * 60_000));
 
   // mailer.ts reads its SMTP settings at module evaluation time.
   process.env.SMTP_HOST = "127.0.0.1";
@@ -174,13 +182,43 @@ async function main(): Promise<void> {
     `);
 
     const episodeRows = await db.execute(sql`
-      INSERT INTO sector_alert_episodes (sector, level, message, counties, issued_by)
-      VALUES (${"arable"}, ${"regional"}, ${"E2E sector alert message"}, ${testCounty}, ${"sector-alert-e2e"})
+      INSERT INTO sector_alert_episodes (sector, level, message, counties, issued_at, issued_by)
+      VALUES (${"arable"}, ${"regional"}, ${"E2E sector alert message"}, ${testCounty}, ${issuedAt}, ${"sector-alert-e2e"})
       RETURNING id
     `);
     episodeId = Number((episodeRows.rows[0] as { id: number }).id);
     assert(episodeId !== undefined, "test episode was not created");
 
+    smtp.rejectData = true;
+    await runSectorAlertIssueNotifications(episodeId);
+
+    assert.equal(
+      smtp.messages.length,
+      0,
+      "temporarily rejected SMTP sends must not be recorded as captured deliveries",
+    );
+    const failedDeliveries = await db.execute(sql`
+      SELECT count(*)::int AS count
+      FROM sector_alert_email_deliveries
+      WHERE episode_id = ${episodeId} AND kind = 'issue'
+    `);
+    assert.equal(
+      Number((failedDeliveries.rows[0] as { count: number }).count),
+      0,
+      "failed issue sends must not create delivery-outbox rows",
+    );
+    const failedEpisode = await db.execute(sql`
+      SELECT issue_email_notified
+      FROM sector_alert_episodes
+      WHERE id = ${episodeId}
+    `);
+    assert.equal(
+      (failedEpisode.rows[0] as { issue_email_notified: boolean }).issue_email_notified,
+      false,
+      "episode must remain incomplete while issue email delivery is pending",
+    );
+
+    smtp.rejectData = false;
     await runSectorAlertIssueNotifications(episodeId);
 
     const firstRecipients = smtp.messages.map((message) => message.recipient).sort();
@@ -193,6 +231,13 @@ async function main(): Promise<void> {
       smtp.messages.filter((message) => message.raw.length > 0).length,
       2,
       "both accepted deliveries should contain a non-empty email payload",
+    );
+    assert.equal(
+      smtp.messages.every((message) =>
+        message.raw.replace(/=\r?\n/g, "").includes("(issued 3 days ago)"),
+      ),
+      true,
+      "retried issue emails must calculate age from the episode's original issued_at",
     );
 
     const firstDeliveries = await db.execute(sql`
@@ -240,6 +285,8 @@ async function main(): Promise<void> {
 
     console.log("✓ sector alert issue email flow passed");
     console.log(`  recipients: ${firstRecipients.join(", ")}`);
+    console.log("  failed first attempt: no outbox rows and episode remained pending");
+    console.log("  retried email age: issued 3 days ago");
     console.log("  issue_email_notified: true");
     console.log("  second run: no additional sends");
   } finally {
