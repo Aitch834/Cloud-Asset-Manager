@@ -37,7 +37,7 @@ export const usersTable = pgTable("users", {
   uiPrefs: jsonb("ui_prefs").$type<UiPrefs>().notNull().default({}),
   /** Per-category SMS opt-in. null = all categories enabled (legacy). Added via startup migration. */
   smsCategories: jsonb("sms_categories").$type<SmsCategories>(),
-  /** Whether the user receives sector alert emails (all-clear notices). Added via startup migration. */
+  /** Whether the user receives sector alert emails (issued and all-clear notices). Added via startup migration. */
   emailSectorAlerts: boolean("email_sector_alerts").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

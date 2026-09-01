@@ -2080,6 +2080,25 @@ const SECTOR_ALERT_LABELS: Record<string, string> = {
   viticulture:  "Viticulture / Vine Disease",
 };
 
+/** Remove platform users who have opted out of both sector alert email types. */
+async function excludeSectorAlertEmailOptOuts(unique: Map<string, string>) {
+  if (unique.size === 0) return;
+
+  const optedOut = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(
+      and(
+        inArray(sql`lower(trim(${usersTable.email}))`, [...unique.keys()]),
+        eq(usersTable.emailSectorAlerts, false),
+      )
+    );
+
+  for (const row of optedOut) {
+    if (row.email) unique.delete(normaliseSectorAlertEmail(row.email));
+  }
+}
+
 async function runSectorAlertAllClearNotifications() {
   // Find ended episodes where SMS and/or email all-clear has not yet completed.
   // end_notified  = SMS dispatched (set immediately; no retry needed)
@@ -2160,23 +2179,9 @@ async function runSectorAlertAllClearNotifications() {
             if (!unique.has(norm)) unique.set(norm, a.name ?? "");
           }
 
-          // Exclude platform users who have opted out of sector alert emails.
-          // Cross-reference by normalised email address so advisor rows and user accounts align.
-          if (unique.size > 0) {
-            const allNorms = [...unique.keys()];
-            const optedOut = await db
-              .select({ email: usersTable.email })
-              .from(usersTable)
-              .where(
-                and(
-                  inArray(sql`lower(trim(${usersTable.email}))`, allNorms),
-                  eq(usersTable.emailSectorAlerts, false),
-                )
-              );
-            for (const row of optedOut) {
-              if (row.email) unique.delete(normaliseSectorAlertEmail(row.email));
-            }
-          }
+          // Exclude platform users who have opted out of sector alert emails,
+          // for both the issued and all-clear messages.
+          await excludeSectorAlertEmailOptOuts(unique);
 
           // External advisors can opt out without having a platform account.
           if (unique.size > 0) {
@@ -2292,23 +2297,8 @@ export async function runSectorAlertIssueNotifications(episodeId?: number) {
           if (!unique.has(norm)) unique.set(norm, a.name ?? "");
         }
 
-        // Exclude platform users who have opted out of sector alert emails.
-        // Cross-reference by normalised email address so advisor rows and user accounts align.
-        if (unique.size > 0) {
-          const allNorms = [...unique.keys()];
-          const optedOut = await db
-            .select({ email: usersTable.email })
-            .from(usersTable)
-            .where(
-              and(
-                inArray(sql`lower(trim(${usersTable.email}))`, allNorms),
-                eq(usersTable.emailSectorAlerts, false),
-              )
-            );
-          for (const row of optedOut) {
-            if (row.email) unique.delete(normaliseSectorAlertEmail(row.email));
-          }
-        }
+        // Use the same platform opt-out filter as the all-clear email path.
+        await excludeSectorAlertEmailOptOuts(unique);
 
         // Apply the same address-level opt-out to issue emails as all-clears.
         if (unique.size > 0) {
