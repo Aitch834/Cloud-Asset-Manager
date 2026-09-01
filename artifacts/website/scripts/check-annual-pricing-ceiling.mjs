@@ -51,6 +51,10 @@
  * Additionally, ANNUAL_CEILING_GBP (the constant in this script) is asserted
  * to equal roundedClaimGBP, keeping the script's own ceiling in sync with what
  * the Pricing page actually displays.
+ *
+ * The "Start from £X/month" copy is checked in the same way: the expected
+ * dynamic JSX expression is verified exactly, while a hardcoded literal is
+ * allowed only when it matches BASE_FEE + red-tractor-compliance price.
  * ────────────────────────────────────────────────────────────────────────────
  *
  * Usage:
@@ -95,6 +99,8 @@ const ANNUAL_CEILING_PENCE = ANNUAL_CEILING_GBP * 100; // 50000p — integer com
 // alongside the Pricing.tsx change so the check stays accurate.
 const EXPECTED_JSX_FORMULA =
   'Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100';
+const EXPECTED_MONTHLY_JSX_FORMULA =
+  'BASE_FEE + modulePrice("red-tractor-compliance")';
 
 // ── Pence conversion ─────────────────────────────────────────────────────────
 
@@ -193,6 +199,44 @@ function parsePricingTsx(src) {
     '    Under £{Math.ceil(...)} a year\n' +
     "  or a literal number\n" +
     "    Under £500 a year\n" +
+    `  File inspected: ${PRICING_TSX_PATH}`
+  );
+}
+
+/**
+ * Parse the "Start from £X/month" claim from Pricing.tsx source.
+ *
+ * The claim may take one of two forms:
+ *
+ *   Dynamic (expected):
+ *     Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month
+ *
+ *   Literal (hardcoded — not expected but must be caught):
+ *     Start from £40/month
+ *
+ * @param {string} src — full text of Pricing.tsx.
+ * @returns {{ kind: "dynamic", formula: string } | { kind: "literal", value: number }}
+ * @throws {Error} if neither pattern is found.
+ */
+function parseMonthlyPricingTsx(src) {
+  // Try dynamic first: Start from £{<expression>}/month
+  const dynMatch = src.match(/Start from £\{([^}]+)\}\/month/);
+  if (dynMatch) {
+    return { kind: "dynamic", formula: dynMatch[1].trim() };
+  }
+
+  // Try hardcoded literal: Start from £<number>/month
+  const litMatch = src.match(/Start from £(\d+(?:\.\d+)?)\/month/);
+  if (litMatch) {
+    return { kind: "literal", value: parseFloat(litMatch[1]) };
+  }
+
+  throw new Error(
+    'Could not find "Start from £X/month" copy in Pricing.tsx.\n' +
+    "  Expected either a dynamic JSX expression\n" +
+    '    Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month\n' +
+    "  or a literal number\n" +
+    "    Start from £40/month\n" +
     `  File inspected: ${PRICING_TSX_PATH}`
   );
 }
@@ -414,6 +458,86 @@ if (process.argv.includes("--self-test")) {
     }
   }
 
+  // ── parseMonthlyPricingTsx self-tests ───────────────────────────────────────
+
+  console.log("\nSelf-test: parseMonthlyPricingTsx copy parsing\n");
+
+  // Case 14 — dynamic expression (expected current form)
+  {
+    const fakeTsx = `<p>Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month</p>`;
+    try {
+      const result = parseMonthlyPricingTsx(fakeTsx);
+      assert("monthly dynamic form detected as kind='dynamic'", result.kind === "dynamic");
+      assert(
+        "monthly dynamic formula matches expected constant",
+        result.formula === EXPECTED_MONTHLY_JSX_FORMULA
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parseMonthlyPricingTsx threw on dynamic form: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 15 — hardcoded literal matching the current computed price
+  {
+    const fakeTsx = `<p>Start from £40/month</p>`;
+    try {
+      const result = parseMonthlyPricingTsx(fakeTsx);
+      assert("monthly literal form detected as kind='literal'", result.kind === "literal");
+      assert("monthly literal value parsed as 40", result.value === 40);
+      assert(
+        "monthly literal £40 matches simulated computed value",
+        result.kind === "literal" && result.value === 15 + 25
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parseMonthlyPricingTsx threw on literal form: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 16 — wrong literal (drift scenario: copy says £41 but computed is £40)
+  {
+    const fakeTsx = `<p>Start from £41/month</p>`;
+    try {
+      const result = parseMonthlyPricingTsx(fakeTsx);
+      const monthlyClaimGBP = 15 + 25; // simulated computed value
+      assert(
+        "monthly literal £41 disagrees with computed £40 (drift detected)",
+        result.kind === "literal" && result.value !== monthlyClaimGBP
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parseMonthlyPricingTsx threw: ${e.message}`);
+      failures++;
+    }
+  }
+
+  // Case 17 — monthly copy structure changed; no "Start from £X/month" found
+  {
+    const fakeTsx = `<p>From £40 each month for a compliant farm.</p>`;
+    let threw = false;
+    try {
+      parseMonthlyPricingTsx(fakeTsx);
+    } catch (_) {
+      threw = true;
+    }
+    assert("missing monthly copy pattern throws (structure drift detected)", threw === true);
+  }
+
+  // Case 18 — dynamic monthly expression mismatch (refactor without updating script)
+  {
+    const fakeTsx = `<p>Start from £{BASE_FEE + modulePrice("red-tractor")}/month</p>`;
+    try {
+      const result = parseMonthlyPricingTsx(fakeTsx);
+      assert(
+        "mismatched monthly dynamic formula disagrees with expected formula (drift detected)",
+        result.kind === "dynamic" && result.formula !== EXPECTED_MONTHLY_JSX_FORMULA
+      );
+    } catch (e) {
+      console.error(`  ✗ FAIL: parseMonthlyPricingTsx threw: ${e.message}`);
+      failures++;
+    }
+  }
+
   console.log();
   if (failures === 0) {
     console.log("✓ All self-tests passed.");
@@ -489,6 +613,14 @@ try {
   process.exit(2);
 }
 
+let monthlyCopyResult;
+try {
+  monthlyCopyResult = parseMonthlyPricingTsx(tsxSrc);
+} catch (err) {
+  console.error(`✗ ${err.message}`);
+  process.exit(2);
+}
+
 // ── Step 3: Copy-consistency checks ──────────────────────────────────────────
 
 let copyCheckPassed = true;
@@ -532,6 +664,50 @@ if (copyResult.kind === "dynamic") {
     copyCheckPassed = false;
   } else {
     console.log(`  Copy form: hardcoded literal £${copyResult.value} — matches computed value ✓`);
+  }
+}
+
+let monthlyCopyCheckPassed = true;
+
+if (monthlyCopyResult.kind === "dynamic") {
+  // The formula in JSX should match the expected expression exactly.
+  if (monthlyCopyResult.formula !== EXPECTED_MONTHLY_JSX_FORMULA) {
+    console.error(
+      `✗ FAIL — The "Start from £X/month" JSX expression in Pricing.tsx has changed\n` +
+      `  and no longer matches the formula this script validates.\n` +
+      `\n` +
+      `  Found in Pricing.tsx:\n` +
+      `    {${monthlyCopyResult.formula}}\n` +
+      `\n` +
+      `  Expected (EXPECTED_MONTHLY_JSX_FORMULA in this script):\n` +
+      `    {${EXPECTED_MONTHLY_JSX_FORMULA}}\n` +
+      `\n` +
+      `  Action required:\n` +
+      `    Update EXPECTED_MONTHLY_JSX_FORMULA in this script to match the new\n` +
+      `    expression, and verify the arithmetic is still equivalent.\n`
+    );
+    monthlyCopyCheckPassed = false;
+  } else {
+    console.log(`  Monthly copy form: dynamic JSX expression (expected)\n  Formula matches EXPECTED_MONTHLY_JSX_FORMULA ✓`);
+  }
+} else {
+  // Literal — the hardcoded number must equal the computed monthly price.
+  if (toPence(String(monthlyCopyResult.value)) !== monthlyP) {
+    console.error(
+      `✗ FAIL — The "Start from £X/month" copy in Pricing.tsx is a hardcoded literal\n` +
+      `  that disagrees with the computed entry-level monthly price.\n` +
+      `\n` +
+      `  Copy says:        "Start from £${monthlyCopyResult.value}/month"\n` +
+      `  Computed value:   "Start from £${monthlyGBP}/month"\n` +
+      `\n` +
+      `  Action required:\n` +
+      `    Either restore the dynamic JSX expression in Pricing.tsx:\n` +
+      `      Start from £{${EXPECTED_MONTHLY_JSX_FORMULA}}/month\n` +
+      `    or update the hardcoded literal to £${monthlyGBP}.\n`
+    );
+    monthlyCopyCheckPassed = false;
+  } else {
+    console.log(`  Monthly copy form: hardcoded literal £${monthlyCopyResult.value} — matches computed value ✓`);
   }
 }
 
@@ -583,7 +759,7 @@ if (!passes) {
   process.exit(1);
 }
 
-if (!copyCheckPassed || !ceilingConstantPassed) {
+if (!copyCheckPassed || !monthlyCopyCheckPassed || !ceilingConstantPassed) {
   process.exit(1);
 }
 
@@ -591,6 +767,7 @@ console.log(
   `✓ PASS — Annual entry-level cost (${annualP}p = £${annualGBP}) is below the\n` +
   `  ${ANNUAL_CEILING_PENCE}p (£${ANNUAL_CEILING_GBP}) ceiling.\n` +
   `  Pricing page claim "Under £${roundedClaimGBP} a year" is accurate.\n` +
-  `  Copy and ceiling constant are consistent.`
+  `  Pricing page claim "Start from £${monthlyGBP}/month" is accurate.\n` +
+  `  Copy and pricing constants are consistent.`
 );
 process.exit(0);

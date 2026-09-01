@@ -28,9 +28,10 @@ export interface PricingModule {
 // check-annual-pricing-ceiling.mjs asserts that
 //   (BASE_FEE + red-tractor-compliance price) × 12  <  £500/yr
 // so the "Under £500 a year" claim on the Pricing page cannot silently become
-// "Under £600 a year" without a copy review.  If prices push the annual total
-// to £500 or above, update ANNUAL_CEILING in that script after marketing
-// approves new copy.
+// "Under £600 a year" without a copy review. It also checks that the
+// "Start from £X/month" claim matches the same entry-level monthly total.
+// If prices push the annual total to £500 or above, update ANNUAL_CEILING in
+// that script after marketing approves new copy.
 //
 // Use modulePrice() or BASE_FEE from this file instead of embedding raw
 // numbers in marketing copy.
