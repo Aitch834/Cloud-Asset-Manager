@@ -15,6 +15,7 @@
     "test:lis-first-production": "tsx scripts/test-lis-first-production-submission.ts",
     "test:open-meteo-cache": "tsx scripts/test-open-meteo-cache.ts",
     "test:cache-guard": "node scripts/check-ad-brand-asset-cache-guard.mjs",
+    "test:bg-url": "node scripts/check-bg-url.mjs",
     "test:financial-export-columns": "node scripts/check-financial-export-columns.mjs"
   },
   "dependencies": {
