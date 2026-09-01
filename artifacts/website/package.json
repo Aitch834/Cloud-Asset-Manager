@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node scripts/generate-leaflet-previews.mjs && node scripts/check-stale-leaflets.mjs",
+    "predev": "node scripts/generate-leaflet-previews.mjs && node scripts/generate-leaflet-thumbnails.mjs && node scripts/check-stale-leaflets.mjs",
+    "generate:leaflet-thumbnails": "node scripts/generate-leaflet-thumbnails.mjs",
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "prebuild": "node scripts/generate-leaflet-pdfs.mjs && node scripts/generate-leaflet-previews.mjs",
+    "prebuild": "node scripts/generate-leaflet-pdfs.mjs && node scripts/generate-leaflet-previews.mjs && node scripts/generate-leaflet-thumbnails.mjs",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -61,6 +62,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "catalog:",
     "next-themes": "^0.4.6",
+    "playwright-core": "^1.62.1",
     "react": "catalog:",
     "react-day-picker": "^9.11.1",
     "react-dom": "catalog:",
