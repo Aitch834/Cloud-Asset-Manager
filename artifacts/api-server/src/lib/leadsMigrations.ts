@@ -25,4 +25,22 @@ export async function runLeadsMigrations(): Promise<void> {
       AND notes IS NOT NULL
       AND notes ~ '(?m)^Sector:'
   `);
+
+  // Remove the now-redundant sector prefix from notes after backfilling it.
+  // Trim any whitespace left at the edges so a sector-only note becomes NULL.
+  await db.execute(sql`
+    UPDATE registration_leads
+    SET notes = NULLIF(
+      regexp_replace(
+        regexp_replace(notes, '(?m)^Sector:[[:space:]]*.+$', '', 'g'),
+        '^[[:space:]]+|[[:space:]]+$',
+        '',
+        'g'
+      ),
+      ''
+    )
+    WHERE sector IS NOT NULL
+      AND notes IS NOT NULL
+      AND notes ~ '(?m)^Sector:[[:space:]]*.+$'
+  `);
 }

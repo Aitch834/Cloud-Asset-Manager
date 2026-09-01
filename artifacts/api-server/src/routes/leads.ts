@@ -143,7 +143,6 @@ router.post("/register-interest", async (req, res): Promise<void> => {
 
   // Pack extra context fields into notes so they're visible in the admin portal
   const noteParts: string[] = [];
-  if (d.sector) noteParts.push(`Sector: ${d.sector}`);
   if (d.farmType) noteParts.push(`Farm type: ${d.farmType}`);
   if (d.county) noteParts.push(`County: ${d.county}`);
   if (d.holdingNumber) noteParts.push(`CPH number: ${d.holdingNumber}`);
