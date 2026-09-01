@@ -318,6 +318,9 @@ export interface Lead {
   source?: string | null;
   status: string;
   sector?: string | null;
+  county?: string | null;
+  farmType?: string | null;
+  cphNumber?: string | null;
   notes?: string | null;
   lastContactedAt?: string | null;
   createdAt: string;

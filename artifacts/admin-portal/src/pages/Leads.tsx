@@ -91,8 +91,6 @@ const SECTOR_COLORS: Record<string, string> = {
   "Agricultural Contracting":  "bg-sky-100 text-sky-700",
 };
 
-const PACKED_FIELD_KEYS = ["Sector", "Farm type", "County", "CPH number"] as const;
-
 const SECTOR_BAR_COLORS: Record<string, string> = {
   "Beef & Dairy":              "bg-orange-500",
   "Sheep & Goat":              "bg-amber-500",
@@ -157,21 +155,17 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const [status, setStatus] = useState(lead.status);
   // Sector is a dedicated DB column — editable dropdown
   const [sector, setSector] = useState(lead.sector ?? "");
-  // County/farmType/cphNumber are still packed in notes — read-only display
-  const [userNotes, setUserNotes] = useState(() => userNotesFromPacked(lead.notes));
+  const [userNotes, setUserNotes] = useState(lead.notes ?? "");
   const [source, setSource] = useState(lead.source ?? "");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const packed = parsePackedFields(lead.notes);
-
   const handleSave = async () => {
     setSaving(true);
     try {
-      const fullNotes = rebuildNotes(packed, userNotes);
       const updates: Parameters<typeof api.updateLead>[1] = {
         status,
-        notes: fullNotes ?? "",
+        notes: userNotes,
         source: source || undefined,
       };
       // Omit sector unless the admin changed it. The API treats an omitted
@@ -237,22 +231,22 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
                 <p className="font-semibold text-foreground">{lead.phone}</p>
               </div>
             )}
-            {packed.county && (
+            {lead.county && (
               <div className="space-y-1 col-span-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">County</p>
-                <p className="font-semibold text-foreground">{packed.county}</p>
+                <p className="font-semibold text-foreground">{lead.county}</p>
               </div>
             )}
-            {packed.farmType && (
+            {lead.farmType && (
               <div className="space-y-1 col-span-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Farm Type</p>
-                <p className="font-semibold text-foreground">{packed.farmType}</p>
+                <p className="font-semibold text-foreground">{lead.farmType}</p>
               </div>
             )}
-            {packed.cphNumber && (
+            {lead.cphNumber && (
               <div className="space-y-1 col-span-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CPH Number</p>
-                <p className="font-semibold text-foreground">{packed.cphNumber}</p>
+                <p className="font-semibold text-foreground">{lead.cphNumber}</p>
               </div>
             )}
             <div className="space-y-1 col-span-2">
@@ -676,52 +670,4 @@ function SectorBreakdown({ rows, loading, activeSector, onSectorClick }: SectorB
       </div>
     </div>
   );
-}
-
-type PackedFieldKey = typeof PACKED_FIELD_KEYS[number];
-
-/** Reconstruct full notes by prepending packed system fields before user notes.
- * Sector is now a dedicated DB column so it is NOT re-packed here. */
-function rebuildNotes(packed: PackedFields, userNotes: string): string | null {
-  const parts: string[] = [];
-  if (packed.farmType) parts.push(`Farm type: ${packed.farmType}`);
-  if (packed.county) parts.push(`County: ${packed.county}`);
-  if (packed.cphNumber) parts.push(`CPH number: ${packed.cphNumber}`);
-  if (userNotes.trim()) parts.push(userNotes.trim());
-  return parts.length > 0 ? parts.join("\n") : null;
-}
-
-interface PackedFields {
-  sector: string | null;
-  farmType: string | null;
-  county: string | null;
-  cphNumber: string | null;
-}
-
-/** Parse all packed system fields from the notes string. */
-function parsePackedFields(notes: string | null | undefined): PackedFields {
-  const result: PackedFields = { sector: null, farmType: null, county: null, cphNumber: null };
-  if (!notes) return result;
-  for (const line of notes.split("\n")) {
-    const m = line.match(/^(Sector|Farm type|County|CPH number):\s*(.+)$/);
-    if (!m) continue;
-    const key = m[1] as PackedFieldKey;
-    const val = m[2].trim();
-    if (key === "Sector") result.sector = val;
-    else if (key === "Farm type") result.farmType = val;
-    else if (key === "County") result.county = val;
-    else if (key === "CPH number") result.cphNumber = val;
-  }
-  return result;
-}
-
-
-/** Extract only the user-entered lines (non-system packed lines) from notes. */
-function userNotesFromPacked(notes: string | null | undefined): string {
-  if (!notes) return "";
-  return notes
-    .split("\n")
-    .filter((line) => !PACKED_FIELD_KEYS.some((k) => line.startsWith(`${k}:`)))
-    .join("\n")
-    .trim();
 }

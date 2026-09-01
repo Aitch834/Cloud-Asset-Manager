@@ -73,17 +73,31 @@ async function sendLeadInternalAlert(lead: {
   modulesInterested: string[] | null;
   message: string | null;
   source: string | null;
+  county: string | null;
+  farmType: string | null;
+  cphNumber: string | null;
   notes: string | null;
   createdAt: Date;
 }) {
   const notifyAddress = process.env.LEADS_NOTIFY_EMAIL ?? "hello@bdefarmtrac.co.uk";
   const modules = (lead.modulesInterested ?? []).map(esc).join(", ") || "None selected";
-  const extraRows = lead.notes
+  const fieldRows = [
+    ["Farm type", lead.farmType],
+    ["County", lead.county],
+    ["CPH number", lead.cphNumber],
+  ]
+    .filter((row): row is [string, string] => Boolean(row[1]))
+    .map(([label, value]) =>
+      `<tr><td style="padding:4px 0;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;padding-right:16px;">${esc(label)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(value)}</td></tr>`,
+    )
+    .join("");
+  const noteRows = lead.notes
     ? lead.notes.split("\n").map(line => {
         const [label, ...rest] = line.split(": ");
         return `<tr><td style="padding:4px 0;font-size:11px;font-weight:bold;color:#1a6b3a;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;padding-right:16px;">${esc(label)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(rest.join(": "))}</td></tr>`;
       }).join("")
     : "";
+  const extraRows = fieldRows + noteRows;
 
   const body = `
     <p>A new Register Interest submission has arrived — lead #${lead.id}.</p>
@@ -141,13 +155,6 @@ router.post("/register-interest", async (req, res): Promise<void> => {
   const contactName = `${d.firstName} ${d.lastName}`.trim();
   const farmCount = Math.max(1, parseInt(d.numberOfHoldings ?? "1", 10) || 1);
 
-  // Pack extra context fields into notes so they're visible in the admin portal
-  const noteParts: string[] = [];
-  if (d.farmType) noteParts.push(`Farm type: ${d.farmType}`);
-  if (d.county) noteParts.push(`County: ${d.county}`);
-  if (d.holdingNumber) noteParts.push(`CPH number: ${d.holdingNumber}`);
-  const notes = noteParts.length > 0 ? noteParts.join("\n") : null;
-
   try {
     const [lead] = await db.insert(leadsTable).values({
       businessName: d.farmName,
@@ -159,7 +166,10 @@ router.post("/register-interest", async (req, res): Promise<void> => {
       message: d.message || null,
       source: d.heardVia || null,
       sector: d.sector || null,
-      notes,
+      county: d.county || null,
+      farmType: d.farmType || null,
+      cphNumber: d.holdingNumber || null,
+      notes: null,
     }).returning();
 
     console.log(`[LEAD] New Register Interest submission #${lead.id} from ${lead.email} (${lead.businessName})`);

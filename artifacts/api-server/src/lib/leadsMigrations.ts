@@ -43,4 +43,35 @@ export async function runLeadsMigrations(): Promise<void> {
       AND notes IS NOT NULL
       AND notes ~ '(?m)^Sector:[[:space:]]*.+$'
   `);
+
+  await db.execute(sql`
+    ALTER TABLE registration_leads
+    ADD COLUMN IF NOT EXISTS county text,
+    ADD COLUMN IF NOT EXISTS farm_type text,
+    ADD COLUMN IF NOT EXISTS cph_number text
+  `);
+
+  await db.execute(sql`
+    UPDATE registration_leads
+    SET county = btrim((regexp_match(notes, '(?m)^County:[[:space:]]*(.+)$'))[1])
+    WHERE county IS NULL
+      AND notes IS NOT NULL
+      AND notes ~ '(?m)^County:'
+  `);
+
+  await db.execute(sql`
+    UPDATE registration_leads
+    SET farm_type = btrim((regexp_match(notes, '(?m)^Farm type:[[:space:]]*(.+)$'))[1])
+    WHERE farm_type IS NULL
+      AND notes IS NOT NULL
+      AND notes ~ '(?m)^Farm type:'
+  `);
+
+  await db.execute(sql`
+    UPDATE registration_leads
+    SET cph_number = btrim((regexp_match(notes, '(?m)^CPH number:[[:space:]]*(.+)$'))[1])
+    WHERE cph_number IS NULL
+      AND notes IS NOT NULL
+      AND notes ~ '(?m)^CPH number:'
+  `);
 }
