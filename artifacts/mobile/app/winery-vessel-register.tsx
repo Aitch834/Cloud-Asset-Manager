@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -33,6 +34,10 @@ import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 import { isApproachingNeutral, isIdleBarrel } from "../lib/utils/vesselAlerts";
+import {
+  getVesselZoneFilterOptions,
+  toggleVesselZoneFilter,
+} from "../lib/utils/vesselZoneFilters";
 import {
   computeIsWineryModuleActive,
   getVesselFetchFarmId,
@@ -494,9 +499,21 @@ interface ZoneSectionHeaderProps {
   flagCount: number | null;
   flagKey: AlertFlag | null;
   flagShortLabel: string | null;
+  isSelected: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
 }
 
-function ZoneSectionHeader({ zone, totalCount, flagCount, flagKey, flagShortLabel }: ZoneSectionHeaderProps) {
+function ZoneSectionHeader({
+  zone,
+  totalCount,
+  flagCount,
+  flagKey,
+  flagShortLabel,
+  isSelected,
+  onPress,
+  onLongPress,
+}: ZoneSectionHeaderProps) {
   const hasFlaggedVessels = flagCount !== null && flagCount > 0;
   const isNoFillsFilter = flagKey === "no-fills";
   const flaggedChipStyle =
@@ -518,10 +535,25 @@ function ZoneSectionHeader({ zone, totalCount, flagCount, flagKey, flagShortLabe
         ? colors.accentDark
         : "#b45309";
   return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionHeaderText} numberOfLines={1}>
-        {zone}
-      </Text>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={450}
+      accessibilityRole="button"
+      accessibilityLabel={`Filter by ${zone}`}
+      accessibilityHint="Tap to toggle this zone. Long-press for flagged barrel options."
+      style={({ pressed }) => [
+        styles.sectionHeader,
+        isSelected && styles.sectionHeaderSelected,
+        pressed && styles.sectionHeaderPressed,
+      ]}
+    >
+      <View style={styles.zoneChipLabel}>
+        <Text style={styles.sectionHeaderText} numberOfLines={1}>
+          {zone}
+        </Text>
+        <Feather name="chevron-down" size={13} color={isSelected ? colors.primary : colors.textTertiary} />
+      </View>
       {flagCount !== null ? (
         // Flag filter active — show count of matching vessels
         <View style={[
@@ -548,7 +580,7 @@ function ZoneSectionHeader({ zone, totalCount, flagCount, flagKey, flagShortLabe
           </Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -805,6 +837,42 @@ export default function WineryVesselRegisterScreen() {
     setAlertFlag(alertFlag === flag ? null : flag);
   }
 
+  const [zoneFilter, setZoneFilter] = useState<string[]>([]);
+
+  useEffect(() => {
+    setZoneFilter([]);
+  }, [currentFarm?.id]);
+
+  function toggleZone(zone: string): void {
+    setZoneFilter(current => toggleVesselZoneFilter(current, zone));
+  }
+
+  function showZoneOptions(zone: string): void {
+    const optionButtons = getVesselZoneFilterOptions(alertFlag !== null).map(option =>
+      option === "show-flagged"
+        ? {
+            text: "Show flagged in this zone only",
+            onPress: () => setZoneFilter([zone]),
+          }
+        : {
+            text: "Show all vessels in this zone",
+            onPress: () => {
+              setZoneFilter([zone]);
+              setAlertFlag(null);
+            },
+          },
+    );
+
+    Alert.alert(
+      zone,
+      "Choose a zone filter option.",
+      [
+        { text: "Cancel", style: "cancel" },
+        ...optionButtons,
+      ],
+    );
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────────────
 
   const total = records.length;
@@ -844,7 +912,9 @@ export default function WineryVesselRegisterScreen() {
         (v.cellar_zone ? v.cellar_zone : "Unassigned") === zone
       );
       // Vessels passing the active flag filter
-      const filtered = alertFlag
+      const filtered = zoneFilter.length > 0 && !zoneFilter.includes(zone)
+        ? []
+        : alertFlag
         ? zoneVessels.filter(v => matchesFlag(
             v, alertFlag,
             barrelAlertThresholds.idleBarrelDays,
@@ -858,10 +928,12 @@ export default function WineryVesselRegisterScreen() {
         flagCount: alertFlag !== null ? filtered.length : null,
         data: filtered,
       };
-    }).filter(s => s.data.length > 0 || alertFlag === null);
-    // When a flag is active, hide zones where nothing matches (data.length === 0)
-    // But only hide when a flag IS active; otherwise all zones always show.
-  }, [records, alertFlag, barrelAlertThresholds.idleBarrelDays, barrelAlertThresholds.approachingNeutralFills]);
+    }).filter(s =>
+      s.data.length > 0 ||
+      (alertFlag === null && zoneFilter.length === 0),
+    );
+    // Hide zones where nothing matches an active flag or zone filter.
+  }, [records, alertFlag, zoneFilter, barrelAlertThresholds.idleBarrelDays, barrelAlertThresholds.approachingNeutralFills]);
 
   const activeFlagDef = alertFlag ? FLAG_DEFS.find(f => f.key === alertFlag) ?? null : null;
 
@@ -956,15 +1028,31 @@ export default function WineryVesselRegisterScreen() {
       )}
 
       {/* Active filter pill — suppressed during farm switch for the same reason. */}
-      {farmConfirmed && alertFlag && (
+      {farmConfirmed && (alertFlag || zoneFilter.length > 0) && (
         <View style={styles.filterPillRow}>
-          <View style={styles.filterPill}>
-            <Feather name="filter" size={11} color={colors.primary} />
-            <Text style={styles.filterPillText}>{activeFlagLabel}</Text>
-            <Pressable onPress={() => setAlertFlag(null)} hitSlop={8}>
-              <Feather name="x" size={13} color={colors.primary} />
-            </Pressable>
-          </View>
+          {alertFlag && (
+            <View style={styles.filterPill}>
+              <Feather name="filter" size={11} color={colors.primary} />
+              <Text style={styles.filterPillText}>{activeFlagLabel}</Text>
+              <Pressable onPress={() => setAlertFlag(null)} hitSlop={8}>
+                <Feather name="x" size={13} color={colors.primary} />
+              </Pressable>
+            </View>
+          )}
+          {zoneFilter.map(zone => (
+            <View key={zone} style={styles.filterPill}>
+              <Feather name="map-pin" size={11} color={colors.primary} />
+              <Text style={styles.filterPillText}>{zone}</Text>
+              <Pressable
+                onPress={() => setZoneFilter(current => current.filter(selectedZone => selectedZone !== zone))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${zone} zone filter`}
+              >
+                <Feather name="x" size={13} color={colors.primary} />
+              </Pressable>
+            </View>
+          ))}
           {activeFlagDef?.key === "no-fills" && (
             <View style={styles.filterPillHint}>
               <Feather name="plus-circle" size={13} color={colors.accentDark} />
@@ -1011,6 +1099,9 @@ export default function WineryVesselRegisterScreen() {
               flagCount={section.flagCount}
               flagKey={activeFlagDef?.key ?? null}
               flagShortLabel={activeFlagDef?.shortLabel ?? null}
+              isSelected={zoneFilter.includes(section.zone)}
+              onPress={() => toggleZone(section.zone)}
+              onLongPress={() => showZoneOptions(section.zone)}
             />
           )}
           contentContainerStyle={[
@@ -1153,7 +1244,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   filterPillRow: {
-    flexDirection: "column",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     backgroundColor: colors.surface,
@@ -1172,10 +1265,10 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   filterPillHint: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: spacing.xs,
   },
   filterPillHintText: {
     fontSize: fontSize.xs,
@@ -1213,8 +1306,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    minHeight: 36,
+    paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xs,
     paddingTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+  },
+  sectionHeaderSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#eff6ff",
+  },
+  sectionHeaderPressed: {
+    opacity: 0.7,
+  },
+  zoneChipLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
   },
   sectionHeaderText: {
     fontSize: fontSize.sm,
