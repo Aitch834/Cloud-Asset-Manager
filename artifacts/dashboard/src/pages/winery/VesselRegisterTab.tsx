@@ -1462,6 +1462,23 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     return true;
   }
 
+  function handleZoneChipClick(zone: string, isSelected: boolean) {
+    if (isSelected) {
+      setZoneFilter(zoneFilter.filter(z => z !== zone));
+      return;
+    }
+
+    // A zone click is a drill-down when the Never cleaned flag is active:
+    // replace any previous multi-zone selection so this one action shows only
+    // the requested zone's never-cleaned barrels.
+    if (alertFlagFilter === "never-cleaned") {
+      setZoneFilter([zone]);
+      return;
+    }
+
+    setZoneFilter([...zoneFilter, zone]);
+  }
+
   const filteredData = crud.data.filter(r => {
     const isBarrelType = isBarrelVessel(r.vessel_type);
     if (zoneFilter.length > 0) {
@@ -1917,6 +1934,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   const flagLabel = alertFlagFilter === "no-fills" ? "no fills"
                     : alertFlagFilter === "approaching-neutral" ? "approaching neutral"
                     : alertFlagFilter === "idle" ? "idle"
+                    : alertFlagFilter === "never-cleaned" ? "never cleaned"
                     : null;
 
                   // Ranked summary: zones with flagged matches, shown above chips when a flag filter is active
@@ -1938,9 +1956,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           return (
                             <button
                               key={zone}
-                              onClick={() => setZoneFilter(isSelected ? zoneFilter.filter(z => z !== zone) : [...zoneFilter, zone])}
+                              onClick={() => handleZoneChipClick(zone, isSelected)}
                               onContextMenu={e => { e.preventDefault(); setZoneMenu({ zone, x: e.clientX, y: e.clientY }); }}
-                              title="Right-click for quick zone options"
+                              title={alertFlagFilter === "never-cleaned" ? "Show never-cleaned barrels in this zone" : "Right-click for quick zone options"}
                               className={`flex items-center gap-2 rounded border px-2 py-1 text-xs text-left transition-colors ${isSelected ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1" : "bg-background hover:bg-muted/40"} ${isDimmed ? "opacity-40" : ""}`}
                             >
                               <span className="font-semibold">{zone}</span>
@@ -2002,7 +2020,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               Showing{isFullFilter === "true" && <> <span className="font-medium">full</span></>}{isFullFilter === "false" && <> <span className="font-medium">empty</span></>} barrels
               {zoneFilter.length > 0 && <> in <span className="font-medium">{zoneFilter.join(", ")}</span></>}
               {fillTierFilter && <>{zoneFilter.length > 0 && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
-              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill {approachingNeutralFills}+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;{idleBarrelDays} days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}</>}
+              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill {approachingNeutralFills}+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;{idleBarrelDays} days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}{alertFlagFilter === "never-cleaned" && <>flagged as <span className="font-medium">never cleaned</span></>}</>}
               {" "}— click "Show all" to clear.
             </p>
           )}
@@ -2349,7 +2367,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               onClick={() => { setZoneFilter([zoneMenu.zone]); setZoneMenu(null); }}
             >
               <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-              Show flagged in this zone only
+              {alertFlagFilter === "never-cleaned" ? "Show never-cleaned in this zone only" : "Show flagged in this zone only"}
             </button>
           )}
           <button
