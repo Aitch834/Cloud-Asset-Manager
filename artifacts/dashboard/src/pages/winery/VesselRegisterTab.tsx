@@ -1478,16 +1478,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   }
 
   function handleZoneChipClick(zone: string, isSelected: boolean) {
-    if (isSelected) {
-      setZoneFilter(zoneFilter.filter(z => z !== zone));
+    // When an alert flag is active, clicking any zone is a drill-down:
+    // show every barrel in that zone and dismiss the flag filter in one step.
+    if (alertFlagFilter) {
+      setZoneFilter([zone]);
+      setAlertFlagFilter("");
       return;
     }
 
-    // A zone click is a drill-down when the Never cleaned flag is active:
-    // replace any previous multi-zone selection so this one action shows only
-    // the requested zone's never-cleaned barrels.
-    if (alertFlagFilter === "never-cleaned") {
-      setZoneFilter([zone]);
+    if (isSelected) {
+      setZoneFilter(zoneFilter.filter(z => z !== zone));
       return;
     }
 
