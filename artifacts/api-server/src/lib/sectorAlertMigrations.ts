@@ -8,8 +8,8 @@ import { sql } from "drizzle-orm";
  * This table stores the full lifecycle of every sector alert issued from
  * the Admin Portal: when it was raised, by whom, what level/message/counties,
  * and when it was resolved (ended_at / ended_by / ended_reason).
- * The end_notified flag is set to true after the all-clear SMS is dispatched
- * by the alerting job.
+ * The end_notified and issue_sms_notified flags are set to true after the
+ * corresponding SMS dispatch is attempted by the alerting job.
  */
 export async function runSectorAlertMigrations(): Promise<void> {
   await db.execute(sql`
@@ -25,6 +25,7 @@ export async function runSectorAlertMigrations(): Promise<void> {
       ended_by      text,
       ended_reason  text,
       end_notified  boolean      NOT NULL DEFAULT false,
+       issue_sms_notified boolean NOT NULL DEFAULT false,
       created_at    timestamptz  NOT NULL DEFAULT now()
     )
   `);
@@ -91,6 +92,13 @@ export async function runSectorAlertMigrations(): Promise<void> {
   await db.execute(sql`
     ALTER TABLE sector_alert_episodes
     ADD COLUMN IF NOT EXISTS issue_email_notified boolean NOT NULL DEFAULT false
+  `);
+
+  // Separate issue SMS-completion flag so SMS dispatch and advisor email
+  // delivery can complete independently.
+  await db.execute(sql`
+    ALTER TABLE sector_alert_episodes
+    ADD COLUMN IF NOT EXISTS issue_sms_notified boolean NOT NULL DEFAULT false
   `);
 
   // Per-user sector alert email opt-out preference.

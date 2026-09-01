@@ -63,6 +63,7 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
   poultry_bwi_fail: "regulatory",
   pig_red_tractor_overdue: "regulatory",
   pig_tail_biting_outbreak: "livestock",
+  sector_alert_issued: "regulatory",
   sector_alert_cleared: "regulatory",
   agrienv_milestone_overdue: "regulatory",
 };
@@ -2254,10 +2255,11 @@ async function runSectorAlertAllClearNotifications() {
 
 export async function runSectorAlertIssueNotifications(episodeId?: number) {
   const pending = await db.execute(sql`
-    SELECT id, sector, level, message, counties, issued_at
+    SELECT id, sector, level, message, counties, issued_at,
+           issue_email_notified, issue_sms_notified
     FROM sector_alert_episodes
-    WHERE issue_email_notified = false
-      AND ended_at IS NULL
+    WHERE ended_at IS NULL
+      AND (issue_email_notified = false OR issue_sms_notified = false)
       ${episodeId === undefined ? sql`` : sql`AND id = ${episodeId}`}
   `);
   if (pending.rows.length === 0) return;
@@ -2267,7 +2269,7 @@ export async function runSectorAlertIssueNotifications(episodeId?: number) {
 
   for (const ep of pending.rows as {
     id: number; sector: string; level: string; message: string; counties: string;
-    issued_at: string;
+    issued_at: string; issue_email_notified: boolean; issue_sms_notified: boolean;
   }[]) {
     const counties = ep.counties
       ? ep.counties.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean)
@@ -2278,6 +2280,7 @@ export async function runSectorAlertIssueNotifications(episodeId?: number) {
 
     const sectorLabel = SECTOR_ALERT_LABELS[ep.sector] ?? ep.sector;
     const issuedAt = new Date(ep.issued_at);
+    const tenantIds = [...new Set(relevantFarms.map(f => f.tenant_id))];
     let allDelivered = true;
 
     try {
@@ -2363,6 +2366,27 @@ export async function runSectorAlertIssueNotifications(episodeId?: number) {
     if (allDelivered) {
       await db.execute(sql`UPDATE sector_alert_episodes SET issue_email_notified = true WHERE id = ${ep.id}`);
       console.log(`[ALERTS] Issue email complete for ${ep.sector} episode ${ep.id}`);
+    }
+
+    // --- SMS: per-tenant, dispatched once (issue_sms_notified guards repeat sends) ---
+    if (!ep.issue_sms_notified) {
+      const levelLabel = ep.level.charAt(0).toUpperCase() + ep.level.slice(1);
+      const issuedDaysAgo = Math.floor((Date.now() - issuedAt.getTime()) / 86_400_000);
+      const alertAgeLabel = issuedDaysAgo <= 0
+        ? "Issued today"
+        : `Issued ${issuedDaysAgo} day${issuedDaysAgo !== 1 ? "s" : ""} ago`;
+      const title = `${sectorLabel} — Alert Issued`;
+      const smsMessage = `${sectorLabel} alert level: ${levelLabel}. ${alertAgeLabel}.${ep.message?.trim() ? ` ${ep.message.trim()}` : " Review the alert in your dashboard."}`;
+
+      for (const tenantId of tenantIds) {
+        try {
+          await dispatchSmsForCriticalAlert(tenantId, "sector_alert_issued", title, smsMessage);
+        } catch (err) {
+          console.error(`[ALERTS] Issue SMS failed for tenant ${tenantId}, sector ${ep.sector}:`, err);
+        }
+      }
+      await db.execute(sql`UPDATE sector_alert_episodes SET issue_sms_notified = true WHERE id = ${ep.id}`);
+      console.log(`[ALERTS] Issue SMS dispatched for ${ep.sector} episode ${ep.id} (${tenantIds.length} tenant(s))`);
     }
   }
 }
