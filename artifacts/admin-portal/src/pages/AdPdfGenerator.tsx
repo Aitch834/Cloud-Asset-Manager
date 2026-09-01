@@ -1827,7 +1827,11 @@ export default function AdPdfGenerator() {
         {/* Actions */}
         <div className="flex flex-col gap-3">
           {brandAssetStatusLoading ? (
-            <div className="h-9 rounded-md bg-muted/60 animate-pulse" aria-hidden="true" />
+            <div
+              data-testid="brand-asset-status-skeleton"
+              className="h-9 rounded-md bg-muted/60 animate-pulse"
+              aria-hidden="true"
+            />
           ) : brandAssetStatus ? (
             <div className="sticky top-0 z-10">
               <BrandAssetWarning status={brandAssetStatus} variant="compact" />
