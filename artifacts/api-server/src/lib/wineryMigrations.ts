@@ -248,12 +248,14 @@ export async function runWineryMigrations(): Promise<void> {
       volume_litres  NUMERIC(10,2),
       fill_date      DATE,
       rack_out_date  DATE,
+      rack_out_note  TEXT,
       batch_ref      TEXT,
       operator_name  TEXT,
       notes          TEXT,
       created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await db.execute(sql`ALTER TABLE winery_barrel_fills ADD COLUMN IF NOT EXISTS rack_out_note TEXT`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS winery_barrel_fills_vessel_idx ON winery_barrel_fills (vessel_id)`);
 
   // ─── Barrel Cooperage / Maintenance Log ────────────────────────────────────

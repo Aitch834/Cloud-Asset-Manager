@@ -38206,7 +38206,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT bf.id, bf.vessel_id, bf.fill_number, bf.wine_name,
                bf.vintage_year AS fill_vintage_year, bf.variety,
-               bf.volume_litres, bf.fill_date, bf.rack_out_date,
+               bf.volume_litres, bf.fill_date, bf.rack_out_date, bf.rack_out_note,
                bf.batch_ref AS fill_batch_ref, bf.operator_name, bf.notes,
                v.vessel_ref, v.cooperage, v.oak_origin, v.toasting_level,
                v.capacity_litres, v.vessel_type
@@ -38340,7 +38340,7 @@ router.get("/farms/:farmId/winery-pressing/batch-trail", requireAuth, requireTen
       db.execute(sql`
         SELECT bf.id, bf.vessel_id, bf.fill_number, bf.wine_name,
                bf.vintage_year AS fill_vintage_year, bf.variety,
-               bf.volume_litres, bf.fill_date, bf.rack_out_date,
+               bf.volume_litres, bf.fill_date, bf.rack_out_date, bf.rack_out_note,
                bf.batch_ref AS fill_batch_ref, bf.operator_name, bf.notes,
                v.vessel_ref, v.cooperage, v.oak_origin, v.toasting_level,
                v.capacity_litres, v.vessel_type
@@ -38812,9 +38812,9 @@ router.post("/farms/:farmId/winery-vessels/:vesselId/fills", requireAuth, requir
   if (!b.fillNumber) { res.status(400).json({ error: "fill_number required" }); return; }
   const r = await db.execute(sql`
     INSERT INTO winery_barrel_fills
-      (farm_id, vessel_id, fill_number, wine_name, vintage_year, variety, volume_litres, fill_date, rack_out_date, batch_ref, operator_name, notes)
+      (farm_id, vessel_id, fill_number, wine_name, vintage_year, variety, volume_litres, fill_date, rack_out_date, rack_out_note, batch_ref, operator_name, notes)
     VALUES
-      (${farmId}, ${vesselId}, ${ni(b.fillNumber)}, ${n(b.wineName)}, ${ni(b.vintageYear)}, ${n(b.variety)}, ${nf(b.volumeLitres)}, ${nd(b.fillDate)}, ${nd(b.rackOutDate)}, ${n(b.batchRef)}, ${n(b.operatorName)}, ${n(b.notes)})
+      (${farmId}, ${vesselId}, ${ni(b.fillNumber)}, ${n(b.wineName)}, ${ni(b.vintageYear)}, ${n(b.variety)}, ${nf(b.volumeLitres)}, ${nd(b.fillDate)}, ${nd(b.rackOutDate)}, ${n(b.rackOutNote)}, ${n(b.batchRef)}, ${n(b.operatorName)}, ${n(b.notes)})
     RETURNING *`);
   // Keep the vessel's fill_number counter in sync with the highest fill logged
   await db.execute(sql`
@@ -38835,7 +38835,8 @@ router.put("/farms/:farmId/winery-vessels/:vesselId/fills/:fillId", requireAuth,
     UPDATE winery_barrel_fills SET
       fill_number=${ni(b.fillNumber)}, wine_name=${n(b.wineName)}, vintage_year=${ni(b.vintageYear)},
       variety=${n(b.variety)}, volume_litres=${nf(b.volumeLitres)}, fill_date=${nd(b.fillDate)},
-      rack_out_date=${nd(b.rackOutDate)}, batch_ref=${n(b.batchRef)}, operator_name=${n(b.operatorName)}, notes=${n(b.notes)}
+      rack_out_date=${nd(b.rackOutDate)}, rack_out_note=COALESCE(${n(b.rackOutNote)}, rack_out_note),
+      batch_ref=${n(b.batchRef)}, operator_name=${n(b.operatorName)}, notes=${n(b.notes)}
     WHERE id=${fillId} AND vessel_id=${vesselId} AND farm_id=${farmId} RETURNING *`);
   if (!r.rows.length) { res.status(404).json({ error: "Not found" }); return; }
   await db.execute(sql`

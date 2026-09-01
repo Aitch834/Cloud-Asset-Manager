@@ -608,6 +608,7 @@ export const wineryBarrelFillsTable = pgTable("winery_barrel_fills", {
   volumeLitres: numeric("volume_litres", { precision: 10, scale: 2 }),
   fillDate: date("fill_date"),                  // when wine went in
   rackOutDate: date("rack_out_date"),            // null = still maturing
+  rackOutNote: text("rack_out_note"),
   batchRef: text("batch_ref"),                   // links to winery batch if known
   operatorName: text("operator_name"),
   notes: text("notes"),

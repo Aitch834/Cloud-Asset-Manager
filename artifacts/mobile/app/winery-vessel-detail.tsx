@@ -66,6 +66,7 @@ interface BarrelFill {
   volume_litres: number | null;
   fill_date: string | null;
   rack_out_date: string | null;
+  rack_out_note: string | null;
   batch_ref: string | null;
   operator_name: string | null;
   notes: string | null;
@@ -1008,6 +1009,12 @@ function FillCard({
           <Feather name="user" size={11} color={colors.textTertiary} /> {fill.operator_name}
         </Text>
       ) : null}
+      {fill.rack_out_note ? (
+        <Text style={styles.rackOutNote}>
+          <Text style={styles.rackOutNoteLabel}>Rack-out reason: </Text>
+          {fill.rack_out_note}
+        </Text>
+      ) : null}
       {fill.notes ? <Text style={styles.cardNotes}>{fill.notes}</Text> : null}
     </View>
   );
@@ -1895,6 +1902,15 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontStyle: "italic",
   },
+  rackOutNote: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: colors.warning,
+    lineHeight: 18,
+  },
+  rackOutNoteLabel: {
+    fontFamily: fonts.semiBold,
+  },
   // Card icon action buttons (edit / delete)
   cardIconBtn: {
     padding: 2,
@@ -2203,6 +2219,7 @@ function EditFillModal({ visible, farmId, vesselId, record, onClose, onSuccess }
           volumeLitres,
           fillDate: form.fillDate.trim(),
           rackOutDate: form.rackOutDate.trim() || null,
+          rackOutNote: record.rack_out_note,
           batchRef: form.batchRef.trim() || null,
           operatorName: form.operatorName.trim() || null,
           notes: form.notes.trim() || null,
@@ -2768,6 +2785,7 @@ function RackOutModal({ visible, farmId, vesselId, fill, onClose, onSuccess }: R
           volumeLitres: fill.volume_litres,
           fillDate: fill.fill_date,
           rackOutDate,
+          rackOutNote: fill.rack_out_note,
           batchRef: fill.batch_ref,
           operatorName: fill.operator_name,
           notes: fill.notes,

@@ -103,7 +103,11 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
   }, []);
   const openEdit = (r: Record<string, unknown>) => {
     setEditingFill(r);
-    setForm(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])));
+    setForm({
+      ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v == null ? "" : String(v)])),
+      notes: r.notes == null ? "" : String(r.notes),
+      rackOutNote: r.rack_out_note == null ? "" : String(r.rack_out_note),
+    });
     setShowAdd(true);
   };
 
@@ -111,10 +115,6 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
     mutationFn: async ({ fill, date, note }: { fill: Record<string, unknown>; date: string; note: string }) => {
       // The PUT endpoint does a full-row overwrite and requires fillNumber.
       // Mirror the same camelCase mapping that openEdit uses so all fields are preserved.
-      const existingNotes = fill.notes != null ? String(fill.notes) : "";
-      const notesValue = note.trim()
-        ? (existingNotes ? `${existingNotes}\n${note.trim()}` : note.trim())
-        : existingNotes;
       const payload = {
         fillNumber:    fill.fill_number   != null ? String(fill.fill_number)   : "",
         wineName:      fill.wine_name     != null ? String(fill.wine_name)     : "",
@@ -124,7 +124,8 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
         fillDate:      fill.fill_date     != null ? String(fill.fill_date).slice(0, 10) : "",
         batchRef:      fill.batch_ref     != null ? String(fill.batch_ref)     : "",
         operatorName:  fill.operator_name != null ? String(fill.operator_name) : "",
-        notes:         notesValue,
+        notes:         fill.notes != null ? String(fill.notes) : "",
+        rackOutNote:   note.trim(),
         rackOutDate:   date,
       };
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/fills/${Number(fill.id)}`), {
@@ -245,6 +246,7 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
             const stillIn = !f.rack_out_date;
             const fillId = Number(f.id);
             const isRackingOut = rackOutFillId === fillId;
+            const rackOutReason = f.rack_out_note == null ? "" : String(f.rack_out_note).trim();
             return (
               <div key={String(f.id)} className="border rounded-lg px-3 py-2 text-xs space-y-1">
                 <div className="flex items-center justify-between">
@@ -290,6 +292,11 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
                   {!!f.batch_ref && <span>Batch: {String(f.batch_ref)}</span>}
                   {!!f.operator_name && <span>Operator: {String(f.operator_name)}</span>}
                 </div>
+                {!!rackOutReason && (
+                  <p className="text-amber-800">
+                    <span className="font-medium">Rack-out reason:</span> {rackOutReason}
+                  </p>
+                )}
                 {!!f.notes && <p className="text-muted-foreground italic">{String(f.notes)}</p>}
                 {!readOnly && isRackingOut && (
                   <div className="mt-2 pt-2 border-t border-dashed border-amber-200 space-y-2">
