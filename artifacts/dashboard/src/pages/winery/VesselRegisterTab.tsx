@@ -1676,8 +1676,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                 cells.forEach((cell, colIdx) => {
                   const td = doc.createElement("td");
                   td.textContent = cell;
-                  // Highlight the Fill Tier column (index 4) for barrels with no fills
-                  if (colIdx === 4 && hasNoFills) {
+                  // Highlight the Fill Tier column (index 5) for barrels with no fills
+                  if (colIdx === 5 && hasNoFills) {
                     td.style.cssText = "background:#fffbeb;color:#92400e;font-weight:600";
                   }
                   tr.appendChild(td);
