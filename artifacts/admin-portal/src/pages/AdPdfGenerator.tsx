@@ -596,9 +596,9 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
 
   // Local preview values — filled by the author inside this form so they can
   // test specific copy without leaving and filling the page-level Customise section.
-  const [localPreviewHeadline,    setLocalPreviewHeadline]    = useState("");
-  const [localPreviewBody,        setLocalPreviewBody]        = useState("");
-  const [localPreviewAccentColor, setLocalPreviewAccentColor] = useState("");
+  const [localPreviewHeadline,    setLocalPreviewHeadline]    = useState(previewHeadline);
+  const [localPreviewBody,        setLocalPreviewBody]        = useState(previewBody);
+  const [localPreviewAccentColor, setLocalPreviewAccentColor] = useState(previewAccentColor);
 
   // Draft preview state
   const [draftBgUrl, setDraftBgUrl] = useState("");
