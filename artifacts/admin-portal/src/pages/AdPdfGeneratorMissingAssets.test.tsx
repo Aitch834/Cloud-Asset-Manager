@@ -57,6 +57,20 @@ function missing422(assets: string[]): Response {
   );
 }
 
+function successfulPdfResponse(): Response {
+  return new Response(new Blob(["pdf"], { type: "application/pdf" }), {
+    status: 200,
+    headers: { "Content-Type": "application/pdf" },
+  });
+}
+
+function successfulPreviewResponse(): Response {
+  return new Response(new Blob(["png"], { type: "image/png" }), {
+    status: 200,
+    headers: { "Content-Type": "image/png" },
+  });
+}
+
 /**
  * Builds a fetch spy with method-aware overrides applied before the default
  * stubs.  Each override fires when both the URL substring and (optional) HTTP
@@ -161,6 +175,43 @@ describe("AdPdfGenerator — missing-assets banner", () => {
     expect(screen.getByText("Ad PDF Generator")).toBeDefined();
   });
 
+  it("Generate PDF — clears the missing-assets banner after a successful retry", async () => {
+    let generateAttempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf",
+          method: "POST",
+          response: () => {
+            generateAttempts += 1;
+            return generateAttempts === 1
+              ? missing422(["logo"])
+              : successfulPdfResponse();
+          },
+        },
+      ]),
+    );
+
+    renderWithQueryClient(<AdPdfGenerator />);
+    await screen.findByRole("option", { name: /Test Template/i });
+
+    const generateBtn = screen.getByRole("button", {
+      name: /Generate & Download CMYK PDF/i,
+    });
+
+    fireEvent.click(generateBtn);
+    await screen.findByText(/Cannot generate PDF/i);
+
+    fireEvent.click(generateBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Cannot generate PDF/i)).toBeNull();
+      expect(screen.getByText("PDF downloaded")).toBeDefined();
+    });
+    expect(generateAttempts).toBe(2);
+  });
+
   // ── Path 2: Preview ─────────────────────────────────────────────────────────
 
   it("Preview — shows banner when GET /ad-pdf/preview returns 422 missingAssets", async () => {
@@ -196,6 +247,41 @@ describe("AdPdfGenerator — missing-assets banner", () => {
 
     // Page is still open
     expect(screen.getByText("Ad PDF Generator")).toBeDefined();
+  });
+
+  it("Preview — clears the missing-assets banner after a successful retry", async () => {
+    let previewAttempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf/preview",
+          method: "GET",
+          response: () => {
+            previewAttempts += 1;
+            return previewAttempts === 1
+              ? missing422(["logo"])
+              : successfulPreviewResponse();
+          },
+        },
+      ]),
+    );
+
+    renderWithQueryClient(<AdPdfGenerator />);
+    await screen.findByRole("option", { name: /Test Template/i });
+
+    const previewBtn = screen.getByRole("button", { name: /^Preview$/i });
+
+    fireEvent.click(previewBtn);
+    await screen.findByText(/Cannot generate preview/i);
+
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Cannot generate preview/i)).toBeNull();
+      expect(screen.getByRole("img", { name: "Ad preview" })).toBeDefined();
+    });
+    expect(previewAttempts).toBe(2);
   });
 
   // ── Path 3: Draft Preview (inside TemplateForm) ────────────────────────────
@@ -243,5 +329,49 @@ describe("AdPdfGenerator — missing-assets banner", () => {
 
     // The form is still open — the Save button is still rendered
     expect(screen.getByRole("button", { name: /Save template/i })).toBeDefined();
+  });
+
+  it("Draft Preview — clears the missing-assets banner after a successful retry", async () => {
+    let previewAttempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf/preview-draft",
+          method: "POST",
+          response: () => {
+            previewAttempts += 1;
+            return previewAttempts === 1
+              ? missing422(["logo"])
+              : successfulPreviewResponse();
+          },
+        },
+      ]),
+    );
+
+    render(
+      <TemplateForm
+        initial={TEMPLATE}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isSaving={false}
+      />,
+    );
+
+    const previewBtn = screen.getByRole("button", { name: /^Preview$/i });
+    expect((previewBtn as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(previewBtn);
+    await screen.findByText(/Cannot generate preview/i);
+
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Cannot generate preview/i)).toBeNull();
+      expect(
+        screen.getByRole("img", { name: "Draft template preview" }),
+      ).toBeDefined();
+    });
+    expect(previewAttempts).toBe(2);
   });
 });
