@@ -142,13 +142,14 @@ export function CipRows({ farmId, machineId }: { farmId: number; machineId: numb
   const qc = useQueryClient();
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
+  const CIP_OPERATOR_KEY = "winery-cip-operator";
   const { data, isLoading, isError, error } = useQuery<Record<string, unknown>[]>({
     queryKey: ["winery-bottling-machine-cleans", farmId, machineId],
     queryFn: async () => ((await fetchWineryJson(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans`)).records ?? []) as Record<string, unknown>[],
     enabled: !!machineId && viticultureActive,
   });
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState<Record<string, string | boolean>>({ cleanDate: today, timing: "pre-run", rinseConfirmed: true });
+  const [addForm, setAddForm] = useState<Record<string, string | boolean>>({ cleanDate: today, timing: "pre-run", rinseConfirmed: true, operatorName: localStorage.getItem(CIP_OPERATOR_KEY) ?? "" });
   const sfa = (k: string, v: string | boolean) => setAddForm(f => ({ ...f, [k]: v }));
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string | boolean>>({});
@@ -164,7 +165,10 @@ export function CipRows({ farmId, machineId }: { farmId: number; machineId: numb
       const r = await fetch(api(`farms/${farmId}/winery-bottling-machines/${machineId}/cleans`), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(addForm) });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
     },
-    onSuccess: () => { invalidate(); setShowAdd(false); setAddForm({ cleanDate: today, timing: "pre-run", rinseConfirmed: true }); toast({ title: "CIP record logged" }); },
+    onSuccess: () => {
+      if (addForm.operatorName) localStorage.setItem(CIP_OPERATOR_KEY, String(addForm.operatorName));
+      invalidate(); setShowAdd(false); setAddForm({ cleanDate: today, timing: "pre-run", rinseConfirmed: true, operatorName: addForm.operatorName ?? "" }); toast({ title: "CIP record logged" });
+    },
     onError: (err: Error) => toast({ title: "Save failed", description: err.message || "An unexpected error occurred.", variant: "destructive" }),
   });
   const editMut = useMutation({
@@ -203,7 +207,11 @@ export function CipRows({ farmId, machineId }: { farmId: number; machineId: numb
     <div className="mt-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Droplets className="w-3 h-3" />CIP / Cleaning Log</p>
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowAdd(s => !s); setEditingId(null); }}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+          if (!showAdd) setAddForm(f => ({ ...f, operatorName: localStorage.getItem(CIP_OPERATOR_KEY) ?? "" }));
+          setShowAdd(s => !s);
+          setEditingId(null);
+        }}><Plus className="w-3 h-3 mr-1" />Log Clean</Button>
       </div>
       {showAdd && (
         <div className="border rounded-lg p-3 mb-3 bg-muted/20">
