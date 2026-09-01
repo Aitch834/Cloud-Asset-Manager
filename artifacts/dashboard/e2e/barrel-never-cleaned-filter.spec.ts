@@ -1,0 +1,188 @@
+/**
+ * E2E: VesselRegisterTab — "Never cleaned" barrel filter.
+ *
+ * The filter is derived entirely from each vessel's clean_count. Seed one
+ * barrel with no cleaning records and one with a cleaning record, then verify
+ * that the alert chip filters the table and toggles back to the full list.
+ */
+
+import { expect, test } from "@playwright/test";
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
+const TENANT_SLUG = "oakfield-farms";
+const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
+const RUN_TAG = `E2E-1865-${Date.now()}`;
+
+type ApiRecord = Record<string, unknown>;
+
+function apiBase() {
+  return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
+}
+
+function getTestUserId(): string {
+  const stateFile = path.join(__dirname, ".test-user-id");
+  if (!fs.existsSync(stateFile)) {
+    throw new Error("global-setup did not run — .test-user-id missing");
+  }
+  return fs.readFileSync(stateFile, "utf8").trim();
+}
+
+async function devFetch(
+  url: string,
+  init: RequestInit = {},
+): Promise<ApiRecord> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> | undefined),
+      "x-dev-bypass": DEV_BYPASS,
+      "x-tenant-slug": TENANT_SLUG,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(
+      `${init.method ?? "GET"} ${url} → ${response.status}: ${await response.text()}`,
+    );
+  }
+  return response.json() as Promise<ApiRecord>;
+}
+
+async function createBarrel(vesselRef: string): Promise<number> {
+  const body = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/winery-vessels`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      vesselRef,
+      vesselType: "barrel",
+      capacityLitres: 225,
+      status: "active",
+    }),
+  });
+  return Number((body.record as ApiRecord).id);
+}
+
+async function createCleaning(vesselId: number): Promise<number> {
+  const body = await devFetch(
+    `${apiBase()}/api/farms/${FARM_ID}/winery-vessels/${vesselId}/cleans`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cleanDate: new Date().toISOString().slice(0, 10),
+        cleanType: "rinse",
+        operatorName: RUN_TAG,
+      }),
+    },
+  );
+  return Number((body.record as ApiRecord).id);
+}
+
+async function deleteBarrel(vesselId: number): Promise<void> {
+  await devFetch(`${apiBase()}/api/farms/${FARM_ID}/winery-vessels/${vesselId}`, {
+    method: "DELETE",
+  });
+}
+
+async function waitForCleanCounts(
+  expected: Map<string, number>,
+): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const body = await devFetch(
+      `${apiBase()}/api/farms/${FARM_ID}/winery-vessels`,
+    );
+    const records = (body.records ?? []) as ApiRecord[];
+    const matches = [...expected].every(([ref, cleanCount]) => {
+      const record = records.find(candidate => candidate.vessel_ref === ref);
+      return record && Number(record.clean_count ?? 0) === cleanCount;
+    });
+    if (matches) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Seeded barrels were not readable with the expected clean counts");
+}
+
+async function openVesselRegister(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await page.goto("/dashboard/");
+  await page.waitForLoadState("networkidle");
+
+  await page.evaluate(
+    ([slug, farmId]) => {
+      localStorage.setItem("farmtrac_tenantSlug", slug);
+      localStorage.setItem(
+        "farmtrac-storage",
+        JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
+      );
+      localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
+      for (const filter of [
+        "zone",
+        "fill-tier",
+        "alert-flag",
+        "is-full",
+      ]) {
+        localStorage.removeItem(`vessel-register-${filter}-filter-${farmId}`);
+      }
+    },
+    [TENANT_SLUG, FARM_ID] as [string, number],
+  );
+
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("link", { name: "Viticulture", exact: true }).first().click();
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.getByText("Tank & Vessel Register", { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
+}
+
+test.describe("VesselRegisterTab — never-cleaned filter", () => {
+  test("filters to never-cleaned barrels and restores the full list", async ({
+    page,
+  }) => {
+    const uncleanRef = `${RUN_TAG}-uncleaned`;
+    const cleanedRef = `${RUN_TAG}-cleaned`;
+    const vesselIds: number[] = [];
+
+    try {
+      const uncleanedId = await createBarrel(uncleanRef);
+      vesselIds.push(uncleanedId);
+      const cleanedId = await createBarrel(cleanedRef);
+      vesselIds.push(cleanedId);
+      await createCleaning(cleanedId);
+      await waitForCleanCounts(
+        new Map([
+          [uncleanRef, 0],
+          [cleanedRef, 1],
+        ]),
+      );
+
+      await openVesselRegister(page);
+
+      const uncleanedRow = page.locator("tbody tr", { hasText: uncleanRef });
+      const cleanedRow = page.locator("tbody tr", { hasText: cleanedRef });
+      await expect(uncleanedRow).toBeVisible({ timeout: 20_000 });
+      await expect(cleanedRow).toBeVisible({ timeout: 20_000 });
+
+      const neverCleanedChip = page.getByRole("button", {
+        name: /Never cleaned \d+/,
+      });
+      await expect(neverCleanedChip).toBeVisible();
+
+      await neverCleanedChip.click();
+      await expect(uncleanedRow).toBeVisible();
+      await expect(cleanedRow).toHaveCount(0);
+
+      await neverCleanedChip.click();
+      await expect(uncleanedRow).toBeVisible();
+      await expect(cleanedRow).toBeVisible();
+    } finally {
+      for (const vesselId of vesselIds) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+});
