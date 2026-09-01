@@ -153,8 +153,11 @@ export default function Contact() {
     // the prospect came from, even though the API schema has no dedicated sector field.
     const sectorPrefix = sectorParam ? `Sector of interest: ${sectorParam}\n\n` : "";
     const message = data.message ? `${sectorPrefix}${data.message}` : sectorPrefix || undefined;
+    // Keep the selected modules in the dedicated structured field. They must not
+    // be folded into the free-form message, where the pipeline cannot filter them.
+    const { modulesInterested, ...leadDetails } = data;
 
-    mutation.mutate({ data: { ...data, message } }, {
+    mutation.mutate({ data: { ...leadDetails, modulesInterested, message } }, {
       onSuccess: () => {
         setIsSuccess(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
