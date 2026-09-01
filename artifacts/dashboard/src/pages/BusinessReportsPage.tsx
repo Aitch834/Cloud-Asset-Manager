@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
 import { printElementReport } from "@/lib/print-report";
+import { AGRI_ENV_GRANT_CSV_HEADERS, buildAgriEnvProjectCsvRows } from "@/lib/business-reports-csv";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -239,14 +240,12 @@ function GrossMarginTab({ farmId, year, onRegisterExport }: { farmId: number; ye
       }
       rows.push(["Total Variable Costs", fmt(varCostTotal), totalArea > 0 ? fmt(Math.round(varCostTotal / totalArea)) : "—"]);
       rows.push([]);
-      rows.push(["Summary", ""]);
+      rows.push(["Summary", ...AGRI_ENV_GRANT_CSV_HEADERS]);
       rows.push(["Financial income (excl. linked agri-env transactions)", fmt(txIncomeTotal)]);
       if (agriEnvYearTotal > 0) {
         rows.push([`Agri-env schemes (from Agri-Env tab, ${agriEnvActiveProjects.length} project${agriEnvActiveProjects.length !== 1 ? "s" : ""})`, fmt(agriEnvYearTotal), hasDoubleCountRisk ? "WARNING: unlinked agri-env financial transaction also present — possible double-count" : ""]);
-        if (agriEnvActiveProjects.length > 1) {
-          for (const p of agriEnvActiveProjects) {
-            rows.push([`  ↳ ${p.schemeName}`, fmt(p.yearClaimedPence), ""]);
-          }
+        if (agriEnvActiveProjects.length > 0) {
+          rows.push(...buildAgriEnvProjectCsvRows(agriEnvActiveProjects));
         }
       }
       rows.push(["Total Farm Output", fmt(incomeTotal)]);
