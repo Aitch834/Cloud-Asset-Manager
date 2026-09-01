@@ -11,12 +11,25 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
-import { TemplatePlaceholderPreview } from "./AdPdfGenerator";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { TemplateForm, TemplatePlaceholderPreview } from "./AdPdfGenerator";
 
 // An htmlBody that exercises all three placeholder tokens.
 const ALL_HTML =
   "<p>{{headline}}</p><p>{{body}}</p><p style='color:{{accent_color}}'>.</p>";
+
+const TEMPLATE_WITH_PREVIEW_PLACEHOLDERS = {
+  id: 1,
+  name: "Preview template",
+  slug: "preview-template",
+  widthMm: 190,
+  heightMm: 133,
+  htmlBody: ALL_HTML,
+  isDefault: false,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
+  archivedAt: null,
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -34,6 +47,36 @@ function tick(ms: number) {
     vi.advanceTimersByTime(ms);
   });
 }
+
+describe("TemplateForm — preview values callout", () => {
+  it("clears immediately when the inline headline is entered and returns when it is cleared", () => {
+    render(
+      <TemplateForm
+        initial={TEMPLATE_WITH_PREVIEW_PLACEHOLDERS}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isSaving={false}
+        previewBody="Existing body copy"
+        previewAccentColor="#336699"
+      />,
+    );
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+
+    fireEvent.change(screen.getByPlaceholderText("Your vineyard. Audit-ready."), {
+      target: { value: "A real headline" },
+    });
+
+    // The warning is driven by the live form value, not the debounced preview.
+    expect(screen.queryByText(/Sample text shown/i)).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText("Your vineyard. Audit-ready."), {
+      target: { value: "" },
+    });
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+  });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // headline
