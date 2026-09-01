@@ -707,7 +707,10 @@ export default function AgriEnvProjectsScreen() {
     { key: "active",    label: "Active" },
     { key: "pending",   label: "Pending" },
     { key: "completed", label: "Completed" },
-  ];
+    { key: "applied",   label: "Applied" },
+    { key: "suspended", label: "Suspended" },
+    { key: "withdrawn", label: "Withdrawn" },
+  ].filter(chip => chip.key === null || projects.some(project => project.status === chip.key));
 
   const filteredProjects = projects.filter(p => {
     const nameOk = !searchQuery.trim() ||
