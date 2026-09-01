@@ -1264,6 +1264,7 @@ export default function AdPdfGenerator() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ad-copy-presets"] });
       setPresetName("");
+      setOverwritePreset(false);
       setPresetSaved(true);
       setSavingPreset(false);
       setTimeout(() => setPresetSaved(false), 2500);
