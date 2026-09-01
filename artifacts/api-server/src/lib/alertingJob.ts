@@ -2247,12 +2247,13 @@ async function runSectorAlertAllClearNotifications() {
   }
 }
 
-async function runSectorAlertIssueNotifications() {
+export async function runSectorAlertIssueNotifications(episodeId?: number) {
   const pending = await db.execute(sql`
     SELECT id, sector, level, message, counties, issued_at
     FROM sector_alert_episodes
     WHERE issue_email_notified = false
       AND ended_at IS NULL
+      ${episodeId === undefined ? sql`` : sql`AND id = ${episodeId}`}
   `);
   if (pending.rows.length === 0) return;
 
