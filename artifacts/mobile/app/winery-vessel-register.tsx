@@ -965,6 +965,14 @@ export default function WineryVesselRegisterScreen() {
               <Feather name="x" size={13} color={colors.primary} />
             </Pressable>
           </View>
+          {activeFlagDef?.key === "no-fills" && (
+            <View style={styles.filterPillHint}>
+              <Feather name="plus-circle" size={13} color={colors.accentDark} />
+              <Text style={styles.filterPillHintText}>
+                Tap a “No fills logged” badge to log a fill
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -1145,7 +1153,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   filterPillRow: {
-    flexDirection: "row",
+    flexDirection: "column",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     backgroundColor: colors.surface,
@@ -1162,6 +1170,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#eff6ff",
     borderWidth: 1,
     borderColor: colors.primary,
+  },
+  filterPillHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: spacing.xs,
+  },
+  filterPillHintText: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
   },
   filterPillText: {
     fontSize: fontSize.xs,
