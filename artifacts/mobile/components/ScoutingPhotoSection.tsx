@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
+import { SWIPE_THRESHOLD } from "@/lib/vineScoutingLightboxHelpers";
 import {
   getSwipeDirection,
   shouldAllowSwipe,
@@ -48,7 +49,6 @@ import { fonts, fontSize } from "@/constants/typography";
 const SCREEN = Dimensions.get("window");
 // 4-minute background refresh for presigned URLs
 const PHOTO_REFRESH_MS = 4 * 60 * 1000;
-const SWIPE_THRESHOLD = 50;
 
 // ---------------------------------------------------------------------------
 // Types

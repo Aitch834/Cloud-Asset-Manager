@@ -4,45 +4,18 @@
  * any React Native modules.
  */
 
-/**
- * Clamp a photo index after the photos array shrinks (e.g. after a delete).
- * Returns -1 (close signal) when the array is empty.
- */
-export function clampIndexAfterDelete(currentIndex: number, newLength: number): number {
-  if (newLength === 0) return -1;
-  return Math.min(currentIndex, newLength - 1);
-}
-
-/**
- * Whether the left chevron should be visible.
- * Hidden when there is only one photo or the first photo is already shown.
- */
-export function showLeftChevron(photosCount: number, currentIndex: number): boolean {
-  return photosCount > 1 && currentIndex > 0;
-}
-
-/**
- * Whether the right chevron should be visible.
- * Hidden when there is only one photo or the last photo is already shown.
- */
-export function showRightChevron(photosCount: number, currentIndex: number): boolean {
-  return photosCount > 1 && currentIndex < photosCount - 1;
-}
-
-/**
- * Whether the photo counter (e.g. "2 / 5") should be visible.
- * Only shown when there are multiple photos.
- */
-export function showCounter(photosCount: number): boolean {
-  return photosCount > 1;
-}
-
-/**
- * Human-readable counter label, e.g. "2 / 5".
- */
-export function counterText(currentIndex: number, photosCount: number): string {
-  return `${currentIndex + 1} / ${photosCount}`;
-}
+// Keep the pre-existing import path stable for current screens and tests while
+// the gesture/display contract lives in the scouting-specific module.
+export {
+  clampIndexAfterDelete,
+  showLeftChevron,
+  showRightChevron,
+  showCounter,
+  counterText,
+  currentPhotoId,
+  shouldAllowSwipe,
+  getSwipeDirection,
+} from "./vineScoutingLightboxHelpers";
 
 export type ScoutingPaginationItem = number | "leading-ellipsis" | "trailing-ellipsis";
 /**
@@ -51,13 +24,6 @@ export type ScoutingPaginationItem = number | "leading-ellipsis" | "trailing-ell
  * between photos before confirming an action targets the shown photo,
  * not the one originally tapped to open the lightbox.
  */
-export function currentPhotoId(
-  photos: ReadonlyArray<{ id: number }>,
-  currentIndex: number,
-): number | null {
-  return photos[currentIndex]?.id ?? null;
-}
-
 /**
  * Claim the one automatic retry allowed for a photo view and schedule it.
  * Returns null when a retry has already been claimed, even if the first
@@ -98,29 +64,6 @@ export function isPaginationItemActive(
   currentIndex: number,
 ): boolean {
   return typeof item === "number" && item === currentIndex;
-}
-
-/**
- * Whether a gesture should start swipe navigation.
- * Deletion takes priority over gesture direction so a swipe cannot race
- * with a photo removal that is already in flight.
- */
-export function shouldAllowSwipe(deleting: boolean, dx: number, dy: number): boolean {
-  return !deleting && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
-}
-
-/**
- * Resolve the navigation direction for a completed swipe.
- * Returning null while deleting protects against a gesture that started
- * before deletion began but was released after deletion became active.
- */
-export function getSwipeDirection(
-  deleting: boolean,
-  dx: number,
-  threshold = 50,
-): "next" | "previous" | null {
-  if (deleting || Math.abs(dx) <= threshold) return null;
-  return dx < 0 ? "next" : "previous";
 }
 
 /**
