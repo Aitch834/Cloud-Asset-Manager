@@ -220,6 +220,8 @@ const NON_SYNC_KEYS = new Set([
   "bde_agri_env_milestones_cache",
   "bde_agri_env_project_milestones_cache",
   "bde_agri_env_scheme_filter",
+  // Agri-env status filter — per-farm UI preference, never uploaded
+  "bde_agri_env_status_filter",
   // Records not yet connected to an API endpoint (future offline capability)
   "bde_harvest_transport_records",
   "bde_dairy_dct_records",

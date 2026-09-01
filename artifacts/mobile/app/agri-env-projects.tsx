@@ -26,6 +26,7 @@ import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-i
 import {
   AGRI_ENV_CACHE_TTL_MS,
   getItem,
+  removeItem,
   setItem,
   STORAGE_KEYS,
 } from "@/lib/storage";
@@ -108,6 +109,12 @@ function projectsCacheKey(farmId: string | number): string {
 function schemeFilterKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_SCHEME_FILTER}_${farmId}`;
 }
+
+function statusFilterKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_STATUS_FILTER}_${farmId}`;
+}
+
+const PERSISTED_STATUS_FILTERS = new Set(["active", "pending", "completed"]);
 
 function deadlineStatus(dateStr: string | null): "overdue" | "warning" | "ok" | "none" {
   if (!dateStr) return "none";
@@ -446,6 +453,7 @@ export default function AgriEnvProjectsScreen() {
   // preventing a farm-switch render's prior closure from writing the
   // old farm's query under the new farm's key.
   const [hydratedFarmId, setHydratedFarmId] = useState<string | number | null>(null);
+  const statusFilterChangedRef = useRef(false);
 
   // Restore the scheme filter from storage when the farm changes.
   // Resets searchQuery and hydratedFarmId to neutral immediately so no
@@ -470,6 +478,34 @@ export default function AgriEnvProjectsScreen() {
       })
       .catch(() => {
         if (!cancelled) setHydratedFarmId(farmId);
+      });
+    return () => { cancelled = true; };
+  }, [currentFarm?.id]);
+
+  // Restore the status filter from storage when the farm changes. Reset the
+  // in-memory value immediately so a previous farm's preference cannot leak
+  // into the new farm while its storage read is pending.
+  useEffect(() => {
+    if (!currentFarm?.id) {
+      setStatusFilter(null);
+      statusFilterChangedRef.current = false;
+      return;
+    }
+    const farmId = currentFarm.id;
+    setStatusFilter(null);
+    statusFilterChangedRef.current = false;
+    let cancelled = false;
+    getItem<unknown>(statusFilterKey(farmId))
+      .then((stored) => {
+        if (cancelled || statusFilterChangedRef.current) return;
+        setStatusFilter(
+          typeof stored === "string" && PERSISTED_STATUS_FILTERS.has(stored)
+            ? stored
+            : null,
+        );
+      })
+      .catch(() => {
+        // A missing or unreadable preference falls back to All.
       });
     return () => { cancelled = true; };
   }, [currentFarm?.id]);
@@ -711,6 +747,18 @@ export default function AgriEnvProjectsScreen() {
     { key: "suspended", label: "Suspended" },
     { key: "withdrawn", label: "Withdrawn" },
   ].filter(chip => chip.key === null || projects.some(project => project.status === chip.key));
+
+  const handleStatusFilterChange = useCallback((next: string | null) => {
+    statusFilterChangedRef.current = true;
+    setStatusFilter(next);
+    if (!currentFarm?.id) return;
+    const key = statusFilterKey(currentFarm.id);
+    if (next === null) {
+      removeItem(key).catch(() => { /* ignore write failures */ });
+    } else {
+      setItem<string>(key, next).catch(() => { /* ignore write failures */ });
+    }
+  }, [currentFarm?.id]);
 
   const filteredProjects = projects.filter(p => {
     const nameOk = !searchQuery.trim() ||
@@ -1001,7 +1049,7 @@ export default function AgriEnvProjectsScreen() {
               <Pressable
                 key={chip.key ?? "__all__"}
                 style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setStatusFilter(active ? null : chip.key)}
+                onPress={() => handleStatusFilterChange(active ? null : chip.key)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`Filter by ${chip.label}`}
