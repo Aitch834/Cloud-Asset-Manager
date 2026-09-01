@@ -19,6 +19,7 @@ import dataExportRouter from "./dataExport";
 import reportBuilderRouter from "./reportBuilder";
 import ahdbRouter from "./ahdb";
 import tradeBodiesRouter from "./trade-bodies";
+import sectorAlertEmailPreferencesRouter from "./sectorAlertEmailPreferences";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(dataExportRouter);
 router.use(reportBuilderRouter);
 router.use(ahdbRouter);
 router.use(tradeBodiesRouter);
+router.use(sectorAlertEmailPreferencesRouter);
 
 export default router;

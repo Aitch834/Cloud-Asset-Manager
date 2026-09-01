@@ -6,6 +6,7 @@ import { vetHealthPlanActionsTable, vetHealthPlansTable } from "@workspace/db/sc
 import { ppeRiskAssessmentsTable } from "@workspace/db/schema";
 import { sendSms } from "./sms";
 import { sendWeeklyDigestEmail, sendSectorAlertAllClearEmail, sendSectorAlertIssuedEmail, sendAgriEnvMilestoneOverdueEmail, type WeeklyDigestItem } from "./mailer";
+import { normaliseSectorAlertEmail } from "./sectorAlertEmailPreferences";
 import { eq, and, lt, isNull, sql, gte, lte, or, ne, isNotNull, inArray } from "drizzle-orm";
 
 const ESCALATION_DAYS = 7;
@@ -2155,7 +2156,7 @@ async function runSectorAlertAllClearNotifications() {
           // Deduplicate to unique normalized addresses across all farms/tenants
           const unique = new Map<string, string>(); // email_norm → display name
           for (const a of advisors) {
-            const norm = a.email.toLowerCase();
+            const norm = normaliseSectorAlertEmail(a.email);
             if (!unique.has(norm)) unique.set(norm, a.name ?? "");
           }
 
@@ -2168,12 +2169,25 @@ async function runSectorAlertAllClearNotifications() {
               .from(usersTable)
               .where(
                 and(
-                  inArray(sql`lower(${usersTable.email})`, allNorms),
+                  inArray(sql`lower(trim(${usersTable.email}))`, allNorms),
                   eq(usersTable.emailSectorAlerts, false),
                 )
               );
             for (const row of optedOut) {
-              if (row.email) unique.delete(row.email.toLowerCase());
+              if (row.email) unique.delete(normaliseSectorAlertEmail(row.email));
+            }
+          }
+
+          // External advisors can opt out without having a platform account.
+          if (unique.size > 0) {
+            const allNorms = [...unique.keys()];
+            const unsubscribed = await db.execute(sql`
+              SELECT email_norm
+              FROM email_unsubscribes
+              WHERE email_norm = ANY(ARRAY[${sql.join(allNorms.map((email) => sql`${email}`), sql`, `)}]::text[])
+            `);
+            for (const row of unsubscribed.rows as { email_norm: string }[]) {
+              unique.delete(row.email_norm);
             }
           }
 
@@ -2273,7 +2287,7 @@ async function runSectorAlertIssueNotifications() {
 
         const unique = new Map<string, string>(); // email_norm → display name
         for (const a of advisors) {
-          const norm = a.email.toLowerCase();
+          const norm = normaliseSectorAlertEmail(a.email);
           if (!unique.has(norm)) unique.set(norm, a.name ?? "");
         }
 
@@ -2286,12 +2300,25 @@ async function runSectorAlertIssueNotifications() {
             .from(usersTable)
             .where(
               and(
-                inArray(sql`lower(${usersTable.email})`, allNorms),
+                inArray(sql`lower(trim(${usersTable.email}))`, allNorms),
                 eq(usersTable.emailSectorAlerts, false),
               )
             );
           for (const row of optedOut) {
-            if (row.email) unique.delete(row.email.toLowerCase());
+            if (row.email) unique.delete(normaliseSectorAlertEmail(row.email));
+          }
+        }
+
+        // Apply the same address-level opt-out to issue emails as all-clears.
+        if (unique.size > 0) {
+          const allNorms = [...unique.keys()];
+          const unsubscribed = await db.execute(sql`
+            SELECT email_norm
+            FROM email_unsubscribes
+            WHERE email_norm = ANY(ARRAY[${sql.join(allNorms.map((email) => sql`${email}`), sql`, `)}]::text[])
+          `);
+          for (const row of unsubscribed.rows as { email_norm: string }[]) {
+            unique.delete(row.email_norm);
           }
         }
 

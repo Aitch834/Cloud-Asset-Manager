@@ -99,5 +99,14 @@ export async function runSectorAlertMigrations(): Promise<void> {
     ADD COLUMN IF NOT EXISTS email_sector_alerts boolean NOT NULL DEFAULT true
   `);
 
+  // Email opt-outs are keyed by normalized address so external advisors who
+  // do not have a platform account can manage the same preference.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS email_unsubscribes (
+      email_norm       text        PRIMARY KEY,
+      unsubscribed_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
   console.log("[SECTOR-ALERT-MIGRATE] Done.");
 }

@@ -165,6 +165,7 @@ app.use("/api/register-interest", publicLimiter);
 app.use("/api/analytics", publicLimiter);
 app.use("/api/support/tickets", publicLimiter);
 app.use("/api/support/chat", publicLimiter);
+app.use("/api/sector-alert", publicLimiter);
 
 // Apply upload rate limiter to presigned URL endpoint.
 app.use("/api/storage/uploads", uploadLimiter);

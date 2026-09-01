@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { generateSetupGuidePdf, type SetupGuideOptions } from "./setup-guide-pdf";
+import { buildSectorAlertUnsubscribeUrl } from "./sectorAlertEmailPreferences";
 
 export interface SendEmailOptions {
   to: string;
@@ -499,6 +500,7 @@ export async function sendSectorAlertIssuedEmail(opts: {
     : "";
 
   const greeting = opts.toName ? `Hi ${opts.toName.split(" ")[0]},` : "Hello,";
+  const unsubscribeUrl = buildSectorAlertUnsubscribeUrl(opts.to);
 
   const body = `
     <p>${greeting}</p>
@@ -534,6 +536,7 @@ export async function sendSectorAlertIssuedEmail(opts: {
     <p style="margin:24px 0;">
       <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
     </p>
+    <p style="font-size:12px;color:#6b7280;">You are receiving sector alert emails because this address is listed as a farm advisor. <a href="${unsubscribeUrl}" style="color:#1a6b3a;">Unsubscribe from sector alert emails</a>.</p>
     <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd</small></p>
   `;
 
@@ -576,6 +579,7 @@ export async function sendSectorAlertAllClearEmail(opts: {
     : "";
 
   const greeting = opts.toName ? `Hi ${opts.toName.split(" ")[0]},` : "Hello,";
+  const unsubscribeUrl = buildSectorAlertUnsubscribeUrl(opts.to);
 
   const body = `
     <p>${greeting}</p>
@@ -617,6 +621,7 @@ export async function sendSectorAlertAllClearEmail(opts: {
     <p style="margin:24px 0;">
       <a href="https://bdefarmtrac.co.uk/dashboard" style="display:inline-block;padding:12px 28px;background:#1a6b3a;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Open Dashboard →</a>
     </p>
+    <p style="font-size:12px;color:#6b7280;">You are receiving sector alert emails because this address is listed as a farm advisor. <a href="${unsubscribeUrl}" style="color:#1a6b3a;">Unsubscribe from sector alert emails</a>.</p>
     <p>Kind regards,<br>The BDE Farm Trac Team<br><small style="color:#6b7280;">Barnett Davies Enterprises Ltd</small></p>
   `;
 
