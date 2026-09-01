@@ -425,6 +425,8 @@ const CANONICAL_PLACEHOLDER_NORM_MAP: Map<string, string> = new Map(
     return [inner.trim().toLowerCase().replace(/-/g, "_"), p];
   })
 );
+
+type TypoPlaceholder = { found: string; expected: string };
 const SAMPLE_HEADLINE = "Your vineyard.<br><em>Audit-ready.</em>";
 const SAMPLE_BODY = "Vine register, phenology, harvest chemistry, spray logs, PDO&nbsp;/&nbsp;PGI records — all in one place.";
 
@@ -640,26 +642,7 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
 
   // Near-miss typo detection — find {{…}} tokens that aren't exact canonical
   // placeholders but normalise to one (wrong case, extra spaces, - vs _).
-  const typoPlaceholders: Array<{ found: string; expected: string }> = (() => {
-    if (!htmlBody.trim()) return [];
-    const results: Array<{ found: string; expected: string }> = [];
-    const seen = new Set<string>();
-    const tokenRe = /\{\{([^}]*)\}\}/g;
-    let m: RegExpExecArray | null;
-    while ((m = tokenRe.exec(htmlBody)) !== null) {
-      const found = `{{${m[1]}}}`;
-      if (seen.has(found)) continue;
-      seen.add(found);
-      // Skip tokens that are already exact canonical matches
-      if (CANONICAL_PLACEHOLDER_NORM_MAP.has(m[1].trim().toLowerCase().replace(/-/g, "_")) &&
-          found === CANONICAL_PLACEHOLDER_NORM_MAP.get(m[1].trim().toLowerCase().replace(/-/g, "_"))) continue;
-      // Check whether normalising the inner content matches a canonical placeholder
-      const normInner = m[1].trim().toLowerCase().replace(/-/g, "_");
-      const expected = CANONICAL_PLACEHOLDER_NORM_MAP.get(normInner);
-      if (expected && expected !== found) results.push({ found, expected });
-    }
-    return results;
-  })();
+  const typoPlaceholders = findTypoPlaceholders(htmlBody);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1258,6 +1241,8 @@ export default function AdPdfGenerator() {
   const [savingPreset, setSavingPreset]     = useState(false);
   const [presetSaveErr, setPresetSaveErr]   = useState<string | null>(null);
   const [presetSaved, setPresetSaved]       = useState(false);
+  const [awaitingPresetTypoConfirm, setAwaitingPresetTypoConfirm] = useState(false);
+  const presetTypoPlaceholders = findTypoPlaceholders(`${headline}\n${body}`);
 
   const savePresetMutation = useMutation({
     mutationFn: savePreset,
@@ -1267,6 +1252,7 @@ export default function AdPdfGenerator() {
       setOverwritePreset(false);
       setPresetSaved(true);
       setSavingPreset(false);
+      setAwaitingPresetTypoConfirm(false);
       setTimeout(() => setPresetSaved(false), 2500);
     },
     onError: (err) => {
@@ -1341,6 +1327,11 @@ export default function AdPdfGenerator() {
 
   function handleSavePreset() {
     if (!presetName.trim()) return;
+    if (presetTypoPlaceholders.length > 0 && !awaitingPresetTypoConfirm) {
+      setPresetSaveErr(null);
+      setAwaitingPresetTypoConfirm(true);
+      return;
+    }
     setPresetSaveErr(null);
     setSavingPreset(true);
     savePresetMutation.mutate({ name: presetName.trim(), headline, body, accentColor, bgUrl, overwrite: overwritePreset });
@@ -1518,7 +1509,7 @@ export default function AdPdfGenerator() {
                 <input
                   type="text"
                   value={headline}
-                  onChange={(e) => { setHeadline(e.target.value); resetRendering(); }}
+                   onChange={(e) => { setHeadline(e.target.value); setAwaitingPresetTypoConfirm(false); resetRendering(); }}
                   placeholder={`Your vineyard.<br><em>Audit-ready.</em>`}
                   className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                 />
@@ -1533,7 +1524,7 @@ export default function AdPdfGenerator() {
                 </label>
                 <textarea
                   value={body}
-                  onChange={(e) => { setBody(e.target.value); resetRendering(); }}
+                   onChange={(e) => { setBody(e.target.value); setAwaitingPresetTypoConfirm(false); resetRendering(); }}
                   placeholder="Vine register, phenology, harvest chemistry, spray logs, PDO&amp;nbsp;/&amp;nbsp;PGI records and excise duty — all in one place, accessible anywhere."
                   rows={3}
                   className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y font-mono"
@@ -1586,7 +1577,7 @@ export default function AdPdfGenerator() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={!presetName.trim() || savingPreset}
+                    disabled={!presetName.trim() || savingPreset || awaitingPresetTypoConfirm}
                     onClick={handleSavePreset}
                   >
                     {presetSaved ? (
@@ -1598,6 +1589,75 @@ export default function AdPdfGenerator() {
                     )}
                   </Button>
                 </div>
+                {presetTypoPlaceholders.length > 0 && !awaitingPresetTypoConfirm && (
+                  <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 border border-amber-200">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                    <div className="text-sm text-amber-800 space-y-1">
+                      <p className="font-medium">
+                        Likely placeholder typo{presetTypoPlaceholders.length > 1 ? "s" : ""} detected
+                      </p>
+                      <p className="text-xs">
+                        The following token{presetTypoPlaceholders.length > 1 ? "s" : ""} will be silently ignored by the renderer because {presetTypoPlaceholders.length > 1 ? "they don't" : "it doesn't"} match any recognised placeholder exactly. Did you mean:
+                      </p>
+                      <ul className="text-xs space-y-0.5 mt-1">
+                        {presetTypoPlaceholders.map(({ found, expected }) => (
+                          <li key={found} className="flex items-center gap-1.5">
+                            <code className="bg-amber-100 px-1 rounded">{found}</code>
+                            <span className="text-amber-600">→</span>
+                            <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+                {awaitingPresetTypoConfirm && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                      <div className="text-sm text-amber-900 space-y-1">
+                        <p className="font-semibold">
+                          Confirm save with typo placeholder{presetTypoPlaceholders.length > 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-amber-800">
+                          The following token{presetTypoPlaceholders.length > 1 ? "s don't" : " doesn't"} match any recognised placeholder and will render as blank in saved presets:
+                        </p>
+                        <ul className="text-xs space-y-0.5 mt-1">
+                          {presetTypoPlaceholders.map(({ found, expected }) => (
+                            <li key={found} className="flex items-center gap-1.5">
+                              <code className="bg-amber-100 px-1 rounded">{found}</code>
+                              <span className="text-amber-600">→ did you mean</span>
+                              <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                              <span className="text-amber-600">?</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingPreset}
+                        onClick={handleSavePreset}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        {savingPreset
+                          ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                          : <><Save className="w-3.5 h-3.5 mr-1.5" />Save anyway</>}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={savingPreset}
+                        onClick={() => setAwaitingPresetTypoConfirm(false)}
+                      >
+                        Go back and fix
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 cursor-pointer w-fit">
                   <input
                     type="checkbox"
@@ -2250,4 +2310,26 @@ function BrandAssetWarning({ status, variant }: BrandAssetWarningProps) {
       </p>
     </div>
   );
+}
+
+/** Find near-miss placeholder tokens that the renderer will silently ignore. */
+function findTypoPlaceholders(value: string): TypoPlaceholder[] {
+  if (!value.trim()) return [];
+  const results: TypoPlaceholder[] = [];
+  const seen = new Set<string>();
+  const tokenRe = /\{\{([^}]*)\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(value)) !== null) {
+    const found = `{{${m[1]}}}`;
+    if (seen.has(found)) continue;
+    seen.add(found);
+    // Skip tokens that are already exact canonical matches
+    const normInner = m[1].trim().toLowerCase().replace(/-/g, "_");
+    if (CANONICAL_PLACEHOLDER_NORM_MAP.has(normInner) &&
+        found === CANONICAL_PLACEHOLDER_NORM_MAP.get(normInner)) continue;
+    // Check whether normalising the inner content matches a canonical placeholder
+    const expected = CANONICAL_PLACEHOLDER_NORM_MAP.get(normInner);
+    if (expected && expected !== found) results.push({ found, expected });
+  }
+  return results;
 }

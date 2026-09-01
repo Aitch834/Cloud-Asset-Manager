@@ -211,4 +211,51 @@ describe("AdPdfGenerator — preset overwrite refresh", () => {
     });
     expect(presetListRequests.length).toBeGreaterThanOrEqual(3);
   });
+
+  it("requires confirmation before saving near-miss placeholders in ad copy", async () => {
+    const { fetchSpy, getCurrentPreset } = makeStatefulFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+
+    await screen.findByRole("option", { name: /Test Template/i });
+    fireEvent.click(screen.getByText("Customise copy & colour"));
+    await screen.findByPlaceholderText(/Your vineyard/);
+
+    fireEvent.change(screen.getByPlaceholderText(/Your vineyard/), {
+      target: { value: "Your {{ headline }}." },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Vine register, phenology/), {
+      target: { value: "Body copy" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Preset name, e.g. Harvest 2026"), {
+      target: { value: "Near-miss placeholder preset" },
+    });
+
+    clickPresetSave();
+
+    await screen.findByText("Confirm save with typo placeholder");
+    expect(
+      fetchSpy.mock.calls.some(([input, init]) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : (input as Request).url;
+        return url.includes("ad-copy-presets") && init?.method === "POST";
+      }),
+    ).toBe(false);
+    expect(screen.getByText("{{ headline }}")).toBeDefined();
+    expect(screen.getAllByText("{{headline}}").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Save anyway/i }));
+
+    await waitFor(() => {
+      expect(getCurrentPreset()).toMatchObject({
+        name: "Near-miss placeholder preset",
+        headline: "Your {{ headline }}.",
+        body: "Body copy",
+      });
+    });
+  });
 });
