@@ -915,7 +915,7 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
               {!readOnly && (
                 <div className="flex items-center gap-1 shrink-0">
                   <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => openEdit(c)}><Pencil className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Edit clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
-                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(c.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete clean record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
+                  <RadixTooltipProvider><RadixTooltip><RadixTooltipTrigger asChild><Button aria-label="Delete cleaning record" variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={() => setPendingDelete(Number(c.id))}><Trash2 className="h-3 w-3" /></Button></RadixTooltipTrigger><RadixTooltipContent>Delete cleaning record</RadixTooltipContent></RadixTooltip></RadixTooltipProvider>
                 </div>
               )}
             </div>
@@ -924,7 +924,7 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
       )}
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Delete clean record"
+        title="Delete cleaning record"
         message="This cleaning record will be permanently deleted and cannot be recovered."
         confirmLabel="Delete"
         confirmVariant="destructive"
