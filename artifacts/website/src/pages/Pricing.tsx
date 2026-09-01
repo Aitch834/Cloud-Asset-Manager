@@ -1,5 +1,5 @@
 import { Layout } from "@/components/layout/Layout";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -53,6 +53,17 @@ const SECTOR_MODULES: Partial<Record<Sector, string[]>> = {
 // Compact format: [["Farm Name", ["mod1","mod2"]], ["Farm 2", ["mod3"]]]
 function encodeFarmsParam(farms: Farm[]): string {
   return JSON.stringify(farms.map(f => [f.name, f.selectedModules]));
+}
+
+function syncPricingUrl(farms: Farm[], sector: Sector): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set("farms", encodeFarmsParam(farms));
+  if (sector === "All") {
+    url.searchParams.delete("sector");
+  } else {
+    url.searchParams.set("sector", sector);
+  }
+  history.replaceState(null, "", url.toString());
 }
 
 // Pure parsing function (no window access) — exported for tests.
@@ -167,6 +178,10 @@ export default function Pricing() {
     (() => { const r = parseFarmsFromUrl(); return r ? r.length + 1 : 2; })()
   );
 
+  useEffect(() => {
+    syncPricingUrl(farms, sectorFilter);
+  }, [farms, sectorFilter]);
+
   const handleCopyLink = () => {
     const url = new URL(window.location.href);
     url.searchParams.set("farms", encodeFarmsParam(farms));
@@ -178,13 +193,7 @@ export default function Pricing() {
 
   const handleSectorChange = (sector: Sector) => {
     setSectorFilter(sector);
-    const url = new URL(window.location.href);
-    if (sector === "All") {
-      url.searchParams.delete("sector");
-    } else {
-      url.searchParams.set("sector", sector);
-    }
-    history.replaceState(null, "", url.toString());
+    syncPricingUrl(farms, sector);
   };
 
   const activeFarm = farms.find(f => f.id === activeFarmId) || farms[0];
