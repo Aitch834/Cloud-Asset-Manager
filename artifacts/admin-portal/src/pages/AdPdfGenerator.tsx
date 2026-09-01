@@ -1829,7 +1829,9 @@ export default function AdPdfGenerator() {
           {brandAssetStatusLoading ? (
             <div className="h-9 rounded-md bg-muted/60 animate-pulse" aria-hidden="true" />
           ) : brandAssetStatus ? (
-            <BrandAssetWarning status={brandAssetStatus} variant="compact" />
+            <div className="sticky top-0 z-10">
+              <BrandAssetWarning status={brandAssetStatus} variant="compact" />
+            </div>
           ) : null}
           <TooltipProvider>
             <div className="flex flex-wrap gap-3">
