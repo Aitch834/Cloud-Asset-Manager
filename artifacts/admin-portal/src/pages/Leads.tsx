@@ -147,7 +147,17 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
     setSaving(true);
     try {
       const fullNotes = rebuildNotes(packed, userNotes);
-      const result = await api.updateLead(lead.id, { status, notes: fullNotes ?? "", source: source || undefined, sector: sector || null }, secret);
+      const updates: Parameters<typeof api.updateLead>[1] = {
+        status,
+        notes: fullNotes ?? "",
+        source: source || undefined,
+      };
+      // Omit sector unless the admin changed it. The API treats an omitted
+      // field as "leave unchanged", while null is an intentional clear.
+      if (sector !== (lead.sector ?? "")) {
+        updates.sector = sector || null;
+      }
+      const result = await api.updateLead(lead.id, updates, secret);
       onSaved(result.lead);
       setDirty(false);
     } catch (e) {
