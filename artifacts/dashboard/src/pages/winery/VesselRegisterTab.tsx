@@ -1271,6 +1271,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [maintenanceCsvPending, setMaintenanceCsvPending] = useState(false);
   const [vesselCsvExporting, setVesselCsvExporting] = useState(false);
+  const [maintenancePrintPending, setMaintenancePrintPending] = useState(false);
 
   const handleBarrelMaintenanceCsv = async (vessel: Record<string, unknown>) => {
     setMaintenanceCsvPending(true);
@@ -1730,114 +1731,134 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No" },
               { key: "last_activity", label: "Last Activity", fmt: r => r.last_activity ? fmtDate(r.last_activity) : "Never" },
             ];
-            const handlePrint = () => {
+            const handlePrint = async () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
-              const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Last Activity", "Approaching Neutral", "Last Clean Date"];
-              const rows = exportBarrels.map(r => {
-                const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
-                return [
-                  String(r.vessel_ref ?? ""),
-                  String(r.vessel_type ?? ""),
-                  String(r.cellar_zone ?? ""),
-                  r.fill_number != null ? String(r.fill_number) : "\u2014",
-                  String(Number(r.fill_count ?? 0)),
-                  (() => {
-                    if (Number(r.fill_count ?? 0) === 0) {
-                      return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
-                    }
-                    return fillOakLabel(Number(r.fill_number)).label;
-                  })(),
-                  r.is_full ? "Yes" : "No",
-                  r.empty_since ? fmtDate(r.empty_since) : "\u2014",
-                  idleDays,
-                  r.last_activity ? fmtDate(r.last_activity) : "Never",
-                  Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
-                  fmtDate(r.last_cleaned_date),
-                ];
-              });
-
               const win = window.open("", "_blank");
               if (!win) return;
-              const doc = win.document;
+              setMaintenancePrintPending(true);
+              try {
+                const maintSummaryRes = await fetch(api(`farms/${farmId}/winery-vessels-maintenance-summary`), { credentials: "include" });
+                if (!maintSummaryRes.ok) throw new Error("Could not load barrel maintenance history.");
+                const maintSummaryBody = await maintSummaryRes.json();
+                const maintMap = new Map<number, number>();
+                for (const row of (maintSummaryBody.records ?? []) as Record<string, unknown>[]) {
+                  const vesselId = Number(row.vessel_id);
+                  maintMap.set(vesselId, (maintMap.get(vesselId) ?? 0) + Number(row.total_pence ?? 0));
+                }
 
-              // Build document with DOM APIs so no user data is interpolated into HTML
-              doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Barrel Health Summary</title><style>" +
-                "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
-                "h1{font-size:14px;font-weight:700;margin:0 0 2px}" +
-                ".meta{font-size:10px;color:#555;margin-bottom:12px}" +
-                 ".thresholds{font-size:10px;color:#555;margin-bottom:10px}" +
-                "table{width:100%;border-collapse:collapse;font-size:11px}" +
-                "th{background:#f0f0f0;font-weight:700;text-align:left;padding:5px 8px;border:1px solid #ccc}" +
-                "td{padding:4px 8px;border:1px solid #ddd;vertical-align:top}" +
-                "tr:nth-child(even) td{background:#fafafa}" +
-                ".footer{margin-top:14px;font-size:9px;color:#888}" +
-                "@media print{body{margin:10mm}}" +
-                "</style></head><body></body></html>");
-              doc.close();
-
-              const h1 = doc.createElement("h1");
-              h1.textContent = `Barrel Health Summary \u2014 ${farmNameVessels}`;
-              doc.body.appendChild(h1);
-
-              const meta = doc.createElement("div");
-              meta.className = "meta";
-              meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
-              doc.body.appendChild(meta);
-
-               const thresholds = doc.createElement("div");
-               thresholds.className = "thresholds";
-               thresholds.textContent = `Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+`;
-               doc.body.appendChild(thresholds);
-
-              const noFillsCooperageCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
-              const noFillsNoneCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
-              const noFillsPrintCount = noFillsCooperageCount + noFillsNoneCount;
-              if (noFillsPrintCount > 0) {
-                const note = doc.createElement("div");
-                note.style.cssText = "background:#f3e8ff;border:1px solid #c084fc;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#6b21a8";
-                const parts: string[] = [];
-                if (noFillsCooperageCount > 0) parts.push(`${noFillsCooperageCount} \u201cNo fills \u2014 cooperage only\u201d`);
-                if (noFillsNoneCount > 0) parts.push(`${noFillsNoneCount} \u201cNo records at all\u201d`);
-                note.textContent = `Note: ${parts.join(", ")} barrel${noFillsPrintCount !== 1 ? "s" : ""} have no fill history \u2014 see Fill Tier column for details.`;
-                doc.body.appendChild(note);
-              }
-
-              const table = doc.createElement("table");
-              const thead = doc.createElement("thead");
-              const hRow = doc.createElement("tr");
-              for (const h of headers) {
-                const th = doc.createElement("th");
-                th.textContent = h;
-                hRow.appendChild(th);
-              }
-              thead.appendChild(hRow);
-              table.appendChild(thead);
-
-              const tbody = doc.createElement("tbody");
-              rows.forEach((cells, rowIdx) => {
-                const tr = doc.createElement("tr");
-                const hasNoFills = Number(exportBarrels[rowIdx]?.fill_count ?? 0) === 0;
-                cells.forEach((cell, colIdx) => {
-                  const td = doc.createElement("td");
-                  td.textContent = cell;
-                  // Highlight the Fill Tier column (index 5) for barrels with no fills
-                  if (colIdx === 5 && hasNoFills) {
-                    td.style.cssText = "background:#fffbeb;color:#92400e;font-weight:600";
-                  }
-                  tr.appendChild(td);
+                const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Last Activity", "Approaching Neutral", "Retirement Warning", "Last Clean Date"];
+                const rows = exportBarrels.map(r => {
+                  const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
+                  const retirementWarning = (maintMap.get(Number(r.id)) ?? 0) > retirementThresholdPence ? "Yes" : "No";
+                  return [
+                    String(r.vessel_ref ?? ""),
+                    String(r.vessel_type ?? ""),
+                    String(r.cellar_zone ?? ""),
+                    r.fill_number != null ? String(r.fill_number) : "\u2014",
+                    String(Number(r.fill_count ?? 0)),
+                    (() => {
+                      if (Number(r.fill_count ?? 0) === 0) {
+                        return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
+                      }
+                      return fillOakLabel(Number(r.fill_number)).label;
+                    })(),
+                    r.is_full ? "Yes" : "No",
+                    r.empty_since ? fmtDate(r.empty_since) : "\u2014",
+                    idleDays,
+                    r.last_activity ? fmtDate(r.last_activity) : "Never",
+                    Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
+                    retirementWarning,
+                    fmtDate(r.last_cleaned_date),
+                  ];
                 });
-                tbody.appendChild(tr);
-              });
-              table.appendChild(tbody);
-              doc.body.appendChild(table);
 
-              const footer = doc.createElement("div");
-              footer.className = "footer";
-              footer.textContent = `${exportBarrels.length} barrel${exportBarrels.length !== 1 ? "s" : ""} shown`;
-              doc.body.appendChild(footer);
+                const doc = win.document;
 
-              win.focus();
-              win.print();
+                // Build document with DOM APIs so no user data is interpolated into HTML
+                doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Barrel Health Summary</title><style>" +
+                  "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
+                  "h1{font-size:14px;font-weight:700;margin:0 0 2px}" +
+                  ".meta{font-size:10px;color:#555;margin-bottom:12px}" +
+                  ".thresholds{font-size:10px;color:#555;margin-bottom:10px}" +
+                  "table{width:100%;border-collapse:collapse;font-size:11px}" +
+                  "th{background:#f0f0f0;font-weight:700;text-align:left;padding:5px 8px;border:1px solid #ccc}" +
+                  "td{padding:4px 8px;border:1px solid #ddd;vertical-align:top}" +
+                  "tr:nth-child(even) td{background:#fafafa}" +
+                  ".footer{margin-top:14px;font-size:9px;color:#888}" +
+                  "@media print{body{margin:10mm}}" +
+                  "</style></head><body></body></html>");
+                doc.close();
+
+                const h1 = doc.createElement("h1");
+                h1.textContent = `Barrel Health Summary \u2014 ${farmNameVessels}`;
+                doc.body.appendChild(h1);
+
+                const meta = doc.createElement("div");
+                meta.className = "meta";
+                meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+                doc.body.appendChild(meta);
+
+                const thresholds = doc.createElement("div");
+                thresholds.className = "thresholds";
+                thresholds.textContent = `Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+  |  Retirement threshold: \u00a3${(retirementThresholdPence / 100).toFixed(0)}`;
+                doc.body.appendChild(thresholds);
+
+                const noFillsCooperageCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
+                const noFillsNoneCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
+                const noFillsPrintCount = noFillsCooperageCount + noFillsNoneCount;
+                if (noFillsPrintCount > 0) {
+                  const note = doc.createElement("div");
+                  note.style.cssText = "background:#f3e8ff;border:1px solid #c084fc;border-radius:4px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#6b21a8";
+                  const parts: string[] = [];
+                  if (noFillsCooperageCount > 0) parts.push(`${noFillsCooperageCount} \u201cNo fills \u2014 cooperage only\u201d`);
+                  if (noFillsNoneCount > 0) parts.push(`${noFillsNoneCount} \u201cNo records at all\u201d`);
+                  note.textContent = `Note: ${parts.join(", ")} barrel${noFillsPrintCount !== 1 ? "s" : ""} have no fill history \u2014 see Fill Tier column for details.`;
+                  doc.body.appendChild(note);
+                }
+
+                const table = doc.createElement("table");
+                const thead = doc.createElement("thead");
+                const hRow = doc.createElement("tr");
+                for (const h of headers) {
+                  const th = doc.createElement("th");
+                  th.textContent = h;
+                  hRow.appendChild(th);
+                }
+                thead.appendChild(hRow);
+                table.appendChild(thead);
+
+                const tbody = doc.createElement("tbody");
+                const retirementWarningColumnIndex = headers.indexOf("Retirement Warning");
+                rows.forEach((cells, rowIdx) => {
+                  const tr = doc.createElement("tr");
+                  const hasNoFills = Number(exportBarrels[rowIdx]?.fill_count ?? 0) === 0;
+                  cells.forEach((cell, colIdx) => {
+                    const td = doc.createElement("td");
+                    td.textContent = cell;
+                    // Highlight health-warning cells so they remain visible on paper.
+                    if ((colIdx === 5 && hasNoFills) || (colIdx === retirementWarningColumnIndex && cell === "Yes")) {
+                      td.style.cssText = "background:#fffbeb;color:#92400e;font-weight:600";
+                    }
+                    tr.appendChild(td);
+                  });
+                  tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+                doc.body.appendChild(table);
+
+                const footer = doc.createElement("div");
+                footer.className = "footer";
+                footer.textContent = `${exportBarrels.length} barrel${exportBarrels.length !== 1 ? "s" : ""} shown`;
+                doc.body.appendChild(footer);
+
+                win.focus();
+                win.print();
+              } catch (err) {
+                win.close();
+                toast({ title: "Print failed", description: err instanceof Error ? err.message : "Could not load barrel maintenance history.", variant: "destructive" });
+              } finally {
+                setMaintenancePrintPending(false);
+              }
             };
             return (
               <div className="flex items-center justify-end gap-2">
@@ -1845,7 +1866,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   size="sm"
                   variant="outline"
                   className="h-6 text-xs"
-                  disabled={exportBarrels.length === 0}
+                  disabled={exportBarrels.length === 0 || maintenancePrintPending}
                   onClick={handlePrint}
                 >
                   <Printer className="w-3 h-3 mr-1" />Print
