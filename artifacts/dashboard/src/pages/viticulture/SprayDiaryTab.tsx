@@ -51,6 +51,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
+import { formatHarvestInterval, getHarvestIntervalExpiryDate, isHarvestIntervalActive } from "@/lib/harvest-interval";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
@@ -671,16 +672,16 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
           cols={[
             {
               key: "applicationDate", label: "Date", render: r => {
-                const todayMs = new Date().setHours(0, 0, 0, 0);
                 const hiDays = r.harvestIntervalDays != null && r.harvestIntervalDays !== ""
                   ? Number(r.harvestIntervalDays) : null;
                 let hiActive = false;
                 let expiryStr = "";
                 if (hiDays != null && !isNaN(hiDays) && r.applicationDate) {
-                  const appMs = new Date(r.applicationDate as string).setHours(0, 0, 0, 0);
-                  const expiryMs = appMs + hiDays * 86400000;
-                  hiActive = expiryMs > todayMs;
-                  expiryStr = new Date(expiryMs).toLocaleDateString("en-GB");
+                  const expiryDate = getHarvestIntervalExpiryDate(r.applicationDate, hiDays);
+                  if (expiryDate) {
+                    hiActive = isHarvestIntervalActive(expiryDate);
+                    expiryStr = expiryDate.toLocaleDateString("en-GB");
+                  }
                 }
                 return (
                   <span className="inline-flex items-center gap-1.5">
@@ -828,7 +829,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
               <ViewField label="Water Volume (L/ha)" value={fmt(view.waterVolumeLPerHa)} />
               <ViewField label="Application Method" value={fmt(view.applicationMethod)} />
               <ViewField label="Re-entry Period (hrs)" value={fmt(view.reentryPeriodHours)} />
-              <ViewField label="Harvest Interval (days)" value={fmt(view.harvestIntervalDays)} />
+              <ViewField label="Harvest Interval" value={formatHarvestInterval(view.applicationDate, view.harvestIntervalDays)} />
               <ViewField label="Wind Speed (mph)" value={fmt(view.windSpeedMph)} />
               <ViewField label="Temperature (°C)" value={fmt(view.temperatureCelsius)} />
               <ViewField label="Weather Conditions" value={fmt(view.weatherConditions)} />

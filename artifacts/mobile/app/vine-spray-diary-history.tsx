@@ -51,6 +51,7 @@ import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { vineSprayDiaryHtml, type VineSprayDiaryRow } from "@/lib/printTemplates";
+import { formatHarvestInterval, getHarvestIntervalExpiryDate, isHarvestIntervalActive } from "@/lib/harvestInterval";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -1287,6 +1288,11 @@ function EditSprayDiaryModal({ visible, record, farmId, blocks, blocksLoading, o
                 keyboardType="numeric"
               />
 
+              <Text style={editStyles.fieldLabel}>Harvest Interval</Text>
+              <Text style={editStyles.readOnlyValue}>
+                {formatHarvestInterval(applicationDate, record?.harvestIntervalDays)}
+              </Text>
+
               <Text style={editStyles.fieldLabel}>Vineyard Block</Text>
               {blocksLoading ? (
                 <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: spacing.sm }} />
@@ -1503,12 +1509,10 @@ function HarvestIntervalBadge({
   const hiDays = harvestIntervalDays != null ? Number(harvestIntervalDays) : null;
   if (hiDays == null || isNaN(hiDays) || !applicationDate) return null;
 
-  const todayMs = new Date().setHours(0, 0, 0, 0);
-  const appMs = new Date(applicationDate).setHours(0, 0, 0, 0);
-  const expiryMs = appMs + hiDays * 86400000;
-  if (expiryMs <= todayMs) return null;
+  const expiryDate = getHarvestIntervalExpiryDate(applicationDate, hiDays);
+  if (!expiryDate || !isHarvestIntervalActive(expiryDate)) return null;
 
-  const expiryStr = new Date(expiryMs).toLocaleDateString("en-GB");
+  const expiryStr = expiryDate.toLocaleDateString("en-GB");
 
   return (
     <Pressable
@@ -2150,6 +2154,11 @@ const editStyles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  readOnlyValue: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
   },
   row: { flexDirection: "row", gap: spacing.md },
   flex: { flex: 1 },
