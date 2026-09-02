@@ -1,8 +1,9 @@
 /**
- * Warns if any sector leaflet PDF is older than its HTML source.
+ * Warns if any current sector leaflet PDF is missing or older than its HTML source.
  * Run during dev startup to catch stale PDFs before serving them.
  *
- * Exit code 0 always (warn-only); use generate-leaflet-pdfs.mjs to fix.
+ * The default mode is warn-only for local dev startup. Pass --strict to make
+ * the check fail, which is useful in CI or before publishing.
  */
 
 import { fileURLToPath } from "url";
@@ -13,14 +14,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const leafletsDir = path.resolve(__dirname, "../public/leaflets");
 
 const LEAFLETS = [
-  "beef-dairy-v5",
-  "sheep-goat-v5",
-  "arable-v5",
-  "viticulture-v5",
-  "mixed-v5",
-  "contracting-v5",
+  "beef-dairy-v7",
+  "sheep-goat-v7",
+  "arable-v7",
+  "viticulture-v7",
+  "mixed-v7",
+  "contracting-v7",
 ];
 
+const strict = process.argv.includes("--strict");
 let staleCount = 0;
 
 for (const name of LEAFLETS) {
@@ -56,4 +58,7 @@ if (staleCount === 0) {
   console.warn(
     `\n  ${staleCount} stale leaflet PDF(s) detected. Visitors will download outdated versions until regenerated.\n`
   );
+  if (strict) {
+    process.exitCode = 1;
+  }
 }

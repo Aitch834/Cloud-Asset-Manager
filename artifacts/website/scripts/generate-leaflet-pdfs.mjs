@@ -2,7 +2,7 @@
  * Generates PDF versions of the sector leaflet HTML files using Playwright.
  * Run with: node artifacts/website/scripts/generate-leaflet-pdfs.mjs
  *
- * Output: artifacts/website/public/leaflets/<name>-v5.pdf
+ * Output: artifacts/website/public/leaflets/<name>-v7.pdf
  */
 
 import pkg from "/home/runner/workspace/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/index.js";
@@ -16,12 +16,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const leafletsDir = path.resolve(__dirname, "../public/leaflets");
 
 const LEAFLETS = [
-  "beef-dairy-v5",
-  "sheep-goat-v5",
-  "arable-v5",
-  "viticulture-v5",
-  "mixed-v5",
-  "contracting-v5",
+  "beef-dairy-v7",
+  "sheep-goat-v7",
+  "arable-v7",
+  "viticulture-v7",
+  "mixed-v7",
+  "contracting-v7",
 ];
 
 const KNOWN_CHROMIUM_PATH =

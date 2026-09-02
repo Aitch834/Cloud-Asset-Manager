@@ -20,6 +20,7 @@ const SECTORS = [
     accent: "bg-red-600",
     pill: "bg-red-100 text-red-700",
     leaflet: "/leaflets/beef-dairy-v7.html",
+    leafletPdf: "/leaflets/beef-dairy-v7.pdf",
     hero: "Complete cattle compliance — from movement records to milk statements.",
     intro: "Beef and dairy operations carry some of the heaviest compliance burdens in UK agriculture. TB testing, BCMS movements, medicine withdrawal periods, and Red Tractor audit trails all demand accurate, up-to-date records. BDE Farm Trac brings every one of those record types into a single platform — accessible from the office or the parlour.",
     pain: [
@@ -44,6 +45,7 @@ const SECTORS = [
     accent: "bg-amber-600",
     pill: "bg-amber-100 text-amber-700",
     leaflet: "/leaflets/sheep-goat-v7.html",
+    leafletPdf: "/leaflets/sheep-goat-v7.pdf",
     hero: "EID compliance, flock performance, and lambing analytics — all in one place.",
     intro: "Sheep and goat producers face some of the most detailed movement reporting requirements of any livestock sector — EID ear tag recording, cross-border movement declarations, and LIS submissions. Add lambing season pressure, IPM planning, and flock health monitoring and the paperwork quickly overwhelms. BDE Farm Trac was built to handle all of it with a minimum of effort.",
     pain: [
@@ -68,6 +70,7 @@ const SECTORS = [
     accent: "bg-yellow-600",
     pill: "bg-yellow-100 text-yellow-700",
     leaflet: "/leaflets/arable-v7.html",
+    leafletPdf: "/leaflets/arable-v7.pdf",
     hero: "Field records, spray logs, NVZ compliance, and grain storage — without the paperwork mountain.",
     intro: "Arable operations are subject to some of the most detailed environmental and food safety record-keeping requirements in UK agriculture. NVZ rules, LERAP assessments, spray records, and Red Tractor Crop Assurance all demand evidence that is accurate, contemporaneous, and retrievable. BDE Farm Trac turns those obligations into structured digital records that are ready for an inspector at any time.",
     pain: [
@@ -92,6 +95,7 @@ const SECTORS = [
     accent: "bg-purple-600",
     pill: "bg-purple-100 text-purple-700",
     leaflet: "/leaflets/viticulture-v7.html",
+    leafletPdf: "/leaflets/viticulture-v7.pdf",
     hero: "Vine records, winery production management, disease scouting, organic compliance, and harvest traceability — built for UK vineyards.",
     intro: "UK viticulture is one of the fastest-growing sectors in British agriculture — and one of the most under-served when it comes to purpose-built digital record-keeping. From vine register and phenology through winery production management, organic derogations, and SO₂ compliance, BDE Farm Trac provides a complete digital platform for vineyard and winery operations.",
     pain: [
@@ -116,6 +120,7 @@ const SECTORS = [
     accent: "bg-green-700",
     pill: "bg-green-100 text-green-700",
     leaflet: "/leaflets/mixed-v7.html",
+    leafletPdf: "/leaflets/mixed-v7.pdf",
     hero: "One platform across every enterprise — livestock, arable, and everything in between.",
     intro: "Mixed farms are the most complex operations to manage — multiple livestock species, arable rotations, grazing ground, and shared machinery all competing for the same labour and equipment at the same time. BDE Farm Trac's multi-enterprise architecture means every module shares the same farm calendar, the same equipment register, and the same staff directory — so nothing falls between the gaps.",
     pain: [
@@ -140,6 +145,7 @@ const SECTORS = [
     accent: "bg-slate-700",
     pill: "bg-slate-100 text-slate-700",
     leaflet: "/leaflets/contracting-v7.html",
+    leafletPdf: "/leaflets/contracting-v7.pdf",
     hero: "Job cards, invoicing, equipment compliance, and customer management — for contractors who run a professional operation.",
     intro: "Agricultural contractors operate at the intersection of farming and business services — maintaining a fleet of specialist machinery, delivering services to multiple farm customers, and managing the invoicing, insurance, and compliance overhead that comes with it. BDE Farm Trac's Farm Services module was built specifically for this model.",
     pain: [
@@ -311,7 +317,7 @@ export default function Sectors() {
                       </span>
                     </button>
                     <a
-                      href={sector.leaflet}
+                      href={sector.leafletPdf}
                       download
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-white text-sm font-medium text-foreground hover:bg-secondary transition-colors shadow-sm"
                       aria-label={`Download ${sector.label} leaflet as PDF`}
@@ -618,7 +624,7 @@ export default function Sectors() {
             {/* Actions row */}
             <div className="flex items-center gap-3">
               <a
-                href={lightboxSector.leaflet}
+                href={lightboxSector.leafletPdf}
                 download
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-foreground text-sm font-medium hover:bg-secondary transition-colors shadow"
               >
