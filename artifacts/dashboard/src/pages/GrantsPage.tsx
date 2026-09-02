@@ -18,6 +18,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { useLocation } from "wouter";
 
 // ─── FETF Item Reference Data ──────────────────────
+import { calculateAgriEnvDrawdown } from "@/lib/agri-env-drawdown";
 const FETF_ITEMS: { code: string; description: string; category: string }[] = [
   { code: "T-SYS-1", description: "Auto-steering / GPS guidance system", category: "Precision Technology" },
   { code: "T-SYS-2", description: "Variable rate technology (VRT) seeding or fertilising", category: "Precision Technology" },
@@ -210,8 +211,6 @@ const AE_COMMON_BODIES = [
 const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
 const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
 const AE_MILESTONE_STATUSES = ["pending", "completed", "submitted", "paid", "overdue"] as const;
-
-const ACTIVE_AE_PROJECT_STATUSES = new Set(["active", "applied", "pending"]);
 const AE_MILESTONE_FILTERS = ["all", ...AE_MILESTONE_STATUSES] as const;
 
 const AE_BLANK_PROJECT = {
@@ -925,20 +924,12 @@ function AgriEnvTab({ farmId, farm }: { farmId: number | null; farm: Record<stri
 
       {/* Farm-wide drawdown summary */}
       {(() => {
-        const drawdownProjects = projects.filter(
-          p => ACTIVE_AE_PROJECT_STATUSES.has(p.status) && (p.totalGrantValuePence ?? 0) > 0,
-        );
+        const drawdown = calculateAgriEnvDrawdown(projects, allMilestones);
+        const drawdownProjects = drawdown.eligibleProjects;
         if (drawdownProjects.length === 0) return null;
-        const drawdownProjectIds = new Set(drawdownProjects.map(p => p.id));
-        const totalPence = drawdownProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
-        const paidPence = allMilestones
-          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "paid")
-          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-        const submittedPence = allMilestones
-          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "submitted")
-          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-        const pct = Math.min(100, Math.round(paidPence / totalPence * 100));
-        const pctSub = Math.min(100 - pct, Math.round(submittedPence / totalPence * 100));
+        const { totalPence, paidPence, submittedPence } = drawdown;
+        const pct = drawdown.paidPercentage;
+        const pctSub = drawdown.submittedPercentage;
         return (
           <div style={{
             background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10,
@@ -1411,23 +1402,13 @@ function AgriEnvTab({ farmId, farm }: { farmId: number | null; farm: Record<stri
           milestonesByProject.set(m.projectId, arr);
         }
         const printedValue = filteredProjects.filter(p => p.status !== "withdrawn").reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
-        const drawdownProjects = projects.filter(
-          p => ACTIVE_AE_PROJECT_STATUSES.has(p.status) && (p.totalGrantValuePence ?? 0) > 0,
-        );
-        const drawdownProjectIds = new Set(drawdownProjects.map(p => p.id));
-        const drawdownTotalPence = drawdownProjects.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
-        const drawdownPaidPence = allMilestones
-          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "paid")
-          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-        const drawdownSubmittedPence = allMilestones
-          .filter(m => drawdownProjectIds.has(m.projectId) && m.status === "submitted")
-          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-        const drawdownPct = drawdownTotalPence > 0
-          ? Math.min(100, Math.round(drawdownPaidPence / drawdownTotalPence * 100))
-          : 0;
-        const drawdownPctSubmitted = drawdownTotalPence > 0
-          ? Math.min(100 - drawdownPct, Math.round(drawdownSubmittedPence / drawdownTotalPence * 100))
-          : 0;
+        const drawdown = calculateAgriEnvDrawdown(projects, allMilestones);
+        const drawdownProjects = drawdown.eligibleProjects;
+        const drawdownTotalPence = drawdown.totalPence;
+        const drawdownPaidPence = drawdown.paidPence;
+        const drawdownSubmittedPence = drawdown.submittedPence;
+        const drawdownPct = drawdown.paidPercentage;
+        const drawdownPctSubmitted = drawdown.submittedPercentage;
         const filterLabel = [
           aeExportScheme !== "all" ? aeExportScheme : null,
           aeExportStatus !== "all" ? (AE_PROJECT_STATUS_CFG[aeExportStatus]?.label ?? aeExportStatus) : null,
