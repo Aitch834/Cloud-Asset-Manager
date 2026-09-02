@@ -36,6 +36,10 @@ import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
 import {
+  getHomeModuleChecks,
+  shouldShowViticultureComplianceGaps,
+} from "@/lib/homeModuleChecks";
+import {
   formatAgriEnvMilestoneStatus,
   getAgriEnvMilestoneSections,
   type AgriEnvMilestoneRecord,
@@ -63,12 +67,21 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, user } = useFarm();
   const { pendingCount, isSyncing, triggerSync } = useSync();
-  const { data: dashboardData, loading: dashboardLoading } = useApiFarmDashboard(currentFarm?.id);
+  const {
+    data: dashboardData,
+    loading: dashboardLoading,
+    error: dashboardError,
+    resolvedFarmId: dashboardResolvedFarmId,
+    reload: reloadDashboard,
+  } = useApiFarmDashboard(currentFarm?.id);
   const { data: taskSummary, loading: taskSummaryLoading } = useApiMyTasksSummary(currentFarm?.id);
   const { heroCard, setHeroCard, loaded: prefLoaded } = useHomePreference(user?.id);
-  const activeModuleKeys = dashboardData?.activeModuleKeys ?? [];
-  const isViticultureActive = activeModuleKeys.includes("viticulture") || activeModuleKeys.includes("organic-viticulture");
-  const isOrganicActive = activeModuleKeys.includes("organic-compliance");
+  const dashboardModulesResolved =
+    dashboardResolvedFarmId === currentFarm?.id &&
+    !dashboardLoading &&
+    dashboardError == null;
+  const { activeModuleKeys, isViticultureActive, isOrganicActive } =
+    getHomeModuleChecks(dashboardData, dashboardModulesResolved);
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -189,7 +202,11 @@ export default function HomeScreen() {
   }, [markCompleteTarget, currentFarm?.id, completionDate, evidenceNote]);
 
   const fetchFPInputDerogAlerts = useCallback(async () => {
-    if (!currentFarm?.id) return;
+    if (!currentFarm?.id || !isOrganicActive) {
+      setFpInputDerogAlerts([]);
+      setFpDerogAlerts([]);
+      return;
+    }
     try {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/week-ahead?days=30`);
       if (!res.ok) return;
@@ -206,7 +223,7 @@ export default function HomeScreen() {
           .map((t) => ({ id: t.id, title: t.title, isOverdue: t.colour === "red" })),
       );
     } catch { /* ignore */ }
-  }, [currentFarm?.id]);
+  }, [currentFarm?.id, isOrganicActive]);
 
   const fetchUpcomingMilestones = useCallback(async () => {
     if (!currentFarm?.id) return;
@@ -448,9 +465,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), triggerSync(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchUpcomingMilestones(), fetchUpcomingInspections(), fetchWinegbSubmissions()]);
+    await Promise.all([loadData(), triggerSync(), reloadDashboard(), fetchLiveWeather(), fetchUnlinkedCounts(), fetchFPInputDerogAlerts(), fetchUpcomingMilestones(), fetchUpcomingInspections(), fetchWinegbSubmissions()]);
     setRefreshing(false);
-  }, [loadData, triggerSync, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchUpcomingInspections, fetchWinegbSubmissions]);
+  }, [loadData, triggerSync, reloadDashboard, fetchLiveWeather, fetchUnlinkedCounts, fetchFPInputDerogAlerts, fetchUpcomingMilestones, fetchUpcomingInspections, fetchWinegbSubmissions]);
 
   const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
 
@@ -513,6 +530,23 @@ export default function HomeScreen() {
         }
         contentContainerStyle={styles.scrollContent}
       >
+        {dashboardError && !dashboardLoading && (
+          <View style={styles.dashboardErrorBanner}>
+            <View style={styles.unlinkedIconWrap}>
+              <Feather name="cloud-off" size={18} color={colors.error} />
+            </View>
+            <View style={styles.unlinkedContent}>
+              <Text style={styles.unlinkedTitle}>Home modules unavailable</Text>
+              <Text style={styles.unlinkedSubtitle}>
+                Module-specific checks are hidden until the dashboard reconnects.
+              </Text>
+            </View>
+            <Pressable onPress={() => { void reloadDashboard(); }} hitSlop={8}>
+              <Text style={styles.dashboardRetryText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
+
         {(!prefLoaded || heroCard === "compliance") ? (
           <ComplianceCard
             score={dashboardData?.complianceScore ?? 0}
@@ -620,7 +654,11 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {(unlinkedCounts.scouting > 0 || unlinkedCounts.sprayDiary > 0 || unlinkedCounts.phenology > 0 || unlinkedCounts.harvest > 0 || unlinkedCounts.operations > 0) && (
+        {shouldShowViticultureComplianceGaps(
+          dashboardData,
+          unlinkedCounts,
+          dashboardModulesResolved,
+        ) && (
           <>
             <SectionHeader title="Compliance Gaps" />
             {unlinkedCounts.scouting > 0 && (
@@ -716,7 +754,7 @@ export default function HomeScreen() {
           </>
         )}
 
-        {winegbPendingCount > 0 && (
+        {isViticultureActive && winegbPendingCount > 0 && (
           <>
             <SectionHeader title="WineGB Surveys" />
             <Pressable
@@ -741,7 +779,7 @@ export default function HomeScreen() {
           </>
         )}
 
-        {(fpInputDerogAlerts.length > 0 || fpDerogAlerts.length > 0) && (
+        {isOrganicActive && (fpInputDerogAlerts.length > 0 || fpDerogAlerts.length > 0) && (
           <>
             <SectionHeader title="Upcoming Alerts" />
             {fpInputDerogAlerts.map((alert) => (
@@ -803,7 +841,7 @@ export default function HomeScreen() {
           </>
         )}
 
-        {upcomingInspections.length > 0 && (
+        {isOrganicActive && upcomingInspections.length > 0 && (
           <>
             <SectionHeader title="Organic Inspections" />
             {upcomingInspections.map((inspection) => (
@@ -1277,6 +1315,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.warning + "55",
     gap: spacing.md,
+  },
+  dashboardErrorBanner: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.error + "10",
+    borderColor: colors.error + "55",
+  },
+  dashboardRetryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.primary,
   },
   unlinkedIconWrap: {
     width: 36,
