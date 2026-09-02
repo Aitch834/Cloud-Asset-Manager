@@ -91,13 +91,22 @@ export default function HomeScreen() {
     projectId: number;
     milestoneName: string;
   } | null>(null);
+  const [completionSummary, setCompletionSummary] = useState<{
+    milestoneName: string;
+    claimAmountPence: number | null;
+    milestoneCount?: number;
+    completedMilestoneCount?: number;
+    claimedAmountPence?: number;
+    remainingGrantValuePence?: number | null;
+  } | null>(null);
   const [completionDate, setCompletionDate] = useState<Date>(new Date());
   const [evidenceNote, setEvidenceNote] = useState("");
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
   const [upcomingInspections, setUpcomingInspections] = useState<OrganicInspectionReminder[]>([]);
 
   const handleMarkComplete = useCallback(async () => {
-    if (!markCompleteTarget || !currentFarm?.id) return;
+    const target = markCompleteTarget;
+    if (!target || !currentFarm?.id) return;
     setIsMarkingComplete(true);
     try {
       const y = completionDate.getFullYear();
@@ -105,7 +114,7 @@ export default function HomeScreen() {
       const d = String(completionDate.getDate()).padStart(2, "0");
       const dateStr = `${y}-${m}-${d}`;
       const res = await apiFetch(
-        `/api/farms/${currentFarm.id}/agri-env-projects/${markCompleteTarget.projectId}/milestones/${markCompleteTarget.id}`,
+        `/api/farms/${currentFarm.id}/agri-env-projects/${target.projectId}/milestones/${target.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -121,10 +130,51 @@ export default function HomeScreen() {
         Alert.alert("Error", (err as { error?: string }).error || "Could not mark milestone complete.");
         return;
       }
+
+      const saved = await res.json().catch(() => ({})) as {
+        milestone?: { claimAmountPence?: number | null };
+      };
+      const summary: {
+        milestoneName: string;
+        claimAmountPence: number | null;
+        milestoneCount?: number;
+        completedMilestoneCount?: number;
+        claimedAmountPence?: number;
+        remainingGrantValuePence?: number | null;
+      } = {
+        milestoneName: target.milestoneName,
+        claimAmountPence: saved.milestone?.claimAmountPence ?? null,
+      };
+
+      try {
+        const projectsRes = await apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`);
+        if (projectsRes.ok) {
+          const payload = await projectsRes.json() as {
+            projects?: Array<{
+              id: number;
+              milestoneCount?: number;
+              completedMilestoneCount?: number;
+              claimedAmountPence?: number;
+              remainingGrantValuePence?: number | null;
+            }>;
+          };
+          const project = (payload.projects ?? []).find((item) => item.id === target.projectId);
+          if (project) {
+            summary.milestoneCount = project.milestoneCount;
+            summary.completedMilestoneCount = project.completedMilestoneCount;
+            summary.claimedAmountPence = project.claimedAmountPence;
+            summary.remainingGrantValuePence = project.remainingGrantValuePence;
+          }
+        }
+      } catch {
+        // Completion succeeded; omit project totals when the refresh is offline.
+      }
+
       // Remove from the home screen list immediately
-      setUpcomingMilestones((prev) => prev.filter((m) => m.id !== markCompleteTarget.id));
+      setUpcomingMilestones((prev) => prev.filter((m) => m.id !== target.id));
       setMarkCompleteTarget(null);
       setEvidenceNote("");
+      setCompletionSummary(summary);
     } catch {
       Alert.alert("Offline", "Could not reach the server. Please try again when back online.");
     } finally {
@@ -814,6 +864,7 @@ export default function HomeScreen() {
                   onPress={() => {
                     setCompletionDate(new Date());
                     setEvidenceNote("");
+                    setCompletionSummary(null);
                     setMarkCompleteTarget({ id: ms.id, projectId: ms.projectId, milestoneName: ms.milestoneName });
                   }}
                 >
@@ -988,6 +1039,75 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Successful completion summary */}
+      <Modal
+        visible={!!completionSummary}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCompletionSummary(null)}
+      >
+        <View style={styles.mcOverlay}>
+          <Pressable style={styles.mcBackdrop} onPress={() => setCompletionSummary(null)} />
+          <View style={styles.mcSheet}>
+            <View style={styles.mcHandle} />
+            <View style={styles.mcIconRow}>
+              <View style={styles.mcIconBg}>
+                <Feather name="check-circle" size={20} color="#0D9488" />
+              </View>
+              <Text style={styles.mcHeading}>Milestone complete</Text>
+            </View>
+
+            {completionSummary && (
+              <>
+                <Text style={styles.mcMilestoneName} numberOfLines={2}>
+                  {completionSummary.milestoneName}
+                </Text>
+                {completionSummary.claimAmountPence != null && (
+                  <View style={styles.mcSummaryHighlight}>
+                    <Text style={styles.mcSummaryLabel}>This milestone</Text>
+                    <Text style={styles.mcSummaryAmount}>
+                      {formatPence(completionSummary.claimAmountPence)} claim value
+                    </Text>
+                  </View>
+                )}
+                {completionSummary.milestoneCount != null &&
+                  completionSummary.completedMilestoneCount != null &&
+                  completionSummary.claimedAmountPence != null && (
+                    <View style={styles.mcSummaryCard}>
+                      <Text style={styles.mcSummaryTitle}>Project progress</Text>
+                      <Text style={styles.mcSummaryProgress}>
+                        {completionSummary.completedMilestoneCount} of {completionSummary.milestoneCount} milestones complete
+                      </Text>
+                      <View style={styles.mcSummaryTotals}>
+                        <View style={styles.mcSummaryTotalItem}>
+                          <Text style={styles.mcSummaryLabel}>Claimed</Text>
+                          <Text style={styles.mcSummaryValue}>
+                            {formatPence(completionSummary.claimedAmountPence)}
+                          </Text>
+                        </View>
+                        {completionSummary.remainingGrantValuePence != null && (
+                          <View style={styles.mcSummaryTotalItem}>
+                            <Text style={styles.mcSummaryLabel}>Remaining</Text>
+                            <Text style={styles.mcSummaryValue}>
+                              {formatPence(completionSummary.remainingGrantValuePence)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                <Pressable
+                  style={styles.mcDoneBtn}
+                  onPress={() => setCompletionSummary(null)}
+                >
+                  <Text style={styles.mcConfirmText}>Done</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -997,6 +1117,10 @@ function getTimeOfDay(): string {
   if (hour < 12) return "morning";
   if (hour < 17) return "afternoon";
   return "evening";
+}
+
+function formatPence(pence: number): string {
+  return `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 0 })}`;
 }
 
 const styles = StyleSheet.create({
@@ -1326,6 +1450,64 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.md,
     color: "#fff",
+  },
+  mcDoneBtn: {
+    padding: spacing.md,
+    borderRadius: 10,
+    backgroundColor: "#0D9488",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.md,
+  },
+  mcSummaryHighlight: {
+    backgroundColor: "#F0FDFA",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#99F6E455",
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  mcSummaryCard: {
+    backgroundColor: colors.background ?? "#fafafa",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    padding: spacing.md,
+  },
+  mcSummaryTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  mcSummaryProgress: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  mcSummaryTotals: {
+    flexDirection: "row",
+    gap: spacing.lg,
+  },
+  mcSummaryTotalItem: {
+    flex: 1,
+  },
+  mcSummaryLabel: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  mcSummaryAmount: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: "#0D9488",
+  },
+  mcSummaryValue: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.lg,
+    color: colors.text,
   },
   winegbNudgeBanner: {
     flexDirection: "row",

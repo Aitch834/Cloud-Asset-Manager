@@ -42885,10 +42885,62 @@ router.delete("/farms/:farmId/pest-trap-captures/:id", requireAuth, requireTenan
 
 router.get("/farms/:farmId/agri-env-projects", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
-  const projects = await db.select().from(agriEnvProjectsTable)
-    .where(eq(agriEnvProjectsTable.farmId, farmId))
-    .orderBy(desc(agriEnvProjectsTable.createdAt));
-  res.json({ projects });
+  const [projects, milestones] = await Promise.all([
+    db.select().from(agriEnvProjectsTable)
+      .where(eq(agriEnvProjectsTable.farmId, farmId))
+      .orderBy(desc(agriEnvProjectsTable.createdAt)),
+    db.select({
+      projectId: agriEnvMilestonesTable.projectId,
+      status: agriEnvMilestonesTable.status,
+      claimAmountPence: agriEnvMilestonesTable.claimAmountPence,
+    }).from(agriEnvMilestonesTable)
+      .where(eq(agriEnvMilestonesTable.farmId, farmId)),
+  ]);
+
+  // Include lightweight project-wide progress so clients can show an
+  // up-to-date confirmation after a milestone changes. Keep the original
+  // project fields and response envelope unchanged for existing callers.
+  const projectProgress = new Map<number, {
+    milestoneCount: number;
+    completedMilestoneCount: number;
+    claimedAmountPence: number;
+  }>();
+  for (const milestone of milestones) {
+    const progress = projectProgress.get(milestone.projectId) ?? {
+      milestoneCount: 0,
+      completedMilestoneCount: 0,
+      claimedAmountPence: 0,
+    };
+    progress.milestoneCount += 1;
+    // A completed milestone remains complete while its claim is submitted
+    // or paid, so count all three states in the running progress total.
+    if (["completed", "submitted", "paid"].includes(milestone.status)) {
+      progress.completedMilestoneCount += 1;
+    }
+    // Match the grant screens' established drawdown semantics: claimed value
+    // means paid claims, while completed/submitted milestones remain progress.
+    if (milestone.status === "paid") {
+      progress.claimedAmountPence += milestone.claimAmountPence ?? 0;
+    }
+    projectProgress.set(milestone.projectId, progress);
+  }
+
+  res.json({
+    projects: projects.map((project) => {
+      const progress = projectProgress.get(project.id) ?? {
+        milestoneCount: 0,
+        completedMilestoneCount: 0,
+        claimedAmountPence: 0,
+      };
+      return {
+        ...project,
+        ...progress,
+        remainingGrantValuePence: project.totalGrantValuePence == null
+          ? null
+          : Math.max(0, project.totalGrantValuePence - progress.claimedAmountPence),
+      };
+    }),
+  });
 });
 
 router.post("/farms/:farmId/agri-env-projects", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
