@@ -477,6 +477,9 @@ function LogFillModal({ visible, farmId, vesselId, vesselRef, onClose, onSuccess
               onPress={() => { void handleSubmit(); }}
               disabled={submitting}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Save fill record"
+              testID="save-vessel-fill"
             >
               {submitting ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -620,6 +623,9 @@ function VesselRow({
         navigateToVessel(vessel);
       }}
       style={({ pressed }) => [styles.row, hasAlerts && styles.rowAlert, pressed && styles.rowPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`Open vessel ${vessel.vessel_ref}`}
+      testID={`vessel-row-${vessel.id}`}
     >
       {/* Left: ref + meta */}
       <View style={styles.rowMain}>
@@ -644,6 +650,9 @@ function VesselRow({
               onPress={e => { e.stopPropagation?.(); onLogFill?.(); }}
               hitSlop={6}
               style={({ pressed }) => [styles.noFillsBadge, pressed && { opacity: 0.65 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Log first fill for ${vessel.vessel_ref}`}
+              testID={`vessel-no-fills-${vessel.id}`}
             >
               <Feather name="plus-circle" size={11} color="#b45309" style={{ marginRight: 3 }} />
               <Text style={styles.noFillsBadgeText}>No fills logged</Text>
