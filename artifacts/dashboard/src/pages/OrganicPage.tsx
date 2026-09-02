@@ -289,9 +289,12 @@ function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cro
     ]),
   ]);
 }
-function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null) {
+function printInputRegister(records: OrganicInput[], farmName: string, cropYear: number | null, approvalStatusFilter = "all") {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const yearLabel = cropYear ? `Crop Year ${cropYear}` : "All Years";
+  const approvalStatusLabel = approvalStatusFilter !== "all"
+    ? `${APPROVAL_STATUS_LABELS[approvalStatusFilter] ?? approvalStatusFilter} only`
+    : "";
   const rows = records.map(r => `<tr>
     <td style="white-space:nowrap">${r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "—"}</td>
     <td style="font-weight:600">${r.productName}</td>
@@ -307,7 +310,7 @@ function printInputRegister(records: OrganicInput[], farmName: string, cropYear:
     <td>${r.notes || "—"}</td>
   </tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Input Register — ${farmName} — ${yearLabel}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel} · Complementary Record</p></div>
+<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Input Purchase Register · ${yearLabel}${approvalStatusLabel ? ` · ${approvalStatusLabel}` : ""} · Complementary Record</p></div>
 <div class="hdr-r"><b>Input Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
 <table><thead><tr><th>Date Used</th><th>Product</th><th>Input Type</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Approval Status</th><th>Derogation Expiry</th><th>Certifier Ref</th><th>Field / Area</th><th>Quantity</th><th>Notes</th></tr></thead>
 <tbody>${rows}</tbody></table>
@@ -1724,7 +1727,7 @@ function InputRegisterTab({ farmId, farmName }: { farmId: number; farmName: stri
               <Button variant="outline" size="sm" onClick={() => downloadInputRegisterCsv(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter), approvalStatusFilter)} className="gap-2">
                 <Download className="w-4 h-4" />Export CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => printInputRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter))} className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => printInputRegister(filteredRecords, farmName, yearFilter === "all" ? null : Number(yearFilter), approvalStatusFilter)} className="gap-2">
                 <Printer className="w-4 h-4" />Print Register
               </Button>
             </>
