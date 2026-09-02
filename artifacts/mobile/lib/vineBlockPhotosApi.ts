@@ -109,6 +109,12 @@ export interface PhotoReloadCallbacks {
   setReloadingPhotoId: (photoId: number | null) => void;
   reloadInFlightRef: { current: boolean };
   showReloadFailedAlert: () => void;
+  /**
+   * Returns false when the block that started this reload is no longer
+   * selected.  The component backs this with a synchronous selection
+   * generation so a late response cannot update the newly selected block.
+   */
+  isCurrent: () => boolean;
 }
 
 /**
@@ -133,6 +139,9 @@ export async function executePhotoReload(
 
   try {
     const freshUrl = await fetchBlockPhotoUrl(farmId, blockId, photoId);
+    // A grower may have switched blocks while the URL request was in flight.
+    // Do not show an error or patch the newly selected block with this response.
+    if (!callbacks.isCurrent()) return;
     if (freshUrl === null) {
       callbacks.showReloadFailedAlert();
       return;

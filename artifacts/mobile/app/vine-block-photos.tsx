@@ -1370,6 +1370,9 @@ export default function VineBlockPhotosScreen() {
   // compares the captured gen against the live counter before writing to state,
   // discarding any response whose generation no longer matches the latest.
   const loadGenRef = useRef(0);
+  // Separate from loadGenRef because background photo-list refreshes must not
+  // cancel a single-photo URL reload; only changing the selected block should.
+  const blockSelectionGenRef = useRef(0);
 
   // Advance the generation synchronously when the grower selects a different
   // block.  This closes the window between the selection commit and the next
@@ -1377,13 +1380,17 @@ export default function VineBlockPhotosScreen() {
   // otherwise slip past the guard.
   const handleSelectBlock = useCallback((block: VineBlock | null) => {
     loadGenRef.current++;
+    blockSelectionGenRef.current++;
     setSelectedBlock(block);
   }, []);
 
   // Unmount cleanup: advance the generation so any in-flight loadPhotos
   // call cannot write to state after the component has been torn down.
   useEffect(() => {
-    return () => { loadGenRef.current++; };
+    return () => {
+      loadGenRef.current++;
+      blockSelectionGenRef.current++;
+    };
   }, []);
 
   const openLightbox = useCallback((_uri: string | null, photo: BlockPhoto) => {
@@ -1439,10 +1446,12 @@ export default function VineBlockPhotosScreen() {
   // on different broken thumbnails cannot race past the React state commit.
   const handleReload = useCallback(async (photoId: number) => {
     if (!currentFarm?.id || !selectedBlock) return;
+    const blockSelectionGen = blockSelectionGenRef.current;
     await executePhotoReload(currentFarm.id, selectedBlock.id, photoId, {
       setPhotos,
       setReloadingPhotoId,
       reloadInFlightRef,
+      isCurrent: () => blockSelectionGen === blockSelectionGenRef.current,
       showReloadFailedAlert: () => {
         Alert.alert("Reload Failed", "Could not reload photo. Please check your connection and try again.");
       },

@@ -34,12 +34,13 @@ import {
 function makePhoto(
   id: number,
   downloadUrl: string | null,
+  blockId = 7,
 ): BlockPhotoRecord {
   return {
     id,
-    blockId: 7,
+    blockId,
     farmId: 3,
-    objectPath: `vineyard/block-7/photo-${id}.jpg`,
+    objectPath: `vineyard/block-${blockId}/photo-${id}.jpg`,
     fileName: `photo-${id}.jpg`,
     caption: null,
     isCover: false,
@@ -66,6 +67,7 @@ function errorResponse(status = 500): Response {
 
 const FARM_ID = 3;
 const BLOCK_ID = 7;
+const NEXT_BLOCK_ID = 8;
 const TARGET_PHOTO_ID = 101;
 const OTHER_PHOTO_ID = 102;
 const RELOAD_URL =
@@ -87,10 +89,14 @@ function createReloadHarness(initialPhotos: BlockPhotoRecord[]) {
     setReloadingPhotoId,
     reloadInFlightRef,
     showReloadFailedAlert,
+    isCurrent: () => true,
   };
 
   return {
     getPhotos: () => photos,
+    replacePhotos: (nextPhotos: BlockPhotoRecord[]) => {
+      photos = nextPhotos;
+    },
     callbacks,
     reloadInFlightRef,
     setPhotos,
@@ -229,6 +235,53 @@ describe("executePhotoReload — handleReload refresh path", () => {
     expect(harness.showReloadFailedAlert).toHaveBeenCalledTimes(1);
     expect(harness.reloadInFlightRef.current).toBe(false);
     expect(harness.setReloadingPhotoId).toHaveBeenLastCalledWith(null);
+  });
+
+  it("ignores a late URL response after the grower switches blocks", async () => {
+    const previousBlockPhotos = [
+      makePhoto(TARGET_PHOTO_ID, "https://cdn.example.com/expired-old-block.jpg"),
+    ];
+    const newlySelectedBlockPhotos = [
+      makePhoto(
+        TARGET_PHOTO_ID,
+        "https://cdn.example.com/current-new-block.jpg",
+        NEXT_BLOCK_ID,
+      ),
+    ];
+    const freshOldBlockUrl = "https://cdn.example.com/refreshed-old-block.jpg";
+    const harness = createReloadHarness(previousBlockPhotos);
+    let selectionGeneration = 1;
+    let resolveUrl!: (response: Response) => void;
+    const pendingUrl = new Promise<Response>((resolve) => {
+      resolveUrl = resolve;
+    });
+
+    (apiFetch as jest.MockedFunction<typeof apiFetch>).mockReturnValueOnce(pendingUrl);
+
+    const reload = executePhotoReload(
+      FARM_ID,
+      BLOCK_ID,
+      TARGET_PHOTO_ID,
+      {
+        ...harness.callbacks,
+        isCurrent: () => selectionGeneration === 1,
+      },
+    );
+
+    // Model the screen's synchronous block-selection generation bump and the
+    // new block's photo state before the old request is allowed to resolve.
+    selectionGeneration = 2;
+    harness.replacePhotos(newlySelectedBlockPhotos);
+    resolveUrl(okResponse({ downloadUrl: freshOldBlockUrl }));
+    await reload;
+
+    expect(harness.getPhotos()).toBe(newlySelectedBlockPhotos);
+    expect(harness.getPhotos()[0].downloadUrl).toBe(
+      "https://cdn.example.com/current-new-block.jpg",
+    );
+    expect(harness.setPhotos).not.toHaveBeenCalled();
+    expect(harness.showReloadFailedAlert).not.toHaveBeenCalled();
+    expect(harness.reloadInFlightRef.current).toBe(false);
   });
 });
 
