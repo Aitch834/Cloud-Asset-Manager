@@ -546,6 +546,20 @@ export async function getPendingSyncCount(): Promise<number> {
   return queue.filter((i) => i.status === "pending").length;
 }
 
+export async function getFailedSyncCount(): Promise<number> {
+  await ensureInit();
+  if (usingSQLite) {
+    const row = await db().getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM sync_queue WHERE status = 'failed'",
+    );
+    return row?.count ?? 0;
+  }
+  const raw = await AsyncStorage.getItem("bde_sync_queue");
+  if (!raw) return 0;
+  const queue: SyncQueueRow[] = JSON.parse(raw);
+  return queue.filter((i) => i.status === "failed").length;
+}
+
 export async function markSyncItemCompleted(id: string): Promise<void> {
   await ensureInit();
   if (usingSQLite) {

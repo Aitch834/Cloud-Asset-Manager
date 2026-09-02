@@ -56,7 +56,7 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, updateFarm, user } = useFarm();
   const { logout } = useAuth();
-  const { pendingCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
+  const { pendingCount, failedCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { triggerSmsRefresh } = useSmsPrefsContext();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
 
@@ -590,16 +590,22 @@ export default function MoreScreen() {
             subtitle={
               isSyncing
                 ? "Syncing..."
+                : failedCount > 0
+                  ? `${failedCount} record${failedCount === 1 ? "" : "s"} failed — tap to view`
                 : pendingCount > 0
                   ? `${pendingCount} record${pendingCount === 1 ? "" : "s"} pending — tap to view`
                   : "All records synced"
             }
             icon="refresh-cw"
-            iconColor={pendingCount > 0 ? colors.accent : colors.success}
-            iconBgColor={pendingCount > 0 ? colors.warningBg : colors.successBg}
+            iconColor={failedCount > 0 ? colors.error : pendingCount > 0 ? colors.accent : colors.success}
+            iconBgColor={failedCount > 0 ? colors.errorBg : pendingCount > 0 ? colors.warningBg : colors.successBg}
             onPress={() => router.push("/sync-status")}
             rightElement={
-              pendingCount > 0 ? (
+              failedCount > 0 ? (
+                <View style={styles.failedBadge}>
+                  <Text style={styles.failedBadgeText}>{failedCount}</Text>
+                </View>
+              ) : pendingCount > 0 ? (
                 <View style={styles.pendingBadge}>
                   <Text style={styles.pendingBadgeText}>{pendingCount}</Text>
                 </View>
@@ -1308,6 +1314,18 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   pendingBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xs,
+    color: colors.textInverse,
+  },
+  failedBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginRight: spacing.sm,
+  },
+  failedBadgeText: {
     fontFamily: fonts.bold,
     fontSize: fontSize.xs,
     color: colors.textInverse,

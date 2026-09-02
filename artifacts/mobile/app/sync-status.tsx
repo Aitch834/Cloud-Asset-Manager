@@ -30,7 +30,7 @@ const RECORD_TYPES: { key: string; label: string; icon: string }[] = [
 
 export default function SyncStatusScreen() {
   const insets = useSafeAreaInsets();
-  const { pendingCount, isSyncing, isConnected, lastSyncTime, lastError, triggerSync } = useSync();
+  const { pendingCount, failedCount, isSyncing, isConnected, lastSyncTime, lastError, triggerSync } = useSync();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -52,18 +52,24 @@ export default function SyncStatusScreen() {
 
   const statusColor = isSyncing
     ? colors.primary
+    : failedCount > 0
+    ? colors.error
     : pendingCount > 0
     ? colors.accent
     : colors.success;
 
   const statusLabel = isSyncing
     ? "Syncing…"
+    : failedCount > 0
+    ? `${failedCount} record${failedCount === 1 ? "" : "s"} failed — needs attention`
     : pendingCount > 0
     ? `${pendingCount} record${pendingCount === 1 ? "" : "s"} pending`
     : "All synced";
 
-  const statusIcon: "refresh-cw" | "clock" | "check-circle" = isSyncing
+  const statusIcon: "refresh-cw" | "clock" | "check-circle" | "alert-triangle" = isSyncing
     ? "refresh-cw"
+    : failedCount > 0
+    ? "alert-triangle"
     : pendingCount > 0
     ? "clock"
     : "check-circle";
@@ -165,6 +171,27 @@ export default function SyncStatusScreen() {
             </View>
           </View>
         </View>
+
+        {/* Failed Count */}
+        {failedCount > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Needs attention</Text>
+            <View style={[styles.card, styles.errorCard]}>
+              <View style={styles.pendingRow}>
+                <View>
+                  <Text style={[styles.pendingCount, { color: colors.error }]}>{failedCount}</Text>
+                  <Text style={[styles.pendingLabel, { color: colors.error }]}>
+                    Records failed to upload
+                  </Text>
+                </View>
+                <Feather name="alert-triangle" size={28} color={colors.error} />
+              </View>
+              <Text style={styles.errorHelp}>
+                These records need attention before they can be uploaded. Open the relevant history screen to retry or correct them.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Record Types */}
         <View style={styles.section}>
@@ -271,6 +298,13 @@ const styles = StyleSheet.create({
     lineHeight: 40,
   },
   pendingLabel: { fontSize: fontSize.sm, color: colors.textSecondary, fontFamily: fonts.regular },
+  errorHelp: {
+    fontSize: fontSize.sm,
+    color: colors.error,
+    fontFamily: fonts.regular,
+    lineHeight: 20,
+    paddingBottom: spacing.sm,
+  },
   syncNowBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,

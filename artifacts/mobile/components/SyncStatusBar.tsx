@@ -12,11 +12,12 @@ import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useSync } from "@/lib/context/SyncContext";
+import { router } from "expo-router";
 
 export function SyncStatusBar() {
-  const { pendingCount, isSyncing, isConnected, lastError, triggerSync } = useSync();
+  const { pendingCount, failedCount, isSyncing, isConnected, lastError, triggerSync } = useSync();
 
-  if (pendingCount === 0 && isConnected && !isSyncing && !lastError) {
+  if (pendingCount === 0 && failedCount === 0 && isConnected && !isSyncing && !lastError) {
     return null;
   }
 
@@ -40,11 +41,27 @@ export function SyncStatusBar() {
     bgColor = colors.accent;
     icon = "upload-cloud";
     text = `${pendingCount} record${pendingCount > 1 ? "s" : ""} to sync`;
+  } else if (failedCount > 0) {
+    bgColor = colors.error;
+    icon = "alert-triangle";
+    text = "Sync needs attention";
   }
+
+  const handlePress = () => {
+    if (failedCount > 0) {
+      router.push("/sync-status");
+      return;
+    }
+    if (isConnected && !isSyncing && pendingCount > 0) {
+      triggerSync();
+    }
+  };
 
   return (
     <Pressable
-      onPress={isConnected && !isSyncing && pendingCount > 0 ? triggerSync : undefined}
+      onPress={failedCount > 0 || (isConnected && !isSyncing && pendingCount > 0) ? handlePress : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={failedCount > 0 ? "View failed sync records" : "Sync pending records"}
       style={[styles.container, { backgroundColor: bgColor }]}
     >
       <View style={styles.content}>
@@ -54,6 +71,13 @@ export function SyncStatusBar() {
           <Feather name={icon} size={14} color="#fff" />
         )}
         <Text style={styles.text}>{text}</Text>
+        {failedCount > 0 && (
+          <View style={styles.failedBadge}>
+            <Text style={styles.failedBadgeText}>
+              {failedCount} failed
+            </Text>
+          </View>
+        )}
         {isConnected && !isSyncing && pendingCount > 0 && (
           <Text style={styles.tapText}>Tap to sync</Text>
         )}
@@ -82,5 +106,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.xs,
     color: "rgba(255,255,255,0.7)",
+  },
+  failedBadge: {
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  failedBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xs,
+    color: colors.error,
   },
 });

@@ -34,6 +34,7 @@ const [SyncProviderInner, useSync] = createContextHook(
 
     return {
       pendingCount: syncState.pendingCount,
+      failedCount: syncState.failedCount,
       isSyncing: syncState.isSyncing,
       isConnected: syncState.isConnected,
       lastSyncTime: syncState.lastSyncTime,

@@ -4,6 +4,7 @@ import {
   clearCompletedSyncItems,
   deferSyncItemIfUnchanged,
   deleteRecord,
+  getFailedSyncCount,
   getPendingSyncCount,
   getPendingSyncItems,
   kvGet,
@@ -27,6 +28,7 @@ type SyncListener = (state: SyncState) => void;
 
 export interface SyncState {
   pendingCount: number;
+  failedCount: number;
   isSyncing: boolean;
   isConnected: boolean;
   lastSyncTime: string | null;
@@ -35,6 +37,7 @@ export interface SyncState {
 
 const INITIAL_STATE: SyncState = {
   pendingCount: 0,
+  failedCount: 0,
   isSyncing: false,
   isConnected: true,
   lastSyncTime: null,
@@ -152,9 +155,12 @@ export function getState(): SyncState {
 }
 
 export async function refreshPendingCount(): Promise<number> {
-  const count = await getPendingSyncCount();
-  setState({ pendingCount: count });
-  return count;
+  const [pendingCount, failedCount] = await Promise.all([
+    getPendingSyncCount(),
+    getFailedSyncCount(),
+  ]);
+  setState({ pendingCount, failedCount });
+  return pendingCount;
 }
 
 /**
