@@ -2260,6 +2260,7 @@ export async function printHarvest(
   farmMeta?: Record<string, unknown> | null,
   yearLabel?: string,
   chemCols?: { avgBrix: boolean; avgPh: boolean; avgTa: boolean; avgPa: boolean },
+  vintageSort?: { col: string; dir: "asc" | "desc" },
 ) {
   const showBrix = chemCols?.avgBrix ?? true;
   const showPh   = chemCols?.avgPh   ?? true;
@@ -2904,16 +2905,53 @@ export async function printHarvest(
     for (const yr of uniqueVintages) { for (const bid of (vintageBlockIds[yr] ?? new Set())) allBlockIds.add(bid); }
     const grandTotalArea = [...allBlockIds].reduce((s, bid) => s + (parseFloat(String(blockLookup2[bid]?.areaHa ?? "0")) || 0), 0);
     const grandTha = grandTotalArea > 0 && totalKg > 0 ? totalKg / 1000 / grandTotalArea : null;
+    const vintageSortDirection = vintageSort?.dir === "asc" ? 1 : -1;
+    const vintageNumericCols = new Set(["picks", "totalKg", "derivedTha", "avgBrix", "avgPh", "avgTa", "avgPa"]);
+    const vintageSortValue = (v: typeof vintageObj[string], col: string, vintageYear: string): number => {
+      switch (col) {
+        case "picks": return v.picks;
+        case "totalKg": return v.totalKg;
+        case "derivedTha": return vintageTha(vintageYear) ?? NaN;
+        case "avgBrix": return v.brixCount > 0 ? v.brixSum / v.brixCount : NaN;
+        case "avgPh": return v.phCount > 0 ? v.phSum / v.phCount : NaN;
+        case "avgTa": return v.taCount > 0 ? v.taSum / v.taCount : NaN;
+        case "avgPa": return v.paCount > 0 ? v.paSum / v.paCount : NaN;
+        default: return NaN;
+      }
+    };
+    const sortedVintageKeys = [...uniqueVintages].sort((a, b) => {
+      const aEntry = vintageObj[a];
+      const bEntry = vintageObj[b];
+      if (!aEntry || !bEntry || !vintageSort || !vintageNumericCols.has(vintageSort.col)) return 0;
+      const aValue = vintageSortValue(aEntry, vintageSort.col, a);
+      const bValue = vintageSortValue(bEntry, vintageSort.col, b);
+      const aMissing = isNaN(aValue);
+      const bMissing = isNaN(bValue);
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return vintageSortDirection * (aValue - bValue);
+    });
+    const topVintage = vintageSort && vintageNumericCols.has(vintageSort.col) && sortedVintageKeys.length > 0
+      ? sortedVintageKeys[0]
+      : null;
     const vintageRows = uniqueVintages.map(yr => {
       const v = vintageObj[yr] ?? { picks: 0, totalKg: 0, brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
       const tha = vintageTha(yr);
+      const isTopVintage = topVintage === yr;
+      const vintageRowStyle = isTopVintage
+        ? "background:#ecfdf5;-webkit-print-color-adjust:exact;print-color-adjust:exact"
+        : "";
+      const topBadgeHtml = isTopVintage
+        ? ` <span style="display:inline-block;background:#d1fae5;color:#047857;border:1px solid #6ee7b7;border-radius:999px;padding:1px 6px;font-size:9px;font-weight:700;white-space:nowrap;-webkit-print-color-adjust:exact;print-color-adjust:exact">Top</span>`
+        : "";
       const vPickBadgeHtml = v.picks === 1
         ? ` <span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fbbf24;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap">&#9888; 1 pick \u2014 low confidence</span>`
         : v.picks <= 3
         ? ` <span style="display:inline-block;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:3px;padding:1px 5px;font-size:9px;white-space:nowrap">${v.picks} picks</span>`
         : "";
-      return `<tr>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;color:#7c3d12">${escHtml(yr)}${vPickBadgeHtml}</td>
+      return `<tr style="${vintageRowStyle}">
+        <td style="padding:5px 5px;border:1px solid #d1d5db;border-left:${isTopVintage ? "3px solid #10b981" : "1px solid #d1d5db"};font-weight:600;color:#7c3d12">${escHtml(yr)}${topBadgeHtml}${vPickBadgeHtml}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${v.picks}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${v.totalKg > 0 ? v.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${tha != null ? tha.toFixed(2) : "\u2014"}</td>
