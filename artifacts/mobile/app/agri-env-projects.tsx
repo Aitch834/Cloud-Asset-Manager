@@ -24,7 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { canApplyAgriEnvCacheLoad } from "@/lib/agri-env-cache";
 import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
-import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
+import { getIncomeSummaryYears } from "@/lib/agri-env-income-summary";
 import { applyTransactionProjectLink } from "@/lib/agri-env-transaction-link";
 import {
   AGRI_ENV_CACHE_TTL_MS,
@@ -95,10 +95,26 @@ function fmt(pence: number): string {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
+const ALL_INCOME_YEARS = "all" as const;
+type IncomeYear = number | typeof ALL_INCOME_YEARS;
 
 function formatDate(d: string | null | undefined): string {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function hasTransactionDateInYear(
+  transactionDate: string | null | undefined,
+  year: number,
+): boolean {
+  return typeof transactionDate === "string" && transactionDate.slice(0, 4) === String(year);
+}
+
+function matchesIncomeYear(
+  date: string | null | undefined,
+  selectedYear: IncomeYear,
+): boolean {
+  return selectedYear === ALL_INCOME_YEARS || hasTransactionDateInYear(date, selectedYear);
 }
 
 function expandedKey(farmId: string | number): string {
@@ -175,12 +191,16 @@ function MilestoneDeadlineSummary({
 function FarmDrawdownSummary({
   projects,
   milestones,
+  selectedYear,
+  onYearChange,
+  additionalYears,
 }: {
   projects: AgriEnvProject[];
   milestones: AgriEnvMilestone[];
+  selectedYear: IncomeYear;
+  onYearChange: (year: IncomeYear) => void;
+  additionalYears: number[];
 }) {
-  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
-
   // Only consider active/applied/pending projects with a grant value.
   // Withdrawn and completed projects still appear in the list below but
   // should not inflate the farm-wide summary bar.
@@ -192,14 +212,17 @@ function FarmDrawdownSummary({
 
   const includedIds = new Set(withValue.map(p => p.id));
   const totalGrantPence = withValue.reduce((s, p) => s + (p.totalGrantValuePence ?? 0), 0);
-  const availableYears = getIncomeSummaryYears(milestones, includedIds, CURRENT_YEAR);
+  const availableYears = Array.from(new Set([
+    ...getIncomeSummaryYears(milestones, includedIds, CURRENT_YEAR),
+    ...additionalYears,
+  ])).sort((a, b) => b - a);
 
   const paidPence = milestones
-    .filter(m => m.status === "paid" && includedIds.has(m.projectId) && hasCompletionDateInYear(m.completionDate, selectedYear))
+    .filter(m => m.status === "paid" && includedIds.has(m.projectId) && matchesIncomeYear(m.completionDate, selectedYear))
     .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
 
   const submittedPence = milestones
-    .filter(m => m.status === "submitted" && includedIds.has(m.projectId) && hasCompletionDateInYear(m.completionDate, selectedYear))
+    .filter(m => m.status === "submitted" && includedIds.has(m.projectId) && matchesIncomeYear(m.completionDate, selectedYear))
     .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
 
   const pct    = Math.min(100, Math.round(paidPence      / totalGrantPence * 100));
@@ -209,10 +232,10 @@ function FarmDrawdownSummary({
   const perProject = withValue.length > 1
     ? withValue.map(p => {
         const projPaid = milestones
-          .filter(m => m.status === "paid" && m.projectId === p.id && hasCompletionDateInYear(m.completionDate, selectedYear))
+          .filter(m => m.status === "paid" && m.projectId === p.id && matchesIncomeYear(m.completionDate, selectedYear))
           .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
         const projSubmitted = milestones
-          .filter(m => m.status === "submitted" && m.projectId === p.id && hasCompletionDateInYear(m.completionDate, selectedYear))
+          .filter(m => m.status === "submitted" && m.projectId === p.id && matchesIncomeYear(m.completionDate, selectedYear))
           .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
         // Remaining grant value is a lifetime figure, so it stays stable when
         // the income summary is switched to a different year.
@@ -240,20 +263,21 @@ function FarmDrawdownSummary({
         style={summaryStyles.yearPicker}
         accessibilityLabel="Select income year"
       >
-        {availableYears.map(year => {
+        {[ALL_INCOME_YEARS, ...availableYears].map(year => {
           const active = selectedYear === year;
+          const label = year === ALL_INCOME_YEARS ? "All years" : String(year);
           return (
             <Pressable
               key={year}
               testID={`agri-env-summary-year-${year}`}
               style={[summaryStyles.yearChip, active && summaryStyles.yearChipActive]}
-              onPress={() => setSelectedYear(year)}
+              onPress={() => onYearChange(year)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`Show agri-environment income for ${year}`}
+              accessibilityLabel={`Show agri-environment income for ${label}`}
             >
               <Text style={[summaryStyles.yearChipText, active && summaryStyles.yearChipTextActive]}>
-                {year}
+                {label}
               </Text>
             </Pressable>
           );
@@ -261,9 +285,13 @@ function FarmDrawdownSummary({
       </ScrollView>
       <View style={summaryStyles.labelsRow}>
         <Text style={summaryStyles.label}>
-          {paidPence > 0
-            ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed in ${selectedYear}`
-            : `${fmt(totalGrantPence)} total — no paid claims in ${selectedYear}`}
+          {selectedYear === ALL_INCOME_YEARS
+            ? paidPence > 0
+              ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed across all years`
+              : `${fmt(totalGrantPence)} total — no paid claims yet`
+            : paidPence > 0
+              ? `${fmt(paidPence)} of ${fmt(totalGrantPence)} claimed in ${selectedYear}`
+              : `${fmt(totalGrantPence)} total — no paid claims in ${selectedYear}`}
         </Text>
         <Text style={[summaryStyles.pct, pct >= 100 && summaryStyles.pctFull]}>
           {pct}%
@@ -277,7 +305,9 @@ function FarmDrawdownSummary({
       </View>
       {pctSub > 0 && (
         <Text style={summaryStyles.submittedNote}>
-          {fmt(submittedPence)} submitted in {selectedYear} (awaiting payment)
+          {selectedYear === ALL_INCOME_YEARS
+            ? `${fmt(submittedPence)} submitted across all years (awaiting payment)`
+            : `${fmt(submittedPence)} submitted in ${selectedYear} (awaiting payment)`}
         </Text>
       )}
 
@@ -395,6 +425,7 @@ export default function AgriEnvProjectsScreen() {
   const [expandedId,    setExpandedId]    = useState<number | null>(null);
   const [searchQuery,   setSearchQuery]   = useState("");
   const [statusFilter,  setStatusFilter]  = useState<string | null>(null);
+  const [selectedIncomeYear, setSelectedIncomeYear] = useState<IncomeYear>(CURRENT_YEAR);
   const [cachedAt,      setCachedAt]      = useState<Date | null>(null);
   const cancelRef  = useRef(false);
   // Generation counter — incremented at the start of every load(); async
@@ -804,6 +835,16 @@ export default function AgriEnvProjectsScreen() {
     return nameOk && statusOk;
   });
 
+  const paymentYears = Array.from(new Set(
+    transactions
+      .map(tx => tx.transactionDate?.slice(0, 4))
+      .map(year => year ? Number(year) : NaN)
+      .filter(year => Number.isInteger(year) && year >= 1900 && year <= CURRENT_YEAR + 1),
+  )).sort((a, b) => b - a);
+  const filteredTransactions = transactions.filter(tx =>
+    matchesIncomeYear(tx.transactionDate, selectedIncomeYear),
+  );
+
   // The mobile scheme filter is a type-to-search field. Use the same
   // scheme-only scope for deadline counts as the dashboard: status chips
   // affect the list, but not the selected scheme's deadline summary.
@@ -1147,12 +1188,52 @@ export default function AgriEnvProjectsScreen() {
                   upcomingCount={upcomingMs}
                   schemeFilter={schemeFilter}
                 />
-                <FarmDrawdownSummary projects={projects} milestones={milestones} />
+                <FarmDrawdownSummary
+                  projects={projects}
+                  milestones={milestones}
+                  selectedYear={selectedIncomeYear}
+                  onYearChange={setSelectedIncomeYear}
+                  additionalYears={paymentYears}
+                />
                 {/* Grant payment transactions with link badges */}
                 {transactions.length > 0 && (
                   <View style={txStyles.card}>
-                    <Text style={txStyles.heading}>Payments received</Text>
-                    {transactions.map((tx, idx) => {
+                    <View style={txStyles.headingRow}>
+                      <Text style={txStyles.heading}>Payments received</Text>
+                      <Text style={summaryStyles.yearLabel}>Income year</Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={summaryStyles.yearPickerContent}
+                      style={summaryStyles.yearPicker}
+                      accessibilityLabel="Filter payments by income year"
+                    >
+                      {[ALL_INCOME_YEARS, ...paymentYears].map(year => {
+                        const active = selectedIncomeYear === year;
+                        const label = year === ALL_INCOME_YEARS ? "All years" : String(year);
+                        return (
+                          <Pressable
+                            key={year}
+                            testID={`agri-env-payment-year-${year}`}
+                            style={[summaryStyles.yearChip, active && summaryStyles.yearChipActive]}
+                            onPress={() => setSelectedIncomeYear(year)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                            accessibilityLabel={`Show payments for ${label}`}
+                          >
+                            <Text style={[summaryStyles.yearChipText, active && summaryStyles.yearChipTextActive]}>
+                              {label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                    {filteredTransactions.length === 0 ? (
+                      <Text style={txStyles.emptyText}>
+                        No payments received {selectedIncomeYear === ALL_INCOME_YEARS ? "yet" : `in ${selectedIncomeYear}`}.
+                      </Text>
+                    ) : filteredTransactions.map((tx, idx) => {
                       const linked = tx.agriEnvProjectId != null;
                       const projectName = linked
                         ? (projects.find(p => p.id === tx.agriEnvProjectId)?.schemeName ?? `Project #${tx.agriEnvProjectId}`)
@@ -1164,7 +1245,7 @@ export default function AgriEnvProjectsScreen() {
                       return (
                         <View
                           key={tx.id}
-                          style={[txStyles.row, idx < transactions.length - 1 && txStyles.rowBorder]}
+                          style={[txStyles.row, idx < filteredTransactions.length - 1 && txStyles.rowBorder]}
                         >
                           <View style={txStyles.rowLeft}>
                             <Text style={txStyles.rowDesc} numberOfLines={2}>
@@ -2119,13 +2200,25 @@ const txStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  headingRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: spacing.sm,
+  },
   heading: {
     fontFamily: fonts.semiBold,
     fontSize: 11,
     color: colors.textTertiary,
     textTransform: "uppercase" as const,
     letterSpacing: 0.4,
-    marginBottom: spacing.xs,
+    flex: 1,
+  },
+  emptyText: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    paddingVertical: spacing.sm,
   },
   row: {
     flexDirection: "row" as const,
