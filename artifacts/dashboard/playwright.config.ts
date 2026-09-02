@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { execSync } from "child_process";
+import { existsSync } from "node:fs";
 import * as path from "path";
 
 /**
@@ -32,14 +33,7 @@ function buildNixLibPath(): string {
     "/nix/store/1ag0klg91f6gnhlx0iazgysahngp4rf8-nss-3.90.2/lib",
     // dbus
     "/nix/store/231d6mmkylzr80pf30dbywa9x9aryjgy-dbus-1.14.10-lib/lib",
-  ].filter((p) => {
-    try {
-      const fs = require("fs") as typeof import("fs");
-      return fs.existsSync(p);
-    } catch {
-      return false;
-    }
-  });
+  ].filter(existsSync);
 
   const profileLib = path.join(
     process.env.HOME ?? "/home/runner",
