@@ -1,9 +1,12 @@
 import {
   APPROACHING_NEUTRAL_FILLS,
+  BARREL_RETIREMENT_THRESHOLD_PENCE,
   IDLE_BARREL_DAYS,
   isApproachingNeutral,
+  isBarrelType,
   isIdleBarrel,
   resolveBarrelAlertThreshold,
+  resolveBarrelRetirementThresholdPence,
 } from "../lib/utils/vesselAlerts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -27,6 +30,31 @@ describe("resolveBarrelAlertThreshold", () => {
       APPROACHING_NEUTRAL_FILLS,
     );
     expect(resolveBarrelAlertThreshold("", "0", IDLE_BARREL_DAYS)).toBe(IDLE_BARREL_DAYS);
+  });
+});
+
+describe("resolveBarrelRetirementThresholdPence", () => {
+  it("converts a valid farm GBP override to pence ahead of the platform default", () => {
+    expect(resolveBarrelRetirementThresholdPence("750", 90000)).toBe(75000);
+  });
+
+  it("uses the platform pence default when the farm has no valid override", () => {
+    expect(resolveBarrelRetirementThresholdPence(null, "85000")).toBe(85000);
+  });
+
+  it("uses the £600 fallback when neither configured value is valid", () => {
+    expect(resolveBarrelRetirementThresholdPence("", "0")).toBe(
+      BARREL_RETIREMENT_THRESHOLD_PENCE,
+    );
+  });
+});
+
+describe("isBarrelType", () => {
+  it("recognises barrels and barriques without classifying other vessels", () => {
+    expect(isBarrelType("Oak barrel")).toBe(true);
+    expect(isBarrelType("Barrique")).toBe(true);
+    expect(isBarrelType("Stainless steel tank")).toBe(false);
+    expect(isBarrelType("Amphora")).toBe(false);
   });
 });
 

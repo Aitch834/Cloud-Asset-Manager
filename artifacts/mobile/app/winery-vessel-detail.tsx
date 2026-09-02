@@ -28,6 +28,11 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getApiBase } from "@/lib/uploadPhoto";
+import {
+  BARREL_RETIREMENT_THRESHOLD_PENCE,
+  isBarrelType,
+  resolveBarrelRetirementThresholdPence,
+} from "../lib/utils/vesselAlerts";
 
 // ── Auth helpers (mirrored from useApiFetch) ─────────────────────────────────
 
@@ -162,6 +167,76 @@ function useVesselDetail(
   const refresh = useCallback(() => { void load(true); }, [load]);
 
   return { data, loading, refreshing, error, refresh };
+}
+
+function useBarrelRetirementThreshold(
+  farmId: string | undefined,
+  enabled: boolean,
+): { thresholdPence: number; loaded: boolean } {
+  const [thresholdPence, setThresholdPence] = useState(BARREL_RETIREMENT_THRESHOLD_PENCE);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!farmId || !enabled) {
+      setThresholdPence(BARREL_RETIREMENT_THRESHOLD_PENCE);
+      setLoaded(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoaded(false);
+    void (async () => {
+      let farmThresholdGbp: unknown;
+      let platformThresholdPence: unknown;
+      const apiBase = getApiBase();
+      if (apiBase) {
+        const [farmResponse, platformResponse] = await Promise.all([
+          fetch(`${apiBase}/api/farms/${farmId}`, { headers: await getAuthHeaders() }).catch(() => null),
+          fetch(`${apiBase}/api/platform-config`).catch(() => null),
+        ]);
+
+        if (farmResponse?.ok) {
+          try {
+            const payload = await farmResponse.json() as {
+              record?: { barrelRetirementThresholdGbp?: unknown };
+            };
+            farmThresholdGbp = payload.record?.barrelRetirementThresholdGbp;
+          } catch {
+            // Keep looking for the platform default.
+          }
+        }
+        if (platformResponse?.ok) {
+          try {
+            const payload = await platformResponse.json() as {
+              config?: { barrel_retirement_threshold_pence?: unknown };
+            };
+            platformThresholdPence = payload.config?.barrel_retirement_threshold_pence;
+          } catch {
+            // Use the built-in fallback below.
+          }
+        }
+      }
+
+      const resolvedThresholdPence = resolveBarrelRetirementThresholdPence(
+        farmThresholdGbp,
+        platformThresholdPence,
+      );
+
+      if (!cancelled) {
+        setThresholdPence(resolvedThresholdPence);
+        setLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [farmId, enabled]);
+
+  return { thresholdPence, loaded };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1303,10 +1378,13 @@ export default function WineryVesselDetailScreen() {
     params.vesselId,
     isViticultureActive,
   );
+  const { thresholdPence: retirementThresholdPence, loaded: retirementThresholdLoaded } =
+    useBarrelRetirementThreshold(currentFarm?.id, isViticultureActive);
 
   const [movementModalOpen, setMovementModalOpen] = useState(false);
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false);
   const [logFillModalOpen, setLogFillModalOpen] = useState(false);
+  const [retirementAlertDismissed, setRetirementAlertDismissed] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<BarrelMaintenance | null>(null);
   const [editingMovement, setEditingMovement] = useState<BarrelMovement | null>(null);
   const [editingFill, setEditingFill] = useState<BarrelFill | null>(null);
@@ -1339,6 +1417,14 @@ export default function WineryVesselDetailScreen() {
     setCurrentPosition(latest.to_position ?? "");
   }, [data.movements]);
 
+  const totalMaintenanceSpendPence = data.maintenance.reduce(
+    (total, record) => {
+      if (record.cost_pence == null) return total;
+      const cost = Number(record.cost_pence);
+      return Number.isFinite(cost) ? total + cost : total;
+    },
+    0,
+  );
   function handleDeleteFill(fill: BarrelFill) {
     const label = [fill.wine_name, fill.variety].filter(Boolean).join(" · ") || `Fill ${fill.fill_number ?? "?"}`;
     Alert.alert(
@@ -1569,6 +1655,27 @@ export default function WineryVesselDetailScreen() {
               </TouchableOpacity>
             }
           />
+          {!loading &&
+          !error &&
+          retirementThresholdLoaded &&
+          !retirementAlertDismissed &&
+          isBarrelType(params.vesselType ?? null) &&
+          totalMaintenanceSpendPence > retirementThresholdPence ? (
+            <View style={styles.retirementWarning}>
+              <Feather name="alert-triangle" size={16} color="#D97706" style={styles.retirementWarningIcon} />
+              <Text style={styles.retirementWarningText}>
+                Total maintenance spend (£{(totalMaintenanceSpendPence / 100).toFixed(2)}) exceeds the retirement threshold (£{(retirementThresholdPence / 100).toFixed(0)}). Consider retiring this barrel.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setRetirementAlertDismissed(true)}
+                style={styles.retirementWarningDismiss}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss retirement warning"
+              >
+                <Text style={styles.retirementWarningDismissText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {data.maintenance.length === 0 ? (
             <EmptySection label="No cooperage or maintenance records." />
           ) : (
@@ -2003,6 +2110,37 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontFamily: fonts.semiBold,
     color: "#7c3aed",
+  },
+  retirementWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  retirementWarningIcon: {
+    marginTop: 1,
+  },
+  retirementWarningText: {
+    flex: 1,
+    fontSize: fontSize.xs,
+    fontFamily: fonts.regular,
+    color: "#92400E",
+    lineHeight: 18,
+  },
+  retirementWarningDismiss: {
+    paddingLeft: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  retirementWarningDismissText: {
+    fontSize: fontSize.sm,
+    lineHeight: 16,
+    fontFamily: fonts.semiBold,
+    color: "#D97706",
   },
   // Fill badge
   fillBadge: {

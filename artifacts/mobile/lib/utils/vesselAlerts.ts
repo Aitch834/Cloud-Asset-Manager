@@ -16,6 +16,9 @@ export const IDLE_BARREL_DAYS = 90;
 /** Final fallback: fill number at which a barrel is approaching neutral oak influence. */
 export const APPROACHING_NEUTRAL_FILLS = 4;
 
+/** Final fallback for total barrel maintenance spend before retirement. */
+export const BARREL_RETIREMENT_THRESHOLD_PENCE = 60000;
+
 /**
  * Mobile threshold fallback chain: farm override → platform default → hardcoded
  * constant. The platform default is supplied by the cached public config hook.
@@ -30,6 +33,23 @@ export function resolveBarrelAlertThreshold(
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
   }
   return hardcodedFallback;
+}
+
+/**
+ * Resolves the retirement threshold using the same units and precedence as the
+ * dashboard: farm override in GBP, then platform default in pence, then £600.
+ */
+export function resolveBarrelRetirementThresholdPence(
+  farmOverrideGbp: unknown,
+  platformDefaultPence: unknown,
+): number {
+  const farmGbp = Number(farmOverrideGbp);
+  if (Number.isInteger(farmGbp) && farmGbp > 0) return farmGbp * 100;
+
+  const platformPence = Number(platformDefaultPence);
+  if (Number.isInteger(platformPence) && platformPence > 0) return platformPence;
+
+  return BARREL_RETIREMENT_THRESHOLD_PENCE;
 }
 
 export function isBarrelType(vesselType: string | null): boolean {
