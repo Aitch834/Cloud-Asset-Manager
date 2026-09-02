@@ -1726,6 +1726,7 @@ export default function WineryVesselDetailScreen() {
             farmId={currentFarm.id}
             vesselId={params.vesselId}
             nextFillNumber={Math.max(0, ...data.fills.map(f => f.fill_number ?? 0)) + 1}
+            existingFillNumbers={data.fills.flatMap(f => f.fill_number == null ? [] : [f.fill_number])}
             onClose={() => setLogFillModalOpen(false)}
             onSuccess={() => { setLogFillModalOpen(false); refresh(); triggerBarrelRefresh(); }}
           />
@@ -2611,11 +2612,20 @@ interface LogFillModalProps {
   farmId: string;
   vesselId: string;
   nextFillNumber: number;
+  existingFillNumbers: number[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function LogFillModal({ visible, farmId, vesselId, nextFillNumber, onClose, onSuccess }: LogFillModalProps) {
+function LogFillModal({
+  visible,
+  farmId,
+  vesselId,
+  nextFillNumber,
+  existingFillNumbers,
+  onClose,
+  onSuccess,
+}: LogFillModalProps) {
   const [form, setForm] = useState<FillFormState>({
     fillNumber: String(nextFillNumber),
     wineName: "",
@@ -2670,6 +2680,10 @@ function LogFillModal({ visible, farmId, vesselId, nextFillNumber, onClose, onSu
     const fillNumber = parseInt(form.fillNumber.trim());
     if (!form.fillNumber.trim() || isNaN(fillNumber) || fillNumber < 1) {
       setError("Fill number must be a positive integer.");
+      return;
+    }
+    if (existingFillNumbers.includes(fillNumber)) {
+      setError(`Fill #${fillNumber} already exists on this barrel`);
       return;
     }
     let vintageYear: number | null = null;
