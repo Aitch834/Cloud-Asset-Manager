@@ -7,7 +7,7 @@ import { setNavGuard } from "@/lib/nav-guard";
 import {
   Megaphone, ImageIcon, Loader2, CheckCircle, AlertCircle, Eye,
   Plus, Pencil, Trash2, ChevronDown, X, Save, ChevronRight, Palette,
-  Upload, RotateCcw, Archive, BookmarkPlus, BookOpen,
+  Upload, RotateCcw, Archive, BookmarkPlus, BookOpen, AlertTriangle,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2191,63 +2191,88 @@ export default function AdPdfGenerator() {
         ) : templates.length === 0 ? (
           <p className="text-sm text-muted-foreground">No templates yet.</p>
         ) : (
-          <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
-            {templates.map((t) => {
-              const isArchived = !!t.archivedAt;
-              return (
-                <div key={t.id} className={`flex items-center gap-3 px-4 py-3 ${isArchived ? "bg-muted/40" : "bg-background"}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${isArchived ? "text-muted-foreground line-through" : ""}`}>{t.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.widthMm}&nbsp;×&nbsp;{t.heightMm}&nbsp;mm · <code>{t.slug}</code>
-                      {t.isDefault && !isArchived && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">default</span>}
-                      {isArchived && (
-                        <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
-                          <Archive className="w-3 h-3" />Archived
-                        </span>
+          <TooltipProvider>
+            <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+              {templates.map((t) => {
+                const isArchived = !!t.archivedAt;
+                const missingPlaceholders = REQUIRED_PLACEHOLDERS_GENERATE.filter(
+                  (placeholder) => !(t.htmlBody ?? "").includes(placeholder),
+                );
+                return (
+                  <div key={t.id} className={`flex items-center gap-3 px-4 py-3 ${isArchived ? "bg-muted/40" : "bg-background"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className={`text-sm font-medium truncate ${isArchived ? "text-muted-foreground line-through" : ""}`}>{t.name}</p>
+                        {missingPlaceholders.length > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                data-testid={`template-missing-placeholders-${t.id}`}
+                                aria-label={`Missing required placeholders: ${missingPlaceholders.join(", ")}`}
+                                className="inline-flex shrink-0 items-center rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span className="sr-only">Missing required placeholders</span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Missing required placeholder{missingPlaceholders.length > 1 ? "s" : ""}:{" "}
+                              {missingPlaceholders.join(", ")}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t.widthMm}&nbsp;×&nbsp;{t.heightMm}&nbsp;mm · <code>{t.slug}</code>
+                        {t.isDefault && !isArchived && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">default</span>}
+                        {isArchived && (
+                          <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground border border-border">
+                            <Archive className="w-3 h-3" />Archived
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isArchived ? (
+                        <button
+                          type="button"
+                          title="Restore"
+                          disabled={restoreMutation.isPending}
+                          onClick={() => restoreMutation.mutate(t.id)}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
+                        >
+                          <RotateCcw className="w-3 h-3" />Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            title="Edit"
+                            onClick={() => { setPanel({ edit: t }); setApiSaveWarnings([]); }}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Archive"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              if (!confirm(`Archive template "${t.name}"? It will no longer appear in the render selector but can be restored.`)) return;
+                              deleteMutation.mutate(t.id);
+                            }}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-amber-600 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
-                    </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {isArchived ? (
-                      <button
-                        type="button"
-                        title="Restore"
-                        disabled={restoreMutation.isPending}
-                        onClick={() => restoreMutation.mutate(t.id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium hover:bg-muted text-muted-foreground hover:text-foreground transition-colors border border-border"
-                      >
-                        <RotateCcw className="w-3 h-3" />Restore
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          title="Edit"
-                          onClick={() => { setPanel({ edit: t }); setApiSaveWarnings([]); }}
-                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Archive"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (!confirm(`Archive template "${t.name}"? It will no longer appear in the render selector but can be restored.`)) return;
-                            deleteMutation.mutate(t.id);
-                          }}
-                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-amber-600 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </TooltipProvider>
         )}
 
         {deleteMutation.isError && (
