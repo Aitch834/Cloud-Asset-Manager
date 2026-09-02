@@ -67,6 +67,7 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import { formatPhotoPosition } from "@/lib/photo-position";
 
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
@@ -238,7 +239,7 @@ function SortableFilmstripThumb({
       )}
       {!photo.isCover && (
         <button
-          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
           title="Drag to reorder"
           {...attributes}
           {...listeners}
@@ -389,6 +390,7 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
   // Derive the active lightbox photo from orderedPhotos (stays correct after reorders)
   const lightboxPhoto = lightboxId !== null ? (orderedPhotos.find(p => p.id === lightboxId) ?? null) : null;
   const lightboxIndex = lightboxPhoto ? orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) : -1;
+  const lightboxPosition = formatPhotoPosition(lightboxIndex, orderedPhotos.length);
 
   const goPrev = () => {
     if (lightboxIndex > 0) setLightboxId(orderedPhotos[lightboxIndex - 1].id);
@@ -528,18 +530,11 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       <Dialog open={!!lightboxPhoto} onOpenChange={o => { if (!o) setLightboxId(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-1 pb-1">
-            <DialogTitle className="text-sm font-medium flex flex-col items-start gap-0.5 min-w-0">
-              <span className="flex items-center gap-2 min-w-0 max-w-full">
-                <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
-                {orderedPhotos.length > 1 && lightboxPhoto && (
-                  <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
-                    {orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) + 1} of {orderedPhotos.length}
-                  </span>
-                )}
-              </span>
-              {lightboxPhoto?.caption && (
-                <span className="text-xs font-normal text-muted-foreground break-words">
-                  {lightboxPhoto.caption}
+            <DialogTitle className="text-sm font-medium flex items-center gap-2 min-w-0">
+              <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
+              {lightboxPosition && (
+                <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
+                  {lightboxPosition}
                 </span>
               )}
             </DialogTitle>
@@ -610,6 +605,9 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
                   >
                     <Star className="w-4 h-4" />
                   </button>
+                )}
+                {lightboxPhoto.caption && (
+                  <p className="text-xs text-center text-muted-foreground mt-1 italic">{lightboxPhoto.caption}</p>
                 )}
               </div>
 
