@@ -2014,7 +2014,7 @@ async function checkAgriEnvMilestoneDeadlines() {
     const daysOverdue = Math.abs(diffDays);
     let anyDelivered = false;
 
-    // Email all active users on this tenant
+    // Email active users on this tenant who opted in to alerts
     const recipients = await db
       .select({
         email: usersTable.email,
@@ -2027,6 +2027,7 @@ async function checkAgriEnvMilestoneDeadlines() {
         and(
           eq(userTenantsTable.tenantId, farm.tenantId),
           eq(userTenantsTable.isActive, true),
+          eq(userTenantsTable.receiveAlerts, true),
           isNotNull(usersTable.email),
         )
       );
