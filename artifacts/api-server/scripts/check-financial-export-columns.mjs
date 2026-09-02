@@ -155,6 +155,22 @@ async function getExport(startDate, endDate) {
   return callRaw("GET", `/farms/${FARM_ID}/financial-transactions/export?${qs}`);
 }
 
+// Farm-scoped request transactions commit from the response "finish" event,
+// so a successful create response can arrive just before the row is visible to
+// the next request. Poll the exact export under test instead of relying on a
+// fixed delay that becomes flaky under load.
+async function waitForLegacyRows(dateRangeStart, dateRangeEnd, tokens) {
+  let response = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    response = await legacyPostExport(dateRangeStart, dateRangeEnd);
+    const allVisible = response.status === 200
+      && tokens.every((token) => findTestRows(response.text, token).length === 1);
+    if (allVisible) return response;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return response;
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 async function cleanup() {
   for (const id of created) {
@@ -185,7 +201,7 @@ try {
 
   // Fetch both exports over the same date range.
   const [postResp, getResp] = await Promise.all([
-    legacyPostExport(RANGE_START, RANGE_END),
+    waitForLegacyRows(RANGE_START, RANGE_END, [`${TOKEN}-ENT`, `${TOKEN}-NOENT`]),
     getExport(RANGE_START, RANGE_END),
   ]);
 
