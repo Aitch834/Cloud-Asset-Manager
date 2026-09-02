@@ -275,6 +275,13 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     defaultValue: "", validValues: ["", ...COLOUR_OPTIONS],
   });
 
+  const PHOTO_COVERAGE_VALUES = ["", "has-photos", "no-photos"] as const;
+  const [filterPhotoCoverageRaw, setFilterPhotoCoverage] = usePersistedFilter({
+    page: "vine-register", filter: "photo-coverage", farmId,
+    defaultValue: "", validValues: PHOTO_COVERAGE_VALUES,
+  });
+  const filterPhotoCoverage = filterPhotoCoverageRaw as "" | "has-photos" | "no-photos";
+
   const SORT_KEYS = ["", "registeredVariety", "registeredAreaHa", "dateRegistered"];
   const [sortKey, setSortKey] = usePersistedFilter({
     page: "vine-register", filter: "sort-key", farmId,
@@ -299,6 +306,14 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     else if (filterStatus === "removed") rows = rows.filter(r => !!r.isRemovedFromRegister);
     if (filterGI) rows = rows.filter(r => String(r.giClassification ?? "") === filterGI);
     if (filterColour) rows = rows.filter(r => String(r.wineColour ?? "") === filterColour);
+    if (filterPhotoCoverage) {
+      rows = rows.filter(r => {
+        const linkedBlock = blocks.find(block => String(block.id) === String(r.blockId));
+        if (!linkedBlock) return false;
+        const hasPhotos = Number(linkedBlock?.photoCount ?? 0) > 0;
+        return filterPhotoCoverage === "has-photos" ? hasPhotos : !hasPhotos;
+      });
+    }
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
       rows = rows.filter(r =>
@@ -324,9 +339,9 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
       });
     }
     return rows;
-  }, [data, filterStatus, filterGI, filterColour, searchText, sortKey, sortDir]);
+  }, [data, blocks, filterStatus, filterGI, filterColour, filterPhotoCoverage, searchText, sortKey, sortDir]);
 
-  const activeFilterCount = [filterStatus, filterGI, filterColour, searchText.trim()].filter(Boolean).length;
+  const activeFilterCount = [filterStatus, filterGI, filterColour, filterPhotoCoverage, searchText.trim()].filter(Boolean).length;
 
   // Fetch farm-level FSA Vine Register Ref stored in Farm Settings
   const { data: farmRecordData } = useQuery<Record<string, unknown> | null>({
@@ -801,13 +816,24 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
           </SelectContent>
         </Select>
 
+        <Select value={filterPhotoCoverage || "__all__"} onValueChange={v => setFilterPhotoCoverage(v === "__all__" ? "" : v as "has-photos" | "no-photos")}>
+          <SelectTrigger className={`h-8 text-xs w-40 ${filterPhotoCoverage ? "border-primary text-primary" : ""}`}>
+            <SelectValue placeholder="All photo coverage" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All photo coverage</SelectItem>
+            <SelectItem value="has-photos">Has photos</SelectItem>
+            <SelectItem value="no-photos">No photos</SelectItem>
+          </SelectContent>
+        </Select>
+
         {activeFilterCount > 0 && (
           <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-muted-foreground"
             onClick={() => {
               // Use the hook setters (not raw state setters) so that the cleared
               // values are written back to localStorage. This ensures the filter
               // state is also reset on the next visit to the page.
-              setFilterStatus(""); setFilterGI(""); setFilterColour(""); setSearchText("");
+              setFilterStatus(""); setFilterGI(""); setFilterColour(""); setFilterPhotoCoverage(""); setSearchText("");
             }}>
             Clear filters ({activeFilterCount})
           </Button>
