@@ -31,7 +31,10 @@ export default async function globalSetup() {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
   if (!clerkSecretKey) throw new Error("CLERK_SECRET_KEY must be set");
 
-  // Create a new test user in Clerk
+  // Create a new test user in Clerk. If an earlier interrupted E2E run left
+  // enough generated users behind to hit Clerk's development quota, reuse one
+  // of those test-only identities so the suite can run and teardown can remove
+  // it normally.
   const testEmail = `e2e-1277-${Date.now()}@bde-test.example.com`;
   const createRes = await fetch("https://api.clerk.com/v1/users", {
     method: "POST",
@@ -47,17 +50,55 @@ export default async function globalSetup() {
     }),
   });
 
-  if (!createRes.ok) {
-    const body = await createRes.text();
-    throw new Error(`Failed to create Clerk test user: ${createRes.status} ${body}`);
-  }
+  let clerkUserId: string;
+  let mappedEmail = testEmail;
 
-  const clerkUser = await createRes.json() as { id: string };
-  const clerkUserId = clerkUser.id;
+  if (createRes.ok) {
+    const clerkUser = await createRes.json() as { id: string };
+    clerkUserId = clerkUser.id;
+  } else {
+    const body = await createRes.text();
+    const usersRes = await fetch(
+      "https://api.clerk.com/v1/users?limit=100&order_by=-created_at",
+      { headers: { Authorization: `Bearer ${clerkSecretKey}` } },
+    );
+
+    if (!usersRes.ok) {
+      throw new Error(
+        `Failed to create Clerk test user: ${createRes.status} ${body}; ` +
+        `fallback user lookup also failed: ${usersRes.status}`,
+      );
+    }
+
+    const users = await usersRes.json() as Array<{
+      id: string;
+      email_addresses?: Array<{ email_address?: string }>;
+    }>;
+    const reusable = users
+      .map(user => ({
+        id: user.id,
+        email: user.email_addresses?.[0]?.email_address ?? "",
+      }))
+      .find(user =>
+        user.email.startsWith("e2e-") &&
+        user.email.endsWith("@bde-test.example.com"),
+      );
+
+    if (!reusable) {
+      throw new Error(
+        `Failed to create Clerk test user: ${createRes.status} ${body}; ` +
+        "no reusable E2E test identity was found",
+      );
+    }
+
+    clerkUserId = reusable.id;
+    mappedEmail = reusable.email;
+    console.warn(`[e2e] Reusing interrupted-run test user: ${clerkUserId}`);
+  }
 
   // Persist the Clerk user ID and email for tests and teardown
   fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
-  fs.writeFileSync(EMAIL_FILE, testEmail, "utf-8");
+  fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
 
   // ── 3. Map the Clerk user to the development tenant in Postgres ───────────
   const db = new Client({ connectionString: process.env.DATABASE_URL });
@@ -78,7 +119,7 @@ export default async function globalSetup() {
        VALUES ($1, $2, 'E2E', 'Tester', NOW(), NOW())
        ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, first_name = EXCLUDED.first_name,
          last_name = EXCLUDED.last_name, updated_at = NOW()`,
-      [clerkUserId, testEmail],
+      [clerkUserId, mappedEmail],
     );
 
     // user_tenants.user_id stores the Clerk subject ID directly
