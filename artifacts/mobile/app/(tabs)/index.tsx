@@ -36,6 +36,11 @@ import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
 import {
+  formatAgriEnvMilestoneStatus,
+  getAgriEnvMilestoneSections,
+  type AgriEnvMilestoneRecord,
+} from "@/lib/agri-env-milestone-sections";
+import {
   getUpcomingInspectionReminders,
   type OrganicInspectionReminder,
   type OrganicInspectionReminderRecord,
@@ -79,14 +84,8 @@ export default function HomeScreen() {
   const [winegbPendingCount, setWinegbPendingCount] = useState(0);
   const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
   const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
-  const [upcomingMilestones, setUpcomingMilestones] = useState<Array<{
-    id: number;
-    projectId: number;
-    milestoneName: string;
-    dueDate: string;
-    schemeName: string;
-    isOverdue: boolean;
-  }>>([]);
+  const [upcomingMilestones, setUpcomingMilestones] = useState<ReturnType<typeof getAgriEnvMilestoneSections>["upcoming"]>([]);
+  const [pastMilestones, setPastMilestones] = useState<ReturnType<typeof getAgriEnvMilestoneSections>["past"]>([]);
   const [markCompleteTarget, setMarkCompleteTarget] = useState<{
     id: number;
     projectId: number;
@@ -159,35 +158,10 @@ export default function HomeScreen() {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/planner-events`);
       if (!res.ok) return;
       const data = await res.json();
-      const milestones: Array<{
-        id: number;
-        projectId: number;
-        milestoneName: string;
-        dueDate: string;
-        status: string;
-        schemeName: string;
-      }> = data.milestones ?? [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const horizon = new Date(today);
-      horizon.setDate(horizon.getDate() + 90);
-      const upcoming = milestones
-        .filter((m) => {
-          if (!m.dueDate) return false;
-          if (m.status === "paid" || m.status === "completed" || m.status === "cancelled") return false;
-          const due = new Date(m.dueDate);
-          return due <= horizon;
-        })
-        .map((m) => ({
-          id: m.id,
-          projectId: m.projectId,
-          milestoneName: m.milestoneName,
-          dueDate: m.dueDate,
-          schemeName: m.schemeName,
-          isOverdue: new Date(m.dueDate) < today,
-        }))
-        .slice(0, 5);
-      setUpcomingMilestones(upcoming);
+      const milestones: AgriEnvMilestoneRecord[] = data.milestones ?? [];
+      const sections = getAgriEnvMilestoneSections(milestones);
+      setUpcomingMilestones(sections.upcoming);
+      setPastMilestones(sections.past);
     } catch { /* ignore */ }
   }, [currentFarm?.id]);
 
@@ -828,7 +802,10 @@ export default function HomeScreen() {
                         ? `${ms.schemeName} · `
                         : ""}
                       {ms.isOverdue ? "Overdue — was due " : "Due "}
-                      {new Date(ms.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                      {new Date(`${ms.dueDate.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </Text>
+                    <Text style={styles.milestoneStatusLine}>
+                      Status: {formatAgriEnvMilestoneStatus(ms.status)}
                     </Text>
                   </View>
                 </Pressable>
@@ -844,6 +821,36 @@ export default function HomeScreen() {
                   <Text style={styles.milestoneCompleteBtnText}>Mark complete</Text>
                 </Pressable>
               </View>
+            ))}
+          </>
+        )}
+
+        {pastMilestones.length > 0 && (
+          <>
+            <SectionHeader title="Past milestones" />
+            {pastMilestones.map((ms) => (
+              <Pressable
+                key={ms.id}
+                style={[styles.unlinkedBanner, styles.pastMilestoneBanner]}
+                onPress={() => router.push("/agri-env-projects")}
+                accessibilityRole="button"
+                accessibilityLabel={`${ms.schemeName}, ${ms.milestoneName}, due ${new Date(`${ms.dueDate.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}, status ${formatAgriEnvMilestoneStatus(ms.status)}. Open agri-environment grants.`}
+              >
+                <View style={styles.unlinkedIconWrap}>
+                  <Feather name="check-circle" size={18} color={colors.textSecondary} />
+                </View>
+                <View style={styles.unlinkedContent}>
+                  <Text style={styles.unlinkedTitle}>{ms.milestoneName}</Text>
+                  <Text style={styles.unlinkedSubtitle}>
+                    {ms.schemeName ? `${ms.schemeName} · ` : ""}
+                    Due {new Date(`${ms.dueDate.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  </Text>
+                  <Text style={styles.milestoneStatusLine}>
+                    Status: {formatAgriEnvMilestoneStatus(ms.status)}
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textSecondary} />
+              </Pressable>
             ))}
           </>
         )}
@@ -1186,6 +1193,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: fontSize.xs,
     color: "#0D9488",
+  },
+  milestoneStatusLine: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
+  pastMilestoneBanner: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
   },
   // Mark Complete sheet
   mcOverlay: {
