@@ -500,10 +500,12 @@ function TransactionsTab({ farmId }: { farmId: number }) {
             <SelectItem value="auto">Auto-imported only</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={enterpriseFilter} onValueChange={setEnterpriseFilter}>
+        <Select value={enterpriseFilter === "" ? "__untagged__" : enterpriseFilter} onValueChange={value => setEnterpriseFilter(value === "__untagged__" ? "" : value)}>
           <SelectTrigger style={{ width: 160 }}><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Enterprises</SelectItem>
+            {/* Radix Select reserves an empty value, so map this internal value to the empty enterprise filter. */}
+            <SelectItem value="__untagged__">Untagged</SelectItem>
             <SelectItem value="Viticulture">Viticulture</SelectItem>
             <SelectItem value="Arable">Arable</SelectItem>
             <SelectItem value="Livestock">Livestock</SelectItem>
