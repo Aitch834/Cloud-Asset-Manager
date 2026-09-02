@@ -1010,6 +1010,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       "td{padding:3px 7px;border:1px solid #ddd;vertical-align:top}" +
       "tr:nth-child(even) td{background:#fafafa}" +
       ".empty{color:#888;font-style:italic;font-size:11px}" +
+       ".cost-summary{border:1px solid #ddd;background:#fafafa;padding:6px 8px;margin-bottom:6px}" +
+       ".cost-summary-total{font-weight:700}" +
+       ".cost-summary-breakdown{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}" +
+       ".cost-summary-item{background:#f0f0f0;border-radius:3px;padding:2px 6px;color:#555}" +
       ".footer{margin-top:14px;font-size:9px;color:#888}" +
       ".no-fills-note{background:#fffbeb;border:1px solid #f59e0b;border-radius:4px;padding:6px 10px;margin:10px 0;font-size:10px;color:#92400e;font-weight:600}" +
       "@media print{body{margin:10mm}}" +
@@ -1137,6 +1141,42 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       ]),
       "No cooperage or maintenance records logged.",
     );
+    const recordsWithCost = maint.filter(m => m.cost_pence != null).length;
+    if (recordsWithCost > 0) {
+      const spendByWorkType: [string, number][] = [];
+      const spendByWorkTypeMap: Record<string, number> = {};
+      for (const m of maint) {
+        if (m.cost_pence != null && m.work_type != null) {
+          const workType = String(m.work_type);
+          spendByWorkTypeMap[workType] = (spendByWorkTypeMap[workType] ?? 0) + Number(m.cost_pence);
+        }
+      }
+      spendByWorkType.push(
+        ...Object.entries(spendByWorkTypeMap)
+          .filter(([, pence]) => pence > 0)
+          .sort((a, b) => b[1] - a[1]),
+      );
+
+      addH2("Cost Summary");
+      const summary = doc.createElement("div");
+      summary.className = "cost-summary";
+      const total = doc.createElement("div");
+      total.className = "cost-summary-total";
+      total.textContent = `Total spend: £${(totalSpend / 100).toFixed(2)} across ${recordsWithCost} record${recordsWithCost !== 1 ? "s" : ""}`;
+      summary.appendChild(total);
+      if (spendByWorkType.length > 0) {
+        const breakdown = doc.createElement("div");
+        breakdown.className = "cost-summary-breakdown";
+        for (const [workType, pence] of spendByWorkType) {
+          const item = doc.createElement("span");
+          item.className = "cost-summary-item";
+          item.textContent = `${workType}: £${(pence / 100).toFixed(2)}`;
+          breakdown.appendChild(item);
+        }
+        summary.appendChild(breakdown);
+      }
+      doc.body.appendChild(summary);
+    }
 
     // Location movements
     addH2(`Location History (${movs.length} move${movs.length !== 1 ? "s" : ""})`);
