@@ -92,6 +92,7 @@ interface WineryVessel {
   empty_since: string | null; // ISO date of last rack-out, null if currently full or never filled
   fill_count: number | null;
   maintenance_count: number | null;
+  last_activity: string | null;
 }
 
 // ── Flag filter ───────────────────────────────────────────────────────────────
@@ -173,6 +174,7 @@ function navigateToVessel(vessel: WineryVessel): void {
       notes: vessel.notes ?? "",
       cellarZone: vessel.cellar_zone ?? "",
       cellarPosition: vessel.cellar_position ?? "",
+      lastActivity: vessel.last_activity ?? "",
     },
   });
 }

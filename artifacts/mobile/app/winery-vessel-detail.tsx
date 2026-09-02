@@ -173,6 +173,10 @@ function fmt(dateStr: string | null | undefined): string {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function fmtLastActivity(dateStr: string | null | undefined): string {
+  return dateStr ? fmt(dateStr) : "Never";
+}
+
 function pence(p: number | null): string {
   if (p == null) return "—";
   return `£${(p / 100).toFixed(2)}`;
@@ -1284,6 +1288,7 @@ export default function WineryVesselDetailScreen() {
     notes?: string;
     cellarZone?: string;
     cellarPosition?: string;
+    lastActivity?: string;
   }>();
 
   const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
@@ -1487,6 +1492,16 @@ export default function WineryVesselDetailScreen() {
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
+
+          {/* Latest fill, rack-out, or maintenance activity */}
+          <View style={styles.activityCard}>
+            <View style={styles.activityRow}>
+              <Text style={styles.activityLabel}>Last activity</Text>
+              <Text style={styles.activityValue}>
+                {fmtLastActivity(params.lastActivity)}
+              </Text>
+            </View>
+          </View>
 
           {/* Vessel notes */}
           {params.notes ? (
@@ -1747,6 +1762,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontFamily: fonts.regular,
     color: colors.error,
+  },
+  activityCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.xs,
+  },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  activityLabel: {
+    fontSize: fontSize.xs,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  activityValue: {
+    fontSize: fontSize.sm,
+    fontFamily: fonts.semiBold,
+    color: colors.text,
   },
   notesCard: {
     backgroundColor: colors.surface,
