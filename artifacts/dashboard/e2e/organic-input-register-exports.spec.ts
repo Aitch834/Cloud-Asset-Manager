@@ -159,10 +159,18 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   expect(downloadPath).not.toBeNull();
   const csv = fs.readFileSync(downloadPath!, "utf8");
   const [header, fixtureRow] = csv.trim().split(/\r?\n/);
+  const expectedDaysRemaining = await page.evaluate((expiryIso) => {
+    const [year, month, day] = expiryIso.split("-").map(Number);
+    const now = new Date();
+    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const expiry = Date.UTC(year, month - 1, day);
+    return Math.round((expiry - today) / 86_400_000);
+  }, EXPIRY_ISO);
 
   expect(header).toContain("Derogation Expiry");
   expect(fixtureRow).toContain(PRODUCT_NAME);
   expect(fixtureRow).toContain(EXPIRY_UK);
+  expect(fixtureRow).toMatch(new RegExp(`,${expectedDaysRemaining},`));
 
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Print Register", exact: true }).click();
@@ -178,6 +186,7 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   const printRow = popup.getByRole("row").filter({ hasText: PRODUCT_NAME });
   await expect(printRow).toContainText(PRODUCT_NAME);
   await expect(printRow).toContainText(EXPIRY_UK);
+  await expect(printRow).toContainText(String(expectedDaysRemaining));
 
   await popup.close();
 });

@@ -84,3 +84,4 @@
 - [Viticulture browser test fixture](viticulture-browser-test-fixture.md) — tab-level E2E checks need a farm with Viticulture enabled; authentication alone can land on the inactive-module state
 - [Clerk E2E user quota](clerk-e2e-user-quota.md) — browser-test global setup can fail before tests when the shared Clerk development tenant reaches its 100-user limit
 - [Expo unit-test isolation](expo-unit-test-isolation.md) — pure helpers used by native screens should live in lib modules so unit Jest tests do not import untransformed Expo-native ESM
+- [FP input-log calendar days](fp-input-log-calendar-days.md) — derive date-only derogation countdowns from UTC day numbers, not elapsed local-midnight milliseconds

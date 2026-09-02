@@ -28,6 +28,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { StaffSelect } from "@/components/ui/staff-select";
+import {
+  buildFpInputLogCsvRows,
+  buildFpInputLogPrintRows,
+  FP_INPUT_LOG_CSV_HEADERS,
+} from "@/lib/fp-input-log-export";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -454,40 +459,7 @@ function printFpBlockStatusRegister(blocks: Record<string, unknown>[], farmName:
 
 function printFpInputLog(rows: Record<string, unknown>[], farmName: string, yearLabel: string) {
   const today = new Date().toLocaleDateString("en-GB");
-  const todayMs = new Date().setHours(0, 0, 0, 0);
-  const rowsHtml = rows.map(r => {
-    const needsDerogCol = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
-    let derogCell = "—";
-    let daysCell = "—";
-    if (needsDerogCol && r.derogationExpiryDate) {
-      const expiryMs = new Date(r.derogationExpiryDate as string).setHours(0, 0, 0, 0);
-      const formatted = new Date(r.derogationExpiryDate as string).toLocaleDateString("en-GB");
-      const daysLeft = Math.round((expiryMs - todayMs) / 86400000);
-      derogCell = expiryMs < todayMs
-        ? `<span class="expiry-expired">${formatted}</span>`
-        : formatted;
-      daysCell = expiryMs < todayMs
-        ? `<span class="expiry-expired">${daysLeft}</span>`
-        : String(daysLeft);
-    }
-    return `
-    <tr>
-      <td>${r.applicationDate ? new Date(r.applicationDate as string).toLocaleDateString("en-GB") : "—"}</td>
-      <td>${String(r.cropYear ?? "—")}</td>
-      <td>${String(r.inputName ?? "—")}</td>
-      <td>${String(r.inputType ?? "—")}</td>
-      <td><span class="badge ${r.approvalStatus === 'permitted' ? 'badge-green' : r.approvalStatus === 'restricted' ? 'badge-yellow' : 'badge-red'}">${String(r.approvalStatus ?? "—")}</span></td>
-      <td>${derogCell}</td>
-      <td>${daysCell}</td>
-      <td>${String(r.supplier ?? "—")}</td>
-      <td>${r.quantityApplied ? String(r.quantityApplied) + ' ' + String(r.quantityUnit ?? "") : "—"}</td>
-      <td>${String(r.purposeOfUse ?? "—")}</td>
-      <td>${String(r.appliedBy ?? "—")}</td>
-      <td>${String(r.certifierApprovalRef ?? "—")}</td>
-      <td>${String(r.poReference ?? "—")}</td>
-      <td>${String(r.grnReference ?? "—")}</td>
-    </tr>`;
-  }).join("");
+  const rowsHtml = buildFpInputLogPrintRows(rows).join("");
   fpOpenPrint(`<!DOCTYPE html><html><head><title>Organic Input Log — ${farmName} — ${yearLabel}</title><style>${FP_PRINT_CSS}</style></head><body>
     <div class="hdr"><div class="hdr-l"><div class="title">Organic Fresh Produce — Approved Input Log · ${yearLabel}</div><div class="farm">${farmName}</div></div>
     <div class="hdr-r"><b>Input Log</b><br>${rows.length} record${rows.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
@@ -502,37 +474,9 @@ function exportFpInputLogCsv(rows: Record<string, unknown>[], farmName: string, 
   };
   const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const yearPart = yearLabel === "All Years" ? "" : `-${yearLabel}`;
-  const todayMs = new Date().setHours(0, 0, 0, 0);
   downloadCsvFile(`fp-input-log${yearPart}-${slug}.csv`, [
-    ["Date Applied", "Crop Year", "Input / Product", "Type", "Approval Status", "Expiry Date", "Days Remaining", "Supplier", "Qty Applied", "Unit", "Purpose", "Applied By", "Certifier Ref", "PO Ref", "GRN Ref", "Notes"],
-    ...rows.map(r => {
-      const needsDerог = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
-      let expiryDate = "";
-      let daysRemaining: string | number = "";
-      if (needsDerог && r.derogationExpiryDate) {
-        expiryDate = fmtDate(r.derogationExpiryDate);
-        const expiryMs = new Date(r.derogationExpiryDate as string).setHours(0, 0, 0, 0);
-        daysRemaining = Math.round((expiryMs - todayMs) / 86400000);
-      }
-      return [
-        fmtDate(r.applicationDate),
-        r.cropYear != null ? String(r.cropYear) : "",
-        r.inputName != null ? String(r.inputName) : "",
-        r.inputType != null ? String(r.inputType) : "",
-        r.approvalStatus != null ? String(r.approvalStatus) : "",
-        expiryDate,
-        daysRemaining,
-        r.supplier != null ? String(r.supplier) : "",
-        r.quantityApplied != null ? String(r.quantityApplied) : "",
-        r.quantityUnit != null ? String(r.quantityUnit) : "",
-        r.purposeOfUse != null ? String(r.purposeOfUse) : "",
-        r.appliedBy != null ? String(r.appliedBy) : "",
-        r.certifierApprovalRef != null ? String(r.certifierApprovalRef) : "",
-        r.poReference != null ? String(r.poReference) : "",
-        r.grnReference != null ? String(r.grnReference) : "",
-        r.notes != null ? String(r.notes) : "",
-      ];
-    }),
+    FP_INPUT_LOG_CSV_HEADERS,
+    ...buildFpInputLogCsvRows(rows),
   ]);
 }
 
