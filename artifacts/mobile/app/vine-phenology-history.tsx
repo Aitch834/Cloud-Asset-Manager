@@ -44,35 +44,11 @@ import {
   type WinegbSurvey,
   type WinegbSurveyKey,
 } from "@/lib/winegbSurveys";
-
-/**
- * Normalise a grower-typed date to YYYY-MM-DD.
- * Accepts: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY.
- * Returns null when blank, still being typed, unparseable, or an impossible
- * calendar date (e.g. 31 Feb or 30 Feb).
- */
-function canonicaliseDate(raw: string): string | null {
-  const s = raw.trim();
-  if (!s) return null;
-  let y: string, m: string, d: string;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    [y, m, d] = s.split("-") as [string, string, string];
-  } else {
-    const dmy = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/.exec(s);
-    if (!dmy) return null;
-    d = dmy[1]!; m = dmy[2]!; y = dmy[3]!;
-  }
-  const date = new Date(`${y}-${m}-${d}`);
-  if (
-    isNaN(date.getTime()) ||
-    date.getUTCFullYear() !== parseInt(y, 10) ||
-    date.getUTCMonth() + 1 !== parseInt(m, 10) ||
-    date.getUTCDate() !== parseInt(d, 10)
-  ) {
-    return null;
-  }
-  return `${y}-${m}-${d}`;
-}
+import {
+  canonicalisePhenologyDate,
+  filterPhenologyRecordsByDateRange,
+  isPhenologyDateInvalid,
+} from "@/lib/vinePhenologyDateFilter";
 
 // ─── WineGB Survey Panel ──────────────────────────────────────────────────────
 
@@ -541,10 +517,10 @@ export default function VinePhenologyHistoryScreen() {
     return () => { active = false; };
   }, [currentFarm?.id]);
 
-  const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
-  const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
-  const dateFromInvalid = dateFrom.trim().length >= 8 && canonFrom === null;
-  const dateToInvalid = dateTo.trim().length >= 8 && canonTo === null;
+  const canonFrom = useMemo(() => canonicalisePhenologyDate(dateFrom), [dateFrom]);
+  const canonTo = useMemo(() => canonicalisePhenologyDate(dateTo), [dateTo]);
+  const dateFromInvalid = isPhenologyDateInvalid(dateFrom);
+  const dateToInvalid = isPhenologyDateInvalid(dateTo);
   const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
 
   const displayRecords = useMemo(() => {
@@ -567,10 +543,8 @@ export default function VinePhenologyHistoryScreen() {
   const selectedSeasonYear = yearFilter === "all" ? currentYear : Number(yearFilter);
 
   const filtered = useMemo(() => {
-    let result = displayRecords;
+    let result = filterPhenologyRecordsByDateRange(displayRecords, dateFrom, dateTo);
     if (yearFilter !== "all") result = result.filter(r => winegbYearOf(r.observationDate) === yearFilter);
-    if (canonFrom) result = result.filter(r => r.observationDate && r.observationDate >= canonFrom);
-    if (canonTo) result = result.filter(r => r.observationDate && r.observationDate <= canonTo);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(r =>
@@ -581,7 +555,7 @@ export default function VinePhenologyHistoryScreen() {
       );
     }
     return result;
-  }, [displayRecords, yearFilter, search, canonFrom, canonTo]);
+  }, [displayRecords, yearFilter, search, dateFrom, dateTo]);
 
   const unlinkedCount = useMemo(() => displayRecords.filter(r => !r.blockId).length, [displayRecords]);
 
