@@ -67,7 +67,15 @@ jest.mock("react-native", () => {
     KeyboardAvoidingView,
     Modal,
     PanResponder: {
-      create: () => ({ panHandlers: {} }),
+      create: (config: {
+        onMoveShouldSetPanResponder: (...args: unknown[]) => boolean;
+        onPanResponderRelease: (...args: unknown[]) => void;
+      }) => ({
+        panHandlers: {
+          onMoveShouldSetResponder: config.onMoveShouldSetPanResponder,
+          onResponderRelease: config.onPanResponderRelease,
+        },
+      }),
     },
     Platform: { OS: "android" },
     Pressable,
@@ -167,7 +175,12 @@ jest.mock("../lib/scoutingPhotosApi", () => ({
 // Keep the test focused on the count callback instead of native gesture
 // implementation details inside the lightbox.
 jest.mock("../lib/scoutingLightboxHelpers", () => ({
-  getSwipeDirection: jest.fn(() => null),
+  getSwipeDirection: jest.fn(
+    (deleting: boolean, dx: number, threshold = 50) => {
+      if (deleting || Math.abs(dx) <= threshold) return null;
+      return dx < 0 ? "next" : "previous";
+    },
+  ),
   shouldAllowSwipe: jest.fn(() => false),
   getPaginationItems: jest.fn(() => []),
   isPaginationItemActive: jest.fn(() => false),
@@ -186,9 +199,13 @@ const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
 };
 
 import React, { useState } from "react";
-import { Alert } from "react-native";
+import { Alert, View } from "react-native";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
-import { ScoutingPhotoSection, type ScoutingPhoto } from "../components/ScoutingPhotoSection";
+import {
+  ScoutingPhotoLightbox,
+  ScoutingPhotoSection,
+  type ScoutingPhoto,
+} from "../components/ScoutingPhotoSection";
 import { ScoutingRow } from "../app/vine-scouting-history";
 
 function okResponse(payload: unknown): Response {
@@ -342,5 +359,32 @@ describe("scouting photo count badge", () => {
         { method: "DELETE" },
       );
     });
+  });
+});
+
+describe("ScoutingPhotoLightbox cover badge", () => {
+  it("hides the badge after swiping to a non-cover photo and restores it when swiping back", () => {
+    const screen = render(
+      <ScoutingPhotoLightbox
+        photos={[makePhoto(1), makePhoto(2)]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText("★")).toBeTruthy();
+
+    const swipeableView = screen
+      .UNSAFE_getAllByType(View)
+      .find((node) => typeof node.props.onResponderRelease === "function");
+    expect(swipeableView).toBeTruthy();
+
+    fireEvent(swipeableView!, "responderRelease", {}, { dx: -60, dy: 0 });
+    expect(screen.queryByText("★")).toBeNull();
+
+    fireEvent(swipeableView!, "responderRelease", {}, { dx: 60, dy: 0 });
+    expect(screen.getByText("★")).toBeTruthy();
   });
 });

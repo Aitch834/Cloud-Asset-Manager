@@ -66,18 +66,57 @@ jest.mock("expo-haptics", () => ({
 }));
 jest.mock("expo-media-library", () => ({}));
 jest.mock("expo-sharing", () => ({}));
-jest.mock("react-native-gesture-handler", () => ({
-  Gesture: {},
-  GestureDetector: ({ children }: { children: React.ReactNode }) => children,
-  GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => children,
-}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const makeGesture = () => {
+    const gesture: Record<string, unknown> = {};
+    let onBegin: ((...args: unknown[]) => void) | undefined;
+    let onUpdate: ((...args: unknown[]) => void) | undefined;
+    let onEnd: ((...args: unknown[]) => void) | undefined;
+    gesture.onBegin = (callbackOrEvent?: ((...args: unknown[]) => void) | unknown, ...args: unknown[]) => {
+      if (typeof callbackOrEvent === "function") onBegin = callbackOrEvent;
+      else onBegin?.(callbackOrEvent, ...args);
+      return gesture;
+    };
+    gesture.onUpdate = (callbackOrEvent: ((...args: unknown[]) => void) | unknown, ...args: unknown[]) => {
+      if (typeof callbackOrEvent === "function") onUpdate = callbackOrEvent;
+      else onUpdate?.(callbackOrEvent, ...args);
+      return gesture;
+    };
+    gesture.onEnd = (callbackOrEvent: ((...args: unknown[]) => void) | unknown, ...args: unknown[]) => {
+      if (typeof callbackOrEvent === "function") onEnd = callbackOrEvent;
+      else onEnd?.(callbackOrEvent, ...args);
+      return gesture;
+    };
+    gesture.numberOfTaps = () => gesture;
+    return gesture;
+  };
+
+  return {
+    Gesture: {
+      Pinch: makeGesture,
+      Pan: makeGesture,
+      Tap: makeGesture,
+      Race: (_doubleTap: unknown, pan: unknown) => pan,
+      Simultaneous: (primary: unknown) => primary,
+    },
+    GestureDetector: ({ children, gesture }: { children: React.ReactNode; gesture: unknown }) =>
+      React.createElement(ReactNative.View, { testID: "spray-lightbox-gesture", gesture }, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
 jest.mock("react-native-reanimated", () => ({
-  default: { View: "AnimatedView" },
+  __esModule: true,
+  default: { View: require("react-native").View },
   runOnJS: (fn: unknown) => fn,
-  useAnimatedStyle: jest.fn(),
-  useSharedValue: jest.fn(),
-  withSpring: jest.fn(),
-  withTiming: jest.fn(),
+  useAnimatedStyle: jest.fn(() => ({})),
+  useSharedValue: jest.fn((value: unknown) => ({ value })),
+  withSpring: jest.fn((value: unknown) => value),
+  withTiming: jest.fn((value: unknown, _config: unknown, callback?: () => void) => {
+    callback?.();
+    return value;
+  }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -109,8 +148,8 @@ jest.mock("../lib/vineSprayDiaryLightboxHelpers", () => ({
   MIN_SCALE: 1,
   SWIPE_DOWN_THRESHOLD: 80,
   SWIPE_HORIZ_THRESHOLD: 80,
-  counterText: jest.fn(),
-  showCounter: jest.fn(),
+  counterText: jest.fn((index: number, count: number) => `${index + 1} / ${count}`),
+  showCounter: jest.fn((count: number) => count > 1),
 }));
 
 jest.mock("../lib/apiFetch", () => ({
@@ -118,9 +157,12 @@ jest.mock("../lib/apiFetch", () => ({
 }));
 
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import { Image } from "react-native";
-import { SprayPhotoThumbnail } from "../app/vine-spray-diary-history";
+import {
+  SprayPhotoLightbox,
+  SprayPhotoThumbnail,
+} from "../app/vine-spray-diary-history";
 
 const photo = {
   id: 101,
@@ -161,5 +203,48 @@ describe("SprayPhotoThumbnail — history retry control", () => {
     expect(stopPropagation).toHaveBeenCalledTimes(1);
     expect(onReload).toHaveBeenCalledTimes(1);
     expect(onPress).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("SprayPhotoLightbox cover badge", () => {
+  it("hides the badge after swiping to a non-cover photo and restores it when swiping back", () => {
+    const screen = render(
+      <SprayPhotoLightbox
+        photos={[
+          { ...photo, id: 101, isCover: true },
+          { ...photo, id: 102, isCover: false },
+        ]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        farmId={3}
+        sprayDiaryId={7}
+        onCaptionSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText("★")).toBeTruthy();
+
+    const gestureDetector = screen.getByTestId("spray-lightbox-gesture");
+    const gesture = gestureDetector.props.gesture as {
+      onBegin: () => void;
+      onUpdate: (event: { translationX: number; translationY: number }) => void;
+      onEnd: (event: { translationX: number }) => void;
+    };
+
+    act(() => {
+      gesture.onBegin();
+      gesture.onUpdate({ translationX: -100, translationY: 0 });
+      gesture.onEnd({ translationX: -100 });
+    });
+    expect(screen.queryByText("★")).toBeNull();
+
+    act(() => {
+      gesture.onBegin();
+      gesture.onUpdate({ translationX: 100, translationY: 0 });
+      gesture.onEnd({ translationX: 100 });
+    });
+    expect(screen.getByText("★")).toBeTruthy();
   });
 });

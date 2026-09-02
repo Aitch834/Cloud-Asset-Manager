@@ -160,7 +160,7 @@ interface SprayLightboxProps {
   onSetCover?: (photo: SprayDiaryPhoto) => void | Promise<void>;
 }
 
-function SprayPhotoLightbox({
+export function SprayPhotoLightbox({
   photos,
   initialIndex,
   visible,
