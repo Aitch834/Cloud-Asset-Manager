@@ -12,6 +12,8 @@
  *      in column 8 (index 7) for the uniquely-tagged test transaction.
  *   C. Null enterprise — the legacy POST still produces a 9-column row with
  *      an empty string in column 8 for a transaction with no enterprise tag.
+ *   D. Empty result — the legacy POST returns a valid header-only CSV for a
+ *      date range with no matching transactions.
  *
  * Rows are identified by a unique token embedded in the description field so
  * that demo-farm data already in the DB cannot cause false passes.
@@ -186,6 +188,10 @@ const TOKEN = `COLCHK-${Date.now()}`;
 const TX_DATE    = "2020-06-15";
 const RANGE_START = "2020-06-01";
 const RANGE_END   = "2020-06-30";
+// Year 0001 is outside the range of dates accepted by the application, so
+// this range cannot overlap with a real financial transaction.
+const EMPTY_RANGE_START = "0001-01-01";
+const EMPTY_RANGE_END   = "0001-01-31";
 const ENTERPRISE_LABEL = "Arable";
 
 const EXPECTED_HEADERS = [
@@ -296,6 +302,40 @@ try {
       `got "${row[7]}"`,
     );
   }
+
+  // ── Test D: empty result still returns a valid header-only CSV ────────────
+  console.log("\n── Test D: no matching transactions — header-only CSV ────────────────");
+
+  const emptyPostResp = await legacyPostExport(EMPTY_RANGE_START, EMPTY_RANGE_END);
+  check(
+    "empty-range POST responds with HTTP 200",
+    emptyPostResp.status === 200,
+    `got HTTP ${emptyPostResp.status}`,
+  );
+  check(
+    "empty-range POST response is text/csv",
+    emptyPostResp.contentType.startsWith("text/csv"),
+    `got "${emptyPostResp.contentType}"`,
+  );
+
+  const emptyLines = emptyPostResp.text.split("\n").filter((line) => line.trim().length > 0);
+  check(
+    "empty-range POST contains only the header row",
+    emptyLines.length === 1,
+    `found ${emptyLines.length} non-empty line(s)`,
+  );
+
+  const emptyHeaders = parseCsvRow(emptyLines[0] ?? "");
+  check(
+    `empty-range header has ${EXPECTED_COL_COUNT} columns`,
+    emptyHeaders.length === EXPECTED_COL_COUNT,
+    `got ${emptyHeaders.length}: ${JSON.stringify(emptyHeaders)}`,
+  );
+  check(
+    "empty-range header matches the expected export schema",
+    JSON.stringify(emptyHeaders) === JSON.stringify(EXPECTED_HEADERS),
+    `got ${JSON.stringify(emptyHeaders)}`,
+  );
 
 } finally {
   await cleanup();
