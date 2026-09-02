@@ -464,6 +464,9 @@ export default function AgriEnvMilestoneDetailScreen() {
           bg: "#f3f4f6",
         })
       : null;
+  const siblingMilestones = milestone
+    ? projectMilestones.filter(candidate => candidate.id !== milestone.id)
+    : [];
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -798,6 +801,69 @@ export default function AgriEnvMilestoneDetailScreen() {
               <Text style={styles.evidenceText}>{milestone.evidenceNotes}</Text>
             </View>
           )}
+
+          {/* Sibling milestones — the full list is already loaded for this project. */}
+          {siblingMilestones.length > 0 && (
+            <View style={styles.milestonesCard}>
+              <Text style={styles.sectionHeading}>Milestones</Text>
+              <Text style={styles.milestonesHint}>Other milestones in this project</Text>
+              <View style={styles.siblingMilestoneList}>
+                {siblingMilestones.map((sibling, index) => {
+                  const siblingStatus =
+                    MILESTONE_STATUS_META[sibling.status] ?? {
+                      label: sibling.status,
+                      color: "#374151",
+                      bg: "#f3f4f6",
+                    };
+                  return (
+                    <Pressable
+                      key={sibling.id}
+                      style={[
+                        styles.siblingMilestoneRow,
+                        index < siblingMilestones.length - 1 &&
+                          styles.siblingMilestoneRowBorder,
+                      ]}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/agri-env-milestone-detail" as any,
+                          params: {
+                            projectId: String(sibling.projectId),
+                            milestoneId: String(sibling.id),
+                          },
+                        })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`${sibling.milestoneName ?? "Milestone"}, due ${formatDate(sibling.dueDate)}, ${siblingStatus.label}. Open milestone detail.`}
+                    >
+                      <View style={styles.siblingMilestoneMain}>
+                        <Text style={styles.siblingMilestoneName} numberOfLines={2}>
+                          {sibling.milestoneName ?? "Milestone"}
+                        </Text>
+                        <Text style={styles.siblingMilestoneDueDate}>
+                          Due {formatDate(sibling.dueDate)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.siblingMilestoneStatusPill,
+                          { backgroundColor: siblingStatus.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.siblingMilestoneStatusText,
+                            { color: siblingStatus.color },
+                          ]}
+                        >
+                          {siblingStatus.label}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </ScrollView>
       )}
     </View>
@@ -1111,6 +1177,62 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.text,
     lineHeight: 20,
+  },
+  milestonesCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+  },
+  milestonesHint: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  siblingMilestoneList: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  siblingMilestoneRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  siblingMilestoneRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight ?? colors.border,
+  },
+  siblingMilestoneMain: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  siblingMilestoneName: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  siblingMilestoneDueDate: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textTertiary,
+    marginTop: 3,
+  },
+  siblingMilestoneStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 99,
+    flexShrink: 0,
+  },
+  siblingMilestoneStatusText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
   },
 
   // Project context summary
