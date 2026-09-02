@@ -1,0 +1,73 @@
+/**
+ * Regression coverage for moving the cover badge between photos.
+ *
+ * The three photo screens intentionally keep their own record-specific state,
+ * so this source guard checks each handler rather than testing only one shared
+ * helper. The device checklist in docs/photo-cover-transition-regression.md
+ * covers the actual long-press interaction.
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+
+type Photo = { id: number; isCover: boolean };
+
+const screenSources = [
+  {
+    name: "scouting records",
+    file: "../components/ScoutingPhotoSection.tsx",
+  },
+  {
+    name: "new spray diary records",
+    file: "../app/vine-spray-diary.tsx",
+  },
+  {
+    name: "spray diary history records",
+    file: "../app/vine-spray-diary-history.tsx",
+  },
+].map((screen) => ({
+  ...screen,
+  source: fs.readFileSync(path.resolve(__dirname, screen.file), "utf8"),
+}));
+
+function promoteCover(photos: Photo[], promotedId: number): Photo[] {
+  return photos.map((photo) => ({
+    ...photo,
+    isCover: photo.id === promotedId,
+  }));
+}
+
+describe("mobile photo cover transitions", () => {
+  it("makes exactly the promoted photo the cover", () => {
+    const photos = promoteCover(
+      [
+        { id: 101, isCover: true },
+        { id: 202, isCover: false },
+      ],
+      202,
+    );
+
+    expect(photos).toEqual([
+      { id: 101, isCover: false },
+      { id: 202, isCover: true },
+    ]);
+    expect(photos.filter((photo) => photo.isCover)).toHaveLength(1);
+  });
+
+  it.each(screenSources)(
+    "$name clears the previous cover when the server accepts the promotion",
+    ({ source }) => {
+      expect(source).toMatch(
+        /if \(res\.ok\) \{\s*setPhotos\(\(prev\) => prev\.map\(\(p\) => \(\{ \.\.\.p, isCover: p\.id === photo\.id \}\)\)\);/s,
+      );
+    },
+  );
+
+  it.each(screenSources)(
+    "$name renders the star badge from current isCover state",
+    ({ source }) => {
+      expect(source).toContain("photo.isCover ?");
+      expect(source).toMatch(/<Text[^>]*>★<\/Text>/);
+    },
+  );
+});
