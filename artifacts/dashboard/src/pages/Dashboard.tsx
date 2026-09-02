@@ -317,7 +317,7 @@ export default function Dashboard() {
       {activeSubs.includes("risk-waste") && <FarmIncidentsSummary farmId={farmId} />}
 
       {/* Upcoming Key Dates */}
-      <UpcomingDatesPanel farmId={farmId} />
+      <UpcomingDatesPanel farmId={farmId} activeSubs={activeSubs} />
 
       {/* FP Derogation Expiry Alerts */}
       {activeSubs.includes("organic-fresh-produce") && (

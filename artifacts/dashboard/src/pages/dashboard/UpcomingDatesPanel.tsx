@@ -3,7 +3,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { CalendarDays, ArrowRight, Landmark, ShieldCheck, Leaf, Tag } from "lucide-react";
 
-export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
+interface OrganicInspection {
+  certifier: string;
+  inspectionDate: string | null;
+  nextDueDate: string | null;
+}
+
+export function UpcomingDatesPanel({ farmId, activeSubs }: { farmId: number; activeSubs: string[] }) {
   const now = new Date();
   const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
 
@@ -26,6 +32,15 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
       return (d.records ?? []).filter((c: any) => !["suspended", "withdrawn"].includes(c.status));
     },
   });
+  const organicInspectionsQ = useQuery<{ records: OrganicInspection[] }>({
+    queryKey: ["organic-inspections", farmId],
+    queryFn: async () => {
+      const r = await fetch(`/api/farms/${farmId}/organic/inspections`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load organic inspections");
+      return r.json();
+    },
+    enabled: activeSubs.includes("organic-compliance"),
+  });
 
   const calvingQ = useQuery({
     queryKey: ["dairy-calving", farmId],
@@ -36,6 +51,7 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
   const insurance: any[] = insuranceQ.data ?? [];
   const grants: any[] = grantsQ.data ?? [];
   const organicCerts: any[] = organicCertQ.data ?? [];
+  const organicInspections: OrganicInspection[] = organicInspectionsQ.data?.records ?? [];
   const calvings: any[] = calvingQ.data ?? [];
 
   type DateItem = { label: string; date: Date; daysUntil: number; href: string; type: string; urgent: boolean };
@@ -106,6 +122,34 @@ export function UpcomingDatesPanel({ farmId }: { farmId: number }) {
     addCertDate(cert.nextInspectionDue, "Organic inspection due");
     if (cert.annualInspectionDate && new Date(cert.annualInspectionDate) > now)
       addCertDate(cert.annualInspectionDate, "Annual inspection");
+  }
+
+  // Only the latest inspection for each certifier represents the current live
+  // deadline; older records' nextDueDates are historical.
+  const latestInspectionByCertifier = new Map<string, OrganicInspection>();
+  for (const inspection of organicInspections) {
+    const existing = latestInspectionByCertifier.get(inspection.certifier);
+    if (
+      !existing ||
+      (inspection.inspectionDate &&
+        (!existing.inspectionDate || inspection.inspectionDate > existing.inspectionDate))
+    ) {
+      latestInspectionByCertifier.set(inspection.certifier, inspection);
+    }
+  }
+  for (const inspection of latestInspectionByCertifier.values()) {
+    if (!inspection.nextDueDate) continue;
+    const d = new Date(inspection.nextDueDate);
+    if (Number.isNaN(d.getTime()) || d > in60Days) continue;
+    const daysUntil = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    items.push({
+      label: `Organic inspection due — ${inspection.certifier || "Organic certifier"}`,
+      date: d,
+      daysUntil,
+      href: "/organic?tab=inspections",
+      type: "Organic",
+      urgent: daysUntil <= 14,
+    });
   }
 
   items.sort((a, b) => a.daysUntil - b.daysUntil);
