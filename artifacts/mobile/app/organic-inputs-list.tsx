@@ -23,6 +23,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { getPendingSyncItems, kvGet, requestPendingSyncItemDiscard } from "@/lib/database";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { parseQueuedOrganicInputEdit } from "@/lib/organicInputOfflineEdit";
+import { buildInputRegisterCsv } from "@/lib/organicInputRegisterCsv";
 import { scheduleSync } from "@/lib/sync-engine";
 import {
   buildFilteredRestrictedInputsCsv,
@@ -36,60 +37,6 @@ function fmtDate(val: string | null | undefined): string {
   const d = new Date(val);
   if (isNaN(d.getTime())) return val;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function fmtDateCsv(val: string | null | undefined): string {
-  if (!val) return "";
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return val;
-  return d.toLocaleDateString("en-GB");
-}
-
-const APPROVAL_STATUS_LABELS: Record<string, string> = {
-  permitted: "Permitted",
-  restricted: "Restricted",
-  derogation: "Derogation",
-};
-
-/** Mirror of dashboard lib/csv.ts sanitiseCsvCell — prevents CSV formula injection. */
-const FORMULA_STARTERS = /^[=+\-@|%\t\r]/;
-function sanitiseCsvCell(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return FORMULA_STARTERS.test(s) ? "\t" + s : s;
-}
-
-/** Always-quoted cell: sanitise first, then wrap in double-quotes. */
-function quoteCsvCell(value: unknown): string {
-  const s = sanitiseCsvCell(value);
-  return `"${s.replace(/"/g, '""')}"`;
-}
-
-function getInputRegisterNotes(record: DisplayRecord): string {
-  if (!record.pending) return record.notes ?? "";
-  return record.notes ? `${record.notes} | Pending sync` : "Pending sync";
-}
-
-function buildInputRegisterCsv(records: DisplayRecord[]): string {
-  const rows: unknown[][] = [
-    ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref",
-     "Approval Status", "Derogation Expiry", "Certifier Ref", "Field / Area", "Quantity", "Notes"],
-    ...records.map(r => [
-      fmtDateCsv(r.dateOfUse),
-      r.productName,
-      r.inputType ?? "",
-      r.supplier ?? "",
-      r.poReference ?? "",
-      r.grnReference ?? "",
-      APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
-      fmtDateCsv(r.derogationExpiryDate),
-      r.certifierApprovalRef ?? "",
-      r.fieldName ?? "",
-      r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "",
-      getInputRegisterNotes(r),
-    ]),
-  ];
-  const body = rows.map(row => row.map(quoteCsvCell).join(",")).join("\r\n");
-  return "\uFEFF" + body; // UTF-8 BOM for Excel compatibility
 }
 
 async function downloadInputRegisterCsv(records: DisplayRecord[], farmName: string, cropYear: number | null) {
