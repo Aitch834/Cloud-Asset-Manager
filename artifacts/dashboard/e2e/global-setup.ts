@@ -69,6 +69,18 @@ export default async function globalSetup() {
     const roleId = roleRes.rows[0]?.id;
     if (!roleId) throw new Error("No roles found in database");
 
+    // Tenant discovery joins user_tenants to users. Keep the Clerk test
+    // identity represented in the application's user table as well as in the
+    // tenant mapping, otherwise an authenticated preview has no organisation
+    // to select.
+    await db.query(
+      `INSERT INTO users (id, email, first_name, last_name, created_at, updated_at)
+       VALUES ($1, $2, 'E2E', 'Tester', NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, first_name = EXCLUDED.first_name,
+         last_name = EXCLUDED.last_name, updated_at = NOW()`,
+      [clerkUserId, testEmail],
+    );
+
     // user_tenants.user_id stores the Clerk subject ID directly
     await db.query(
       `INSERT INTO user_tenants (user_id, tenant_id, role_id, is_super_admin, is_active, created_at, updated_at)

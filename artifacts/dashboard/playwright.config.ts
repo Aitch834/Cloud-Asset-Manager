@@ -22,7 +22,9 @@ import * as path from "path";
 function buildNixLibPath(): string {
   const knownNixPaths = [
     // glib — required for every Chromium launch
-    "/nix/store/2mi3dqfmc56502p1vdr4pgyf6jl3hw2a-glib-2.84.3/lib",
+    // NOTE: the 2.84.3 build available in this environment is 32-bit and
+    // breaks Chromium with ELFCLASS32, so we intentionally prefer the 64-bit
+    // 2.82.1 / 2.74.1 builds below.
     "/nix/store/26hcp8h792wl0h52c5r94qakhvk6q717-glib-2.82.1/lib",
     "/nix/store/2k366jrbsra97gjfxwvrhvixjfxdach5-glib-2.74.1/lib",
     // nss / nspr — required for SSL in Chromium
@@ -49,7 +51,20 @@ function buildNixLibPath(): string {
     .join(":");
 }
 
+function findChromiumExecutable(): string | undefined {
+  try {
+    const result = execSync(
+      "ls -d /nix/store/*playwright-chromium/chrome-linux/chrome-wrapper 2>/dev/null | head -n 1",
+      { encoding: "utf-8" },
+    ).trim();
+    return result || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const nixLibPath = buildNixLibPath();
+const chromiumExecutablePath = findChromiumExecutable();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -70,9 +85,12 @@ export default defineConfig({
     trace: "retain-on-failure",
 
     launchOptions: {
+      executablePath: chromiumExecutablePath,
       // Pass the Nix store library paths so the Chromium headless shell can
       // find glib, nss, etc. in the NixOS Replit container.
-      env: nixLibPath ? { LD_LIBRARY_PATH: nixLibPath } : {},
+      env: nixLibPath
+        ? { ...process.env, LD_LIBRARY_PATH: nixLibPath }
+        : { ...process.env },
     },
   },
 

@@ -1,6 +1,6 @@
 /**
  * Playwright global teardown — removes the Clerk test user created in
- * global-setup.ts and the corresponding user_tenants row.
+ * global-setup.ts and the corresponding application user/tenant rows.
  */
 
 import { Client } from "pg";
@@ -27,6 +27,7 @@ export default async function globalTeardown() {
   await db.connect();
   try {
     await db.query("DELETE FROM user_tenants WHERE user_id = $1", [clerkUserId]);
+    await db.query("DELETE FROM users WHERE id = $1", [clerkUserId]);
   } finally {
     await db.end();
   }
