@@ -2,9 +2,10 @@ import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
-  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout, BarChart3,
+  X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout, BarChart3, Trash2,
 } from "lucide-react";
 
 const STATUSES = [
@@ -147,9 +148,10 @@ interface PanelProps {
   lead: Lead;
   onClose: () => void;
   onSaved: (updated: Lead) => void;
+  onDeleted: () => void;
 }
 
-function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
+function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
   const secret = getSecret()!;
   const [, navigate] = useLocation();
   const [status, setStatus] = useState(lead.status);
@@ -159,6 +161,9 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
   const [source, setSource] = useState(lead.source ?? "");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -180,6 +185,20 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
       console.error(e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteLead(lead.id, secret);
+      onDeleted();
+    } catch (error) {
+      console.error(error);
+      setDeleteError(error);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -357,7 +376,7 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-border shrink-0">
+        <div className="px-6 py-4 border-t border-border shrink-0 space-y-3">
           <button
             onClick={handleSave}
             disabled={saving || !dirty}
@@ -366,8 +385,32 @@ function LeadPanel({ lead, onClose, onSaved }: PanelProps) {
             <Save className="w-4 h-4" />
             {saving ? "Saving…" : "Save Changes"}
           </button>
+          <button
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteDialogOpen(true);
+            }}
+            disabled={deleting}
+            className="w-full flex items-center justify-center gap-2 h-10 rounded-lg border border-destructive/40 text-destructive text-sm font-semibold hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete lead
+          </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete lead"
+        message={`Delete ${lead.businessName}? This cannot be undone.`}
+        confirmLabel="Delete lead"
+        confirmVariant="destructive"
+        onConfirm={handleDelete}
+        onCancel={() => {
+          setDeleteDialogOpen(false);
+          setDeleteError(null);
+        }}
+        mutation={{ isError: deleteError !== null, isPending: deleting, error: deleteError }}
+      />
     </div>
   );
 }
@@ -391,6 +434,12 @@ export default function Leads() {
   const handleSaved = (updated: Lead) => {
     setLeads((prev) => prev.map((l) => l.id === updated.id ? updated : l));
     setSelected(updated);
+  };
+
+  const handleDeleted = () => {
+    if (!selected) return;
+    setLeads((prev) => prev.filter((lead) => lead.id !== selected.id));
+    setSelected(null);
   };
 
   const filtered = useMemo(() => {
@@ -571,6 +620,7 @@ export default function Leads() {
           lead={selected}
           onClose={() => setSelected(null)}
           onSaved={handleSaved}
+          onDeleted={handleDeleted}
         />
       )}
     </div>

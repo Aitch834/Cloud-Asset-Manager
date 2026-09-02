@@ -535,6 +535,9 @@ export const api = {
   updateLead: (id: number, data: { status?: string; notes?: string; source?: string; sector?: string | null }, secret: string) =>
     patch<{ lead: Lead }>(`/admin/leads/${id}`, data, secret),
 
+  deleteLead: (id: number, secret: string) =>
+    del<{ deleted: boolean }>(`/admin/leads/${id}`, secret),
+
   updateTenant: async (id: number, data: { isActive?: boolean; cancelReason?: string; cancelledAt?: string | null; referredBy?: string | null; contactName?: string; contactEmail?: string; contactPhone?: string | null }, secret: string) => {
     const result = await patch<{ tenant: Tenant }>(`/admin/tenants/${id}`, data, secret);
     tenantListCacheRevision += 1;
