@@ -3884,6 +3884,10 @@ router.post("/admin/ad-pdf", requireAuth, async (req: Request, res: Response): P
 //         like any normal cache entry.
 
 router.delete("/admin/ad-brand-assets/cache", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   if (!(await checkPlatformAdmin(req, res))) return;
   _brandAssetCache = null;
   res.json({ flushed: true });

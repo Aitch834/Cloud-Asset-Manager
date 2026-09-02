@@ -2,23 +2,21 @@
 /**
  * check-ad-brand-asset-cache-guard.mjs
  *
- * Confirms that the NODE_ENV=production 404 guard on
- * PUT /admin/ad-brand-assets/cache is in place and works correctly.
+ * Confirms that the NODE_ENV=production 404 guards on
+ * PUT and DELETE /admin/ad-brand-assets/cache are in place and work correctly.
  *
- * Background: The PUT cache-override endpoint is a test-only hook that lets
- * integration checks inject known asset URIs without touching the DB or
- * on-disk fallback files.  When NODE_ENV=production it must return 404 so
- * that the mechanism cannot be invoked on a live deployment.
+ * Background: The PUT cache-override and DELETE cache-flush endpoints are
+ * test-only hooks.  When NODE_ENV=production they must return 404 so that
+ * test state cannot be injected or manually reset on a live deployment.
  *
  * Tests:
- *   A. Static source check — guard expression present in admin.ts source,
- *      and fires BEFORE the auth check (cannot be bypassed by an unauthenticated
- *      caller in production either).
- *   B. Dev-server integration — super-admin + valid body → 200 OK with
- *      { overridden: true }.
- *   C. Dev-server integration — super-admin + missing fields → 400 Bad Request.
+ *   A. Static source check — both guard expressions are present in admin.ts
+ *      source, return 404, and fire BEFORE the auth checks.
+ *   B. Dev-server integration — super-admin + valid PUT body → 200 OK with
+ *      { overridden: true }, and DELETE → 200 OK with { flushed: true }.
+ *   C. Dev-server integration — super-admin + missing PUT fields → 400 Bad Request.
  *   D. Production simulation — child process with NODE_ENV=production replicates
- *      the exact guard logic and must return 404 for any caller.
+ *      the exact guard logic and both methods must return 404 for any caller.
  *
  * Usage:  node scripts/check-ad-brand-asset-cache-guard.mjs
  * Env:    API_BASE         (default http://localhost:80/api)
@@ -184,20 +182,25 @@ async function spawnProductionSimServer() {
     tmp.on("error", reject);
   });
 
-  // Inline script — replicates the guard block verbatim, minus the auth check
-  // (which is tested separately by the dev-server integration tests above).
-  // The guard must fire BEFORE auth, so removing auth does not change its behaviour.
+  // Inline script — replicates both guard blocks verbatim, minus the auth checks
+  // (which are tested separately by the dev-server integration tests above).
+  // The guards must fire BEFORE auth, so removing auth does not change behaviour.
   const inlineScript = `
 const http = require("node:http");
 const server = http.createServer((req, res) => {
-  if (req.method === "PUT" && req.url === "/admin/ad-brand-assets/cache") {
-    // ── Guard replicated verbatim from admin.ts ──────────────────────────────
+  if ((req.method === "PUT" || req.method === "DELETE") && req.url === "/admin/ad-brand-assets/cache") {
+    // ── Guards replicated verbatim from admin.ts ─────────────────────────────
     if (process.env.NODE_ENV === "production") {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Not found" }));
       return;
     }
-    // ────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────
+    if (req.method === "DELETE") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ flushed: true }));
+      return;
+    }
     let data = "";
     req.on("data", (c) => { data += c; });
     req.on("end", () => {
@@ -258,33 +261,36 @@ check(
   'guard missing — endpoint is unprotected in production',
 );
 
-// 1b. The route handler returns 404 under that condition.
+  // 1b. Both route handlers return 404 under that condition.
 check(
-  "admin.ts: route returns 404 under the production guard",
+  "admin.ts: PUT and DELETE handlers return 404 under the production guard",
   adminSrc.includes('process.env.NODE_ENV === "production"') &&
     (() => {
-      // Find the PUT /admin/ad-brand-assets/cache handler block and verify it
-      // contains a 404 response inside the production branch.
-      const handlerRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-      const match = adminSrc.match(handlerRe);
-      return match !== null && match[0].includes("status(404)");
+      const putRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
+      const deleteRe = /router\.delete\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
+      const putMatch = adminSrc.match(putRe);
+      const deleteMatch = adminSrc.match(deleteRe);
+      return putMatch !== null && putMatch[0].includes("status(404)") &&
+        deleteMatch !== null && deleteMatch[0].includes("status(404)");
     })(),
-  "the PUT /admin/ad-brand-assets/cache handler is missing or has no 404 response",
+  "the PUT or DELETE /admin/ad-brand-assets/cache handler is missing or has no 404 response",
 );
 
-// 1c. The guard fires BEFORE the checkPlatformAdmin auth call.
+// 1c. Both guards fire BEFORE their checkPlatformAdmin auth calls.
 check(
-  "admin.ts: NODE_ENV guard fires before checkPlatformAdmin (no auth bypass path in production)",
+  "admin.ts: PUT and DELETE guards fire before checkPlatformAdmin",
   (() => {
-    const handlerRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-    const match = adminSrc.match(handlerRe);
-    if (!match) return false;
-    const body        = match[0];
-    const guardPos    = body.indexOf('process.env.NODE_ENV === "production"');
-    const authPos     = body.indexOf("checkPlatformAdmin");
-    return guardPos !== -1 && authPos !== -1 && guardPos < authPos;
+    const putRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
+    const deleteRe = /router\.delete\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
+    return [adminSrc.match(putRe), adminSrc.match(deleteRe)].every((match) => {
+      if (!match) return false;
+      const body = match[0];
+      const guardPos = body.indexOf('process.env.NODE_ENV === "production"');
+      const authPos = body.indexOf("checkPlatformAdmin");
+      return guardPos !== -1 && authPos !== -1 && guardPos < authPos;
+    });
   })(),
-  "guard must appear before checkPlatformAdmin so production blocks ALL callers, not just anonymous ones",
+  "guards must appear before checkPlatformAdmin so production blocks ALL callers, not just anonymous ones",
 );
 
 // ── Tests B & C: dev-server integration ───────────────────────────────────────
@@ -335,8 +341,19 @@ if (!hasDatabaseUrl) {
       `qrUri flag was: ${JSON.stringify(devOk.json?.qrUri)}`,
     );
 
-    // Flush the injected cache so we leave the server in a clean state.
-    await call("DELETE", "/admin/ad-brand-assets/cache");
+    // Test B2: super-admin can flush the cache in development → 200
+    console.log("\n── Test B2: dev-server — super-admin DELETE flush → 200 ────────────");
+    const devFlush = await call("DELETE", "/admin/ad-brand-assets/cache");
+    check(
+      "dev-server: DELETE cache flush → 200",
+      devFlush.status === 200,
+      `got ${devFlush.status}: ${JSON.stringify(devFlush.json)}`,
+    );
+    check(
+      "dev-server: DELETE response contains flushed: true",
+      devFlush.json?.flushed === true,
+      `body was: ${JSON.stringify(devFlush.json)}`,
+    );
 
     // Test C: missing fields → 400
     console.log("\n── Test C: dev-server — super-admin + missing fields → 400 ─────────");
@@ -415,7 +432,29 @@ try {
     `got ${prodEmpty.status}`,
   );
 
-  // D3: verify the guard is not applied to unrelated routes (sanity).
+  // D3: DELETE must also be rejected in production, without auth or body parsing.
+  const prodDelete = await fetch(`${base}/admin/ad-brand-assets/cache`, {
+    method: "DELETE",
+  });
+  let prodDeleteJson = null;
+  try { prodDeleteJson = await prodDelete.json(); } catch { /* non-JSON */ }
+  check(
+    "production: DELETE /admin/ad-brand-assets/cache → 404",
+    prodDelete.status === 404,
+    `got ${prodDelete.status}: ${JSON.stringify(prodDeleteJson)}`,
+  );
+  check(
+    "production: DELETE 404 body has error field",
+    typeof prodDeleteJson?.error === "string",
+    `body was: ${JSON.stringify(prodDeleteJson)}`,
+  );
+  check(
+    "production: DELETE 404 error message is 'Not found'",
+    prodDeleteJson?.error === "Not found",
+    `error was: ${JSON.stringify(prodDeleteJson?.error)}`,
+  );
+
+  // D4: verify the guard is not applied to unrelated routes (sanity).
   const prodOther = await fetch(`${base}/admin/ad-brand-assets/unrelated-route`, {
     method: "GET",
   });
