@@ -33,6 +33,7 @@ import {
 } from "@/lib/restricted-inputs-export";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+import { buildOrganicInspectionCsvRows } from "@/lib/organic-inspection-csv";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -112,27 +113,13 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string, 
 }
 
 function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, year: number | null) {
-  const fmtDate = (v: string | null | undefined) => {
-    if (!v) return "";
-    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
-  };
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const yearPart = year ? `-${year}` : "";
   const dateStr = new Date().toISOString().slice(0, 10);
-  downloadCsvFile(`inspections-${safeName}${yearPart}-${dateStr}.csv`, [
-    ["Date", "Certifier", "Inspector", "Outcome", "Cert Ref", "Next Due", "Non-Conformances", "Actions Required", "Notes"],
-    ...records.map(r => [
-      fmtDate(r.inspectionDate),
-      r.certifier,
-      r.inspectorName ?? "",
-      r.outcome,
-      r.certificateReference ?? "",
-      fmtDate(r.nextDueDate),
-      r.nonConformances ?? "",
-      r.actions ?? "",
-      r.notes ?? "",
-    ]),
-  ]);
+  downloadCsvFile(
+    `inspections-${safeName}${yearPart}-${dateStr}.csv`,
+    buildOrganicInspectionCsvRows(records),
+  );
 }
 
 function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
