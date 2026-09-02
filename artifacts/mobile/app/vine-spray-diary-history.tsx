@@ -157,13 +157,25 @@ interface SprayLightboxProps {
   farmId: string | number;
   sprayDiaryId: number;
   onCaptionSaved: (photoId: number, caption: string | null) => void;
+  onSetCover?: (photo: SprayDiaryPhoto) => void | Promise<void>;
 }
 
-function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, farmId, sprayDiaryId, onCaptionSaved }: SprayLightboxProps) {
+function SprayPhotoLightbox({
+  photos,
+  initialIndex,
+  visible,
+  onClose,
+  onReload,
+  farmId,
+  sprayDiaryId,
+  onCaptionSaved,
+  onSetCover,
+}: SprayLightboxProps) {
   const insets = useSafeAreaInsets();
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imgError, setImgError] = useState(false);
+  const [settingCover, setSettingCover] = useState(false);
 
   // Caption editing
   const [editingCaption, setEditingCaption] = useState(false);
@@ -192,6 +204,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   // Reset error state when the photo index changes
   useEffect(() => {
     setImgError(false);
+    setSettingCover(false);
   }, [currentIndex]);
 
   // Reset error state when the presigned URL is refreshed for the current photo
@@ -208,6 +221,7 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
       const idx = Math.min(initialIndex, photos.length - 1);
       setCurrentIndex(idx);
       setImgError(false);
+      setSettingCover(false);
       setEditingCaption(false);
       setCaptionDraft("");
       indexSv.value = idx;
@@ -438,6 +452,16 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
   const caption = photo?.caption ?? null;
   const hasMultiple = showCounter(photos.length);
 
+  const handleSetCover = useCallback(async () => {
+    if (!photo || photo.isCover || !onSetCover || settingCover) return;
+    setSettingCover(true);
+    try {
+      await onSetCover(photo);
+    } finally {
+      setSettingCover(false);
+    }
+  }, [photo, onSetCover, settingCover]);
+
   return (
     <Modal
       visible={visible}
@@ -494,6 +518,23 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Feather name="share-2" size={22} color="#fff" />
+              )}
+            </Pressable>
+          ) : null}
+
+          {/* Set as Cover button — only shown for non-cover photos */}
+          {photo && onSetCover && !photo.isCover ? (
+            <Pressable
+              style={[lbStyles.setCoverBtn, { top: insets.top + 12 }, settingCover && lbStyles.disabledAction]}
+              hitSlop={24}
+              onPress={handleSetCover}
+              disabled={settingCover}
+              accessibilityLabel="Set as cover"
+            >
+              {settingCover ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={lbStyles.setCoverIcon}>★</Text>
               )}
             </Pressable>
           ) : null}
@@ -1016,6 +1057,7 @@ function SprayDiaryPhotoSection({
                 prev.map((p) => (p.id === photoId ? { ...p, caption } : p)),
               );
             }}
+            onSetCover={handleSetCover}
           />
         </>
       )}
@@ -2767,6 +2809,22 @@ const lbStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  setCoverBtn: {
+    position: "absolute",
+    right: 64,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  setCoverIcon: {
+    color: "#fff",
+    fontSize: 20,
+    lineHeight: 24,
   },
   disabledAction: {
     opacity: 0.4,

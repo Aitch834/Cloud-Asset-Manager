@@ -3,7 +3,7 @@
 - [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten
 - [IPM plan field name mismatches](ipm-field-names.md) — threshold dialog field names corrected; DB columns and API field names for IPM plans documented
 - [Organic-arable module — COMPLETE](organic-arable-complete.md) — fully built; never re-examine or re-implement any part of it
-- [lib/db rebuild after schema changes](lib-db-rebuild.md) — API uses compiled dist/ declarations; must rebuild lib/db before API typecheck after any schema edit
+- [lib/db rebuild after schema changes](lib-db-rebuild.md) — API uses compiled declarations; run `npx tsc --build tsconfig.json` in lib/db after schema edits
 - [Startup migrations required for new tables](startup-migrations-required.md) — raw SQL push only fixes dev; new tables/RLS must also be added to an api-server startup migration or deploys break
 - [Schema push — drizzle-kit hangs; use raw SQL script](schema-push-raw-sql.md) — drizzle-kit push hangs on interactive prompts; push new nullable columns with a node ESM script importing pg directly from the pnpm store path
 - [Invoice branding & business info](invoice-branding.md) — farm logo/company/VAT/bank fields in farmsTable + FarmSettings + invoice print headers
@@ -45,7 +45,6 @@
 - [LIS CLA births/deaths — UNSUPPORTED in v1.0](lis-cla-animals-api.md) — births/deaths are confirmed unsupported in CLA v1.0; cattle also no longer supported; submitLisBirth/Death stubbed; route guards early-return 422; lisBtn restricted to on/off only
 - [Livestock withdrawal alerting](livestock-withdrawal-alerting.md) — gte(col, dateString) only works for `date` columns; use sql`col >= CURRENT_DATE` for timestamp columns; CRITICAL_TYPES must include any new type that needs SMS
 - [EIDCymru + ScotEID integration boundary](eidcymru-scoteid-scaffold.md) — EIDCymru uses per-keeper EWS SOAP credentials with real staging/production endpoints; preserve its provider boundary for the announced replacement API
-- [lib/db rebuild command](lib-db-rebuild.md) — correct command after schema changes: `cd lib/db && npx tsc --build tsconfig.json`; not `pnpm --filter @workspace/db run build` (no build script exists)
 - [Record unknown && JSX TypeScript error](record-unknown-jsx.md) — `{record.field && <JSX />}` when record is `Record<string,unknown>` yields `unknown`, not ReactNode; fix with `{!!record.field && <JSX />}`
 - [Enter-opens-dialog ghost close](enter-opens-dialog-ghost-close.md) — Enter handlers that open a Radix dialog must preventDefault or the keystroke leaks into the dialog and instantly closes it
 - [Clerk e2e login needs DB tenant mapping](clerk-e2e-login-tenant-mapping.md) — tester's programmatic Clerk sub must be inserted into users+user_tenants; dashboard serves built dist, rebuild before e2e

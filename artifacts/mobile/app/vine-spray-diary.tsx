@@ -204,6 +204,7 @@ interface SprayDiaryLightboxProps {
   visible: boolean;
   onClose: () => void;
   onDelete: (photoId: number) => void;
+  onSetCover?: (photo: SprayDiaryPhoto) => void | Promise<void>;
 }
 
 /**
@@ -220,7 +221,14 @@ interface SprayDiaryLightboxProps {
  *   • Double-tap          → toggle 2.5× zoom
  *   • Pan while zoomed    → free pan
  */
-function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }: SprayDiaryLightboxProps) {
+function SprayDiaryLightbox({
+  photos,
+  initialIndex,
+  visible,
+  onClose,
+  onDelete,
+  onSetCover,
+}: SprayDiaryLightboxProps) {
   const insets = useSafeAreaInsets();
 
   // Track the displayed photo by ID so navigation survives a delete that
@@ -251,6 +259,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
     if (resolvedIndex >= 0) lastDisplayedIndexRef.current = resolvedIndex;
   }, [currentIndex, resolvedIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { totalSv.value = photos.length; }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSettingCover(false); }, [currentPhotoId]);
 
   // Close or clamp when photos shrink (e.g. delete while lightbox is open)
   useEffect(() => {
@@ -281,6 +290,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
   const bgOpacity = useSharedValue(0);
 
   const [imgError, setImgError] = useState(false);
+  const [settingCover, setSettingCover] = useState(false);
   const prevUriRef = useRef<string | null>(null);
 
   // Reset animation state when the lightbox opens / closes
@@ -289,6 +299,7 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
       const idx = Math.min(initialIndex, Math.max(photosRef.current.length - 1, 0));
       setCurrentPhotoId(photosRef.current[idx]?.id ?? null);
       lastDisplayedIndexRef.current = idx;
+      setSettingCover(false);
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -437,6 +448,16 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
   const uri = photo?.downloadUrl ?? null;
   const displayedPhotoId = resolveCurrentPhotoId(photos, currentIndex);
 
+  const handleSetCover = useCallback(async () => {
+    if (!photo || photo.isCover || !onSetCover || settingCover) return;
+    setSettingCover(true);
+    try {
+      await onSetCover(photo);
+    } finally {
+      setSettingCover(false);
+    }
+  }, [photo, onSetCover, settingCover]);
+
   // Reset image error when navigating to a new photo or URLs are refreshed
   if (prevUriRef.current !== uri) {
     prevUriRef.current = uri;
@@ -479,6 +500,23 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
             </Pressable>
           ) : null}
 
+          {/* Set as Cover button — only shown for non-cover photos */}
+          {photo && onSetCover && !photo.isCover ? (
+            <Pressable
+              style={[lbStyles.setCoverBtn, { top: insets.top + 12 }, settingCover && lbStyles.disabledAction]}
+              hitSlop={24}
+              onPress={handleSetCover}
+              disabled={settingCover}
+              accessibilityLabel="Set as cover"
+            >
+              {settingCover ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={lbStyles.setCoverIcon}>★</Text>
+              )}
+            </Pressable>
+          ) : null}
+
           {/* Photo counter */}
           {photos.length > 1 ? (
             <View style={[lbStyles.counter, { top: insets.top + 20 }]}>
@@ -506,6 +544,13 @@ function SprayDiaryLightbox({ photos, initialIndex, visible, onClose, onDelete }
               )}
             </Animated.View>
           </GestureDetector>
+
+          {/* Cover badge */}
+          {photo?.isCover ? (
+            <View style={[lbStyles.coverBadge, { top: insets.top + 12 }]}>
+              <Text style={lbStyles.coverBadgeText}>★</Text>
+            </View>
+          ) : null}
 
           {/* Caption (read-only) */}
           {photo?.caption ? (
@@ -739,6 +784,7 @@ function SprayDiaryPhotoSection({
           // Lightbox closes automatically via the photos-shrink guard inside
           // SprayDiaryLightbox when the deleted photo was the last one.
         }}
+        onSetCover={handleSetCover}
       />
     </View>
   );
@@ -1246,6 +1292,40 @@ const lbStyles = StyleSheet.create({
     right: 16,
     zIndex: 20,
     padding: 8,
+  },
+  setCoverBtn: {
+    position: "absolute",
+    right: 64,
+    zIndex: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  setCoverIcon: {
+    color: "#fff",
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  disabledAction: {
+    opacity: 0.4,
+  },
+  coverBadge: {
+    position: "absolute",
+    right: 64,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  coverBadgeText: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: "rgba(255,215,0,0.9)",
+    lineHeight: 18,
   },
   counter: {
     position: "absolute",

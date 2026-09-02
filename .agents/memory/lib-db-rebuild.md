@@ -6,7 +6,7 @@ description: How and when to rebuild lib/db compiled declarations; why drizzle p
 ## Rule
 After ANY schema change in `lib/db/src/schema/`, rebuild declarations before running API typecheck:
 ```
-cd lib/db && npx tsc -p tsconfig.json
+cd lib/db && npx tsc --build tsconfig.json
 ```
 Then restart the API server workflow.
 
