@@ -1071,7 +1071,31 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Certifier Approval Ref</p><p className="font-medium">{fmtRaw(viewRecord.certifierApprovalRef)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Approved by Body</p><p className="font-medium">{fmtRaw(viewRecord.approvedByBody)}</p></div>
               {(viewRecord.approvalStatus === "restricted" || viewRecord.approvalStatus === "derogation") && (
-                <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Expiry Date</p><p className="font-medium">{viewRecord.derogationExpiryDate ? fmt(viewRecord.derogationExpiryDate as string) : "—"}</p></div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Expiry Date</p>
+                  {viewRecord.derogationExpiryDate ? (() => {
+                    const daysLeft = daysUntil(viewRecord.derogationExpiryDate as string);
+                    if (daysLeft !== null && daysLeft < 0) {
+                      return (
+                        <p className="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 inline-flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 shrink-0" />Derogation expired {fmt(viewRecord.derogationExpiryDate as string)}
+                        </p>
+                      );
+                    }
+                    if (daysLeft !== null && daysLeft <= 30) {
+                      return (
+                        <p className="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300">
+                          Derogation expiry: {fmt(viewRecord.derogationExpiryDate as string)} ({daysLeft}d)
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-xs font-medium px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                        Derogation expiry: {fmt(viewRecord.derogationExpiryDate as string)}
+                      </p>
+                    );
+                  })() : <p className="font-medium">—</p>}
+                </div>
               )}
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p><p className="font-medium">{fmtRaw(viewRecord.supplier)}</p></div>
               <div><p className="text-xs text-muted-foreground uppercase tracking-wide">Purchase Order</p><p className="font-medium">{fmtRaw(viewRecord.poReference)}</p></div>
