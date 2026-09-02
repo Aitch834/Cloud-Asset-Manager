@@ -9724,15 +9724,31 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const userId = req.userId ?? "unknown";
   const tenantId = farmId;
   const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours, startTime: taStartTime, endTime: taEndTime, reqTractors: taTractors, reqImplements: taImplements, reqVehicles: taVehicles, reqSprayers: taSprayers, reqTrailers: taTrailers, reqStaff: taStaff, reqOther: taOther, reqOtherNotes: taOtherNotes, reqMaterials: taMatls } = req.body;
-  if (!assignedToMemberId || !title) { res.status(400).json({ error: "assignedToMemberId and title are required" }); return; }
-  const [member] = await db.select({ firstName: farmMembersTable.firstName, lastName: farmMembersTable.lastName, phone: farmMembersTable.phone, linkedUserId: farmMembersTable.linkedUserId })
-    .from(farmMembersTable).where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)));
-  if (!member) { res.status(404).json({ error: "Staff member not found" }); return; }
+  if (!title) { res.status(400).json({ error: "title is required" }); return; }
+  const hasExplicitAssignee = assignedToMemberId !== undefined && assignedToMemberId !== null && String(assignedToMemberId).trim() !== "";
+  const memberQuery = db.select({
+    id: farmMembersTable.id,
+    firstName: farmMembersTable.firstName,
+    lastName: farmMembersTable.lastName,
+    phone: farmMembersTable.phone,
+    linkedUserId: farmMembersTable.linkedUserId,
+  }).from(farmMembersTable);
+  const [member] = hasExplicitAssignee
+    ? await memberQuery.where(and(eq(farmMembersTable.id, Number(assignedToMemberId)), eq(farmMembersTable.farmId, farmId)))
+    : await memberQuery.where(and(eq(farmMembersTable.farmId, farmId), eq(farmMembersTable.linkedUserId, userId)));
+  if (!member) {
+    if (hasExplicitAssignee) {
+      res.status(404).json({ error: "Staff member not found" });
+    } else {
+      res.status(403).json({ error: "No farm member is linked to the current user" });
+    }
+    return;
+  }
   const staffName = `${member.firstName} ${member.lastName}`.trim();
   const staffPhone = member.phone ?? null;
   const [record] = await db.insert(farmTaskAssignmentsTable).values({
     farmId, tenantId: typeof tenantId === "number" ? tenantId : farmId,
-    assignedToMemberId: Number(assignedToMemberId),
+    assignedToMemberId: member.id,
     assignedByUserId: userId,
     taskType: isWorkOrder ? "work_order" : (taskType || "custom"),
     taskSourceId: taskSourceId || null,

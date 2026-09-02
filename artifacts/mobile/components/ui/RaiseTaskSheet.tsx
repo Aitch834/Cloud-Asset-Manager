@@ -17,7 +17,7 @@ import {
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
-import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface Props {
   visible: boolean;
@@ -42,20 +42,14 @@ export function RaiseTaskSheet({ visible, farmId, defaultTitle, defaultDescripti
     setSubmitting(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
-      const apiBase = getApiBase();
-      const token = await getAuthToken();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${apiBase}/api/farms/${farmId}/tasks`, {
+      const res = await apiFetch(`/api/farms/${farmId}/task-assignments`, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
           description: defaultDescription,
           dueDate: defaultDueDate || null,
           module,
-          status: "pending",
         }),
       });
 
