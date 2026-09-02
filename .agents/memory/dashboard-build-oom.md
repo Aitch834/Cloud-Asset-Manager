@@ -1,13 +1,25 @@
 ---
-name: Dashboard build OOM — causes, current fixes, long-term fix
-description: The dashboard production build is consistently OOM-killed at Rollup's chunk-rendering phase. Documents why, what the current mitigations are, and what the long-term fix requires.
+name: Dashboard build memory baseline
+description: Current dashboard production-build memory baseline, serial build policy, and fallback guidance if Rollup OOMs recur.
 ---
 
-## The problem
+## Current baseline (September 2026)
 
-The dashboard build (`NODE_OPTIONS=--max-old-space-size=4096 PORT=3000 BASE_PATH=/dashboard/ pnpm --filter @workspace/dashboard run build`) is killed with exit code 137 (OOM) at the "rendering chunks" phase.
+The dashboard production build now completes reliably after the largest page
+modules were split into smaller lazy-loaded chunks. The package build keeps
+`NODE_OPTIONS=--max-old-space-size=4096`; no workflow-killing or special
+dashboard-only build sequence is required on the current runner baseline.
 
-Root cause: the container has 8 GB total RAM but ~7 GB is consumed by the running workflows (API server, test-dashboard, mobile, website, admin portal etc.). Only ~1 GB is available when post-merge runs. Rollup's chunk rendering needs significantly more than that for a 3329-module SPA.
+`scripts/build-prod.sh` runs the API server, website, admin portal, and
+dashboard serially. The serial order avoids making the frontend builds compete
+for memory and is the required local production-build check.
+
+## Historical problem
+
+The dashboard build previously exited 137 during Rollup's chunk-rendering
+phase when an 8 GB runner had roughly 1 GB free while all workflows were
+running. The source has since been split substantially, and the dashboard is
+now included in `scripts/build-prod.sh`.
 
 ## What does NOT help
 
@@ -18,7 +30,7 @@ Root cause: the container has 8 GB total RAM but ~7 GB is consumed by the runnin
 - `manualChunks` — forces Rollup to analyse the full graph; empty chunk warnings indicate hints are ignored
 - Running in parallel with existing workflows — there is simply not enough free RAM
 
-## Current mitigations (as of July 2026)
+## Dashboard build safeguards
 
 1. **`artifacts/dashboard/vite.config.ts`**:
    - `sourcemap: false`
@@ -33,8 +45,8 @@ Root cause: the container has 8 GB total RAM but ~7 GB is consumed by the runnin
    - Also improves runtime performance (pages load on demand)
 
 3. **`scripts/post-merge.sh`**:
-   - Build is attempted; if it exits non-zero, `git checkout HEAD -- artifacts/dashboard/dist/` restores the last committed dist
-   - Post-merge never fails due to a build OOM; dashboard stays functional (slightly stale content)
+   - Does not attempt a production build
+   - `git checkout HEAD -- artifacts/dashboard/dist/` restores the tracked dist as a safety net
 
 4. **`artifacts/dashboard/dist/` is tracked in git**:
    - Committed dist = last working build; restored as fallback
@@ -45,16 +57,14 @@ WineryManagementTabs.tsx was split into `src/pages/winery/` modules (shared.tsx,
 
 Lesson from the Dairy/Poultry split: when subagents split a shared.tsx mechanically, check for duplicated `export const` blocks (`grep '^export const' shared.tsx | sort | uniq -d`) — esbuild only fails at build time, tsc may pass late. Also note DairyPage intentionally keeps an inlined copy of AbrProcurementSection (proxy-cache workaround) as `dairy/DairyAbrProcurementSection.tsx`, separate from `dairy/AbrProcurementSection.tsx` used by other dairy pages — not an accidental duplicate.
 
-## Update (6 Aug 2026) — OOM recurred under workflow memory pressure
+## If OOM recurs
 
-The build (now 3447 modules) was repeatedly killed with 137 while all dev-server workflows were running (~2.4 GB available). Waiting/retrying in parallel with the workflows never succeeds — do NOT loop on it. Recipe that works: `pkill` the vite dev servers for test-dashboard/admin-portal/website + expo + mockup-sandbox (workflow supervisor restarts them, or restart via workflows tool after), confirm ~3 GB+ available, then run ONE build with `NODE_ENV=production` (skips cartographer/dev-banner plugins, which otherwise load during builds because they're gated on NODE_ENV, not command) and `--max-old-space-size=3584`. Completed in 47 s. Also: `pgrep -f "vite build"` false-positives on your own shell whose command line contains the string — verify with `ps aux | grep vite.js` before concluding a build is still running. Expo may come back stuck on an interactive "use another port?" prompt after a pkill — restart its workflow.
+Do not loop on parallel retries. Confirm available memory, ensure
+`NODE_ENV=production` is set, and run one dashboard build serially with the
+package's 4096 MB heap limit. If the runner is under workflow pressure, stop
+competing workflows before retrying and restart them afterward. Check the
+largest page sources with:
 
-## Long-term fix required
+`wc -c artifacts/dashboard/src/pages/*.tsx | sort -rn | head -10`
 
-The root cause is that WineryManagementTabs.tsx and LivestockPage.tsx have grown to 500 KB+ each. Rollup holds all source in memory during chunk rendering, and these files dominate the total.
-
-Fix: split these files into smaller sub-components (< 100 KB each). With React.lazy() already in place, each split sub-file becomes its own async chunk, reducing peak memory dramatically.
-
-**Why:** Proxy caching means the dashboard MUST use build+serve mode (content-hashed filenames). Dev mode cannot be used. The build must succeed.
-
-**How to apply:** If a post-merge build fails with exit 137, check which page files are > 200 KB with `wc -c artifacts/dashboard/src/pages/*.tsx | sort -rn | head -10`. Split the largest one by extracting dialog/tab components into separate files under `src/pages/<PageName>/`.
+Keep the tracked `artifacts/dashboard/dist/` fallback intact while diagnosing.
