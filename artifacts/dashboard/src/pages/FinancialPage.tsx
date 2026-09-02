@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { downloadCsvFile } from "@/lib/csv";
+import { buildCsv, downloadCsvFile } from "@/lib/csv";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics" | "accountant-pack";
 
@@ -2133,9 +2133,11 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     grossMargin: v.income - v.sprayCost - v.labourCost - v.otherCost,
   }));
 
-  function handleDownloadPlCsv() {
+  const plCsvFilename = `full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`;
+
+  function getPlCsvRows(): unknown[][] {
     const toGbp = (pence: number) => (pence / 100).toFixed(2);
-    const rows: unknown[][] = [
+    return [
       ["Category", "Type", "Amount (£)", "Period"],
       ...incomeByCategory.map(r => [r.cat, "Income", toGbp(r.total), periodLabel]),
       ...expenseByCategory.map(r => [r.cat, "Expense", toGbp(r.total), periodLabel]),
@@ -2143,7 +2145,10 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
       ["Total Expenditure", "Expense", toGbp(totalExpense), periodLabel],
       ["Net Profit / Loss", "Net", toGbp(netProfit), periodLabel],
     ];
-    downloadCsvFile(`full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`, rows);
+  }
+
+  function handleDownloadPlCsv() {
+    downloadCsvFile(plCsvFilename, getPlCsvRows());
   }
 
   function handleDownloadCsv() {
@@ -2172,6 +2177,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
     const f = (pence: number) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const plCsvDataUrl = `data:text/csv;charset=utf-8,${encodeURIComponent(buildCsv(getPlCsvRows()))}`;
 
     const incomeRows = incomeByCategory.map(r => {
       const projects = linkedProjectsByCategory[r.cat] ?? [];
@@ -2252,10 +2258,14 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     .payment-table th { padding: 3px 5px; font-size: 7.5pt; color: #6b7280; border-bottom: 1px solid #d1d5db; }
     .payment-table td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; }
     .payment-table tr:last-child td { border-bottom: none; }
+     .print-actions { display: flex; justify-content: flex-end; gap: 8px; margin: -8px 0 16px; }
+     .csv-download { display: inline-block; padding: 6px 10px; border: 1px solid #15803d; border-radius: 4px; color: #166534; font-size: 9pt; font-weight: 700; text-decoration: none; }
+     .print-button { padding: 6px 10px; border: 0; border-radius: 4px; background: #15803d; color: #fff; font-size: 9pt; font-weight: 700; cursor: pointer; }
     .vat-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 9.5pt; }
     .vat-box strong { color: #1d4ed8; }
     .disclaimer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 8pt; color: #9ca3af; }
     .footer { display: flex; justify-content: space-between; font-size: 8pt; color: #9ca3af; margin-top: 6px; }
+     @media print { .print-actions { display: none; } }
   </style>
 </head>
 <body>
@@ -2271,6 +2281,11 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
       ${enterpriseLabel ? `Enterprise: ${esc(enterpriseLabel)}<br>` : ""}Produced: ${generated}<br>
       <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:8pt;font-weight:700;">Barnett Davies Enterprises Ltd</span>
     </div>
+  </div>
+
+  <div class="print-actions">
+    <a class="csv-download" href="${plCsvDataUrl}" download="${esc(plCsvFilename)}">Download Full P&amp;L CSV</a>
+    <button type="button" class="print-button" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
   <div class="summary-bar">
@@ -2325,7 +2340,6 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.addEventListener("afterprint", () => win.close()); win.print(); }, 400);
   }
 
   return (
