@@ -498,6 +498,23 @@ function UserRow({ user, tenantId, isLast, systemRoles, activeModuleKeys, smsAle
           <XCircle className="w-4 h-4 text-destructive shrink-0" />
         )}
       </div>
+      {smsCategories !== null && (
+        <div className="mx-5 mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+          <span className="text-muted-foreground">SMS categories:</span>
+          {visibleCategories.map((category) => {
+            const enabled = smsCategories[category.key] !== false;
+            return (
+              <span
+                key={category.key}
+                title={enabled ? "Enabled" : "Disabled"}
+                className={enabled ? "font-medium text-green-700" : "text-muted-foreground line-through"}
+              >
+                {category.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
       {smsMisconfigured && (
         <div className="mx-5 mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
           <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
