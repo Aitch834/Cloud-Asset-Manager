@@ -320,6 +320,11 @@ async function runStatusChecks() {
 // Pass "" for either value to simulate that asset being missing.
 async function overrideCache(logoUri, qrUri) {
   const r = await call("PUT", "/admin/ad-brand-assets/cache", { logoUri, qrUri });
+  if (r.status === 404) {
+    throw new Error(
+      "Cache override endpoint is blocked (NODE_ENV=production?) — cannot run integration checks",
+    );
+  }
   if (r.status !== 200 || !r.json?.overridden) {
     throw new Error(`Cache override failed: ${r.status} ${JSON.stringify(r.json)}`);
   }
