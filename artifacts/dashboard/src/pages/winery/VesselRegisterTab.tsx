@@ -825,7 +825,12 @@ export function VesselCleanRow({ farmId, vesselId, readOnly, autoOpenAdd }: { fa
   const [form, setForm] = useState<Record<string, string | boolean>>(blankForm());
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
-  const openAdd = () => { setEditingClean(null); setForm(blankForm()); setShowForm(true); };
+  const openAdd = () => {
+    const savedOperator = localStorage.getItem("last_operator_name") ?? "";
+    setEditingClean(null);
+    setForm({ ...blankForm(), ...(savedOperator ? { operatorName: savedOperator } : {}) });
+    setShowForm(true);
+  };
   // Auto-open the add form when the parent requests it (e.g. tapping the "Never cleaned" badge).
   // Runs once on mount so it fires only when the cleaning tab is first rendered after the shortcut.
   useEffect(() => {
@@ -859,6 +864,9 @@ export function VesselCleanRow({ farmId, vesselId, readOnly, autoOpenAdd }: { fa
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as Record<string, string>).error || "Save failed"); }
     },
     onSuccess: () => {
+      if (String(form.operatorName ?? "").trim()) {
+        localStorage.setItem("last_operator_name", String(form.operatorName).trim());
+      }
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
       closeForm();
