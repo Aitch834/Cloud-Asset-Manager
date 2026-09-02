@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -94,6 +94,7 @@ export default function HomeScreen() {
   const [completionSummary, setCompletionSummary] = useState<{
     milestoneName: string;
     claimAmountPence: number | null;
+    alreadyPaid: boolean;
     milestoneCount?: number;
     completedMilestoneCount?: number;
     claimedAmountPence?: number;
@@ -102,11 +103,13 @@ export default function HomeScreen() {
   const [completionDate, setCompletionDate] = useState<Date>(new Date());
   const [evidenceNote, setEvidenceNote] = useState("");
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  const markingCompleteRef = useRef(false);
   const [upcomingInspections, setUpcomingInspections] = useState<OrganicInspectionReminder[]>([]);
 
   const handleMarkComplete = useCallback(async () => {
     const target = markCompleteTarget;
-    if (!target || !currentFarm?.id) return;
+    if (!target || !currentFarm?.id || markingCompleteRef.current) return;
+    markingCompleteRef.current = true;
     setIsMarkingComplete(true);
     try {
       const y = completionDate.getFullYear();
@@ -132,11 +135,12 @@ export default function HomeScreen() {
       }
 
       const saved = await res.json().catch(() => ({})) as {
-        milestone?: { claimAmountPence?: number | null };
+        milestone?: { claimAmountPence?: number | null; status?: string };
       };
       const summary: {
         milestoneName: string;
         claimAmountPence: number | null;
+        alreadyPaid: boolean;
         milestoneCount?: number;
         completedMilestoneCount?: number;
         claimedAmountPence?: number;
@@ -144,6 +148,7 @@ export default function HomeScreen() {
       } = {
         milestoneName: target.milestoneName,
         claimAmountPence: saved.milestone?.claimAmountPence ?? null,
+        alreadyPaid: saved.milestone?.status === "paid",
       };
 
       try {
@@ -178,6 +183,7 @@ export default function HomeScreen() {
     } catch {
       Alert.alert("Offline", "Could not reach the server. Please try again when back online.");
     } finally {
+      markingCompleteRef.current = false;
       setIsMarkingComplete(false);
     }
   }, [markCompleteTarget, currentFarm?.id, completionDate, evidenceNote]);
@@ -310,6 +316,19 @@ export default function HomeScreen() {
       fetchWinegbSubmissions();
     });
   }, [fetchWinegbSubmissions]);
+
+  // A refresh can remove a milestone while its completion sheet is open
+  // (for example, if it was paid from the dashboard). Do not leave a stale
+  // sheet available to submit against a card that is no longer on Home.
+  useEffect(() => {
+    if (
+      markCompleteTarget &&
+      !upcomingMilestones.some((milestone) => milestone.id === markCompleteTarget.id)
+    ) {
+      setMarkCompleteTarget(null);
+      setEvidenceNote("");
+    }
+  }, [markCompleteTarget, upcomingMilestones]);
 
   const [liveWeather, setLiveWeather] = useState<{
     temperature: string;
@@ -1055,7 +1074,9 @@ export default function HomeScreen() {
               <View style={styles.mcIconBg}>
                 <Feather name="check-circle" size={20} color="#0D9488" />
               </View>
-              <Text style={styles.mcHeading}>Milestone complete</Text>
+              <Text style={styles.mcHeading}>
+                {completionSummary?.alreadyPaid ? "Milestone already paid" : "Milestone complete"}
+              </Text>
             </View>
 
             {completionSummary && (

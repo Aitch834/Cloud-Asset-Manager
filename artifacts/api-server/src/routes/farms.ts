@@ -20522,9 +20522,9 @@ router.delete("/farms/:farmId/workshop/fire-extinguishers/:id/services/:serviceI
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // WORKSHOP PARTS STORE
-// ============================================================
+// ------------------------------------------------------------
 
 router.get("/farms/:farmId/workshop/parts", requireAuth, requireTenant, requireModuleByKey("workshop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
@@ -21126,9 +21126,9 @@ router.delete("/farms/:farmId/workshop/stocktakes/:id", requireAuth, requireTena
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // PIG PRODUCTION
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/pig-flocks", requireAuth, requireTenant, requireModuleByKey("pig-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const herds = await db.select().from(herdFlockRegisterTable).where(and(eq(herdFlockRegisterTable.farmId, farmId), sql`lower(${herdFlockRegisterTable.type}) in ('pig', 'pigs', 'swine')`)).orderBy(herdFlockRegisterTable.name);
@@ -21466,9 +21466,9 @@ router.delete("/farms/:farmId/pig-medicine-treatments/:id", requireAuth, require
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // POULTRY PRODUCTION
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/poultry-houses", requireAuth, requireTenant, requireModuleByKey("poultry-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(poultryHousesTable).where(eq(poultryHousesTable.farmId, farmId)).orderBy(poultryHousesTable.houseName);
@@ -21844,9 +21844,9 @@ router.delete("/farms/:farmId/poultry-thinning-records/:id", requireAuth, requir
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // HORTICULTURE & FRESH PRODUCE
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/horticulture-blocks", requireAuth, requireTenant, requireModuleByKey("fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const includeRetired = req.query.includeRetired === "true";
@@ -22178,9 +22178,9 @@ router.delete("/farms/:farmId/allergen-management/:id", requireAuth, requireTena
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // ORGANIC FRESH PRODUCE
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/organic-fp-block-status", requireAuth, requireTenant, requireModuleByKey("organic-fresh-produce", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(organicFreshProduceBlockStatusTable).where(eq(organicFreshProduceBlockStatusTable.farmId, farmId)).orderBy(organicFreshProduceBlockStatusTable.blockName);
@@ -22399,9 +22399,9 @@ router.delete("/farms/:farmId/organic-fp/input-derogation-documents/:id", requir
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // CARBON & SUSTAINABILITY
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/carbon-audits", requireAuth, requireTenant, requireModuleByKey("carbon-sustainability", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(carbonAuditsTable).where(eq(carbonAuditsTable.farmId, farmId)).orderBy(desc(carbonAuditsTable.auditYear));
@@ -22975,9 +22975,9 @@ router.delete("/farms/:farmId/sustainability-reports/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // FARM DIVERSIFICATION
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/diversification-activities", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(diversificationActivitiesTable).where(eq(diversificationActivitiesTable.farmId, farmId)).orderBy(diversificationActivitiesTable.activityName);
@@ -23685,9 +23685,9 @@ router.delete("/farms/:farmId/shooting-game-records/:id", requireAuth, requireTe
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // DIVERSIFICATION INCOME RECORDS
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/diversification-income", requireAuth, requireTenant, requireModuleByKey("farm-diversification", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const year = req.query.year ? parseInt(req.query.year as string) : null;
@@ -23724,9 +23724,9 @@ router.delete("/farms/:farmId/diversification-income/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // WATER & IRRIGATION MANAGEMENT
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/water-abstraction-licences", requireAuth, requireTenant, requireModuleByKey("water-irrigation", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(waterAbstractionLicencesTable).where(eq(waterAbstractionLicencesTable.farmId, farmId)).orderBy(waterAbstractionLicencesTable.licenceNumber);
@@ -24069,9 +24069,9 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
   }
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // GRAIN STORAGE QUALITY (sub-tabs on Equipment module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/grain-storage-bins", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(grainStorageBinsTable).where(eq(grainStorageBinsTable.farmId, farmId)).orderBy(grainStorageBinsTable.binName);
@@ -24258,9 +24258,9 @@ router.delete("/farms/:farmId/grain-temperature-logs/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // AI & REPRODUCTION (sub-tabs on Livestock module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/ai-reproduction-records", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(aiReproductionRecordsTable).where(eq(aiReproductionRecordsTable.farmId, farmId)).orderBy(desc(aiReproductionRecordsTable.serviceDate));
@@ -24284,9 +24284,9 @@ router.delete("/farms/:farmId/ai-reproduction-records/:id", requireAuth, require
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // VET PRESCRIPTIONS (sub-tab on Livestock module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/vet-prescriptions", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(vetPrescriptionRecordsTable).where(eq(vetPrescriptionRecordsTable.farmId, farmId)).orderBy(desc(vetPrescriptionRecordsTable.prescriptionDate));
@@ -24317,9 +24317,9 @@ router.delete("/farms/:farmId/vet-prescriptions/:id", requireAuth, requireTenant
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // SIRE REGISTER (Bulls & Rams — sub-tab on Livestock module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/sires", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(sireRegisterTable).where(eq(sireRegisterTable.farmId, farmId)).orderBy(sireRegisterTable.name);
@@ -24343,9 +24343,9 @@ router.delete("/farms/:farmId/sires/:id", requireAuth, requireTenant, requireMod
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // STRAW INVENTORY
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/straws", requireAuth, requireTenant, requireModuleByKey("livestock-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select({
@@ -24387,9 +24387,9 @@ router.delete("/farms/:farmId/straws/:id", requireAuth, requireTenant, requireMo
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // SFI / ELMS ACTIONS (sub-tabs on Environmental module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/sfi-agreements", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(sfiAgreementsTable).where(eq(sfiAgreementsTable.farmId, farmId)).orderBy(desc(sfiAgreementsTable.agreementStartDate));
@@ -24436,9 +24436,9 @@ router.delete("/farms/:farmId/sfi-actions/:id", requireAuth, requireTenant, requ
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // SLURRY & MANURE MANAGEMENT (sub-tabs on Environmental module)
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/slurry-stores", requireAuth, requireTenant, requireModuleByKey("environmental", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const rows = await db.select().from(slurryStoresTable).where(eq(slurryStoresTable.farmId, farmId)).orderBy(slurryStoresTable.storeName);
@@ -32171,9 +32171,9 @@ router.delete("/farms/:farmId/sheep-dipping-records/:id", requireAuth, requireTe
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // SHEEP PRODUCTION
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/sheep-flocks", requireAuth, requireTenant, requireModuleByKey("sheep-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -32578,9 +32578,9 @@ router.delete("/farms/:farmId/sheep-rt-checklists/:id", requireAuth, requireTena
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // BEEF PRODUCTION
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/beef-weigh-records", requireAuth, requireTenant, requireModuleByKey("beef-production", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -32713,9 +32713,9 @@ router.delete("/farms/:farmId/beef-rt-checklists/:id", requireAuth, requireTenan
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // GRAIN STORE — Drying, Conditioning, Storage Agreements
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/grain-drying-records", requireAuth, requireTenant, requireModuleByKey("field-crop-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -32815,9 +32815,9 @@ router.delete("/farms/:farmId/grain-storage-agreements/:id", requireAuth, requir
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // SETTLEMENT NOTES
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/livestock-settlement-notes", requireAuth, requireTenant, requireModuleByKey("financial-records", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -32884,9 +32884,9 @@ router.delete("/farms/:farmId/grain-settlement-notes/:id", requireAuth, requireT
   res.json({ success: true });
 });
 
-// ============================================================
+// ------------------------------------------------------------
 // MEDICATED FEED RECORDS
-// ============================================================
+// ------------------------------------------------------------
 router.get("/farms/:farmId/medicated-feed-records", requireAuth, requireTenant, requireModuleByKey("feed-management", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -43061,6 +43061,11 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
     return;
   }
 
+  // Home can hold a stale pending card while the milestone is paid from the
+  // dashboard. Treat that completion request as idempotent instead of
+  // downgrading a paid claim back to completed.
+  const preservePaidStatus = existing.status === "paid" && nextStatus === "completed";
+  const effectiveStatus = preservePaidStatus ? "paid" : nextStatus;
   const nextDueDate = "dueDate" in body
     ? (dueDate ? String(dueDate) : null)
     : existing.dueDate;
@@ -43075,14 +43080,20 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   // Pending milestones do not have a completion date; explicit null also clears it
   // when reverting from a claimed status.
   if ("completionDate" in body || nextStatus === "pending") {
-    updates["completionDate"] = nextStatus === "pending" ? null : completionDate ? String(completionDate) : null;
+    updates["completionDate"] = preservePaidStatus
+      ? existing.completionDate
+      : nextStatus === "pending"
+      ? null
+      : completionDate
+      ? String(completionDate)
+      : null;
   }
   if ("claimAmountPence" in body) {
     updates["claimAmountPence"] = claimAmountPence == null || claimAmountPence === ""
       ? null
       : Number(claimAmountPence);
   }
-  if (status          != null) updates["status"]          = String(status);
+  if (status          != null) updates["status"]          = effectiveStatus;
   if (
     existing.status === "completed" &&
     (nextStatus === "pending" || nextStatus === "submitted")
