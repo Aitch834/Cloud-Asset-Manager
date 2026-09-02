@@ -36,6 +36,7 @@ jest.mock("expo-crypto", () => ({
 
 import {
   clearCompletedSyncItems,
+  deletePendingSyncItem,
   enqueueSyncItem,
   getRecordById,
   getPendingSyncItems,
@@ -179,6 +180,97 @@ describe("organic input edit replacement during sync", () => {
     expect(serverRecord?.productName).toBe("Payload B");
     pending = await getPendingSyncItems();
     expect(pending).toHaveLength(0);
+  });
+
+  it("uploads the edited payload when a pending organic input is corrected before syncing", async () => {
+    const originalRecord = {
+      id: "local-corrected",
+      farmId: "farm-1",
+      productName: "Original lime",
+      dateOfUse: "2026-08-22",
+      quantityAmount: "5",
+      synced: false,
+    };
+    await insertRecord(
+      "organic_inputs",
+      "local-corrected",
+      "farm-1",
+      originalRecord,
+      "2026-08-22T12:00:00.000Z",
+    );
+    await enqueueSyncItem(
+      STORAGE_KEYS.ORGANIC_INPUTS,
+      "local-corrected",
+      originalRecord,
+    );
+
+    const correctedRecord = {
+      ...originalRecord,
+      productName: "Corrected lime",
+      quantityAmount: "12",
+    };
+    expect(
+      await updatePendingSyncItem(
+        STORAGE_KEYS.ORGANIC_INPUTS,
+        "local-corrected",
+        correctedRecord,
+      ),
+    ).toBe(true);
+
+    const receivedBodies: Record<string, unknown>[] = [];
+    const fetchMock = jest.fn(async (_url: string, init: RequestInit) => {
+      receivedBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      return {
+        ok: true,
+        json: async () => ({ record: { id: 77 } }),
+      };
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    await triggerManualSync();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.test/api/farms/farm-1/organic/inputs",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(receivedBodies[0]).toEqual({
+      ...correctedRecord,
+      mobileRecordId: "local-corrected",
+    });
+    expect(receivedBodies[0].productName).toBe("Corrected lime");
+    expect(receivedBodies[0].quantityAmount).toBe("12");
+    expect(receivedBodies[0].productName).not.toBe(originalRecord.productName);
+  });
+
+  it("removes all pending queue rows when a pending organic input is deleted", async () => {
+    const recordId = "local-deleted";
+    const record = {
+      id: recordId,
+      farmId: "farm-1",
+      productName: "Delete me",
+      dateOfUse: "2026-08-22",
+      synced: false,
+    };
+    await insertRecord(
+      "organic_inputs",
+      recordId,
+      "farm-1",
+      record,
+      "2026-08-22T12:00:00.000Z",
+    );
+    await enqueueSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId, record);
+    await enqueueSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId, {
+      ...record,
+      productName: "Duplicate pending row",
+    });
+
+    await deletePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId);
+
+    const queue = JSON.parse(mockStorage.get("bde_sync_queue") ?? "[]") as Array<{
+      record_id: string;
+    }>;
+    expect(queue.filter((item) => item.record_id === recordId)).toHaveLength(0);
+    expect(await getRecordById("organic_inputs", recordId)).toBeNull();
   });
 
   it("queues a PUT when a pending-record form is saved after create sync already completed", async () => {
