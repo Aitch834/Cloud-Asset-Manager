@@ -20,6 +20,8 @@ const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const RUN_TAG = `E2E-1901-${Date.now()}`;
 const POSITIVE_BLOCK = `${RUN_TAG}-positive-area`;
 const MISSING_AREA_BLOCK = `${RUN_TAG}-missing-area`;
+const SINGLE_BLOCK_RUN_TAG = `E2E-2000-${Date.now()}`;
+const SINGLE_BLOCK = `${SINGLE_BLOCK_RUN_TAG}-single-block`;
 const VINTAGE_YEAR = new Date().getFullYear();
 const HARVEST_DATE = `${VINTAGE_YEAR}-07-15`;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -114,7 +116,11 @@ async function deleteBlock(blockId: number): Promise<void> {
   });
 }
 
-async function openSeededHarvest(page: Page): Promise<void> {
+async function openSeededHarvest(
+  page: Page,
+  runTag: string = RUN_TAG,
+  expectedBlockNames: string[] = [POSITIVE_BLOCK, MISSING_AREA_BLOCK],
+): Promise<void> {
   await page.goto("/dashboard/");
   await clerk.signIn({ page, emailAddress: getTestUserEmail() });
   await page.waitForLoadState("networkidle");
@@ -131,7 +137,7 @@ async function openSeededHarvest(page: Page): Promise<void> {
       localStorage.setItem(`viticulture-harvest-block-filter-${farmId}`, "__all__");
       localStorage.setItem(`viticulture-harvest-search-filter-${farmId}`, runTag);
     },
-    [TENANT_SLUG, FARM_ID, String(VINTAGE_YEAR), RUN_TAG] as [string, number, string, string],
+    [TENANT_SLUG, FARM_ID, String(VINTAGE_YEAR), runTag] as [string, number, string, string],
   );
 
   await page.reload({ waitUntil: "networkidle" });
@@ -141,12 +147,11 @@ async function openSeededHarvest(page: Page): Promise<void> {
   await expect(page.getByText("Harvest & Vintage Records", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText(POSITIVE_BLOCK, { exact: true }).first()).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.getByText(MISSING_AREA_BLOCK, { exact: true }).first()).toBeVisible({
-    timeout: 20_000,
-  });
+  for (const blockName of expectedBlockNames) {
+    await expect(page.getByText(blockName, { exact: true }).first()).toBeVisible({
+      timeout: 20_000,
+    });
+  }
 }
 
 /**
@@ -252,6 +257,36 @@ test.describe("Harvest block productivity exports", () => {
       }
       if (positiveBlockId !== null) await deleteBlock(positiveBlockId).catch(() => undefined);
       if (missingAreaBlockId !== null) await deleteBlock(missingAreaBlockId).catch(() => undefined);
+    }
+  });
+
+  test("show Season Totals for a single linked block in the selected vintage", async ({ page }) => {
+    let blockId: number | null = null;
+    let harvestId: number | null = null;
+
+    try {
+      blockId = await createBlock(SINGLE_BLOCK, 2);
+      harvestId = await createHarvest(blockId, 500);
+
+      await openSeededHarvest(page, SINGLE_BLOCK_RUN_TAG, [SINGLE_BLOCK]);
+
+      // The persisted year filter selects one vintage, and the run-tag search
+      // leaves exactly one linked block in the Per-Block Yield Summary.
+      await expect(
+        page.getByRole("combobox").filter({ hasText: String(VINTAGE_YEAR) }),
+      ).toBeVisible();
+
+      const summarySection = page
+        .getByRole("button", { name: /Per-Block Yield Summary/ })
+        .locator("..");
+      const summaryTable = summarySection.getByRole("table");
+
+      await expect(summaryTable.locator("tbody > tr")).toHaveCount(1);
+      await expect(summaryTable.locator("tfoot > tr")).toContainText("Season Totals");
+      await expect(summaryTable.locator("tfoot > tr")).toBeVisible();
+    } finally {
+      if (harvestId !== null) await deleteHarvest(harvestId).catch(() => undefined);
+      if (blockId !== null) await deleteBlock(blockId).catch(() => undefined);
     }
   });
 });
