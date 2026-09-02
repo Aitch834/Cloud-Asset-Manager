@@ -1,9 +1,16 @@
 /**
- * E2E: Scouting Photo Lightbox — delete confirmation warning, badge, and empty-state
+ * E2E: Scouting Photo — delete confirmation warning, badge, and empty-state
  *
- * Tests the photo-deletion UX added by Task #742.  Deletion always originates
- * from the lightbox, which is opened via the camera-badge in the grid (table) row.
- * Both paths through the lightbox are exercised:
+ * Tests the photo-deletion UX added by Task #742.  The lightbox paths are opened
+ * via the camera-badge in the grid (table) row.  The view-dialog thumbnail-grid
+ * path is also covered:
+ *
+ *   Scenario C — thumbnail-grid deletion uses the viewed scouting record
+ *     Entry: click the row's view action → hover a thumbnail → click its trash
+ *     button → cancel and verify the thumbnail remains → reopen and confirm →
+ *     verify the DELETE targets the viewed record and the grid refreshes.
+ *
+ * The two lightbox paths are also exercised:
  *
  *   Scenario A — mid-list deletion (counter clamps, grid badge decrements)
  *     Entry: click camera badge in grid row → opens lightbox → navigate to photo
@@ -30,6 +37,7 @@ import { test, expect } from "@playwright/test";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -37,6 +45,7 @@ import * as path from "path";
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5;  // Highfield Vineyard — has viticulture module
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Unique sentinel so we can find the row without relying on position */
 const SCOUT_NAME = `E2EScout-882-${Date.now()}`;
@@ -145,7 +154,7 @@ async function navigateToScoutingTab(page: import("@playwright/test").Page) {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-test.describe("Scouting photo lightbox — delete interactions", () => {
+test.describe("Scouting photo — delete interactions", () => {
   /**
    * Scenario A: delete a photo from a non-first position in the lightbox.
    *
@@ -309,6 +318,100 @@ test.describe("Scouting photo lightbox — delete interactions", () => {
       await expect(row.getByTitle("View photos")).not.toBeVisible({
         message: "Camera badge must disappear from the grid row when photoCount reaches 0",
       });
+    } finally {
+      await deleteScoutingRecord(scoutingId);
+    }
+  });
+
+  /**
+   * Scenario C: delete a photo from the thumbnail grid in the record view dialog.
+   *
+   * This must use viewing.id rather than lightboxScoutingId. The latter is
+   * unrelated to this entry point and may be null or refer to another record.
+   */
+  test("C — view-dialog thumbnail delete targets the viewed record, supports cancel, and refreshes the grid", async ({ page }) => {
+    await setupClerkTestingToken({ page, userId: getTestUserId() });
+
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    page.on("console", message => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    page.on("pageerror", error => pageErrors.push(error.message));
+
+    const scoutingId = await createScoutingRecord();
+    const photoId = await attachPhoto(scoutingId, "view-grid");
+    const photoFileName = "e2e-882-view-grid.jpg";
+    const deleteRequests: string[] = [];
+    page.on("request", request => {
+      if (
+        request.method() === "DELETE"
+        && request.url().includes("/vineyard-scouting/")
+        && request.url().includes("/photos/")
+      ) {
+        deleteRequests.push(request.url());
+      }
+    });
+
+    try {
+      await navigateToScoutingTab(page);
+
+      const row = page.locator("tr", { hasText: SCOUT_NAME });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      // The view action is the first icon button in the row.
+      await row.getByRole("button").first().click();
+      const recordDialog = page.getByRole("dialog", { name: "Disease Scouting Record" });
+      await expect(recordDialog).toBeVisible();
+
+      const thumbnail = recordDialog.locator("div.relative.group").filter({
+        has: recordDialog.getByRole("img", { name: photoFileName }),
+      });
+      await expect(thumbnail).toHaveCount(1);
+      await expect(thumbnail.getByRole("img", { name: photoFileName })).toBeVisible();
+
+      // Hover is part of the control contract: the delete button is hidden
+      // until the pointer enters the thumbnail.
+      await thumbnail.hover();
+      await thumbnail.getByRole("button", { name: "Delete photo" }).click();
+
+      const confirmDialog = page.getByRole("dialog", { name: "Delete photo?" });
+      await expect(confirmDialog).toBeVisible();
+      await expect(
+        confirmDialog.getByText(/permanently removed from the scouting record/i),
+      ).toBeVisible();
+
+      // Cancel must close only the confirmation and leave the thumbnail intact.
+      await confirmDialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(confirmDialog).toHaveCount(0);
+      await expect(thumbnail).toHaveCount(1);
+      await expect(recordDialog.getByRole("img", { name: photoFileName })).toBeVisible();
+      expect(deleteRequests).toEqual([]);
+
+      // Reopen the confirmation and prove the request uses the viewed record
+      // and the exact thumbnail photo, not a lightbox record.
+      await thumbnail.hover();
+      await thumbnail.getByRole("button", { name: "Delete photo" }).click();
+      await expect(confirmDialog).toBeVisible();
+
+      const deleteResponse = page.waitForResponse(response =>
+        response.request().method() === "DELETE"
+        && response.url().includes(`/vineyard-scouting/${scoutingId}/photos/${photoId}`),
+      );
+      await confirmDialog.getByRole("button", { name: "Delete photo" }).click();
+      expect((await deleteResponse).ok()).toBe(true);
+      expect(deleteRequests).toEqual([
+        expect.stringContaining(`/vineyard-scouting/${scoutingId}/photos/${photoId}`),
+      ]);
+
+      // onSuccess invalidates the view-dialog photo query; the thumbnail grid
+      // must disappear without requiring the user to close and reopen the view.
+      await expect(confirmDialog).toHaveCount(0);
+      await expect(thumbnail).toHaveCount(0);
+      await expect(recordDialog.getByRole("img", { name: photoFileName })).toHaveCount(0);
+
+      expect(consoleErrors, "The browser must not report console errors").toEqual([]);
+      expect(pageErrors, "The page must not throw uncaught errors").toEqual([]);
     } finally {
       await deleteScoutingRecord(scoutingId);
     }
