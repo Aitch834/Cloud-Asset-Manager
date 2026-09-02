@@ -20,6 +20,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
+import { certificationNotice, type CertificationNotice } from "@/lib/organicFieldCertification";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -68,6 +69,10 @@ interface FieldStatus {
   certifierRef: string | null;
   parallelProduction: boolean;
   notes: string | null;
+}
+
+function fmtDateValue(date: Date): string {
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -239,6 +244,7 @@ export default function OrganicFieldsListScreen() {
             <Text style={styles.countLabel}>{records.length} field{records.length !== 1 ? "s" : ""}</Text>
             {records.map((r, i) => {
               const sc = STATUS_COLORS[r.status] ?? STATUS_COLORS.conventional;
+              const notice = certificationNotice(r.conversionStartDate, r.status);
               return (
                 <View
                   key={r.id}
@@ -252,6 +258,41 @@ export default function OrganicFieldsListScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  {notice ? (
+                    <View
+                      style={[
+                        styles.certificationNotice,
+                        notice.kind === "eligible" ? styles.eligibleNotice : styles.dueSoonNotice,
+                      ]}
+                    >
+                      <Feather
+                        name={notice.kind === "eligible" ? "check-circle" : "calendar"}
+                        size={15}
+                        color={notice.kind === "eligible" ? "#15803d" : "#92400e"}
+                      />
+                      <View style={styles.certificationNoticeCopy}>
+                        <Text
+                          style={[
+                            styles.certificationNoticeTitle,
+                            { color: notice.kind === "eligible" ? "#15803d" : "#92400e" },
+                          ]}
+                        >
+                          {notice.kind === "eligible" ? "Eligible now" : "Cert. due soon"}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.certificationNoticeDate,
+                            { color: notice.kind === "eligible" ? "#166534" : "#92400e" },
+                          ]}
+                        >
+                          {notice.kind === "eligible"
+                            ? `Two-year conversion complete ${fmtDateValue(notice.date)}`
+                            : `Expected ${fmtDateValue(notice.date)}`}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
 
                   <View style={styles.detailGrid}>
                     <View style={styles.detailItem}>
@@ -363,6 +404,21 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   statusText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs },
+  certificationNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  dueSoonNotice: { backgroundColor: "#fffbeb", borderColor: "#fde68a" },
+  eligibleNotice: { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" },
+  certificationNoticeCopy: { flex: 1, gap: 2 },
+  certificationNoticeTitle: { fontFamily: fonts.semiBold, fontSize: fontSize.sm },
+  certificationNoticeDate: { fontFamily: fonts.regular, fontSize: fontSize.xs },
   detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, rowGap: spacing.sm },
   detailItem: { minWidth: "45%", flex: 1 },
   detailLabel: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, marginBottom: 2 },
