@@ -28,8 +28,10 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { usePersistedVineRegisterStatusFilter } from "@/lib/hooks/usePersistedVineRegisterStatusFilter";
+import { usePrint } from "@/lib/hooks/usePrint";
 import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
 import { kvGet } from "@/lib/database";
+import { buildVineRegisterPdfHtml } from "@/lib/vineRegisterPdf";
 
 interface VineRegisterEntry {
   id: number;
@@ -39,6 +41,8 @@ interface VineRegisterEntry {
   giClassification: string | null;
   wineColour: string | null;
   dateRegistered: string | null;
+  vivcNumber?: string | null;
+  dateAmended?: string | null;
   isRemovedFromRegister: boolean | null;
   removalDate?: string | null;
   removalReason?: string | null;
@@ -506,7 +510,7 @@ interface AddEntryForm {
 export default function VineRegisterScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { farmName, sbiNumber, address, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
+  const { farmName, sbiNumber, address, postcode, loading: identifiersLoading } = useFarmIdentifiers(currentFarm?.id);
   const vitiMeta = useFarmVitiMeta(currentFarm?.id);
   const { records, loading, refreshing, error, refresh } = useApiFetch<VineRegisterEntry>(
     currentFarm?.id,
@@ -514,6 +518,7 @@ export default function VineRegisterScreen() {
   );
   const farmIdStr = currentFarm?.id != null ? String(currentFarm.id) : undefined;
   const { blocks, loading: blocksLoading, updateBlock } = useApiVineBlocks(farmIdStr);
+  const { savePdf } = usePrint();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = usePersistedVineRegisterStatusFilter(farmIdStr);
@@ -530,6 +535,7 @@ export default function VineRegisterScreen() {
   // accurate immediately without needing a full re-fetch of the blocks list.
   const [savedBlockIds, setSavedBlockIds] = useState<Set<number>>(new Set());
   const [savedParcelRefs, setSavedParcelRefs] = useState<Record<number, string>>({});
+  const [savingPdf, setSavingPdf] = useState(false);
 
   useEffect(() => {
     setSavedEntryUpdates({});
@@ -554,6 +560,11 @@ export default function VineRegisterScreen() {
           (!b.fieldParcelRef || String(b.fieldParcelRef).trim() === ""),
       )
     : [];
+
+  const displayedRecords = records.map(record => ({
+    ...record,
+    ...(savedEntryUpdates[record.id] ?? {}),
+  }));
 
   const handleEmailPress = useCallback(() => {
     if (!records.length) return;
@@ -588,16 +599,40 @@ export default function VineRegisterScreen() {
     });
   }, [records, farmName, currentFarm?.name, sbiNumber, address, vitiMeta]);
 
+  const handleSavePdf = useCallback(async () => {
+    if (savingPdf || displayedRecords.length === 0) return;
+    setSavingPdf(true);
+    try {
+      const name = farmName ?? currentFarm?.name ?? "Farm";
+      const html = buildVineRegisterPdfHtml(displayedRecords, {
+        farmName: name,
+        address,
+        postcode,
+        fsaVineRef: vitiMeta.fsaVineRegisterRef,
+        farmMeta: vitiMeta,
+      });
+      await savePdf(html, "Vine Register", "vine-register.pdf");
+    } catch {
+      Alert.alert("Export failed", "Could not generate or share the vine register PDF.");
+    } finally {
+      setSavingPdf(false);
+    }
+  }, [
+    address,
+    currentFarm?.name,
+    displayedRecords,
+    farmName,
+    postcode,
+    savePdf,
+    savingPdf,
+    vitiMeta,
+  ]);
+
   const handleBlockSaved = useCallback((blockId: number, fieldParcelRef: string) => {
     setSavedBlockIds(prev => new Set([...prev, blockId]));
     setSavedParcelRefs(prev => ({ ...prev, [blockId]: fieldParcelRef }));
     updateBlock(blockId, { fieldParcelRef });
   }, [updateBlock]);
-
-  const displayedRecords = records.map(record => ({
-    ...record,
-    ...(savedEntryUpdates[record.id] ?? {}),
-  }));
 
   const handleEntryRemoved = useCallback((
     entryId: number,
@@ -648,6 +683,22 @@ export default function VineRegisterScreen() {
             <Feather name="mail" size={20} color={colors.primary} />
           </Pressable>
         )}
+        <Pressable
+          onPress={() => { void handleSavePdf(); }}
+          style={[styles.pdfBtn, savingPdf && styles.actionBtnDisabled]}
+          disabled={savingPdf || displayedRecords.length === 0}
+          hitSlop={8}
+          accessibilityLabel="Save PDF"
+          accessibilityRole="button"
+          testID="save-vine-register-pdf"
+        >
+          {savingPdf ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="download" size={19} color={colors.primary} />
+          )}
+          <Text style={styles.pdfBtnText}>Save PDF</Text>
+        </Pressable>
         <Pressable
           onPress={() => setAddEntryVisible(true)}
           style={styles.addBtn}
@@ -820,6 +871,19 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   addBtn: { padding: 4 },
   emailBtn: { padding: 4 },
+  pdfBtn: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  pdfBtnText: {
+    color: colors.primary,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+  },
+  actionBtnDisabled: { opacity: 0.55 },
   title: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.lg,

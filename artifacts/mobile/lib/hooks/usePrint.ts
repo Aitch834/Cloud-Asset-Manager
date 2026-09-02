@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 type PrintFn = (html: string) => Promise<void>;
-type SavePdfFn = (html: string, docTitle?: string) => Promise<void>;
+type SavePdfFn = (html: string, docTitle?: string, fileName?: string) => Promise<void>;
 
 async function printHtml(html: string): Promise<void> {
   if (Platform.OS === "web") {
@@ -18,7 +18,7 @@ async function printHtml(html: string): Promise<void> {
   await printAsync({ html });
 }
 
-async function savePdf(html: string, docTitle = "document"): Promise<void> {
+async function savePdf(html: string, docTitle = "document", fileName?: string): Promise<void> {
   if (Platform.OS === "web") {
     await printHtml(html);
     return;
@@ -26,7 +26,16 @@ async function savePdf(html: string, docTitle = "document"): Promise<void> {
   const { printToFileAsync } = await import("expo-print");
   const { shareAsync } = await import("expo-sharing");
   const result = await printToFileAsync({ html });
-  await shareAsync(result.uri, {
+  let shareUri = result.uri;
+  if (fileName) {
+    const { cacheDirectory, copyAsync, deleteAsync } = await import("expo-file-system/legacy");
+    if (cacheDirectory) {
+      shareUri = `${cacheDirectory}${fileName}`;
+      await deleteAsync(shareUri, { idempotent: true });
+      await copyAsync({ from: result.uri, to: shareUri });
+    }
+  }
+  await shareAsync(shareUri, {
     mimeType: "application/pdf",
     dialogTitle: `Share ${docTitle}`,
     UTI: "com.adobe.pdf",
