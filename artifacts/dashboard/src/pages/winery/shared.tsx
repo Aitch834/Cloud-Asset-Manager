@@ -23,6 +23,7 @@ import SignatureCanvas from "react-signature-canvas";
 // ─── Local helpers ─────────────────────────────────────────────────────────────
 import { apiUrl as api } from "@/lib/api";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
+import { csvSafeValue } from "@/lib/csv-safety";
 export const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
@@ -32,7 +33,7 @@ export function exportCSV(rows: Record<string, unknown>[], filename: string, col
   const header = cols.map(c => `"${c.label}"`).join(",");
   const body = rows.map(r => cols.map(c => {
     const v = c.fmt ? c.fmt(r) : (r[c.key] ?? "");
-    return `"${String(v).replace(/"/g, '""')}"`;
+    return `"${csvSafeValue(v).replace(/"/g, '""')}"`;
   }).join(",")).join("\n");
   const prefix = prefixLines && prefixLines.length > 0 ? prefixLines.join("\n") + "\n" : "";
   const blob = new Blob([prefix + header + "\n" + body], { type: "text/csv" });

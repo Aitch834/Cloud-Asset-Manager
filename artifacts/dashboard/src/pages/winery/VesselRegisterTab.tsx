@@ -1221,6 +1221,29 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [autoOpenFill, setAutoOpenFill] = useState(false);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
+  const [maintenanceCsvPending, setMaintenanceCsvPending] = useState(false);
+
+  const handleBarrelMaintenanceCsv = async (vessel: Record<string, unknown>) => {
+    setMaintenanceCsvPending(true);
+    try {
+      const response = await fetchWineryJson(`farms/${farmId}/winery-vessels/${vessel.id}/maintenance`);
+      const records = (response.records ?? []) as Record<string, unknown>[];
+      const vesselRef = String(vessel.vessel_ref ?? "").trim().replace(/[^a-zA-Z0-9._-]+/g, "-") || String(vessel.id);
+
+      exportCSV(records, `barrel-maintenance-${vesselRef}.csv`, [
+        { key: "maintenance_date", label: "Date", fmt: r => r.maintenance_date ? fmtDate(r.maintenance_date) : "—" },
+        { key: "work_type", label: "Work Type", fmt: r => String(r.work_type ?? "—") },
+        { key: "cooperage_name", label: "Cooperage", fmt: r => String(r.cooperage_name ?? "—") },
+        { key: "cost_pence", label: "Cost (£)", fmt: r => r.cost_pence != null ? `£${(Number(r.cost_pence) / 100).toFixed(2)}` : "—" },
+        { key: "operator_name", label: "Operator", fmt: r => String(r.operator_name ?? "—") },
+        { key: "notes", label: "Notes", fmt: r => String(r.notes ?? "") },
+      ]);
+    } catch (err) {
+      toast({ title: "Download failed", description: err instanceof Error ? err.message : "Could not load maintenance records.", variant: "destructive" });
+    } finally {
+      setMaintenanceCsvPending(false);
+    }
+  };
 
   const VESSEL_DETAIL_TABS = ["fills", "maintenance", "location", "cleaning"] as const;
   type VesselDetailTab = typeof VESSEL_DETAIL_TABS[number];
@@ -2349,9 +2372,15 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             )}
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {isBarrelVessel(view.vessel_type) && (
-                <Button variant="outline" size="sm" onClick={() => handleBarrelPrint(view)}>
-                  <Printer className="w-3 h-3 mr-1" />Print Barrel History
-                </Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={() => handleBarrelMaintenanceCsv(view)} disabled={maintenanceCsvPending}>
+                    {maintenanceCsvPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <FileDown className="w-3 h-3 mr-1" />}
+                    Download CSV
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleBarrelPrint(view)}>
+                    <Printer className="w-3 h-3 mr-1" />Print Barrel History
+                  </Button>
+                </>
               )}
               <Button onClick={() => setView(null)}>Close</Button>
             </DialogFooter>
