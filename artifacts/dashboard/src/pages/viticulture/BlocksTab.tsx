@@ -238,7 +238,7 @@ function SortableFilmstripThumb({
       )}
       {!photo.isCover && (
         <button
-          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-30 hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
+          className="absolute top-0.5 left-0.5 bg-black/40 hover:bg-black/70 text-white rounded p-0.5 opacity-100 transition-opacity cursor-grab active:cursor-grabbing touch-none"
           title="Drag to reorder"
           {...attributes}
           {...listeners}
