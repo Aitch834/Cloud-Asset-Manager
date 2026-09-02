@@ -1936,15 +1936,25 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
   });
 
   const markMilestoneMut = useMutation({
-    mutationFn: ({ id, projectId }: { id: number; projectId: number }) =>
+    mutationFn: ({ id, projectId, status }: { id: number; projectId: number; status: "completed" | "pending" }) =>
       fetch(`/api/farms/${farmId}/agri-env-projects/${projectId}/milestones/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "completed", completionDate: isoDate(new Date()) }),
+        body: status === "completed"
+          ? JSON.stringify({ status, completionDate: isoDate(new Date()) })
+          : JSON.stringify({ status }),
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; }).then(r => r.json()),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      queryClient.setQueryData<PlannerEventsResponse>(["planner-events-all", farmId], current =>
+        current
+          ? {
+              ...current,
+              milestones: current.milestones.map(m => m.id === vars.id ? { ...m, status: vars.status } : m),
+            }
+          : current
+      );
       queryClient.invalidateQueries({ queryKey: ["planner-events-all", farmId] });
-      toast({ title: "Milestone marked as complete ✓" });
+      toast({ title: vars.status === "completed" ? "Milestone marked as complete ✓" : "Milestone reverted to pending" });
     },
     onError: () => toast({ title: "Failed to update milestone", variant: "destructive" }),
   });
@@ -2455,12 +2465,22 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
                     <div className="flex-shrink-0 flex items-center gap-1.5">
                       {isOverdue && (
                         <button
-                          onClick={() => markMilestoneMut.mutate({ id: m.id, projectId: m.projectId })}
+                          onClick={() => markMilestoneMut.mutate({ id: m.id, projectId: m.projectId, status: "completed" })}
                           disabled={markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-green-700 hover:bg-green-50 border border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <CheckCircle2 className="w-3 h-3" />
                           {markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id ? "Saving…" : "Mark complete"}
+                        </button>
+                      )}
+                      {m.status === "completed" && (
+                        <button
+                          onClick={() => markMilestoneMut.mutate({ id: m.id, projectId: m.projectId, status: "pending" })}
+                          disabled={markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-amber-700 hover:bg-amber-50 border border-amber-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Undo2 className="w-3 h-3" />
+                          {markMilestoneMut.isPending && markMilestoneMut.variables?.id === m.id ? "Saving…" : "Undo"}
                         </button>
                       )}
                       <button

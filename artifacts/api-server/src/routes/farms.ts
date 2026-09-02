@@ -42997,7 +42997,9 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
   const nextStatus = status != null ? String(status) : existing.status;
-  const nextCompletionDate = "completionDate" in body
+  const nextCompletionDate = nextStatus === "pending"
+    ? null
+    : "completionDate" in body
     ? (completionDate ? String(completionDate) : null)
     : existing.completionDate;
   if (nextStatus === "paid" && !nextCompletionDate) {
@@ -43008,8 +43010,11 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (milestoneName   != null) updates["milestoneName"]   = String(milestoneName);
   if (dueDate         != null) updates["dueDate"]         = dueDate         ? String(dueDate)         : null;
-  // Allow explicit null to clear the completion date (e.g. when reverting from submitted/paid)
-  if ("completionDate" in body) updates["completionDate"] = completionDate  ? String(completionDate)  : null;
+  // Pending milestones do not have a completion date; explicit null also clears it
+  // when reverting from a claimed status.
+  if ("completionDate" in body || nextStatus === "pending") {
+    updates["completionDate"] = nextStatus === "pending" ? null : completionDate ? String(completionDate) : null;
+  }
   if ("claimAmountPence" in body) {
     updates["claimAmountPence"] = claimAmountPence == null || claimAmountPence === ""
       ? null
