@@ -23,7 +23,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
-import { downloadCsvFile } from "@/lib/csv";
 import {
   getRestrictedInputCsvHeaders,
   getRestrictedInputPrintHeaderHtml,
@@ -34,6 +33,8 @@ import {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 import { buildOrganicInspectionCsvRows } from "@/lib/organic-inspection-csv";
+import { buildCsv, downloadCsvFile } from "@/lib/csv";
+import { zipSync } from "fflate";
 
 function fmt(val: string | null | undefined): string {
   if (!val) return "—";
@@ -112,6 +113,8 @@ function printInspectionRegister(records: InspectionRecord[], farmName: string, 
 </body></html>`);
 }
 
+type CsvExport = { filename: string; rows: unknown[][] };
+
 function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, year: number | null) {
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   const yearPart = year ? `-${year}` : "";
@@ -122,24 +125,31 @@ function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, y
   );
 }
 
-function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
+function buildFieldStatusCsvExport(records: FieldStatus[], farmName: string): CsvExport {
   const fmtDate = (v: string | null | undefined) => {
     if (!v) return "";
     try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
   };
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  downloadCsvFile(`field-status-register-${safeName}.csv`, [
-    ["Field Name", "Status", "Conversion Start", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
-    ...records.map(r => [
-      r.fieldName,
-      STATUS_LABELS[r.status] ?? r.status,
-      fmtDate(r.conversionStartDate),
-      fmtDate(r.certificationDate),
-      r.certifierRef ?? "",
-      r.parallelProduction ? "Yes" : "No",
-      r.notes ?? "",
-    ]),
-  ]);
+  return {
+    filename: `field-status-register-${safeName}.csv`,
+    rows: [
+      ["Field Name", "Status", "Conversion Start", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
+      ...records.map(r => [
+        r.fieldName,
+        STATUS_LABELS[r.status] ?? r.status,
+        fmtDate(r.conversionStartDate),
+        fmtDate(r.certificationDate),
+        r.certifierRef ?? "",
+        r.parallelProduction ? "Yes" : "No",
+        r.notes ?? "",
+      ]),
+    ],
+  };
+}
+function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
+  const csv = buildFieldStatusCsvExport(records, farmName);
+  downloadCsvFile(csv.filename, csv.rows);
 }
 
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
@@ -162,10 +172,20 @@ function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
 </body></html>`);
 }
 
-function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, filter: DerogationStatusFilter) {
+function buildRestrictedInputsCsvExport(records: OrganicInput[], farmName: string, filter: DerogationStatusFilter): CsvExport {
   const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const filterLabel = filter === "all" ? "all" : filter;
-  downloadCsvFile(`restricted-inputs-${filterLabel}-${slug}.csv`, [
+  return {
+    filename: `restricted-inputs-${filterLabel}-${slug}.csv`,
+    rows: [
+      getRestrictedInputCsvHeaders(),
+      ...records.map(getRestrictedInputValues),
+    ],
+  };
+}
+function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, filter: DerogationStatusFilter) {
+  const csv = buildRestrictedInputsCsvExport(records, farmName, filter);
+  downloadCsvFile(csv.filename, [
     getRestrictedInputCsvHeaders(),
     ...records.map(getRestrictedInputValues),
   ]);
@@ -215,7 +235,7 @@ function printCertificationSummary(records: Certification[], farmName: string) {
 </body></html>`);
 }
 
-function exportCertificationSummaryCSV(records: Certification[], farmName: string) {
+function buildCertificationSummaryCsvExport(records: Certification[], farmName: string): CsvExport {
   const dateStr = new Date().toISOString().slice(0, 10);
   const fmtDate = (val: string | null | undefined) => {
     if (!val) return "";
@@ -236,7 +256,11 @@ function exportCertificationSummaryCSV(records: Certification[], farmName: strin
       r.notes ?? "",
     ]),
   ];
-  downloadCsvFile(`${safeName}_Organic_Certification_${dateStr}.csv`, rows);
+  return { filename: `${safeName}_Organic_Certification_${dateStr}.csv`, rows };
+}
+function exportCertificationSummaryCSV(records: Certification[], farmName: string) {
+  const csv = buildCertificationSummaryCsvExport(records, farmName);
+  downloadCsvFile(csv.filename, csv.rows);
 }
 
 function downloadInputRegisterCsv(records: OrganicInput[], farmName: string, cropYear: number | null, approvalStatusFilter?: string) {
@@ -1970,6 +1994,22 @@ export default function OrganicPage() {
   });
   const farmName = farmData?.name ?? "Farm";
 
+  function downloadZip(filename: string, files: CsvExport[]) {
+    const encoder = new TextEncoder();
+    const archive = zipSync(
+      Object.fromEntries(files.map(file => [file.filename, encoder.encode(buildCsv(file.rows))])),
+    );
+    const blobBytes = new Uint8Array(archive.byteLength);
+    blobBytes.set(archive);
+    const blob = new Blob([blobBytes.buffer], { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   // Load the four pack sources at page level so growers can see whether the
   // pack is complete before starting a multi-file download. These keys are
   // shared with the individual register tabs, so TanStack Query deduplicates
@@ -2031,9 +2071,9 @@ export default function OrganicPage() {
         : "Register counts unavailable";
   const auditPackTitle = auditPackHasCounts
     ? emptyAuditRegisters.length > 0
-      ? `Download all four compliance registers as separate CSV files. ${emptyAuditRegisters.join("; ")}.`
-      : "Download all four compliance registers as separate CSV files."
-    : "Download all four compliance registers as separate CSV files";
+      ? `Download all four compliance registers in one ZIP file. ${emptyAuditRegisters.join("; ")}.`
+      : "Download all four compliance registers in one ZIP file."
+    : "Download all four compliance registers in one ZIP file";
 
   async function downloadAuditPack() {
     if (!farmId) return;
@@ -2069,13 +2109,14 @@ export default function OrganicPage() {
         r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation",
       );
 
-      exportCertificationSummaryCSV(certResult.records, farmName);
-      await new Promise<void>(res => setTimeout(res, 300));
-      downloadFieldStatusCsv(fieldsResult.records, farmName);
-      await new Promise<void>(res => setTimeout(res, 300));
-      downloadInspectionsCsv(inspResult.records, farmName, null);
-      await new Promise<void>(res => setTimeout(res, 300));
-      exportRestrictedInputsCsv(restrictedRecords, farmName, "all");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const safeFarmName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "farm";
+      downloadZip(`${safeFarmName}-organic-audit-pack-${dateStr}.zip`, [
+        buildCertificationSummaryCsvExport(certResult.records, farmName),
+        buildFieldStatusCsvExport(fieldsResult.records, farmName),
+        buildInspectionsCsvExport(inspResult.records, farmName, null),
+        buildRestrictedInputsCsvExport(restrictedRecords, farmName, "all"),
+      ]);
     } catch {
       toast({
         title: "Could not download audit pack",
@@ -2138,4 +2179,14 @@ export default function OrganicPage() {
       </div>
     </AppLayout>
   );
+}
+
+function buildInspectionsCsvExport(records: InspectionRecord[], farmName: string, year: number | null): CsvExport {
+  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const yearPart = year ? `-${year}` : "";
+  const dateStr = new Date().toISOString().slice(0, 10);
+  return {
+    filename: `inspections-${safeName}${yearPart}-${dateStr}.csv`,
+    rows: buildOrganicInspectionCsvRows(records),
+  };
 }
