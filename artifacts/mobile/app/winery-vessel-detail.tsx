@@ -1358,6 +1358,7 @@ export default function WineryVesselDetailScreen() {
                 Alert.alert("Error", body.error ?? `Server error (${res.status})`);
                 return;
               }
+              triggerBarrelRefresh();
               refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete fill record.");
@@ -1391,6 +1392,7 @@ export default function WineryVesselDetailScreen() {
                 Alert.alert("Error", body.error ?? `Server error (${res.status})`);
                 return;
               }
+              triggerBarrelRefresh();
               refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete movement.");
@@ -1424,6 +1426,7 @@ export default function WineryVesselDetailScreen() {
                 Alert.alert("Error", body.error ?? `Server error (${res.status})`);
                 return;
               }
+              triggerBarrelRefresh();
               refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete record.");
