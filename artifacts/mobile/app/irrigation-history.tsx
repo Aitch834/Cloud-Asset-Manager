@@ -1,4 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -100,6 +104,40 @@ function formatDate(d: string | null | undefined): string {
   });
 }
 
+/** Parse a YYYY-MM-DD string as a local date for the native picker. */
+function parseIsoDateLocal(value: string | null | undefined): Date {
+  if (value) {
+    const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+    if (year && month && day) {
+      const parsed = new Date(year, month - 1, day);
+      if (
+        parsed.getFullYear() === year &&
+        parsed.getMonth() === month - 1 &&
+        parsed.getDate() === day
+      ) {
+        return parsed;
+      }
+    }
+  }
+  return new Date();
+}
+
+/** Serialise a local date back to the API's date-only format. */
+function dateToIso(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatLocalDate(value: string): string {
+  return parseIsoDateLocal(value).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function yearOf(d: string | null | undefined): string {
   if (!d) return "";
   const yr = new Date(d).getFullYear();
@@ -157,6 +195,7 @@ export default function IrrigationHistoryScreen() {
   // ── Edit modal state ──────────────────────────────────────────────────────
   const [editRecord, setEditRecord] = useState<IrrigationRecord | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [editDate, setEditDate] = useState("");
   const [editFieldDesc, setEditFieldDesc] = useState("");
   const [editWaterSource, setEditWaterSource] = useState("");
   const [editCropType, setEditCropType] = useState("");
@@ -449,6 +488,7 @@ export default function IrrigationHistoryScreen() {
 
   const openEdit = useCallback((record: IrrigationRecord) => {
     setEditRecord(record);
+    setEditDate(record.irrigationDate?.slice(0, 10) ?? "");
     setEditFieldDesc(record.fieldOrBlockDescription ?? record.fieldName ?? "");
     setEditWaterSource(record.waterSource ?? "");
     setEditCropType(record.cropType ?? "");
@@ -490,6 +530,7 @@ export default function IrrigationHistoryScreen() {
     setEditSaving(true);
     try {
       const body: Record<string, unknown> = {
+        irrigationDate: editDate,
         fieldOrBlockDescription: editFieldDesc.trim() || null,
         // Preserve the original form's empty-string representation when the
         // optional water-source input is cleared.
@@ -535,6 +576,7 @@ export default function IrrigationHistoryScreen() {
   }, [
     editRecord,
     farmId,
+    editDate,
     editFieldDesc,
     editWaterSource,
     editMethod,
@@ -894,15 +936,60 @@ export default function IrrigationHistoryScreen() {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.editScrollContent}
               >
-                {/* Date (read-only) */}
+                {/* Date */}
                 {editRecord ? (
                   <View style={styles.editField}>
                     <Text style={styles.editLabel}>Date</Text>
-                    <View style={styles.editReadonly}>
-                      <Text style={styles.editReadonlyText}>
-                        {formatDate(editRecord.irrigationDate)}
-                      </Text>
-                    </View>
+                    {Platform.OS === "ios" ? (
+                      <DateTimePicker
+                        value={parseIsoDateLocal(editDate)}
+                        mode="date"
+                        display="spinner"
+                        maximumDate={new Date()}
+                        onChange={(
+                          _event: DateTimePickerEvent,
+                          selectedDate?: Date,
+                        ) => {
+                          if (selectedDate) setEditDate(dateToIso(selectedDate));
+                        }}
+                        style={styles.nativeDatePicker}
+                      />
+                    ) : (
+                      <Pressable
+                        style={styles.editDateButton}
+                        onPress={() => {
+                          void DateTimePickerAndroid.open({
+                            value: parseIsoDateLocal(editDate),
+                            mode: "date",
+                            maximumDate: new Date(),
+                            onChange: (
+                              _event: DateTimePickerEvent,
+                              selectedDate?: Date,
+                            ) => {
+                              if (selectedDate) {
+                                setEditDate(dateToIso(selectedDate));
+                              }
+                            },
+                          });
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Selected date: ${formatLocalDate(editDate)}. Tap to change.`}
+                      >
+                        <Feather
+                          name="calendar"
+                          size={18}
+                          color={colors.primary}
+                        />
+                        <Text style={styles.editDateButtonText}>
+                          {formatLocalDate(editDate)}
+                        </Text>
+                        <Feather
+                          name="chevron-right"
+                          size={16}
+                          color={colors.textTertiary}
+                        />
+                      </Pressable>
+                    )}
                   </View>
                 ) : null}
 
@@ -1827,6 +1914,27 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  nativeDatePicker: {
+    alignSelf: "flex-start",
+    marginBottom: spacing.xs,
+  },
+  editDateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  editDateButtonText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: colors.text,
   },
   editCalculated: {
     flexDirection: "row",
