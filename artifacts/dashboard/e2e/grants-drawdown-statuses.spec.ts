@@ -10,9 +10,11 @@ import { expect, test } from "@playwright/test";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const projects = [
   { id: 1, schemeName: "Active scheme", status: "active", totalGrantValuePence: 100_000 },
