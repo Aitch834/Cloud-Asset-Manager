@@ -664,7 +664,11 @@ export const api = {
     del<{ success: boolean }>(`/admin/help-articles/${id}`, secret),
 
   seedDefaultHelpArticles: (secret: string) =>
-    post<{ success: boolean; inserted: number; skipped: number }>("/admin/help-articles/seed-defaults", {}, secret),
+    post<{ success: boolean; inserted: number; updated: number; unchanged: number; skipped: number }>(
+      "/admin/help-articles/seed-defaults",
+      {},
+      secret,
+    ),
 
   getHpaiAlertHistory: (secret: string) =>
     get<{ entries: HpaiAlertHistoryEntry[] }>("/admin/hpai-alert-history", secret),

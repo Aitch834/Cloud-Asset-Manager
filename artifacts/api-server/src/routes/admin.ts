@@ -2835,16 +2835,46 @@ router.delete("/admin/help-articles/:id", requireAuth, async (req: Request, res:
 
 router.post("/admin/help-articles/seed-defaults", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
-  const { DEFAULT_HELP_ARTICLES } = await import("../lib/defaultHelpArticles");
+  const {
+    DEFAULT_HELP_ARTICLES,
+    defaultHelpArticleMatches,
+    isKnownSeededHelpArticle,
+  } = await import("../lib/defaultHelpArticles");
+
+  const existingArticles = await db.select().from(helpArticlesTable);
+  const existingBySlug = new Map(existingArticles.map((article) => [article.slug, article]));
+
   let inserted = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let skipped = 0;
+
   for (const a of DEFAULT_HELP_ARTICLES) {
-    const existing = await db.select({ id: helpArticlesTable.id }).from(helpArticlesTable).where(eq(helpArticlesTable.slug, a.slug)).limit(1);
-    if (existing.length === 0) {
+    const existing = existingBySlug.get(a.slug);
+
+    if (!existing) {
       await db.insert(helpArticlesTable).values({ ...a, updatedAt: new Date() });
       inserted++;
+      continue;
     }
+
+    if (defaultHelpArticleMatches(existing, a)) {
+      unchanged++;
+      continue;
+    }
+
+    if (!isKnownSeededHelpArticle(existing, a)) {
+      skipped++;
+      continue;
+    }
+
+    await db.update(helpArticlesTable)
+      .set({ ...a, updatedAt: new Date() })
+      .where(eq(helpArticlesTable.id, existing.id));
+    updated++;
   }
-  res.json({ success: true, inserted, skipped: DEFAULT_HELP_ARTICLES.length - inserted });
+
+  res.json({ success: true, inserted, updated, unchanged, skipped });
 });
 
 // ─── Ad Template Library ──────────────────────────────────────────────────────

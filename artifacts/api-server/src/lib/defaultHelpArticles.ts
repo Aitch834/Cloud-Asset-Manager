@@ -8,6 +8,16 @@ export interface DefaultArticle {
   content: string;
 }
 
+export type HelpArticleSyncCandidate = Omit<
+  Pick<
+    DefaultArticle,
+    "title" | "slug" | "category" | "excerpt" | "published" | "sortOrder" | "content"
+  >,
+  "excerpt"
+> & {
+  excerpt: string | null;
+};
+
 function toSlug(title: string): string {
   return title
     .toLowerCase()
@@ -6816,3 +6826,51 @@ export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, categ
     content,
   };
 });
+
+const DEFAULT_CONTENT_FINGERPRINTS = new Set(
+  DEFAULT_HELP_ARTICLES.map(({ excerpt, content }) => JSON.stringify([excerpt, content])),
+);
+
+function hasMatchingDefaultMetadata(
+  existing: HelpArticleSyncCandidate,
+  current: DefaultArticle,
+): boolean {
+  return existing.title === current.title
+    && existing.slug === current.slug
+    && existing.category === current.category
+    && existing.published === current.published
+    && existing.sortOrder === current.sortOrder;
+}
+
+export function defaultHelpArticleMatches(
+  existing: HelpArticleSyncCandidate,
+  current: DefaultArticle,
+): boolean {
+  return hasMatchingDefaultMetadata(existing, current)
+    && existing.excerpt === current.excerpt
+    && existing.content === current.content;
+}
+
+/**
+ * Only identifies shapes produced by the default seeder.
+ *
+ * Historical title/content index drift paired some default slugs with another
+ * default article's exact excerpt and body. The final articles were emitted as
+ * exact generated placeholders. Both are safe to refresh; any customized field
+ * causes the row to be skipped.
+ */
+export function isKnownSeededHelpArticle(
+  existing: HelpArticleSyncCandidate,
+  current: DefaultArticle,
+): boolean {
+  if (!hasMatchingDefaultMetadata(existing, current)) return false;
+
+  if (DEFAULT_CONTENT_FINGERPRINTS.has(
+    JSON.stringify([existing.excerpt, existing.content]),
+  )) {
+    return true;
+  }
+
+  return existing.excerpt === `Help article: ${current.title}`
+    && existing.content === `<h2>${current.title}</h2>\n<p>This article is being prepared.</p>`;
+}

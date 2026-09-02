@@ -109,9 +109,12 @@ export default function HelpCentre() {
 
   const seedMut = useMutation({
     mutationFn: () => api.seedDefaultHelpArticles(secret),
-    onSuccess: ({ inserted, skipped }) => {
+    onSuccess: ({ inserted, updated, unchanged, skipped }) => {
       invalidate();
-      toast({ title: `Defaults loaded: ${inserted} added, ${skipped} already existed` });
+      toast({
+        title: "Default articles synced",
+        description: `${inserted} inserted, ${updated} updated, ${unchanged} unchanged, ${skipped} customized and skipped.`,
+      });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -179,7 +182,7 @@ export default function HelpCentre() {
               variant="outline"
               onClick={() => seedMut.mutate()}
               disabled={seedMut.isPending}
-              title="Load default article stubs"
+              title="Sync default articles without overwriting customized articles"
             >
               {seedMut.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
             </Button>
