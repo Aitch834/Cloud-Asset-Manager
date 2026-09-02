@@ -618,11 +618,13 @@ function SprayPhotoLightbox({ photos, initialIndex, visible, onClose, onReload, 
 
 // ─── Photo Thumbnail ──────────────────────────────────────────────────────────
 
-function SprayPhotoThumbnail({
+export function SprayPhotoThumbnail({
   photo,
   onPress,
   onDelete,
   onEditCaption,
+  onReload,
+  reloading,
   onSetCover,
   onShowTooltip,
   onHideTooltip,
@@ -631,15 +633,26 @@ function SprayPhotoThumbnail({
   onPress: () => void;
   onDelete: (id: number) => void;
   onEditCaption: (photo: SprayDiaryPhoto) => void;
+  onReload?: () => void;
+  /** True while this thumbnail's presigned URL refresh is in flight. */
+  reloading?: boolean;
   /** When provided and photo is not already the cover, long-press menu includes "Set as cover". */
   onSetCover?: (photo: SprayDiaryPhoto) => void;
   onShowTooltip: (caption: string) => void;
   onHideTooltip: () => void;
 }) {
   const uri = photo.downloadUrl ?? null;
+  const [imgError, setImgError] = useState(false);
   // Set to true when a long-press fires so onPressOut can show the Alert; cleared
   // there immediately. RN does NOT emit onPress after a recognised long press.
   const longPressJustFiredRef = useRef(false);
+
+  // Reset error state whenever the URL is refreshed so the image retries.
+  const prevUri = useRef(uri);
+  if (prevUri.current !== uri) {
+    prevUri.current = uri;
+    if (imgError) setImgError(false);
+  }
 
   const handlePress = () => {
     if (longPressJustFiredRef.current) {
@@ -691,8 +704,32 @@ function SprayPhotoThumbnail({
   return (
     <Pressable style={styles.thumbnail} onPress={handlePress} onLongPress={handleLongPress} onPressOut={handlePressOut}>
       <View style={styles.thumbImgBox}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+        {uri && !imgError ? (
+          <Image
+            source={{ uri }}
+            style={styles.thumbImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : imgError ? (
+          <Pressable
+            style={styles.thumbPlaceholder}
+            onPress={(event) => {
+              event.stopPropagation();
+              onReload?.();
+            }}
+            hitSlop={8}
+            disabled={reloading}
+          >
+            {reloading ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={22} color={colors.textSecondary} />
+                <Text style={styles.thumbReloadLabel}>Tap to reload</Text>
+              </>
+            )}
+          </Pressable>
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Feather name="image" size={24} color={colors.textSecondary} />
@@ -726,6 +763,11 @@ function SprayDiaryPhotoSection({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // ID of the thumbnail whose presigned URL refresh is currently in flight.
+  const [reloadingPhotoId, setReloadingPhotoId] = useState<number | null>(null);
+  // Prevent rapid presses from starting overlapping refreshes before React
+  // commits the reloadingPhotoId state update.
+  const reloadInFlightRef = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   // Grid caption tooltip state — shown while a captioned thumbnail is long-pressed
   const [gridTooltipCaption, setGridTooltipCaption] = useState<string | null>(null);
@@ -937,6 +979,18 @@ function SprayDiaryPhotoSection({
                 onPress={() => setLightboxIndex(index)}
                 onDelete={handleDeletePhoto}
                 onEditCaption={handleEditCaption}
+                onReload={async () => {
+                  if (reloadInFlightRef.current) return;
+                  reloadInFlightRef.current = true;
+                  setReloadingPhotoId(item.id);
+                  try {
+                    await loadPhotos({ silent: true });
+                  } finally {
+                    reloadInFlightRef.current = false;
+                    setReloadingPhotoId(null);
+                  }
+                }}
+                reloading={reloadingPhotoId === item.id}
                 onSetCover={!item.isCover ? handleSetCover : undefined}
                 onShowTooltip={setGridTooltipCaption}
                 onHideTooltip={() => setGridTooltipCaption(null)}
@@ -2550,6 +2604,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.borderLight,
+  },
+  thumbReloadLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 9,
+    color: colors.textSecondary,
+    marginTop: 2,
+    textAlign: "center",
   },
   captionBelow: {
     fontFamily: fonts.regular,
