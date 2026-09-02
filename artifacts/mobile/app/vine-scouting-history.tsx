@@ -32,6 +32,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
+import { usePersistedDateRange } from "@/lib/hooks/usePersistedDateRange";
 import { usePersistedPressureFilter } from "@/lib/hooks/usePersistedPressureFilter";
 import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
@@ -698,8 +699,7 @@ export default function VineScoutingHistoryScreen() {
 
   const [search, setSearch] = useState("");
   const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom, dateTo, setDateTo] = usePersistedDateRange(currentFarm?.id);
   const [pressureFilter, setPressureFilter] = usePersistedPressureFilter(currentFarm?.id);
   const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
   const [editingRecord, setEditingRecord] = useState<ScoutingRecord | null>(null);
