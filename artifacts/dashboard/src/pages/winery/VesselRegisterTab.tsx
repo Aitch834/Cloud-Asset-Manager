@@ -1660,6 +1660,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                 "body{font-family:Arial,sans-serif;font-size:11px;margin:20px;color:#111}" +
                 "h1{font-size:14px;font-weight:700;margin:0 0 2px}" +
                 ".meta{font-size:10px;color:#555;margin-bottom:12px}" +
+                 ".thresholds{font-size:10px;color:#555;margin-bottom:10px}" +
                 "table{width:100%;border-collapse:collapse;font-size:11px}" +
                 "th{background:#f0f0f0;font-weight:700;text-align:left;padding:5px 8px;border:1px solid #ccc}" +
                 "td{padding:4px 8px;border:1px solid #ddd;vertical-align:top}" +
@@ -1677,6 +1678,11 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               meta.className = "meta";
               meta.textContent = `Scope: ${scope}  \u00b7  Printed: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
               doc.body.appendChild(meta);
+
+               const thresholds = doc.createElement("div");
+               thresholds.className = "thresholds";
+               thresholds.textContent = `Idle threshold: ${idleBarrelDays}d  |  Neutral threshold: fill ${approachingNeutralFills}+`;
+               doc.body.appendChild(thresholds);
 
               const noFillsCooperageCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) > 0).length;
               const noFillsNoneCount = exportBarrels.filter(r => Number(r.fill_count ?? 0) === 0 && Number(r.maintenance_count ?? 0) === 0).length;
