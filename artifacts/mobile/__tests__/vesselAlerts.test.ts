@@ -1,8 +1,17 @@
 import {
   APPROACHING_NEUTRAL_FILLS,
   IDLE_BARREL_DAYS,
+  isApproachingNeutral,
+  isIdleBarrel,
   resolveBarrelAlertThreshold,
 } from "../lib/utils/vesselAlerts";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW = new Date("2026-01-15T12:00:00.000Z");
+
+function emptySinceDaysAgo(days: number): string {
+  return new Date(NOW.getTime() - days * DAY_MS).toISOString();
+}
 
 describe("resolveBarrelAlertThreshold", () => {
   it("uses a valid farm override ahead of the platform default", () => {
@@ -18,5 +27,65 @@ describe("resolveBarrelAlertThreshold", () => {
       APPROACHING_NEUTRAL_FILLS,
     );
     expect(resolveBarrelAlertThreshold("", "0", IDLE_BARREL_DAYS)).toBe(IDLE_BARREL_DAYS);
+  });
+});
+
+describe("isIdleBarrel", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("uses the default threshold and only flags barrels older than it", () => {
+    expect(isIdleBarrel(emptySinceDaysAgo(IDLE_BARREL_DAYS))).toBe(false);
+    expect(
+      isIdleBarrel(
+        new Date(NOW.getTime() - IDLE_BARREL_DAYS * DAY_MS - 1).toISOString(),
+      ),
+    ).toBe(true);
+  });
+
+  it("uses a farm-specific threshold override", () => {
+    expect(isIdleBarrel(emptySinceDaysAgo(30), 30)).toBe(false);
+    expect(isIdleBarrel(emptySinceDaysAgo(31), 30)).toBe(true);
+  });
+
+  it("falls back to the default threshold for a null override", () => {
+    expect(isIdleBarrel(emptySinceDaysAgo(IDLE_BARREL_DAYS), null)).toBe(false);
+    expect(
+      isIdleBarrel(
+        new Date(NOW.getTime() - IDLE_BARREL_DAYS * DAY_MS - 1).toISOString(),
+        null,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag a barrel without an empty-since date", () => {
+    expect(isIdleBarrel(null)).toBe(false);
+  });
+});
+
+describe("isApproachingNeutral", () => {
+  it("uses the default threshold and includes the boundary", () => {
+    expect(isApproachingNeutral(APPROACHING_NEUTRAL_FILLS - 1)).toBe(false);
+    expect(isApproachingNeutral(APPROACHING_NEUTRAL_FILLS)).toBe(true);
+  });
+
+  it("uses a farm-specific threshold override", () => {
+    expect(isApproachingNeutral(6, 7)).toBe(false);
+    expect(isApproachingNeutral(7, 7)).toBe(true);
+  });
+
+  it("falls back to the default threshold for a null override", () => {
+    expect(isApproachingNeutral(APPROACHING_NEUTRAL_FILLS, null)).toBe(true);
+    expect(isApproachingNeutral(APPROACHING_NEUTRAL_FILLS - 1, null)).toBe(false);
+  });
+
+  it("does not flag a barrel without a fill number", () => {
+    expect(isApproachingNeutral(null)).toBe(false);
   });
 });
