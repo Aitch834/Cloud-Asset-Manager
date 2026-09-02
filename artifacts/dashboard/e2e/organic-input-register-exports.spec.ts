@@ -7,7 +7,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
+import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 
 const TENANT_ID = 1;
 const PRODUCT_NAME = "E2E Derogation Seed Treatment";
+const FILTER_2025_PRODUCT_NAME = "E2E 2025 Restricted Input";
+const FILTER_2024_PRODUCT_NAME = "E2E 2024 Restricted Input";
 const EXPIRY_ISO = "2026-12-31";
 const EXPIRY_UK = "31/12/2026";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +26,14 @@ type OrganicFarm = {
   farmId: number;
   farmName: string;
 };
+
+function getTestUserEmail(): string {
+  const stateFile = path.join(__dirname, ".test-user-email");
+  if (!fs.existsSync(stateFile)) {
+    throw new Error("global-setup did not run — e2e/.test-user-email is missing");
+  }
+  return fs.readFileSync(stateFile, "utf8").trim();
+}
 
 function getTestUserId(): string {
   const stateFile = path.join(__dirname, ".test-user-id");
@@ -142,6 +152,110 @@ async function prepareInputRegister(page: Page, farm: OrganicFarm): Promise<void
   await expect(page.getByText(PRODUCT_NAME, { exact: true })).toBeVisible();
 }
 
+async function prepareInputRegisterFilterPersistence(
+  page: Page,
+  farm: OrganicFarm,
+): Promise<void> {
+  await page.route(`**/api/farms/${farm.farmId}/organic/inputs*`, async route => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+
+    const cropYear = new URL(route.request().url()).searchParams.get("cropYear");
+    const record =
+      cropYear === "2024"
+        ? {
+            id: 910_042,
+            farmId: farm.farmId,
+            productName: FILTER_2024_PRODUCT_NAME,
+            inputType: "Fertiliser",
+            supplier: "E2E Organic Supplies",
+            poReference: "PO-E2E-2024",
+            grnReference: "GRN-E2E-2024",
+            approvalStatus: "restricted",
+            certifierApprovalRef: "RESTRICTED-E2E-2024",
+            cropYear: 2024,
+            dateOfUse: "2024-05-15",
+            quantityAmount: "20",
+            quantityUnit: "kg",
+            fieldId: null,
+            fieldName: "North Field",
+            justification: "Crop-year filter persistence fixture",
+            certifierNotified: true,
+            appliedBy: "E2E Tester",
+            derogationExpiryDate: null,
+            notes: "2024 crop-year fixture",
+            createdAt: "2024-05-15T09:00:00.000Z",
+          }
+        : {
+            id: 910_043,
+            farmId: farm.farmId,
+            productName: FILTER_2025_PRODUCT_NAME,
+            inputType: "Fertiliser",
+            supplier: "E2E Organic Supplies",
+            poReference: "PO-E2E-2025",
+            grnReference: "GRN-E2E-2025",
+            approvalStatus: "restricted",
+            certifierApprovalRef: "RESTRICTED-E2E-2025",
+            cropYear: 2025,
+            dateOfUse: "2025-05-15",
+            quantityAmount: "20",
+            quantityUnit: "kg",
+            fieldId: null,
+            fieldName: "North Field",
+            justification: "Crop-year filter persistence fixture",
+            certifierNotified: true,
+            appliedBy: "E2E Tester",
+            derogationExpiryDate: null,
+            notes: "2025 crop-year fixture",
+            createdAt: "2025-05-15T09:00:00.000Z",
+          };
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ records: [record] }),
+    });
+  });
+
+  await page.goto("/dashboard/");
+  await page.waitForLoadState("networkidle");
+  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await expect(
+    page.getByRole("heading", { name: "Select a Farm", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await page
+    .getByRole("heading", { name: farm.farmName, exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/dashboard\/?(?:\?.*)?$/, {
+    timeout: 15_000,
+  });
+  await page.evaluate(
+    (farmId) => {
+      localStorage.setItem(
+        `organic-input-register-year-filter-${farmId}`,
+        "2025",
+      );
+      localStorage.setItem(
+        `organic-input-register-approval-status-filter-${farmId}`,
+        "all",
+      );
+    },
+    farm.farmId,
+  );
+
+  await page.goto("/dashboard/organic?tab=input-register", {
+    waitUntil: "networkidle",
+  });
+  await expect(
+    page.getByText("Input register — arable, horticultural & general farm inputs"),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.getByText(FILTER_2025_PRODUCT_NAME, { exact: true }),
+  ).toBeVisible();
+}
+
 async function prepareEmptyAuditPack(page: Page, farm: OrganicFarm): Promise<() => void> {
   let releaseCertificationRequest!: () => void;
   const certificationRequestHeld = new Promise<void>(resolve => {
@@ -245,6 +359,41 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   await expect(printRow).toContainText(String(expectedDaysRemaining));
 
   await popup.close();
+});
+
+test("preserves approval status when switching crop year and includes both in the CSV filename", async ({
+  page,
+}) => {
+  const farm = await getOrganicFarm();
+  await prepareInputRegisterFilterPersistence(page, farm);
+
+  const selects = page.locator("select");
+  await expect(selects).toHaveCount(2);
+  const yearSelect = selects.nth(0);
+  const statusSelect = selects.nth(1);
+
+  await expect(yearSelect).toHaveValue("2025");
+  await expect(statusSelect).toHaveValue("all");
+
+  await statusSelect.selectOption("restricted");
+  await expect(statusSelect).toHaveValue("restricted");
+  await expect(
+    page.getByText(FILTER_2025_PRODUCT_NAME, { exact: true }),
+  ).toBeVisible();
+
+  await yearSelect.selectOption("2024");
+  await expect(yearSelect).toHaveValue("2024");
+  await expect(statusSelect).toHaveValue("restricted");
+  await expect(
+    page.getByText(FILTER_2024_PRODUCT_NAME, { exact: true }),
+  ).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(
+    /^input-register-2024-restricted-.+\.csv$/,
+  );
 });
 
 test("blocks an immediate audit pack click until empty-register warnings are ready", async ({
