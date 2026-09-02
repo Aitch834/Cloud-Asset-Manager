@@ -2139,6 +2139,9 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
       ["Category", "Type", "Amount (£)", "Period"],
       ...incomeByCategory.map(r => [r.cat, "Income", toGbp(r.total), periodLabel]),
       ...expenseByCategory.map(r => [r.cat, "Expense", toGbp(r.total), periodLabel]),
+      ["Total Income", "Income", toGbp(totalIncome), periodLabel],
+      ["Total Expenditure", "Expense", toGbp(totalExpense), periodLabel],
+      ["Net Profit / Loss", "Net", toGbp(netProfit), periodLabel],
     ];
     downloadCsvFile(`full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`, rows);
   }
