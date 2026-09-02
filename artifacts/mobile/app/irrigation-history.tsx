@@ -38,11 +38,17 @@ interface IrrigationRecord {
   fieldId: number | null;
   fieldName: string | null;
   fieldOrBlockDescription: string | null;
+  waterSource: string | null;
   applicationDepthMm: string | number | null;
   irrigationMethod: string;
   cropType: string | null;
+  growthStage: string | null;
+  meterStartReading: string | number | null;
+  meterEndReading: string | number | null;
+  volumeAppliedM3: string | number | null;
   areaIrrigatedHa: string | number | null;
   operatorName: string | null;
+  rainfallLast7DaysMm: string | number | null;
   notes: string | null;
 }
 
@@ -53,11 +59,17 @@ interface LocalIrrigationPayload {
   fieldId?: number | string | null;
   fieldName?: string | null;
   fieldOrBlockDescription?: string | null;
+  waterSource?: string | null;
   applicationDepthMm?: string | number | null;
   irrigationMethod?: string;
   cropType?: string | null;
+  growthStage?: string | null;
+  meterStartReading?: string | number | null;
+  meterEndReading?: string | number | null;
+  volumeAppliedM3?: string | number | null;
   areaIrrigatedHa?: string | number | null;
   operatorName?: string | null;
+  rainfallLast7DaysMm?: string | number | null;
   notes?: string | null;
 }
 
@@ -146,12 +158,24 @@ export default function IrrigationHistoryScreen() {
   const [editRecord, setEditRecord] = useState<IrrigationRecord | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editFieldDesc, setEditFieldDesc] = useState("");
+  const [editWaterSource, setEditWaterSource] = useState("");
   const [editCropType, setEditCropType] = useState("");
   const [editMethod, setEditMethod] = useState("");
   const [editDepthMm, setEditDepthMm] = useState("");
+  const [editMeterStart, setEditMeterStart] = useState("");
+  const [editMeterEnd, setEditMeterEnd] = useState("");
+  const [editVolumeM3, setEditVolumeM3] = useState("");
   const [editAreaHa, setEditAreaHa] = useState("");
   const [editOperator, setEditOperator] = useState("");
   const [editNotes, setEditNotes] = useState("");
+
+  const editMeterVolume = useMemo(() => {
+    if (!editMeterStart.trim() || !editMeterEnd.trim()) return null;
+    const start = Number(editMeterStart);
+    const end = Number(editMeterEnd);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    return Math.max(0, end - start);
+  }, [editMeterStart, editMeterEnd]);
 
   const reqIdRef = useRef(0);
   // Per-request counter for local item loads — prevents stale farm-switch reads.
@@ -426,10 +450,20 @@ export default function IrrigationHistoryScreen() {
   const openEdit = useCallback((record: IrrigationRecord) => {
     setEditRecord(record);
     setEditFieldDesc(record.fieldOrBlockDescription ?? record.fieldName ?? "");
+    setEditWaterSource(record.waterSource ?? "");
     setEditCropType(record.cropType ?? "");
     setEditMethod(record.irrigationMethod ?? "");
     setEditDepthMm(
       record.applicationDepthMm != null ? String(record.applicationDepthMm) : "",
+    );
+    setEditMeterStart(
+      record.meterStartReading != null ? String(record.meterStartReading) : "",
+    );
+    setEditMeterEnd(
+      record.meterEndReading != null ? String(record.meterEndReading) : "",
+    );
+    setEditVolumeM3(
+      record.volumeAppliedM3 != null ? String(record.volumeAppliedM3) : "",
     );
     setEditAreaHa(
       record.areaIrrigatedHa != null ? String(record.areaIrrigatedHa) : "",
@@ -457,6 +491,9 @@ export default function IrrigationHistoryScreen() {
     try {
       const body: Record<string, unknown> = {
         fieldOrBlockDescription: editFieldDesc.trim() || null,
+        // Preserve the original form's empty-string representation when the
+        // optional water-source input is cleared.
+        waterSource: editWaterSource.trim(),
         cropType: editCropType.trim() || null,
         irrigationMethod: editMethod,
         operatorName: editOperator.trim() || null,
@@ -465,6 +502,14 @@ export default function IrrigationHistoryScreen() {
         // rather than leaving the old database value in place.
         applicationDepthMm: editDepthMm.trim() ? editDepthMm.trim() : null,
         areaIrrigatedHa: editAreaHa.trim() ? editAreaHa.trim() : null,
+        meterStartReading: editMeterStart.trim() ? editMeterStart.trim() : null,
+        meterEndReading: editMeterEnd.trim() ? editMeterEnd.trim() : null,
+        volumeAppliedM3:
+          editMeterVolume !== null
+            ? editMeterVolume.toFixed(2)
+            : editVolumeM3.trim()
+              ? editVolumeM3.trim()
+              : null,
         // Preserve the linked field so the server-side area-limit check runs
         // against the correct field even when only depth/area is being corrected.
         fieldId: editRecord.fieldId ?? null,
@@ -491,9 +536,14 @@ export default function IrrigationHistoryScreen() {
     editRecord,
     farmId,
     editFieldDesc,
+    editWaterSource,
     editMethod,
     editCropType,
     editDepthMm,
+    editMeterStart,
+    editMeterEnd,
+    editVolumeM3,
+    editMeterVolume,
     editAreaHa,
     editOperator,
     editNotes,
@@ -882,6 +932,19 @@ export default function IrrigationHistoryScreen() {
                   />
                 </View>
 
+                {/* Water Source */}
+                <View style={styles.editField}>
+                  <Text style={styles.editSectionTitle}>Water Source</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editWaterSource}
+                    onChangeText={setEditWaterSource}
+                    placeholder="e.g. North borehole, Licence 12/54/18/0012"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="words"
+                  />
+                </View>
+
                 {/* Irrigation Method */}
                 <View style={styles.editField}>
                   <Text style={styles.editLabel}>Irrigation Method *</Text>
@@ -914,6 +977,61 @@ export default function IrrigationHistoryScreen() {
                       </Text>
                     </Pressable>
                   ))}
+                </View>
+
+                {/* Meter Readings and Volume */}
+                <View style={styles.editField}>
+                  <Text style={styles.editSectionTitle}>Meter Readings</Text>
+                  <Text style={styles.editHint}>
+                    Enter both readings to calculate the applied volume, or
+                    leave them blank and enter the volume directly.
+                  </Text>
+                  <View style={styles.editRow}>
+                    <View style={[styles.editField, styles.editRowField]}>
+                      <Text style={styles.editLabel}>Meter Start (m³)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editMeterStart}
+                        onChangeText={setEditMeterStart}
+                        placeholder="Start reading"
+                        placeholderTextColor={colors.textTertiary}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <View style={[styles.editField, styles.editRowField]}>
+                      <Text style={styles.editLabel}>Meter End (m³)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editMeterEnd}
+                        onChangeText={setEditMeterEnd}
+                        placeholder="End reading"
+                        placeholderTextColor={colors.textTertiary}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                  {editMeterVolume !== null ? (
+                    <View style={styles.editCalculated}>
+                      <Text style={styles.editCalculatedLabel}>
+                        Volume Applied (from meter)
+                      </Text>
+                      <Text style={styles.editCalculatedValue}>
+                        {editMeterVolume.toFixed(2)} m³
+                      </Text>
+                    </View>
+                  ) : (
+                    <View>
+                      <Text style={styles.editLabel}>Volume Applied (m³)</Text>
+                      <TextInput
+                        style={styles.editInput}
+                        value={editVolumeM3}
+                        onChangeText={setEditVolumeM3}
+                        placeholder="m³ abstracted"
+                        placeholderTextColor={colors.textTertiary}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  )}
                 </View>
 
                 {/* Area & Depth */}
@@ -1654,10 +1772,27 @@ const styles = StyleSheet.create({
   editField: {
     marginBottom: spacing.md,
   },
+  editSectionTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  editHint: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+  },
   editRow: {
     flexDirection: "row",
     gap: spacing.md,
     marginBottom: spacing.md,
+  },
+  editRowField: {
+    flex: 1,
+    marginBottom: 0,
   },
   editLabel: {
     fontFamily: fonts.medium,
@@ -1692,6 +1827,28 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  editCalculated: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.success + "40",
+    borderRadius: radius.md,
+    backgroundColor: colors.success + "18",
+    padding: spacing.md,
+  },
+  editCalculatedLabel: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.success,
+  },
+  editCalculatedValue: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.md,
+    color: colors.success,
   },
   // Method radio buttons inside edit modal
   methodOption: {

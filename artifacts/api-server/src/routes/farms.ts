@@ -23818,6 +23818,7 @@ router.get("/farms/:farmId/irrigation-records", requireAuth, requireTenant, requ
       startOperatorId: irrigationRecordsTable.startOperatorId,
       endOperatorId: irrigationRecordsTable.endOperatorId,
       fieldOrBlockDescription: irrigationRecordsTable.fieldOrBlockDescription,
+      waterSource: irrigationRecordsTable.waterSource,
       areaIrrigatedHa: irrigationRecordsTable.areaIrrigatedHa,
       cropType: irrigationRecordsTable.cropType,
       growthStage: irrigationRecordsTable.growthStage,

@@ -75,6 +75,7 @@ export const irrigationRecordsTable = pgTable("irrigation_records", {
   endOperatorId: integer("end_operator_id").references(() => farmContactsTable.id),     // person who closed
   // ── Field / Crop ────────────────────────────────────────────────────────
   fieldOrBlockDescription: text("field_or_block_description"),             // fallback free text when no fieldId
+  waterSource: text("water_source"),                                        // free-text source or licence reference
   areaIrrigatedHa: numeric("area_irrigated_ha", { precision: 8, scale: 3 }),
   cropType: text("crop_type"),                                             // auto-populated from field assignment
   growthStage: text("growth_stage"),

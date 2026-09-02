@@ -34,6 +34,7 @@ import { runFpInputMigrations } from "./lib/fpInputMigrations";
 import { runAhdbMigrations } from "./lib/ahdbMigrations";
 import { runTradeBodiesMigrations } from "./lib/tradeBodiesMigrations";
 import { runLeadsMigrations } from "./lib/leadsMigrations";
+import { runIrrigationMigrations } from "./lib/irrigationMigrations";
 import { seedViticultureDemo } from "./lib/seedViticultureDemo";
 
 interface EnvSpec {
@@ -207,5 +208,8 @@ app.listen(port, () => {
   });
   runLeadsMigrations().catch((err) => {
     console.error("[LEADS-MIGRATE] Failed:", err);
+  });
+  runIrrigationMigrations().catch((err) => {
+    console.error("[IRRIGATION-MIGRATE] Failed:", err);
   });
 });
