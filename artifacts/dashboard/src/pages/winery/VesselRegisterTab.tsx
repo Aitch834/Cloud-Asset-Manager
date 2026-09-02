@@ -158,8 +158,11 @@ export function BarrelFillHistory({ farmId, vesselId, maxExistingFill, readOnly,
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Save failed"); }
     },
     onSuccess: () => {
-      if (form.operatorName?.trim()) {
-        localStorage.setItem("last_operator_name", form.operatorName.trim());
+      // Add and edit saves share this success handler, so an edited operator
+      // name becomes the default for the next fill as well.
+      const operatorName = form.operatorName?.trim();
+      if (operatorName) {
+        localStorage.setItem("last_operator_name", operatorName);
       }
       qc.invalidateQueries({ queryKey: qKey });
       qc.invalidateQueries({ queryKey: ["winery-vessels", farmId] });
