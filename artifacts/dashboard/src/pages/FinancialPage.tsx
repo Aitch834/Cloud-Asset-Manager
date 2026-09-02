@@ -319,7 +319,8 @@ function TransactionsTab({ farmId }: { farmId: number }) {
 
   const handleEnterpriseRowClick = (enterprise: string) => {
     // "Untagged" in the breakdown map represents records with no enterprise value ("")
-    setEnterpriseFilter(enterprise === "Untagged" ? "" : enterprise);
+    const enterpriseValue = enterprise === "Untagged" ? "" : enterprise;
+    setEnterpriseFilter(enterpriseFilter === enterpriseValue ? "all" : enterpriseValue);
     setTimeout(() => {
       txListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
