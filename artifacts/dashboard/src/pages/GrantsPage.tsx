@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1721,8 +1722,13 @@ export default function GrantsPage() {
   const { farmId } = useAppStore();
   const [, navigate] = useLocation();
 
-  const _initTab = new URLSearchParams(window.location.search).get("tab");
-  const [mainTab, setMainTab] = useState<"capital" | "agrienv">(_initTab === "agrienv" ? "agrienv" : "capital");
+  const [mainTab, setMainTab] = usePersistedTab<"capital" | "agrienv">({
+    page: "grants",
+    farmId,
+    validIds: ["capital", "agrienv"],
+    defaultTab: "capital",
+    urlOverride: typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null,
+  });
   const [statusFilter, setStatusFilter] = usePersistedFilter({ page: "grants", filter: "status", farmId, defaultValue: "all" });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<GrantRecord | null>(null);
