@@ -142,6 +142,14 @@ export interface Farm {
   postcode?: string;
   cphNumber?: string;
   sbiNumber?: string;
+  flockMark?: string;
+  herdMark?: string;
+  pigHerdMark?: string;
+  sectorBeef?: boolean;
+  sectorDairy?: boolean;
+  sectorPigs?: boolean;
+  sectorSheep?: boolean;
+  sectorGoats?: boolean;
   emergencyContactPhone?: string;
   redTractorId?: string;
   totalAcreage?: number;

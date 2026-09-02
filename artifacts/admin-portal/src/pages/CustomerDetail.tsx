@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { api, type Tenant, type Farm, type Subscription, type TenantUser, type Module } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
+import { FarmSettingsStatus, getFarmReportTypes } from "@/components/FarmSettingsStatus";
 import {
   ArrowLeft, MapPin, CreditCard, Users, CheckCircle, XCircle, Building2,
   FileDown, Loader2, Mail, MailCheck, Bell, BellOff, Gift, Share2, Copy,
@@ -1085,6 +1086,7 @@ export default function CustomerDetail() {
           <div className="bg-card border border-border rounded-xl overflow-hidden">
             {farms.map((farm, i) => {
               const farmSubs = subscriptions.filter((s) => s.farmId === farm.id && (s.status === "active" || s.status === "trial"));
+              const farmReportTypes = getFarmReportTypes(farmSubs);
               const hasTrial = farmSubs.some((s) => s.status === "trial");
               const isDownloading = downloadingFarmId === farm.id;
               return (
@@ -1101,6 +1103,12 @@ export default function CustomerDetail() {
                         <Badge variant="success">RT: {farm.redTractorId}</Badge>
                       )}
                     </div>
+                    {farmReportTypes.length > 0 && (
+                      <FarmSettingsStatus
+                        farm={farm}
+                        reportTypes={farmReportTypes}
+                      />
+                    )}
                     {(farm.address || farm.postcode) && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <MapPin className="w-3 h-3" />
