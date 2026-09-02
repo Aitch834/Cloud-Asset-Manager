@@ -718,8 +718,8 @@ export async function markRecordSynced(table: string, id: string): Promise<void>
 }
 
 /**
- * Delete a pending sync queue entry and its corresponding local record.
- * Used when a grower wants to remove a not-yet-synced item entirely.
+ * Delete a pending or failed sync queue entry and its corresponding local
+ * record. Used when a grower wants to remove a not-yet-synced item entirely.
  */
 export async function deletePendingSyncItem(recordType: string, recordId: string): Promise<void> {
   await ensureInit();
@@ -727,7 +727,7 @@ export async function deletePendingSyncItem(recordType: string, recordId: string
     const table = TABLE_MAP[recordType];
     await db().withTransactionAsync(async () => {
       await db().runAsync(
-        "DELETE FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+        "DELETE FROM sync_queue WHERE record_type = ? AND record_id = ? AND status IN ('pending', 'failed')",
         [recordType, recordId],
       );
       if (table) {
@@ -747,7 +747,12 @@ export async function deletePendingSyncItem(recordType: string, recordId: string
       "bde_sync_queue",
       JSON.stringify(
         queue.filter(
-          (i) => !(i.record_type === recordType && i.record_id === recordId && i.status === "pending"),
+          (i) =>
+            !(
+              i.record_type === recordType &&
+              i.record_id === recordId &&
+              (i.status === "pending" || i.status === "failed")
+            ),
         ),
       ),
     );

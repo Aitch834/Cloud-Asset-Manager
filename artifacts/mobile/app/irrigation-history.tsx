@@ -24,6 +24,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
 import {
+  deletePendingSyncItem,
   getSyncItemsForType,
   resetSyncItemToRetryById,
 } from "@/lib/database";
@@ -365,6 +366,53 @@ export default function IrrigationHistoryScreen() {
         "Could not queue the record for retry. Please try again.",
       );
     }
+  }, []);
+
+  // ── Delete a failed local item ────────────────────────────────────────────
+
+  const handleDeleteLocal = useCallback((item: LocalIrrigationItem) => {
+    const label = item.payload.irrigationDate
+      ? formatDate(item.payload.irrigationDate)
+      : "this application";
+
+    Alert.alert(
+      "Delete record?",
+      `This will permanently remove the irrigation application on ${label} from this device. The data will be lost and cannot be recovered.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete record",
+          style: "destructive",
+          onPress: async () => {
+            setErrorModal({ visible: false, item: null });
+            retriedSyncIdsRef.current.delete(item.syncId);
+
+            // Remove the card immediately while the local queue and record are
+            // being deleted. Restore it if the storage operation fails.
+            setLocalItems((prev) =>
+              prev.filter((localItem) => localItem.syncId !== item.syncId),
+            );
+
+            try {
+              await deletePendingSyncItem(
+                "bde_irrigation_applications",
+                item.recordId,
+              );
+            } catch {
+              setLocalItems((prev) =>
+                prev.some((localItem) => localItem.syncId === item.syncId)
+                  ? prev
+                  : [...prev, item],
+              );
+              Alert.alert(
+                "Delete Failed",
+                "Could not delete the record. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
   }, []);
 
   const openErrorModal = useCallback((item: LocalIrrigationItem) => {
@@ -1024,19 +1072,30 @@ export default function IrrigationHistoryScreen() {
                 <Text style={styles.modalCancelText}>Dismiss</Text>
               </Pressable>
               {errorModal.item?.phase === "failed" ? (
-                <Pressable
-                  style={styles.modalRetryBtn}
-                  onPress={() => {
-                    if (errorModal.item) void handleRetry(errorModal.item);
-                  }}
-                >
-                  <Feather
-                    name="refresh-cw"
-                    size={14}
-                    color={colors.textInverse}
-                  />
-                  <Text style={styles.modalRetryText}>Retry Now</Text>
-                </Pressable>
+                <>
+                  <Pressable
+                    style={styles.modalDeleteBtn}
+                    onPress={() => {
+                      if (errorModal.item) handleDeleteLocal(errorModal.item);
+                    }}
+                  >
+                    <Feather name="trash-2" size={14} color={colors.error} />
+                    <Text style={styles.modalDeleteText}>Delete record</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.modalRetryBtn}
+                    onPress={() => {
+                      if (errorModal.item) void handleRetry(errorModal.item);
+                    }}
+                  >
+                    <Feather
+                      name="refresh-cw"
+                      size={14}
+                      color={colors.textInverse}
+                    />
+                    <Text style={styles.modalRetryText}>Retry Now</Text>
+                  </Pressable>
+                </>
               ) : null}
             </View>
           </Pressable>
@@ -1503,6 +1562,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     justifyContent: "flex-end",
+    flexWrap: "wrap",
   },
   modalCancelBtn: {
     paddingHorizontal: spacing.lg,
@@ -1529,6 +1589,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.textInverse,
+  },
+  modalDeleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: "#fff1f2",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#fecdd3",
+  },
+  modalDeleteText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: colors.error,
   },
   // Card action buttons (edit + delete)
   cardActions: {

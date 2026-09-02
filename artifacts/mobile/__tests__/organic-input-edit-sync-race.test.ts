@@ -273,6 +273,40 @@ describe("organic input edit replacement during sync", () => {
     expect(await getRecordById("organic_inputs", recordId)).toBeNull();
   });
 
+  it("removes failed queue rows when a failed offline record is deleted", async () => {
+    const recordId = "local-failed-deleted";
+    const record = {
+      id: recordId,
+      farmId: "farm-1",
+      productName: "Failed delete me",
+      dateOfUse: "2026-08-22",
+      synced: false,
+    };
+    await insertRecord(
+      "organic_inputs",
+      recordId,
+      "farm-1",
+      record,
+      "2026-08-22T12:00:00.000Z",
+    );
+    await enqueueSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId, record);
+
+    const queue = JSON.parse(mockStorage.get("bde_sync_queue") ?? "[]") as Array<{
+      record_id: string;
+      status: string;
+    }>;
+    queue[0].status = "failed";
+    mockStorage.set("bde_sync_queue", JSON.stringify(queue));
+
+    await deletePendingSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId);
+
+    const remainingQueue = JSON.parse(mockStorage.get("bde_sync_queue") ?? "[]") as Array<{
+      record_id: string;
+    }>;
+    expect(remainingQueue.filter((item) => item.record_id === recordId)).toHaveLength(0);
+    expect(await getRecordById("organic_inputs", recordId)).toBeNull();
+  });
+
   it("queues a PUT when a pending-record form is saved after create sync already completed", async () => {
     const originalRecord = {
       id: "local-late",
