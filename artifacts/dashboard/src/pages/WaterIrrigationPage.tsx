@@ -579,6 +579,10 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
     if (r.fieldId) { const f = fields.find(x => String(x.id) === String(r.fieldId)); if (f) return String(f.name); }
     return r.fieldOrBlockDescription ? String(r.fieldOrBlockDescription) : "—";
   }
+  function fieldEditHref(r: Record<string, unknown>) {
+    const fieldId = Number(r.fieldId);
+    return Number.isInteger(fieldId) && fieldId > 0 ? `/fields?editFieldId=${fieldId}` : null;
+  }
   function licenceLabel(r: Record<string, unknown>) {
     const l = (licences as Record<string, unknown>[]).find(x => String(x.id) === String(r.licenceId));
     if (!l) return "—";
@@ -692,7 +696,17 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
                 {filteredIrrigRecords.map((r, i) => (
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2 pr-3">{fmtDate(r.irrigationDate)}</td>
-                    <td className="py-2 pr-3">{fieldLabel(r)}</td>
+                    <td className="py-2 pr-3">
+                      {fieldEditHref(r) ? (
+                        <a
+                          href={fieldEditHref(r) ?? undefined}
+                          className="text-green-700 underline underline-offset-2 hover:text-green-900"
+                          aria-label={`Edit field ${fieldLabel(r)}`}
+                        >
+                          {fieldLabel(r)}
+                        </a>
+                      ) : fieldLabel(r)}
+                    </td>
                     <td className="py-2 pr-3">{licenceLabel(r)}</td>
                     <td className="py-2 pr-3">{fmt(r.volumeAppliedM3)}</td>
                     <td className="py-2 pr-3">
