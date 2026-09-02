@@ -1700,13 +1700,13 @@ export default function AdPdfGenerator() {
                           <input
                             type="text"
                             value={editHeadline}
-                            onChange={(e) => setEditHeadline(e.target.value)}
+                            onChange={(e) => { setEditHeadline(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                             placeholder="Headline HTML (optional)"
                             className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                           />
                           <textarea
                             value={editBody}
-                            onChange={(e) => setEditBody(e.target.value)}
+                            onChange={(e) => { setEditBody(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                             placeholder="Body copy HTML (optional)"
                             rows={2}
                             className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y font-mono"
@@ -1715,13 +1715,13 @@ export default function AdPdfGenerator() {
                             <input
                               type="color"
                               value={editAccentColor || "#C49A6C"}
-                              onChange={(e) => setEditAccentColor(e.target.value)}
+                              onChange={(e) => { setEditAccentColor(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                               className="h-8 w-10 rounded border border-input cursor-pointer bg-background p-0.5 shrink-0"
                             />
                             <input
                               type="text"
                               value={editAccentColor}
-                              onChange={(e) => setEditAccentColor(e.target.value)}
+                              onChange={(e) => { setEditAccentColor(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                               placeholder="#C49A6C (default)"
                               className="flex-1 text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                             />
@@ -1729,7 +1729,7 @@ export default function AdPdfGenerator() {
                           <input
                             type="url"
                             value={editBgUrl}
-                            onChange={(e) => setEditBgUrl(e.target.value)}
+                            onChange={(e) => { setEditBgUrl(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                             placeholder="Background image URL (optional)"
                             className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
                           />
