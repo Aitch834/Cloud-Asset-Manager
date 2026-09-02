@@ -30,6 +30,7 @@ import {
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell, buildViticultureCsvContent } from "@/lib/csv";
+import { getTopHarvestBlockKey } from "@/lib/harvest-print-summary";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -2488,19 +2489,32 @@ export async function printHarvest(
     const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) { row.potAlcSum += pa; row.potAlcCount++; }
   }
 
+  // Highlight the linked block with the highest total yield in the printed
+  // summary. Unlinked and zero-yield rows are not meaningful top performers.
+  const topBlockSummaryKey = getTopHarvestBlockKey(
+    blockSummaryKeys.map(key => ({ key, ...blockSummaryMap[key] })),
+  );
+
   const blockSummaryRows = blockSummaryKeys
     .sort((a, b) => blockSummaryMap[a].label.localeCompare(blockSummaryMap[b].label))
     .map(key => {
       const row = blockSummaryMap[key];
       const tha = row.areaHa > 0 ? (row.totalKg / 1000 / row.areaHa) : null;
+      const isTopRow = key === topBlockSummaryKey;
       const pickBadgeHtml = row.picks === 1
         ? ` <span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fbbf24;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap">&#9888; 1 pick \u2014 low confidence</span>`
         : row.picks <= 3
         ? ` <span style="display:inline-block;background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:3px;padding:1px 5px;font-size:9px;white-space:nowrap">${row.picks} picks</span>`
         : "";
-      return `<tr>
+      const topBadgeHtml = isTopRow
+        ? ` <span style="display:inline-block;background:#d1fae5;color:#047857;border:1px solid #6ee7b7;border-radius:999px;padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap">Top</span>`
+        : "";
+      const topRowStyle = isTopRow
+        ? ` style="background:#ecfdf5;-webkit-print-color-adjust:exact;print-color-adjust:exact"`
+        : "";
+      return `<tr${topRowStyle}>
         ${hasPhotos ? row.photoCell : ""}
-        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600">${escHtml(row.label)}${pickBadgeHtml}</td>
+        <td style="padding:5px 5px;border:1px solid #d1d5db;font-weight:600;${isTopRow ? "border-left:3px solid #10b981;" : ""}">${escHtml(row.label)}${topBadgeHtml}${pickBadgeHtml}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;color:#555">${escHtml(row.variety)}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.areaHa > 0 ? row.areaHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${row.picks}</td>
