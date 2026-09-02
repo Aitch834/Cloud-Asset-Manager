@@ -64,6 +64,11 @@ function quoteCsvCell(value: unknown): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+function getInputRegisterNotes(record: DisplayRecord): string {
+  if (!record.pending) return record.notes ?? "";
+  return record.notes ? `${record.notes} | Pending sync` : "Pending sync";
+}
+
 function buildInputRegisterCsv(records: DisplayRecord[]): string {
   const rows: unknown[][] = [
     ["Date Used", "Product", "Input Type", "Supplier", "PO Reference", "GRN / Delivery Ref",
@@ -80,7 +85,7 @@ function buildInputRegisterCsv(records: DisplayRecord[]): string {
       r.certifierApprovalRef ?? "",
       r.fieldName ?? "",
       r.quantityAmount ? `${r.quantityAmount}${r.quantityUnit ? " " + r.quantityUnit : ""}` : "",
-      r.notes ?? "",
+      getInputRegisterNotes(r),
     ]),
   ];
   const body = rows.map(row => row.map(quoteCsvCell).join(",")).join("\r\n");
@@ -456,16 +461,16 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
       return;
     }
 
-    // Only export fully synced records: exclude both locally-pending (not yet POSTed)
-    // and edit-pending (queued PUT with possibly incomplete field coverage) rows.
-    // Partial records risk producing an inaccurate compliance register.
-    const exportable = records.filter(r => !r.pending && !r.editPending);
+    // Include offline additions so the export matches the records visible in the
+    // register. Keep queued edits out because they may not contain the complete
+    // server record and therefore risk producing an inaccurate compliance row.
+    const exportable = records.filter(r => !r.editPending);
     if (exportable.length === 0) {
       Alert.alert(
         "Nothing to export",
         records.length > 0
-          ? "All records have edits or additions still awaiting sync. Please sync your data first, then export."
-          : "There are no synced input records to download."
+          ? "All records have edits still awaiting sync. Please sync your data first, then export."
+          : "There are no input records to download."
       );
       return;
     }
