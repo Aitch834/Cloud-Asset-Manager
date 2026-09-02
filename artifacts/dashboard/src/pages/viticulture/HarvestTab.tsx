@@ -59,6 +59,13 @@ import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganic
 
 type Harvest = Record<string, unknown>;
 
+type SprayDiaryRecord = {
+  id: number;
+  applicationDate: string | null;
+  blockId: number | null;
+  productName: string | null;
+  harvestIntervalDays: number | null;
+};
 function getWineGBVarietyPickCounts(rows: Record<string, unknown>[], blocks: Record<string, unknown>[]) {
   const pickCounts: Record<string, number> = {};
   for (const r of rows) {
@@ -163,6 +170,27 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     staleTime: 60_000,
   });
   const wineryContacts = wineryContactsData?.records ?? [];
+  const { data: sprayDiaryData, isLoading: sprayDiaryLoading, isError: sprayDiaryError } = useQuery<{ records: SprayDiaryRecord[] }>({
+    queryKey: ["vineyard-spray-diary", farmId],
+    queryFn: async () => {
+      const response = await fetch(api(`farms/${farmId}/vineyard-spray-diary`));
+      if (!response.ok) throw new Error("Failed to check spray intervals");
+      return response.json();
+    },
+    enabled: !!farmId,
+    staleTime: 30_000,
+  });
+  const sprayDiary = sprayDiaryData?.records ?? [];
+  const harvestIntervalWarnings = useMemo(
+    () => getActiveHarvestIntervalWarnings(sprayDiary, form.blockId, form.harvestDate),
+    [sprayDiary, form.blockId, form.harvestDate],
+  );
+  const harvestIntervalWarningKey = harvestIntervalWarnings.map(warning => `${warning.id}:${warning.expiryDate}`).join("|");
+  const [acknowledgedHarvestIntervalWarningKey, setAcknowledgedHarvestIntervalWarningKey] = useState("");
+  const harvestIntervalWarningAcknowledged =
+    harvestIntervalWarnings.length === 0 || acknowledgedHarvestIntervalWarningKey === harvestIntervalWarningKey;
+  const harvestIntervalCheckPending = !!form.blockId && sprayDiaryLoading;
+  const harvestIntervalCheckFailed = !!form.blockId && sprayDiaryError;
   const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: { id: string; name: string }[] }>({
     queryKey: ["farm-staff", farmId],
     queryFn: () => fetch(api(`farms/${farmId}/staff`), { credentials: "include" }).then(r => r.json()),
@@ -171,11 +199,23 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   });
   const staffNames: string[] = (staffData?.staff ?? []).map((s: { name: string }) => s.name);
 
-  const openAdd = () => { setForm({ harvestDate: today, vintageYear: new Date().getFullYear(), operatorName: displayName ?? "" }); setCurrent(null); setOpen(true); };
-  const openEdit = (r: Harvest) => { setForm({ ...r }); setCurrent(r); setOpen(true); };
+  const openAdd = () => {
+    setForm({ harvestDate: today, vintageYear: new Date().getFullYear(), operatorName: displayName ?? "" });
+    setAcknowledgedHarvestIntervalWarningKey("");
+    setCurrent(null);
+    setOpen(true);
+  };
+  const openEdit = (r: Harvest) => {
+    setForm({ ...r });
+    setAcknowledgedHarvestIntervalWarningKey("");
+    setCurrent(r);
+    setOpen(true);
+  };
   const sf = (k: string, v: unknown) => setForm(p => ({ ...p, [k]: v }));
   const blockName = (id: unknown) => blocks.find(b => b.id === id)?.blockName ?? id;
   const save = async () => {
+    if (harvestIntervalCheckPending || harvestIntervalCheckFailed) return;
+    if (!harvestIntervalWarningAcknowledged) return;
     if (current) await edit.mutateAsync({ ...form, id: current.id as number });
     else await add.mutateAsync(form);
     setOpen(false);
@@ -2761,6 +2801,45 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 </Select>
               </div>
             </div>
+            {harvestIntervalCheckPending && (
+              <p className="text-xs text-muted-foreground">Checking this block&apos;s spray intervals…</p>
+            )}
+            {harvestIntervalCheckFailed && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                Could not check this block&apos;s spray intervals. Refresh and try again before saving.
+              </div>
+            )}
+            {harvestIntervalWarnings.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="alert">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="font-semibold">Harvest interval active for this block</p>
+                    <p className="text-xs">
+                      The selected harvest date is before the following spray interval expires:
+                    </p>
+                    <ul className="space-y-1 text-xs">
+                      {harvestIntervalWarnings.map(warning => (
+                        <li key={warning.id} className="flex justify-between gap-3">
+                          <span className="font-medium">{warning.productName}</span>
+                          <span className="whitespace-nowrap">Expires {fmtDate(warning.expiryDate)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <label className="flex cursor-pointer items-start gap-2 border-t border-amber-200 pt-2 text-xs font-medium">
+                      <Checkbox
+                        checked={harvestIntervalWarningAcknowledged}
+                        onCheckedChange={checked => {
+                          setAcknowledgedHarvestIntervalWarningKey(checked ? harvestIntervalWarningKey : "");
+                        }}
+                        aria-label="Acknowledge active harvest interval warning"
+                      />
+                      <span>I acknowledge the active harvest interval and want to continue logging this harvest.</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Yield</p>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Total Yield (kg)</Label><Input type="number" step="0.1" value={String(form.yieldKg ?? "")} onChange={e => sf("yieldKg", e.target.value)} /></div>
@@ -2848,7 +2927,13 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <DialogMutationError mutation={edit} message="Failed to save — your entries are still here." />
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={add.isPending || edit.isPending}>{(add.isPending || edit.isPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button>
+            <Button
+              onClick={save}
+              disabled={add.isPending || edit.isPending || harvestIntervalCheckPending || harvestIntervalCheckFailed || !harvestIntervalWarningAcknowledged}
+            >
+              {(add.isPending || edit.isPending || harvestIntervalCheckPending) && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2857,3 +2942,38 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 }
 
 // ─── Disease Scouting ──────────────────────────────────────────────────────────
+
+type HarvestIntervalWarning = {
+  id: number;
+  productName: string;
+  expiryDate: string;
+};
+
+function getActiveHarvestIntervalWarnings(
+  sprays: SprayDiaryRecord[],
+  blockId: unknown,
+  harvestDate: unknown,
+): HarvestIntervalWarning[] {
+  const targetDate = String(harvestDate ?? "").slice(0, 10);
+  if (!blockId || !targetDate) return [];
+  return sprays.flatMap(spray => {
+    if (String(spray.blockId) !== String(blockId)) return [];
+    const expiryDate = getHarvestIntervalExpiry(spray.applicationDate, spray.harvestIntervalDays);
+    if (!expiryDate || expiryDate <= targetDate) return [];
+    return [{
+      id: spray.id,
+      productName: spray.productName?.trim() || "Unnamed spray product",
+      expiryDate,
+    }];
+  });
+}
+
+function getHarvestIntervalExpiry(applicationDate: unknown, intervalDays: unknown): string | null {
+  const date = String(applicationDate ?? "").slice(0, 10);
+  const days = Number(intervalDays);
+  if (!date || !Number.isFinite(days)) return null;
+  const expiry = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(expiry.getTime())) return null;
+  expiry.setDate(expiry.getDate() + days);
+  return expiry.toISOString().slice(0, 10);
+}

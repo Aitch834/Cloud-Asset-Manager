@@ -2,7 +2,7 @@ import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/compone
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,12 +24,20 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
+import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { appendToList, generateId } from "@/lib/storage";
 import { VineBlockPicker } from "@/components/VineBlockPicker";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
+import {
+  formatIntervalExpiry,
+  getActiveHarvestIntervalWarnings,
+  getHarvestIntervalWarningKey,
+  isHarvestIntervalSaveBlocked,
+  type SprayDiaryRecord,
+} from "@/lib/vineHarvestIntervalHelpers";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -117,6 +125,15 @@ export default function VineHarvestScreen() {
   const { refreshPendingCount } = useSync();
   const { members } = useApiFarmMembers(currentFarm?.id);
   const { blocks, loading: blocksLoading } = useApiVineBlocks(currentFarm?.id);
+  const {
+    records: sprayDiary,
+    loading: sprayDiaryLoading,
+    error: sprayDiaryError,
+    refresh: refreshSprayDiary,
+  } = useApiFetch<SprayDiaryRecord>(
+    currentFarm?.id,
+    "/api/farms/:farmId/vineyard-spray-diary",
+  );
   const [saving, setSaving] = useState(false);
   const { blockId } = useLocalSearchParams<{ blockId?: string }>();
 
@@ -151,10 +168,27 @@ export default function VineHarvestScreen() {
   const [destinationContact, setDestinationContact] = useState("");
   const [notes, setNotes] = useState("");
   const [taskSheet, setTaskSheet] = useState<{ title: string; description: string } | null>(null);
+  const [acknowledgedHarvestIntervalWarningKey, setAcknowledgedHarvestIntervalWarningKey] = useState("");
+
+  const harvestIntervalWarnings = useMemo(
+    () => getActiveHarvestIntervalWarnings(sprayDiary, selectedBlock?.id ?? null, harvestDate),
+    [sprayDiary, selectedBlock?.id, harvestDate],
+  );
+  const harvestIntervalWarningKey = getHarvestIntervalWarningKey(harvestIntervalWarnings);
+  const harvestIntervalWarningAcknowledged = !isHarvestIntervalSaveBlocked(
+    harvestIntervalWarnings,
+    acknowledgedHarvestIntervalWarningKey,
+  );
+  const harvestIntervalCheckPending = !!selectedBlock && sprayDiaryLoading;
+  const harvestIntervalCheckFailed = !!selectedBlock && !!sprayDiaryError;
 
   const handleSave = async () => {
     if (!harvestDate || !yieldKg) {
       Alert.alert("Required Fields", "Please enter the harvest date and yield.");
+      return;
+    }
+    if (!harvestIntervalWarningAcknowledged) {
+      Alert.alert("Acknowledge active interval", "Please acknowledge the active spray interval warning before saving.");
       return;
     }
 
@@ -254,6 +288,59 @@ export default function VineHarvestScreen() {
           {!selectedBlock && (
             <Input placeholder={blocks.length ? "Or type block name manually" : "e.g. South Slope, Block 3"} value={manualBlockName} onChangeText={setManualBlockName} style={{ marginTop: 4 }} />
           )}
+          {harvestIntervalCheckPending && (
+            <Text style={styles.intervalCheckText}>Checking this block&apos;s spray intervals…</Text>
+          )}
+          {harvestIntervalCheckFailed && (
+            <View style={styles.intervalCheckError} accessibilityRole="alert">
+              <Feather name="wifi-off" size={14} color="#92400e" />
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.intervalCheckErrorText}>
+                  Spray intervals could not be checked. You can still save this offline harvest, but review the spray diary before proceeding.
+                </Text>
+                <Pressable onPress={refreshSprayDiary} accessibilityRole="button">
+                  <Text style={styles.intervalRetryText}>Retry check</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          {harvestIntervalWarnings.length > 0 && (
+            <View style={styles.intervalWarning} accessibilityRole="alert">
+              <Feather name="alert-triangle" size={16} color="#92400e" />
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.intervalWarningTitle}>Harvest interval active for this block</Text>
+                <Text style={styles.intervalWarningText}>
+                  The selected harvest date is before the following spray interval expires:
+                </Text>
+                {harvestIntervalWarnings.map(warning => (
+                  <View key={warning.id} style={styles.intervalWarningRow}>
+                    <Text style={styles.intervalWarningProduct}>{warning.productName}</Text>
+                    <Text style={styles.intervalWarningText}>Expires {formatIntervalExpiry(warning.expiryDate)}</Text>
+                  </View>
+                ))}
+                <Pressable
+                  style={styles.intervalAcknowledgeRow}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setAcknowledgedHarvestIntervalWarningKey(
+                      harvestIntervalWarningAcknowledged ? "" : harvestIntervalWarningKey,
+                    );
+                  }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: harvestIntervalWarningAcknowledged }}
+                >
+                  <Feather
+                    name={harvestIntervalWarningAcknowledged ? "check-square" : "square"}
+                    size={18}
+                    color="#92400e"
+                  />
+                  <Text style={styles.intervalWarningText}>
+                    I acknowledge the active harvest interval and want to continue logging this harvest.
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           <Text style={styles.fieldLabel}>Harvest Method</Text>
           <MethodPicker value={harvestMethod} onChange={setHarvestMethod} />
         </View>
@@ -346,7 +433,11 @@ export default function VineHarvestScreen() {
           <Input placeholder="Observations, delays, weather conditions…" value={notes} onChangeText={setNotes} multiline numberOfLines={4} />
         </View>
 
-        <Button title={saving ? "Saving…" : "Save Harvest Record"} onPress={handleSave} disabled={saving} />
+        <Button
+          title={saving ? "Saving…" : "Save Harvest Record"}
+          onPress={handleSave}
+          disabled={saving || !harvestIntervalWarningAcknowledged}
+        />
       </ScrollView>
 
       {taskSheet && (
@@ -387,4 +478,14 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: fontSize.sm, fontFamily: fonts.regular, color: colors.text, flex: 1 },
   advisoryAmber: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fffbeb", borderRadius: radius.sm, borderWidth: 1, borderColor: "#f59e0b", padding: spacing.sm },
   advisoryAmberText: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: "#92400e", flex: 1, lineHeight: 16 },
+  intervalCheckText: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: colors.textSecondary },
+  intervalCheckError: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fffbeb", borderRadius: radius.sm, borderWidth: 1, borderColor: "#fcd34d", padding: spacing.sm },
+  intervalCheckErrorText: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: "#92400e", lineHeight: 16 },
+  intervalRetryText: { fontSize: fontSize.xs, fontFamily: fonts.semiBold, color: "#92400e", textDecorationLine: "underline" },
+  intervalWarning: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, backgroundColor: "#fffbeb", borderRadius: radius.sm, borderWidth: 1, borderColor: "#f59e0b", padding: spacing.sm },
+  intervalWarningTitle: { fontSize: fontSize.sm, fontFamily: fonts.semiBold, color: "#78350f" },
+  intervalWarningText: { fontSize: fontSize.xs, fontFamily: fonts.regular, color: "#92400e", lineHeight: 16 },
+  intervalWarningRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#fcd34d", paddingTop: 4 },
+  intervalWarningProduct: { fontSize: fontSize.xs, fontFamily: fonts.semiBold, color: "#78350f", flex: 1 },
+  intervalAcknowledgeRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#fcd34d", paddingTop: spacing.sm },
 });
