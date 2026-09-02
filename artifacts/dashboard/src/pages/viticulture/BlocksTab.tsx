@@ -528,11 +528,18 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
       <Dialog open={!!lightboxPhoto} onOpenChange={o => { if (!o) setLightboxId(null); }}>
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="px-1 pb-1">
-            <DialogTitle className="text-sm font-medium flex items-center gap-2 min-w-0">
-              <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
-              {orderedPhotos.length > 1 && lightboxPhoto && (
-                <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
-                  {orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) + 1} of {orderedPhotos.length}
+            <DialogTitle className="text-sm font-medium flex flex-col items-start gap-0.5 min-w-0">
+              <span className="flex items-center gap-2 min-w-0 max-w-full">
+                <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
+                {orderedPhotos.length > 1 && lightboxPhoto && (
+                  <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
+                    {orderedPhotos.findIndex(p => p.id === lightboxPhoto.id) + 1} of {orderedPhotos.length}
+                  </span>
+                )}
+              </span>
+              {lightboxPhoto?.caption && (
+                <span className="text-xs font-normal text-muted-foreground break-words">
+                  {lightboxPhoto.caption}
                 </span>
               )}
             </DialogTitle>
@@ -603,9 +610,6 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
                   >
                     <Star className="w-4 h-4" />
                   </button>
-                )}
-                {lightboxPhoto.caption && (
-                  <p className="text-xs text-center text-muted-foreground mt-1 italic">{lightboxPhoto.caption}</p>
                 )}
               </div>
 
