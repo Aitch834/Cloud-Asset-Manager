@@ -2058,13 +2058,33 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   // Build a map of category → deduplicated linked project names (for badge display)
   const linkedProjectsByCategory: Record<string, string[]> = {};
+  const linkedPaymentsByCategory: Record<string, Array<{
+    id: number;
+    transactionDate: string | null;
+    amountPence: number | null;
+    projectName: string;
+  }>> = {};
   for (const r of incomeTx) {
     if (!r.agriEnvProjectId) continue;
     const cat = r.category ?? "Other / Uncategorised Income";
     if (!linkedProjectsByCategory[cat]) linkedProjectsByCategory[cat] = [];
     const name = agriEnvProjectName(r.agriEnvProjectId);
     if (!linkedProjectsByCategory[cat].includes(name)) linkedProjectsByCategory[cat].push(name);
+    if (!linkedPaymentsByCategory[cat]) linkedPaymentsByCategory[cat] = [];
+    linkedPaymentsByCategory[cat].push({
+      id: r.id,
+      transactionDate: r.transactionDate,
+      amountPence: r.amountPence,
+      projectName: name,
+    });
   }
+  Object.values(linkedPaymentsByCategory).forEach(payments => {
+    payments.sort((a, b) => {
+      const dateA = a.transactionDate ? new Date(a.transactionDate).getTime() : 0;
+      const dateB = b.transactionDate ? new Date(b.transactionDate).getTime() : 0;
+      return dateB - dateA;
+    });
+  });
 
   const expenseByCategory = EXPENSE_CATEGORIES
     .map(cat => ({ cat, total: expenseTx.filter(r => r.category === cat).reduce((s, r) => s + (r.amountPence ?? 0), 0) }))
@@ -2155,7 +2175,18 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
       const badges = projects.map(name =>
         `<span class="agri-env-badge" style="display:inline-block;margin-top:3px;margin-right:4px;font-size:7.5pt;font-weight:600;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;">via milestone · ${esc(name)}</span>`
       ).join("");
-      return `<tr><td>${esc(r.cat)}${badges ? `<br>${badges}` : ""}</td><td class="num">${f(r.total)}</td></tr>`;
+      const payments = linkedPaymentsByCategory[r.cat] ?? [];
+      const paymentBreakdown = payments.length > 0 ? `
+        <div class="payment-breakdown">
+          <div class="payment-breakdown-title">Linked milestone payments</div>
+          <table class="payment-table">
+            <thead><tr><th>Date</th><th class="num">Amount</th><th>Milestone project</th></tr></thead>
+            <tbody>
+              ${payments.map(payment => `<tr><td>${esc(fmt(payment.transactionDate))}</td><td class="num">${payment.amountPence == null ? "—" : f(payment.amountPence)}</td><td>${esc(payment.projectName)}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        </div>` : "";
+      return `<tr><td>${esc(r.cat)}${badges ? `<br>${badges}` : ""}${paymentBreakdown}</td><td class="num">${f(r.total)}</td></tr>`;
     }).join("");
     const expenseRows = expenseByCategory.map(r =>
       `<tr><td>${esc(r.cat)}</td><td class="num">${f(r.total)}</td></tr>`).join("");
@@ -2212,6 +2243,12 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
     .total-row td { font-weight: 700; background: #f9fafb; border-top: 2px solid #e5e7eb; border-bottom: none; }
+    .payment-breakdown { margin-top: 7px; padding: 6px 8px; background: #f9fafb; border-left: 3px solid #86efac; }
+    .payment-breakdown-title { margin-bottom: 3px; font-size: 8pt; font-weight: 700; color: #166534; }
+    .payment-table { margin: 0; font-size: 8.5pt; }
+    .payment-table th { padding: 3px 5px; font-size: 7.5pt; color: #6b7280; border-bottom: 1px solid #d1d5db; }
+    .payment-table td { padding: 3px 5px; border-bottom: 1px solid #e5e7eb; }
+    .payment-table tr:last-child td { border-bottom: none; }
     .vat-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 9.5pt; }
     .vat-box strong { color: #1d4ed8; }
     .disclaimer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 8pt; color: #9ca3af; }
@@ -2378,12 +2415,29 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
                       {incomeByCategory.map((r, i, arr) => (
                         <tr key={r.cat} style={{ borderBottom: i < arr.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                           <td style={{ padding: "7px 10px", color: "#374151" }}>
-                            {r.cat}
+                            <div>{r.cat}</div>
                             {(linkedProjectsByCategory[r.cat] ?? []).map(name => (
                               <span key={name} style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: "0.7rem", color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", width: "fit-content" }}>
                                 <Link2 size={9} />via milestone · {name}
                               </span>
                             ))}
+                            {(linkedPaymentsByCategory[r.cat] ?? []).length > 0 && (
+                              <div style={{ marginTop: 7, padding: "6px 8px", background: "#f9fafb", borderLeft: "3px solid #86efac", borderRadius: 3 }}>
+                                <div style={{ marginBottom: 4, fontSize: "0.7rem", fontWeight: 700, color: "#166534" }}>Linked milestone payments</div>
+                                <div style={{ display: "grid", gridTemplateColumns: "minmax(80px, 0.8fr) minmax(78px, 0.7fr) minmax(120px, 1.5fr)", gap: "3px 8px", fontSize: "0.72rem", color: "#4b5563" }}>
+                                  <div style={{ fontWeight: 600, color: "#6b7280" }}>Date</div>
+                                  <div style={{ fontWeight: 600, color: "#6b7280", textAlign: "right" }}>Amount</div>
+                                  <div style={{ fontWeight: 600, color: "#6b7280" }}>Milestone project</div>
+                                  {(linkedPaymentsByCategory[r.cat] ?? []).map(payment => (
+                                    <React.Fragment key={payment.id}>
+                                      <div>{fmt(payment.transactionDate)}</div>
+                                      <div style={{ textAlign: "right", fontWeight: 600, color: "#166534" }}>{fmtAmt(payment.amountPence)}</div>
+                                      <div>{payment.projectName}</div>
+                                    </React.Fragment>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, color: "#166534" }}>{fmtAmt(r.total)}</td>
                         </tr>
