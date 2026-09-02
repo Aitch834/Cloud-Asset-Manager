@@ -769,13 +769,38 @@ const IRRIGATION_RECORD_TYPES = new Set([
 ]);
 
 /**
- * Returns the cached module keys for a specific farm, or null when the cache
- * has not yet been populated (modules not yet resolved for this farm).
+ * Returns the current cached module keys for a specific farm, falling back to
+ * the last-known value from a previous successful module refresh when the
+ * current-session cache is cold.
+ *
+ * An empty array is a valid resolved cache value (the farm has no active
+ * modules), so parsing must preserve the distinction between [] and null.
  */
 async function getCachedModuleKeysForFarm(farmId: string): Promise<string[] | null> {
+  const parseModuleKeys = (raw: string | null): string[] | null => {
+    if (!raw) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? parsed.filter((key): key is string => typeof key === "string")
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
   try {
     const raw = await kvGet(`bde_active_module_keys_${farmId}`);
-    return raw ? (JSON.parse(raw) as string[]) : null;
+    const currentKeys = parseModuleKeys(raw);
+    if (currentKeys !== null) return currentKeys;
+  } catch {
+    // Try the last-known value below. A transient read failure should not
+    // strand an otherwise deliverable winery record.
+  }
+
+  try {
+    const lastKnownRaw = await kvGet(`bde_last_known_active_module_keys_${farmId}`);
+    return parseModuleKeys(lastKnownRaw);
   } catch {
     return null;
   }

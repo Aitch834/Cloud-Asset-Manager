@@ -66,11 +66,24 @@ export async function refreshApiModules(
   const activeModuleKeys = Array.isArray(data.activeModuleKeys)
     ? data.activeModuleKeys.filter((key): key is string => typeof key === "string")
     : [];
+  const serializedModuleKeys = JSON.stringify(activeModuleKeys);
 
   // Persist for the sync engine (non-React context) to read.
   // Key is farm-scoped so multi-farm users get accurate per-farm results.
   try {
-    await kvSet(`bde_active_module_keys_${farmId}`, JSON.stringify(activeModuleKeys));
+    // Keep a second last-known value so a cold-start cache miss cannot strand
+    // records that were saved offline. The active key remains the source of
+    // truth for the current session; the sync engine only consults this
+    // fallback when that key is missing.
+    await kvSet(
+      `bde_last_known_active_module_keys_${farmId}`,
+      serializedModuleKeys,
+    );
+  } catch {
+    // The current-session cache may still be persisted below.
+  }
+  try {
+    await kvSet(`bde_active_module_keys_${farmId}`, serializedModuleKeys);
   } catch {
     // The live tab list must still update if local persistence is unavailable.
   }
