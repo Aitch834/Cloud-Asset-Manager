@@ -16,6 +16,7 @@
     "test:lis-first-production": "tsx scripts/test-lis-first-production-submission.ts",
     "test:open-meteo-cache": "tsx scripts/test-open-meteo-cache.ts",
     "test:cache-guard": "node scripts/check-ad-brand-asset-cache-guard.mjs",
+    "test:ad-pdf-draft-warnings": "node scripts/check-ad-pdf-draft-warnings.mjs",
     "test:rack-out-note": "node scripts/check-winery-rack-out-note.mjs",
     "test:rack-out-note:integration": "tsx scripts/test-winery-rack-out-note.ts",
     "test:bg-url": "node scripts/check-bg-url.mjs",
