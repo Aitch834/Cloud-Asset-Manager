@@ -50,6 +50,86 @@ let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let followupDelayWhileSyncing: number | null = null;
 let isInitialized = false;
 
+const NEWLY_MAPPED_LEGACY_RECORD_TYPES = [
+  "bde_third_party_grain_outloadings",
+  "bde_cleaning_records",
+  "bde_casualty_slaughter_records",
+  "bde_environmental_events",
+  "bde_dairy_calving_records",
+  "bde_dairy_mastitis_records",
+  "bde_dairy_bcs_records",
+  "bde_dairy_mobility_scorings",
+  "bde_poultry_welfare_checks",
+  "bde_poultry_daily_mortality",
+  "bde_poultry_treatments",
+  "bde_poultry_environmental_logs",
+  "bde_poultry_fci_documents",
+  "bde_poultry_broiler_welfare",
+  "bde_poultry_biosecurity_cleanouts",
+  "bde_poultry_thinning_records",
+  "bde_poultry_ncp_tests",
+  "bde_pig_welfare_checks",
+  "bde_pig_red_tractor_checklists",
+  "bde_pig_medicine_treatments",
+  "bde_pig_movements",
+  "bde_pig_fci_documents",
+  "bde_pig_feed_consumption",
+  "bde_pig_vet_assessments",
+  "bde_pig_tail_biting_risks",
+  "bde_pig_farrowing_records",
+  "bde_right_to_work_checks",
+  "bde_staff_training_records",
+  "bde_coshh_assessments",
+  "bde_irrigation_meter_readings",
+  "bde_fuel_meter_readings",
+  "bde_fuel_stock_checks",
+  "bde_fuel_drawdowns",
+  "bde_fuel_tank_deliveries",
+  "bde_ai_reproduction_records",
+  "bde_vet_prescriptions",
+  "bde_grain_quality_tests",
+  "bde_grain_temperature_readings",
+  "bde_egg_production_records",
+  "bde_encampment_reports",
+  "bde_waste_disposal_records",
+  "bde_slurry_events",
+  "bde_slurry_spreading_records",
+  "bde_slurry_fill_events",
+  "bde_slurry_store_inspections",
+  "bde_silage_additive_records",
+  "bde_silage_quality_tests",
+  "bde_sfi_actions",
+  "bde_seed_drilling_records",
+  "bde_carbon_entries",
+  "bde_sprayer_calibrations",
+  "bde_maintenance_logs",
+  "bde_horticulture_records",
+  "bde_horticulture_harvest_grades",
+  "bde_fresh_produce_intake_records",
+  "bde_cold_store_temp_readings",
+  "bde_diversification_records",
+  "bde_equine_health_events",
+  "bde_shooting_records",
+  "bde_food_hygiene_inspections",
+  "bde_grain_stock_stocktakes",
+  "bde_spray_stock_stocktakes",
+  "bde_third_party_grain_intakes",
+  "bde_vine_scouting",
+  "bde_vine_phenology",
+  "bde_winery_age_verification",
+  "bde_winery_reception",
+  "bde_winery_cellar_ops",
+  "bde_winery_fermentation",
+  "bde_winery_pressing",
+  "bde_winery_so2",
+  "bde_ahwr_records",
+  "bde_hive_inspections",
+  "bde_straw_bale_inventory",
+  "bde_straw_moisture_checks",
+  "bde_straw_sale_records",
+  "bde_silage_haylage_stock",
+] as const;
+
 function notify() {
   listeners.forEach((l) => l({ ...state }));
 }
@@ -316,6 +396,73 @@ async function migrateOrganicInputsKey(): Promise<void> {
   }
 }
 
+/**
+ * Move records saved by older app versions from flat KV lists into the generic
+ * records table now used by TABLE_MAP. Progress is persisted per key so a
+ * crash after insert/enqueue cannot duplicate an upload on the next launch.
+ */
+export async function migrateNewlyMappedLegacyRecords(): Promise<void> {
+  for (const recordType of NEWLY_MAPPED_LEGACY_RECORD_TYPES) {
+    const table = getTableForKey(recordType);
+    if (!table) continue;
+
+    const markerKey = `bde_table_map_migration_v1_${recordType}`;
+    try {
+      const raw = await kvGet(recordType);
+      if (!raw) continue;
+
+      let entries: Array<Record<string, unknown>>;
+      try {
+        entries = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(entries)) continue;
+
+      const markerRaw = await kvGet(markerKey);
+      const migratedIds = new Set<string>(
+        markerRaw ? JSON.parse(markerRaw) as string[] : [],
+      );
+      let everyEntryValid = true;
+
+      for (const entry of entries) {
+        const id = String(entry?.id ?? "");
+        if (!id) {
+          everyEntryValid = false;
+          continue;
+        }
+        if (migratedIds.has(id)) continue;
+
+        const farmId = String(entry.farmId ?? "");
+        const createdAt = String(entry.createdAt ?? new Date().toISOString());
+        await insertRecord(table, id, farmId, entry, createdAt);
+
+        if (entry.synced) {
+          await markRecordSynced(table, id);
+        } else {
+          const alreadyQueued = await hasPendingSyncItem(recordType, id);
+          if (!alreadyQueued) {
+            await enqueueSyncItem(recordType, id, entry);
+          }
+        }
+
+        migratedIds.add(id);
+        await kvSet(markerKey, JSON.stringify(Array.from(migratedIds)));
+      }
+
+      if (everyEntryValid) {
+        await kvDelete(recordType);
+        await kvDelete(markerKey);
+      }
+    } catch (err) {
+      console.warn(
+        `migrateNewlyMappedLegacyRecords(${recordType}):`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+}
+
 export async function initialize(): Promise<void> {
   if (isInitialized) return;
   isInitialized = true;
@@ -324,6 +471,7 @@ export async function initialize(): Promise<void> {
   await migrateIrrigationApplicationsKey();
   await migrateVineHarvestKey();
   await migrateOrganicInputsKey();
+  await migrateNewlyMappedLegacyRecords();
   await refreshPendingCount();
 
   try {

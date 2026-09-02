@@ -90,109 +90,11 @@ const STORAGE_TS = path.resolve(MOBILE_DIR, "lib/storage.ts");
 // TABLE_MAP and this list will fail CI (check 2 above).
 // ---------------------------------------------------------------------------
 const ENDPOINT_ONLY_KEYS = new Set([
-  // Special-cased in getSyncEndpoint() — intakeId embedded in the endpoint path
-  "bde_third_party_grain_outloadings",
-  // Cleaning / operations — enqueue-only pattern (no local insertRecord row)
-  "bde_cleaning_records",
-  "bde_casualty_slaughter_records",
-  "bde_environmental_events",
-  // Dairy — readings/assessments enqueued directly
-  "bde_dairy_calving_records",
-  "bde_dairy_mastitis_records",
-  "bde_dairy_bcs_records",
-  "bde_dairy_mobility_scorings",
-  // Poultry — welfare/production/biosecurity forms enqueued directly
-  "bde_poultry_welfare_checks",
-  "bde_poultry_daily_mortality",
-  "bde_poultry_treatments",
-  "bde_poultry_environmental_logs",
-  "bde_poultry_fci_documents",
-  "bde_poultry_broiler_welfare",
-  "bde_poultry_biosecurity_cleanouts",
-  "bde_poultry_thinning_records",
-  "bde_poultry_ncp_tests",
-  // Pig — welfare/production/health forms enqueued directly
-  "bde_pig_welfare_checks",
-  "bde_pig_red_tractor_checklists",
-  "bde_pig_medicine_treatments",
-  "bde_pig_movements",
-  "bde_pig_fci_documents",
-  "bde_pig_feed_consumption",
-  "bde_pig_vet_assessments",
-  "bde_pig_tail_biting_risks",
-  "bde_pig_farrowing_records",
-  // HR / compliance — enqueue-only
-  "bde_right_to_work_checks",
-  "bde_staff_training_records",
-  "bde_coshh_assessments",
-  // Irrigation / water — meter readings enqueued directly
-  "bde_irrigation_meter_readings",
-  // Fuel / energy — readings and stock checks enqueued directly
-  "bde_fuel_meter_readings",
-  "bde_fuel_stock_checks",
-  "bde_fuel_drawdowns",
-  "bde_fuel_tank_deliveries",
-  // Veterinary / health — enqueue-only
-  "bde_ai_reproduction_records",
-  "bde_vet_prescriptions",
-  // Grain — quality/temperature logs enqueued directly
-  "bde_grain_quality_tests",
-  "bde_grain_temperature_readings",
-  // Poultry / eggs — production logs enqueued directly
-  "bde_egg_production_records",
-  // Land / waste — reports enqueued directly
-  "bde_encampment_reports",
-  "bde_waste_disposal_records",
-  // Slurry — events and inspections enqueued directly
-  "bde_slurry_events",
-  "bde_slurry_spreading_records",
-  "bde_slurry_fill_events",
-  "bde_slurry_store_inspections",
-  // Silage — additive records and quality tests enqueued directly
-  "bde_silage_additive_records",
-  "bde_silage_quality_tests",
-  // Arable / agri-environment — enqueue-only
-  "bde_sfi_actions",
-  "bde_seed_drilling_records",
-  "bde_carbon_entries",
-  // Machinery / horticulture — enqueue-only
-  "bde_sprayer_calibrations",
-  "bde_maintenance_logs",
-  "bde_horticulture_records",
-  "bde_horticulture_harvest_grades",
-  "bde_fresh_produce_intake_records",
-  "bde_cold_store_temp_readings",
-  // Diversification / rural — enqueue-only
-  "bde_diversification_records",
-  "bde_equine_health_events",
-  "bde_shooting_records",
-  "bde_food_hygiene_inspections",
-  // Grain / stocktakes — enqueue-only
-  "bde_grain_stock_stocktakes",
-  "bde_spray_stock_stocktakes",
-  "bde_third_party_grain_intakes",
-  // Viticulture — scouting/phenology enqueued directly (vine_operation/harvest
-  // ARE in TABLE_MAP; scouting/phenology are not)
-  "bde_vine_scouting",
-  "bde_vine_phenology",
-  // Winery — cellar-ops sub-types enqueued directly
-  "bde_winery_age_verification",
-  "bde_winery_reception",
-  "bde_winery_cellar_ops",
-  "bde_winery_fermentation",
-  "bde_winery_pressing",
-  "bde_winery_so2",
-  // Apiary
-  "bde_ahwr_records",
-  "bde_hive_inspections",
-  // Straw — baling + sub-operations enqueued directly
+  // Straw baling screens store wrapper objects under bde_pending_sync rather
+  // than inserting local rows under these endpoint keys, so there is no
+  // matching record for markRecordSynced() to update after upload.
   "bde_straw_baling_operations",
   "bde_straw_cartage_journeys",
-  "bde_straw_bale_inventory",
-  "bde_straw_moisture_checks",
-  "bde_straw_sale_records",
-  // Silage / forage stock
-  "bde_silage_haylage_stock",
 ]);
 
 // ---------------------------------------------------------------------------
