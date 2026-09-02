@@ -42987,6 +42987,7 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   const body = req.body as Record<string, unknown>;
   const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = body;
   const [existing] = await db.select({
+    dueDate: agriEnvMilestonesTable.dueDate,
     completionDate: agriEnvMilestonesTable.completionDate,
     status: agriEnvMilestonesTable.status,
   }).from(agriEnvMilestonesTable)
@@ -43008,9 +43009,17 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
     return;
   }
 
+  const nextDueDate = "dueDate" in body
+    ? (dueDate ? String(dueDate) : null)
+    : existing.dueDate;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (milestoneName   != null) updates["milestoneName"]   = String(milestoneName);
-  if (dueDate         != null) updates["dueDate"]         = dueDate         ? String(dueDate)         : null;
+  if ("dueDate" in body) {
+    updates["dueDate"] = nextDueDate;
+    if (nextDueDate !== existing.dueDate) {
+      updates["push7dSentAt"] = null;
+    }
+  }
   // Pending milestones do not have a completion date; explicit null also clears it
   // when reverting from a claimed status.
   if ("completionDate" in body || nextStatus === "pending") {
