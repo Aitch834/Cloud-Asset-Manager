@@ -256,9 +256,12 @@ export default function OrganicFpInputsListScreen() {
                           <Feather
                             name="clock"
                             size={12}
-                            color={isExpired ? colors.textSecondary : isExpiringSoon ? "#d97706" : colors.textSecondary}
+                            color={isExpired ? colors.error : isExpiringSoon ? colors.accentDark : colors.textSecondary}
                           />
-                          <Text style={[styles.expiryLabel, isExpiringSoon && !isExpired && styles.expiryWarnText]}>
+                          <Text style={[
+                            styles.expiryLabel,
+                            isExpired ? styles.expiryExpiredText : isExpiringSoon && styles.expiryWarnText,
+                          ]}>
                             Derogation expires: {fmtDate(r.derogationExpiryDate)}
                           </Text>
                           {isExpired ? (
@@ -352,6 +355,7 @@ const styles = StyleSheet.create({
   metaText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary },
   expiryRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
   expiryLabel: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textSecondary, flex: 1 },
+  expiryExpiredText: { color: colors.error, fontFamily: fonts.semiBold },
   expiryWarnText: { color: "#92400e" },
   warnBadge: {
     backgroundColor: "#fef3c7", paddingHorizontal: 6, paddingVertical: 2,
@@ -359,10 +363,10 @@ const styles = StyleSheet.create({
   },
   warnBadgeText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: "#92400e" },
   expiredBadge: {
-    backgroundColor: "#f1f5f9", paddingHorizontal: 6, paddingVertical: 2,
+    backgroundColor: colors.errorBg, paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: radius.full, overflow: "hidden",
   },
-  expiredBadgeText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.textSecondary },
+  expiredBadgeText: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.error },
   noExpiryText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: "#d97706" },
   refText: { fontFamily: fonts.regular, fontSize: fontSize.xs, color: colors.textTertiary, marginTop: 2 },
 });
