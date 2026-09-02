@@ -142,6 +142,62 @@ async function prepareInputRegister(page: Page, farm: OrganicFarm): Promise<void
   await expect(page.getByText(PRODUCT_NAME, { exact: true })).toBeVisible();
 }
 
+async function prepareEmptyAuditPack(page: Page, farm: OrganicFarm): Promise<() => void> {
+  let releaseCertificationRequest!: () => void;
+  const certificationRequestHeld = new Promise<void>(resolve => {
+    releaseCertificationRequest = resolve;
+  });
+
+  await page.route(`**/api/farms/${farm.farmId}/organic/**`, async route => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.endsWith("/certification")) {
+      await certificationRequestHeld;
+    }
+
+    if (
+      !pathname.endsWith("/certification") &&
+      !pathname.endsWith("/fields") &&
+      !pathname.endsWith("/inspections") &&
+      !pathname.endsWith("/inputs")
+    ) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ records: [] }),
+    });
+  });
+
+  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await page.goto("/dashboard/");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(
+    ([tenantSlug, farmId]) => {
+      localStorage.setItem("farmtrac_tenantSlug", tenantSlug);
+      localStorage.setItem(
+        "farmtrac-storage",
+        JSON.stringify({ state: { tenantSlug, farmId }, version: 0 }),
+      );
+    },
+    [farm.tenantSlug, farm.farmId] as [string, number],
+  );
+
+  await page.goto("/dashboard/organic", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("button", { name: "Download Audit Pack", exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  return releaseCertificationRequest;
+}
+
 test("shows derogation expiry in authenticated CSV and print exports", async ({
   page,
 }) => {
@@ -189,4 +245,33 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   await expect(printRow).toContainText(String(expectedDaysRemaining));
 
   await popup.close();
+});
+
+test("blocks an immediate audit pack click until empty-register warnings are ready", async ({
+  page,
+}) => {
+  const farm = await getOrganicFarm();
+  const releaseCertificationRequest = await prepareEmptyAuditPack(page, farm);
+  let downloadCount = 0;
+  page.on("download", () => {
+    downloadCount += 1;
+  });
+
+  try {
+    const downloadButton = page.getByRole("button", {
+      name: "Download Audit Pack",
+      exact: true,
+    });
+    await expect(downloadButton).toBeDisabled();
+    await downloadButton.click({ timeout: 1_000 }).catch(() => {});
+    expect(downloadCount).toBe(0);
+
+    releaseCertificationRequest();
+    await expect(downloadButton).toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByText(/Certification Register is empty/)).toBeVisible();
+    await expect(page.getByText(/Inspection Register is empty/)).toBeVisible();
+    await expect(page.getByText(/Restricted Inputs Register is empty/)).toBeVisible();
+  } finally {
+    releaseCertificationRequest();
+  }
 });

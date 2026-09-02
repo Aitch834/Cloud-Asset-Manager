@@ -2005,6 +2005,71 @@ export default function OrganicPage() {
   });
   const farmName = farmData?.name ?? "Farm";
 
+  // Load the four pack sources at page level so growers can see whether the
+  // pack is complete before starting a multi-file download. These keys are
+  // shared with the individual register tabs, so TanStack Query deduplicates
+  // requests and keeps the summary current after tab mutations.
+  const { data: auditCertData, isLoading: auditCertLoading, isError: auditCertError } = useQuery<{ records: Certification[] }>({
+    queryKey: ["organic-cert", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic/certification`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const { data: auditFieldsData, isLoading: auditFieldsLoading, isError: auditFieldsError } = useQuery<{ records: FieldStatus[] }>({
+    queryKey: ["organic-fields", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic/fields`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const { data: auditInspectionsData, isLoading: auditInspectionsLoading, isError: auditInspectionsError } = useQuery<{ records: InspectionRecord[] }>({
+    queryKey: ["organic-inspections", farmId],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic/inspections`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+  const { data: auditInputsData, isLoading: auditInputsLoading, isError: auditInputsError } = useQuery<{ records: OrganicInput[] }>({
+    queryKey: ["organic-inputs", farmId, "all"],
+    queryFn: () => fetch(`/api/farms/${farmId}/organic/inputs`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+    enabled: !!farmId,
+    staleTime: 60_000,
+  });
+
+  const auditPackCounts = {
+    certification: auditCertData?.records?.length ?? null,
+    fields: auditFieldsData?.records?.length ?? null,
+    inspections: auditInspectionsData?.records?.length ?? null,
+    restrictedInputs: auditInputsData?.records
+      ?.filter(r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation").length ?? null,
+  };
+  const auditPackCountsLoading = auditCertLoading || auditFieldsLoading || auditInspectionsLoading || auditInputsLoading;
+  const auditPackCountsError = auditCertError || auditFieldsError || auditInspectionsError || auditInputsError;
+  const auditPackHasCounts = Object.values(auditPackCounts).every(count => count !== null);
+  const emptyAuditRegisters = auditPackHasCounts
+    ? [
+        auditPackCounts.certification === 0 ? "Certification Register is empty" : null,
+        auditPackCounts.fields === 0 ? "Field Status Register is empty" : null,
+        auditPackCounts.inspections === 0 ? "Inspection Register is empty" : null,
+        auditPackCounts.restrictedInputs === 0 ? "Restricted Inputs Register is empty" : null,
+      ].filter((message): message is string => message !== null)
+    : [];
+  const registerCountSummary = auditPackHasCounts
+    ? [
+        auditPackCounts.certification === 0 ? "Certification Register is empty" : `${auditPackCounts.certification} certification${auditPackCounts.certification === 1 ? "" : "s"}`,
+        auditPackCounts.fields === 0 ? "Field Status Register is empty" : `${auditPackCounts.fields} field${auditPackCounts.fields === 1 ? "" : "s"}`,
+        auditPackCounts.inspections === 0 ? "Inspection Register is empty" : `${auditPackCounts.inspections} inspection${auditPackCounts.inspections === 1 ? "" : "s"}`,
+        auditPackCounts.restrictedInputs === 0 ? "Restricted Inputs Register is empty" : `${auditPackCounts.restrictedInputs} restricted input${auditPackCounts.restrictedInputs === 1 ? "" : "s"}`,
+      ].join(" · ")
+    : auditPackCountsError
+      ? "Register counts unavailable — try again before downloading"
+      : auditPackCountsLoading
+        ? "Checking register counts…"
+        : "Register counts unavailable";
+  const auditPackTitle = auditPackHasCounts
+    ? emptyAuditRegisters.length > 0
+      ? `Download all four compliance registers as separate CSV files. ${emptyAuditRegisters.join("; ")}.`
+      : "Download all four compliance registers as separate CSV files."
+    : "Download all four compliance registers as separate CSV files";
+
   async function downloadAuditPack() {
     if (!farmId) return;
     setAuditPackBusy(true);
@@ -2071,15 +2136,22 @@ export default function OrganicPage() {
             variant="outline"
             size="sm"
             onClick={downloadAuditPack}
-            disabled={auditPackBusy}
+            disabled={auditPackBusy || !auditPackHasCounts || auditPackCountsError}
             className="gap-2 shrink-0 mt-1"
-            title="Download all four compliance registers as separate CSV files"
+            title={auditPackTitle}
           >
             {auditPackBusy
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Download className="w-4 h-4" />}
             Download Audit Pack
           </Button>
+          <p
+            className={`text-xs text-right max-w-xs ${emptyAuditRegisters.length > 0 ? "text-amber-700" : "text-foreground/60"}`}
+            aria-live="polite"
+          >
+            {emptyAuditRegisters.length > 0 && <AlertTriangle className="w-3.5 h-3.5 inline-block mr-1 align-[-2px]" />}
+            {registerCountSummary}
+          </p>
         </div>
 
         <TabBar>
