@@ -475,8 +475,13 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
   const printRows = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => new Date(r.scoutDate as string).getFullYear() === Number(yearFilter));
     if (printBlockFilter !== "__all__") rows = rows.filter(r => String(r.blockId) === printBlockFilter);
+    if (photoFilter === "has") {
+      rows = rows.filter(r => Number(r.photoCount ?? 0) > 0);
+    } else if (photoFilter === "none") {
+      rows = rows.filter(r => Number(r.photoCount ?? 0) === 0);
+    }
     return rows;
-  }, [data, printBlockFilter, yearFilter]);
+  }, [data, printBlockFilter, yearFilter, photoFilter]);
 
   const highlightedBlockName = highlightBlockId ? String(blocks.find(b => b.id === highlightBlockId)?.blockName ?? highlightBlockId) : null;
 
@@ -1310,6 +1315,12 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
                 </DialogTitle>
                 <DialogDescription>
                   {unlinkedInPrint.length === 1 ? "This record" : "These records"} will appear without a block name in the printed report. Link {unlinkedInPrint.length === 1 ? "it" : "them"} first, or print anyway.
+                  {photoFilter !== "__all__" && (
+                    <span className="block mt-2 font-medium text-blue-700">
+                      Active photo filter: {photoFilter === "has" ? "Has photos" : "No photos"}.
+                      {photoFilter === "has" ? " Records without photos are excluded." : " Records with photos are excluded."}
+                    </span>
+                  )}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:gap-0">
