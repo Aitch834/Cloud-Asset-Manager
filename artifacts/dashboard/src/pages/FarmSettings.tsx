@@ -23,6 +23,8 @@ import { Redirect } from "wouter";
 import { Loader2, Save, MapPin, Copy, ExternalLink, RefreshCw, Phone, UserRound, Eye, EyeOff, ShieldCheck, Shield, Wifi, WifiOff, Trash2, Building2, CreditCard, Upload, ImageIcon, X, Cpu, LogIn, LogOut, Truck, Satellite, Key, Link2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { ToastAction } from "@/components/ui/toast";
+import { buildSmsPhoneUpdatePayload, getSmsPhoneSyncCandidate } from "@/lib/sms-phone-sync";
 
 const SECTORS = [
   { key: "sectorArable", label: "Arable" },
@@ -64,6 +66,19 @@ type IrrigationDefaultField =
   | "irrigationApplicationRateMm";
 
 type Farm = any;
+
+interface SmsProfile {
+  phoneNumber: string | null;
+  smsOptIn: string;
+  smsCategories: Record<string, boolean> | null;
+  smsConsentAt: string | null;
+}
+
+interface FarmUpdateResponse {
+  record: {
+    contactPhone?: string | null;
+  };
+}
 
 interface FarmFormData {
   name: string;
@@ -2455,6 +2470,15 @@ export default function FarmSettings() {
     queryFn: () => fetch("/api/platform-config").then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: smsProfile, isSuccess: smsProfileLoaded } = useQuery<SmsProfile>({
+    queryKey: ["account-profile"],
+    queryFn: async () => {
+      const res = await fetch(api("account/profile"));
+      if (!res.ok) throw new Error(`Failed to load account profile (${res.status})`);
+      return res.json() as Promise<SmsProfile>;
+    },
+    enabled: !!farmId,
+  });
   const platformIdleBarrelDays = Number(platformConfig?.barrel_idle_days_default);
   const platformNeutralFills = Number(platformConfig?.barrel_neutral_fills_default);
   const platformRetirementThresholdPence = Number(platformConfig?.barrel_retirement_threshold_pence);
@@ -2471,6 +2495,35 @@ export default function FarmSettings() {
       ? platformRetirementThresholdPence / 100
       : 600;
 
+  const updateSmsPhone = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      const res = await fetch(api("account/profile"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSmsPhoneUpdatePayload(phoneNumber)),
+      });
+      if (!res.ok) {
+        const message = await res.text().catch(() => "");
+        throw new Error(message || `Request failed (${res.status})`);
+      }
+      return res.json();
+    },
+    onSuccess: (_data, phoneNumber) => {
+      queryClient.setQueryData<SmsProfile>(["account-profile"], profile =>
+        profile ? { ...profile, phoneNumber } : profile,
+      );
+      toast({ title: "SMS number updated", description: `SMS alerts will use ${phoneNumber}.` });
+    },
+    onError: () => {
+      toast({
+        title: "Couldn't update SMS number",
+        description: "Please update it manually from Account & Notifications.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const contactPhoneBeforeSaveRef = useRef<string | null>(null);
   const { mutate: updateFarm, isPending: isSaving } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await fetch(`/api/farms/${farmId}`, {
@@ -2479,13 +2532,34 @@ export default function FarmSettings() {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Failed to update farm");
-      return res.json();
+      return res.json() as Promise<FarmUpdateResponse>;
     },
-    onSuccess: () => {
+    onSuccess: (savedFarm) => {
       queryClient.invalidateQueries({ queryKey: ["farm-detail", farmId] });
       queryClient.invalidateQueries({ queryKey: ["farm-dashboard", farmId] });
       queryClient.invalidateQueries({ queryKey: ["farm-settings", farmId] });
       toast({ title: "Farm updated", description: "Your changes have been saved." });
+
+      const newContactPhone = getSmsPhoneSyncCandidate({
+        savedContactPhone: savedFarm.record.contactPhone,
+        previousContactPhone: contactPhoneBeforeSaveRef.current,
+        savedSmsMobile: smsProfile?.phoneNumber,
+        profileLoaded: smsProfileLoaded,
+      });
+      if (newContactPhone) {
+        toast({
+          title: "Update SMS number?",
+          description: `Your new contact number (${newContactPhone}) differs from your saved SMS alerts number.`,
+          action: (
+            <ToastAction
+              altText={`Update SMS number to ${newContactPhone}`}
+              onClick={() => updateSmsPhone.mutate(newContactPhone)}
+            >
+              Update SMS
+            </ToastAction>
+          ),
+        });
+      }
     },
     onError: () => {
       toast({ title: "Failed to update farm", variant: "destructive" });
@@ -2664,6 +2738,9 @@ export default function FarmSettings() {
       return;
     }
 
+    contactPhoneBeforeSaveRef.current = typeof currentFarm?.contactPhone === "string"
+      ? currentFarm.contactPhone
+      : null;
     updateFarm({
       name: formData.name.trim(),
       phone: formData.phone.trim() || null,
