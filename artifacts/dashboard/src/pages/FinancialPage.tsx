@@ -2153,7 +2153,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     const incomeRows = incomeByCategory.map(r => {
       const projects = linkedProjectsByCategory[r.cat] ?? [];
       const badges = projects.map(name =>
-        `<span style="display:inline-block;margin-top:3px;margin-right:4px;font-size:7.5pt;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;">via milestone · ${esc(name)}</span>`
+        `<span class="agri-env-badge" style="display:inline-block;margin-top:3px;margin-right:4px;font-size:7.5pt;font-weight:600;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:3px;padding:1px 5px;">via milestone · ${esc(name)}</span>`
       ).join("");
       return `<tr><td>${esc(r.cat)}${badges ? `<br>${badges}` : ""}</td><td class="num">${f(r.total)}</td></tr>`;
     }).join("");
@@ -2193,6 +2193,10 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     .summary-bar { display: flex; gap: 16px; margin-bottom: 20px; }
     .summary-card { flex: 1; border-radius: 6px; padding: 12px 16px; }
     .summary-card .lbl { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .agri-env-badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    @media print {
+      .agri-env-badge { color: #111 !important; background: #fff !important; border: 1px solid #111 !important; }
+    }
     .summary-card .amt { font-size: 16pt; font-weight: 800; }
     .income-card  { background: #f0fdf4; border: 1.5px solid #16a34a; }
     .income-card .lbl { color: #166534; } .income-card .amt { color: #15803d; }
