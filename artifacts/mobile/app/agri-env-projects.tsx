@@ -944,6 +944,11 @@ export default function AgriEnvProjectsScreen() {
                             {fmt(ms.claimAmountPence)}
                           </Text>
                         )}
+                        {!!ms.evidenceNotes && (
+                          <Text style={styles.milestoneNotes} numberOfLines={2}>
+                            {ms.evidenceNotes}
+                          </Text>
+                        )}
                       </Pressable>
                       {/* Tap pill → quick status change */}
                       <Pressable
@@ -1698,6 +1703,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#059669",
     marginTop: 2,
+  },
+  milestoneNotes: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 15,
+    marginTop: 4,
   },
   milestoneStatusPill: {
     flexDirection: "row" as const,

@@ -19,7 +19,10 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
-import { canApplyMilestoneLoad } from "@/lib/agriEnvMilestoneCache";
+import {
+  canApplyMilestoneLoad,
+  persistMilestoneCacheUpdate,
+} from "@/lib/agriEnvMilestoneCache";
 import { getItem, removeItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -62,15 +65,6 @@ interface AgriEnvProject {
 interface AgriEnvProjectsCache {
   data: AgriEnvProject[];
   cachedAt: string;
-}
-
-function mergeMilestone(
-  milestones: AgriEnvMilestone[],
-  updated: AgriEnvMilestone,
-): AgriEnvMilestone[] {
-  return milestones.some(m => m.id === updated.id)
-    ? milestones.map(m => m.id === updated.id ? { ...m, ...updated } : m)
-    : [...milestones, updated];
 }
 
 const MILESTONE_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -305,28 +299,43 @@ export default function AgriEnvMilestoneDetailScreen() {
   const updateMilestoneCache = useCallback(async (updated: AgriEnvMilestone) => {
     if (!currentFarm?.id || !projectId) return;
     const now = new Date().toISOString();
+    const mutationVersionAtSave = cacheMutationVersionRef.current;
     const [projectCache, allCache] = await Promise.all([
       getItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId)),
       getItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id)),
     ]);
     const projectMilestones = projectCache?.milestones ?? [];
-    const updatedProjectMilestones = mergeMilestone(projectMilestones, updated);
-    const writes: Promise<void>[] = [
-      setItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId), {
-        milestones: updatedProjectMilestones,
-        cachedAt: now,
-      }),
-    ];
-
-    if (allCache) {
-      writes.push(
-        setItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id), {
-          data: mergeMilestone(allCache.data, updated),
+    const { hydration } = await persistMilestoneCacheUpdate({
+      updated,
+      projectMilestones,
+      allMilestones: allCache?.data ?? null,
+      persistProjectMilestones: (milestones) =>
+        setItem<MilestoneDetailCache>(cacheKey(currentFarm.id, projectId), {
+          milestones,
           cachedAt: now,
         }),
-      );
-    }
-    await Promise.all(writes);
+      persistAllMilestones: (milestones) =>
+        setItem<MilestoneListCache>(allMilestonesCacheKey(currentFarm.id), {
+          data: milestones,
+          cachedAt: now,
+        }),
+      hydrateAllMilestones: allCache
+        ? undefined
+        : async () => {
+            const res = await apiFetch(
+              `/api/farms/${currentFarm.id}/agri-env-milestones`,
+            );
+            if (!res.ok) throw new Error(`Server error ${res.status}`);
+            const data = (await res.json()) as { milestones: AgriEnvMilestone[] };
+            return data.milestones ?? [];
+          },
+      canApplyHydration: () =>
+        !cancelRef.current &&
+        cacheMutationVersionRef.current === mutationVersionAtSave,
+    });
+    // Hydration deliberately continues without holding the editor open. The
+    // confirmed project and farm-list fallback caches are already durable.
+    void hydration;
   }, [currentFarm?.id, projectId]);
 
   const saveEdits = useCallback(async () => {
