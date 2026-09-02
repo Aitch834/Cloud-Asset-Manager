@@ -43021,6 +43021,13 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
       : Number(claimAmountPence);
   }
   if (status          != null) updates["status"]          = String(status);
+  if (
+    existing.status === "completed" &&
+    (nextStatus === "pending" || nextStatus === "submitted")
+  ) {
+    // A reopened milestone needs to be eligible for a fresh overdue alert.
+    updates["alertedAt"] = null;
+  }
   if ("evidenceNotes" in body) updates["evidenceNotes"] = evidenceNotes ? String(evidenceNotes) : null;
   const [milestone] = await db.update(agriEnvMilestonesTable).set(updates as any)
     .where(and(eq(agriEnvMilestonesTable.id, id), eq(agriEnvMilestonesTable.projectId, projectId), eq(agriEnvMilestonesTable.farmId, farmId)))
