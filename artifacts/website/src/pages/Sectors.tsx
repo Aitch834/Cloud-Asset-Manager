@@ -2,7 +2,7 @@ import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { modulePrice, BASE_FEE, BUNDLE_INCLUSIONS, MODULES } from "@/lib/pricing-data";
+import { modulePrice, BASE_FEE, BUNDLE_INCLUSIONS, MODULES, SMS_ADDON_PRICE } from "@/lib/pricing-data";
 import {
   Beef, Wheat, Grape, Tractor, LayoutGrid, Wrench,
   CheckCircle2, ArrowRight, ChevronRight, AlertTriangle,
@@ -170,7 +170,7 @@ const SECTOR_TO_PRICING: Record<string, string> = {
 const WHY = [
   { icon: ClipboardList, title: "Built for compliance, not just record-keeping", body: "Every module in BDE Farm Trac was designed around the specific audit requirements of the sector it serves — Red Tractor, organic certification, NVZ rules, and government livestock movement reporting. Records are structured to be audit-ready, not just stored." },
   { icon: Smartphone, title: "Mobile-first for field workers", body: "The BDE Farm Trac mobile app works offline in areas with poor signal and syncs automatically when connectivity returns. Field workers capture records at the point of work — no transcription from paper notebooks at the end of the day." },
-  { icon: PoundSterling, title: "Module-based pricing — only pay for what you need", body: "Start with a single compliance module and add more as your operation grows. There are no annual contracts, no upfront costs, and no penalty for cancelling. Every module is month-to-month." },
+  { icon: PoundSterling, title: "Module-based pricing — only pay for what you need", body: `Start with a single compliance module and add more as your operation grows. Optional SMS Alerts are available for £${SMS_ADDON_PRICE}/month per farm. There are no annual contracts, no upfront costs, and no penalty for cancelling. Every module is month-to-month.` },
   { icon: ShieldCheck, title: "Government integration — built in, not bolted on", body: "Direct API integrations with BCMS (cattle) and LIS (sheep, goat, deer) are in application. When approved, one-click submission to government systems will replace the manual re-keying that currently costs hours every month." },
 ];
 

@@ -3,10 +3,10 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { BASE_FEE, MODULES, BUNDLE_INCLUSIONS, modulePrice } from "@/lib/pricing-data";
 // ── Sector filter ──────────────────────────────────────────────────────────────
 // Maps each sector pill label to the module IDs relevant to that sector.
 // red-tractor-compliance is always shown regardless of the active filter.
+import { BASE_FEE, MODULES, BUNDLE_INCLUSIONS, SMS_ADDON_PRICE, modulePrice } from "@/lib/pricing-data";
 const SECTORS = ["All", "Arable", "Livestock", "Viticulture", "Organic", "Fresh Produce", "Diversification"] as const;
 type Sector = typeof SECTORS[number];
 
@@ -469,6 +469,11 @@ export default function Pricing() {
                       </div>
                       {"note" in mod && mod.note && (
                         <p className="text-xs text-muted-foreground mt-1">{mod.note}</p>
+                      )}
+                      {mod.id === "platform-addons" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          SMS Alerts add-on: £{SMS_ADDON_PRICE}/month per farm
+                        </p>
                       )}
                     </div>
                   );
