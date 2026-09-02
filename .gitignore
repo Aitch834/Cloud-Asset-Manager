@@ -49,3 +49,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Playwright global setup state
+artifacts/dashboard/e2e/.test-user-id
+artifacts/dashboard/e2e/.test-user-email
