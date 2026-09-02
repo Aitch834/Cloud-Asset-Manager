@@ -20,6 +20,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { isResponseCurrentForFarm } from "@/lib/utils/farmRequestGuard";
+import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -94,7 +95,7 @@ export default function OrganicVitDerogationsScreen() {
   const { currentFarm } = useFarm();
   const farmId = currentFarm?.id;
 
-  const { activeModuleKeys, loading: modulesLoading, resolvedFarmId } = useApiModules(farmId);
+  const { activeModuleKeys, loading: modulesLoading, attemptedFarmId, resolvedFarmId } = useApiModules(farmId);
   // Require resolvedFarmId to match so we never act on stale module state from a previous farm.
   const isOrganicVitModuleActive =
     resolvedFarmId === farmId && activeModuleKeys.includes("organic-viticulture");
@@ -104,19 +105,9 @@ export default function OrganicVitDerogationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  // Track whether module loading has been attempted at all for the current farm.
-  // This lets us distinguish "modules not yet started" (keep spinner) from
-  // "modules attempted and failed" (resolvedFarmId stayed unset — show empty rather
-  // than spinning forever).
-  const [modulesAttempted, setModulesAttempted] = useState(false);
-  useEffect(() => {
-    if (modulesLoading) setModulesAttempted(true);
-  }, [modulesLoading]);
-
   // Clear stale data from the previous farm immediately on farm switch so old
   // cases are never rendered while the new farm's module state resolves.
   useEffect(() => {
-    setModulesAttempted(false);
     setCases([]);
     setExpanded(null);
   }, [farmId]);
@@ -172,7 +163,12 @@ export default function OrganicVitDerogationsScreen() {
   // completed (regardless of success/failure) and data loading is done.
   const modulesConfirmedForFarm = resolvedFarmId === farmId;
   const showSpinner =
-    (!modulesConfirmedForFarm && (!modulesAttempted || modulesLoading)) ||
+    shouldShowModuleLoading({
+      currentFarmId: farmId,
+      attemptedFarmId,
+      resolvedFarmId,
+      modulesLoading,
+    }) ||
     (loading && !refreshing);
 
   const counts = {

@@ -28,6 +28,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import {
   BARREL_RETIREMENT_THRESHOLD_PENCE,
   isBarrelType,
@@ -1374,12 +1375,19 @@ export default function WineryVesselDetailScreen() {
     lastActivity?: string;
   }>();
 
-  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
+  const { activeModuleKeys, loading: modulesLoading, attemptedFarmId, resolvedFarmId } = useApiModules(currentFarm?.id);
   // Require resolvedFarmId to match currentFarm.id so winery requests are never
   // issued during the transition window between a farm switch and module resolution.
   const isViticultureActive =
+    !modulesLoading &&
     resolvedFarmId === currentFarm?.id &&
     activeModuleKeys.includes("viticulture");
+  const showModulesLoading = shouldShowModuleLoading({
+    currentFarmId: currentFarm?.id,
+    attemptedFarmId,
+    resolvedFarmId,
+    modulesLoading,
+  });
 
   const { data, loading, refreshing, error, refresh } = useVesselDetail(
     currentFarm?.id,
@@ -1563,7 +1571,7 @@ export default function WineryVesselDetailScreen() {
         </View>
       </View>
 
-      {loading ? (
+      {showModulesLoading || loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading vessel record…</Text>

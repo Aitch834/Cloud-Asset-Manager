@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -24,6 +25,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { appendToList, generateId, getItem, setItem, STORAGE_KEYS } from "@/lib/storage";
 import type { IrrigationApplication } from "@/lib/types";
+import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
@@ -73,8 +75,16 @@ export default function IrrigationApplicationScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id ? String(currentFarm.id) : undefined);
+  const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
+  const { activeModuleKeys, loading: modulesLoading, attemptedFarmId, resolvedFarmId } = useApiModules(farmIdStr);
   const [saving, setSaving] = useState(false);
+
+  const showModulesLoading = shouldShowModuleLoading({
+    currentFarmId: farmIdStr,
+    attemptedFarmId,
+    resolvedFarmId,
+    modulesLoading,
+  });
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -130,7 +140,6 @@ export default function IrrigationApplicationScreen() {
     // Guard: if the module cache has been resolved for this farm and water-irrigation
     // is not among the active modules, refuse to queue the record. Without this check
     // the sync engine would retry the upload indefinitely after the server returns 403.
-    const farmIdStr = currentFarm?.id ? String(currentFarm.id) : undefined;
     if (farmIdStr && resolvedFarmId === farmIdStr && !activeModuleKeys.includes("water-irrigation")) {
       Alert.alert(
         "Module Not Enabled",
@@ -207,11 +216,17 @@ export default function IrrigationApplicationScreen() {
           <Text style={styles.title}>Irrigation Application</Text>
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+        {showModulesLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading farm modules…</Text>
+          </View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* ── WHEN / WHO ── */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>When &amp; Who</Text>
@@ -377,7 +392,8 @@ export default function IrrigationApplicationScreen() {
           </View>
 
           <View style={{ height: 60 }} />
-        </ScrollView>
+          </ScrollView>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -385,6 +401,17 @@ export default function IrrigationApplicationScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",

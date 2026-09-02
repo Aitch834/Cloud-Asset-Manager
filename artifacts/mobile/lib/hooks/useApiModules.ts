@@ -96,6 +96,10 @@ export async function refreshApiModules(
 export function useApiModules(farmId: string | undefined) {
   const [activeModuleKeys, setActiveModuleKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // Tracks the farm whose module request has actually started. Unlike a local
+  // boolean in consuming screens, this remains identity-safe on the first render
+  // after a farm switch, before any passive effects have reset local state.
+  const [attemptedFarmId, setAttemptedFarmId] = useState<string | undefined>(undefined);
   // Tracks the farm ID for which activeModuleKeys was last resolved, so callers
   // can detect the transition window between a farm switch and its module fetch completing.
   const [resolvedFarmId, setResolvedFarmId] = useState<string | undefined>(undefined);
@@ -104,7 +108,10 @@ export function useApiModules(farmId: string | undefined) {
     if (!farmId) return;
 
     const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-    if (!apiDomain) return;
+    if (!apiDomain) {
+      setAttemptedFarmId(farmId);
+      return;
+    }
 
     let cancelled = false;
 
@@ -120,6 +127,7 @@ export function useApiModules(farmId: string | undefined) {
     });
 
     (async () => {
+      setAttemptedFarmId(farmId);
       setLoading(true);
       try {
         await refreshApiModules(farmId);
@@ -139,5 +147,5 @@ export function useApiModules(farmId: string | undefined) {
     };
   }, [farmId]);
 
-  return { activeModuleKeys, loading, resolvedFarmId };
+  return { activeModuleKeys, loading, attemptedFarmId, resolvedFarmId };
 }

@@ -751,23 +751,16 @@ export default function WineryVesselRegisterScreen() {
   const { currentFarm } = useFarm();
   const { triggerBarrelRefresh } = useBarrelAlertContext();
   const { flag: flagParam } = useLocalSearchParams<{ flag?: string }>();
-  const { activeModuleKeys, resolvedFarmId, loading: modulesLoading } = useApiModules(currentFarm?.id);
+  const { activeModuleKeys, attemptedFarmId, resolvedFarmId, loading: modulesLoading } = useApiModules(currentFarm?.id);
   // resolvedFarmId must match currentFarm.id before any module-gated request fires.
   const isWineryModuleActive = computeIsWineryModuleActive(
     resolvedFarmId,
     currentFarm?.id,
     activeModuleKeys,
   );
-  // Track whether module loading has been attempted for the current farm so we
-  // can distinguish "not yet started" (keep spinner) from "completed but failed"
-  // (show SectionList with RefreshControl so the user can retry).
-  const [modulesAttempted, setModulesAttempted] = useState(false);
-  useEffect(() => {
-    if (modulesLoading) setModulesAttempted(true);
-  }, [modulesLoading]);
-  useEffect(() => {
-    setModulesAttempted(false);
-  }, [currentFarm?.id]);
+  // Identity-scoped attempt state distinguishes a newly selected farm (keep the
+  // spinner up) from a completed-but-failed lookup (allow pull-to-refresh).
+  const modulesAttempted = attemptedFarmId === currentFarm?.id;
 
   // farmConfirmed: module identity resolved for the current farm. Used to suppress
   // any vessel-count-derived UI (summary bar, filter pill) that would otherwise

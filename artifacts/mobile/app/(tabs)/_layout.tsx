@@ -167,11 +167,12 @@ function ClassicTabLayout({
  */
 function TabLayoutInner() {
   const { currentFarm } = useFarm();
-  const { activeModuleKeys, resolvedFarmId } = useApiModules(currentFarm?.id);
+  const { activeModuleKeys, loading: modulesLoading, resolvedFarmId } = useApiModules(currentFarm?.id);
   // Require resolvedFarmId to match currentFarm.id so winery requests are never
   // issued during the transition window between a farm switch and the new farm's
   // module fetch completing.
   const isViticultureActive =
+    !modulesLoading &&
     resolvedFarmId === currentFarm?.id &&
     activeModuleKeys.includes("viticulture");
   const barrelAlertCount = useBarrelAlertCount(

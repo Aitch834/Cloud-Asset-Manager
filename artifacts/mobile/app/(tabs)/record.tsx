@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/colors";
@@ -13,6 +13,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useBarrelAlertThresholds } from "@/lib/hooks/useBarrelAlertThresholds";
+import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
 import {
   isBarrelType as _isBarrelType,
   isIdleBarrel as _isIdleBarrel,
@@ -2222,10 +2223,16 @@ function hasSector(farm: { sectorArable?: boolean; sectorBeef?: boolean; sectorD
 export default function RecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
-  const { activeModuleKeys, loading: modulesLoading, resolvedFarmId } = useApiModules(currentFarm?.id);
+  const { activeModuleKeys, loading: modulesLoading, attemptedFarmId, resolvedFarmId } = useApiModules(currentFarm?.id);
 
   const moduleSet = new Set(activeModuleKeys);
-  const modulesLoaded = activeModuleKeys.length > 0;
+  const modulesLoaded = resolvedFarmId === currentFarm?.id;
+  const showModulesLoading = shouldShowModuleLoading({
+    currentFarmId: currentFarm?.id,
+    attemptedFarmId,
+    resolvedFarmId,
+    modulesLoading,
+  });
 
   // Background fetch for Vessel Register alert badge counts — only for viticulture farms.
   // Require resolvedFarmId to match currentFarm.id so we never fire this request during the
@@ -2275,20 +2282,27 @@ export default function RecordScreen() {
         <Text style={styles.subtitle}>Select the type of record to create</Text>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.scrollContent}
-      >
-        {visibleOptions.map((option) => (
-          <RecordOptionCard
-            key={option.id}
-            option={option}
-            vesselAlertCounts={option.id === "winery-vessel-register" ? vesselAlertCounts : undefined}
-          />
-        ))}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      {showModulesLoading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading farm modules…</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={styles.scrollContent}
+        >
+          {visibleOptions.map((option) => (
+            <RecordOptionCard
+              key={option.id}
+              option={option}
+              vesselAlertCounts={option.id === "winery-vessel-register" ? vesselAlertCounts : undefined}
+            />
+          ))}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -2399,6 +2413,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
   header: {
     paddingHorizontal: spacing.lg,
