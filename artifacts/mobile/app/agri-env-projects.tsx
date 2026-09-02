@@ -25,6 +25,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { canApplyAgriEnvCacheLoad } from "@/lib/agri-env-cache";
 import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
 import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
+import { applyTransactionProjectLink } from "@/lib/agri-env-transaction-link";
 import {
   AGRI_ENV_CACHE_TTL_MS,
   getItem,
@@ -724,7 +725,13 @@ export default function AgriEnvProjectsScreen() {
   // Link (or unlink) a financial transaction to an agri-env project.
   const saveLink = useCallback(async (txId: number, projectId: number | null) => {
     if (!currentFarm?.id) return;
+    const previousProjectId = transactions.find((transaction) => transaction.id === txId)?.agriEnvProjectId ?? null;
     setSavingLink(true);
+    // Update the badge before the request completes so the link action feels
+    // immediate. A failed request below restores the server-known value.
+    setTransactions((prev) => applyTransactionProjectLink(prev, txId, projectId));
+    setLinkingTx(null);
+    setSelectedProjectId("");
     try {
       const res = await apiFetch(
         `/api/farms/${currentFarm.id}/financial-transactions/${txId}/link-agri-env`,
@@ -735,17 +742,19 @@ export default function AgriEnvProjectsScreen() {
         },
       );
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-      setTransactions(prev =>
-        prev.map(t => t.id === txId ? { ...t, agriEnvProjectId: projectId } : t),
-      );
-      setLinkingTx(null);
-      setSelectedProjectId("");
+      const data = await res.json() as { record?: { agriEnvProjectId?: number | null } };
+      const confirmedProjectId =
+        data.record && "agriEnvProjectId" in data.record
+          ? (data.record.agriEnvProjectId ?? null)
+          : projectId;
+      setTransactions((prev) => applyTransactionProjectLink(prev, txId, confirmedProjectId));
     } catch {
+      setTransactions((prev) => applyTransactionProjectLink(prev, txId, previousProjectId));
       Alert.alert("Error", "Could not update the project link. Please try again.");
     } finally {
       setSavingLink(false);
     }
-  }, [currentFarm?.id]);
+  }, [currentFarm?.id, transactions]);
 
   // Called when user picks a new status from the status sheet.
   const handleStatusPick = useCallback((newStatus: string) => {
@@ -1170,9 +1179,12 @@ export default function AgriEnvProjectsScreen() {
                                   via milestone · {projectName}
                                 </Text>
                                 <Pressable
+                                  testID={`agri-env-unlink-transaction-${tx.id}`}
                                   hitSlop={8}
                                   onPress={() => void saveLink(tx.id, null)}
+                                  disabled={savingLink}
                                   accessibilityLabel="Unlink from project"
+                                  accessibilityState={{ disabled: savingLink }}
                                 >
                                   <Feather name="x" size={11} color="#15803d" />
                                 </Pressable>
@@ -1180,13 +1192,16 @@ export default function AgriEnvProjectsScreen() {
                             ) : (
                               /* Unlinked — show "Link to project" button */
                               <Pressable
+                                testID={`agri-env-link-transaction-${tx.id}`}
                                 style={txStyles.linkBtn}
                                 onPress={() => {
                                   setLinkingTx(tx);
                                   setSelectedProjectId("");
                                 }}
+                                disabled={savingLink}
                                 accessibilityRole="button"
                                 accessibilityLabel="Link to agri-env project"
+                                accessibilityState={{ disabled: savingLink }}
                               >
                                 <Feather name="link" size={10} color="#15803d" />
                                 <Text style={txStyles.linkBtnText}>Link to project</Text>
@@ -1241,6 +1256,7 @@ export default function AgriEnvProjectsScreen() {
                   return (
                     <Pressable
                       key={p.id}
+                      testID={`agri-env-project-option-${p.id}`}
                       style={[txStyles.projectPickerRow, active && txStyles.projectPickerRowActive]}
                       onPress={() => setSelectedProjectId(String(p.id))}
                       accessibilityRole="radio"
@@ -1266,6 +1282,7 @@ export default function AgriEnvProjectsScreen() {
               </Pressable>
               {projects.length > 0 && (
                 <Pressable
+                  testID="agri-env-confirm-transaction-link"
                   style={[styles.sheetConfirm, (!selectedProjectId || savingLink) && { opacity: 0.5 }]}
                   onPress={() => {
                     if (selectedProjectId && !savingLink) {
