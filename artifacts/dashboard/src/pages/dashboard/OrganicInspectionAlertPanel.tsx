@@ -2,22 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { ShieldCheck, ArrowRight, ExternalLink, AlertTriangle } from "lucide-react";
-
-interface InspectionRecord {
-  id: number;
-  certifier: string;
-  inspectionDate: string | null;
-  nextDueDate: string | null;
-}
-
-function daysUntil(dateStr: string): number {
-  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  return Math.round((d.getTime() - t.getTime()) / 86400000);
-}
+import {
+  getOrganicInspectionAlerts,
+  type OrganicInspectionAlertRecord,
+} from "@/lib/organic-inspection-alert";
 
 export function OrganicInspectionAlertPanel({ farmId }: { farmId: number }) {
-  const { data } = useQuery<{ records: InspectionRecord[] }>({
+  const { data } = useQuery<{ records: OrganicInspectionAlertRecord[] }>({
     queryKey: ["organic-inspections-alert", farmId],
     queryFn: () =>
       fetch(`/api/farms/${farmId}/organic/inspections`, { credentials: "include" }).then(r => {
@@ -28,29 +19,9 @@ export function OrganicInspectionAlertPanel({ farmId }: { farmId: number }) {
     enabled: !!farmId,
   });
 
-  const now = new Date(); now.setHours(0, 0, 0, 0);
-  const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-
-  // For each certifier, only the most recent inspection's nextDueDate is the
-  // current live deadline. Earlier records' nextDueDates are historical and
-  // must not be surfaced as active alerts.
-  const records = data?.records ?? [];
-  const latestByCertifier = new Map<string, InspectionRecord>();
-  for (const r of records) {
-    const existing = latestByCertifier.get(r.certifier);
-    if (
-      !existing ||
-      (r.inspectionDate && (!existing.inspectionDate || r.inspectionDate > existing.inspectionDate))
-    ) {
-      latestByCertifier.set(r.certifier, r);
-    }
-  }
-
-  const alerts = Array.from(latestByCertifier.values())
-    .filter(r => r.nextDueDate != null)
-    .map(r => ({ ...r, days: daysUntil(r.nextDueDate!) }))
-    .filter(r => new Date(r.nextDueDate!).setHours(0, 0, 0, 0) <= in60Days.getTime())
-    .sort((a, b) => a.days - b.days);
+  const alerts = getOrganicInspectionAlerts(
+    (data?.records ?? []) as OrganicInspectionAlertRecord[],
+  );
 
   if (alerts.length === 0) return null;
 

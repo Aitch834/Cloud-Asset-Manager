@@ -16,6 +16,7 @@ import { UpcomingDatesPanel } from "./dashboard/UpcomingDatesPanel";
 import { ComplianceHealthPanel } from "./dashboard/ComplianceHealthPanel";
 import { FpDerogationAlertsPanel } from "./dashboard/FpDerogationAlertsPanel";
 import { OrganicInspectionAlertPanel } from "./dashboard/OrganicInspectionAlertPanel";
+import { hasOrganicComplianceModule } from "@/lib/organic-inspection-alert";
 
 type OverdueItem = { type: string; description: string; href: string };
 
@@ -325,7 +326,7 @@ export default function Dashboard() {
       )}
 
       {/* Organic Inspection Due Alert */}
-      {activeSubs.includes("organic-compliance") && (
+      {hasOrganicComplianceModule(activeSubs) && (
         <OrganicInspectionAlertPanel farmId={farmId} />
       )}
 
