@@ -42,6 +42,11 @@ describe("clearExpiredAgriEnvCaches", () => {
           "bde_agri_env_milestones_cache_future-farm",
         ];
       }
+      if (prefix === "bde_agri_env_transactions_cache_") {
+        return [
+          "bde_agri_env_transactions_cache_current-farm",
+        ];
+      }
       return [
         "bde_agri_env_project_milestones_cache_current-farm_101",
         "bde_agri_env_project_milestones_cache_removed-farm_202",
@@ -61,7 +66,7 @@ describe("clearExpiredAgriEnvCaches", () => {
   it("sweeps old entries from both project and milestone namespaces", async () => {
     await clearExpiredAgriEnvCaches(undefined, now);
 
-    expect(mockKvGetKeysByPrefix).toHaveBeenCalledTimes(3);
+    expect(mockKvGetKeysByPrefix).toHaveBeenCalledTimes(4);
     expect(mockKvDelete).toHaveBeenCalledWith("bde_agri_env_projects_cache_old-farm");
     expect(mockKvDelete).toHaveBeenCalledWith("bde_agri_env_milestones_cache_old-farm");
   });
@@ -88,7 +93,7 @@ describe("clearExpiredAgriEnvCaches", () => {
 
     expect(mockKvDelete).toHaveBeenCalledWith("bde_agri_env_projects_cache_current-farm");
     expect(mockKvDelete).toHaveBeenCalledWith("bde_agri_env_milestones_cache_boundary-farm");
-    expect(mockKvDelete).toHaveBeenCalledTimes(9);
+    expect(mockKvDelete).toHaveBeenCalledTimes(10);
   });
 
   it("deletes future-dated entries because the cache reader treats them as stale", async () => {

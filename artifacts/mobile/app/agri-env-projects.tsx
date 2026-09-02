@@ -22,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { canApplyAgriEnvCacheLoad } from "@/lib/agri-env-cache";
 import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
 import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
 import {
@@ -105,6 +106,10 @@ function expandedKey(farmId: string | number): string {
 
 function projectsCacheKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
+}
+
+function transactionsCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_TRANSACTIONS_CACHE}_${farmId}`;
 }
 
 function schemeFilterKey(farmId: string | number): string {
@@ -517,10 +522,14 @@ export default function AgriEnvProjectsScreen() {
 
   // Persist fresh data to the local cache.
   const persistCache = useCallback(
-    async (loadedProjects: AgriEnvProject[], loadedMilestones: AgriEnvMilestone[]) => {
+    async (
+      loadedProjects: AgriEnvProject[],
+      loadedMilestones: AgriEnvMilestone[],
+      loadedTransactions?: FinancialTransaction[],
+    ) => {
       if (!currentFarm?.id) return;
       const now = new Date().toISOString();
-      await Promise.all([
+      const writes: Promise<void>[] = [
         setItem<AgriEnvCache<AgriEnvProject>>(projectsCacheKey(currentFarm.id), {
           data: loadedProjects,
           cachedAt: now,
@@ -529,7 +538,18 @@ export default function AgriEnvProjectsScreen() {
           data: loadedMilestones,
           cachedAt: now,
         }),
-      ]);
+      ];
+      // Only write transactions when their request succeeded. A failed
+      // transaction refresh must not reset the age of an older cached list.
+      if (loadedTransactions !== undefined) {
+        writes.push(
+          setItem<AgriEnvCache<FinancialTransaction>>(transactionsCacheKey(currentFarm.id), {
+            data: loadedTransactions,
+            cachedAt: now,
+          }),
+        );
+      }
+      await Promise.all(writes);
     },
     [currentFarm?.id],
   );
@@ -541,16 +561,32 @@ export default function AgriEnvProjectsScreen() {
 
     // --- Cache-first: read stored data and show it immediately ---
     if (!isRefresh) {
-      const [projCache, milCache] = await Promise.all([
+      const [projCache, milCache, txCache] = await Promise.all([
         getItem<AgriEnvCache<AgriEnvProject>>(projectsCacheKey(currentFarm.id)),
         getItem<AgriEnvCache<AgriEnvMilestone>>(milestonesCacheKey(currentFarm.id)),
+        getItem<AgriEnvCache<FinancialTransaction>>(transactionsCacheKey(currentFarm.id)),
       ]);
+      // A farm switch starts a new load and advances the generation. Do not
+      // let a delayed cache read from the previous farm update this screen.
+      if (
+        cancelRef.current ||
+        !canApplyAgriEnvCacheLoad(gen, loadGenRef.current)
+      ) {
+        return;
+      }
       const cacheValid =
         projCache &&
         milCache &&
         !isCacheStale(projCache.cachedAt) &&
         !isCacheStale(milCache.cachedAt) &&
         !cancelRef.current;
+      const transactionsCacheValid =
+        txCache &&
+        !isCacheStale(txCache.cachedAt) &&
+        !cancelRef.current;
+      if (transactionsCacheValid) {
+        setTransactions(txCache.data);
+      }
       if (cacheValid) {
         setProjects(projCache.data);
         setMilestones(milCache.data);
@@ -578,7 +614,7 @@ export default function AgriEnvProjectsScreen() {
       const projData = await projRes.json() as { projects: AgriEnvProject[] };
       const milData  = await milRes.json()  as { milestones: AgriEnvMilestone[] };
       const txData   = txRes.ok ? (await txRes.json() as { records: FinancialTransaction[] }) : { records: [] };
-      if (!cancelRef.current && loadGenRef.current === gen) {
+      if (!cancelRef.current && canApplyAgriEnvCacheLoad(gen, loadGenRef.current)) {
         const loadedProjects   = projData.projects   ?? [];
         const loadedMilestones = milData.milestones  ?? [];
         const loadedTx = (txData.records ?? []).filter(
@@ -586,11 +622,14 @@ export default function AgriEnvProjectsScreen() {
         );
         setProjects(loadedProjects);
         setMilestones(loadedMilestones);
-        setTransactions(loadedTx);
-        setCachedAt(null); // now showing live data — suppress the banner
+        if (txRes.ok) {
+          setTransactions(loadedTx);
+          setCachedAt(null); // now showing live data — suppress the banner
+        }
         await restoreExpanded(loadedProjects);
         // Persist in the background; ignore write failures.
-        persistCache(loadedProjects, loadedMilestones).catch(() => { /* ignore */ });
+        persistCache(loadedProjects, loadedMilestones, txRes.ok ? loadedTx : undefined)
+          .catch(() => { /* ignore */ });
       }
     } catch (err) {
       if (!cancelRef.current) {

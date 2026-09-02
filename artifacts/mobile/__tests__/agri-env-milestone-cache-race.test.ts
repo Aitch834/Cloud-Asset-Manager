@@ -3,6 +3,7 @@ import {
   mergeMilestone,
   persistMilestoneCacheUpdate,
 } from "../lib/agriEnvMilestoneCache";
+import { canApplyAgriEnvCacheLoad } from "../lib/agri-env-cache";
 
 interface CachedMilestone {
   id: number;
@@ -128,5 +129,28 @@ describe("agri-environment milestone detail cache refresh", () => {
     await applyDelayedGet;
 
     expect(cachedMilestones).toEqual(savedMilestones);
+  });
+
+  it("does not render farm A transactions when its delayed cache read resolves after switching to farm B", async () => {
+    let currentGeneration = 0;
+    const farmAGeneration = ++currentGeneration;
+    let renderedTransactions: string[] = [];
+    let resolveFarmACache!: (transactions: string[]) => void;
+    const farmACacheRead = new Promise<string[]>((resolve) => {
+      resolveFarmACache = resolve;
+    });
+
+    const applyFarmACache = farmACacheRead.then((transactions) => {
+      if (canApplyAgriEnvCacheLoad(farmAGeneration, currentGeneration)) {
+        renderedTransactions = transactions;
+      }
+    });
+
+    // Switching farms starts a new load before the old farm's cache finishes.
+    currentGeneration++;
+    resolveFarmACache(["Farm A payment"]);
+    await applyFarmACache;
+
+    expect(renderedTransactions).toEqual([]);
   });
 });

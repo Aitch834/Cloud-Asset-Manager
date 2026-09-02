@@ -218,6 +218,7 @@ const NON_SYNC_KEYS = new Set([
   // Agri-env cache — downloaded reference data, never uploaded
   "bde_agri_env_projects_cache",
   "bde_agri_env_milestones_cache",
+  "bde_agri_env_transactions_cache",
   "bde_agri_env_project_milestones_cache",
   "bde_agri_env_scheme_filter",
   // Agri-env status filter — per-farm UI preference, never uploaded

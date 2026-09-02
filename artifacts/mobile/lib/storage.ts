@@ -38,6 +38,7 @@ export const AGRI_ENV_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AGRI_ENV_CACHE_NAMESPACES = [
   "bde_agri_env_projects_cache",
   "bde_agri_env_milestones_cache",
+  "bde_agri_env_transactions_cache",
   "bde_agri_env_project_milestones_cache",
 ] as const;
 
@@ -326,6 +327,7 @@ export const STORAGE_KEYS = {
   PIG_DEATH_RECORDS: "bde_pig_death_records",
   AGRI_ENV_PROJECTS_CACHE: "bde_agri_env_projects_cache",
   AGRI_ENV_MILESTONES_CACHE: "bde_agri_env_milestones_cache",
+  AGRI_ENV_TRANSACTIONS_CACHE: "bde_agri_env_transactions_cache",
   AGRI_ENV_PROJECT_MILESTONES_CACHE: "bde_agri_env_project_milestones_cache",
   AGRI_ENV_SCHEME_FILTER: "bde_agri_env_scheme_filter",
   AGRI_ENV_STATUS_FILTER: "bde_agri_env_status_filter",
