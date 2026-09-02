@@ -259,6 +259,63 @@ describe("TemplatePlaceholderPreview — rapid template switching", () => {
     expect(screen.queryByText(/Original body/i)).toBeNull();
     expect(screen.queryByText(/Old headline mid-edit/i)).toBeNull();
   });
+
+  it("removes richer placeholders and stale values when switching to a simpler template", () => {
+    const firstTemplate =
+      "<p>{{headline}}</p><p>{{body}}</p><p style='color:{{accent_color}}'>.</p>";
+    const switchedTemplate = "<p>{{headline}}</p>";
+
+    const { rerender } = render(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Original headline"
+        body="Original body"
+        accentColor="#ff0000"
+      />
+    );
+
+    // Begin editing the richer template, leaving all three value timers pending.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Old headline mid-edit"
+        body="Old body mid-edit"
+        accentColor="#00ff00"
+      />
+    );
+    tick(75);
+
+    // Switch to the simpler template while the richer template's timers are pending.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={switchedTemplate}
+        headline="Simple headline"
+        body="Old body mid-edit"
+        accentColor="#00ff00"
+      />
+    );
+
+    // The old timers reach their deadline here. Removed sections and their values
+    // must not flash while the new headline is still inside its debounce window.
+    tick(75);
+    expect(screen.getByText("{{headline}}")).toBeDefined();
+    expect(screen.queryByText("{{body}}")).toBeNull();
+    expect(screen.queryByText("{{accent_color}}")).toBeNull();
+    expect(screen.queryByText(/Old body mid-edit/i)).toBeNull();
+    expect(screen.queryByText("#00ff00")).toBeNull();
+    expect(screen.queryByText(/Old headline mid-edit/i)).toBeNull();
+
+    // 150 ms after the switch, only the simpler template's final value remains.
+    tick(75);
+    expect(screen.getByText(/Simple headline/i)).toBeDefined();
+    expect(screen.queryByText("{{body}}")).toBeNull();
+    expect(screen.queryByText("{{accent_color}}")).toBeNull();
+    expect(screen.queryByText(/Original headline/i)).toBeNull();
+    expect(screen.queryByText(/Original body/i)).toBeNull();
+    expect(screen.queryByText(/Old body mid-edit/i)).toBeNull();
+    expect(screen.queryByText("#ff0000")).toBeNull();
+    expect(screen.queryByText("#00ff00")).toBeNull();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
