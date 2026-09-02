@@ -927,6 +927,7 @@ export default function VineScoutingHistoryScreen() {
         </Pressable>
         <Text style={styles.title}>Scouting History</Text>
         <Pressable
+          testID="vine-scouting-export"
           onPress={handleExport}
           disabled={exporting || filtered.length === 0}
           style={[styles.exportBtn, (exporting || filtered.length === 0) && styles.exportBtnDisabled]}
