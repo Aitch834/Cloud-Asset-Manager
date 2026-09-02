@@ -22,7 +22,7 @@ import { spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 interface SoilSensorProbe {
   id: number;
   name: string;
@@ -70,16 +70,24 @@ export default function SoilSensorReadingScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
+    const controller = new AbortController();
     setLoadingProbes(true);
-    apiFetch(`/api/farms/${currentFarm.id}/soil-sensors`)
+    apiFetch(`/api/farms/${currentFarm.id}/soil-sensors`, { signal: controller.signal })
       .then(r => r.ok ? r.json() : Promise.reject("Failed to load probes"))
       .then(d => {
         const active = (d.records as SoilSensorProbe[]).filter(p => p.isActive);
         setProbes(active);
         if (active.length === 1) setSelectedProbeId(active[0].id);
       })
-      .catch(() => setProbesError("Could not load sensor probes. Check your connection."))
-      .finally(() => setLoadingProbes(false));
+      .catch((error) => {
+        if (!isAbortError(error)) {
+          setProbesError("Could not load sensor probes. Check your connection.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingProbes(false);
+      });
+    return () => controller.abort();
   }, [currentFarm?.id]);
 
   const handleSave = async () => {

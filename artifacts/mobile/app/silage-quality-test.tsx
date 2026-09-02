@@ -48,9 +48,11 @@ export default function SilageQualityTestScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
+    const controller = new AbortController();
     apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
+      signal: controller.signal,
     })
       .then(r => r.json())
       .then(d => {
@@ -59,7 +61,10 @@ export default function SilageQualityTestScreen() {
         if (list.length === 1) setSelectedStoreId(list[0].id);
       })
       .catch(() => {})
-      .finally(() => setLoadingStores(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStores(false);
+      });
+    return () => controller.abort();
   }, [currentFarm?.id]);
 
   const selectedStore = stores.find(s => s.id === selectedStoreId);

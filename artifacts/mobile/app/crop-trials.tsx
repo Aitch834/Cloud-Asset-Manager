@@ -23,7 +23,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 const STATUS_COLORS: Record<string, string> = {
   planned: "#6b7280",
   active: "#2563eb",
@@ -67,12 +67,21 @@ export default function CropTrialsScreen() {
 
   useEffect(() => {
     if (!farmId) return;
+    const controller = new AbortController();
     setLoading(true);
-    apiFetch(`/api/farms/${farmId}/crop-trials`, { credentials: "include" })
+    apiFetch(`/api/farms/${farmId}/crop-trials`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
       .then(r => r.json())
       .then(d => setTrials((d.records ?? []).filter((t: Trial) => t.status === "active" || t.status === "planned")))
-      .catch(() => Alert.alert("Error", "Could not load trials"))
-      .finally(() => setLoading(false));
+      .catch((error) => {
+        if (!isAbortError(error)) Alert.alert("Error", "Could not load trials");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [farmId]);
 
   async function captureGPS() {

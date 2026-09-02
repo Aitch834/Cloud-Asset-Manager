@@ -59,16 +59,19 @@ export default function OrganicArableOverviewScreen() {
   useEffect(() => {
     if (!currentFarm?.id) return;
     const farmId = currentFarm.id;
+    const controller = new AbortController();
+    const init = { credentials: "include" as const, signal: controller.signal };
     setLoading(true);
 
     Promise.allSettled([
-      apiFetch(`/api/farms/${farmId}/organic-arable/certification`, { credentials: "include" }).then(r => r.json()),
-      apiFetch(`/api/farms/${farmId}/organic-arable/field-conversion`, { credentials: "include" }).then(r => r.json()),
-      apiFetch(`/api/farms/${farmId}/organic-arable/seed-records`, { credentials: "include" }).then(r => r.json()),
-      apiFetch(`/api/farms/${farmId}/organic-arable/input-records`, { credentials: "include" }).then(r => r.json()),
-      apiFetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`, { credentials: "include" }).then(r => r.json()),
-      apiFetch(`/api/farms/${farmId}/organic-arable/seed-stock`, { credentials: "include" }).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/certification`, init).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/field-conversion`, init).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/seed-records`, init).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/input-records`, init).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/harvest-declarations`, init).then(r => r.json()),
+      apiFetch(`/api/farms/${farmId}/organic-arable/seed-stock`, init).then(r => r.json()),
     ]).then(results => {
+      if (controller.signal.aborted) return;
       const [certsRes, convRes, seedRes, inputRes, harvestRes, stockRes] = results;
       const certs = certsRes.status === "fulfilled" ? (certsRes.value?.records ?? []) : [];
       const convs = convRes.status === "fulfilled" ? (convRes.value?.records ?? []) : [];
@@ -116,6 +119,7 @@ export default function OrganicArableOverviewScreen() {
       });
       setLoading(false);
     });
+    return () => controller.abort();
   }, [currentFarm?.id]);
 
   return (

@@ -95,9 +95,11 @@ export default function SlurrySpreadingScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
+    const controller = new AbortController();
     apiFetch(`/api/farms/${currentFarm.id}/slurry-stores`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((d) => {
@@ -109,7 +111,10 @@ export default function SlurrySpreadingScreen() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoadingStores(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStores(false);
+      });
+    return () => controller.abort();
   }, [currentFarm?.id]);
 
   const selectedStore = stores.find((s) => s.id === selectedStoreId) ?? null;

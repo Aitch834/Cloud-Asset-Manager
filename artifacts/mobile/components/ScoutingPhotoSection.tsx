@@ -31,7 +31,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
 import { SWIPE_THRESHOLD } from "@/lib/vineScoutingLightboxHelpers";
@@ -961,26 +961,35 @@ export function ScoutingPhotoSection({
     onPhotoCountChange?.(photos.length);
   }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`);
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`, {
+        signal: opts?.signal,
+      });
       if (res.ok) {
         const data: { photos: ScoutingPhoto[] } = await res.json();
         setPhotos(data.photos ?? []);
       }
-    } catch {
-      // no-op on silent refresh
+    } catch (error) {
+      if (!isAbortError(error)) {
+        // Keep the existing quiet failure behavior for background refreshes.
+      }
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent && !opts?.signal?.aborted) setLoading(false);
     }
   }, [farmId, scoutingId]);
 
   useEffect(() => {
-    loadPhotos();
-    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    const controller = new AbortController();
+    loadPhotos({ signal: controller.signal });
+    refreshTimer.current = setInterval(
+      () => loadPhotos({ silent: true, signal: controller.signal }),
+      PHOTO_REFRESH_MS,
+    );
     return () => {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
+      controller.abort();
     };
   }, [loadPhotos]);
 
@@ -1008,7 +1017,9 @@ export function ScoutingPhotoSection({
 
   useFocusEffect(
     useCallback(() => {
-      loadPhotos({ silent: true });
+      const controller = new AbortController();
+      loadPhotos({ silent: true, signal: controller.signal });
+      return () => controller.abort();
     }, [loadPhotos]),
   );
 

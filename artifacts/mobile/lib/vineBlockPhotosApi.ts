@@ -39,15 +39,25 @@ export interface BlockPhotoRecord {
 export async function fetchBlockPhotos(
   farmId: number | string,
   blockId: number | string,
+  signal?: AbortSignal,
 ): Promise<BlockPhotoRecord[] | null> {
   try {
-    const res = await apiFetch(
-      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos`,
-    );
+    const path = `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos`;
+    const res = signal
+      ? await apiFetch(path, { signal })
+      : await apiFetch(path);
     if (!res.ok) return null;
     const data = (await res.json()) as { photos: BlockPhotoRecord[] };
     return data.photos ?? [];
-  } catch {
+  } catch (error) {
+    if (
+      typeof error === "object"
+      && error !== null
+      && "name" in error
+      && (error as { name?: unknown }).name === "AbortError"
+    ) {
+      throw error;
+    }
     return null;
   }
 }

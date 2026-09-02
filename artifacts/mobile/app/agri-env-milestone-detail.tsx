@@ -216,7 +216,7 @@ export default function AgriEnvMilestoneDetailScreen() {
   }, [currentFarm?.id, projectId, milestoneId]);
 
   const load = useCallback(
-    async (isRefresh = false) => {
+    async (isRefresh = false, signal?: AbortSignal) => {
       if (!currentFarm?.id || !projectId || !milestoneId) {
         setLoading(false);
         return;
@@ -257,8 +257,8 @@ export default function AgriEnvMilestoneDetailScreen() {
       const cacheVersionAtRequest = cacheMutationVersionRef.current;
       try {
         const [res, projectsRes] = await Promise.all([
-          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones`),
-          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`),
+          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects/${projectId}/milestones`, { signal }),
+          apiFetch(`/api/farms/${currentFarm.id}/agri-env-projects`, { signal }),
         ]);
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = (await res.json()) as { milestones: AgriEnvMilestone[] };
@@ -280,6 +280,7 @@ export default function AgriEnvMilestoneDetailScreen() {
         }
 
         if (
+          !signal?.aborted &&
           !cancelRef.current &&
           canApplyMilestoneLoad(
             cacheVersionAtRequest,
@@ -304,6 +305,7 @@ export default function AgriEnvMilestoneDetailScreen() {
         }
       } catch (err) {
         if (
+          !signal?.aborted &&
           !cancelRef.current &&
           canApplyMilestoneLoad(
             cacheVersionAtRequest,
@@ -320,7 +322,7 @@ export default function AgriEnvMilestoneDetailScreen() {
           }
         }
       } finally {
-        if (!cancelRef.current) {
+        if (!signal?.aborted && !cancelRef.current) {
           setLoading(false);
           setRefreshing(false);
         }
@@ -331,9 +333,11 @@ export default function AgriEnvMilestoneDetailScreen() {
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(false, controller.signal);
     return () => {
       cancelRef.current = true;
+      controller.abort();
     };
   }, [load]);
 

@@ -46,7 +46,7 @@ import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -822,10 +822,12 @@ function SprayDiaryPhotoSection({
   const onPhotoCountChangeRef = useRef(onPhotoCountChange);
   onPhotoCountChangeRef.current = onPhotoCountChange;
 
-  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`);
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`, {
+        signal: opts?.signal,
+      });
       if (res.ok) {
         const data: { photos: SprayDiaryPhoto[] } = await res.json();
         const fetched = data.photos ?? [];
@@ -834,19 +836,26 @@ function SprayDiaryPhotoSection({
         // the request completes, so we don't overwrite a valid count with 0
         onPhotoCountChangeRef.current?.(fetched.length);
       }
-    } catch {
-      // no-op on silent refresh; leave parent count unchanged on failure
+    } catch (error) {
+      if (!isAbortError(error)) {
+        // Keep quiet refresh failures silent and leave the parent count unchanged.
+      }
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent && !opts?.signal?.aborted) setLoading(false);
     }
   }, [farmId, sprayDiaryId]);
 
   // Initial load + 4-minute silent background refresh for presigned URLs
   useEffect(() => {
-    loadPhotos();
-    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    const controller = new AbortController();
+    loadPhotos({ signal: controller.signal });
+    refreshTimer.current = setInterval(
+      () => loadPhotos({ silent: true, signal: controller.signal }),
+      PHOTO_REFRESH_MS,
+    );
     return () => {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
+      controller.abort();
     };
   }, [loadPhotos]);
 
@@ -855,7 +864,9 @@ function SprayDiaryPhotoSection({
   // another app (matching vine-scouting.tsx pattern).
   useFocusEffect(
     useCallback(() => {
-      loadPhotos({ silent: true });
+      const controller = new AbortController();
+      loadPhotos({ silent: true, signal: controller.signal });
+      return () => controller.abort();
     }, [loadPhotos]),
   );
 

@@ -36,11 +36,11 @@ const SCORES: { key: QualityScore; label: string; color: string }[] = [
   { key: "fail",        label: "Fail",      color: colors.error },
 ];
 
-async function apiFetch(path: string, method: string, body?: object) {
+async function apiFetch(path: string, method: string, body?: object, signal?: AbortSignal) {
   const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal });
 }
 
 export default function PlacementQualityScreen() {
@@ -71,7 +71,8 @@ export default function PlacementQualityScreen() {
 
   useEffect(() => {
     if (!farmId) return;
-    apiFetch(`/api/farms/${farmId}/poultry-flocks`, "GET")
+    const controller = new AbortController();
+    apiFetch(`/api/farms/${farmId}/poultry-flocks`, "GET", undefined, controller.signal)
       .then(r => r.json())
       .then((data: any) => {
         const fl = data.flocks ?? [];
@@ -79,6 +80,7 @@ export default function PlacementQualityScreen() {
         if (fl.length > 0) setSelectedFlockId(fl[0].id);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [farmId]);
 
   const flockName = (id: number) => {

@@ -42,7 +42,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiVineBlocks, setCachedBlockCoverUrl, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useUiPrefs } from "@/lib/hooks/useUiPrefs";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase } from "@/lib/uploadPhoto";
 import {
   buildGridDeleteMessage,
@@ -1406,7 +1406,7 @@ export default function VineBlockPhotosScreen() {
     setLightboxVisible(false);
   }, []);
 
-  const loadPhotos = useCallback(async (options?: { silent?: boolean }) => {
+  const loadPhotos = useCallback(async (options?: { silent?: boolean; signal?: AbortSignal }) => {
     if (!currentFarm?.id || !selectedBlock) return;
     // Capture and advance the generation token before any async work so that
     // a concurrent or later call gets a higher token and wins.
@@ -1414,7 +1414,7 @@ export default function VineBlockPhotosScreen() {
     const blockId = selectedBlock.id;
     if (!options?.silent) setPhotosLoading(true);
     try {
-      const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id);
+      const fetched = await fetchBlockPhotos(currentFarm.id, selectedBlock.id, options?.signal);
       applyPhotoUpdateIfCurrent(
         gen,
         () => loadGenRef.current,
@@ -1425,19 +1425,23 @@ export default function VineBlockPhotosScreen() {
           setLocalPhotoCountOverrides((prev) => ({ ...prev, [blockId]: (photos as BlockPhoto[]).length }));
         },
       );
+    } catch (error) {
+      if (!isAbortError(error)) throw error;
     } finally {
       // Clear the spinner whenever this is the current/latest request —
       // regardless of whether it was silent.  A silent refresh that supersedes
       // a non-silent load must still clear the spinner that the non-silent
       // load set; omitting the silent check here prevents a permanently-stuck
       // indicator when the focus-effect refresh races the initial selection load.
-      if (gen === loadGenRef.current) setPhotosLoading(false);
+      if (!options?.signal?.aborted && gen === loadGenRef.current) setPhotosLoading(false);
     }
   }, [currentFarm?.id, selectedBlock]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setPhotos([]);
-    loadPhotos();
+    loadPhotos({ signal: controller.signal });
+    return () => controller.abort();
   }, [selectedBlock?.id, loadPhotos]);
 
   // User-initiated reload from a broken thumbnail: shows a spinner on that
@@ -1463,7 +1467,9 @@ export default function VineBlockPhotosScreen() {
   // another app (matching vine-scouting.tsx pattern).
   useFocusEffect(
     useCallback(() => {
-      loadPhotos({ silent: true });
+      const controller = new AbortController();
+      loadPhotos({ silent: true, signal: controller.signal });
+      return () => controller.abort();
     }, [loadPhotos]),
   );
 
@@ -1473,10 +1479,14 @@ export default function VineBlockPhotosScreen() {
   // focus changes, not while the screen remains continuously in the foreground).
   useEffect(() => {
     if (!selectedBlock) return;
+    const controller = new AbortController();
     const intervalId = setInterval(() => {
-      loadPhotos({ silent: true });
+      loadPhotos({ silent: true, signal: controller.signal });
     }, 4 * 60 * 1000);
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      controller.abort();
+    };
   }, [selectedBlock?.id, loadPhotos]);
 
   // Called by the lightbox strip when the grower drags photos into a new order.

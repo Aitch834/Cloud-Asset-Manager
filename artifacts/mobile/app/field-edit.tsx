@@ -19,7 +19,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 
 // ── Soil type options ─────────────────────────────────────────────────────────
 /** Seven MAFF/AHDB texture classes — same set as the dashboard Field dialog */
@@ -76,24 +76,30 @@ export default function FieldEditScreen() {
   const [saving, setSaving] = useState(false);
 
   // ── Load fields ────────────────────────────────────────────────────────────
-  const loadFields = useCallback(async () => {
+  const loadFields = useCallback(async (signal?: AbortSignal) => {
     if (!farmId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/farms/${farmId}/fields`);
+      const res = await apiFetch(`/api/farms/${farmId}/fields`, { signal });
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json() as { records?: ApiField[]; fields?: ApiField[] };
       const raw: ApiField[] = (data.records ?? data.fields ?? []) as ApiField[];
       setFields(raw.filter(f => f.isActive !== false));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not load fields");
+      if (!isAbortError(e)) {
+        setError(e instanceof Error ? e.message : "Could not load fields");
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [farmId]);
 
-  useEffect(() => { loadFields(); }, [loadFields]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadFields(controller.signal);
+    return () => controller.abort();
+  }, [loadFields]);
 
   // ── Auto-expand field from route param (one-shot per param value) ──────────
   // Track which fieldId param value we have already consumed so that subsequent
@@ -179,7 +185,7 @@ export default function FieldEditScreen() {
           <Feather name="wifi-off" size={40} color={colors.border} />
           <Text style={styles.centreTitle}>Could not load fields</Text>
           <Text style={styles.centreText}>{error}</Text>
-          <Pressable onPress={loadFields} style={styles.retryBtn}>
+          <Pressable onPress={() => { void loadFields(); }} style={styles.retryBtn}>
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>

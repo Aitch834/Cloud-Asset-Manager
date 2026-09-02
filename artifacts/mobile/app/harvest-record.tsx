@@ -29,9 +29,9 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
-import { kvGet } from "@/lib/database";
 import type { HarvestRecord } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 
 const CROP_TYPES_FALLBACK = [
   "Winter Wheat", "Spring Wheat", "Winter Barley", "Spring Barley",
@@ -76,37 +76,28 @@ export default function HarvestRecordScreen() {
   useEffect(() => {
     if (!fieldName || !currentFarm?.id) return;
     const farmId = currentFarm.id;
-    const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-    if (!apiDomain) return;
-    let cancelled = false;
+    const controller = new AbortController();
     const today = new Date().toISOString().split("T")[0];
     (async () => {
       try {
-        let token: string | null = null;
-        let tenantSlug = "";
-        if (Platform.OS !== "web") {
-          try { const SecureStore = await import("expo-secure-store"); token = await SecureStore.getItemAsync("auth_session_token"); } catch {}
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch {}
-        }
-        if (!token) {
-          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
-        }
-        try { const raw = await kvGet("bde_current_farm"); if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; } } catch {}
-        const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
         const params = new URLSearchParams({ fieldName, date: today });
-        const res = await fetch(`https://${apiDomain}/api/farms/${farmId}/crop-for-field?${params}`, { headers });
+        const res = await apiFetch(`/api/farms/${farmId}/crop-for-field?${params}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) return;
         const data = await res.json() as { found: boolean; cropName: string | null };
-        if (!cancelled && data.found && data.cropName) {
+        if (data.found && data.cropName) {
           const matched = cropTypes.find(c => c.toLowerCase() === (data.cropName ?? "").toLowerCase()) ?? data.cropName;
           setCropType(matched ?? "");
           setCropAutoFilled(true);
         }
-      } catch {}
+      } catch (error) {
+        if (!isAbortError(error)) {
+          // Crop auto-fill is best-effort; growers can still select it manually.
+        }
+      }
     })();
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [fieldName, currentFarm?.id]);
 
   const takeMoisturePhoto = () => {

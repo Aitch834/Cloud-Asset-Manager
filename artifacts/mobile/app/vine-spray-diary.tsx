@@ -41,7 +41,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { findPreselectedVineBlock } from "@/lib/vineSprayDiaryHelpers";
 import {
@@ -590,27 +590,36 @@ function SprayDiaryPhotoSection({
   // commits the reloadingPhotoId state update.
   const reloadInFlightRef = useRef(false);
 
-  const loadPhotos = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`);
+      const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`, {
+        signal: opts?.signal,
+      });
       if (res.ok) {
         const data: { photos: SprayDiaryPhoto[] } = await res.json();
         setPhotos(data.photos ?? []);
       }
-    } catch {
-      // no-op on silent refresh
+    } catch (error) {
+      if (!isAbortError(error)) {
+        // Keep the existing quiet failure behavior for background refreshes.
+      }
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent && !opts?.signal?.aborted) setLoading(false);
     }
   }, [farmId, sprayDiaryId]);
 
   // Initial load + 4-minute silent background refresh
   useEffect(() => {
-    loadPhotos();
-    refreshTimer.current = setInterval(() => loadPhotos({ silent: true }), PHOTO_REFRESH_MS);
+    const controller = new AbortController();
+    loadPhotos({ signal: controller.signal });
+    refreshTimer.current = setInterval(
+      () => loadPhotos({ silent: true, signal: controller.signal }),
+      PHOTO_REFRESH_MS,
+    );
     return () => {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
+      controller.abort();
     };
   }, [loadPhotos]);
 
@@ -618,7 +627,9 @@ function SprayDiaryPhotoSection({
   // after the grower returns from another app (matching vine-scouting.tsx pattern)
   useFocusEffect(
     useCallback(() => {
-      loadPhotos({ silent: true });
+      const controller = new AbortController();
+      loadPhotos({ silent: true, signal: controller.signal });
+      return () => controller.abort();
     }, [loadPhotos]),
   );
 

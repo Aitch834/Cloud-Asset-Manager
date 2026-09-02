@@ -34,11 +34,11 @@ const STATUSES: { key: HealthStatus; label: string; color: string }[] = [
   { key: "clear",       label: "Clear — Released", color: colors.primary },
 ];
 
-async function apiFetch(path: string, method: string, body?: object) {
+async function apiFetch(path: string, method: string, body?: object, signal?: AbortSignal) {
   const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal });
 }
 
 export default function IsolationDailyCheckScreen() {
@@ -67,8 +67,9 @@ export default function IsolationDailyCheckScreen() {
 
   useEffect(() => {
     if (!farmId) return;
+    const controller = new AbortController();
     setLoadingRecords(true);
-    apiFetch(`/api/farms/${farmId}/isolation-records`, "GET")
+    apiFetch(`/api/farms/${farmId}/isolation-records`, "GET", undefined, controller.signal)
       .then(r => r.json())
       .then((data: any) => {
         const active = (data.records ?? []).filter((r: any) => !r.clearanceDate);
@@ -76,7 +77,10 @@ export default function IsolationDailyCheckScreen() {
         if (active.length > 0) setSelectedRecordId(active[0].id);
       })
       .catch(() => {})
-      .finally(() => setLoadingRecords(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingRecords(false);
+      });
+    return () => controller.abort();
   }, [farmId]);
 
   const save = async () => {

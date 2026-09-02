@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
 import {
   deletePendingSyncItem,
@@ -292,7 +292,7 @@ export default function IrrigationHistoryScreen() {
   // ── Server history load ────────────────────────────────────────────────────
 
   const load = useCallback(
-    async (isRefresh = false) => {
+    async (isRefresh = false, signal?: AbortSignal) => {
       if (!farmId) {
         setRecords([]);
         setLoading(false);
@@ -307,18 +307,18 @@ export default function IrrigationHistoryScreen() {
       await loadLocalItems();
 
       try {
-        const res = await apiFetch(`/api/farms/${farmId}/irrigation-records`);
+        const res = await apiFetch(`/api/farms/${farmId}/irrigation-records`, { signal });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const json = (await res.json()) as IrrigationRecord[];
         if (reqId === reqIdRef.current)
           setRecords(Array.isArray(json) ? json : []);
       } catch (err) {
-        if (reqId === reqIdRef.current)
+        if (!isAbortError(err) && reqId === reqIdRef.current)
           setServerError(
             err instanceof Error ? err.message : "Failed to load",
           );
       } finally {
-        if (reqId === reqIdRef.current) {
+        if (!signal?.aborted && reqId === reqIdRef.current) {
           setLoading(false);
           setRefreshing(false);
         }
@@ -328,7 +328,9 @@ export default function IrrigationHistoryScreen() {
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(false, controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   // ── Subscribe to sync engine (transition-only) ────────────────────────────

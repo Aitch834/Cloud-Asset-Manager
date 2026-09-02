@@ -41,3 +41,11 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers,
   });
 }
+
+/** True when a request was intentionally cancelled by its screen cleanup. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error
+    ? error.name === "AbortError"
+    : typeof error === "object" && error !== null && "name" in error
+      && (error as { name?: unknown }).name === "AbortError";
+}

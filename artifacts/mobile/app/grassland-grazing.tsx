@@ -34,11 +34,11 @@ const SYSTEMS: { key: GrazingSystem; label: string }[] = [
   { key: "other",        label: "Other" },
 ];
 
-async function apiFetch(path: string, method: string, body?: object) {
+async function apiFetch(path: string, method: string, body?: object, signal?: AbortSignal) {
   const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal });
 }
 
 export default function GrasslandGrazingScreen() {
@@ -62,7 +62,8 @@ export default function GrasslandGrazingScreen() {
 
   useEffect(() => {
     if (!farmId) return;
-    apiFetch(`/api/farms/${farmId}/fields`, "GET")
+    const controller = new AbortController();
+    apiFetch(`/api/farms/${farmId}/fields`, "GET", undefined, controller.signal)
       .then(r => r.json())
       .then((data: any) => {
         const fl = data.fields ?? data ?? [];
@@ -70,6 +71,7 @@ export default function GrasslandGrazingScreen() {
         if (fl.length > 0) setSelectedFieldId(fl[0].id);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [farmId]);
 
   const save = async () => {

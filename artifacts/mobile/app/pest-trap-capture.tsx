@@ -23,7 +23,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch, isAbortError } from "@/lib/apiFetch";
 
 interface VineyardBlock {
   id: number;
@@ -76,10 +76,16 @@ export default function PestTrapCaptureScreen() {
 
   useEffect(() => {
     if (!currentFarm?.id) return;
-    apiFetch(`/api/farms/${currentFarm.id}/vineyard-blocks`)
+    const controller = new AbortController();
+    apiFetch(`/api/farms/${currentFarm.id}/vineyard-blocks`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: { blocks?: VineyardBlock[] }) => setBlocks(data.blocks ?? []))
-      .catch(() => {});
+      .catch((error) => {
+        if (!isAbortError(error)) {
+          // The picker is optional; keep the existing quiet failure behavior.
+        }
+      });
+    return () => controller.abort();
   }, [currentFarm?.id]);
 
   const takePhoto = async () => {
