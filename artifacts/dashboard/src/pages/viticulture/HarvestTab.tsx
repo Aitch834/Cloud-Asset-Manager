@@ -151,6 +151,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [yieldCrossTabOpenStr, setYieldCrossTabOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldCrossTabOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
   const yieldCrossTabOpen = yieldCrossTabOpenStr === "true";
   const setYieldCrossTabOpen = (val: boolean | ((prev: boolean) => boolean)) => setYieldCrossTabOpenStr(typeof val === "function" ? (val(yieldCrossTabOpen) ? "true" : "false") : (val ? "true" : "false"));
+  const [chemCrossTabOpenStr, setChemCrossTabOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemCrossTabOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
+  const chemCrossTabOpen = chemCrossTabOpenStr === "true";
+  const setChemCrossTabOpen = (val: boolean | ((prev: boolean) => boolean)) => setChemCrossTabOpenStr(typeof val === "function" ? (val(chemCrossTabOpen) ? "true" : "false") : (val ? "true" : "false"));
   const [unlinkRecordId, setUnlinkRecordId] = useState<number | null>(null);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const [printBlockFilter, setPrintBlockFilter] = usePersistedFilter({ page: "viticulture-harvest", filter: "print-block", farmId, defaultValue: "__all__" });
@@ -1802,23 +1805,31 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         };
 
         return (
-          <div className="rounded-lg border bg-card p-4 space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold flex items-center gap-1.5">
-                <FlaskConical className="w-4 h-4 text-muted-foreground" />
-                Chemistry Cross-tab — Block × Vintage
-              </p>
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="flex items-center border-b bg-muted/30">
+              <button
+                type="button"
+                className="flex-1 w-full px-4 py-2.5 flex items-center gap-1.5 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setChemCrossTabOpen(o => !o)}
+                aria-expanded={chemCrossTabOpen}
+              >
+                <FlaskConical className="w-4 h-4 text-muted-foreground shrink-0" />
+                <p className="text-sm font-semibold flex-1">Chemistry Cross-tab — Block × Vintage</p>
+                <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${chemCrossTabOpen ? "rotate-90" : ""}`} />
+              </button>
               {chemSort && (
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  className="mr-4 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
                   onClick={() => setChemSort(null)}
                 >
                   Clear sort
                 </button>
               )}
             </div>
-            {tables.map(tbl => {
+            {chemCrossTabOpen && (
+              <div className="p-4 space-y-4">
+                {tables.map(tbl => {
               const vintageIndex = chemSort && chemSort.col !== "avg"
                 ? uniqueVintages.indexOf(chemSort.col)
                 : -1;
@@ -1939,7 +1950,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   )}
                 </div>
               );
-            })}
+                })}
+              </div>
+            )}
           </div>
         );
       })()}
