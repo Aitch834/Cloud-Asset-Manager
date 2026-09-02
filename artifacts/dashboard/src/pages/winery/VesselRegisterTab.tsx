@@ -6,6 +6,7 @@ import { useFarmName } from "@/hooks/use-farm-name";
 import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
+import { isBarrelRetirementRisk } from "@/lib/barrel-retirement-risk";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
@@ -1423,7 +1424,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const cellarZones = Array.from(new Set(barrels.map(r => String(r.cellar_zone || "Unassigned")))).sort();
   // Persisted barrel filters — "" = show all; restored when the winemaker returns to this tab
   const FILL_TIER_VALUES = ["fill-1", "fill-2", "fill-3", "fill-4", "fill-5plus"] as const;
-  const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills", "never-cleaned"] as const;
+  const ALERT_FLAG_VALUES = ["approaching-neutral", "idle", "no-fills", "never-cleaned", "retirement-risk"] as const;
   const IS_FULL_VALUES = ["true", "false"] as const;
 
   const [zoneFilter, setZoneFilter] = usePersistedArrayFilter({ page: "vessel-register", filter: "zone", farmId });
@@ -1490,6 +1491,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     let idle = 0;
     let noFills = 0;
     let neverCleaned = 0;           // clean_count=0
+    let retirementRisk = 0;
     for (const r of barrels) {
       if (String(r.status ?? "active") !== "active") continue;
       const fill = Number(r.fill_number ?? 0);
@@ -1508,9 +1510,10 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
         if (since !== null && since > idleBarrelDays) idle++;
       }
       if (Number(r.clean_count ?? 0) === 0) neverCleaned++;
+      if (isBarrelRetirementRisk(r, retirementThresholdPence)) retirementRisk++;
     }
-    return { tier, approaching, idle, noFills, neverCleaned };
-  }, [barrels, idleBarrelDays, approachingNeutralFills]);
+    return { tier, approaching, idle, noFills, neverCleaned, retirementRisk };
+  }, [barrels, idleBarrelDays, approachingNeutralFills, retirementThresholdPence]);
 
   // Check if a barrel matches the active fill-tier filter
   function matchesFillTierFilter(r: Record<string, unknown>): boolean {
@@ -1534,6 +1537,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (alertFlagFilter === "idle") return isEmpty && since !== null && since > idleBarrelDays;
     if (alertFlagFilter === "no-fills") return Number(r.fill_count ?? 0) === 0;
     if (alertFlagFilter === "never-cleaned") return Number(r.clean_count ?? 0) === 0;
+    if (alertFlagFilter === "retirement-risk") return isBarrelRetirementRisk(r, retirementThresholdPence);
     return true;
   }
 
@@ -1665,6 +1669,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             else if (alertFlagFilter === "idle") scopeParts.push(`Flag: idle >${idleBarrelDays} days`);
             else if (alertFlagFilter === "no-fills") scopeParts.push("Flag: no fills logged");
             else if (alertFlagFilter === "never-cleaned") scopeParts.push("Flag: never cleaned");
+            else if (alertFlagFilter === "retirement-risk") scopeParts.push(`Flag: retirement risk (maintenance spend > £${(retirementThresholdPence / 100).toFixed(0)})`);
             if (isFullFilter === "true") scopeParts.push("Is Full: Yes");
             else if (isFullFilter === "false") scopeParts.push("Is Full: No (empty)");
             const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
@@ -1946,7 +1951,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           </div>
 
           {/* Alert flags */}
-          {(barrelStats.approaching > 0 || barrelStats.idle > 0 || barrelStats.noFills > 0 || barrelStats.neverCleaned > 0) && (
+          {(barrelStats.approaching > 0 || barrelStats.idle > 0 || barrelStats.noFills > 0 || barrelStats.neverCleaned > 0 || barrelStats.retirementRisk > 0) && (
             <div>
               <p className="text-xs text-muted-foreground mb-1.5">Flags requiring attention</p>
               <div className="flex flex-wrap gap-1.5">
@@ -1990,6 +1995,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     <span className="text-red-500 text-xs font-normal">(empty &gt;{idleBarrelDays} days)</span>
                   </button>
                 )}
+                {barrelStats.retirementRisk > 0 && (
+                  <button
+                    onClick={() => setAlertFlagFilter(alertFlagFilter === "retirement-risk" ? "" : "retirement-risk")}
+                    className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium transition-all bg-amber-50 text-amber-800 border-amber-300 ${alertFlagFilter === "retirement-risk" ? "ring-2 ring-primary ring-offset-1" : "hover:bg-amber-100"}`}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Retirement risk</span>
+                    <span className="font-bold">{barrelStats.retirementRisk}</span>
+                    <span className="text-amber-600 text-xs font-normal">(spend &gt; £{(retirementThresholdPence / 100).toFixed(0)})</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -2023,6 +2039,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     : alertFlagFilter === "approaching-neutral" ? "approaching neutral"
                     : alertFlagFilter === "idle" ? "idle"
                     : alertFlagFilter === "never-cleaned" ? "never cleaned"
+                    : alertFlagFilter === "retirement-risk" ? "retirement risk"
                     : null;
 
                   // Ranked summary: zones with flagged matches, shown above chips when a flag filter is active
@@ -2108,7 +2125,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
               Showing{isFullFilter === "true" && <> <span className="font-medium">full</span></>}{isFullFilter === "false" && <> <span className="font-medium">empty</span></>} barrels
               {zoneFilter.length > 0 && <> in <span className="font-medium">{zoneFilter.join(", ")}</span></>}
               {fillTierFilter && <>{zoneFilter.length > 0 && <> · </>}on <span className="font-medium">{fillTierFilter === "fill-1" ? "new oak" : fillTierFilter === "fill-5plus" ? "neutral oak (5th+ fill)" : fillTierFilter.replace("fill-", "") + (fillTierFilter === "fill-2" ? "nd" : fillTierFilter === "fill-3" ? "rd" : "th") + " fill"}</span></>}
-              {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill {approachingNeutralFills}+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;{idleBarrelDays} days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}{alertFlagFilter === "never-cleaned" && <>flagged as <span className="font-medium">never cleaned</span></>}</>}
+               {alertFlagFilter && <>{(zoneFilter.length > 0 || fillTierFilter) && <> · </>}{alertFlagFilter === "approaching-neutral" && <>flagged as <span className="font-medium">approaching neutral (fill {approachingNeutralFills}+)</span></>}{alertFlagFilter === "idle" && <>flagged as <span className="font-medium">idle &gt;{idleBarrelDays} days</span></>}{alertFlagFilter === "no-fills" && <>flagged as <span className="font-medium">no fills logged</span></>}{alertFlagFilter === "never-cleaned" && <>flagged as <span className="font-medium">never cleaned</span></>}{alertFlagFilter === "retirement-risk" && <>flagged as <span className="font-medium">retirement risk (maintenance spend &gt; £{(retirementThresholdPence / 100).toFixed(0)})</span></>}</>}
               {" "}— click "Show all" to clear.
             </p>
           )}

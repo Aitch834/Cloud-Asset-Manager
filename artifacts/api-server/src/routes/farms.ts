@@ -38741,6 +38741,7 @@ router.get("/farms/:farmId/winery-vessels", requireAuth, requireTenant, requireM
         WHERE f.vessel_id = v.id
       ) ELSE NULL END AS empty_since,
       (SELECT COUNT(*) FROM winery_barrel_maintenance m WHERE m.vessel_id = v.id) AS maintenance_count,
+      (SELECT COALESCE(SUM(m.cost_pence), 0)::bigint FROM winery_barrel_maintenance m WHERE m.vessel_id = v.id) AS maintenance_spend_pence,
       (SELECT COUNT(*)::int FROM winery_barrel_fills f WHERE f.vessel_id = v.id) AS fill_count,
        (SELECT COUNT(*)::int FROM winery_barrel_movements mv WHERE mv.vessel_id = v.id) AS movement_count,
       (SELECT COUNT(*)::int FROM winery_vessel_cleans c WHERE c.vessel_id = v.id) AS clean_count,
