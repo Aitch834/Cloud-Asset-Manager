@@ -1222,6 +1222,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [autoOpenFill, setAutoOpenFill] = useState(false);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [maintenanceCsvPending, setMaintenanceCsvPending] = useState(false);
+  const [vesselCsvExporting, setVesselCsvExporting] = useState(false);
 
   const handleBarrelMaintenanceCsv = async (vessel: Record<string, unknown>) => {
     setMaintenanceCsvPending(true);
@@ -1368,7 +1369,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (v === "retired") return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Retired</span>;
     return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{v}</span>;
   };
-  const vesselCsvCols = [
+  const vesselCsvCols = (maintenanceTotals: Map<number, number>) => [
     { key: "vessel_ref", label: "Vessel Ref" },
     { key: "vessel_type", label: "Vessel Type" },
     { key: "capacity_litres", label: "Capacity (L)" },
@@ -1379,7 +1380,36 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     { key: "last_cleaned_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_cleaned_date) },
     { key: "last_activity", label: "Last Activity (Fill/Cooperage)", fmt: (r: Record<string, unknown>) => r.last_activity ? fmtDate(r.last_activity) : "Never" },
     { key: "notes", label: "Notes" },
+    {
+      key: "_total_cooperage_cost",
+      label: "Total Cooperage Cost (£)",
+      fmt: (r: Record<string, unknown>) => {
+        if (!isBarrelVessel(r.vessel_type)) return "";
+        const totalPence = maintenanceTotals.get(Number(r.id)) ?? 0;
+        return totalPence > 0 ? (totalPence / 100).toFixed(2) : "";
+      },
+    },
   ];
+
+  const handleVesselCsvExport = async () => {
+    setVesselCsvExporting(true);
+    try {
+      const summary = await fetchWineryJson(`farms/${farmId}/winery-vessels-maintenance-summary`);
+      const maintenanceTotals = new Map<number, number>();
+      for (const row of (summary.records ?? []) as Record<string, unknown>[]) {
+        const vesselId = Number(row.vessel_id);
+        maintenanceTotals.set(vesselId, (maintenanceTotals.get(vesselId) ?? 0) + Number(row.total_pence ?? 0));
+      }
+      exportCSV(crud.data, "vessels.csv", vesselCsvCols(maintenanceTotals), [
+        csvComment(`Tank & Vessel Register — ${farmNameVessels}`),
+        csvComment("Scope: All vessels (no filters on this register)"),
+      ]);
+    } catch (err) {
+      toast({ title: "Export failed", description: err instanceof Error ? err.message : "Could not load cooperage costs.", variant: "destructive" });
+    } finally {
+      setVesselCsvExporting(false);
+    }
+  };
 
   // Cellar stock summary — barrels only, grouped by cellar_zone
   const barrels = crud.data.filter(r => isBarrelVessel(r.vessel_type));
@@ -1592,10 +1622,9 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           )}
         </div>
         <div className="flex gap-2 items-center">
-          <Button size="sm" variant="outline" onClick={() => exportCSV(crud.data, "vessels.csv", vesselCsvCols, [
-            csvComment(`Tank & Vessel Register — ${farmNameVessels}`),
-            csvComment("Scope: All vessels (no filters on this register)"),
-          ])} disabled={!crud.data.length}><FileDown className="w-3.5 h-3.5 mr-1" />Export CSV</Button>
+          <Button size="sm" variant="outline" onClick={handleVesselCsvExport} disabled={!crud.data.length || vesselCsvExporting}>
+            {vesselCsvExporting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FileDown className="w-3.5 h-3.5 mr-1" />}Export CSV
+          </Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-3.5 h-3.5 mr-1" />Add Vessel</Button>
         </div>
       </div>
