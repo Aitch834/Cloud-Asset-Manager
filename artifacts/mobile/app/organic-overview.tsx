@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,7 +20,12 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { kvGet } from "@/lib/database";
+import { apiFetch } from "@/lib/apiFetch";
+import {
+  buildOrganicInspectionCsv,
+  buildOrganicInspectionCsvFilename,
+  type OrganicInspectionCsvRecord,
+} from "@/lib/organicInspectionCsv";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -38,28 +45,6 @@ function daysUntil(dateStr: string | null | undefined): number | null {
   return Math.round((target.getTime() - now.getTime()) / 86400000);
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      token = raw ? JSON.parse(raw) : null;
-    }
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const farmRaw = await kvGet("bde_current_farm");
-    if (farmRaw) {
-      const farm = JSON.parse(farmRaw);
-      headers["x-tenant-slug"] = farm.tenantSlug || farm.slug || "";
-    }
-  } catch {}
-  return headers;
-}
-
 interface Certification {
   certifier: string | null;
   certificateNumber: string | null;
@@ -71,11 +56,15 @@ interface Certification {
 
 interface Inspection {
   id: number;
-  certifier: string;
   inspectionDate: string;
+  certifier: string;
+  inspectorName: string | null;
   outcome: string;
-  nextDueDate: string | null;
   certificateReference: string | null;
+  nextDueDate: string | null;
+  nonConformances: string | null;
+  actions: string | null;
+  notes: string | null;
 }
 
 interface FpBlock {
@@ -125,23 +114,21 @@ export default function OrganicOverviewScreen() {
   const [livestockConversions, setLivestockConversions] = useState<LivestockConversion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [taskSheet, setTaskSheet] = useState<{
     title: string;
     description: string;
     dueDate: string;
   } | null>(null);
 
-  const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
-
   const load = useCallback(async () => {
-    if (!farmId || !apiBase) { setLoading(false); return; }
+    if (!farmId) { setLoading(false); return; }
     try {
-      const headers = await getAuthHeaders();
       const [certRes, inspRes, blockRes, convRes] = await Promise.all([
-        fetch(`${apiBase}/api/farms/${farmId}/organic/certification`, { headers }),
-        fetch(`${apiBase}/api/farms/${farmId}/organic/inspections`, { headers }),
-        fetch(`${apiBase}/api/farms/${farmId}/organic-fp-block-status`, { headers }),
-        fetch(`${apiBase}/api/farms/${farmId}/organic-livestock/conversion`, { headers }),
+        apiFetch(`/api/farms/${farmId}/organic/certification`),
+        apiFetch(`/api/farms/${farmId}/organic/inspections`),
+        apiFetch(`/api/farms/${farmId}/organic-fp-block-status`),
+        apiFetch(`/api/farms/${farmId}/organic-livestock/conversion`),
       ]);
       if (certRes.ok) {
         const data = await certRes.json();
@@ -149,7 +136,7 @@ export default function OrganicOverviewScreen() {
       }
       if (inspRes.ok) {
         const data = await inspRes.json();
-        setInspections((data.records ?? []).slice(0, 5));
+        setInspections(data.records ?? []);
       }
       if (blockRes.ok) {
         const data = await blockRes.json();
@@ -162,11 +149,50 @@ export default function OrganicOverviewScreen() {
     } catch {}
     setLoading(false);
     setRefreshing(false);
-  }, [farmId, apiBase]);
+  }, [farmId]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  async function handleExportInspections() {
+    if (inspections.length === 0) {
+      Alert.alert("Nothing to export", "There are no inspection records to download.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const csvContent = buildOrganicInspectionCsv(inspections);
+      const filename = buildOrganicInspectionCsvFilename(currentFarm?.name ?? "farm");
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return;
+      }
+
+      const { shareAsync } = await import("expo-sharing");
+      const uri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(uri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await shareAsync(uri, {
+        mimeType: "text/csv",
+        dialogTitle: "Share Inspection Register CSV",
+        UTI: "public.comma-separated-values-text",
+      });
+    } catch {
+      Alert.alert("Export failed", "Could not generate or share the CSV file.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const nextInspection = inspections.find(r => r.nextDueDate);
   const nextDays = nextInspection ? daysUntil(nextInspection.nextDueDate) : null;
@@ -447,6 +473,19 @@ export default function OrganicOverviewScreen() {
                 <Text style={styles.actionSub}>Log a certifier visit</Text>
               </Pressable>
               <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0" }, exporting && { opacity: 0.5 }]}
+                onPress={handleExportInspections}
+                disabled={exporting}
+                accessibilityRole="button"
+                accessibilityLabel="Export inspection register CSV"
+              >
+                {exporting
+                  ? <ActivityIndicator size="small" color="#047857" />
+                  : <Feather name="download" size={22} color="#047857" />}
+                <Text style={[styles.actionLabel, { color: "#047857" }]}>{exporting ? "Exporting…" : "Export CSV"}</Text>
+                <Text style={styles.actionSub}>Download inspection register</Text>
+              </Pressable>
+              <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}
                 onPress={() => router.push("/organic-inputs-list")}
               >
@@ -517,7 +556,7 @@ export default function OrganicOverviewScreen() {
               <>
                 <Text style={styles.sectionTitle}>Recent Inspections</Text>
                 <View style={styles.card}>
-                  {inspections.map((r, i) => {
+                  {inspections.slice(0, 5).map((r, i) => {
                     const outcomeColor = OUTCOME_COLORS[r.outcome] ?? colors.textSecondary;
                     return (
                       <View key={r.id}>
