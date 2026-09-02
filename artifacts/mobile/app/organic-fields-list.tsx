@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system/legacy";
 import { router, useFocusEffect } from "expo-router";
 import { Platform } from "react-native";
 import React, { useCallback, useState } from "react";
@@ -28,14 +27,6 @@ function fmtDate(val: string | null | undefined): string {
   if (isNaN(d.getTime())) return val;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
-
-function fmtDateCsv(val: string | null | undefined): string {
-  if (!val) return "";
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return val;
-  return d.toLocaleDateString("en-GB");
-}
-
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
@@ -60,15 +51,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-interface FieldStatus {
+interface FieldStatus extends OrganicFieldStatusCsvRecord {
   id: number;
-  fieldName: string;
-  status: string;
-  conversionStartDate: string | null;
-  certificationDate: string | null;
-  certifierRef: string | null;
-  parallelProduction: boolean;
-  notes: string | null;
 }
 
 function fmtDateValue(date: Date): string {
@@ -86,45 +70,9 @@ const STATUS_COLORS: Record<string, { text: string; bg: string; border: string }
   "in-conversion":{ text: "#92400e", bg: "#fffbeb", border: "#fde68a" },
   conventional:   { text: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
 };
-
-/** Mirror of dashboard lib/csv.ts sanitiseCsvCell — prevents CSV formula injection. */
-const FORMULA_STARTERS = /^[=+\-@|%\t\r]/;
-function sanitiseCsvCell(value: unknown): string {
-  const s = value == null ? "" : String(value);
-  return FORMULA_STARTERS.test(s) ? "\t" + s : s;
-}
-
-/** Always-quoted cell: sanitise first, then wrap in double-quotes. */
-function quoteCsvCell(value: unknown): string {
-  const s = sanitiseCsvCell(value);
-  return `"${s.replace(/"/g, '""')}"`;
-}
-
-/**
- * Build a CSV string with UTF-8 BOM (so Excel opens it with correct encoding).
- * Every cell is sanitised against formula injection and always quoted.
- */
-function buildCsv(records: FieldStatus[]): string {
-  const rows: unknown[][] = [
-    ["Field Name", "Status", "Conversion Start", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
-    ...records.map(r => [
-      r.fieldName,
-      STATUS_LABELS[r.status] ?? r.status,
-      fmtDateCsv(r.conversionStartDate),
-      fmtDateCsv(r.certificationDate),
-      r.certifierRef ?? "",
-      r.parallelProduction ? "Yes" : "No",
-      r.notes ?? "",
-    ]),
-  ];
-  const body = rows.map(row => row.map(quoteCsvCell).join(",")).join("\r\n");
-  return "\uFEFF" + body; // UTF-8 BOM for Excel compatibility
-}
-
 async function downloadCsv(records: FieldStatus[], farmName: string) {
-  const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  const filename = `field-status-register-${safeName}.csv`;
-  const csvContent = buildCsv(records);
+  const filename = buildOrganicFieldStatusCsvFilename(farmName);
+  const csvContent = buildOrganicFieldStatusCsv(records);
 
   if (Platform.OS === "web") {
     try {
@@ -142,14 +90,7 @@ async function downloadCsv(records: FieldStatus[], farmName: string) {
   }
 
   try {
-    const { shareAsync } = await import("expo-sharing");
-    const uri = FileSystem.cacheDirectory + filename;
-    await FileSystem.writeAsStringAsync(uri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
-    await shareAsync(uri, {
-      mimeType: "text/csv",
-      dialogTitle: "Share Field Status Register CSV",
-      UTI: "public.comma-separated-values-text",
-    });
+    await shareOrganicFieldStatusCsv(records, farmName);
   } catch {
     Alert.alert("Export failed", "Could not generate or share the CSV file.");
   }
