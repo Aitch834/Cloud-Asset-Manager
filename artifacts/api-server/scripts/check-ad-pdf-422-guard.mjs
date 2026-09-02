@@ -184,6 +184,18 @@ async function restoreConfigKey(key, savedValue) {
 
 // ─── Fallback-dir helpers ─────────────────────────────────────────────────────
 
+// Recover a fallback directory left behind when a previous run was force-killed
+// before its finally block could restore the original name.
+function recoverStaleFallbackDir() {
+  if (existsSync(FALLBACK_DIR_BAK) && !existsSync(FALLBACK_DIR)) {
+    console.warn(
+      `WARNING: found stale fallback backup at ${FALLBACK_DIR_BAK}; ` +
+      `automatically restoring it to ${FALLBACK_DIR}.`,
+    );
+    renameSync(FALLBACK_DIR_BAK, FALLBACK_DIR);
+  }
+}
+
 // Rename the on-disk fallback directory so resolveAdBrandAssets() cannot use it.
 // This must be done before "missing" status scenarios, because the function falls
 // back to those HTML files whenever a DB value is absent/empty.
@@ -567,6 +579,7 @@ const STUB_QR   = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA
 const GUARD_TEST_BODY = "<p>422 guard test</p>{{font_css}}{{logo}}{{bg}}{{qr}}";
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+recoverStaleFallbackDir();
 await preflight();
 console.log("\n── Setup ───────────────────────────────────────────────────────");
 await setup();
