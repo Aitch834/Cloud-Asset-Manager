@@ -26,6 +26,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { DialogMutationError } from "@/components/ui/dialog-error";
+import { useEffect, useRef, useState } from "react";
 
 export function ConfirmDialog({
   open,
@@ -46,6 +47,26 @@ export function ConfirmDialog({
   confirmVariant?: "default" | "destructive";
   mutation?: { isError: boolean; isPending: boolean; error: unknown };
 }) {
+  const confirmInFlightRef = useRef(false);
+  const [confirmSubmitted, setConfirmSubmitted] = useState(false);
+
+  // isPending disables the button after the mutation state updates. The ref
+  // closes the smaller same-tick window where two click handlers can run
+  // before React has rendered that disabled state.
+  useEffect(() => {
+    if (!open || mutation?.isError) {
+      confirmInFlightRef.current = false;
+      setConfirmSubmitted(false);
+    }
+  }, [open, mutation?.isError]);
+
+  const handleConfirm = () => {
+    if (confirmInFlightRef.current || mutation?.isPending) return;
+    confirmInFlightRef.current = true;
+    setConfirmSubmitted(true);
+    onConfirm();
+  };
+
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onCancel(); }}>
       <DialogContent style={{ maxWidth: "22rem" }}>
@@ -54,7 +75,7 @@ export function ConfirmDialog({
         {mutation && <DialogMutationError mutation={mutation} message="Failed — please try again." />}
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={onConfirm} disabled={mutation?.isPending}>{confirmLabel}</Button>
+          <Button variant={confirmVariant} onClick={handleConfirm} disabled={mutation?.isPending || confirmSubmitted}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

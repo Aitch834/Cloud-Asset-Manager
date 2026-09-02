@@ -2358,7 +2358,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <RadixTooltipProvider>
                         <RadixTooltip>
                           <RadixTooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button aria-label="Delete vessel" variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button>
                           </RadixTooltipTrigger>
                           <RadixTooltipContent>Delete vessel</RadixTooltipContent>
                         </RadixTooltip>
@@ -2543,15 +2543,27 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
           </DialogContent>
         </Dialog>
       )}
-      <Dialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Delete Vessel</DialogTitle><DialogDescription>Remove vessel {fmt(deleting?.vessel_ref)} from the register? All associated cleaning records will also be deleted.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={async () => { try { await crud.remove.mutateAsync(Number(deleting!.id)); toast({ title: "Deleted" }); } catch (err) { toast({ title: "Delete failed", description: (err as Error).message || "An unexpected error occurred.", variant: "destructive" }); } setDeleting(null); }}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleting}
+        title="Delete Vessel"
+        message={`Remove vessel ${fmt(deleting?.vessel_ref)} from the register? All associated cleaning records will also be deleted.`}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        mutation={crud.remove}
+        onConfirm={() => {
+          if (!deleting) return;
+          crud.remove.mutate(Number(deleting.id), {
+            onSuccess: () => {
+              toast({ title: "Deleted" });
+              setDeleting(null);
+            },
+          });
+        }}
+        onCancel={() => {
+          setDeleting(null);
+          crud.remove.reset();
+        }}
+      />
 
       {/* Zone chip context menu — right-click to drill down */}
       {zoneMenu && (
