@@ -675,7 +675,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               </>
             );
           })()}
-          <Button size="sm" variant="outline" onClick={() => { void downloadVineRegisterPdf(displayRows, farmName, farmFsaVineRef || undefined, farmRecord); }} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export PDF{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
+          <Button size="sm" variant="outline" onClick={() => { void downloadVineRegisterPdf(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); }} disabled={!displayRows.length}><FileDown className="w-4 h-4 mr-1" />Export PDF{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid) { setPrintConfirmOpen(true); } else if (isFsaIncomplete) { setPrintFsaWarnOpen(true); } else { void printVineRegister(displayRows, farmName, farmFsaVineRef || undefined, farmId, blocks, farmRecord); } }} disabled={!displayRows.length}><Printer className="w-4 h-4 mr-1" />Print Register{activeFilterCount > 0 ? ` (${displayRows.length})` : ""}</Button>
           <Button size="sm" variant="outline" onClick={() => {
             const { href, isTruncated } = emailVineRegister(displayRows, farmName, farmRecord);
