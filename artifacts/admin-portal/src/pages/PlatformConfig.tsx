@@ -27,7 +27,8 @@ function ConfigCard({ item, secret, onSaved }: { item: PlatformConfigItem; secre
   const isDirty = draft !== effectiveValue;
   const isBarrelAlertThreshold =
     item.key === "barrel_idle_days_default" ||
-    item.key === "barrel_neutral_fills_default";
+    item.key === "barrel_neutral_fills_default" ||
+    item.key === "barrel_retirement_threshold_pence";
 
   async function handleSave() {
     setSaving(true);
