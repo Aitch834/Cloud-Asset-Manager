@@ -1787,7 +1787,7 @@ async function checkLivestockMedicineWithdrawal() {
   }
 }
 
-async function checkAgriEnvMilestoneDeadlines() {
+export async function checkAgriEnvMilestoneDeadlines() {
   const WARN_DAYS = 30;
   const now = new Date();
   now.setHours(0, 0, 0, 0);

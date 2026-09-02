@@ -8,6 +8,7 @@
     "build": "tsx ./build.ts",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
     "test:alert": "tsx scripts/test-alert-county-filter.ts",
+    "test:agri-env-milestone-overlap": "tsx scripts/test-agri-env-milestone-overlap.ts",
     "test:sector-alert-issue": "tsx scripts/test-sector-alert-issue.ts",
     "test:sector-alert-email-age": "tsx scripts/test-sector-alert-email-age.ts",
     "test:eidcymru": "tsx scripts/test-eidcymru.ts",
