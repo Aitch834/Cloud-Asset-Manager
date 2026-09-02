@@ -1,9 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
 import { router, useFocusEffect } from "expo-router";
 import { Platform } from "react-native";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,6 +20,11 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { getPendingSyncItems, kvGet } from "@/lib/database";
+import {
+  buildOrganicFpCsv,
+  buildOrganicFpCsvFilename,
+  type OrganicFpCsvRecord,
+} from "@/lib/organicFpCsv";
 import { STORAGE_KEYS } from "@/lib/storage";
 
 function fmtDate(val: string | null | undefined): string {
@@ -72,6 +79,8 @@ interface ServerFpInputRecord {
   purposeOfUse: string | null;
   cropYear: number | null;
   appliedBy: string | null;
+  poReference: string | null;
+  grnReference: string | null;
   notes: string | null;
 }
 
@@ -84,8 +93,14 @@ interface DisplayRecord {
   dateOfUse: string | null;
   quantityAmount: string | null;
   quantityUnit: string | null;
+  cropYear: number | null;
   certifierApprovalRef: string | null;
   derogationExpiryDate: string | null;
+  purposeOfUse: string | null;
+  appliedBy: string | null;
+  poReference: string | null;
+  grnReference: string | null;
+  notes: string | null;
   blockName: string | null;
   pending: boolean;
 }
@@ -104,6 +119,7 @@ export default function OrganicFpInputsListScreen() {
   const [records, setRecords] = useState<DisplayRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -126,8 +142,14 @@ export default function OrganicFpInputsListScreen() {
           dateOfUse: data.dateOfUse ? String(data.dateOfUse) : null,
           quantityAmount: data.quantityAmount ? String(data.quantityAmount) : null,
           quantityUnit: data.quantityUnit ? String(data.quantityUnit) : null,
+          cropYear: data.cropYear ? Number(data.cropYear) : null,
           certifierApprovalRef: data.certifierApprovalRef ? String(data.certifierApprovalRef) : null,
           derogationExpiryDate: data.derogationExpiryDate ? String(data.derogationExpiryDate) : null,
+          purposeOfUse: data.purposeOfUse ? String(data.purposeOfUse) : null,
+          appliedBy: data.appliedBy ? String(data.appliedBy) : null,
+          poReference: data.poReference ? String(data.poReference) : null,
+          grnReference: data.grnReference ? String(data.grnReference) : null,
+          notes: data.notes ? String(data.notes) : null,
           blockName: data.blockName ? String(data.blockName) : null,
           pending: true,
         } as DisplayRecord;
@@ -151,8 +173,14 @@ export default function OrganicFpInputsListScreen() {
             dateOfUse: r.applicationDate,
             quantityAmount: r.quantityApplied,
             quantityUnit: r.quantityUnit,
+            cropYear: r.cropYear,
             certifierApprovalRef: r.certifierApprovalRef,
             derogationExpiryDate: r.derogationExpiryDate,
+            purposeOfUse: r.purposeOfUse,
+            appliedBy: r.appliedBy,
+            poReference: r.poReference,
+            grnReference: r.grnReference,
+            notes: r.notes,
             blockName: null,
             pending: false,
           }));
@@ -172,6 +200,75 @@ export default function OrganicFpInputsListScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  async function downloadCsv(recordsToExport: DisplayRecord[]) {
+    const cropYears = [
+      ...new Set(
+        recordsToExport
+          .map((record) => record.cropYear)
+          .filter((year): year is number => year != null),
+      ),
+    ];
+    const yearLabel = cropYears.length === 1 ? String(cropYears[0]) : "All Years";
+    const filename = buildOrganicFpCsvFilename(currentFarm?.name ?? "farm", yearLabel);
+    const csvContent = buildOrganicFpCsv(
+      recordsToExport.map((record): OrganicFpCsvRecord => ({
+        applicationDate: record.dateOfUse,
+        cropYear: record.cropYear,
+        inputName: record.productName,
+        inputType: record.inputType,
+        approvalStatus: record.approvalStatus,
+        derogationExpiryDate: record.derogationExpiryDate,
+        supplier: record.supplier,
+        quantityApplied: record.quantityAmount,
+        quantityUnit: record.quantityUnit,
+        purposeOfUse: record.purposeOfUse,
+        appliedBy: record.appliedBy,
+        certifierApprovalRef: record.certifierApprovalRef,
+        poReference: record.poReference,
+        grnReference: record.grnReference,
+        notes: record.notes,
+      })),
+    );
+
+    if (Platform.OS === "web") {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const { shareAsync } = await import("expo-sharing");
+    const uri = `${FileSystem.cacheDirectory}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, csvContent, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    await shareAsync(uri, {
+      mimeType: "text/csv",
+      dialogTitle: "Share FP Input Log CSV",
+      UTI: "public.comma-separated-values-text",
+    });
+  }
+
+  async function handleExport() {
+    if (records.length === 0) {
+      Alert.alert("Nothing to export", "There are no FP input records to share.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      await downloadCsv(records);
+    } catch {
+      Alert.alert("Export failed", "Could not generate or share the FP input log CSV.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -179,9 +276,23 @@ export default function OrganicFpInputsListScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>FP Inputs</Text>
-        <Pressable style={styles.addButton} onPress={() => router.push("/organic-fp-input")}>
-          <Feather name="plus" size={22} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+            onPress={handleExport}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Share FP input log CSV"
+          >
+            {exporting
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <Feather name="share-2" size={17} color={colors.primary} />}
+            <Text style={styles.exportLabel}>{exporting ? "…" : "CSV"}</Text>
+          </Pressable>
+          <Pressable style={styles.addButton} onPress={() => router.push("/organic-fp-input")}>
+            <Feather name="plus" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -311,6 +422,19 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   addButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surface,
+  },
+  exportLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.xs, color: colors.primary },
   title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, gap: spacing.lg },
