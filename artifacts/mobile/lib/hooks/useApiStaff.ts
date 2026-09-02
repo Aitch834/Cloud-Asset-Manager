@@ -11,7 +11,13 @@ export interface ApiStaffMember {
 const useApiStaffHook = buildCachedApiHook<ApiStaffMember>(
   (farmId) => `bde_cache_farm_staff_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/staff`,
-  (json) => ((json as any).staff ?? []) as ApiStaffMember[],
+  (json) => {
+    const staff = (json as { staff?: unknown }).staff;
+    if (!Array.isArray(staff)) {
+      throw new Error('Invalid staff response: expected staff array');
+    }
+    return staff as ApiStaffMember[];
+  },
 );
 
 export function useApiStaff(farmId: string | undefined) {

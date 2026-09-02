@@ -474,6 +474,43 @@ describe('useApiStaff', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('surfaces an error and does not cache when the API response has no staff key', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    } as unknown as Response);
+
+    const result = await runHook<ApiStaffMember>(
+      useApiStaff,
+      FARM_ID,
+      mockHarness,
+    );
+
+    expect(result.items).toEqual([]);
+    expect(result.fromCache).toBe(false);
+    expect(result.lastError).toBe('Invalid staff response: expected staff array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
+  it('keeps stale cache and surfaces an error when the API renames the staff key', async () => {
+    mockKvGet.mockResolvedValue(JSON.stringify([STAFF_MEMBER]));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ records: [STAFF_MEMBER] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiStaffMember>(
+      useApiStaff,
+      FARM_ID,
+      mockHarness,
+    );
+
+    expect(result.items).toEqual([STAFF_MEMBER]);
+    expect(result.fromCache).toBe(true);
+    expect(result.lastError).toBe('Invalid staff response: expected staff array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('returns stale cache when API is offline', async () => {
     mockKvGet.mockResolvedValue(JSON.stringify([STAFF_MEMBER]));
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
