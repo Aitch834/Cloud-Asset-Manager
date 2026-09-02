@@ -602,4 +602,49 @@ describe('useApiVineBlocks — coverPhotoUrl cacheTransform', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(1);
   });
+
+  it('aborts the in-flight vineyard-blocks request when the grower navigates back', async () => {
+    mockKvGet.mockResolvedValue(null);
+
+    let abortEventCount = 0;
+    global.fetch = jest.fn().mockImplementation(
+      (_url: string, options?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            abortEventCount += 1;
+            const abortError = new Error('The operation was aborted.');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          }, { once: true });
+        }),
+    );
+
+    mockHarness.slotCounter.value = 0;
+    mockHarness.store.reset([[], true, false, null]);
+    useApiVineBlocks(FARM_ID);
+
+    let cleanup: (() => void) | undefined;
+    const effect = mockHarness.capturedEffect.value;
+    expect(effect).toBeDefined();
+    const effectResult = effect!();
+    if (typeof effectResult === 'function') cleanup = effectResult as () => void;
+
+    // Wait until the endpoint request is in flight, then simulate immediate
+    // back-navigation by running the effect cleanup.
+    await drainAsync(4);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      `https://${API_DOMAIN}/api/farms/${FARM_ID}/vineyard-blocks`,
+    );
+    expect(cleanup).toBeDefined();
+
+    cleanup!();
+    await drainAsync();
+
+    expect(abortEventCount).toBe(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockKvSet).not.toHaveBeenCalled();
+    expect(mockHarness.store.values[0]).toEqual([]);
+    expect(mockHarness.store.values[3]).toBeNull();
+  });
 });
