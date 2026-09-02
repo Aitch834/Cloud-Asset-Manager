@@ -22,6 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
+import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
 import { getIncomeSummaryYears, hasCompletionDateInYear } from "@/lib/agri-env-income-summary";
 import {
   AGRI_ENV_CACHE_TTL_MS,
@@ -115,18 +116,6 @@ function statusFilterKey(farmId: string | number): string {
 }
 
 const PERSISTED_STATUS_FILTERS = new Set(["active", "pending", "completed"]);
-
-function deadlineStatus(dateStr: string | null): "overdue" | "warning" | "ok" | "none" {
-  if (!dateStr) return "none";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(dateStr);
-  dueDate.setHours(0, 0, 0, 0);
-  const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / 86_400_000);
-  if (daysUntilDue < 0) return "overdue";
-  if (daysUntilDue <= 30) return "warning";
-  return "ok";
-}
 
 function MilestoneDeadlineSummary({
   overdueCount,
@@ -771,15 +760,11 @@ export default function AgriEnvProjectsScreen() {
   // scheme-only scope for deadline counts as the dashboard: status chips
   // affect the list, but not the selected scheme's deadline summary.
   const schemeFilter = searchQuery.trim();
-  const schemeProjects = schemeFilter
-    ? projects.filter(p => p.schemeName.toLowerCase().includes(schemeFilter.toLowerCase()))
-    : projects;
-  const schemeProjectIds = new Set(schemeProjects.map(p => p.id));
-  const pendingMilestones = milestones.filter(
-    m => m.status !== "paid" && schemeProjectIds.has(m.projectId),
+  const { overdue: overdueMs, upcoming: upcomingMs } = getMilestoneDeadlineCounts(
+    projects,
+    milestones,
+    schemeFilter,
   );
-  const overdueMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "overdue").length;
-  const upcomingMs = pendingMilestones.filter(m => deadlineStatus(m.dueDate) === "warning").length;
 
   const renderItem = ({ item: project }: { item: AgriEnvProject }) => {
     const isExpanded = expandedId === project.id;
