@@ -74,6 +74,7 @@ jest.mock("react-native", () => {
     Text: host("Text"),
     TextInput: host("TextInput"),
     TouchableOpacity: Pressable,
+    useColorScheme: () => "light",
     View,
   };
 });
@@ -83,14 +84,36 @@ jest.mock("@expo/vector-icons", () => ({
 }));
 
 const mockRouterPush = jest.fn();
-jest.mock("expo-router", () => ({
-  router: {
-    back: jest.fn(),
-    push: (...args: unknown[]) => mockRouterPush(...args),
-  },
-  useFocusEffect: jest.fn(),
-  useLocalSearchParams: () => ({}),
-}));
+jest.mock("expo-router", () => {
+  const React = require("react");
+  const Tabs = Object.assign(
+    ({ children }: { children?: unknown }) => {
+      const badges = React.Children.toArray(children).flatMap((child: unknown) => {
+        if (!React.isValidElement(child)) return [];
+        const options = (child.props as {
+          options?: { title?: string; tabBarBadge?: number };
+        }).options;
+        if (options?.title !== "Record") return [];
+        return React.createElement(
+          "Text",
+          { key: "record-tab-badge", testID: "record-tab-badge" },
+          String(options.tabBarBadge ?? 0),
+        );
+      });
+      return React.createElement("View", null, badges);
+    },
+    { Screen: () => null },
+  );
+  return {
+    router: {
+      back: jest.fn(),
+      push: (...args: unknown[]) => mockRouterPush(...args),
+    },
+    Tabs,
+    useFocusEffect: jest.fn(),
+    useLocalSearchParams: () => ({}),
+  };
+});
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn().mockResolvedValue(null),
@@ -101,9 +124,31 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
-const mockTriggerBarrelRefresh = jest.fn();
-jest.mock("../lib/context/BarrelAlertContext", () => ({
-  useBarrelAlertContext: () => ({ triggerBarrelRefresh: mockTriggerBarrelRefresh }),
+jest.mock("expo-glass-effect", () => ({
+  isLiquidGlassAvailable: () => false,
+}));
+
+jest.mock("expo-blur", () => ({
+  BlurView: "BlurView",
+}));
+
+jest.mock("expo-router/unstable-native-tabs", () => ({
+  Badge: "Badge",
+  Icon: "Icon",
+  Label: "Label",
+  NativeTabs: "NativeTabs",
+}));
+
+jest.mock("expo-symbols", () => ({
+  SymbolView: "SymbolView",
+}));
+
+jest.mock("../lib/hooks/useSmsMisconfigured", () => ({
+  useSmsMisconfigured: () => false,
+}));
+
+jest.mock("../lib/context/SmsPrefsContext", () => ({
+  SmsPrefsProvider: ({ children }: { children: unknown }) => children,
 }));
 
 jest.mock("../lib/context/FarmContext", () => ({
@@ -145,6 +190,8 @@ jest.mock("../lib/uploadPhoto", () => ({
 }));
 
 jest.mock("../lib/utils/vesselAlerts", () => ({
+  isBarrelType: (vesselType: string | null) =>
+    (vesselType ?? "").toLowerCase().includes("barrel"),
   isApproachingNeutral: () => false,
   isIdleBarrel: () => false,
 }));
@@ -179,13 +226,18 @@ const mockInitialVessel = {
 };
 
 const mockRefreshSpy = jest.fn();
+let mockUseApiFetchInstance = 0;
 jest.mock("../lib/hooks/useApiFetch", () => {
   const React = require("react");
   return {
-    useApiFetch: () => {
+    useApiFetch: <T,>() => {
       const [records, setRecords] = React.useState([mockInitialVessel]);
+      const instanceIdRef = React.useRef(0);
+      if (instanceIdRef.current === 0) {
+        instanceIdRef.current = ++mockUseApiFetchInstance;
+      }
       const refresh = () => {
-        mockRefreshSpy();
+        mockRefreshSpy(instanceIdRef.current);
         setRecords([
           {
             ...mockInitialVessel,
@@ -196,7 +248,7 @@ jest.mock("../lib/hooks/useApiFetch", () => {
         ]);
       };
       return {
-        records,
+        records: records as T[],
         loading: false,
         refreshing: false,
         error: null,
@@ -208,6 +260,8 @@ jest.mock("../lib/hooks/useApiFetch", () => {
 
 import React from "react";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { BarrelAlertProvider } from "../lib/context/BarrelAlertContext";
+import TabLayout from "../app/(tabs)/_layout";
 import WineryVesselRegisterScreen from "../app/winery-vessel-register";
 
 function okResponse(payload: unknown): Response {
@@ -221,6 +275,7 @@ function okResponse(payload: unknown): Response {
 describe("winery vessel register quick-fill refresh", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseApiFetchInstance = 0;
     global.fetch = jest.fn().mockResolvedValue(
       okResponse({ record: { id: 991, vesselId: mockInitialVessel.id } }),
     );
@@ -231,7 +286,11 @@ describe("winery vessel register quick-fill refresh", () => {
   });
 
   it("removes the no-fills badge after saving while keeping the row visible", async () => {
-    const screen = render(<WineryVesselRegisterScreen />);
+    const screen = render(
+      <BarrelAlertProvider>
+        <WineryVesselRegisterScreen />
+      </BarrelAlertProvider>,
+    );
 
     expect(screen.getByTestId(`vessel-row-${mockInitialVessel.id}`)).toBeTruthy();
     expect(screen.getByTestId(`vessel-no-fills-${mockInitialVessel.id}`)).toBeTruthy();
@@ -255,6 +314,33 @@ describe("winery vessel register quick-fill refresh", () => {
     });
 
     expect(mockRouterPush).not.toHaveBeenCalled();
-    expect(mockTriggerBarrelRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("decreases the Record tab alert badge immediately after logging a fill", async () => {
+    const screen = render(
+      <BarrelAlertProvider>
+        <WineryVesselRegisterScreen />
+        <TabLayout />
+      </BarrelAlertProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-tab-badge")).toHaveTextContent("1");
+    });
+
+    fireEvent.press(screen.getByTestId(`vessel-no-fills-${mockInitialVessel.id}`), {
+      stopPropagation: jest.fn(),
+    });
+    fireEvent.press(screen.getByTestId("save-vessel-fill"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-tab-badge")).toHaveTextContent("0");
+      expect(screen.queryByText(`Log Fill — ${mockInitialVessel.vessel_ref}`)).toBeNull();
+    });
+
+    expect(mockRefreshSpy.mock.calls).toEqual([[1], [2]]);
+    // The badge update must happen in place; the flow does not navigate away or
+    // rely on a fresh app mount to recalculate the count.
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });
