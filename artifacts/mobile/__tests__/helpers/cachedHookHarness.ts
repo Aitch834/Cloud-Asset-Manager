@@ -22,7 +22,7 @@
  *
  * ```ts
  * import {
- *   StateStore, drainAsync, flushPromises, runHook,
+ *   StateStore, drainAsync, flushPromises, runHook, rerenderHook,
  *   type HarnessContext,
  * } from './helpers/cachedHookHarness';
  *
@@ -183,8 +183,37 @@ export interface HookResult<T> {
   loading: boolean;
   fromCache: boolean;
   lastError: string | null;
+  loadedForFarmId: string | undefined;
   refresh: () => void;
   updateItems: (updater: (items: T[]) => T[]) => void;
+}
+
+type HookReturn<T> = {
+  refresh?: () => void;
+  updateItems?: (updater: (items: T[]) => T[]) => void;
+};
+
+function readHookResult<T>(
+  ctx: HarnessContext,
+  hookResult: HookReturn<T>,
+): HookResult<T> {
+  const [items, loading, fromCache, lastError, loadedForFarmId] = ctx.store.values as [
+    T[],
+    boolean,
+    boolean,
+    string | null,
+    string | undefined,
+  ];
+
+  return {
+    items,
+    loading,
+    fromCache,
+    lastError,
+    loadedForFarmId,
+    refresh: hookResult.refresh ?? (() => {}),
+    updateItems: hookResult.updateItems ?? (() => {}),
+  };
 }
 
 /**
@@ -194,9 +223,10 @@ export interface HookResult<T> {
  * @param hookFn       The hook function to test (e.g. `useTestHook`).
  * @param farmId       Passed as the first argument to the hook.
  * @param ctx          The `HarnessContext` owned by the test file (shared with `jest.mock`).
- * @param initialSlots Initial `useState` slot values.  Defaults match the four
+ * @param initialSlots Initial `useState` slot values.  Defaults match the five
  *                     slots of `buildCachedApiHook`:
- *                     `[items=[], loading=true, fromCache=false, lastError=null]`.
+ *                     `[items=[], loading=true, fromCache=false, lastError=null,
+ *                       loadedForFarmId=undefined]`.
  */
 export async function runHook<T>(
   hookFn: (farmId: string | undefined) => unknown,
@@ -206,29 +236,41 @@ export async function runHook<T>(
 ): Promise<HookResult<T>> {
   ctx.slotCounter.value = 0;
   ctx.store.reset(initialSlots);
-  const hookResult = hookFn(farmId) as {
-    refresh?: () => void;
-    updateItems?: (updater: (items: T[]) => T[]) => void;
-  };
+  const hookResult = hookFn(farmId) as HookReturn<T>;
 
   if (ctx.capturedEffect.value) ctx.capturedEffect.value();
 
   await drainAsync();
 
-  const [items, loading, fromCache, lastError] = ctx.store.values as [
-    T[],
-    boolean,
-    boolean,
-    string | null,
-  ];
-  return {
-    items,
-    loading,
-    fromCache,
-    lastError,
-    refresh: hookResult.refresh ?? (() => {}),
-    updateItems: hookResult.updateItems ?? (() => {}),
-  };
+  return readHookResult(ctx, hookResult);
+}
+
+/**
+ * Render the same hook again with a different farmId, preserving its state
+ * slots so tests can observe the one-render farm-switch transition.
+ *
+ * `afterEffect` runs immediately after the new effect's synchronous state
+ * updates and before its cache/API promises settle. This is the point where
+ * `loadedForFarmId` must be undefined and stale items must be cleared.
+ */
+export async function rerenderHook<T>(
+  hookFn: (farmId: string | undefined) => unknown,
+  farmId: string,
+  ctx: HarnessContext,
+  afterEffect?: () => void,
+): Promise<HookResult<T>> {
+  ctx.slotCounter.value = 0;
+  ctx.capturedEffect.value = null;
+  const hookResult = hookFn(farmId) as HookReturn<T>;
+
+  if (ctx.capturedEffect.value) {
+    ctx.capturedEffect.value();
+    afterEffect?.();
+  }
+
+  await drainAsync();
+
+  return readHookResult(ctx, hookResult);
 }
 
 /**

@@ -19,6 +19,7 @@
 import {
   StateStore,
   drainAsync,
+  rerenderHook,
   runHook,
   type HarnessContext,
 } from './helpers/cachedHookHarness';
@@ -155,6 +156,45 @@ describe('useApiFields', () => {
     expect(result.items[0].id).toBe(ACTIVE_FIELD.id);
     expect(result.items[0].name).toBe(ACTIVE_FIELD.name);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('clears the previous farm before loading the next farm fields', async () => {
+    const farmAField = { ...ACTIVE_FIELD, id: 101, name: 'Farm A Field' };
+    const farmBField = { ...ACTIVE_FIELD, id: 202, name: 'Farm B Field' };
+    const farmAId = FARM_ID;
+    const farmBId = '78';
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(apiResponse([farmAField]))
+      .mockResolvedValueOnce(apiResponse([farmBField]));
+
+    const first = await runHook<ApiField>(useApiFields, farmAId, mockHarness);
+    expect(first.loadedForFarmId).toBe(farmAId);
+    expect(first.items).toEqual([farmAField]);
+
+    const transition: Array<{
+      loadedForFarmId: string | undefined;
+      items: ApiField[];
+    }> = [];
+    const second = await rerenderHook<ApiField>(
+      useApiFields,
+      farmBId,
+      mockHarness,
+      () => {
+        transition.push({
+          loadedForFarmId: mockHarness.store.values[4] as string | undefined,
+          items: mockHarness.store.values[0] as ApiField[],
+        });
+      },
+    );
+
+    expect(transition).toEqual([
+      { loadedForFarmId: undefined, items: [] },
+    ]);
+    expect(second.loadedForFarmId).toBe(farmBId);
+    expect(second.items).toEqual([farmBField]);
+    expect(second.items).not.toContainEqual(farmAField);
   });
 
   it('returns cached fields as-is when API is offline', async () => {

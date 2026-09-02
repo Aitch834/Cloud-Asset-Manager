@@ -88,7 +88,13 @@ export function buildCachedApiHook<T>(
       // it will be set again once cache or API data arrives for the new farmId.
       setLoading(true);
       setLastError(null);
-      setLoadedForFarmId(undefined);
+      const farmChanged = loadedForFarmId !== farmId;
+      if (farmChanged) {
+        setItems([]);
+        itemsRef.current = [];
+        setFromCache(false);
+        setLoadedForFarmId(undefined);
+      }
 
       const controller = new AbortController();
 
@@ -211,6 +217,15 @@ export function buildCachedApiHook<T>(
       });
     }, [farmId]);
 
-    return { items, loading, fromCache, lastError, loadedForFarmId, refresh, updateItems };
+    const visibleItems = loadedForFarmId === farmId ? items : [];
+    return {
+      items: visibleItems,
+      loading,
+      fromCache,
+      lastError,
+      loadedForFarmId,
+      refresh,
+      updateItems,
+    };
   };
 }

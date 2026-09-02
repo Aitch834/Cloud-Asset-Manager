@@ -22,6 +22,7 @@
 import {
   StateStore,
   drainAsync,
+  rerenderHook,
   runHook,
   type HarnessContext,
 } from './helpers/cachedHookHarness';
@@ -170,6 +171,49 @@ describe('useApiFarmMembers', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].id).toBe(ACTIVE_MEMBER.id);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('clears the previous farm before loading the next farm members', async () => {
+    const farmAMember = { ...ACTIVE_MEMBER, id: 101, firstName: 'Farm A' };
+    const farmBMember = { ...ACTIVE_MEMBER, id: 202, firstName: 'Farm B' };
+    const farmAId = FARM_ID;
+    const farmBId = '43';
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(apiResponse([farmAMember]))
+      .mockResolvedValueOnce(apiResponse([farmBMember]));
+
+    const first = await runHook<ApiFarmMember>(
+      useApiFarmMembers,
+      farmAId,
+      mockHarness,
+    );
+    expect(first.loadedForFarmId).toBe(farmAId);
+    expect(first.items).toEqual([farmAMember]);
+
+    const transition: Array<{
+      loadedForFarmId: string | undefined;
+      items: ApiFarmMember[];
+    }> = [];
+    const second = await rerenderHook<ApiFarmMember>(
+      useApiFarmMembers,
+      farmBId,
+      mockHarness,
+      () => {
+        transition.push({
+          loadedForFarmId: mockHarness.store.values[4] as string | undefined,
+          items: mockHarness.store.values[0] as ApiFarmMember[],
+        });
+      },
+    );
+
+    expect(transition).toEqual([
+      { loadedForFarmId: undefined, items: [] },
+    ]);
+    expect(second.loadedForFarmId).toBe(farmBId);
+    expect(second.items).toEqual([farmBMember]);
+    expect(second.items).not.toContainEqual(farmAMember);
   });
 
   it('returns cached members as-is when API is offline', async () => {

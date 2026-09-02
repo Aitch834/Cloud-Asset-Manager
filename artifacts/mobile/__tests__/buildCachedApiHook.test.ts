@@ -22,6 +22,7 @@
 import {
   StateStore,
   drainAsync,
+  rerenderHook,
   runHook,
   type HarnessContext,
 } from './helpers/cachedHookHarness';
@@ -285,6 +286,46 @@ describe('buildCachedApiHook — live state after API response', () => {
     expect(global.fetch).not.toHaveBeenCalled();
     expect(mockKvSet).not.toHaveBeenCalled();
   });
+
+  it('keeps current-farm items visible while a manual refresh starts', async () => {
+    const refreshedItem = { ...RAW_ITEM, name: 'Block A (refreshed)' };
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ records: [RAW_ITEM] }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ records: [refreshedItem] }),
+      } as unknown as Response);
+
+    const first = await runHook<TestItem>(useTestHook, FARM_ID, mockHarness);
+    expect(first.loadedForFarmId).toBe(FARM_ID);
+    first.refresh();
+
+    const transition: Array<{
+      loadedForFarmId: string | undefined;
+      items: TestItem[];
+    }> = [];
+    const refreshed = await rerenderHook<TestItem>(
+      useTestHook,
+      FARM_ID,
+      mockHarness,
+      () => {
+        transition.push({
+          loadedForFarmId: mockHarness.store.values[4] as string | undefined,
+          items: mockHarness.store.values[0] as TestItem[],
+        });
+      },
+    );
+
+    expect(transition).toEqual([
+      { loadedForFarmId: FARM_ID, items: [RAW_ITEM] },
+    ]);
+    expect(refreshed.loadedForFarmId).toBe(FARM_ID);
+    expect(refreshed.items).toEqual([refreshedItem]);
+  });
 });
 
 describe('buildCachedApiHook — local cache update', () => {
@@ -328,7 +369,7 @@ describe('buildCachedApiHook — local cache update', () => {
     const updatedItem = { ...RAW_ITEM, name: 'Block A (saved)' };
 
     mockHarness.slotCounter.value = 0;
-    mockHarness.store.reset([[RAW_ITEM], true, false, null]);
+    mockHarness.store.reset([[RAW_ITEM], true, false, null, FARM_ID]);
     mockHarness.capturedEffect.value = null;
     const hookResult = useTestHook(FARM_ID) as {
       updateItems: (updater: (items: TestItem[]) => TestItem[]) => void;

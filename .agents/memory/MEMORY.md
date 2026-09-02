@@ -89,3 +89,4 @@
 - [FP input-log calendar days](fp-input-log-calendar-days.md) — derive date-only derogation countdowns from UTC day numbers, not elapsed local-midnight milliseconds
 - [Gesture Race test mocks](gesture-race-test-mocks.md) — React Native gesture tests must model one Race winner; firing every recognizer can create impossible zoom/pan state
 - [API typecheck project references](api-typecheck-project-references.md) — stale api-zod or db declarations can cause unrelated API errors; rebuild referenced libs before editing routes
+- [Cached hook farm freshness](cached-hook-farm-freshness.md) — return no items when provenance differs from the requested farm; effect-time clearing alone is too late
