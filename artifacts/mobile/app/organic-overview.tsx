@@ -494,6 +494,15 @@ export default function OrganicOverviewScreen() {
                 <Text style={styles.actionSub}>View &amp; log inputs</Text>
               </Pressable>
               <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onPress={() => router.push("/organic-restricted-inputs" as any)}
+              >
+                <Feather name="alert-triangle" size={22} color="#b45309" />
+                <Text style={[styles.actionLabel, { color: "#b45309" }]}>Restricted Inputs</Text>
+                <Text style={styles.actionSub}>Filter &amp; export audit CSV</Text>
+              </Pressable>
+              <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#f0fdf4", borderColor: "#a7f3d0" }]}
                 onPress={() => router.push("/organic-fp-inputs-list")}
               >

@@ -141,6 +141,7 @@ function RootLayoutNav() {
         <Stack.Screen name="organic-inspection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-input" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="organic-inputs-list" options={{ headerShown: false }} />
+        <Stack.Screen name="organic-restricted-inputs" options={{ headerShown: false }} />
         <Stack.Screen name="organic-milk-collection" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="tb-test" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="dct-history" options={{ headerShown: false }} />

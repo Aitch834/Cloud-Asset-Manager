@@ -24,6 +24,12 @@ import { getPendingSyncItems, kvGet, requestPendingSyncItemDiscard } from "@/lib
 import { STORAGE_KEYS } from "@/lib/storage";
 import { parseQueuedOrganicInputEdit } from "@/lib/organicInputOfflineEdit";
 import { scheduleSync } from "@/lib/sync-engine";
+import {
+  buildFilteredRestrictedInputsCsv,
+  buildRestrictedInputsCsvFilename,
+  filterRestrictedInputs,
+  type RestrictedInputsStatusFilter,
+} from "@/lib/organicRestrictedInputsCsv";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -116,6 +122,37 @@ async function downloadInputRegisterCsv(records: DisplayRecord[], farmName: stri
   }
 }
 
+async function downloadRestrictedInputsCsv(
+  records: DisplayRecord[],
+  farmName: string,
+  filter: RestrictedInputsStatusFilter,
+) {
+  const filename = buildRestrictedInputsCsvFilename(farmName, filter);
+  const csvContent = buildFilteredRestrictedInputsCsv(records, filter);
+
+  if (Platform.OS === "web") {
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+
+  const { shareAsync } = await import("expo-sharing");
+  const uri = `${FileSystem.cacheDirectory}${filename}`;
+  await FileSystem.writeAsStringAsync(uri, csvContent, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  await shareAsync(uri, {
+    mimeType: "text/csv",
+    dialogTitle: "Share Restricted Inputs CSV",
+    UTI: "public.comma-separated-values-text",
+  });
+}
+
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const target = new Date(dateStr + "T00:00:00Z");
@@ -163,6 +200,9 @@ interface ServerInputRecord {
   notes: string | null;
   poReference: string | null;
   grnReference: string | null;
+  justification: string | null;
+  certifierNotified: boolean;
+  appliedBy: string | null;
 }
 
 /** Unified shape for display — covers both server and local-pending records */
@@ -186,6 +226,9 @@ interface DisplayRecord {
   notes: string | null;
   poReference: string | null;
   grnReference: string | null;
+  justification: string | null;
+  certifierNotified: boolean;
+  appliedBy: string | null;
   pending: boolean;
   editPending: boolean;
 }
@@ -208,6 +251,9 @@ function applyPendingEdit(
     certifierApprovalRef: changes.certifierApprovalRef == null ? null : String(changes.certifierApprovalRef),
     derogationExpiryDate: changes.derogationExpiryDate == null ? null : String(changes.derogationExpiryDate),
     notes: changes.notes == null ? null : String(changes.notes),
+    justification: changes.justification == null ? record.justification : String(changes.justification),
+    certifierNotified: changes.certifierNotified == null ? record.certifierNotified : Boolean(changes.certifierNotified),
+    appliedBy: changes.appliedBy == null ? record.appliedBy : String(changes.appliedBy),
     // poReference / grnReference are not editable on mobile; preserve server value
     editPending: true,
   };
@@ -235,6 +281,9 @@ function pendingEditOnlyRecord(
     notes: null,
     poReference: null,
     grnReference: null,
+    justification: null,
+    certifierNotified: false,
+    appliedBy: null,
     pending: false,
     editPending: false,
   }, changes);
@@ -246,7 +295,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   derogation: { label: "Derogation", color: "#dc2626", bg: "#fef2f2" },
 };
 
-export default function OrganicInputsListScreen() {
+export default function OrganicInputsListScreen({ restrictedOnly = false }: { restrictedOnly?: boolean }) {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { pendingCount, refreshPendingCount } = useSync();
@@ -257,6 +306,7 @@ export default function OrganicInputsListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState<number | string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<RestrictedInputsStatusFilter>("active");
 
   const apiBase = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
@@ -290,6 +340,9 @@ export default function OrganicInputsListScreen() {
           notes: data.notes ? String(data.notes) : null,
           poReference: null,
           grnReference: null,
+           justification: data.justification ? String(data.justification) : null,
+           certifierNotified: Boolean(data.certifierNotified),
+           appliedBy: data.appliedBy ? String(data.appliedBy) : null,
           pending: true,
           editPending: false,
         };
@@ -323,6 +376,9 @@ export default function OrganicInputsListScreen() {
             notes: r.notes,
             poReference: r.poReference,
             grnReference: r.grnReference,
+             justification: r.justification,
+             certifierNotified: r.certifierNotified,
+             appliedBy: r.appliedBy,
             pending: false,
             editPending: false,
           }));
@@ -367,7 +423,39 @@ export default function OrganicInputsListScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  const visibleRecords = restrictedOnly
+    ? filterRestrictedInputs(records, statusFilter)
+    : records;
+
   async function handleExport() {
+    if (restrictedOnly) {
+      const exportable = records.filter((record) => !record.pending && !record.editPending);
+      const filteredExportable = filterRestrictedInputs(exportable, statusFilter);
+      if (filteredExportable.length === 0) {
+        Alert.alert(
+          "Nothing to export",
+          visibleRecords.length > 0
+            ? "All records have edits or additions still awaiting sync. Please sync your data first, then export."
+            : "There are no restricted inputs in this filter to download.",
+        );
+        return;
+      }
+
+      setExporting(true);
+      try {
+        await downloadRestrictedInputsCsv(
+          exportable,
+          currentFarm?.name ?? "farm",
+          statusFilter,
+        );
+      } catch {
+        Alert.alert("Export failed", "Could not generate or share the CSV file.");
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
+
     // Only export fully synced records: exclude both locally-pending (not yet POSTed)
     // and edit-pending (queued PUT with possibly incomplete field coverage) rows.
     // Partial records risk producing an inaccurate compliance register.
@@ -493,23 +581,25 @@ export default function OrganicInputsListScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Organic Inputs</Text>
+        <Text style={styles.title}>{restrictedOnly ? "Restricted Inputs" : "Organic Inputs"}</Text>
         <View style={styles.headerActions}>
           <Pressable
             style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
             onPress={handleExport}
             disabled={exporting}
             accessibilityRole="button"
-            accessibilityLabel="Export CSV"
+            accessibilityLabel={restrictedOnly ? "Export Restricted Inputs CSV" : "Export CSV"}
           >
             {exporting
               ? <ActivityIndicator size="small" color={colors.primary} />
               : <Feather name="download" size={16} color={colors.primary} />}
-            <Text style={styles.exportLabel}>{exporting ? "…" : "CSV"}</Text>
+            <Text style={styles.exportLabel}>{exporting ? "…" : restrictedOnly ? "Export CSV" : "CSV"}</Text>
           </Pressable>
-          <Pressable style={styles.addButton} onPress={() => router.push("/organic-input")}>
-            <Feather name="plus" size={22} color={colors.primary} />
-          </Pressable>
+          {!restrictedOnly && (
+            <Pressable style={styles.addButton} onPress={() => router.push("/organic-input")}>
+              <Feather name="plus" size={22} color={colors.primary} />
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -519,19 +609,60 @@ export default function OrganicInputsListScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {restrictedOnly && (
+          <>
+            <View style={styles.restrictedInfo}>
+              <Feather name="alert-triangle" size={16} color="#92400e" />
+              <Text style={styles.restrictedInfoText}>
+                Restricted and derogation inputs for audit review. The CSV includes the records shown for the selected status.
+              </Text>
+            </View>
+            <View style={styles.filterSection}>
+              <Text style={styles.filterLabel}>Derogation status</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+              >
+                {(["active", "pending", "expired", "all"] as RestrictedInputsStatusFilter[]).map((filter) => (
+                  <Pressable
+                    key={filter}
+                    style={[styles.filterChip, statusFilter === filter && styles.filterChipActive]}
+                    onPress={() => setStatusFilter(filter)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: statusFilter === filter }}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      statusFilter === filter && styles.filterChipTextActive,
+                    ]}>
+                      {filter[0].toUpperCase() + filter.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </>
+        )}
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
-        ) : records.length === 0 ? (
+        ) : visibleRecords.length === 0 ? (
           <View style={styles.emptyCard}>
             <Feather name="package" size={32} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No inputs recorded</Text>
+            <Text style={styles.emptyTitle}>
+              {restrictedOnly
+                ? `No ${statusFilter === "all" ? "restricted or derogation" : statusFilter} inputs`
+                : "No inputs recorded"}
+            </Text>
             <Text style={styles.emptySubtext}>
-              Tap + to log an organic input — fertilisers, sprays, feed supplements, and other approved products.
+              {restrictedOnly
+                ? "Restricted or derogation inputs recorded in the Organic Inputs register will appear here."
+                : "Tap + to log an organic input — fertilisers, sprays, feed supplements, and other approved products."}
             </Text>
           </View>
         ) : (
           <View style={styles.card}>
-            {records.map((r, i) => {
+            {visibleRecords.map((r, i) => {
               const status = STATUS_CONFIG[r.approvalStatus] ?? { label: r.approvalStatus, color: colors.textSecondary, bg: colors.surface };
               const needsExpiry = r.approvalStatus === "restricted" || r.approvalStatus === "derogation";
               const expiryDays = daysUntil(r.derogationExpiryDate);
@@ -683,6 +814,37 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.bold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: spacing.lg, gap: spacing.lg },
+  restrictedInfo: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: "#fffbeb",
+    borderColor: "#fde68a",
+    borderWidth: 1,
+    borderRadius: radius.lg,
+  },
+  restrictedInfoText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: "#92400e",
+  },
+  filterSection: { gap: spacing.sm },
+  filterLabel: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.textSecondary },
+  filterRow: { gap: spacing.sm },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  filterChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  filterChipText: { fontFamily: fonts.semiBold, fontSize: fontSize.sm, color: colors.textSecondary },
+  filterChipTextActive: { color: colors.surface },
   emptyCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

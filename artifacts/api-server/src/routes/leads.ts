@@ -215,6 +215,7 @@ router.post("/leads", async (req, res): Promise<void> => {
       farmCount: parsed.data.farmCount,
       modulesInterested: parsed.data.modulesInterested,
       message: parsed.data.message ?? null,
+      sector: parsed.data.sector ?? null,
     }).returning();
 
     console.log(`[LEAD] New registration lead #${lead.id} from ${lead.email}`);
