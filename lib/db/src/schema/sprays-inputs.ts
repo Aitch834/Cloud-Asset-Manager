@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, numeric, jsonb, boolean, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, numeric, jsonb, boolean, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { farmsTable, farmMembersTable } from "./core";
 import { fieldsTable } from "./fields-crops";
 import { stockItemsTable, stockDeliveriesTable, suppliersTable } from "./stock-suppliers";
@@ -55,8 +55,12 @@ export const sprayApplicationsTable = pgTable("spray_applications", {
   targetCrop: text("target_crop"),
   growthStage: text("growth_stage"),
   productCostPencePerUnit: integer("product_cost_pence_per_unit"),
+  mobileRecordId: text("mobile_record_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  farmMobileRecordIdx: uniqueIndex("spray_applications_farm_mobile_record_uidx")
+    .on(table.farmId, table.mobileRecordId),
+}));
 
 export const nutrientManagementPlansTable = pgTable("nutrient_management_plans", {
   id: serial("id").primaryKey(),

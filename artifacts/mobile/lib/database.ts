@@ -764,15 +764,29 @@ export async function requestPendingSyncItemDiscard(
  */
 export async function updatePendingSyncItem(recordType: string, recordId: string, data: unknown): Promise<boolean> {
   await ensureInit();
-  const json = JSON.stringify(data);
   return serializeSyncQueueWrite(async () => {
     if (usingSQLite) {
+      const item = await db().getFirstAsync<{ id: string; data_json: string }>(
+        "SELECT id, data_json FROM sync_queue WHERE record_type = ? AND record_id = ? AND status = 'pending'",
+        [recordType, recordId],
+      );
+      if (!item) return false;
+      const previous = JSON.parse(item.data_json) as Record<string, unknown>;
+      const next = data && typeof data === "object"
+        ? { ...(data as Record<string, unknown>) }
+        : data;
+      if (next && typeof next === "object") {
+        const nextRecord = next as Record<string, unknown>;
+        if (previous._serverRecordId !== undefined) nextRecord._serverRecordId = previous._serverRecordId;
+        if (previous._discardRequested !== undefined) nextRecord._discardRequested = previous._discardRequested;
+      }
+      const json = JSON.stringify(next);
       const table = TABLE_MAP[recordType];
       let updated = false;
       await db().withTransactionAsync(async () => {
         const result = await db().runAsync(
-          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE record_type = ? AND record_id = ? AND status = 'pending'",
-          [json, recordType, recordId],
+          "UPDATE sync_queue SET data_json = ?, retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+          [json, item.id, item.data_json],
         );
         updated = result.changes > 0;
         if (updated && table) {
@@ -794,6 +808,16 @@ export async function updatePendingSyncItem(recordType: string, recordId: string
       (i) => i.record_type === recordType && i.record_id === recordId && i.status === "pending",
     );
     if (idx === -1) return false;
+    const previous = JSON.parse(queue[idx].data_json) as Record<string, unknown>;
+    const next = data && typeof data === "object"
+      ? { ...(data as Record<string, unknown>) }
+      : data;
+    if (next && typeof next === "object") {
+      const nextRecord = next as Record<string, unknown>;
+      if (previous._serverRecordId !== undefined) nextRecord._serverRecordId = previous._serverRecordId;
+      if (previous._discardRequested !== undefined) nextRecord._discardRequested = previous._discardRequested;
+    }
+    const json = JSON.stringify(next);
     queue[idx].data_json = json;
     queue[idx].retry_count = 0;
     delete queue[idx].last_error;

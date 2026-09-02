@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -40,6 +40,8 @@ import { kvGet } from "@/lib/database";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { sprayRecordHtml } from "@/lib/printTemplates";
+import { scheduleSync } from "@/lib/sync-engine";
+import { savePendingSprayRevision } from "@/lib/sprayPendingEdit";
 
 function degreesToCompass(deg: number): string {
   const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -68,6 +70,39 @@ export default function SprayRecordScreen() {
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
   const { print, savePdf } = usePrint();
+  const params = useLocalSearchParams<{
+    pendingId?: string;
+    fieldName?: string;
+    targetCrop?: string;
+    growthStage?: string;
+    productName?: string;
+    productId?: string;
+    lerapCategory?: string;
+    lerapStandardBufferM?: string;
+    areaSprayedHa?: string;
+    applicationRate?: string;
+    applicationUnit?: string;
+    windSpeed?: string;
+    windDirection?: string;
+    temperature?: string;
+    humidity?: string;
+    pressure?: string;
+    operatorName?: string;
+    equipmentUsed?: string;
+    notes?: string;
+    productCostPencePerUnit?: string;
+    waterSourceNearby?: string;
+    bufferZoneMetres?: string;
+    latitude?: string;
+    longitude?: string;
+    linkedWeatherDate?: string;
+    detectedFieldId?: string;
+    photoIds?: string;
+    startTime?: string;
+    endTime?: string;
+    createdAt?: string;
+  }>();
+  const isPendingEdit = !!params.pendingId;
   const farmId = currentFarm?.id ? String(currentFarm.id) : undefined;
   const {
     fields: apiFields,
@@ -87,11 +122,11 @@ export default function SprayRecordScreen() {
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
-  const [manualOperatorName, setManualOperatorName] = useState(user?.name || "");
+  const [manualOperatorName, setManualOperatorName] = useState(params.operatorName ?? user?.name ?? "");
   const operatorName = selectedOperator ? memberFullName(selectedOperator) : manualOperatorName;
 
-  const [waterSourceNearby, setWaterSourceNearby] = useState("");
-  const [bufferZoneMetres, setBufferZoneMetres] = useState("");
+  const [waterSourceNearby, setWaterSourceNearby] = useState(params.waterSourceNearby ?? "");
+  const [bufferZoneMetres, setBufferZoneMetres] = useState(params.bufferZoneMetres ?? "");
 
   const WATER_SOURCE_OPTIONS = [
     { id: "ditch", label: "Ditch" },
@@ -113,24 +148,26 @@ export default function SprayRecordScreen() {
     }
   };
 
-  const [fieldName, setFieldName] = useState("");
-  const [areaSprayedHa, setAreaSprayedHa] = useState("");
+  const [fieldName, setFieldName] = useState(params.fieldName ?? "");
+  const [areaSprayedHa, setAreaSprayedHa] = useState(params.areaSprayedHa ?? "");
   const [areaAutoFilled, setAreaAutoFilled] = useState(false);
   const [restoredForFarmId, setRestoredForFarmId] = useState<string | undefined>(undefined);
 
   // Reset the picker as soon as the farm changes so a previous farm's field
   // cannot be shown while the new farm's fields are loading.
   useEffect(() => {
+    if (isPendingEdit) return;
     setRestoredForFarmId(undefined);
     setFieldName("");
     setAreaSprayedHa("");
     setAreaAutoFilled(false);
-  }, [farmId]);
+  }, [farmId, isPendingEdit]);
 
   // Restore only after the fields hook confirms its list belongs to this farm.
   // This avoids rejecting a valid saved field against one-render-old fields
   // during a farm switch.
   useEffect(() => {
+    if (isPendingEdit) return;
     if (!farmId || fieldsLoading || fieldsLoadedForFarmId !== farmId) return;
     if (restoredForFarmId === farmId) return;
 
@@ -156,11 +193,12 @@ export default function SprayRecordScreen() {
     return () => {
       cancelled = true;
     };
-  }, [farmId, fieldsLoading, fieldsLoadedForFarmId, apiFields, restoredForFarmId]);
+  }, [farmId, fieldsLoading, fieldsLoadedForFarmId, apiFields, restoredForFarmId, isPendingEdit]);
 
   // Do not let the initial empty state overwrite the saved field before the
   // asynchronous restore has completed.
   useEffect(() => {
+    if (isPendingEdit) return;
     if (!farmId || restoredForFarmId !== farmId) return;
     const storageKey = `bde_spray_record_last_field_${farmId}`;
     if (fieldName.trim()) {
@@ -168,23 +206,25 @@ export default function SprayRecordScreen() {
     } else {
       AsyncStorage.removeItem(storageKey);
     }
-  }, [farmId, restoredForFarmId, fieldName]);
+  }, [farmId, restoredForFarmId, fieldName, isPendingEdit]);
 
   const [selectedProduct, setSelectedProduct] = useState<ApiSprayProduct | null>(null);
-  const [manualProductName, setManualProductName] = useState("");
+  const [manualProductName, setManualProductName] = useState(params.productName ?? "");
 
-  const [applicationRate, setApplicationRate] = useState("");
-  const [applicationUnit, setApplicationUnit] = useState("L/ha");
-  const [windSpeed, setWindSpeed] = useState("");
-  const [windDirection, setWindDirection] = useState("");
-  const [temperature, setTemperature] = useState("");
-  const [humidity, setHumidity] = useState("");
-  const [pressure, setPressure] = useState("");
-  const [equipmentUsed, setEquipmentUsed] = useState("");
-  const [notes, setNotes] = useState("");
-  const [productCostPencePerUnit, setProductCostPencePerUnit] = useState("");
-  const [targetCrop, setTargetCrop] = useState("");
-  const [growthStage, setGrowthStage] = useState("");
+  const [applicationRate, setApplicationRate] = useState(params.applicationRate ?? "");
+  const [applicationUnit, setApplicationUnit] = useState(params.applicationUnit ?? "L/ha");
+  const [windSpeed, setWindSpeed] = useState(params.windSpeed ?? "");
+  const [windDirection, setWindDirection] = useState(params.windDirection ?? "");
+  const [temperature, setTemperature] = useState(params.temperature ?? "");
+  const [humidity, setHumidity] = useState(params.humidity ?? "");
+  const [pressure, setPressure] = useState(params.pressure ?? "");
+  const [equipmentUsed, setEquipmentUsed] = useState(params.equipmentUsed ?? "");
+  const [notes, setNotes] = useState(params.notes ?? "");
+  const [productCostPencePerUnit, setProductCostPencePerUnit] = useState(
+    params.productCostPencePerUnit ?? "",
+  );
+  const [targetCrop, setTargetCrop] = useState(params.targetCrop ?? "");
+  const [growthStage, setGrowthStage] = useState(params.growthStage ?? "");
   const [cropAutoFilled, setCropAutoFilled] = useState(false);
 
   const [detectedField, setDetectedField] = useState<FieldBoundary | null>(null);
@@ -195,6 +235,17 @@ export default function SprayRecordScreen() {
 
   const lerapCategory = selectedProduct?.lerapCategory ?? null;
   const lerapBufferM = selectedProduct?.lerapStandardBufferM ?? null;
+
+  // Restore the registered product when the cached product list is available.
+  // Manual-entry records continue to display their saved name in the picker.
+  useEffect(() => {
+    if (!isPendingEdit || !params.productId || selectedProduct) return;
+    const product = products.find((candidate) => String(candidate.id) === String(params.productId));
+    if (product) {
+      setSelectedProduct(product);
+      setManualProductName("");
+    }
+  }, [isPendingEdit, params.productId, products, selectedProduct]);
 
   const bbchOptions = useMemo(
     () => bbchStages.map((s) => ({ id: s, label: s })),
@@ -319,11 +370,13 @@ export default function SprayRecordScreen() {
   }, [currentFarm?.id]);
 
   useEffect(() => {
+    if (isPendingEdit) return;
     detectFieldFromGPS();
     linkTodayWeather();
-  }, [detectFieldFromGPS, linkTodayWeather]);
+  }, [detectFieldFromGPS, linkTodayWeather, isPendingEdit]);
 
   useEffect(() => {
+    if (isPendingEdit) return;
     if (!fieldName.trim() || !currentFarm?.id) { setCropAutoFilled(false); return; }
     const today = new Date().toISOString().split("T")[0];
     const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
@@ -345,7 +398,7 @@ export default function SprayRecordScreen() {
         }
       } catch { /* ignore */ }
     })();
-  }, [fieldName, currentFarm?.id]);
+  }, [fieldName, currentFarm?.id, isPendingEdit]);
 
   const handleSave = async () => {
     if (!fieldName.trim() || !productName.trim() || !targetCrop.trim()) {
@@ -356,30 +409,32 @@ export default function SprayRecordScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    let latitude: number | undefined;
-    let longitude: number | undefined;
+    let latitude: number | undefined = params.latitude ? Number(params.latitude) : undefined;
+    let longitude: number | undefined = params.longitude ? Number(params.longitude) : undefined;
 
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        latitude = loc.coords.latitude;
-        longitude = loc.coords.longitude;
+    if (!isPendingEdit) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          latitude = loc.coords.latitude;
+          longitude = loc.coords.longitude;
+        }
+      } catch (locErr: unknown) {
+        console.warn("Spray record location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
       }
-    } catch (locErr: unknown) {
-      console.warn("Spray record location unavailable:", locErr instanceof Error ? locErr.message : "unknown");
     }
 
     const record: SprayRecord = {
-      id: generateId(),
+      id: params.pendingId ?? generateId(),
       farmId: currentFarm?.id || "",
       fieldName: fieldName.trim(),
       targetCrop: targetCrop.trim(),
       growthStage: growthStage.trim(),
       productName: productName.trim(),
-      productId: selectedProduct?.id,
-      lerapCategory: lerapCategory ?? undefined,
-      lerapStandardBufferM: lerapBufferM ?? undefined,
+      productId: selectedProduct?.id ?? (params.productId ? Number(params.productId) : undefined),
+      lerapCategory: lerapCategory ?? params.lerapCategory ?? undefined,
+      lerapStandardBufferM: lerapBufferM ?? params.lerapStandardBufferM ?? undefined,
       areaSprayedHa: areaSprayedHa.trim() || undefined,
       applicationRate: applicationRate.trim(),
       applicationUnit,
@@ -390,36 +445,66 @@ export default function SprayRecordScreen() {
       pressure: pressure.trim(),
       operatorName: operatorName,
       equipmentUsed: equipmentUsed.trim(),
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString(),
       notes: notes.trim(),
       productCostPencePerUnit: productCostPencePerUnit ? Math.round(parseFloat(productCostPencePerUnit) * 100) : undefined,
       waterSourceNearby: waterSourceNearby.trim() || undefined,
       bufferZoneMetres: bufferZoneMetres.trim() || undefined,
       latitude,
       longitude,
-      linkedWeatherDate: linkedWeather?.date || "",
-      detectedFieldId: detectedField?.id || "",
-      photoIds: [],
-      createdAt: new Date().toISOString(),
+      linkedWeatherDate: params.linkedWeatherDate ?? linkedWeather?.date ?? "",
+      detectedFieldId: params.detectedFieldId ?? detectedField?.id ?? "",
+      photoIds: params.photoIds ? JSON.parse(params.photoIds) as string[] : [],
+      startTime: params.startTime ?? new Date().toISOString(),
+      endTime: params.endTime ?? new Date().toISOString(),
+      createdAt: params.createdAt ?? new Date().toISOString(),
       synced: false,
     };
 
-    await appendToList(STORAGE_KEYS.SPRAY_RECORDS, record);
-    await refreshPendingCount();
-    setSaving(false);
-    Alert.alert("Saved", "Spray record saved. Print or save the application record?", [
-      { text: "Print", onPress: async () => { await print(sprayRecordHtml(record, currentFarm)); router.back(); } },
-      { text: "Save PDF", onPress: async () => { await savePdf(sprayRecordHtml(record, currentFarm), "Spray Record"); router.back(); } },
-      { text: "Done", onPress: () => router.back() },
-    ]);
+    try {
+      if (isPendingEdit) {
+        const outcome = await savePendingSprayRevision({
+          localId: params.pendingId!,
+          updatedRecord: record as unknown as Record<string, unknown>,
+        });
+        setSaving(false);
+        if (outcome === "server_record_unavailable") {
+          Alert.alert(
+            "Could Not Update",
+            "The record finished syncing, but its server copy could not be identified. Keep this screen open and try again.",
+          );
+          return;
+        }
+        await scheduleSync();
+        Alert.alert("Spray Record Updated", "Your changes will sync when you're back online.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      await appendToList(STORAGE_KEYS.SPRAY_RECORDS, record);
+      await refreshPendingCount();
+      setSaving(false);
+      Alert.alert("Saved", "Spray record saved. Print or save the application record?", [
+        { text: "Print", onPress: async () => { await print(sprayRecordHtml(record, currentFarm)); router.back(); } },
+        { text: "Save PDF", onPress: async () => { await savePdf(sprayRecordHtml(record, currentFarm), "Spray Record"); router.back(); } },
+        { text: "Done", onPress: () => router.back() },
+      ]);
+    } catch {
+      setSaving(false);
+      Alert.alert(
+        "Could Not Save",
+        isPendingEdit
+          ? "Could not update this pending spray record. Please try again."
+          : "Could not save this spray record. Please try again.",
+      );
+    }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Button title="" icon="arrow-left" variant="ghost" size="sm" onPress={() => router.back()} />
-        <Text style={styles.title}>Spray Record</Text>
+        <Text style={styles.title}>{isPendingEdit ? "Edit Pending Spray Record" : "Spray Record"}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -728,7 +813,7 @@ export default function SprayRecordScreen() {
           )}
 
           <Button
-            title="Save Spray Record"
+            title={isPendingEdit ? "Save Changes" : "Save Spray Record"}
             onPress={handleSave}
             loading={saving}
             fullWidth

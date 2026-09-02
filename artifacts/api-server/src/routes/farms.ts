@@ -3344,6 +3344,10 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
   if (!farmId) return;
   if (!(await checkFieldAreaLimit(farmId, req.body.fieldId ? Number(req.body.fieldId) : null, req.body.areaSprayedHa ? Number(req.body.areaSprayedHa) : null, res, "Area sprayed"))) return;
   const sprayBody = sanitiseBody(req.body as Record<string, unknown>);
+  const mobileRecordId = typeof sprayBody.mobileRecordId === "string" && sprayBody.mobileRecordId.trim()
+    ? sprayBody.mobileRecordId.trim()
+    : null;
+  sprayBody.mobileRecordId = mobileRecordId;
   // When a linked member ID is provided, derive operatorName from the member record so the
   // two fields never diverge (e.g. after a name change or when records are created via API).
   if (sprayBody.operatorMemberId) {
@@ -3388,7 +3392,31 @@ router.post("/farms/:farmId/spray-applications", requireAuth, requireTenant, req
     }
   }
 
-  const [record] = await db.insert(sprayApplicationsTable).values({ ...sprayBody, farmId }).returning();
+  const [createdRecord] = mobileRecordId
+    ? await db.insert(sprayApplicationsTable)
+      .values({ ...sprayBody, farmId })
+      .onConflictDoNothing({
+        target: [sprayApplicationsTable.farmId, sprayApplicationsTable.mobileRecordId],
+      })
+      .returning()
+    : await db.insert(sprayApplicationsTable).values({ ...sprayBody, farmId }).returning();
+  const [record] = createdRecord
+    ? [createdRecord]
+    : await db.select()
+      .from(sprayApplicationsTable)
+      .where(and(
+        eq(sprayApplicationsTable.farmId, farmId),
+        eq(sprayApplicationsTable.mobileRecordId, mobileRecordId!),
+      ))
+      .limit(1);
+  if (!record) {
+    res.status(500).json({ error: "Could not resolve spray application" });
+    return;
+  }
+  if (!createdRecord) {
+    res.status(200).json({ record, seasonWarning });
+    return;
+  }
 
   const rate = parseFloat(req.body.applicationRate);
   const area = parseFloat(req.body.areaSprayedHa);

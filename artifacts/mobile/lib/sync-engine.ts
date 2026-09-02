@@ -424,10 +424,12 @@ async function processQueue(): Promise<void> {
 
       try {
         const uploadResult = await uploadSyncItem(item);
-        if (uploadResult.createdOrganicInputServerId) {
+        const createdServerRecordId = uploadResult.createdOrganicInputServerId
+          ?? uploadResult.createdSprayServerId;
+        if (createdServerRecordId) {
           await setPendingSyncItemServerRecordId(
             item.id,
-            uploadResult.createdOrganicInputServerId,
+            createdServerRecordId,
           );
         }
         const completed = await markSyncItemCompletedIfUnchanged(item.id, item.data_json);
@@ -440,7 +442,7 @@ async function processQueue(): Promise<void> {
 
         const table = getTableForKey(item.record_type);
         if (table) {
-          if (uploadResult.deletedOrganicInput) {
+          if (uploadResult.deletedOrganicInput || uploadResult.deletedSprayRecord) {
             await deleteRecord(table, item.record_id);
           } else {
             await markRecordSynced(table, item.record_id);
@@ -627,7 +629,9 @@ async function getCachedModuleKeysForFarm(farmId: string): Promise<string[] | nu
 
 interface UploadSyncResult {
   createdOrganicInputServerId?: number;
+  createdSprayServerId?: number;
   deletedOrganicInput?: boolean;
+  deletedSprayRecord?: boolean;
 }
 
 async function uploadSyncItem(item: {
@@ -699,6 +703,18 @@ async function uploadSyncItem(item: {
     item.record_type === "bde_organic_inputs" &&
     data._discardRequested === true
   );
+  const pendingSprayServerId = item.record_type === "bde_spray_records"
+    ? Number(data._serverRecordId)
+    : null;
+  const hasPendingSprayServerId = (
+    pendingSprayServerId !== null &&
+    Number.isInteger(pendingSprayServerId) &&
+    pendingSprayServerId > 0
+  );
+  const discardPendingSprayRecord = (
+    item.record_type === "bde_spray_records" &&
+    data._discardRequested === true
+  );
   const organicInputEdit = item.record_type === ORGANIC_INPUT_EDIT_RECORD_TYPE
     ? parseQueuedOrganicInputEdit(data)
     : null;
@@ -712,7 +728,9 @@ async function uploadSyncItem(item: {
     ? `/farms/${organicInputEdit.farmId}/organic/inputs/${organicInputEdit.serverRecordId}`
     : hasPendingOrganicServerId
       ? `/farms/${String(data.farmId)}/organic/inputs/${pendingOrganicServerId}`
-    : getSyncEndpoint(item.record_type, data.farmId as string, data);
+      : hasPendingSprayServerId
+        ? `/farms/${String(data.farmId)}/spray-applications/${pendingSprayServerId}`
+        : getSyncEndpoint(item.record_type, data.farmId as string, data);
   if (!endpoint) {
     await simulateUpload();
     return {};
@@ -731,14 +749,18 @@ async function uploadSyncItem(item: {
 
   const mappedData = organicInputEdit?.changes ?? remapForApi(item.record_type, data);
   const baseUrl = `https://${apiDomain}/api`;
+  const deletesResolvedServerRecord = (
+    (discardPendingOrganicInput && hasPendingOrganicServerId) ||
+    (discardPendingSprayRecord && hasPendingSprayServerId)
+  );
   const response = await fetch(`${baseUrl}${endpoint}`, {
-    method: discardPendingOrganicInput && hasPendingOrganicServerId
+    method: deletesResolvedServerRecord
       ? "DELETE"
-      : organicInputEdit || hasPendingOrganicServerId
+      : organicInputEdit || hasPendingOrganicServerId || hasPendingSprayServerId
         ? "PUT"
         : "POST",
     headers,
-    ...(discardPendingOrganicInput && hasPendingOrganicServerId
+    ...(deletesResolvedServerRecord
       ? {}
       : { body: JSON.stringify(mappedData) }),
   });
@@ -748,6 +770,9 @@ async function uploadSyncItem(item: {
   }
   if (discardPendingOrganicInput && hasPendingOrganicServerId) {
     return { deletedOrganicInput: true };
+  }
+  if (discardPendingSprayRecord && hasPendingSprayServerId) {
+    return { deletedSprayRecord: true };
   }
   if (item.record_type === "bde_organic_inputs" && !hasPendingOrganicServerId) {
     let responseBody: unknown;
@@ -763,6 +788,21 @@ async function uploadSyncItem(item: {
       throw new Error("Organic input create response did not include a valid server record ID");
     }
     return { createdOrganicInputServerId: serverId };
+  }
+  if (item.record_type === "bde_spray_records" && !hasPendingSprayServerId) {
+    let responseBody: unknown;
+    try {
+      responseBody = await response.json();
+    } catch {
+      throw new Error("Spray application create response did not include a server record");
+    }
+    const serverId = Number(
+      (responseBody as { record?: { id?: unknown } } | null)?.record?.id,
+    );
+    if (!Number.isInteger(serverId) || serverId <= 0) {
+      throw new Error("Spray application create response did not include a valid server record ID");
+    }
+    return { createdSprayServerId: serverId };
   }
   return {};
 }
@@ -792,6 +832,14 @@ function remapForApi(recordType: string, data: Record<string, unknown>): Record<
   if (recordType === "bde_organic_inputs") {
     // Include the stable mobile UUID as mobileRecordId so the server-side
     // ON CONFLICT DO NOTHING upsert can deduplicate retries after a lost response.
+    const {
+      _serverRecordId: _ignoredServerRecordId,
+      _discardRequested: _ignoredDiscardRequested,
+      ...apiData
+    } = data;
+    return { ...apiData, mobileRecordId: data.id };
+  }
+  if (recordType === "bde_spray_records") {
     const {
       _serverRecordId: _ignoredServerRecordId,
       _discardRequested: _ignoredDiscardRequested,

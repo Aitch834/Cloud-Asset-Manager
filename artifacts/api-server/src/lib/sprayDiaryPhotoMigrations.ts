@@ -7,6 +7,14 @@ import { sql } from "drizzle-orm";
  */
 export async function runSprayDiaryPhotoMigrations(): Promise<void> {
   await db.execute(sql`
+    ALTER TABLE spray_applications
+      ADD COLUMN IF NOT EXISTS mobile_record_id text
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS spray_applications_farm_mobile_record_uidx
+      ON spray_applications(farm_id, mobile_record_id)
+  `);
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS vineyard_spray_diary_photos (
       id             serial PRIMARY KEY,
       spray_diary_id integer NOT NULL REFERENCES vineyard_spray_diary(id) ON DELETE CASCADE,
