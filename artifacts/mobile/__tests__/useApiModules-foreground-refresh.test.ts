@@ -83,6 +83,10 @@ describe("useApiModules foreground refresh", () => {
       "bde_active_module_keys_42",
       JSON.stringify(["field-crop-management", "water-irrigation"]),
     );
+    expect(mockKvSet).toHaveBeenCalledWith(
+      "bde_last_known_active_module_keys_42",
+      JSON.stringify(["field-crop-management", "water-irrigation"]),
+    );
 
     if (typeof cleanup === "function") cleanup();
   });

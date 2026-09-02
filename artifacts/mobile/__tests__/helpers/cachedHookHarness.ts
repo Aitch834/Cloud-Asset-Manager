@@ -230,3 +230,27 @@ export async function runHook<T>(
     updateItems: hookResult.updateItems ?? (() => {}),
   };
 }
+
+/**
+ * Run a hook whose state contract differs from buildCachedApiHook.
+ *
+ * Custom offline hooks often expose derived values or a small state tuple
+ * rather than `{ items, loading, fromCache, ... }`. This keeps their tests
+ * on the same lightweight React/effect harness without pretending that every
+ * hook has the cached-factory result shape.
+ */
+export async function runEffectHook<T>(
+  hookFn: () => T,
+  ctx: HarnessContext,
+  initialSlots: unknown[] = [],
+): Promise<{ result: T; states: unknown[] }> {
+  ctx.slotCounter.value = 0;
+  ctx.store.reset(initialSlots);
+  const result = hookFn();
+
+  if (ctx.capturedEffect.value) ctx.capturedEffect.value();
+
+  await drainAsync();
+
+  return { result, states: [...ctx.store.values] };
+}
