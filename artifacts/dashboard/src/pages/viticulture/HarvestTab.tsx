@@ -2245,9 +2245,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const bFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-        // Top-row highlight: first sorted row when sorted by a numeric column
+        // Top-row highlight: first named block when sorted by a numeric column.
+        // Keep the administrative "Not linked" bucket out of badge eligibility.
         const NUMERIC_SUMMARY_COLS = new Set(["totalYieldKg", "derivedTha", "avgBrix", "avgPh", "avgTa", "avgPa"]);
-        const topSummaryBlock = NUMERIC_SUMMARY_COLS.has(summarySort.col) ? (sortedSummaryRows[0]?.name ?? null) : null;
+        const eligibleSummaryRows = sortedSummaryRows.filter(row => row.name !== "Not linked");
+        const topSummaryBlock = NUMERIC_SUMMARY_COLS.has(summarySort.col) ? (eligibleSummaryRows[0]?.name ?? null) : null;
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
