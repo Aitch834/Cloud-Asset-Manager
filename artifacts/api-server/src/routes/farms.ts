@@ -9,6 +9,7 @@ import { encryptCredential, decryptCredential } from "../lib/encrypt";
 import { analysePestTrapImage } from "../lib/pestVision";
 import { objectStorageClient } from "../lib/objectStorage";
 import { shouldSurfaceFirstProductionSubmission } from "../lib/lisFirstProductionSubmission";
+import { recordLisClosureEmailFailure } from "../lib/lisClosureEmailFailure";
 
 // Decrypt a LIP OAuth token stored in lip_farm_tokens.
 // Handles both new enc:v1: format and plaintext (existing rows — transition safe).
@@ -28683,44 +28684,33 @@ router.post("/farms/:farmId/lis-submit/:movementId", requireAuth, requireTenant,
               `);
               console.warn(`[LIS] INC0208722 closure email FAILED (will retry on next production submission): ${emailResult.reason}`);
 
-              // Persist an open support ticket so the failure remains visible in the
-              // admin portal even when the SMTP transport is unavailable. The email
-              // alert below is best-effort and uses the existing support alert path.
               try {
-                const failureSubject = "INC0208722 closure email failed — manual LIS follow-up required";
-                const failureDescription = [
-                  "The automated closure email for LIS incident INC0208722 could not be sent after a successful live CLA production submission.",
-                  `LIS Movement Document Reference: ${lisRef}`,
-                  `Email error: ${emailResult.reason ?? "unknown"}`,
-                  "Action required: send the closure email manually to incidentmanagement@livestockinformation.org.uk, referencing INC0208722 and the LIS movement document reference above.",
-                ].join("\n\n");
-                const [alertTicket] = await db.insert(supportTicketsTable).values({
-                  name: "BDE Farm Trac automated monitoring",
-                  email: "hello@bdefarmtrac.co.uk",
-                  subject: failureSubject,
-                  description: failureDescription,
-                  source: "system",
+                const failureAlert = await recordLisClosureEmailFailure({
+                  submission: {
+                    success: result.success,
+                    sandbox: result.sandbox,
+                    reference: result.reference,
+                    submissionId: submission.id,
+                  },
+                  emailResult,
                   farmId,
                   tenantSlug: req.tenantSlug ?? null,
-                }).returning();
-                const ticketRef = `BDE-${alertTicket.createdAt.getFullYear().toString().slice(2)}${String(alertTicket.createdAt.getMonth() + 1).padStart(2, "0")}-${String(alertTicket.id).padStart(4, "0")}`;
-                await db.update(supportTicketsTable).set({ ticketRef }).where(eq(supportTicketsTable.id, alertTicket.id));
-
-                const alertResult = await sendNewTicketInternalAlert({
-                  ticketRef,
-                  ticketId: alertTicket.id,
-                  name: alertTicket.name,
-                  email: alertTicket.email,
-                  subject: failureSubject,
-                  description: failureDescription,
-                  source: "system",
-                  tenantSlug: req.tenantSlug ?? null,
-                  farmId,
+                }, {
+                  insertTicket: async (ticket) => {
+                    const [alertTicket] = await db.insert(supportTicketsTable).values(ticket).returning();
+                    return alertTicket;
+                  },
+                  updateTicketRef: async (ticketId, ticketRef) => {
+                    await db.update(supportTicketsTable).set({ ticketRef }).where(eq(supportTicketsTable.id, ticketId));
+                  },
+                  sendInternalAlert: sendNewTicketInternalAlert,
                 });
-                if (!alertResult.sent) {
-                  console.warn(`[LIS] INC0208722 admin email alert not sent for ${ticketRef}: ${alertResult.reason}`);
+                if (failureAlert && !failureAlert.alertResult.sent) {
+                  console.warn(`[LIS] INC0208722 admin email alert not sent for ${failureAlert.ticketRef}: ${failureAlert.alertResult.reason}`);
                 }
-                console.error(`[LIS] INC0208722 failure alert created as support ticket ${ticketRef}`);
+                if (failureAlert) {
+                  console.error(`[LIS] INC0208722 failure alert created as support ticket ${failureAlert.ticketRef}`);
+                }
               } catch (alertErr) {
                 console.error("[LIS] Failed to create INC0208722 admin failure alert:", alertErr);
               }
