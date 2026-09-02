@@ -104,8 +104,14 @@ function ConditionPicker({ value, onChange }: { value: string; onChange: (v: str
 export default function VineHarvestScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
-  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
-  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const { address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
+  const missingAddressFields: string[] = !identifiersLoading
+    ? [
+        !currentFarm?.name || currentFarm.name.trim() === "" ? "Farm name" : "",
+        !address || address.trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
+  const missingIdentifiers = missingAddressFields.length > 0;
   const { dismissed: bannerDismissed, dismiss: dismissBanner } = useIdentifierBannerDismiss("vine-harvest", currentFarm?.id, user?.id);
   useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
   const { refreshPendingCount } = useSync();
@@ -216,9 +222,9 @@ export default function VineHarvestScreen() {
           bannerDismissed={bannerDismissed}
           onClearJustSaved={clearJustSaved}
           onDismiss={dismissBanner}
-          cphMissing={!cphNumber}
-          sbiMissing={!sbiNumber}
-          context="harvest records"
+          cphMissing={false}
+          sbiMissing={false}
+          warningMessage={`${missingAddressFields.join(" and ")} ${missingAddressFields.length === 1 ? "is" : "are"} missing from your farm profile.`}
         />
 
         <View style={styles.card}>

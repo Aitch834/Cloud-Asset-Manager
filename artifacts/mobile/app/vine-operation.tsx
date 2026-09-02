@@ -1,8 +1,8 @@
 import { StaffMemberPicker, type ApiFarmMember, memberFullName } from "@/components/StaffMemberPicker";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -60,9 +60,16 @@ export default function VineOperationScreen() {
   const [saving, setSaving] = useState(false);
   const { blockId } = useLocalSearchParams<{ blockId?: string }>();
 
-  const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved } = useFarmIdentifiers(currentFarm?.id);
+  const { address, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const { dismissed: bannerDismissed, dismiss: dismissIdentifierBanner } = useIdentifierBannerDismiss("vine-operations", currentFarm?.id, user?.id);
-  const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
+  const missingAddressFields: string[] = !identifiersLoading
+    ? [
+        !currentFarm?.name || currentFarm.name.trim() === "" ? "Farm name" : "",
+        !address || address.trim() === "" ? "Farm address" : "",
+      ].filter(Boolean)
+    : [];
+  const missingIdentifiers = missingAddressFields.length > 0;
+  useFocusEffect(useCallback(() => { refetchIdentifiers(); }, [refetchIdentifiers]));
 
   const [selectedOperator, setSelectedOperator] = useState<ApiFarmMember | null>(null);
   const [manualOperator, setManualOperator] = useState(user?.name || "");
@@ -152,9 +159,9 @@ export default function VineOperationScreen() {
           bannerDismissed={bannerDismissed}
           onClearJustSaved={clearJustSaved}
           onDismiss={dismissIdentifierBanner}
-          cphMissing={!cphNumber}
-          sbiMissing={!sbiNumber}
-          context="operation records"
+          cphMissing={false}
+          sbiMissing={false}
+          warningMessage={`${missingAddressFields.join(" and ")} ${missingAddressFields.length === 1 ? "is" : "are"} missing from your farm profile.`}
         />
 
         <View style={styles.card}>
