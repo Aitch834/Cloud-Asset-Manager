@@ -31,6 +31,8 @@ import {
   filterRestrictedInputs,
   type RestrictedInputsStatusFilter,
 } from "@/lib/organicRestrictedInputsCsv";
+import { organicInputRegisterHtml } from "@/lib/organicInputPrint";
+import { usePrint } from "@/lib/hooks/usePrint";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -251,6 +253,7 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { pendingCount, refreshPendingCount } = useSync();
+  const { savePdf } = usePrint();
   const farmId = currentFarm?.id;
 
   const [records, setRecords] = useState<DisplayRecord[]>([]);
@@ -431,6 +434,36 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
     }
   }
 
+  async function handlePrint() {
+    if (restrictedOnly) return;
+
+    // Match CSV: include offline additions, but not partial queued edits.
+    const exportable = records.filter(r => !r.editPending);
+    if (exportable.length === 0) {
+      Alert.alert(
+        "Nothing to print",
+        records.length > 0
+          ? "All records have edits still awaiting sync. Please sync your data first, then print."
+          : "There are no input records to print.",
+      );
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const cropYears = [...new Set(exportable.map(r => r.cropYear).filter(Boolean) as number[])];
+      const cropYear = cropYears.length === 1 ? cropYears[0] : null;
+      await savePdf(
+        organicInputRegisterHtml(exportable, currentFarm?.name ?? "farm", cropYear),
+        "Organic Input Register",
+      );
+    } catch {
+      Alert.alert("Print failed", "Could not generate or share the Input Register PDF.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const handleEdit = (r: DisplayRecord) => {
     const sharedParams = {
       productName: r.productName ?? "",
@@ -547,6 +580,20 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
               : <Feather name="download" size={16} color={colors.primary} />}
             <Text style={styles.exportLabel}>{exporting ? "…" : restrictedOnly ? "Export CSV" : "CSV"}</Text>
           </Pressable>
+          {!restrictedOnly && (
+            <Pressable
+              style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+              onPress={handlePrint}
+              disabled={exporting}
+              accessibilityRole="button"
+              accessibilityLabel="Print or share Input Register PDF"
+            >
+              {exporting
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Feather name="printer" size={16} color={colors.primary} />}
+              <Text style={styles.exportLabel}>{exporting ? "…" : "Print / Share PDF"}</Text>
+            </Pressable>
+          )}
           {!restrictedOnly && (
             <Pressable style={styles.addButton} onPress={() => router.push("/organic-input")}>
               <Feather name="plus" size={22} color={colors.primary} />
