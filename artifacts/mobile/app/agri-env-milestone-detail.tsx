@@ -114,6 +114,64 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ProjectSummaryCard({
+  project,
+  projectMilestones,
+}: {
+  project: AgriEnvProject | null;
+  projectMilestones: AgriEnvMilestone[];
+}) {
+  if (!project || (project.totalGrantValuePence ?? 0) <= 0) return null;
+
+  const total = project.totalGrantValuePence ?? 0;
+  // All-time paid/submitted across all milestones for this project.
+  // projectMilestones holds the full list fetched by the detail endpoint,
+  // so these totals are accurate even when there are sibling milestones.
+  const allTimePaid = projectMilestones
+    .filter(m => m.status === "paid")
+    .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+  const allTimeSubmitted = projectMilestones
+    .filter(m => m.status === "submitted")
+    .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+  const remaining = total - allTimePaid;
+  const isFullyClaimed = remaining <= 0;
+
+  return (
+    <View style={styles.projectSummaryCard}>
+      <Text style={styles.projectSummaryScheme} numberOfLines={2}>
+        {project.schemeName}
+      </Text>
+      <View style={styles.projectSummaryRow}>
+        <Text style={styles.projectSummaryTotal}>
+          {fmt(total)} total grant value
+        </Text>
+        <View style={[
+          styles.remainingPill,
+          isFullyClaimed ? styles.remainingPillFull : styles.remainingPillPartial,
+        ]}>
+          <Text style={[
+            styles.remainingPillText,
+            isFullyClaimed ? styles.remainingPillTextFull : styles.remainingPillTextPartial,
+          ]}>
+            {isFullyClaimed ? "fully claimed" : `${fmt(remaining)} left`}
+          </Text>
+        </View>
+      </View>
+      {allTimePaid > 0 && (
+        <Text style={styles.projectSummaryMeta}>
+          {fmt(allTimePaid)} claimed so far
+          {allTimeSubmitted > 0 ? ` · ${fmt(allTimeSubmitted)} submitted` : ""}
+        </Text>
+      )}
+      {allTimePaid === 0 && allTimeSubmitted > 0 && (
+        <Text style={styles.projectSummaryMeta}>
+          {fmt(allTimeSubmitted)} submitted (awaiting payment)
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export default function AgriEnvMilestoneDetailScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
@@ -483,6 +541,11 @@ export default function AgriEnvMilestoneDetailScreen() {
             </Text>
           </View>
 
+          <ProjectSummaryCard
+            project={project}
+            projectMilestones={projectMilestones}
+          />
+
           <View style={styles.card}>
             <Text style={styles.sectionHeading}>Status</Text>
             <View style={styles.statusOptions}>
@@ -705,54 +768,10 @@ export default function AgriEnvMilestoneDetailScreen() {
           </View>
 
           {/* Project context summary */}
-          {project && (project.totalGrantValuePence ?? 0) > 0 && (() => {
-            const total = project.totalGrantValuePence ?? 0;
-            // All-time paid/submitted across all milestones for this project.
-            // projectMilestones holds the full list fetched by the detail endpoint,
-            // so these totals are accurate even when there are sibling milestones.
-            const allTimePaid = projectMilestones
-              .filter(m => m.status === "paid")
-              .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-            const allTimeSubmitted = projectMilestones
-              .filter(m => m.status === "submitted")
-              .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
-            const remaining = total - allTimePaid;
-            const isFullyClaimed = remaining <= 0;
-            return (
-              <View style={styles.projectSummaryCard}>
-                <Text style={styles.projectSummaryScheme} numberOfLines={2}>
-                  {project.schemeName}
-                </Text>
-                <View style={styles.projectSummaryRow}>
-                  <Text style={styles.projectSummaryTotal}>
-                    {fmt(total)} total grant value
-                  </Text>
-                  <View style={[
-                    styles.remainingPill,
-                    isFullyClaimed ? styles.remainingPillFull : styles.remainingPillPartial,
-                  ]}>
-                    <Text style={[
-                      styles.remainingPillText,
-                      isFullyClaimed ? styles.remainingPillTextFull : styles.remainingPillTextPartial,
-                    ]}>
-                      {isFullyClaimed ? "fully claimed" : `${fmt(remaining)} left`}
-                    </Text>
-                  </View>
-                </View>
-                {allTimePaid > 0 && (
-                  <Text style={styles.projectSummaryMeta}>
-                    {fmt(allTimePaid)} claimed so far
-                    {allTimeSubmitted > 0 ? ` · ${fmt(allTimeSubmitted)} submitted` : ""}
-                  </Text>
-                )}
-                {allTimePaid === 0 && allTimeSubmitted > 0 && (
-                  <Text style={styles.projectSummaryMeta}>
-                    {fmt(allTimeSubmitted)} submitted (awaiting payment)
-                  </Text>
-                )}
-              </View>
-            );
-          })()}
+          <ProjectSummaryCard
+            project={project}
+            projectMilestones={projectMilestones}
+          />
 
           {/* Dates & claim */}
           <View style={styles.card}>
