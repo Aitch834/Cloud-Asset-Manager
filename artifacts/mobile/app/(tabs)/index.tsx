@@ -35,6 +35,11 @@ import { useApiFarmDashboard } from "@/lib/hooks/useApiFarmDashboard";
 import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
+import {
+  getUpcomingInspectionReminders,
+  type OrganicInspectionReminder,
+  type OrganicInspectionReminderRecord,
+} from "@/lib/organicInspectionReminders";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
@@ -90,12 +95,7 @@ export default function HomeScreen() {
   const [completionDate, setCompletionDate] = useState<Date>(new Date());
   const [evidenceNote, setEvidenceNote] = useState("");
   const [isMarkingComplete, setIsMarkingComplete] = useState(false);
-  const [upcomingInspections, setUpcomingInspections] = useState<Array<{
-    id: number;
-    certifier: string;
-    nextDueDate: string;
-    isOverdue: boolean;
-  }>>([]);
+  const [upcomingInspections, setUpcomingInspections] = useState<OrganicInspectionReminder[]>([]);
 
   const handleMarkComplete = useCallback(async () => {
     if (!markCompleteTarget || !currentFarm?.id) return;
@@ -200,46 +200,8 @@ export default function HomeScreen() {
       const res = await apiFetch(`/api/farms/${currentFarm.id}/organic/inspections`);
       if (!res.ok) return;
       const data = await res.json();
-      const records: Array<{ id: number; certifier: string; inspectionDate?: string | null; nextDueDate?: string | null }> = data.records ?? [];
-      // Pick only the most recent inspection per certifier to avoid stale next-due dates
-      const latestByCertifier = new Map<string, typeof records[0]>();
-      for (const r of records) {
-        const existing = latestByCertifier.get(r.certifier);
-        if (
-          !existing ||
-          // A dated record always beats an undated existing record.
-          (!!r.inspectionDate && !existing.inspectionDate) ||
-          // Both dated: later date wins; same date → higher ID wins.
-          (!!r.inspectionDate && !!existing.inspectionDate &&
-            (r.inspectionDate > existing.inspectionDate ||
-             (r.inspectionDate === existing.inspectionDate && r.id > existing.id))) ||
-          // Both undated: higher ID wins (best-available tie-breaker).
-          (!r.inspectionDate && !existing.inspectionDate && r.id > existing.id)
-        ) {
-          latestByCertifier.set(r.certifier, r);
-        }
-      }
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const horizon = new Date(today);
-      horizon.setDate(horizon.getDate() + 90);
-      const upcoming = Array.from(latestByCertifier.values())
-        .filter((r) => {
-          if (!r.nextDueDate) return false;
-          const due = new Date(r.nextDueDate);
-          const isOverdue = due < today;
-          // Keep overdue inspections visible indefinitely; only future dates use the 90-day horizon.
-          return isOverdue || due <= horizon;
-        })
-        .map((r) => ({
-          id: r.id,
-          certifier: r.certifier,
-          nextDueDate: r.nextDueDate as string,
-          isOverdue: new Date(r.nextDueDate as string) < today,
-        }))
-        .sort((a, b) => new Date(a.nextDueDate).getTime() - new Date(b.nextDueDate).getTime())
-        .slice(0, 5);
-      setUpcomingInspections(upcoming);
+      const records: OrganicInspectionReminderRecord[] = data.records ?? [];
+      setUpcomingInspections(getUpcomingInspectionReminders(records));
     } catch { /* ignore */ }
   }, [currentFarm?.id, isOrganicActive]);
 
