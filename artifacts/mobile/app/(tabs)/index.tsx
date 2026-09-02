@@ -227,7 +227,9 @@ export default function HomeScreen() {
         .filter((r) => {
           if (!r.nextDueDate) return false;
           const due = new Date(r.nextDueDate);
-          return due <= horizon;
+          const isOverdue = due < today;
+          // Keep overdue inspections visible indefinitely; only future dates use the 90-day horizon.
+          return isOverdue || due <= horizon;
         })
         .map((r) => ({
           id: r.id,
