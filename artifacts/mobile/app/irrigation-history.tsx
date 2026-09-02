@@ -226,24 +226,6 @@ export default function IrrigationHistoryScreen() {
     setLocalItems([]);
   }, [farmId]);
 
-  // ── Subscribe to sync engine (transition-only) ────────────────────────────
-
-  useEffect(() => {
-    const unsub = subscribeSyncEngine((syncState) => {
-      const wasSyncing = prevIsSyncingRef.current;
-      prevIsSyncingRef.current = syncState.isSyncing;
-      // Only reload after a genuine sync cycle ends (isSyncing: true → false).
-      // Ignoring the false→false no-op prevents loadLocalItems from firing
-      // during the scheduleSync() pending-count refresh (which broadcasts state
-      // without ever starting a sync cycle), which would clear pending-retry
-      // cards before the upload attempt even starts.
-      if (wasSyncing && !syncState.isSyncing) {
-        void loadLocalItems();
-      }
-    });
-    return unsub;
-  }, [loadLocalItems]);
-
   // ── Server history load ────────────────────────────────────────────────────
 
   const load = useCallback(
@@ -284,6 +266,26 @@ export default function IrrigationHistoryScreen() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // ── Subscribe to sync engine (transition-only) ────────────────────────────
+
+  useEffect(() => {
+    const unsub = subscribeSyncEngine((syncState) => {
+      const wasSyncing = prevIsSyncingRef.current;
+      prevIsSyncingRef.current = syncState.isSyncing;
+      // Only reload after a genuine sync cycle ends (isSyncing: true → false).
+      // Ignoring the false→false no-op prevents load() from firing during the
+      // scheduleSync() pending-count refresh, which broadcasts state without
+      // ever starting a sync cycle and would clear pending-retry cards before
+      // the upload attempt begins.
+      if (wasSyncing && !syncState.isSyncing) {
+        // Reload both the queue and server history. A successful retry removes
+        // the queue row and adds the uploaded record to the normal server list.
+        void load();
+      }
+    });
+    return unsub;
   }, [load]);
 
   const refresh = useCallback(() => {
