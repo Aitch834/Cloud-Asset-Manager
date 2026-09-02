@@ -2583,12 +2583,11 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
         ))
       : Promise.resolve([] as Array<{ id: number; fieldName: string; fieldReference: string | null; areaHectares: string | null; plantingDate: Date | null; expectedHarvestDate: Date | null; }>),
 
-    // 9. Irrigation events for this farm during the season, with the joined field name
+    // 9. Irrigation events for this farm during the season (no fieldId column — filtered by date)
     db.select({
       id: irrigationRecordsTable.id,
       irrigationDate: irrigationRecordsTable.irrigationDate,
       fieldOrBlockDescription: irrigationRecordsTable.fieldOrBlockDescription,
-      fieldName: fieldsTable.name,
       areaIrrigatedHa: irrigationRecordsTable.areaIrrigatedHa,
       cropType: irrigationRecordsTable.cropType,
       growthStage: irrigationRecordsTable.growthStage,
@@ -2601,7 +2600,6 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       notes: irrigationRecordsTable.notes,
     })
     .from(irrigationRecordsTable)
-    .leftJoin(fieldsTable, eq(irrigationRecordsTable.fieldId, fieldsTable.id))
     .where(and(
       eq(irrigationRecordsTable.farmId, farmId),
       gte(irrigationRecordsTable.irrigationDate, seasonStart.toISOString().slice(0, 10)),

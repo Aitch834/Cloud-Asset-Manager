@@ -172,7 +172,6 @@ interface ReportData {
     id: number;
     irrigationDate: string;
     fieldOrBlockDescription: string;
-    fieldName: string | null;
     areaIrrigatedHa: string | null;
     cropType: string | null;
     growthStage: string | null;
@@ -1033,7 +1032,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                         {data.irrigation.map(r => (
                           <tr key={r.id}>
                             <Td>{fmt(r.irrigationDate)}</Td>
-                            <Td>{r.fieldName || r.fieldOrBlockDescription}</Td>
+                            <Td>{r.fieldOrBlockDescription}</Td>
                             <Td><Badge color="blue">{r.irrigationMethod}</Badge></Td>
                             <Td>{[r.cropType, r.growthStage].filter(Boolean).join(" / ") || "—"}</Td>
                             <Td right mono>{n(r.applicationDepthMm)}</Td>
