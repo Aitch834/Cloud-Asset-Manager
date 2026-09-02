@@ -806,7 +806,7 @@ export function BarrelMovementLog({ farmId, vesselId, currentZone, currentPositi
   );
 }
 
-export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number; vesselId: number; readOnly?: boolean }) {
+export function VesselCleanRow({ farmId, vesselId, readOnly, autoOpenAdd }: { farmId: number; vesselId: number; readOnly?: boolean; autoOpenAdd?: boolean }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const viticultureActive = useIsViticultureActive(farmId);
@@ -825,6 +825,12 @@ export function VesselCleanRow({ farmId, vesselId, readOnly }: { farmId: number;
   const sf = (k: string, v: string | boolean) => setForm(f => ({ ...f, [k]: v }));
 
   const openAdd = () => { setEditingClean(null); setForm(blankForm()); setShowForm(true); };
+  // Auto-open the add form when the parent requests it (e.g. tapping the "Never cleaned" badge).
+  // Runs once on mount so it fires only when the cleaning tab is first rendered after the shortcut.
+  useEffect(() => {
+    if (autoOpenAdd && !readOnly) openAdd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const openEdit = (c: Record<string, unknown>) => {
     setEditingClean(c);
     setForm({
@@ -1220,6 +1226,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [view, setView] = useState<Record<string, unknown> | null>(null);
   const [autoOpenFill, setAutoOpenFill] = useState(false);
+  const [autoOpenClean, setAutoOpenClean] = useState(false);
   const [deleting, setDeleting] = useState<Record<string, unknown> | null>(null);
   const [maintenanceCsvPending, setMaintenanceCsvPending] = useState(false);
   const [vesselCsvExporting, setVesselCsvExporting] = useState(false);
@@ -2150,7 +2157,17 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                           >No fills logged</button>
                         )}
                         {isBarrelRow && Number(r.clean_count ?? 0) === 0 && (
-                          <span className="text-xs rounded border px-1.5 py-0.5 bg-red-50 text-red-700 border-red-200 font-medium normal-case tracking-normal">Never cleaned</span>
+                          <button
+                            type="button"
+                            className="text-xs rounded border px-1.5 py-0.5 bg-red-50 text-red-700 border-red-200 font-medium normal-case tracking-normal hover:bg-red-100 transition-colors cursor-pointer"
+                            title="Click to log the first clean"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDetailTab("cleaning");
+                              setAutoOpenClean(true);
+                              openView(r);
+                            }}
+                          >Never cleaned</button>
                         )}
                       </div>
                     </td>
@@ -2312,7 +2329,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       </Dialog>
 
       {view && (
-        <Dialog open onOpenChange={() => { setView(null); setAutoOpenFill(false); }}>
+        <Dialog open onOpenChange={() => { setView(null); setAutoOpenFill(false); setAutoOpenClean(false); }}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Vessel — {fmt(view.vessel_ref)}</DialogTitle></DialogHeader>
             
@@ -2394,7 +2411,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   <BarrelMovementLog farmId={farmId} vesselId={view.id as number} currentZone={String(view.cellar_zone ?? "")} currentPosition={String(view.cellar_position ?? "")} onMoveLogged={(toZone, toPosition) => setView(v => v ? { ...v, cellar_zone: toZone, cellar_position: toPosition } : v)} />
                 )}
                 {detailTab === "cleaning" && (
-                  <VesselCleanRow farmId={farmId} vesselId={view.id as number} />
+                  <VesselCleanRow farmId={farmId} vesselId={view.id as number} autoOpenAdd={autoOpenClean} />
                 )}
               </>
             ) : (
