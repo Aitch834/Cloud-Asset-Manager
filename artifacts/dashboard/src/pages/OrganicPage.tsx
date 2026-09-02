@@ -24,6 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
 import { downloadCsvFile } from "@/lib/csv";
+import {
+  getRestrictedInputCsvHeaders,
+  getRestrictedInputPrintHeaderHtml,
+  getRestrictedInputPrintCellStyle,
+  getRestrictedInputValues,
+  RESTRICTED_INPUT_APPROVAL_STATUS_LABELS as APPROVAL_STATUS_LABELS,
+} from "@/lib/restricted-inputs-export";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -172,45 +179,21 @@ function exportRestrictedInputsCsv(records: OrganicInput[], farmName: string, fi
   const slug = farmName.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
   const filterLabel = filter === "all" ? "all" : filter;
   downloadCsvFile(`restricted-inputs-${filterLabel}-${slug}.csv`, [
-    ["Date Applied", "Product", "Type / Category", "Field / Area", "Applied By", "Approval Status", "Certifier Approval Ref", "Certifier Notified", "Derogation Expiry Date", "Supplier", "PO Reference", "GRN / Delivery Ref", "Justification"],
-    ...records.map(r => [
-      r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "",
-      r.productName,
-      r.inputType ?? "",
-      r.fieldName ?? "",
-      r.appliedBy ?? "",
-      APPROVAL_STATUS_LABELS[r.approvalStatus] ?? r.approvalStatus,
-      r.certifierApprovalRef ?? "",
-      r.certifierNotified ? "Yes" : "No",
-      r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "",
-      r.supplier ?? "",
-      r.poReference ?? "",
-      r.grnReference ?? "",
-      r.justification ?? "",
-    ]),
+    getRestrictedInputCsvHeaders(),
+    ...records.map(getRestrictedInputValues),
   ]);
 }
 
 function printRestrictedInputsLog(records: OrganicInput[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const rows = records.map(r => `<tr>
-    <td style="white-space:nowrap">${r.dateOfUse ? new Date(r.dateOfUse).toLocaleDateString("en-GB") : "—"}</td>
-    <td style="font-weight:600">${r.productName}</td>
-    <td>${r.inputType || "—"}</td>
-    <td>${r.fieldName || "—"}</td>
-    <td>${r.appliedBy || "—"}</td>
-    <td>${r.supplier || "—"}</td>
-    <td>${r.poReference || "—"}</td>
-    <td>${r.grnReference || "—"}</td>
-    <td>${r.justification || "—"}</td>
-    <td>${r.certifierApprovalRef || "—"}</td>
-    <td>${r.certifierNotified ? "Yes" : "No"}</td>
-    <td style="white-space:nowrap">${r.derogationExpiryDate ? new Date(r.derogationExpiryDate).toLocaleDateString("en-GB") : "—"}</td>
-  </tr>`).join("");
+  const rows = records.map(r => `<tr>${getRestrictedInputValues(r).map((value, index) => {
+    const style = getRestrictedInputPrintCellStyle(index);
+    return `<td${style ? ` style="${style}"` : ""}>${value || "—"}</td>`;
+  }).join("")}</tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Restricted Inputs Log — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Restricted Inputs Log · Complementary Record</p></div>
 <div class="hdr-r"><b>Restricted Inputs</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date Applied</th><th>Product</th><th>Category</th><th>Field / Area</th><th>Applied By</th><th>Supplier</th><th>PO Reference</th><th>GRN / Delivery</th><th>Justification</th><th>Approval Ref</th><th>Certifier Notified</th><th>Derogation Expiry</th></tr></thead>
+<table><thead><tr>${getRestrictedInputPrintHeaderHtml()}</tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Restricted Inputs Log — Complementary record for Soil Association / OF&G portal. Retain with derogation approvals. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
@@ -1304,11 +1287,6 @@ interface Supplier { id: number; name: string; supplierType: string; accountNumb
 interface PurchaseOrder { id: number; poNumber: string; supplierId: number | null; orderDate: string | null; status: string; }
 interface StockDelivery { id: number; grnNumber: string | null; supplierId: number | null; poId: number | null; deliveryDate: string | null; }
 
-const APPROVAL_STATUS_LABELS: Record<string, string> = {
-  permitted: "Permitted",
-  restricted: "Restricted (notify certifier)",
-  derogation: "Derogation Required",
-};
 const APPROVAL_STATUS_COLORS: Record<string, string> = {
   permitted: "bg-green-100 text-green-800 border-green-200",
   restricted: "bg-amber-100 text-amber-800 border-amber-200",
