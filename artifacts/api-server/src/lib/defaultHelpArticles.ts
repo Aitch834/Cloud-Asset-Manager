@@ -27,7 +27,7 @@ function toSlug(title: string): string {
     .replace(/^-|-$/g, "");
 }
 
-const TITLES: [string, string][] = [
+export const TITLES: [string, string][] = [
   ["Getting Started with Red Tractor Compliance", "Getting Started"],
   ["Recording Spray Applications", "Sprays & Inputs"],
   ["Managing Your Field Register", "Fields & Crops"],
@@ -311,10 +311,10 @@ const TITLES: [string, string][] = [
   ["Seed Rate Calculator — Establishment-Adjusted Sowing Rates", "Fields & Crops"],
   ["Silage & Haylage Recording — Additives, Quality Tests and Clamp Safety Checks", "Environmental"],
   ["Crop Rotation Reason Tags and the Field Map Year Selector", "Fields & Crops"],
-  ["Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet", "Dashboards"],
   ["IPM Plan — Integrated Pest Management Recording and SFI CIPM Evidence", "Fields & Crops"],
   ["Resource Planner — Building Your Resource Registry", "Resource Planner"],
   ["Assigning Resources to Tasks — Gantt View, Drag-and-Drop and Conflict Detection", "Resource Planner"],
+  ["Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet", "Dashboards"],
   ["Dairy Supplies — PPE & Chemical Drawdown Recording", "Livestock"],
   ["Dairy Supplies — Restock Request Workflow", "Livestock"],
   ["Silage & Haylage Stock Tracking — Cut Records, Yield and Clamp Balance", "Environmental"],
@@ -349,7 +349,7 @@ const TITLES: [string, string][] = [
   ["Mobile App — Winery Production Screens: Reception, Pressing, Fermentation, Cellar Ops and SO₂ Testing with Offline Sync", "Mobile App"],
 ];
 
-const CONTENT: [string, string][] = [
+export const CONTENT: [string, string][] = [
   // 0 — Getting Started with Red Tractor Compliance
   // 0 — Getting Started with Red Tractor Compliance
   [
@@ -1224,7 +1224,7 @@ const CONTENT: [string, string][] = [
   // 42 — Equipment Module — Overview
   [
     "An overview of the Equipment module in BDE Farm Trac, covering the Equipment Register, asset numbers, QR labels, service history, PUWER compliance, insurance, depreciation, defect reporting, and Workshop Analytics.",
-    `<h2>Equipment Module — Overview</h2>
+    `<h2>Workshop &amp; Asset Management — Overview</h2>
 <p>The Equipment module in BDE Farm Trac provides a full asset lifecycle view for every piece of farm machinery and equipment — from acquisition and asset registration through service history, PUWER compliance, insurance tracking, depreciation, and defect reporting. Workshop job cards, parts store management, fuel records, and analytics are all included within the same module.</p>
 <h3>Equipment Register and asset numbers</h3>
 <p>Navigate to <strong>Equipment → Equipment Register</strong> to view all registered machinery. Each row displays the asset number (EQ- prefix), make, model, registration or serial number, type, and current status. The asset number column includes an inline <strong>Assign / QR</strong> button — click it to assign an asset number to new equipment or to print the QR label for that machine.</p>
@@ -1265,7 +1265,7 @@ const CONTENT: [string, string][] = [
   // 44 — Generating QR Labels for Fields, Animals, Equipment, and Storage
   [
     "How to generate and print QR code labels for fields, animals, equipment, and storage locations in BDE Farm Trac.",
-    `<h2>Generating QR Labels for Fields, Animals, Equipment, and Storage</h2>
+    `<h2>Generating QR Labels for Fields, Animals, and Storage</h2>
 <p>QR code labels provide a fast way to connect physical farm locations and assets to their digital records in BDE Farm Trac. Once a QR label is printed and placed on a gate, tag, machine cab, or store door, any user with the mobile app can scan it to open the relevant record immediately.</p>
 <h3>Generating a field label</h3>
 <p>Navigate to <strong>Field &amp; Crop Management → Field Register</strong> and open the field detail. Click <strong>Generate QR Label</strong>. The label downloads as a PDF containing the QR code, the field name, the OS parcel reference, and the field area. Print on a weatherproof label or laminate an A5 sheet for gate mounting.</p>
@@ -4119,7 +4119,7 @@ const CONTENT: [string, string][] = [
   // 196 — Organic Dairy — Milk Collection Records, ABR Testing, Buyer Lab Results & Retest Linkage
   [
     "How milk collection records work in BDE Farm Trac's Organic Dairy module, including ABR testing, temperature recording, buyer lab results, and retest linkage.",
-    `<h2>Organic Dairy — Milk Collection Records, ABR Testing, Buyer Lab Results & Retest Linkage</h2>
+    `<h2>Organic Dairy — Milk Collection Records, Feed Records &amp; Daily Date Defaults</h2>
 <p>The Organic Dairy module provides comprehensive milk collection records for organic dairy herds. The add and edit form is split into three tabs to keep related fields grouped and reduce scrolling during data entry.</p>
 <h3>Daily date defaults</h3>
 <p>The Collection Date field defaults to today whenever you open a new milk collection form. For dairy farms entering records at the time of each uplift, no date change is needed — enter the collection details and save. To record a historical collection, overtype the date before saving.</p>
@@ -4572,7 +4572,7 @@ const CONTENT: [string, string][] = [
   // 216 — Organic Viticulture — Full Viticulture Tab Access
   [
     "How Organic Viticulture subscribers access the complete set of standard Viticulture tabs from within the Organic Viticulture section of BDE Farm Trac.",
-    `<h2>Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning & Canopy, Harvest, Disease Scouting and Winery Compliance</h2>
+    `<h2>Organic Viticulture — Full Viticulture Tab Access: Vine Register, Block Lifecycle, Phenology, Pruning &amp; Canopy, Harvest, Disease Scouting, Winery Compliance and Winery Stock</h2>
 <p>Organic Viticulture subscribers do not need to switch between the Organic Viticulture module and the standard Viticulture module to access their full record set. The Organic Viticulture page includes all standard Viticulture tabs alongside the organic compliance tabs — the complete operational and winery compliance record set is accessible from one place.</p>
 <h3>Standard Viticulture tabs included in Organic Viticulture</h3>
 <ul>
@@ -5072,7 +5072,7 @@ const CONTENT: [string, string][] = [
   // Venison Production
   [
     "Overview of stalking & cull records, carcass processing, herd monitoring, health records, and the firearms certificate register for farmed and estate deer enterprises.",
-    `<h2>Venison Production Module — Overview</h2>
+    `<h2>Venison Production Module — Overview and Getting Started</h2>
 <p>The <strong>Venison Production</strong> module provides a complete compliance and operational record for UK deer enterprises. It is available to any farm that has the <strong>Venison Production</strong> module enabled under Settings → Modules.</p>
 <h3>Tabs in this module</h3>
 <ul>
@@ -5090,7 +5090,7 @@ const CONTENT: [string, string][] = [
   // 240 — Venison Cull Records — Stalking Events, Carcass Weights and Food Safety Inspection
   [
     "Record stalking and culling events with species, sex, age class, beat location, larder number, carcass weight data, and food safety inspection result.",
-    `<h2>Venison Cull Records</h2>
+    `<h2>Venison Cull Records — Stalking Events, Carcass Weights and Food Safety Inspection</h2>
 <p>A cull record documents each individual or batch culling event on your deer enterprise. It is the primary compliance record for your stalking operations and supports Wild Game meat safety obligations.</p>
 <h3>Fields</h3>
 <ul>
@@ -5111,7 +5111,7 @@ const CONTENT: [string, string][] = [
   // 241 — Venison Cull Records — Notifiable Disease Suspect Flag and APHA Advisory
   [
     "Tick the Notifiable Disease Suspect flag to trigger an APHA advisory and record that APHA was contacted on 03000 200 301.",
-    `<h2>Notifiable Disease Suspect Flag — Venison Cull Records</h2>
+    `<h2>Venison Cull Records — Notifiable Disease Suspect Flag and APHA Advisory</h2>
 <p>When a disease is noticed during gralloch or larder inspection that may be notifiable (for example, signs consistent with bTB, foot-and-mouth disease, or bluetongue), you must tick the <strong>Notifiable Disease Suspect</strong> checkbox on the cull record.</p>
 <h3>What happens when you tick the box</h3>
 <p>A red advisory panel appears in the form reminding you:</p>
@@ -5123,7 +5123,7 @@ const CONTENT: [string, string][] = [
   // 242 — Venison Carcass Sales — Wild Game Declaration, Facility Type and Destination Recording
   [
     "Record each carcass sale or processing event with facility type, destination, buyer details, Wild Game Declaration number, price per kg, and total value.",
-    `<h2>Venison Carcass Sales — Wild Game Declaration and Destination Recording</h2>
+    `<h2>Venison Carcass Sales — Wild Game Declaration, Facility Type and Destination Recording</h2>
 <p>The Carcass Sales tab records every carcass processing event and venison sale from your deer enterprise.</p>
 <h3>Facility Types</h3>
 <ul>
@@ -5142,7 +5142,7 @@ const CONTENT: [string, string][] = [
   // 243 — Venison Herd Monitoring — Population Surveys: Driven Count, Thermal Imaging and Camera Trap
   [
     "Log regular herd population surveys using driven counts, thermal imaging, camera trap census, or aerial methods to support your annual deer management plan.",
-    `<h2>Venison Herd Monitoring — Population Surveys</h2>
+    `<h2>Venison Herd Monitoring — Population Surveys: Driven Count, Thermal Imaging and Camera Trap</h2>
 <p>The Herd Monitoring tab provides a log of population surveys across your deer range. Regular surveys are required as evidence for annual deer management plans submitted to deer management groups, SNH (NatureScot), or APHA where required.</p>
 <h3>Survey Methods</h3>
 <ul>
@@ -5159,7 +5159,7 @@ const CONTENT: [string, string][] = [
   // 244 — Venison Health Records — bTB SICCT Skin Test, Gamma-Interferon Blood Test and APHA Reference
   [
     "Record vaccination events, bTB SICCT skin tests, gamma-interferon blood tests, post mortem examinations, and vet treatments with withdrawal period tracking.",
-    `<h2>Venison Health Records — bTB Testing and Vet Treatments</h2>
+    `<h2>Venison Health Records — bTB SICCT Skin Test, Gamma-Interferon Blood Test and APHA Reference</h2>
 <p>The Health Records tab in Venison Production provides a structured event log for all health-related activities on your deer enterprise.</p>
 <h3>bTB Testing</h3>
 <p>Farmed deer holdings may be subject to bovine tuberculosis (bTB) testing by APHA, particularly in High Risk Area (HRA) and Edge Area (EA) counties. Two test types are available:</p>
@@ -5176,7 +5176,7 @@ const CONTENT: [string, string][] = [
   // 245 — Venison Firearms & Stalking Certificates — Section 1 FC, DSC1, DSC2 and WGMI Expiry Tracking
   [
     "Register Section 1 Firearms Certificates, DSC1, DSC2, WGMI hunter food hygiene certificates, and other stalker licences with 90-day expiry alerts.",
-    `<h2>Firearms &amp; Stalking Certificates Register</h2>
+    `<h2>Venison Firearms &amp; Stalking Certificates — Section 1 FC, DSC1, DSC2 and WGMI Expiry Tracking</h2>
 <p>The Firearms &amp; Licences tab provides a central register of all certificates and licences held by your stalkers and estate team. This register helps you ensure no one enters the field without current, valid authorisation.</p>
 <h3>Certificate Types</h3>
 <ul>
@@ -5194,7 +5194,7 @@ const CONTENT: [string, string][] = [
   // 246 — Organic Venison Module — Overview and Getting Started
   [
     "Overview of the Organic Venison module — certification, land register, feed and supplement log, and derogation case management for certified organic farmed deer enterprises.",
-    `<h2>Organic Venison Module — Overview</h2>
+    `<h2>Organic Venison Module — Overview and Getting Started</h2>
 <p>The <strong>Organic Venison</strong> module provides organic compliance records for certified farmed deer enterprises under UK Organic Regulations (retained from EC No. 834/2007 and Commission Regulation (EC) No. 889/2008).</p>
 <h3>Important: wild venison cannot be certified organic</h3>
 <p>Only farmed deer — born and raised under organic management on certified organic land — are eligible for organic certification. Wild deer culled on open ground cannot hold organic status regardless of habitat or feeding habits.</p>
@@ -5211,7 +5211,7 @@ const CONTENT: [string, string][] = [
   // 247 — Organic Venison — Certification Tab: Certifying Body, Certificate Number and Scope Register
   [
     "Record certifying body details, certificate numbers, issue and expiry dates, scope, and active/pending/suspended status for organic venison certification.",
-    `<h2>Organic Venison — Certification Tab</h2>
+    `<h2>Organic Venison — Certification Tab: Certifying Body, Certificate Number and Scope Register</h2>
 <p>The Certification tab is the central record of your organic certification status as a deer enterprise.</p>
 <h3>Certificate Types</h3>
 <ul>
@@ -5234,7 +5234,7 @@ const CONTENT: [string, string][] = [
   // 248 — Organic Venison — Land Register: Grazing Compartment Conversion Status Tracking
   [
     "Track each deer park or grazing compartment through organic conversion from pre-conversion to certified organic with area, conversion dates, and certifier reference.",
-    `<h2>Organic Venison — Land Register</h2>
+    `<h2>Organic Venison — Land Register: Grazing Compartment Conversion Status Tracking</h2>
 <p>The Land Register records each discrete grazing compartment or deer park enclosure and tracks its progress through the organic conversion process.</p>
 <h3>Conversion Status values</h3>
 <ul>
@@ -5258,7 +5258,7 @@ const CONTENT: [string, string][] = [
   // 249 — Organic Venison — Feed and Supplement Log: Organic Approval Status and Certifier Reference
   [
     "Log all supplementary feed and mineral inputs with organic approval status — Certified Organic, Approved for Organic Use, Derogation Required, or Not Permitted.",
-    `<h2>Organic Venison — Feed and Supplement Log</h2>
+    `<h2>Organic Venison — Feed and Supplement Log: Organic Approval Status and Certifier Reference</h2>
 <p>Under UK Organic Regulations, all supplementary feed and mineral inputs used on an organic deer enterprise must be documented and, where not fully certified organic, must have prior approval or a derogation from your certifying body.</p>
 <h3>Organic Approval Status values</h3>
 <ul>
@@ -5275,7 +5275,7 @@ const CONTENT: [string, string][] = [
   // 250 — Organic Venison — Derogations: Case Register, Justification, Decision and Approval Conditions
   [
     "Manage input derogation cases from application through to certifier decision, recording justification, regulatory basis, approval conditions, and expiry date.",
-    `<h2>Organic Venison — Derogations</h2>
+    `<h2>Organic Venison — Derogations: Case Register, Justification, Decision and Approval Conditions</h2>
 <p>A derogation is a formal permission from your certifying body to use a non-organic input or practice where no organic alternative is available. Under UK Organic Regulations, derogations must be applied for <strong>before</strong> the input is used.</p>
 <h3>Derogation lifecycle</h3>
 <ol>
@@ -5298,7 +5298,7 @@ const CONTENT: [string, string][] = [
   // 251 — Year Filters on Livestock Recording Tabs — All Production Modules
   [
     "All recording tabs across Sheep, Goat, Beef, Venison, Pig, Dairy, and Poultry production modules include a year filter dropdown that defaults to the current year, so recent records are always shown first.",
-    `<h2>Year Filters on Livestock Recording Tabs</h2>
+    `<h2>Year Filters on Livestock Recording Tabs — All Production Modules</h2>
 <p>Every recording tab across all specialist livestock production modules includes a <strong>year filter</strong> dropdown. When you open any recording tab the filter defaults to the current year, so your most recent records are always shown without any manual filtering.</p>
 <h3>Modules and tabs covered</h3>
 <ul>
@@ -5320,7 +5320,7 @@ const CONTENT: [string, string][] = [
   // 252 — Document Attachment on Livestock Record Rows — Compact DocAttach Across All Production Tabs
   [
     "Every record row across all livestock production recording tabs has a compact attach/view button for uploading PDFs, photos, and Word documents directly against that specific record.",
-    `<h2>Document Attachment on Livestock Record Rows</h2>
+    `<h2>Document Attachment on Livestock Record Rows — Compact DocAttach Across All Production Tabs</h2>
 <p>Every row in every recording tab across all specialist livestock production modules has a compact <strong>document attachment button</strong> (a paperclip or attach icon). Clicking it opens a dialog where you can upload one or more files and link them permanently to that specific record.</p>
 <h3>Supported file types</h3>
 <ul>
@@ -5388,7 +5388,7 @@ const CONTENT: [string, string][] = [
   // 255 — Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows
   [
     "The Outdoor Access Log in Organic Livestock now has a year filter and compact document attachment on every row for uploading grazing evidence, paddock maps, and certifier inspection notes.",
-    `<h2>Organic Livestock Outdoor Access Log — Year Filter and Document Attachment</h2>
+    `<h2>Organic Livestock Outdoor Access Log — Year Filter and Document Attachment on Rows</h2>
 <p>The Outdoor Access Log (Organic Livestock → Outdoor Access) records every grazing event, outdoor space allocation, and stocking density observation required by UK Organic Regulations for organic livestock.</p>
 <h3>Year filter</h3>
 <p>A year dropdown at the top of the Outdoor Access Log defaults to the current year — matching the current organic certification period for quick review. Select a previous year to retrieve historic records for your certifier's annual inspection or to respond to a compliance query.</p>
@@ -5406,7 +5406,7 @@ const CONTENT: [string, string][] = [
   // 256 — Organic Dairy Feed & Nutrition Tab — Year Filter and Document Attachment on Rows
   [
     "The Feed & Nutrition tab in Organic Dairy now has a year filter and compact document attachment on every row for uploading delivery notes, organic approval certificates, and certifier correspondence.",
-    `<h2>Organic Dairy Feed &amp; Nutrition Tab — Year Filter and Document Attachment</h2>
+    `<h2>Organic Dairy Feed &amp; Nutrition Tab — Year Filter and Document Attachment on Rows</h2>
 <p>The Feed &amp; Nutrition tab (Organic Dairy → Feed &amp; Nutrition) surfaces organic feed delivery records from Feed Management for the organic dairy herd, with derogation tracking and certifier approval reference recording.</p>
 <h3>Year filter</h3>
 <p>A year dropdown at the top of the Feed &amp; Nutrition tab defaults to the current year. Select a previous year to review the complete organic feed record for any past certification period — for example when preparing for your annual organic inspection or responding to a certifier audit query.</p>
@@ -5682,7 +5682,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   // 41 — NMR Recording Visits
   [
     "How to log monthly NMR recording visits in BDE Farm Trac, track herd constituent averages, and interpret Fat:Protein Ratio trends for dairy compliance.",
-    `<h2>NMR Recording Visits</h2>
+    `<h2>NMR Recording Visits — Herd Constituents, SCC and Fat:Protein Ratio Trends</h2>
 <p>The NMR Recording Visits tab in the Dairy module lets you log the results of each monthly visit from your National Milk Records (NMR) recorder. While not a statutory legal requirement, milk recording is effectively mandatory for Red Tractor Dairy assurance — scheme standards require documented evidence of milk quality monitoring, SCC trend management, and herd health surveillance. Most processor contracts also tie milk price to recorded SCC and constituent data.</p>
 <h3>Recording a visit</h3>
 <p>Navigate to <strong>Dairy → Recording Visits</strong> and click <strong>Log Visit</strong>. The form captures:</p>
@@ -5908,7 +5908,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   // (articles 277 and 278 appended below)
   [
     "How to use BDE Farm Trac's seven enterprise cost-of-production reports to see cost per litre, per head or per bird across dairy, beef, sheep, pig, poultry, labour and fleet.",
-    `<h2>Enterprise Cost-of-Production Reports</h2>
+    `<h2>Enterprise Cost-of-Production Reports — Dairy, Beef, Sheep, Pig, Poultry, Labour and Fleet</h2>
 <p>Alongside the crop-focused gross margin and P&amp;L reports, the Finance &amp; Business module's <strong>Business Reports</strong> page includes seven dedicated enterprise cost-of-production reports: <strong>Dairy</strong>, <strong>Beef</strong>, <strong>Sheep</strong>, <strong>Pig</strong>, <strong>Poultry</strong>, <strong>Labour</strong>, and <strong>Fleet/Machinery</strong>. Each report pulls together the operational records you're already keeping — feed, medicine, vet costs, labour, and fixed costs — into a single per-enterprise cost view, without any separate data entry.</p>
 <h3>What each report shows</h3>
 <p>The livestock reports (Dairy, Beef, Sheep, Pig, Poultry) calculate cost per litre, per head, or per bird by combining feed cost, medicine and vet cost, bedding/housing, labour allocation, and a share of fixed overheads for that enterprise. The Labour report breaks down staff cost by department and enterprise using recorded timesheets, and the Fleet/Machinery report allocates fuel, servicing, depreciation, and repair costs across the equipment used on each enterprise.</p>
@@ -6563,7 +6563,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   ],
   [
     "How to use the inspection correspondence log to record all communications related to a Red Tractor or scheme inspection record.",
-    `<h2>Inspection Correspondence Log</h2>
+    `<h2>Inspection Correspondence Log — Recording Communications Against Inspection Records</h2>
 <p>The Inspections module in BDE Farm Trac includes a correspondence log on every inspection record. This lets you capture a complete, date-ordered paper trail of all communications associated with a formal inspection — assessor appointment letters, pre-visit questionnaires, your response to raised non-conformances, corrective action confirmation letters, and any follow-up correspondence.</p>
 <h3>Opening the correspondence log</h3>
 <p>Navigate to <strong>Inspections &amp; Audits</strong> in the dashboard sidebar. In the Inspections table, click the Eye icon on any inspection row to open the inspection detail dialog. The dialog has two tabs: <strong>Details</strong> and <strong>Communications</strong>.</p>
@@ -6592,7 +6592,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
   ],
   [
     "How to record correspondence with Natural England, the RPA, and other scheme administrators against an agri-environment scheme record.",
-    `<h2>Agri-Environment Scheme Correspondence Log</h2>
+    `<h2>Agri-Environment Scheme Correspondence Log — Recording Communications with Scheme Administrators</h2>
 <p>Each agri-environment scheme record in BDE Farm Trac — whether an SFI, Countryside Stewardship, Higher Level Stewardship, or ELM agreement — has a built-in correspondence log. This lets you record every communication with scheme administrators such as Natural England and the Rural Payments Agency (RPA) directly against the scheme, creating a complete, date-ordered audit trail alongside the structured agreement data.</p>
 <h3>Opening the correspondence log</h3>
 <p>Navigate to <strong>Environmental</strong> in the dashboard sidebar and open the <strong>Agri-Environment Schemes</strong> tab. Click the Eye icon on any scheme row to open the scheme detail dialog. The dialog has two tabs: <strong>Details</strong> (showing agreement number, status, start and end dates, annual payment, and obligations) and <strong>Communications</strong>.</p>
