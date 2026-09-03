@@ -544,7 +544,14 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
     const grandTotalPicks = linkedRows.length;
 
-    return { uniqueVintages, tables, picksByVintage, grandTotalPicks };
+    // Only flag cells with a chemistry value; an empty cell should remain unmarked.
+    const anySinglePickCell = tables.some(tbl =>
+      tbl.rows.some(row =>
+        row.vintageCounts.some((count, vi) => count === 1 && row.vintageCells[vi] != null)
+      )
+    );
+
+    return { uniqueVintages, tables, picksByVintage, grandTotalPicks, anySinglePickCell };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, yearFilter, blocks]);
 
@@ -1769,7 +1776,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
 
       {/* Chemistry cross-tab: block × vintage for Brix, pH, TA, Pot. Alc */}
       {chemCrossTabData && (() => {
-        const { uniqueVintages, tables, picksByVintage, grandTotalPicks } = chemCrossTabData;
+        const { uniqueVintages, tables, picksByVintage, grandTotalPicks, anySinglePickCell } = chemCrossTabData;
 
         const handleChemSortCol = (col: string) => {
           if (chemSort?.col === col) {
@@ -1814,7 +1821,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 onClick={() => setChemCrossTabOpen(o => !o)}
                 aria-expanded={chemCrossTabOpen}
               >
-                <FlaskConical className="w-4 h-4 text-muted-foreground shrink-0" />
+                <FlaskConical className="w-4 h-4 text-muted-foreground" />
                 <p className="text-sm font-semibold flex-1">Chemistry Cross-tab — Block × Vintage</p>
                 <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${chemCrossTabOpen ? "rotate-90" : ""}`} />
               </button>
@@ -1831,13 +1838,12 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
             {chemCrossTabOpen && (
               <div className="p-4 space-y-4">
                 {tables.map(tbl => {
-              const vintageIndex = chemSort && chemSort.col !== "avg"
-                ? uniqueVintages.indexOf(chemSort.col)
-                : -1;
-              const sortedRows = sortRows(tbl.rows, vintageIndex);
-              const hasLowPick = tbl.rows.some(row => row.vintageCounts.some((c, vi) => c === 1 && row.vintageCells[vi] != null));
-              return (
-                <div key={tbl.label} className="space-y-1">
+                  const vintageIndex = chemSort && chemSort.col !== "avg"
+                    ? uniqueVintages.indexOf(chemSort.col)
+                    : -1;
+                  const sortedRows = sortRows(tbl.rows, vintageIndex);
+                  return (
+                    <div key={tbl.label} className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{tbl.label}</p>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
@@ -1885,7 +1891,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                               const pickCount = row.vintageCounts[vi] ?? 0;
                               const lowPick = val != null && pickCount === 1;
                               return (
-                                <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
+                                <td key={vi} className={`text-right px-3 py-1.5 tabular-nums ${lowPick ? "bg-amber-50 text-amber-900" : chemSort?.col === uniqueVintages[vi] ? "bg-muted/30" : ""}`}>
                                   {val != null ? (
                                     <span className="inline-flex items-center justify-end gap-0.5">
                                       {val.toFixed(tbl.precision)}
@@ -1944,14 +1950,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                       </tfoot>
                     </table>
                   </div>
-                  {hasLowPick && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
-                      <span className="font-bold">*</span> Based on 1 pick — treat with caution
-                    </p>
-                  )}
-                </div>
-              );
+                    </div>
+                  );
                 })}
+                {anySinglePickCell && (
+                  <div className="px-4 py-2 border-t bg-amber-50/60 flex items-center gap-2 text-xs text-amber-800">
+                    <span className="font-semibold">*</span>
+                    <span>Cell derived from a single harvest pick — chemistry averages may be less representative than a multi-pick average.</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
