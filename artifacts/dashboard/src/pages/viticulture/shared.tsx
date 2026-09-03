@@ -2766,6 +2766,9 @@ export async function printHarvest(
       const chemTdPad = chemN >= 11 ? "3px 3px" : chemN >= 8 ? "4px 4px" : "5px 5px";
 
       let anyLowPickChem = false;
+      const chemPicksByVintage = chemLinkedVintages.map(vy =>
+        chemLinkedRecords.filter(r => String(r.vintageYear ?? "") === vy).length
+      );
       const chemSubTablesHtml = chemPrintMetrics.map(metric => {
         const vintageHeaders = chemLinkedVintages.map(vy =>
           `<th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
@@ -2827,6 +2830,24 @@ export async function printHarvest(
   </table>`;
       }).join("");
 
+      // Keep the pick counts in one shared row rather than repeating them in every
+      // metric table. A single pick remains amber-highlighted for print parity with
+      // the on-screen chemistry cross-tab.
+      const chemPicksRowHtml = `
+  <table style="width:100%;border-collapse:collapse;font-size:${chemFontPx}px;margin:-6px 0 14px">
+    <tbody><tr>
+      <td colspan="2" style="padding:${chemTdPad};border:1px solid #d6b89a;background:#f5f5f4;font-weight:600;color:#555">Picks</td>
+      ${chemPicksByVintage.map(picks => {
+        const singlePick = picks === 1;
+        const bg = singlePick ? "#fef3c7" : "#f5f5f4";
+        const border = singlePick ? "#fbbf24" : "#d6b89a";
+        const label = singlePick ? `&#9888; ${picks}` : (picks > 0 ? String(picks) : "\u2014");
+        return `<td style="padding:${chemTdPad};border:1px solid ${border};background:${bg};text-align:right;font-family:monospace;font-weight:${singlePick ? 700 : 500};color:${singlePick ? "#92400e" : "#555"}">${label}</td>`;
+      }).join("")}
+      <td style="padding:${chemTdPad};border:1px solid #d6b89a;background:#f5f5f4;text-align:right;font-family:monospace;font-weight:600;color:#555">${chemLinkedRecords.length > 0 ? chemLinkedRecords.length : "\u2014"}</td>
+    </tr></tbody>
+  </table>`;
+
       const chemLowPickLegend = anyLowPickChem
         ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 0;background:#fffbeb;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;display:inline-block"><strong>*</strong> Based on a single harvest pick &mdash; treat with caution</p>`
         : "";
@@ -2835,6 +2856,7 @@ export async function printHarvest(
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
   <p style="font-size:10px;color:#666;margin:0 0 8px">Average chemistry values per block per vintage. Footer row shows the record-weighted average across all linked blocks for that vintage.</p>
   ${chemSubTablesHtml}
+  ${chemPicksRowHtml}
   ${chemLowPickLegend}`;
     }
   }
