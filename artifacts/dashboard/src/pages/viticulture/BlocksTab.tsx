@@ -736,7 +736,7 @@ function PlantingFormFields({ form, sf }: { form: Block; sf: (k: string, v: unkn
   );
 }
 
-export function BlocksTab({ farmId, onNavigate, highlightBlockId }: { farmId: number; onNavigate?: (tab: string, blockId?: number) => void; highlightBlockId?: number }) {
+export function BlocksTab({ farmId, onNavigate, highlightBlockId, highlightBlockTarget }: { farmId: number; onNavigate?: (tab: string, blockId?: number) => void; highlightBlockId?: number; highlightBlockTarget?: "photo-gallery" }) {
   const { data, isLoading, add, edit, remove } = useCrud<Block>(farmId, "vineyard-blocks", "vineyard-blocks");
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -805,16 +805,20 @@ export function BlocksTab({ farmId, onNavigate, highlightBlockId }: { farmId: nu
     onError: () => toast({ title: "Replant failed", variant: "destructive" }),
   });
 
-  // Auto-open edit dialog when a block is highlighted from another tab
-  const highlightBlockIdRef = useRef<number | undefined>(undefined);
+  // Open the requested block destination when navigating from another tab.
+  const highlightBlockKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!highlightBlockId || highlightBlockId === highlightBlockIdRef.current) return;
+    if (!highlightBlockId) return;
+    const highlightKey = `${highlightBlockId}:${highlightBlockTarget ?? "edit"}`;
+    if (highlightKey === highlightBlockKeyRef.current) return;
     if (isLoading) return;
-    highlightBlockIdRef.current = highlightBlockId;
+    highlightBlockKeyRef.current = highlightKey;
     const block = data.find(b => b.id === highlightBlockId);
-    if (block) openEdit(block);
+    if (!block) return;
+    if (highlightBlockTarget === "photo-gallery") setViewing(block);
+    else openEdit(block);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightBlockId, isLoading, data]);
+  }, [highlightBlockId, highlightBlockTarget, isLoading, data]);
 
   const openAdd = () => { setForm({}); setCurrent(null); setOpen(true); };
   const openEdit = (r: Block) => { setForm({ ...r }); setCurrent(r); setOpen(true); };

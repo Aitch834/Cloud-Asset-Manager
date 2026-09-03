@@ -55,11 +55,12 @@ import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printVineRegister, downloadVineRegisterPdf, printRpaReference, buildRpaMailtoHref, emailRpaReference, emailVineRegister, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, VIVC_VARIETY_MAP, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipProvider as UiTooltipProvider, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 
 type VineReg = Record<string, unknown>;
 
 type TruncatedEmailType = "rpa-reference" | "vine-register";
-export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number) => void }) {
+export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; onNavigate?: (tab: string, blockId?: number, target?: "photo-gallery") => void }) {
   const { data, isLoading, add, edit, remove } = useCrud<VineReg>(farmId, "vine-register", "vine-register");
   const farmName = useFarmName(farmId);
   const { farmRecord } = useFarmMeta(farmId);
@@ -862,28 +863,67 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
               if (!linked) return null;
               const photoCount = Number(linked.photoCount ?? 0);
               const coverPhotoUrl = linked.coverPhotoUrl as string | null;
+              const blockName = String(linked.blockName ?? "this block");
+              const openBlockPhotos = () => onNavigate?.("blocks", linked.id as number, "photo-gallery");
               if (photoCount === 0) {
                 return (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                    <Camera className="w-3 h-3 shrink-0" />
-                    No photos
-                  </span>
+                  <UiTooltipProvider>
+                    <UiTooltip>
+                      <UiTooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`Add photos for ${blockName}`}
+                          onClick={openBlockPhotos}
+                        >
+                          <Camera className="w-3 h-3 shrink-0" />
+                          No photos
+                        </button>
+                      </UiTooltipTrigger>
+                      <UiTooltipContent className="flex items-center gap-2">
+                        <span>Add photos in the Blocks tab</span>
+                        {onNavigate && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-6 px-2 text-xs"
+                            onClick={openBlockPhotos}
+                          >
+                            Open Blocks
+                          </Button>
+                        )}
+                      </UiTooltipContent>
+                    </UiTooltip>
+                  </UiTooltipProvider>
                 );
               }
               return (
                 <div className="flex flex-col items-center gap-1">
                   {coverPhotoUrl && (
-                    <img
-                      src={coverPhotoUrl}
-                      alt={String(linked.blockName ?? "Block photo")}
-                      loading="lazy"
-                      className="w-12 h-12 object-cover rounded border border-border"
-                    />
+                    <button
+                      type="button"
+                      className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={openBlockPhotos}
+                      aria-label={`Open photo gallery for ${blockName}`}
+                    >
+                      <img
+                        src={coverPhotoUrl}
+                        alt={`${blockName} cover photo`}
+                        loading="lazy"
+                        className="w-12 h-12 object-cover rounded border border-border hover:opacity-85"
+                      />
+                    </button>
                   )}
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={openBlockPhotos}
+                    aria-label={`Open ${photoCount} photos for ${blockName}`}
+                  >
                     <Camera className="w-3 h-3 shrink-0" />
                     {photoCount}
-                  </span>
+                  </button>
                 </div>
               );
             },

@@ -127,6 +127,7 @@ export default function ViticulturePage() {
   }, [selectedFarmId]);
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [highlightBlockId, setHighlightBlockId] = useState<number | undefined>(undefined);
+  const [highlightBlockTarget, setHighlightBlockTarget] = useState<"photo-gallery" | undefined>(undefined);
   const [bulkLinkFor, setBulkLinkFor] = useState<string | null>(null);
   const blocks = useCrud(selectedFarmId ?? 0, "vineyard-blocks", "vineyard-blocks");
 
@@ -146,8 +147,9 @@ export default function ViticulturePage() {
     enabled: !!selectedFarmId,
   });
 
-  const handleNavigate = (toTab: string, blockId?: number) => {
+  const handleNavigate = (toTab: string, blockId?: number, target?: "photo-gallery") => {
     setHighlightBlockId(blockId);
+    setHighlightBlockTarget(target);
     setTab(toTab);
   };
 
@@ -232,7 +234,7 @@ export default function ViticulturePage() {
         <div className="bg-muted/30 rounded-xl p-4">
           {tab === "overview" && <OverviewTab farmId={selectedFarmId} onNavigate={handleNavigate} onNavigateWithBulkLink={handleNavigateWithBulkLink} />}
           {tab === "vine-register" && <VineRegisterTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} />}
-          {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} highlightBlockId={highlightBlockId} />}
+          {tab === "blocks" && <BlocksTab farmId={selectedFarmId} onNavigate={handleNavigate} highlightBlockId={highlightBlockId} highlightBlockTarget={highlightBlockTarget} />}
           {tab === "block-map" && <VineyardBlockMapTab farmId={selectedFarmId} blocks={blocks.data} onNavigate={handleNavigate} />}
           {tab === "phenology" && <PhenologyTab farmId={selectedFarmId} blocks={blocks.data} highlightBlockId={highlightBlockId} onNavigate={handleNavigate} requestBulkLink={bulkLinkFor === "phenology"} />}
           {tab === "winegb-surveys" && <WinegbSurveysTab farmId={selectedFarmId} blocks={blocks.data} />}

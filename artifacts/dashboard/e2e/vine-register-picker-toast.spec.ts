@@ -107,6 +107,21 @@ async function createBlock(blockName: string): Promise<number> {
   return record.id;
 }
 
+async function attachBlockPhoto(blockId: number, tag: string): Promise<number> {
+  const { photo } = await apiPost(
+    `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks/${blockId}/photos`,
+    {
+      objectPath: `/objects/e2e-vine-register-gallery-${tag}-${Date.now()}.jpg`,
+      fileName: `e2e-vine-register-gallery-${tag}.jpg`,
+    },
+  ) as { photo: { id: number } };
+  return photo.id;
+}
+
+async function deleteBlockPhoto(blockId: number, photoId: number): Promise<void> {
+  await apiDelete(`${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks/${blockId}/photos/${photoId}`);
+}
+
 /** Delete a vineyard block (cascade-deletes its planting record). */
 async function deleteBlock(blockId: number): Promise<void> {
   await apiDelete(`${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks/${blockId}`);
@@ -365,6 +380,62 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
       await deleteVineRegisterEntry(entryId).catch(() => undefined);
       await deleteBlock(blockAId).catch(() => undefined);
       await deleteBlock(blockBId).catch(() => undefined);
+    }
+  });
+
+  test("D — no-photo badge opens the correct block gallery and exposes its tooltip shortcut", async ({ page }) => {
+    const blockName = `E2E-gallery-empty-${Date.now()}`;
+    const blockId = await createBlock(blockName);
+    const entryId = await createVineRegisterEntry(blockId);
+
+    try {
+      await navigateToVineRegisterTab(page);
+      const row = await findSeededRow(page);
+      const noPhotoButton = row.getByRole("button", { name: `Add photos for ${blockName}` });
+
+      await noPhotoButton.hover();
+      await expect(page.getByText("Add photos in the Blocks tab", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open Blocks", exact: true })).toBeVisible();
+
+      await noPhotoButton.click();
+
+      const blockDialog = page.getByRole("dialog").filter({ hasText: blockName });
+      await expect(blockDialog).toBeVisible();
+      await expect(blockDialog.getByText("Add block photos", { exact: true })).toBeVisible();
+    } finally {
+      await deleteVineRegisterEntry(entryId).catch(() => undefined);
+      await deleteBlock(blockId).catch(() => undefined);
+    }
+  });
+
+  test("E — photo count and cover thumbnail both open the correct block gallery", async ({ page }) => {
+    const blockName = `E2E-gallery-photo-${Date.now()}`;
+    const blockId = await createBlock(blockName);
+    const photoId = await attachBlockPhoto(blockId, "cover");
+    const entryId = await createVineRegisterEntry(blockId);
+
+    try {
+      await navigateToVineRegisterTab(page);
+      let row = await findSeededRow(page);
+
+      await row.getByRole("button", { name: `Open 1 photos for ${blockName}` }).click();
+
+      let blockDialog = page.getByRole("dialog").filter({ hasText: blockName });
+      await expect(blockDialog).toBeVisible();
+      await expect(blockDialog.getByText("Photos (1)", { exact: true })).toBeVisible();
+      await blockDialog.getByRole("button", { name: "Close", exact: true }).click();
+
+      await page.getByRole("button", { name: "Vine Register", exact: true }).click();
+      row = await findSeededRow(page);
+      await row.getByRole("button", { name: `Open photo gallery for ${blockName}` }).click();
+
+      blockDialog = page.getByRole("dialog").filter({ hasText: blockName });
+      await expect(blockDialog).toBeVisible();
+      await expect(blockDialog.getByText("Photos (1)", { exact: true })).toBeVisible();
+    } finally {
+      await deleteVineRegisterEntry(entryId).catch(() => undefined);
+      await deleteBlockPhoto(blockId, photoId).catch(() => undefined);
+      await deleteBlock(blockId).catch(() => undefined);
     }
   });
 });
