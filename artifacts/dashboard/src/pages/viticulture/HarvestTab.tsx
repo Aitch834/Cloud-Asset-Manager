@@ -773,6 +773,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const n = Number(bidStr);
         return !isNaN(n) && n > 0 ? String(blockName(n)) : "—";
       };
+      const totalLinkedPicks = rows.filter(r => r.blockId != null && r.blockId !== "").length;
 
       // ── Helper: build a chemistry sub-table ──────────────────────────────
       // extractor: rows → number[]  (the raw values to average)
@@ -808,12 +809,24 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           return cell(avg != null ? avg.toFixed(precision) : "");
         });
         const chemFooter = [cell("All blocks"), ...chemFooterCells, cell(grandAvg != null ? grandAvg.toFixed(precision) : "")].join(",");
+        const chemPicksRow = [
+          cell("Picks"),
+          ...crossVintages.map(vy => {
+            let count = 0;
+            for (const bid of uniqueBlockIds) {
+              count += lookup[String(bid)]?.[vy]?.length ?? 0;
+            }
+            return cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : "");
+          }),
+          cell(totalLinkedPicks > 0 ? String(totalLinkedPicks) : ""),
+        ].join(",");
         return [
           "",
           cell(title),
           chemHeader,
           ...chemRows,
           chemFooter,
+          chemPicksRow,
         ];
       };
 
@@ -884,7 +897,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         }
         return count;
       });
-      const totalLinkedPicks = rows.filter(r => r.blockId != null && r.blockId !== "").length;
       const picksRow = [
         cell("Picks"),
         ...picksPerVintageCounts.flatMap(count => [
