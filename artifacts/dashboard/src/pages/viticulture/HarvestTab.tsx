@@ -773,7 +773,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const n = Number(bidStr);
         return !isNaN(n) && n > 0 ? String(blockName(n)) : "—";
       };
-      const totalLinkedPicks = rows.filter(r => r.blockId != null && r.blockId !== "").length;
 
       // ── Helper: build a chemistry sub-table ──────────────────────────────
       // extractor: rows → number[]  (the raw values to average)
@@ -809,16 +808,23 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           return cell(avg != null ? avg.toFixed(precision) : "");
         });
         const chemFooter = [cell("All blocks"), ...chemFooterCells, cell(grandAvg != null ? grandAvg.toFixed(precision) : "")].join(",");
-        const chemPicksRow = [
+        // Keep pick context with every chemistry section so a grower can
+        // interpret a downloaded metric without relying on the yield table.
+        const chemPicksCells = crossVintages.map(vy => {
+          let count = 0;
+          for (const bid of uniqueBlockIds) {
+            count += lookup[String(bid)]?.[vy]?.length ?? 0;
+          }
+          return cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : "");
+        });
+        const chemPicksTotal = uniqueBlockIds.reduce<number>(
+          (total, bid) => total + Object.values(lookup[String(bid)] ?? {}).flat().length,
+          0,
+        );
+        const chemPicksFooter = [
           cell("Picks"),
-          ...crossVintages.map(vy => {
-            let count = 0;
-            for (const bid of uniqueBlockIds) {
-              count += lookup[String(bid)]?.[vy]?.length ?? 0;
-            }
-            return cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : "");
-          }),
-          cell(totalLinkedPicks > 0 ? String(totalLinkedPicks) : ""),
+          ...chemPicksCells,
+          cell(chemPicksTotal > 0 ? String(chemPicksTotal) : ""),
         ].join(",");
         return [
           "",
@@ -826,7 +832,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           chemHeader,
           ...chemRows,
           chemFooter,
-          chemPicksRow,
+          chemPicksFooter,
         ];
       };
 
@@ -897,6 +903,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         }
         return count;
       });
+      const totalLinkedPicks = rows.filter(r => r.blockId != null && r.blockId !== "").length;
       const picksRow = [
         cell("Picks"),
         ...picksPerVintageCounts.flatMap(count => [
@@ -1377,7 +1384,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
               {blocks.map(b => <SelectItem key={String(b.id)} value={String(b.id)}>Print: {String(b.blockName)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined, vintageChemCols, varietyChemCols, vintageSort); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isSbiInvalid || printRows.some(r => !r.blockId)) { setPrintConfirmOpen(true); } else { void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined, vintageChemCols, vintageSort); } }} disabled={!printRows.length}><Printer className="w-4 h-4 mr-1" />Print</Button>
           <Button size="sm" variant="outline" onClick={() => { void downloadVineHarvestPdf(printRows, blocks, farmName, farmMeta, yearFilter !== "all" ? yearFilter : undefined); }} disabled={!printRows.length}><FileDown className="w-4 h-4 mr-1" />Export PDF</Button>
           <Button size="sm" variant="outline" onClick={() => emailHarvestReport(printRows, farmName, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined)} disabled={!printRows.length} title="Open your email client with a pre-filled harvest summary ready to send to an advisor or winery"><Mail className="w-4 h-4 mr-1" />Email</Button>
           <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Harvest Record</Button>
@@ -2739,7 +2746,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                   {isSbiInvalid ? "Close" : "Cancel"}
                 </Button>
                 {!isSbiInvalid && (
-                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined, vintageChemCols, varietyChemCols, vintageSort); }}>
+                  <Button onClick={() => { setPrintConfirmOpen(false); void printHarvest(printRows, farmName, farmId, blocks, farmMeta, yearFilter !== "all" ? yearFilter : undefined, vintageChemCols, vintageSort); }}>
                     <Printer className="w-4 h-4 mr-1" />Print anyway
                   </Button>
                 )}
