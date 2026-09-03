@@ -22,11 +22,20 @@ const POSITIVE_BLOCK = `${RUN_TAG}-positive-area`;
 const MISSING_AREA_BLOCK = `${RUN_TAG}-missing-area`;
 const SINGLE_BLOCK_RUN_TAG = `E2E-2000-${Date.now()}`;
 const SINGLE_BLOCK = `${SINGLE_BLOCK_RUN_TAG}-single-block`;
+const MULTI_VINTAGE_RUN_TAG = `E2E-2071-${Date.now()}`;
+const MULTI_VINTAGE_BLOCK = `${MULTI_VINTAGE_RUN_TAG}-multi-vintage`;
 const VINTAGE_YEAR = new Date().getFullYear();
 const HARVEST_DATE = `${VINTAGE_YEAR}-07-15`;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type ApiRecord = Record<string, unknown>;
+type HarvestValues = {
+  vintageYear?: number;
+  brix?: number;
+  ph?: number;
+  titratableAcidityGl?: number;
+  potentialAlcohol?: number;
+};
 
 function apiBase(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
@@ -84,15 +93,31 @@ async function createBlock(blockName: string, areaHa?: number): Promise<number> 
   throw new Error(`Created vineyard block ${blockId} was not readable after retries`);
 }
 
-async function createHarvest(blockId: number, yieldKg: number): Promise<number> {
+async function createHarvest(
+  blockId: number,
+  yieldKg: number,
+  values: HarvestValues = {},
+): Promise<number> {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
   try {
     const result = await db.query<{ id: number }>(
-      `INSERT INTO vineyard_harvest (farm_id, block_id, vintage_year, harvest_date, yield_kg)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO vineyard_harvest
+         (farm_id, block_id, vintage_year, harvest_date, yield_kg, brix, ph,
+          titratable_acidity_gl, potential_alcohol)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
-      [FARM_ID, blockId, VINTAGE_YEAR, HARVEST_DATE, yieldKg],
+      [
+        FARM_ID,
+        blockId,
+        values.vintageYear ?? VINTAGE_YEAR,
+        values.vintageYear ? `${values.vintageYear}-07-15` : HARVEST_DATE,
+        yieldKg,
+        values.brix ?? null,
+        values.ph ?? null,
+        values.titratableAcidityGl ?? null,
+        values.potentialAlcohol ?? null,
+      ],
     );
     const harvestId = Number(result.rows[0]?.id);
     if (!Number.isInteger(harvestId) || harvestId <= 0) {
@@ -120,6 +145,7 @@ async function openSeededHarvest(
   page: Page,
   runTag: string = RUN_TAG,
   expectedBlockNames: string[] = [POSITIVE_BLOCK, MISSING_AREA_BLOCK],
+  yearFilter: string = String(VINTAGE_YEAR),
 ): Promise<void> {
   await page.goto("/dashboard/");
   await clerk.signIn({ page, emailAddress: getTestUserEmail() });
@@ -137,7 +163,7 @@ async function openSeededHarvest(
       localStorage.setItem(`viticulture-harvest-block-filter-${farmId}`, "__all__");
       localStorage.setItem(`viticulture-harvest-search-filter-${farmId}`, runTag);
     },
-    [TENANT_SLUG, FARM_ID, String(VINTAGE_YEAR), runTag] as [string, number, string, string],
+    [TENANT_SLUG, FARM_ID, yearFilter, runTag] as [string, number, string, string],
   );
 
   await page.reload({ waitUntil: "networkidle" });
@@ -286,6 +312,71 @@ test.describe("Harvest block productivity exports", () => {
       await expect(summaryTable.locator("tfoot > tr")).toBeVisible();
     } finally {
       if (harvestId !== null) await deleteHarvest(harvestId).catch(() => undefined);
+      if (blockId !== null) await deleteBlock(blockId).catch(() => undefined);
+    }
+  });
+
+  test("export block summary averages picks split across two vintages", async ({ page }) => {
+    let blockId: number | null = null;
+    const harvestIds: number[] = [];
+    const previousVintage = VINTAGE_YEAR - 1;
+
+    try {
+      blockId = await createBlock(MULTI_VINTAGE_BLOCK, 2);
+      harvestIds.push(
+        await createHarvest(blockId, 1000, {
+          vintageYear: previousVintage,
+          brix: 18,
+          ph: 3.2,
+          titratableAcidityGl: 6,
+          potentialAlcohol: 10,
+        }),
+      );
+      harvestIds.push(
+        await createHarvest(blockId, 2000, {
+          vintageYear: VINTAGE_YEAR,
+          brix: 20,
+          ph: 3.4,
+          titratableAcidityGl: 8,
+          potentialAlcohol: 12,
+        }),
+      );
+
+      await openSeededHarvest(page, MULTI_VINTAGE_RUN_TAG, [MULTI_VINTAGE_BLOCK], "all");
+
+      const rows = await downloadCsv(page, /Export Block Summary/);
+      const headerIndex = rows.findIndex(
+        row => row[0] === "Vintage" && row.includes("Total Yield (kg)") && row.includes("Avg TA (g/L)"),
+      );
+      expect(headerIndex, "multi-vintage block summary header must be present").toBeGreaterThanOrEqual(0);
+
+      const header = rows[headerIndex];
+      const dataRow = rows.slice(headerIndex + 1).find(row => row[header.indexOf("Block")] === MULTI_VINTAGE_BLOCK);
+      expect(dataRow, "multi-vintage block must be present in the export").toBeDefined();
+
+      const expectedValues: Record<string, string> = {
+        Vintage: `${previousVintage}, ${VINTAGE_YEAR}`,
+        Block: MULTI_VINTAGE_BLOCK,
+        Variety: "Chardonnay",
+        "Area (ha)": "2.00",
+        Picks: "2",
+        "Total Yield (kg)": "3000.0",
+        "t/ha": "1.50",
+        "Avg Brix °": "19.0",
+        "Avg pH": "3.30",
+        "Avg TA (g/L)": "7.00",
+        "Avg Pot. Alcohol %": "11.00",
+      };
+
+      for (const [column, expected] of Object.entries(expectedValues)) {
+        const columnIndex = header.indexOf(column);
+        expect(columnIndex, `CSV column ${column} must be present`).toBeGreaterThanOrEqual(0);
+        expect(dataRow?.[columnIndex], `${column} must contain the multi-vintage aggregate`).toBe(expected);
+      }
+    } finally {
+      for (const harvestId of harvestIds.reverse()) {
+        await deleteHarvest(harvestId).catch(() => undefined);
+      }
       if (blockId !== null) await deleteBlock(blockId).catch(() => undefined);
     }
   });
