@@ -635,7 +635,7 @@ function buildHarvestReportMailto(
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
-function buildHarvestCsv(
+export function buildHarvestCsv(
   records: HarvestRecord[],
   blocks: { id: number; blockName?: string | null; areaHa?: number | null; variety?: string | null }[],
   farmName: string,

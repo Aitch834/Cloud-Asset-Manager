@@ -176,7 +176,7 @@ jest.mock("../components/ui/IdentifierBanner", () => ({
 
 import React from "react";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
-import VineHarvestHistoryScreen from "../app/vine-harvest-history";
+import VineHarvestHistoryScreen, { buildHarvestCsv } from "../app/vine-harvest-history";
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
 
 const { useFarm } = require("../lib/context/FarmContext") as {
@@ -391,6 +391,7 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     });
 
     const screen = render(<VineHarvestHistoryScreen />);
+
     const expectAreaTotal = async () => {
       await waitFor(() => {
         expect(screen.getAllByText("Chardonnay").length).toBeGreaterThan(0);
@@ -409,5 +410,74 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     // The same block area must remain 2.50 when switching to another vintage.
     fireEvent.press(screen.getAllByText("2024")[0]);
     await expectAreaTotal();
+  });
+});
+
+function makeCsvHarvestRecord(id: number, blockId: number | null) {
+  return {
+    id,
+    harvestDate: "2026-09-01",
+    blockId,
+    blockName: blockId == null ? null : `Block ${blockId}`,
+    vintageYear: 2026,
+    harvestMethod: "Hand",
+    yieldKg: 100,
+    brix: 20,
+    ph: 3.2,
+    titratableAcidityGl: 6.5,
+    potentialAlcohol: 12,
+    grapeCondition: "Good",
+    operatorName: "Test operator",
+    notes: null,
+  };
+}
+
+describe("buildHarvestCsv — Yield by Variety guard", () => {
+  it("omits the section when records are all unlinked or contain only one named variety", () => {
+    const allUnlinkedCsv = buildHarvestCsv(
+      [makeCsvHarvestRecord(1, null), makeCsvHarvestRecord(2, null)],
+      [],
+      "Test Farm",
+      "2026",
+    );
+    const oneNamedVarietyCsv = buildHarvestCsv(
+      [makeCsvHarvestRecord(1, null), makeCsvHarvestRecord(2, 10)],
+      [{ id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 }],
+      "Test Farm",
+      "2026",
+    );
+
+    expect(allUnlinkedCsv).not.toContain('"Yield by Variety"');
+    expect(oneNamedVarietyCsv).not.toContain('"Yield by Variety"');
+  });
+
+  it.each([
+    {
+      label: "exactly two named varieties",
+      varieties: ["Chardonnay", "Pinot Noir"],
+    },
+    {
+      label: "more than two named varieties",
+      varieties: ["Chardonnay", "Pinot Noir", "Riesling"],
+    },
+  ])("includes every named variety when there are $label", ({ varieties }) => {
+    const blocks = varieties.map((variety, index) => ({
+      id: index + 1,
+      blockName: `Block ${index + 1}`,
+      variety,
+      areaHa: 1,
+    }));
+
+    const records = varieties.map((_, index) =>
+      makeCsvHarvestRecord(index + 1, index + 1),
+    );
+
+    const csv = buildHarvestCsv(records, blocks, "Test Farm", "2026");
+
+    expect(csv).toContain('"Yield by Variety"');
+    for (const variety of varieties) {
+      expect(csv).toContain(`"${variety}"`);
+    }
+    expect(csv).toContain('"TOTAL"');
   });
 });
