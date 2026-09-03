@@ -2260,12 +2260,17 @@ export async function printHarvest(
   farmMeta?: Record<string, unknown> | null,
   yearLabel?: string,
   chemCols?: { avgBrix: boolean; avgPh: boolean; avgTa: boolean; avgPa: boolean },
+  varietyChemCols?: { avgBrix: boolean; avgPh: boolean; avgTa: boolean; avgPa: boolean },
   vintageSort?: { col: string; dir: "asc" | "desc" },
 ) {
   const showBrix = chemCols?.avgBrix ?? true;
   const showPh   = chemCols?.avgPh   ?? true;
   const showTa   = chemCols?.avgTa   ?? true;
   const showPa   = chemCols?.avgPa   ?? true;
+  const showVarietyBrix = varietyChemCols?.avgBrix ?? true;
+  const showVarietyPh   = varietyChemCols?.avgPh   ?? true;
+  const showVarietyTa   = varietyChemCols?.avgTa   ?? true;
+  const showVarietyPa   = varietyChemCols?.avgPa   ?? true;
   const win = window.open("", "_blank", "width=1100,height=850");
   if (!win) return;
 
@@ -3064,10 +3069,10 @@ export async function printHarvest(
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${e.totalHa > 0 ? e.totalHa.toFixed(2) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-weight:600;font-family:monospace">${e.totalKg > 0 ? e.totalKg.toFixed(0) : "\u2014"}</td>
         <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${tPerHaCell}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPh != null ? avgPh.toFixed(2) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTa != null ? avgTa.toFixed(1) : "\u2014"}</td>
-        <td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPa != null ? avgPa.toFixed(1) : "\u2014"}</td>
+        ${showVarietyBrix ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgBrix != null ? avgBrix.toFixed(1) + " \xb0" : "\u2014"}</td>` : ""}
+        ${showVarietyPh   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPh != null ? avgPh.toFixed(2) : "\u2014"}</td>` : ""}
+        ${showVarietyTa   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgTa != null ? avgTa.toFixed(1) : "\u2014"}</td>` : ""}
+        ${showVarietyPa   ? `<td style="padding:5px 5px;border:1px solid #d1d5db;text-align:right;font-family:monospace">${avgPa != null ? avgPa.toFixed(1) : "\u2014"}</td>` : ""}
       </tr>`;
     }).join("");
     // Grand totals for footer
@@ -3099,10 +3104,10 @@ export async function printHarvest(
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Area (ha)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Total Yield (kg)</th>
       <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Yield (t/ha)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>
-      <th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>
+      ${showVarietyBrix ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Brix &deg;</th>` : ""}
+      ${showVarietyPh   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg pH</th>` : ""}
+      ${showVarietyTa   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg TA (g/L)</th>` : ""}
+      ${showVarietyPa   ? `<th style="background:#7c3d12;color:white;padding:6px 5px;text-align:right;white-space:nowrap">Avg Pot. Alc %</th>` : ""}
     </tr></thead>
     <tbody>${varietyBodyRows}</tbody>
     <tfoot><tr>
@@ -3110,10 +3115,10 @@ export async function printHarvest(
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandHa2 > 0 ? vsGrandHa2.toFixed(2) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandKg2 > 0 ? vsGrandKg2.toFixed(0) : "\u2014"}</td>
       <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-weight:700;font-family:monospace">${vsGrandTPerHaCell}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandBrix2 != null ? vsGrandBrix2.toFixed(1) + " \xb0" : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPh2 != null ? vsGrandPh2.toFixed(2) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandTa2 != null ? vsGrandTa2.toFixed(1) : "\u2014"}</td>
-      <td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPa2 != null ? vsGrandPa2.toFixed(1) : "\u2014"}</td>
+      ${showVarietyBrix ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandBrix2 != null ? vsGrandBrix2.toFixed(1) + " \xb0" : "\u2014"}</td>` : ""}
+      ${showVarietyPh   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPh2 != null ? vsGrandPh2.toFixed(2) : "\u2014"}</td>` : ""}
+      ${showVarietyTa   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandTa2 != null ? vsGrandTa2.toFixed(1) : "\u2014"}</td>` : ""}
+      ${showVarietyPa   ? `<td style="padding:5px 5px;border:1px solid #fdba74;background:#ffedd5;text-align:right;font-family:monospace">${vsGrandPa2 != null ? vsGrandPa2.toFixed(1) : "\u2014"}</td>` : ""}
     </tr></tfoot>
   </table>
   ${vsArealessFootnote}`;
