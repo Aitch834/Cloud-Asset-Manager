@@ -1710,6 +1710,10 @@ export default function VineBlockPhotosScreen() {
 
   const handleToggleSort = useCallback(() => {
     const next = !sortByCoverage;
+    // A user interaction wins over a late prefs response. Mark the preference
+    // as initialised before updating state so the async bootstrap effect cannot
+    // reset the choice after the grower has already selected a sort order.
+    prefsInitialised.current = true;
     setSortByCoverage(next);
     // setPref updates the in-memory singleton, AsyncStorage cache, pending
     // queue, and server atomically for both true and false values.

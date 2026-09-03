@@ -294,13 +294,19 @@ function makeBlock(overrides: Partial<VineBlock> = {}): VineBlock {
   };
 }
 
-function configureScreenMocks(block: VineBlock) {
+function configureScreenMocks(
+  blockOrBlocks: VineBlock | VineBlock[],
+  prefs: Record<string, unknown> = {},
+  prefsReady = true,
+  setPref = jest.fn(),
+) {
+  const blocks = Array.isArray(blockOrBlocks) ? blockOrBlocks : [blockOrBlocks];
   useFarm.mockReturnValue({
     currentFarm: { id: FARM_ID, name: "Test Farm" },
     user: { id: "test-user" },
   });
   useApiVineBlocks.mockReturnValue({
-    blocks: [block],
+    blocks,
     loading: false,
   });
   useFarmIdentifiers.mockReturnValue({
@@ -308,9 +314,9 @@ function configureScreenMocks(block: VineBlock) {
     loading: false,
   });
   useUiPrefs.mockReturnValue({
-    prefsReady: true,
-    prefs: {},
-    setPref: jest.fn(),
+    prefsReady,
+    prefs,
+    setPref,
     isHintDismissed: () => true,
     dismissHint: jest.fn(),
   });
@@ -377,6 +383,80 @@ describe("VineBlockPhotosScreen — block list count after delete", () => {
     expect(StyleSheet.flatten(noPhotosBadge.props.style)).toEqual(
       expect.objectContaining({ color: "#b45309" }),
     );
+  });
+});
+
+describe("VineBlockPhotosScreen — block-list sort preference", () => {
+  const SORT_COVERAGE_KEY = "vine_block_photo_sort_coverage";
+
+  function makeSortBlocks(): VineBlock[] {
+    return [
+      makeBlock({ id: 11, blockName: "Covered Block", photoCount: 3 }),
+      makeBlock({ id: 12, blockName: "Zero Block", photoCount: 0 }),
+    ];
+  }
+
+  function renderedOrder(screen: ReturnType<typeof render>): string {
+    return JSON.stringify(screen.toJSON());
+  }
+
+  it("restores 0 photos first after the screen is unmounted and mounted again", async () => {
+    const blocks = makeSortBlocks();
+    const persistedPrefs: Record<string, unknown> = {};
+    const setPref = jest.fn((key: string, value: unknown) => {
+      persistedPrefs[key] = value;
+    });
+
+    configureScreenMocks(blocks, persistedPrefs, true, setPref);
+    const firstMount = render(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      expect(firstMount.getByText("A–Z")).toBeTruthy();
+    });
+    fireEvent.press(firstMount.getByText("0 photos first"));
+
+    expect(persistedPrefs[SORT_COVERAGE_KEY]).toBe(true);
+    expect(renderedOrder(firstMount).indexOf("Zero Block")).toBeLessThan(
+      renderedOrder(firstMount).indexOf("Covered Block"),
+    );
+
+    firstMount.unmount();
+
+    configureScreenMocks(blocks, persistedPrefs, true, setPref);
+    const secondMount = render(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      const order = renderedOrder(secondMount);
+      expect(order.indexOf("Zero Block")).toBeLessThan(order.indexOf("Covered Block"));
+    });
+    expect(
+      StyleSheet.flatten(secondMount.getByText("0 photos first").props.style),
+    ).toEqual(expect.objectContaining({ color: "#fff" }));
+  });
+
+  it("does not reset a user toggle when persisted prefs arrive after the interaction", async () => {
+    const blocks = makeSortBlocks();
+    const setPref = jest.fn();
+    configureScreenMocks(blocks, {}, false, setPref);
+    const screen = render(React.createElement(VineBlockPhotosScreen));
+
+    fireEvent.press(screen.getByText("0 photos first"));
+    expect(
+      renderedOrder(screen).indexOf("Zero Block"),
+    ).toBeLessThan(renderedOrder(screen).indexOf("Covered Block"));
+
+    // Simulate the bootstrap response arriving with the old/default value
+    // after the grower has already chosen coverage-first.
+    configureScreenMocks(blocks, { [SORT_COVERAGE_KEY]: false }, true, setPref);
+    screen.rerender(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      const order = renderedOrder(screen);
+      expect(order.indexOf("Zero Block")).toBeLessThan(order.indexOf("Covered Block"));
+    });
+    expect(
+      StyleSheet.flatten(screen.getByText("0 photos first").props.style),
+    ).toEqual(expect.objectContaining({ color: "#fff" }));
   });
 });
 
