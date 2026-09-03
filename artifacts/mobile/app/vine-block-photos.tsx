@@ -1739,6 +1739,9 @@ export default function VineBlockPhotosScreen() {
 
   const activeBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "active"));
   const suspendedBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "suspended"));
+  const activeBlocksWithoutPhotos = activeBlocks.filter(
+    (block) => (localPhotoCountOverrides[block.id] ?? (block.photoCount ?? 0)) === 0,
+  ).length;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1808,35 +1811,43 @@ export default function VineBlockPhotosScreen() {
           }
           ListHeaderComponent={
             blocks.length > 0 ? (
-              <View style={styles.sortRow}>
-                <Text style={styles.sortLabel}>Sort:</Text>
-                <View style={styles.sortPills}>
-                  <Pressable
-                    style={[styles.sortPill, !sortByCoverage && styles.sortPillActive]}
-                    onPress={() => sortByCoverage && handleToggleSort()}
-                    hitSlop={6}
-                  >
-                    <Text style={[styles.sortPillText, !sortByCoverage && styles.sortPillTextActive]}>
-                      A–Z
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.sortPill, sortByCoverage && styles.sortPillActive]}
-                    onPress={() => !sortByCoverage && handleToggleSort()}
-                    hitSlop={6}
-                  >
-                    <Feather
-                      name="camera"
-                      size={11}
-                      color={sortByCoverage ? "#fff" : colors.textSecondary}
-                      style={{ marginRight: 4 }}
-                    />
-                    <Text style={[styles.sortPillText, sortByCoverage && styles.sortPillTextActive]}>
-                      0 photos first
-                    </Text>
-                  </Pressable>
+              <>
+                <View style={styles.sortRow}>
+                  <Text style={styles.sortLabel}>Sort:</Text>
+                  <View style={styles.sortPills}>
+                    <Pressable
+                      style={[styles.sortPill, !sortByCoverage && styles.sortPillActive]}
+                      onPress={() => sortByCoverage && handleToggleSort()}
+                      hitSlop={6}
+                    >
+                      <Text style={[styles.sortPillText, !sortByCoverage && styles.sortPillTextActive]}>
+                        A–Z
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.sortPill, sortByCoverage && styles.sortPillActive]}
+                      onPress={() => !sortByCoverage && handleToggleSort()}
+                      hitSlop={6}
+                    >
+                      <Feather
+                        name="camera"
+                        size={11}
+                        color={sortByCoverage ? "#fff" : colors.textSecondary}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.sortPillText, sortByCoverage && styles.sortPillTextActive]}>
+                        0 photos first
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
+                {activeBlocksWithoutPhotos > 0 ? (
+                  <Text style={styles.coverageSummary}>
+                    {activeBlocksWithoutPhotos} of {activeBlocks.length} active{" "}
+                    {activeBlocks.length === 1 ? "block has" : "blocks have"} no photos
+                  </Text>
+                ) : null}
+              </>
             ) : null
           }
           contentContainerStyle={styles.blockList}
@@ -2450,6 +2461,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.xs,
     gap: spacing.sm,
+  },
+  coverageSummary: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "#92400e",
+    backgroundColor: "#fffbeb",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
   },
   sortLabel: {
     fontFamily: fonts.regular,
