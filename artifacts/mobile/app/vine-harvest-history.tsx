@@ -768,10 +768,15 @@ function buildHarvestCsv(
     );
   }
 
+  const unlinkedCount = records.filter(r => !r.blockId).length;
+  const warningLine = unlinkedCount > 0
+    ? q(`WARNING: ${unlinkedCount} record${unlinkedCount === 1 ? "" : "s"} not linked to a block — block-level totals may be incomplete`)
+    : null;
   const farmLabel = yearLabel ? `${farmName} — ${yearLabel} Vintage` : farmName;
   const lines = [
     q(`Vineyard Harvest Report — ${farmLabel}`),
     "",
+    ...(warningLine ? [warningLine] : []),
     detailHeader,
     ...detailRows,
     ...varietyLines,
