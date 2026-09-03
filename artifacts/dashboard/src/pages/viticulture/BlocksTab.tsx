@@ -921,6 +921,27 @@ export function BlocksTab({ farmId, onNavigate, highlightBlockId, highlightBlock
               );
             },
           },
+          {
+            key: "photoCount",
+            label: "Photos",
+            render: r => {
+              const photoCount = Number(r.photoCount ?? 0);
+              if (photoCount === 0) {
+                return (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    <Camera className="w-3 h-3 shrink-0" />
+                    No photos
+                  </span>
+                );
+              }
+              return (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  <Camera className="w-3 h-3 shrink-0" />
+                  {photoCount}
+                </span>
+              );
+            },
+          },
           { key: "blockName", label: "Block" },
           { key: "blockRef", label: "Ref" },
           { key: "variety", label: "Variety" },
