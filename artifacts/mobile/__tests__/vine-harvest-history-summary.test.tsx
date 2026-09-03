@@ -84,6 +84,7 @@ jest.mock("react-native", () => {
   };
 });
 
+
 jest.mock("expo-file-system/legacy", () => ({
   cacheDirectory: "file:///cache/",
   EncodingType: { UTF8: "utf8" },
@@ -215,13 +216,18 @@ const { apiFetch } = require("../lib/apiFetch") as {
 const FARM_ID = "farm-1";
 const VINTAGE = 2025;
 
-function makeBlock(id: number, blockName: string, areaHa: number): VineBlock {
+function makeBlock(
+  id: number,
+  blockName: string,
+  areaHa: number | null,
+  variety = "Chardonnay",
+): VineBlock {
   return {
     id,
     blockName,
     blockRef: null,
     fieldParcelRef: null,
-    variety: "Chardonnay",
+    variety,
     rootstock: null,
     areaHa,
     numberOfVines: 1000,
@@ -238,13 +244,14 @@ function makeRecord(
   blockName: string,
   yieldKg: number,
   brix: number,
+  vintageYear = VINTAGE,
 ) {
   return {
     id,
     harvestDate: `2025-09-${String(id).padStart(2, "0")}`,
     blockId,
     blockName,
-    vintageYear: VINTAGE,
+    vintageYear,
     harvestMethod: "Hand",
     yieldKg,
     brix,
@@ -313,7 +320,10 @@ beforeEach(() => {
     dismissed: true,
     dismiss: jest.fn(),
   });
-  usePersistedVintage.mockReturnValue([VINTAGE, jest.fn(), FARM_ID]);
+  usePersistedVintage.mockImplementation(() => {
+    const [vintage, setVintage] = React.useState<number | null>(VINTAGE);
+    return [vintage, setVintage, FARM_ID];
+  });
   usePersistedVarietySort.mockReturnValue([
     { col: "variety", dir: "asc" },
     jest.fn(),
@@ -354,5 +364,50 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 3 records", "3.50 t", "1.17", "12.7°");
     });
+  });
+
+  it("counts a multi-pick block area once in the variety row and Total across vintage filters", async () => {
+    useApiFetch.mockReturnValue({
+      records: [
+        makeRecord(1, 101, "North Block", 1000, 10, 2025),
+        makeRecord(2, 101, "North Block", 500, 12, 2025),
+        makeRecord(3, 101, "North Block", 250, 11, 2025),
+        makeRecord(4, 202, "South Block", 2000, 16, 2025),
+        makeRecord(5, 101, "North Block", 400, 11, 2024),
+        makeRecord(6, 202, "South Block", 800, 15, 2024),
+      ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        makeBlock(101, "North Block", 2.5, "Chardonnay"),
+        makeBlock(202, "South Block", null, "Pinot Noir"),
+      ],
+      loading: false,
+    });
+
+    const screen = render(<VineHarvestHistoryScreen />);
+    const expectAreaTotal = async () => {
+      await waitFor(() => {
+        expect(screen.getAllByText("Chardonnay").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("Total").length).toBeGreaterThan(0);
+        // The Chardonnay row and the grand Total each display 2.50. If the
+        // three picks were summed as three areas, these would show 7.50.
+        expect(screen.getAllByText("2.50")).toHaveLength(2);
+      });
+    };
+
+    await expectAreaTotal();
+
+    fireEvent.press(screen.getByText("All"));
+    await expectAreaTotal();
+
+    // The same block area must remain 2.50 when switching to another vintage.
+    fireEvent.press(screen.getAllByText("2024")[0]);
+    await expectAreaTotal();
   });
 });
