@@ -52,6 +52,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
+import { isSinglePickYieldCell } from "@/lib/yield-cross-tab";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
@@ -455,7 +456,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const anySinglePickCell = blockRows.some(row =>
       uniqueVintages.some(vy => {
         const c = row.cells[vy];
-        return c && c.kg > 0 && c.pickCount === 1;
+        return isSinglePickYieldCell(c);
       })
     );
 
@@ -1684,7 +1685,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className="px-4 py-2 font-medium sticky left-0 z-10 bg-card group-hover:bg-muted/20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">{row.bname}</td>
                         {uniqueVintages.map(vy => {
                           const cell = row.cells[vy];
-                          const isSingle = cell && cell.kg > 0 && cell.pickCount === 1;
+                          const isSingle = isSinglePickYieldCell(cell);
                           const sortHlKg = yieldSort?.col === `vy:kg:${vy}`;
                           const sortHlTha = yieldSort?.col === `vy:tha:${vy}`;
                           return (
