@@ -29,7 +29,7 @@ import {
   BatchTrailQuickSearch,
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
-import { sanitiseCsvCell, deriveTonnesPerHa, buildViticultureUnlinkedWarning } from "@/lib/csv";
+import { sanitiseCsvCell, deriveTonnesPerHa, buildViticultureUnlinkedWarning, buildViticultureBlockSummaryFooterRow } from "@/lib/csv";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -1147,6 +1147,11 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       ].join(",");
     });
 
+    const footerRow = buildViticultureBlockSummaryFooterRow(rows, blockId => {
+      const block = blocks.find(b => String(b.id) === String(blockId));
+      return block ? getBlockAreaHa(block.id) : null;
+    }).map(cell).join(",");
+
     const _w1 = buildViticultureUnlinkedWarning(rows);
     const warningLine = _w1 ? _w1 + "\n" : "";
 
@@ -1166,6 +1171,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
       cell(`Per-Block Yield Summary — Vintage ${vintageLabel} — ${farmName ?? ""}`),
       header,
       ...dataRows,
+      footerRow,
     ].join("\n");
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
