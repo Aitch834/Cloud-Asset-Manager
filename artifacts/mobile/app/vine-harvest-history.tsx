@@ -447,7 +447,12 @@ function buildHarvestReportMailto(
   sbi: string | null,
   address: string | null,
   farmMeta: Record<string, unknown> | null,
-  blocks: { id: number; blockName?: string | null }[],
+  blocks: {
+    id: number;
+    blockName?: string | null;
+    areaHa?: number | null;
+    variety?: string | null;
+  }[],
   yearLabel?: string,
 ): { href: string; isTruncated: boolean } {
   const fsaVineRef = String(farmMeta?.fsaVineRegisterRef ?? "").trim();
@@ -458,6 +463,9 @@ function buildHarvestReportMailto(
   blocks.forEach(b => { blockLookup[b.id] = String(b.blockName ?? ""); });
   const bname = (id: number | null) =>
     id != null && blockLookup[id] ? blockLookup[id] : "—";
+  const blockDetails = new Map(
+    blocks.map(b => [b.id, { areaHa: b.areaHa ?? null, variety: String(b.variety ?? "").trim() }]),
+  );
 
   const totalKg = records.reduce((s, r) => s + (parseFloat(String(r.yieldKg ?? 0)) || 0), 0);
 
@@ -491,6 +499,108 @@ function buildHarvestReportMailto(
     col(nf(r.potentialAlcohol, 2), 6),
   ].join("  "));
 
+  // Keep the email breakdown aligned with the CSV: only show it when there
+  // are at least two named varieties, while retaining an unknown/unlinked row
+  // when it is present in the records.
+  const UNKNOWN_KEY = "Unknown / Not linked";
+  const avg = (vals: number[]) =>
+    vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const varietyMap: Record<string, {
+    totalKg: number; totalHa: number; seenBlockIds: Set<number>;
+    brixVals: number[]; phVals: number[]; taVals: number[]; paVals: number[];
+  }> = {};
+
+  for (const r of records) {
+    const block = r.blockId != null ? blockDetails.get(r.blockId) : undefined;
+    const variety = block?.variety ?? "";
+    const key = variety || UNKNOWN_KEY;
+    if (!varietyMap[key]) {
+      varietyMap[key] = {
+        totalKg: 0,
+        totalHa: 0,
+        seenBlockIds: new Set(),
+        brixVals: [],
+        phVals: [],
+        taVals: [],
+        paVals: [],
+      };
+    }
+    const entry = varietyMap[key];
+    entry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
+    if (r.blockId != null && !entry.seenBlockIds.has(r.blockId)) {
+      entry.seenBlockIds.add(r.blockId);
+      const areaHa = block?.areaHa;
+      if (areaHa != null && areaHa > 0) entry.totalHa += areaHa;
+    }
+    const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) entry.brixVals.push(brix);
+    const ph = parseFloat(String(r.ph ?? "")); if (!isNaN(ph)) entry.phVals.push(ph);
+    const ta = parseFloat(String(r.titratableAcidityGl ?? "")); if (!isNaN(ta)) entry.taVals.push(ta);
+    const pa = parseFloat(String(r.potentialAlcohol ?? "")); if (!isNaN(pa)) entry.paVals.push(pa);
+  }
+
+  const namedKeys = Object.keys(varietyMap).filter(k => k !== UNKNOWN_KEY);
+  const varietyLines: string[] = [];
+  if (namedKeys.length >= 2) {
+    const sortedEntries = Object.entries(varietyMap).sort(([a], [b]) => {
+      if (a === UNKNOWN_KEY) return 1;
+      if (b === UNKNOWN_KEY) return -1;
+      return a.localeCompare(b);
+    });
+    const varietyHeader = [
+      col("Variety", 22),
+      col("Area (ha)", 10),
+      col("Total Yield (kg)", 17),
+      col("Yield (kg/ha)", 15),
+      col("Avg Brix", 9),
+      col("Avg pH", 8),
+      col("Avg TA (g/L)", 13),
+      col("Avg Pot. Alc (%)", 17),
+    ].join("  ");
+    const varietySeparator = "-".repeat(varietyHeader.length);
+    const varietyDataLines = sortedEntries.map(([variety, e]) => {
+      const kgPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / e.totalHa : null;
+      return [
+        col(variety, 22),
+        col(e.totalHa > 0 ? e.totalHa.toFixed(2) : null, 10),
+        col(e.totalKg > 0 ? e.totalKg.toFixed(1) : null, 17),
+        col(kgPerHa != null ? String(Math.round(kgPerHa)) : null, 15),
+        col(avg(e.brixVals) != null ? avg(e.brixVals)!.toFixed(1) : null, 9),
+        col(avg(e.phVals) != null ? avg(e.phVals)!.toFixed(2) : null, 8),
+        col(avg(e.taVals) != null ? avg(e.taVals)!.toFixed(2) : null, 13),
+        col(avg(e.paVals) != null ? avg(e.paVals)!.toFixed(2) : null, 17),
+      ].join("  ");
+    });
+    const rowsWithArea = sortedEntries.filter(([, e]) => e.totalHa > 0);
+    const grandHa = rowsWithArea.reduce((s, [, e]) => s + e.totalHa, 0);
+    const grandKgForArea = rowsWithArea.reduce((s, [, e]) => s + e.totalKg, 0);
+    const grandKgPerHa = grandHa > 0 && grandKgForArea > 0 ? grandKgForArea / grandHa : null;
+    const grandKg = sortedEntries.reduce((s, [, e]) => s + e.totalKg, 0);
+    const allBrix = records.map(r => parseFloat(String(r.brix ?? ""))).filter(v => !isNaN(v));
+    const allPh = records.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v));
+    const allTa = records.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v));
+    const allPa = records.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v));
+    const varietyFooter = [
+      col("TOTAL", 22),
+      col(grandHa > 0 ? grandHa.toFixed(2) : null, 10),
+      col(grandKg > 0 ? grandKg.toFixed(1) : null, 17),
+      col(grandKgPerHa != null ? String(Math.round(grandKgPerHa)) : null, 15),
+      col(avg(allBrix) != null ? avg(allBrix)!.toFixed(1) : null, 9),
+      col(avg(allPh) != null ? avg(allPh)!.toFixed(2) : null, 8),
+      col(avg(allTa) != null ? avg(allTa)!.toFixed(2) : null, 13),
+      col(avg(allPa) != null ? avg(allPa)!.toFixed(2) : null, 17),
+    ].join("  ");
+
+    varietyLines.push(
+      "Yield by Variety",
+      varietySeparator,
+      varietyHeader,
+      varietySeparator,
+      ...varietyDataLines,
+      varietyFooter,
+      varietySeparator,
+    );
+  }
+
   const body = [
     `Harvest Report — ${farmName}${yearLabel ? ` (${yearLabel})` : ""}`,
     ``,
@@ -508,6 +618,8 @@ function buildHarvestReportMailto(
     ...(dataLines.length > 0 ? dataLines : [`(no records)`]),
     separator,
     ``,
+    ...varietyLines,
+    ...(varietyLines.length > 0 ? [""] : []),
     `Prepared by BDE Farm Trac.`,
   ].join("\n");
 
