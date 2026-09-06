@@ -13,8 +13,10 @@ import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const TENANT_ID = 1;
+const TENANT_SLUG = "oakfield-farms";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type ViticultureFarm = {
   tenantSlug: string;
@@ -52,7 +54,7 @@ async function getViticultureFarm(): Promise<ViticultureFarm> {
        JOIN farms f ON f.tenant_id = t.id
        JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
        JOIN modules m ON m.id = s.module_id
-       WHERE t.id = $1
+       WHERE t.slug = $1
          AND (
            s.status = 'active'
            OR (
@@ -62,7 +64,6 @@ async function getViticultureFarm(): Promise<ViticultureFarm> {
          )
          AND m.key IN ('viticulture', 'organic-viticulture')
          AND f.sector_viticulture = true
-         AND f.sbi_number IS NOT NULL
          AND EXISTS (
            SELECT 1
            FROM vineyard_blocks vb
@@ -70,13 +71,13 @@ async function getViticultureFarm(): Promise<ViticultureFarm> {
          )
        ORDER BY f.id
        LIMIT 1`,
-      [TENANT_ID],
+      [TENANT_SLUG],
     );
 
     const farm = result.rows[0];
     if (!farm) {
       throw new Error(
-        "Print pagination setup failed: no viticulture-enabled farm with an SBI number and vineyard block is available for the E2E tenant.",
+        `Print pagination setup failed: no viticulture-enabled farm with a vineyard block is available for tenant ${TENANT_SLUG}.`,
       );
     }
 
@@ -168,6 +169,32 @@ async function prepareDashboard(
     },
   );
 
+  await page.route(
+    reportApiUrl(farm.farmId, "vineyard-harvest"),
+    async route => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          records: [
+            {
+              id: 910004,
+              blockId: 1,
+              vintageYear: new Date().getFullYear(),
+              harvestDate: `${new Date().getFullYear()}-09-01`,
+              yieldKg: "1250",
+              harvestMethod: "Hand",
+            },
+          ],
+        }),
+      });
+    },
+  );
+
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(
@@ -188,11 +215,14 @@ async function prepareDashboard(
   await expect(
     page.getByRole("button", { name: "Vine Register", exact: true }),
   ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Viticulture", exact: true })).toBeVisible();
+  await expect(page.getByText("Viticulture module not active", { exact: true })).toHaveCount(0);
 }
 
 async function openPrintPopup(
   page: Page,
   click: () => Promise<void>,
+  expectRegistrationWarning = false,
 ): Promise<PrintPopup> {
   const popupPromise = page.waitForEvent("popup");
   await click();
@@ -203,6 +233,9 @@ async function openPrintPopup(
     name: "Registration refs incomplete",
     exact: true,
   });
+  if (expectRegistrationWarning) {
+    await expect(warning).toBeVisible();
+  }
   if (await warning.isVisible({ timeout: 1_000 }).catch(() => false)) {
     await warning.getByRole("button", { name: "Print anyway", exact: true }).click();
   }
@@ -261,13 +294,14 @@ test("all viticulture print reports preserve pagination guards", async ({ page }
   const organicPopup = await openPrintPopup(
     page,
     () => page.getByRole("button", { name: "Print Register", exact: true }).click(),
+    true,
   );
   await expect(organicPopup).toHaveTitle(/Organic Wine Production Register/i);
   await expectPaginationGuards(organicPopup, "Organic Wine Production Register");
   await organicPopup.close();
 
   // ── Excise Return ───────────────────────────────────────────────────────
-  await page.getByRole("button", { name: "Excise Duty", exact: true }).click();
+  await page.getByRole("button", { name: "Excise & Duty", exact: true }).click();
   await expect(page.locator("table tbody tr")).toHaveCount(1);
   await page.locator("table tbody tr").getByRole("button").first().click();
   const returnDialog = page.getByRole("dialog", {
@@ -277,8 +311,14 @@ test("all viticulture print reports preserve pagination guards", async ({ page }
   const excisePopup = await openPrintPopup(
     page,
     () => returnDialog.getByRole("button", { name: "Print Return", exact: true }).click(),
+    true,
   );
   await expect(excisePopup).toHaveTitle(/HMRC Alcohol Duty Return/i);
   await expectPaginationGuards(excisePopup, "Excise Return");
   await excisePopup.close();
+
+  // ── Harvest ──────────────────────────────────────────────────────────────
+  await page.getByRole("button", { name: "Harvest", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Export PDF", exact: true })).toBeVisible();
 });
