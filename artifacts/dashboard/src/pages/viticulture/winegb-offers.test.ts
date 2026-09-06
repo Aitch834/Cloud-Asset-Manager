@@ -32,6 +32,26 @@ afterEach(() => {
 });
 
 describe("readStoredOffers", () => {
+  it("removes a malformed offer without preventing a valid current-year offer from loading", () => {
+    const year = new Date().getFullYear();
+    const currentOffer = offerFor(year);
+    const malformedKey = `winegb-offer:${farmId}:flowering:${year}`;
+    const validKey = `winegb-offer:${farmId}:bud_burst:${year}`;
+    const storage = createMemoryStorage();
+    storage.setItem(malformedKey, "{not valid JSON");
+    storage.setItem(validKey, JSON.stringify(currentOffer));
+    vi.stubGlobal("localStorage", storage);
+
+    let offers: StoredOffer[] = [];
+    expect(() => {
+      offers = readStoredOffers(farmId);
+    }).not.toThrow();
+
+    expect(offers).toEqual([currentOffer]);
+    expect(storage.getItem(malformedKey)).toBeNull();
+    expect(storage.getItem(validKey)).toBe(JSON.stringify(currentOffer));
+  });
+
   it("silently removes an offer from the previous calendar year", () => {
     const year = new Date().getFullYear();
     const staleOffer = offerFor(year - 1);
