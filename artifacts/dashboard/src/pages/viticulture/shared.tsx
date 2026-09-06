@@ -3038,7 +3038,7 @@ export async function printHarvest(
   // Eligibility mirrors the on-screen varietySummaryData: ≥2 distinct named varieties.
   const VARIETY_UNKNOWN_KEY = "Unknown / Not linked";
   const varietyMap2: Record<string, {
-    totalKg: number; totalHa: number; blockIds: Set<unknown>;
+    totalKg: number; totalHa: number; blockIds: Set<number>;
     brixSum: number; brixCount: number;
     phSum: number; phCount: number;
     taSum: number; taCount: number;
@@ -3052,9 +3052,9 @@ export async function printHarvest(
     if (!varietyMap2[key]) varietyMap2[key] = { totalKg: 0, totalHa: 0, blockIds: new Set(), brixSum: 0, brixCount: 0, phSum: 0, phCount: 0, taSum: 0, taCount: 0, paSum: 0, paCount: 0 };
     const vEntry = varietyMap2[key];
     vEntry.totalKg += parseFloat(String(r.yieldKg ?? 0)) || 0;
-    if (block && r.blockId != null && !vEntry.blockIds.has(r.blockId)) {
-      vEntry.blockIds.add(r.blockId);
-      const ha = parseFloat(String(block.areaHa ?? ""));
+    if (block && bid != null && !isNaN(bid) && bid > 0 && !vEntry.blockIds.has(bid)) {
+      vEntry.blockIds.add(bid);
+      const ha = parseFloat(String(block.areaHa ?? block.area ?? ""));
       if (!isNaN(ha) && ha > 0) vEntry.totalHa += ha;
     }
     const brix = parseFloat(String(r.brix ?? "")); if (!isNaN(brix)) { vEntry.brixSum += brix; vEntry.brixCount++; }
@@ -3095,8 +3095,8 @@ export async function printHarvest(
     }).join("");
     // Grand totals for footer
     const vsGrandKg2 = sortedVarietyEntries.reduce((s, [, e]) => s + e.totalKg, 0);
-    const vsGrandHa2 = sortedVarietyEntries.filter(([k]) => k !== VARIETY_UNKNOWN_KEY).reduce((s, [, e]) => s + e.totalHa, 0);
     const rowsWithArea2 = sortedVarietyEntries.filter(([, e]) => e.totalHa > 0);
+    const vsGrandHa2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalHa, 0);
     const vsGrandKgForArea2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalKg, 0);
     // Use the same population (rowsWithArea2) for both kg and ha so the footer t/ha is internally consistent
     const vsGrandHaForTha2 = rowsWithArea2.reduce((s, [, e]) => s + e.totalHa, 0);
