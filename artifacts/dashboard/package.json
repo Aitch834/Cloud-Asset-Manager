@@ -10,7 +10,8 @@
     "typecheck": "node scripts/check-no-live-page-print.mjs && node scripts/check-restricted-inputs-columns.mjs && NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts --exclude '**/e2e/**'",
     "test:e2e": "playwright test",
-    "test:e2e:print-pagination": "playwright test e2e/viticulture-print-pagination.spec.ts"
+    "test:e2e:print-pagination": "playwright test e2e/viticulture-print-pagination.spec.ts",
+    "test:e2e:analytics-print": "playwright test e2e/analytics-chart-print-pagination.spec.ts"
   },
   "devDependencies": {
     "@clerk/testing": "^2.2.30",
