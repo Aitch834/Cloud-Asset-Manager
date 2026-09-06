@@ -36,6 +36,7 @@ import { useApiMyTasksSummary } from "@/lib/hooks/useApiMyTasksSummary";
 import { useHomePreference } from "@/lib/hooks/useHomePreference";
 import { apiFetch } from "@/lib/apiFetch";
 import {
+  getDairyHomeShortcut,
   getHomeModuleChecks,
   shouldShowViticultureComplianceGaps,
 } from "@/lib/homeModuleChecks";
@@ -82,6 +83,7 @@ export default function HomeScreen() {
     dashboardError == null;
   const { activeModuleKeys, isViticultureActive, isOrganicActive } =
     getHomeModuleChecks(dashboardData, dashboardModulesResolved);
+  const dairyHomeShortcut = getDairyHomeShortcut(activeModuleKeys);
   const [personaliseVisible, setPersonaliseVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -575,13 +577,13 @@ export default function HomeScreen() {
             bgColor="#f0fdf4"
             onPress={() => router.push("/task-inbox")}
           />
-          {activeModuleKeys.includes("dairy-management") && (
+          {dairyHomeShortcut && (
             <QuickAction
-              title="Mastitis History"
+              title={dairyHomeShortcut.title}
               icon="bar-chart-2"
               color="#2563eb"
               bgColor="#dbeafe"
-              onPress={() => router.push("/mastitis-history")}
+              onPress={() => router.push(dairyHomeShortcut.route)}
             />
           )}
           <QuickAction

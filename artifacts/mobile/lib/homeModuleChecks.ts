@@ -6,6 +6,11 @@ export interface HomeModuleChecks {
   isOrganicActive: boolean;
 }
 
+export interface HomeModuleShortcut {
+  title: string;
+  route: "/mastitis-history";
+}
+
 export interface HomeUnlinkedCounts {
   scouting: number;
   sprayDiary: number;
@@ -28,6 +33,17 @@ export function getHomeModuleChecks(
       activeModuleKeys.includes("viticulture") ||
       activeModuleKeys.includes("organic-viticulture"),
     isOrganicActive: activeModuleKeys.includes("organic-compliance"),
+  };
+}
+
+export function getDairyHomeShortcut(
+  activeModuleKeys: string[],
+): HomeModuleShortcut | null {
+  if (!activeModuleKeys.includes("dairy-management")) return null;
+
+  return {
+    title: "Mastitis History",
+    route: "/mastitis-history",
   };
 }
 

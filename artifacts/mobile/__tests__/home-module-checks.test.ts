@@ -1,4 +1,5 @@
 import {
+  getDairyHomeShortcut,
   getHomeModuleChecks,
   shouldShowViticultureComplianceGaps,
 } from "../lib/homeModuleChecks";
@@ -50,6 +51,32 @@ describe("home module checks", () => {
       activeModuleKeys: [],
       isViticultureActive: false,
       isOrganicActive: false,
+    });
+  });
+
+  it("refreshes the Mastitis History shortcut across dairy farm switches", () => {
+    const dairyDashboard = { activeModuleKeys: ["dairy-management"] };
+    const nonDairyDashboard = { activeModuleKeys: ["livestock-management"] };
+
+    const dairyModules = getHomeModuleChecks(dairyDashboard, true);
+    expect(getDairyHomeShortcut(dairyModules.activeModuleKeys)).toEqual({
+      title: "Mastitis History",
+      route: "/mastitis-history",
+    });
+
+    const switchingModules = getHomeModuleChecks(dairyDashboard, false);
+    expect(getDairyHomeShortcut(switchingModules.activeModuleKeys)).toBeNull();
+
+    const nonDairyModules = getHomeModuleChecks(nonDairyDashboard, true);
+    expect(getDairyHomeShortcut(nonDairyModules.activeModuleKeys)).toBeNull();
+
+    const switchingBackModules = getHomeModuleChecks(nonDairyDashboard, false);
+    expect(getDairyHomeShortcut(switchingBackModules.activeModuleKeys)).toBeNull();
+
+    const refreshedDairyModules = getHomeModuleChecks(dairyDashboard, true);
+    expect(getDairyHomeShortcut(refreshedDairyModules.activeModuleKeys)).toEqual({
+      title: "Mastitis History",
+      route: "/mastitis-history",
     });
   });
 });
