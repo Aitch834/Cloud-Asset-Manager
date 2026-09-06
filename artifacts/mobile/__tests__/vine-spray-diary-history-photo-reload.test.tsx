@@ -29,7 +29,26 @@ jest.mock("react-native", () => {
     ActivityIndicator: host("ActivityIndicator"),
     Alert: { alert: jest.fn(), prompt: jest.fn() },
     Dimensions: { get: () => ({ width: 390, height: 844 }) },
-    FlatList: host("FlatList"),
+    FlatList: ({
+      data = [],
+      renderItem,
+      ListEmptyComponent,
+      ...props
+    }: {
+      data?: unknown[];
+      renderItem?: (info: { item: unknown; index: number }) => React.ReactNode;
+      ListEmptyComponent?: React.ReactNode;
+      [key: string]: unknown;
+    }) =>
+      React.createElement(
+        "FlatList",
+        props,
+        data.length && renderItem
+          ? data.map((item, index) =>
+              React.createElement(React.Fragment, { key: index }, renderItem({ item, index })),
+            )
+          : ListEmptyComponent,
+      ),
     Image: host("Image"),
     KeyboardAvoidingView: host("KeyboardAvoidingView"),
     Modal: host("Modal"),
@@ -160,9 +179,22 @@ import React from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { Image } from "react-native";
 import {
+  default as VineSprayDiaryHistoryScreen,
   SprayPhotoLightbox,
   SprayPhotoThumbnail,
 } from "../app/vine-spray-diary-history";
+
+const { useFarm } = require("../lib/context/FarmContext") as { useFarm: jest.Mock };
+const { useApiFetch } = require("../lib/hooks/useApiFetch") as { useApiFetch: jest.Mock };
+const { useApiVineBlocks } = require("../lib/hooks/useApiVineBlocks") as { useApiVineBlocks: jest.Mock };
+const { useFarmIdentifiers } = require("../lib/hooks/useFarmIdentifiers") as { useFarmIdentifiers: jest.Mock };
+const { useIdentifierBannerDismiss } = require("../lib/hooks/useIdentifierBannerDismiss") as {
+  useIdentifierBannerDismiss: jest.Mock;
+};
+const { usePersistedBlockFilter } = require("../lib/hooks/usePersistedBlockFilter") as {
+  usePersistedBlockFilter: jest.Mock;
+};
+const { usePrint } = require("../lib/hooks/usePrint") as { usePrint: jest.Mock };
 
 const photo = {
   id: 101,
@@ -246,5 +278,66 @@ describe("SprayPhotoLightbox cover badge", () => {
       gesture.onEnd({ translationX: 100 });
     });
     expect(screen.getByText("★")).toBeTruthy();
+  });
+});
+
+describe("VineSprayDiaryHistoryScreen — filtered empty states", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useFarm.mockReturnValue({
+      currentFarm: { id: "farm-1", name: "Test Vineyard" },
+      user: { id: "test-user" },
+    });
+    useApiFetch.mockReturnValue({
+      records: [],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    useApiVineBlocks.mockReturnValue({ blocks: [], loading: false });
+    useFarmIdentifiers.mockReturnValue({
+      address: "Test Lane",
+      postcode: "AB1 2CD",
+      cphNumber: "12/345/6789",
+      sbiNumber: "123456789",
+      loading: false,
+      justSaved: false,
+      clearJustSaved: jest.fn(),
+      refetch: jest.fn(),
+    });
+    useIdentifierBannerDismiss.mockReturnValue({ dismissed: true, dismiss: jest.fn() });
+    usePersistedBlockFilter.mockReturnValue([[], jest.fn()]);
+    usePrint.mockReturnValue({ savePdf: jest.fn() });
+  });
+
+  it("shows block-specific guidance when only the block filter is active", () => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+
+    expect(screen.getByText("No entries for the selected block(s).")).toBeTruthy();
+    expect(screen.queryByText("Spray diary entries you create will appear here.")).toBeNull();
+  });
+
+  it("keeps the current-filters message for an empty search", () => {
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText("Search by product, block or operator…"),
+      "sulphur",
+    );
+
+    expect(screen.getByText("No entries match the current filters.")).toBeTruthy();
+  });
+
+  it("keeps the current-filters message for an empty date range", () => {
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+    fireEvent.changeText(
+      screen.getAllByPlaceholderText("DD/MM/YYYY")[0],
+      "01/01/2026",
+    );
+
+    expect(screen.getByText("No entries match the current filters.")).toBeTruthy();
   });
 });

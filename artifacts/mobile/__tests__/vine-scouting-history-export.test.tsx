@@ -128,6 +128,9 @@ jest.mock("../lib/hooks/useIdentifierBannerDismiss", () => ({
 jest.mock("../lib/hooks/usePersistedBlockFilter", () => ({
   usePersistedBlockFilter: jest.fn(),
 }));
+jest.mock("../lib/hooks/usePersistedDateRange", () => ({
+  usePersistedDateRange: jest.fn(),
+}));
 jest.mock("../lib/hooks/usePersistedPressureFilter", () => ({
   usePersistedPressureFilter: jest.fn(),
 }));
@@ -159,6 +162,9 @@ const { useIdentifierBannerDismiss } = require("../lib/hooks/useIdentifierBanner
 };
 const { usePersistedBlockFilter } = require("../lib/hooks/usePersistedBlockFilter") as {
   usePersistedBlockFilter: jest.Mock;
+};
+const { usePersistedDateRange } = require("../lib/hooks/usePersistedDateRange") as {
+  usePersistedDateRange: jest.Mock;
 };
 const { usePersistedPressureFilter } = require("../lib/hooks/usePersistedPressureFilter") as {
   usePersistedPressureFilter: jest.Mock;
@@ -245,6 +251,11 @@ beforeEach(() => {
     dismiss: jest.fn(),
   });
   usePersistedBlockFilter.mockReturnValue([[], jest.fn()]);
+  usePersistedDateRange.mockImplementation(() => {
+    const [from, setFrom] = React.useState("");
+    const [to, setTo] = React.useState("");
+    return [from, setFrom, to, setTo];
+  });
   usePersistedPressureFilter.mockReturnValue(["__all__", jest.fn()]);
   usePersistedVintage.mockReturnValue([null, jest.fn(), FARM_ID]);
   usePrint.mockReturnValue({ savePdf });
@@ -326,5 +337,67 @@ describe("VineScoutingHistoryScreen — date-filtered PDF export", () => {
     });
 
     expect(screen.getByTestId("vine-scouting-export").props.disabled).toBe(true);
+  });
+});
+
+describe("VineScoutingHistoryScreen — filtered empty states", () => {
+  beforeEach(() => {
+    useApiFetch.mockReturnValue({
+      records: [],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+  });
+
+  it("shows block-specific guidance when only the block filter is active", () => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(screen.getByText("No records for the selected block(s).")).toBeTruthy();
+    expect(screen.queryByText("Scouting records you create will appear here.")).toBeNull();
+  });
+
+  it("keeps the generic current-filters message for an empty date range", () => {
+    usePersistedDateRange.mockReturnValue([
+      "01/01/2026",
+      jest.fn(),
+      "",
+      jest.fn(),
+    ]);
+
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(screen.getByText("No records match the current filters.")).toBeTruthy();
+  });
+
+  it("keeps the search-specific empty-state message", () => {
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText("Search by block, scout or date…"),
+      "mildew",
+    );
+
+    expect(screen.getByText('No scouting records match "mildew"')).toBeTruthy();
+    expect(
+      screen.getByText("Try adjusting your search or clear the filters to see all records."),
+    ).toBeTruthy();
+  });
+
+  it("keeps the pressure-filter-specific empty-state message", () => {
+    usePersistedPressureFilter.mockReturnValue(["3", jest.fn()]);
+
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(
+      screen.getByText('No scouting records match pressure "High only"'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Try adjusting your search or clear the filters to see all records."),
+    ).toBeTruthy();
   });
 });
