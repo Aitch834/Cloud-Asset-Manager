@@ -1,4 +1,5 @@
 import {
+  getWinegbSurveyStatus,
   WINEGB_SURVEY_KEYS,
   WINEGB_SURVEY_MAP,
   WINEGB_SURVEYS,
@@ -36,5 +37,62 @@ describe("WineGB survey definitions", () => {
     ];
 
     expect(mappedSurveyKeys.every(key => WINEGB_SURVEY_KEYS.includes(key))).toBe(true);
+  });
+});
+
+describe("WineGB survey collection-window status", () => {
+  const seasonYear = 2026;
+  const flowering = WINEGB_SURVEYS.find(survey => survey.key === "flowering")!;
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function freezeDate(isoDate: string): void {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(`${isoDate}T12:00:00.000Z`));
+  }
+
+  it("is pending before the collection window opens", () => {
+    freezeDate("2026-05-31");
+
+    expect(getWinegbSurveyStatus({
+      survey: flowering,
+      seasonYear,
+      submitted: false,
+    })).toEqual({ isOverdue: false, isInSeason: false });
+  });
+
+  it.each(["2026-06-01", "2026-07-31"])(
+    "is in season on the collection-window boundary %s",
+    (date) => {
+      freezeDate(date);
+
+      expect(getWinegbSurveyStatus({
+        survey: flowering,
+        seasonYear,
+        submitted: false,
+      })).toEqual({ isOverdue: false, isInSeason: true });
+    },
+  );
+
+  it("becomes overdue in the month after the collection window closes", () => {
+    freezeDate("2026-08-01");
+
+    expect(getWinegbSurveyStatus({
+      survey: flowering,
+      seasonYear,
+      submitted: false,
+    })).toEqual({ isOverdue: true, isInSeason: false });
+  });
+
+  it("never marks a submitted survey overdue", () => {
+    freezeDate("2026-08-01");
+
+    expect(getWinegbSurveyStatus({
+      survey: flowering,
+      seasonYear,
+      submitted: true,
+    })).toEqual({ isOverdue: false, isInSeason: false });
   });
 });

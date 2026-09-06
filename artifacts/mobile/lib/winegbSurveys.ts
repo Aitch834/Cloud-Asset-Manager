@@ -16,6 +16,27 @@ export interface WinegbSurvey {
 export const WINEGB_SURVEYS: readonly WinegbSurvey[] = winegbSurveys;
 export const WINEGB_SURVEY_KEYS = WINEGB_SURVEYS.map(({ key }) => key);
 
+export function getWinegbSurveyStatus(params: {
+  survey: WinegbSurvey;
+  seasonYear: number;
+  submitted: boolean;
+  now?: Date;
+}): { isOverdue: boolean; isInSeason: boolean } {
+  const now = params.now ?? new Date();
+  const isCurrentSeason = params.seasonYear === now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const isOutstandingCurrentSeason = isCurrentSeason && !params.submitted;
+
+  return {
+    isOverdue:
+      isOutstandingCurrentSeason &&
+      currentMonth > Math.max(...params.survey.months),
+    isInSeason:
+      isOutstandingCurrentSeason &&
+      params.survey.months.includes(currentMonth),
+  };
+}
+
 // Maps BBCH stage codes to WineGB's seasonal vineyard surveys.
 // surveyKey matches the server's WinegbSurveyKey (null = no checklist entry).
 export const WINEGB_SURVEY_MAP: Record<

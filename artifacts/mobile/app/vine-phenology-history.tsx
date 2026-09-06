@@ -40,6 +40,7 @@ import {
 } from "@/lib/winegbSeasons";
 import { openExternalUrl } from "@/utils/openExternalUrl";
 import {
+  getWinegbSurveyStatus,
   WINEGB_SURVEYS,
   type WinegbSurvey,
   type WinegbSurveyKey,
@@ -60,10 +61,6 @@ interface WinegbSubmission {
 }
 
 function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: string; seasonYear: number }) {
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-  const isCurrentSeason = seasonYear === currentYear;
-
   const [collapsed, setCollapsed] = useState(false);
   const [submissions, setSubmissions] = useState<Record<string, WinegbSubmission>>({});
   const [loadingPanel, setLoadingPanel] = useState(true);
@@ -172,8 +169,11 @@ function WinegbSubmissionsPanel({ farmId, seasonYear }: { farmId: string; season
               {WINEGB_SURVEYS.map(survey => {
                 const state = submissions[survey.key];
                 const isSubmitted = state?.submitted ?? false;
-                const isOverdue = isCurrentSeason && !isSubmitted && currentMonth > Math.max(...survey.months);
-                const isInSeason = isCurrentSeason && !isSubmitted && survey.months.includes(currentMonth);
+                const { isOverdue, isInSeason } = getWinegbSurveyStatus({
+                  survey,
+                  seasonYear,
+                  submitted: isSubmitted,
+                });
                 const isPending = toggling === survey.key;
 
                 let rowStyle = wgStyles.surveyRowDefault;
