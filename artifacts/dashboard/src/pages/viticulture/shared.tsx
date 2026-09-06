@@ -2710,7 +2710,10 @@ export async function printHarvest(
   {
     const chemLinkedVintages = [...new Set(chemLinkedRecords.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
     const chemLinkedBlockIds = [...new Set(chemLinkedRecords.map(r => r.blockId))];
-    const showChemCrossTab = chemLinkedVintages.length >= 2 && chemLinkedBlockIds.length >= 2;
+    const showChemCrossTab =
+      chemLinkedVintages.length >= 2 &&
+      chemLinkedBlockIds.length >= 2 &&
+      (showBrix || showPh || showTa || showPa);
 
     if (showChemCrossTab) {
       // Build lookup: blockId → vintageYear → linked rows only
@@ -2728,10 +2731,10 @@ export async function printHarvest(
         precision: number;
         extractor: (r: Record<string, unknown>) => number | null;
       }> = [
-        { label: "Avg Brix \u00b0", precision: 1, extractor: r => { const v = parseFloat(String(r.brix ?? "")); return isNaN(v) ? null : v; } },
-        { label: "Avg pH", precision: 2, extractor: r => { const v = parseFloat(String(r.ph ?? "")); return isNaN(v) ? null : v; } },
-        { label: "Avg TA (g/L)", precision: 2, extractor: r => { const v = parseFloat(String(r.titratableAcidityGl ?? "")); return isNaN(v) ? null : v; } },
-        { label: "Avg Pot. Alc %", precision: 2, extractor: r => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; } },
+        ...(showBrix ? [{ label: "Avg Brix \u00b0", precision: 1, extractor: (r: Record<string, unknown>) => { const v = parseFloat(String(r.brix ?? "")); return isNaN(v) ? null : v; } }] : []),
+        ...(showPh ? [{ label: "Avg pH", precision: 2, extractor: (r: Record<string, unknown>) => { const v = parseFloat(String(r.ph ?? "")); return isNaN(v) ? null : v; } }] : []),
+        ...(showTa ? [{ label: "Avg TA (g/L)", precision: 2, extractor: (r: Record<string, unknown>) => { const v = parseFloat(String(r.titratableAcidityGl ?? "")); return isNaN(v) ? null : v; } }] : []),
+        ...(showPa ? [{ label: "Avg Pot. Alc %", precision: 2, extractor: (r: Record<string, unknown>) => { const v = parseFloat(String(r.potentialAlcohol ?? "")); return isNaN(v) ? null : v; } }] : []),
       ];
 
       // Dynamic scaling: each chem sub-table has N+3 columns; reduce font/padding for wide tables
