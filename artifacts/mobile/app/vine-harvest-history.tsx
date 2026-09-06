@@ -2227,7 +2227,7 @@ export default function VineHarvestHistoryScreen() {
                 );
               })}
               {/* Legend */}
-              <View style={styles.varietyLegend}>
+              <View style={styles.varietyLegend} testID="variety-chart-legend">
                 {sortedVarietyRows.map((row) => {
                   const color = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
                   return (
@@ -2269,6 +2269,8 @@ export default function VineHarvestHistoryScreen() {
                           ]}
                           onPress={() => { Haptics.selectionAsync(); toggleVarietySort(c.col as "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix"); }}
                           hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Sort variety table by ${c.label}`}
                         >
                           <View style={styles.varietyHeaderCellInner}>
                             {c.align === "right" && (
@@ -2306,13 +2308,14 @@ export default function VineHarvestHistoryScreen() {
                 </View>
 
                 {/* Data rows */}
-                {sortedVarietyRows.map((row, i) => {
-                  const swatchColor = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
-                  return (
-                  <View
-                    key={row.variety}
-                    style={[styles.varietyRow, styles.varietyDataRow, i < sortedVarietyRows.length - 1 && styles.varietyDataRowBorder]}
-                  >
+                <View testID="variety-table-body">
+                  {sortedVarietyRows.map((row, i) => {
+                    const swatchColor = varietySummaryData.colorMap[row.variety] ?? "#94a3b8";
+                    return (
+                    <View
+                      key={row.variety}
+                      style={[styles.varietyRow, styles.varietyDataRow, i < sortedVarietyRows.length - 1 && styles.varietyDataRowBorder]}
+                    >
                     <View style={[{ flex: 1 }, styles.varietyNameCell]}>
                       <View style={[styles.varietyRowSwatch, { backgroundColor: swatchColor }]} />
                       <Text style={styles.varietyName} numberOfLines={1}>{row.variety}</Text>
@@ -2370,9 +2373,10 @@ export default function VineHarvestHistoryScreen() {
                         </Text>
                       </View>
                     )}
-                  </View>
-                  );
-                })}
+                    </View>
+                    );
+                  })}
+                </View>
 
                 {/* Grand total footer */}
                 <View style={[styles.varietyRow, styles.varietyFooterRow]}>

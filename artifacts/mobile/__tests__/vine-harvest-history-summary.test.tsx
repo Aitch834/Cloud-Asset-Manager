@@ -175,7 +175,7 @@ jest.mock("../components/ui/IdentifierBanner", () => ({
 }));
 
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import VineHarvestHistoryScreen, { buildHarvestCsv } from "../app/vine-harvest-history";
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
 
@@ -410,6 +410,41 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     // The same block area must remain 2.50 when switching to another vintage.
     fireEvent.press(screen.getAllByText("2024")[0]);
     await expectAreaTotal();
+  });
+
+  it("keeps the variety table and chart legend in the same order after sorting by total yield", async () => {
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        makeBlock(101, "North Block", 1, "Chardonnay"),
+        makeBlock(202, "South Block", 1, "Pinot Noir"),
+      ],
+      loading: false,
+    });
+    usePersistedVarietySort.mockImplementation(() =>
+      React.useState<{ col: "variety" | "totalKg"; dir: "asc" | "desc" }>({
+        col: "variety",
+        dir: "asc",
+      }),
+    );
+
+    const screen = render(<VineHarvestHistoryScreen />);
+    const varietyNames = /^(Chardonnay|Pinot Noir)$/;
+    const orderedNames = (testId: string) =>
+      within(screen.getByTestId(testId))
+        .getAllByText(varietyNames)
+        .map(node => String(node.props.children));
+
+    await waitFor(() => {
+      expect(orderedNames("variety-chart-legend")).toEqual(["Chardonnay", "Pinot Noir"]);
+      expect(orderedNames("variety-table-body")).toEqual(["Chardonnay", "Pinot Noir"]);
+    });
+
+    fireEvent.press(screen.getByLabelText("Sort variety table by Total kg"));
+
+    await waitFor(() => {
+      expect(orderedNames("variety-chart-legend")).toEqual(["Pinot Noir", "Chardonnay"]);
+      expect(orderedNames("variety-table-body")).toEqual(["Pinot Noir", "Chardonnay"]);
+    });
   });
 });
 

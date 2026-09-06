@@ -138,14 +138,6 @@ jest.mock("../lib/hooks/usePersistedDateRange", () => ({
 jest.mock("../lib/hooks/usePersistedPressureFilter", () => ({
   usePersistedPressureFilter: jest.fn(),
 }));
-jest.mock("../lib/hooks/usePersistedDateRange", () => ({
-  usePersistedDateRange: () => {
-    const React = require("react");
-    const [dateFrom, setDateFrom] = React.useState("");
-    const [dateTo, setDateTo] = React.useState("");
-    return [dateFrom, setDateFrom, dateTo, setDateTo];
-  },
-}));
 jest.mock("../lib/hooks/usePersistedVintage", () => ({
   usePersistedVintage: jest.fn(),
 }));
