@@ -2,9 +2,10 @@
 /**
  * Prevents mobile screens from bypassing the shared external URL helper.
  *
- * HTTP(S) URLs must be opened through utils/openExternalUrl.ts so they stay
- * inside the app's in-app browser. Native schemes such as mailto: and tel:
- * may still use Linking.openURL directly.
+ * URLs that are not provably fixed native schemes must be opened through
+ * utils/openExternalUrl.ts so runtime HTTP(S) values stay inside the app's
+ * in-app browser. Fixed native schemes such as mailto: and tel: may still use
+ * Linking.openURL directly.
  *
  * Usage:
  *   node artifacts/mobile/scripts/check-external-url-guard.mjs
@@ -55,6 +56,7 @@ function tokenize(source) {
       const start = index;
       index += 1;
       let value = "";
+      let hasInterpolation = false;
 
       while (index < source.length) {
         const current = source[index];
@@ -62,6 +64,9 @@ function tokenize(source) {
           value += source[index + 1] ?? "";
           index += 2;
           continue;
+        }
+        if (quote === "`" && current === "$" && source[index + 1] === "{") {
+          hasInterpolation = true;
         }
         if (current === quote) {
           index += 1;
@@ -72,7 +77,7 @@ function tokenize(source) {
       }
 
       tokens.push({
-        type: "literal",
+        type: hasInterpolation ? "template" : "literal",
         value,
         line: source.slice(0, start).split("\n").length,
       });
@@ -130,12 +135,15 @@ function findViolations(source, filePath) {
     if (!isMemberCall(tokens, index, "Linking", "openURL")) continue;
 
     const argument = tokens[index + 4];
-    if (
+    const isFixedNativeScheme =
       argument?.type === "literal" &&
-      /^https?:\/\//i.test(argument.value.trimStart())
-    ) {
+      /^[a-z][a-z0-9+.-]*:/i.test(argument.value.trimStart()) &&
+      !/^https?:/i.test(argument.value.trimStart()) &&
+      tokens[index + 5]?.value === ")";
+
+    if (!isFixedNativeScheme) {
       violations.push({
-        kind: "Linking.openURL with an HTTP(S) URL",
+        kind: "Linking.openURL without a fixed native-scheme literal",
         line: tokens[index].line,
         filePath,
       });
@@ -174,6 +182,29 @@ function runSelfTest() {
     {
       name: "flags an HTTP literal passed to Linking",
       source: 'Linking.openURL("https://example.com");',
+      expected: 1,
+    },
+    {
+      name: "flags a multiline dynamically assembled URL",
+      source: [
+        "const url =",
+        '  "https://example.com/" +',
+        "  path;",
+        "Linking",
+        "  .openURL(",
+        "    url,",
+        "  );",
+      ].join("\n"),
+      expected: 1,
+    },
+    {
+      name: "flags an interpolated template URL",
+      source: "Linking.openURL(`https://example.com/${path}`);",
+      expected: 1,
+    },
+    {
+      name: "flags a dynamically assembled native URL for helper routing",
+      source: 'Linking.openURL("mailto:" + address);',
       expected: 1,
     },
     {
@@ -220,7 +251,7 @@ for (const directory of SOURCE_DIRECTORIES) {
 if (violations.length > 0) {
   console.error("✗ Direct external URL API usage found in mobile source.");
   console.error(
-    "  Use openExternalUrl() from utils/openExternalUrl.ts for HTTP(S) URLs.",
+    "  Use openExternalUrl() from utils/openExternalUrl.ts unless Linking.openURL receives a fixed native-scheme literal.",
   );
   for (const violation of violations) {
     console.error(
@@ -231,5 +262,5 @@ if (violations.length > 0) {
 }
 
 console.log(
-  "✓ Mobile external URL guard passed: HTTP(S) links use the shared helper and no screen calls WebBrowser directly.",
+  "✓ Mobile external URL guard passed: dynamic links use the shared helper, direct Linking calls are fixed native schemes, and no screen calls WebBrowser directly.",
 );

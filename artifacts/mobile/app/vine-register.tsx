@@ -6,7 +6,6 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -32,6 +31,7 @@ import { usePrint } from "@/lib/hooks/usePrint";
 import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
 import { kvGet } from "@/lib/database";
 import { buildVineRegisterPdfHtml } from "@/lib/vineRegisterPdf";
+import { openExternalUrl } from "@/utils/openExternalUrl";
 
 interface VineRegisterEntry {
   id: number;
@@ -584,7 +584,7 @@ export default function VineRegisterScreen() {
           {
             text: "Open email anyway",
             onPress: () => {
-              Linking.openURL(href).catch(() => {
+              openExternalUrl(href).catch(() => {
                 Alert.alert("Could not open email", "No email app was found on this device.");
               });
             },
@@ -594,7 +594,7 @@ export default function VineRegisterScreen() {
       );
       return;
     }
-    Linking.openURL(href).catch(() => {
+    openExternalUrl(href).catch(() => {
       Alert.alert("Could not open email", "No email app was found on this device.");
     });
   }, [records, farmName, currentFarm?.name, sbiNumber, address, vitiMeta]);
