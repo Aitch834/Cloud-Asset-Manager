@@ -53,3 +53,4 @@ Thumbs.db
 # Playwright global setup state
 artifacts/dashboard/e2e/.test-user-id
 artifacts/dashboard/e2e/.test-user-email
+artifacts/dashboard/test-results/
