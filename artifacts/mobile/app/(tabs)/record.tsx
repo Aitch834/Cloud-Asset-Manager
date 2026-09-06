@@ -34,7 +34,7 @@ interface WineryVesselSummary {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface RecordOption {
+export interface RecordOption {
   id: string;
   title: string;
   description: string;
@@ -47,7 +47,7 @@ interface RecordOption {
   requiresSectors?: FarmSector[];
 }
 
-const recordOptions: RecordOption[] = [
+export const recordOptions: RecordOption[] = [
   {
     id: "task-inbox",
     title: "My Task Inbox",
@@ -2362,6 +2362,8 @@ function RecordOptionCard({
 
   return (
     <Pressable
+      testID={`record-option-${option.id}`}
+      accessibilityLabel={option.title}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.card,
