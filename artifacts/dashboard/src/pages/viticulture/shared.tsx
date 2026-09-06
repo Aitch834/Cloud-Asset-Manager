@@ -31,6 +31,10 @@ import {
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell, buildViticultureCsvContent } from "@/lib/csv";
 import { getTopHarvestBlockKey } from "@/lib/harvest-print-summary";
+import {
+  getVineRegisterMissingHeaderFields,
+  resolveVineRegisterFsaRef,
+} from "./vine-register-print-warning";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1332,7 +1336,7 @@ export async function printVineRegister(
     : `<span class="fsa-missing">&#9888; Farm address not set</span>`;
 
   // Prefer farmMeta refs over the legacy fsaVineRef argument
-  const fsaVineRegisterRef = (farmMeta?.fsaVineRegisterRef ? String(farmMeta.fsaVineRegisterRef) : fsaVineRef ?? "").trim();
+  const fsaVineRegisterRef = resolveVineRegisterFsaRef(farmMeta, fsaVineRef);
   const fsaWineProductionRef = (farmMeta?.fsaWineProductionRef ? String(farmMeta.fsaWineProductionRef) : "").trim();
   const appaRef = (farmMeta?.appaRef ? String(farmMeta.appaRef) : "").trim();
   const winegbMembershipNumber = (farmMeta?.winegbMembershipNumber ? String(farmMeta.winegbMembershipNumber) : "").trim();
@@ -1351,17 +1355,11 @@ export async function printVineRegister(
     ? `WineGB Membership No: <strong>${escHtml(winegbMembershipNumber)}</strong><br>`
     : "";
 
-  const anyMissingRef = !addressRaw || !fsaVineRegisterRef || !fsaWineProductionRef || !appaRef || !winegbMembershipNumber;
-  const missingRefWarningBlock = anyMissingRef
+  const missingHeaderFields = getVineRegisterMissingHeaderFields(farmMeta, fsaVineRef);
+  const missingRefWarningBlock = missingHeaderFields.length > 0
     ? `<div class="missing-refs-notice">
         <strong>&#9888; Missing header information</strong> &mdash;
-        the field(s) marked below (${[
-          !addressRaw ? "Farm Address" : "",
-          !fsaVineRegisterRef ? "FSA Vine Register Ref" : "",
-          !fsaWineProductionRef ? "FSA Wine Production Ref" : "",
-          !appaRef ? "APPA Ref" : "",
-          !winegbMembershipNumber ? "WineGB Membership No" : "",
-        ].filter(Boolean).join(", ")}) have not been set in Farm Settings.
+        the field(s) marked below (${missingHeaderFields.join(", ")}) have not been set in Farm Settings.
         Add them before submitting this register to the FSA.
       </div>`
     : "";
