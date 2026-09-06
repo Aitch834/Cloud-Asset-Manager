@@ -8,6 +8,10 @@ const reportSource = readFileSync(
   resolve(viticultureDir, "../../components/ViticulturalReports.tsx"),
   "utf8",
 );
+const vineRegisterSource = readFileSync(
+  resolve(viticultureDir, "VineRegisterTab.tsx"),
+  "utf8",
+);
 
 const printTabs = [
   "ExciseDutyTab.tsx",
@@ -39,5 +43,17 @@ describe("Viticulture print-tab registration warning coverage", () => {
     const source = readFileSync(resolve(viticultureDir, "ViticulturePage.tsx"), "utf8");
     expect(source).toContain('tab.startsWith("winery-")');
     expect(source).toContain("<FsaCompletenessBar farmId={selectedFarmId} />");
+  });
+
+  it("keeps one compact farm-address reminder and a separate APPA Ref warning on the Vine Register", () => {
+    expect(vineRegisterSource).toContain("{farmRecord && !farmRecord.address && (");
+    expect(
+      vineRegisterSource.match(
+        /Farm address is not set — printed reports will have a blank address header\./g,
+      ),
+    ).toHaveLength(1);
+    expect(vineRegisterSource).toMatch(
+      /<FarmSettingsWarning\s+missingFields=\{farmRecord && !farmRecord\.appaRef \? \["APPA Ref"\] : \[\]\}/,
+    );
   });
 });
