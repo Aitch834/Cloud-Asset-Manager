@@ -31,6 +31,7 @@ import {
   buildViticultureCsvContent,
   downloadCsvFile,
 } from "./csv";
+import { parseCsvText } from "./bottling-csv";
 import { buildDiseaseScoutingDetailedCsvRows } from "./disease-scouting-csv";
 
 // ─── Test data ────────────────────────────────────────────────────────────────
@@ -268,6 +269,25 @@ describe("Disease Scouting CSV — Notes column", () => {
       expect(row[17]).toBe("0");
       expect(row[18]).toBe("0");
     }
+  });
+
+  it("keeps multiline Notes in one cell without shifting photo columns", () => {
+    const note = "Inspect east row\nRecheck the lower canopy";
+    const csv = buildScoutingCsv([
+      { ...SCOUTING_RECORD, notes: note, photoCount: 3, captionCount: 2 },
+    ]);
+    const records = parseCsvText(csv.slice(1)); // drop the Excel/Numbers BOM
+    const header = records[1];
+    const row = records[2];
+
+    expect(records).toHaveLength(3);
+    expect(row).toHaveLength(header.length);
+    expect(header[16]).toBe("Notes");
+    expect(row[16]).toBe(note);
+    expect(header[17]).toBe("Photos");
+    expect(row[17]).toBe("3");
+    expect(header[18]).toBe("Captioned Photos");
+    expect(row[18]).toBe("2");
   });
 });
 
