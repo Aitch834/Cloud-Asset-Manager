@@ -51,6 +51,13 @@ import { VineyardBlockMapTab } from "@/components/viticulture/VineyardBlockMapTa
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
+import {
+  CHEMISTRY_CROSS_TAB_OUTLIER_CELL_STYLE,
+  CHEMISTRY_CROSS_TAB_OUTLIER_LEGEND,
+  buildChemistryCrossVintageStats,
+  isChemistryCrossVintageOutlier,
+  isChemistryCrossVintageOutlierMetric,
+} from "@/lib/chemistry-outlier";
 
 import { apiUrl as api } from "@/lib/api";
 export { FsaCompletenessBar } from "@/components/viticulture/FsaCompletenessBar";
@@ -2747,7 +2754,27 @@ export async function printHarvest(
       const chemPicksByVintage = chemLinkedVintages.map(vy =>
         chemLinkedRecords.filter(r => String(r.vintageYear ?? "") === vy).length
       );
+      let anyChemOutlier = false;
       const chemSubTablesHtml = chemPrintMetrics.map(metric => {
+        const isOutlierMetric = isChemistryCrossVintageOutlierMetric(metric.label);
+        const chemOutlierStatsByBlock: Record<string, { mean: number; sd: number } | null> = {};
+        if (isOutlierMetric) {
+          for (const bid of chemLinkedBlockIds) {
+            const bidStr = String(bid);
+            const vintageAverages = chemLinkedVintages
+              .map(vy => {
+                const vals = (chemCrossLookup[bidStr]?.[vy] ?? [])
+                  .map(metric.extractor)
+                  .filter((v): v is number => v !== null);
+                return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+              })
+              .filter((v): v is number => v !== null);
+            // Unlike the detailed table, this intentionally compares the
+            // displayed block/vintage averages across vintages.
+            chemOutlierStatsByBlock[bidStr] = buildChemistryCrossVintageStats(vintageAverages);
+          }
+        }
+
         const vintageHeaders = chemLinkedVintages.map(vy =>
           `<th style="background:#7c3d12;color:white;padding:${chemThPad};text-align:right;white-space:nowrap">${escHtml(vy)}</th>`
         ).join("");
@@ -2763,7 +2790,12 @@ export async function printHarvest(
             const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
             const lowPick = avg != null && grp.length === 1;
             if (lowPick) anyLowPickChem = true;
-            const bgStyle = lowPick ? ";background:#fffbeb" : "";
+            const outlierStats = chemOutlierStatsByBlock[bidStr];
+            const outlier = isOutlierMetric && isChemistryCrossVintageOutlier(avg, outlierStats);
+            if (outlier) anyChemOutlier = true;
+            const bgStyle = outlier
+              ? CHEMISTRY_CROSS_TAB_OUTLIER_CELL_STYLE
+              : lowPick ? ";background:#fffbeb" : "";
             const cellValue = avg != null ? avg.toFixed(metric.precision) + (lowPick ? "\u00a0*" : "") : "\u2014";
             return `<td style="padding:${chemTdPad};border:1px solid #d1d5db;text-align:right;font-family:monospace${bgStyle}">${cellValue}</td>`;
           }).join("");
@@ -2829,12 +2861,16 @@ export async function printHarvest(
       const chemLowPickLegend = anyLowPickChem
         ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 0;background:#fffbeb;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;display:inline-block"><strong>*</strong> Based on a single harvest pick &mdash; treat with caution</p>`
         : "";
+      const chemOutlierLegend = anyChemOutlier
+        ? `<p style="font-size:9.5px;color:#92400e;margin:4px 0 0;background:#fef3c7;border:1px solid #fbbf24;border-radius:3px;padding:3px 8px;font-weight:700;display:inline-block;-webkit-print-color-adjust:exact;print-color-adjust:exact">${CHEMISTRY_CROSS_TAB_OUTLIER_LEGEND}</p>`
+        : "";
 
       chemCrossTabHtml = `
   <h2 style="font-size:12px;font-weight:700;border-bottom:1px solid #7c3d12;padding-bottom:4px;margin:0 0 8px;color:#7c3d12;text-transform:uppercase;letter-spacing:0.04em;page-break-before:${uniqueBlockIdsForCross.length * uniqueVintages.length > 8 ? 'always' : 'avoid'}">Chemistry Cross-tab &mdash; Block &times; Vintage</h2>
   <p style="font-size:10px;color:#666;margin:0 0 8px">Average chemistry values per block per vintage. Footer row shows the record-weighted average across all linked blocks for that vintage.</p>
   ${chemSubTablesHtml}
   ${chemPicksRowHtml}
+  ${chemOutlierLegend}
   ${chemLowPickLegend}`;
     }
   }
