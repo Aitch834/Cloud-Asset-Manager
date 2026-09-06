@@ -991,13 +991,17 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           cell("Avg Brix °"), cell("Avg pH"), cell("Avg TA (g/L)"), cell("Avg Pot. Alc %"),
         ].join(",");
 
+        const varietyHasArealessBlocks = sortedEntries.some(([, e]) =>
+          e.totalKg > 0 && e.blockIds.size > 0 && e.totalHa === 0
+        );
         const varietyDataRows = sortedEntries.map(([variety, e]) => {
           const tPerHa = e.totalHa > 0 && e.totalKg > 0 ? e.totalKg / 1000 / e.totalHa : null;
+          const hasArealessBlocks = e.totalKg > 0 && e.blockIds.size > 0 && e.totalHa === 0;
           return [
             cell(variety),
             cell(e.totalHa > 0 ? e.totalHa.toFixed(2) : ""),
             cell(e.totalKg > 0 ? e.totalKg.toFixed(1) : ""),
-            cell(tPerHa != null ? tPerHa.toFixed(2) : ""),
+            cell(tPerHa != null ? tPerHa.toFixed(2) : hasArealessBlocks ? "†" : ""),
             cell(avgOf(e.brixVals) != null ? avgOf(e.brixVals)!.toFixed(1) : ""),
             cell(avgOf(e.phVals) != null ? avgOf(e.phVals)!.toFixed(2) : ""),
             cell(avgOf(e.taVals) != null ? avgOf(e.taVals)!.toFixed(2) : ""),
@@ -1033,6 +1037,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           varietyHeader,
           ...varietyDataRows,
           varietyFooter,
+          ...(varietyHasArealessBlocks
+            ? [cell("† Block area not set — add it in Block Settings to see yield per hectare")]
+            : []),
         );
       }
     }
