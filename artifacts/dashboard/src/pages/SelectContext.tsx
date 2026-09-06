@@ -10,7 +10,7 @@ import { DialogMutationError } from "@/components/ui/dialog-error";
 import { useGetMyTenants } from "@workspace/api-client-react/src/generated/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
-import { Map, Building2, ArrowRight, Loader2, Plus, FlaskConical } from "lucide-react";
+import { Map, Building2, ArrowRight, Loader2, Plus, FlaskConical, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SECTORS = [
@@ -73,7 +73,12 @@ export default function SelectContext() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [formData, setFormData] = useState<FarmFormData>(emptyFormData);
 
-  const { data: tenantsData, isLoading: loadingTenants } = useGetMyTenants();
+  const {
+    data: tenantsData,
+    isLoading: loadingTenants,
+    isError: tenantsError,
+    refetch: refetchTenants,
+  } = useGetMyTenants();
 
   const { data: farmsData, isLoading: loadingFarms } = useQuery<{ farms: Array<{ id: number; name: string; totalAcreage?: number | null }> }>({
     queryKey: ["farms-list", tenantSlug],
@@ -194,6 +199,18 @@ export default function SelectContext() {
           <div className="space-y-4">
             {loadingTenants ? (
               <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : tenantsError ? (
+              <Card className="p-8 text-center border-destructive/40">
+                <Building2 className="w-10 h-10 text-destructive/70 mx-auto mb-4" />
+                <p className="font-semibold">Organizations could not be loaded</p>
+                <p className="text-sm text-foreground/60 mt-1 mb-4">
+                  Check the connection and try again.
+                </p>
+                <Button variant="outline" onClick={() => void refetchTenants()}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+              </Card>
             ) : tenantsData?.tenants.map((t: any) => (
               <Card 
                 key={t.tenantId}

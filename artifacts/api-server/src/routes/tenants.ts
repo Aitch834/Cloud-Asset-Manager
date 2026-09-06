@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, tenantsTable, farmsTable, userTenantsTable, userInvitationsTable, rolesTable, staffFarmAssignmentsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { requireAuth, requireTenant, requireClientAdmin } from "../middlewares/roleMiddleware";
 import crypto from "crypto";
 
@@ -12,7 +12,8 @@ router.get("/tenants/mine", requireAuth, async (req: Request, res: Response): Pr
     const allTenants = await db
       .select({ id: tenantsTable.id, name: tenantsTable.name, slug: tenantsTable.slug })
       .from(tenantsTable)
-      .where(eq(tenantsTable.isActive, true));
+      .where(eq(tenantsTable.isActive, true))
+      .orderBy(asc(tenantsTable.name), asc(tenantsTable.id));
 
     res.json({
       tenants: allTenants.map((t) => ({
@@ -38,7 +39,12 @@ router.get("/tenants/mine", requireAuth, async (req: Request, res: Response): Pr
     })
     .from(userTenantsTable)
     .innerJoin(tenantsTable, eq(userTenantsTable.tenantId, tenantsTable.id))
-    .where(and(eq(userTenantsTable.userId, req.userId!), eq(userTenantsTable.isActive, true)));
+    .where(and(
+      eq(userTenantsTable.userId, req.userId!),
+      eq(userTenantsTable.isActive, true),
+      eq(tenantsTable.isActive, true),
+    ))
+    .orderBy(asc(tenantsTable.name), asc(tenantsTable.id));
 
   res.json({ tenants: userTenantRows });
 });

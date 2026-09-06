@@ -12,11 +12,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-const TENANT_ID = 1;            // oakfield-farms — development tenant
 const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5;              // Highfield Vineyard (has viticulture module)
 
-export { TENANT_SLUG, FARM_ID };
+export { TENANT_SLUG };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,6 +103,15 @@ export default async function globalSetup() {
   await db.connect();
 
   try {
+    const tenantRes = await db.query<{ id: number }>(
+      "SELECT id FROM tenants WHERE slug = $1 AND is_active = true LIMIT 1",
+      [TENANT_SLUG],
+    );
+    const tenantId = tenantRes.rows[0]?.id;
+    if (!tenantId) {
+      throw new Error(`No active E2E tenant found for slug ${TENANT_SLUG}`);
+    }
+
     // Find a valid role_id to satisfy the NOT NULL constraint on user_tenants
     const roleRes = await db.query<{ id: number }>("SELECT id FROM roles LIMIT 1");
     const roleId = roleRes.rows[0]?.id;
@@ -127,7 +134,7 @@ export default async function globalSetup() {
       `INSERT INTO user_tenants (user_id, tenant_id, role_id, is_super_admin, is_active, created_at, updated_at)
        VALUES ($1, $2, $3, true, true, NOW(), NOW())
        ON CONFLICT (user_id, tenant_id) DO UPDATE SET is_super_admin = true, is_active = true`,
-      [clerkUserId, TENANT_ID, roleId],
+      [clerkUserId, tenantId, roleId],
     );
   } finally {
     await db.end();
