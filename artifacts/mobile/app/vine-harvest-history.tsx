@@ -88,6 +88,53 @@ type YieldCrossTabSort = {
   dir: "asc" | "desc";
 } | null;
 
+type ChemistryDirection = "rose" | "fell" | "unchanged";
+
+function getChemistryDirection(
+  value: number | null,
+  previousValue: number | null,
+  precision: number,
+): ChemistryDirection | null {
+  if (value == null || previousValue == null) return null;
+  const displayedValue = Number(value.toFixed(precision));
+  const displayedPreviousValue = Number(previousValue.toFixed(precision));
+  if (displayedValue > displayedPreviousValue) return "rose";
+  if (displayedValue < displayedPreviousValue) return "fell";
+  return "unchanged";
+}
+
+function ChemistryTrendValue({
+  metric,
+  value,
+  previousValue,
+  previousVintage,
+  precision,
+  valueStyle,
+}: {
+  metric: string;
+  value: number | null;
+  previousValue: number | null;
+  previousVintage: number | null;
+  precision: number;
+  valueStyle?: object;
+}) {
+  const direction = getChemistryDirection(value, previousValue, precision);
+  const displayedValue = value != null ? value.toFixed(precision) : "—";
+  const directionSymbol = direction === "rose" ? "↑" : direction === "fell" ? "↓" : direction === "unchanged" ? "→" : null;
+  const accessibilityLabel = value == null
+    ? `${metric}: no data`
+    : direction && previousValue != null && previousVintage != null
+      ? `${metric}: ${displayedValue}, ${direction} from ${previousValue.toFixed(precision)} in ${previousVintage}`
+      : `${metric}: ${displayedValue}; no prior vintage comparison available`;
+
+  return (
+    <Text style={[styles.chemTrendValue, valueStyle]} accessibilityLabel={accessibilityLabel}>
+      {displayedValue}
+      {directionSymbol && <Text style={styles.chemTrendDirection}> {directionSymbol}</Text>}
+    </Text>
+  );
+}
+
 function isPendingHarvest(item: HarvestListItem): item is OfflineHarvestEntry {
   return "_pendingSync" in item && item._pendingSync === true;
 }
@@ -2522,33 +2569,34 @@ export default function VineHarvestHistoryScreen() {
                   <Text style={styles.chemTrendHeaderLabel}>Avg Pot. Alc %</Text>
                 </View>
               </View>
-              {chemistryTrendData.map((row, index) => (
-                <View
-                  key={row.vintageYear}
-                  style={[
-                    styles.chemTrendRow,
-                    index < chemistryTrendData.length - 1 && styles.chemTrendDataRowBorder,
-                  ]}
-                >
-                  <View style={styles.chemTrendVintageCell}>
-                    <Text style={styles.chemTrendVintage}>{row.vintageYear}</Text>
+              {chemistryTrendData.map((row, index) => {
+                const previousRow = index > 0 ? chemistryTrendData[index - 1] : null;
+                return (
+                  <View
+                    key={row.vintageYear}
+                    style={[
+                      styles.chemTrendRow,
+                      index < chemistryTrendData.length - 1 && styles.chemTrendDataRowBorder,
+                    ]}
+                  >
+                    <View style={styles.chemTrendVintageCell}>
+                      <Text style={styles.chemTrendVintage}>{row.vintageYear}</Text>
+                    </View>
+                    <View style={styles.chemTrendValueCell}>
+                      <ChemistryTrendValue metric="Average Brix" value={row.avgBrix} previousValue={previousRow?.avgBrix ?? null} previousVintage={previousRow?.vintageYear ?? null} precision={1} />
+                    </View>
+                    <View style={styles.chemTrendValueCell}>
+                      <ChemistryTrendValue metric="Average pH" value={row.avgPh} previousValue={previousRow?.avgPh ?? null} previousVintage={previousRow?.vintageYear ?? null} precision={2} />
+                    </View>
+                    <View style={styles.chemTrendValueCell}>
+                      <ChemistryTrendValue metric="Average TA" value={row.avgTa} previousValue={previousRow?.avgTa ?? null} previousVintage={previousRow?.vintageYear ?? null} precision={2} valueStyle={styles.chemTrendTaValue} />
+                    </View>
+                    <View style={styles.chemTrendPotAlcCell}>
+                      <ChemistryTrendValue metric="Average potential alcohol" value={row.avgPotAlc} previousValue={previousRow?.avgPotAlc ?? null} previousVintage={previousRow?.vintageYear ?? null} precision={1} />
+                    </View>
                   </View>
-                  <View style={styles.chemTrendValueCell}>
-                    <Text style={styles.chemTrendValue}>{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</Text>
-                  </View>
-                  <View style={styles.chemTrendValueCell}>
-                    <Text style={styles.chemTrendValue}>{row.avgPh != null ? row.avgPh.toFixed(2) : "—"}</Text>
-                  </View>
-                  <View style={styles.chemTrendValueCell}>
-                    <Text style={[styles.chemTrendValue, styles.chemTrendTaValue]}>
-                      {row.avgTa != null ? row.avgTa.toFixed(2) : "—"}
-                    </Text>
-                  </View>
-                  <View style={styles.chemTrendPotAlcCell}>
-                    <Text style={styles.chemTrendValue}>{row.avgPotAlc != null ? row.avgPotAlc.toFixed(1) : "—"}</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </ScrollView>
         </View>
@@ -3771,6 +3819,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.text,
     fontVariant: ["tabular-nums"],
+  },
+  chemTrendDirection: {
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
   },
   chemTrendTaValue: {
     color: "#ef4444",
