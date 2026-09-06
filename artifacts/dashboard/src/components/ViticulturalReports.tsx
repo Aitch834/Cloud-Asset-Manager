@@ -94,7 +94,6 @@ import {
   buildBlockColorMap,
   buildUniqueBlockColorMap,
 } from "@/lib/variety-colors";
-import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap, buildUniqueBlockColorMap } from "@/lib/variety-colors";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtN = (v: unknown, dp = 1) =>
