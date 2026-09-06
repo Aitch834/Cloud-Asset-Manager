@@ -1264,7 +1264,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
           <button type="button" className="ml-auto text-xs underline underline-offset-2 hover:text-purple-900" onClick={() => setBlockFilter("__all__")}>Show all blocks</button>
         </div>
       )}
-      <FsaCompletenessBar farmId={farmId} />
+      <FsaCompletenessBar farmId={farmId} excludeFields={["appaRef"]} />
       {/* APPA Ref missing warning */}
       <FarmSettingsWarning
         missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}

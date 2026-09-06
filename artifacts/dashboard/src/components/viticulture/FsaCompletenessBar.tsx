@@ -18,7 +18,13 @@ type FsaField = {
 };
 
 /** Shows the registration references that will be blank in printed reports. */
-export function FsaCompletenessBar({ farmId }: { farmId: number }) {
+export function FsaCompletenessBar({
+  farmId,
+  excludeFields = [],
+}: {
+  farmId: number;
+  excludeFields?: FsaField["key"][];
+}) {
   const { data: farmRecord, isLoading } = useQuery<Record<string, unknown> | null>({
     queryKey: ["farm-meta", farmId],
     queryFn: async () => {
@@ -80,12 +86,13 @@ export function FsaCompletenessBar({ farmId }: { farmId: number }) {
     "WineGB Membership No": "settings-winegb-number",
   };
 
-  const fields: FsaField[] = [
+  const allFields: FsaField[] = [
     { key: "fsaVineRegisterRef", label: "FSA Vine Register Ref", value: savedReferences.fsaVineRegisterRef ?? farmRecord?.fsaVineRegisterRef },
     { key: "fsaWineProductionRef", label: "FSA Wine Production Ref", value: savedReferences.fsaWineProductionRef ?? farmRecord?.fsaWineProductionRef },
     { key: "appaRef", label: "APPA Ref", value: savedReferences.appaRef ?? farmRecord?.appaRef },
     { key: "winegbMembershipNumber", label: "WineGB Membership No", value: savedReferences.winegbMembershipNumber ?? farmRecord?.winegbMembershipNumber },
   ];
+  const fields = allFields.filter(field => !excludeFields.includes(field.key));
 
   const allComplete = fields.every(f => !!f.value && String(f.value).trim() !== "");
 

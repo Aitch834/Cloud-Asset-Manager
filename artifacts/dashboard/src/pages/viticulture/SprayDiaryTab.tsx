@@ -537,7 +537,7 @@ export function SprayDiaryTab({ farmId, blocks, requestBulkLink, onNavigate }: {
 
   return (
     <div className="space-y-4">
-      <FsaCompletenessBar farmId={farmId} />
+      <FsaCompletenessBar farmId={farmId} excludeFields={["appaRef"]} />
       {/* APPA Ref missing warning */}
       <FarmSettingsWarning
         missingFields={farmMeta && !String(farmMeta.appaRef ?? "").trim() ? ["APPA Ref"] : []}
