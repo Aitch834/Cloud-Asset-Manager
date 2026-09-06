@@ -30,6 +30,7 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { usePersistedVintage } from "@/lib/hooks/usePersistedVintage";
+import { resolveHarvestVintage } from "@/lib/harvestVintageSelection";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
@@ -1026,16 +1027,10 @@ export default function VineHarvestHistoryScreen() {
     // Already resolved for this farm — don't override manual selections mid-session
     if (resolvedForFarm.current === currentFarm?.id) return;
     resolvedForFarm.current = currentFarm?.id;
-    if (selectedVintage === null) {
-      // Explicit "All vintages" stored — nothing to change
-      return;
+    const resolvedVintage = resolveHarvestVintage(selectedVintage, vintages);
+    if (resolvedVintage !== selectedVintage && resolvedVintage !== undefined) {
+      setSelectedVintage(resolvedVintage);
     }
-    if (selectedVintage !== undefined && vintages.includes(selectedVintage)) {
-      // Stored vintage year is still available — keep it
-      return;
-    }
-    // No preference (undefined) or stored year has no data — default to most recent
-    setSelectedVintage(vintages[0]);
   }, [vintageLoadedForFarmId, recordsFarmId, vintages, selectedVintage, setSelectedVintage, currentFarm?.id]);
 
   // Coerce undefined (loading / pre-resolution) to null so filtering always works.
