@@ -19,14 +19,16 @@ import { test, expect, type Page } from "@playwright/test";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5; // Highfield Vineyard — has viticulture module
 const SCOUT_NAME = `E2EScoutCsv-${Date.now()}`;
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
+  const stateFile = path.join(currentDirectory, ".test-user-id");
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-id missing");
   }
@@ -206,6 +208,19 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
     await setupClerkTestingToken({ page, userId: getTestUserId() });
 
     const scoutingId = await createScoutingRecord();
+    const consoleErrors: string[] = [];
+    const failedScoutingRequests: string[] = [];
+    page.on("console", message => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    page.on("response", response => {
+      if (
+        response.status() >= 400
+        && response.url().includes(`/api/farms/${FARM_ID}/vineyard-scouting`)
+      ) {
+        failedScoutingRequests.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+      }
+    });
 
     try {
       await attachPhoto(scoutingId);
@@ -218,7 +233,11 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
         "CSV must show one photo and no captions after adding a photo",
       ).toEqual({ photoCount: "1", captionCount: "0" });
 
-      await row.getByTitle("View photos").click();
+      await row.locator("td").last().getByRole("button").first().click();
+      const viewDialog = page.locator('[role="dialog"]').filter({ hasText: "Disease Scouting Record" });
+      await expect(viewDialog).toBeVisible();
+      await viewDialog.locator("button").filter({ has: page.locator("img") }).click();
+
       const photoDialog = page.locator('[role="dialog"]').filter({ hasText: "Scouting Photos" });
       await expect(photoDialog).toBeVisible();
       await photoDialog.getByRole("button", { name: "Edit caption" }).click({ force: true });
@@ -227,6 +246,17 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
       await expect(photoDialog.getByText("Inspect canopy")).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(photoDialog).not.toBeVisible();
+      await viewDialog.getByRole("button", { name: "Close" }).click();
+      await expect(viewDialog).not.toBeVisible();
+
+      await row.locator("td").last().getByRole("button").first().click();
+      await expect(viewDialog).toBeVisible();
+      await expect(
+        viewDialog.getByText("Inspect canopy"),
+        "Saved caption must remain beneath the thumbnail after reopening the record",
+      ).toBeVisible();
+      await viewDialog.getByRole("button", { name: "Close" }).click();
+      await expect(viewDialog).not.toBeVisible();
 
       expect(
         await downloadScoutingCounts(page),
@@ -247,6 +277,9 @@ test.describe("Disease Scouting CSV photo and caption counts", () => {
         await downloadScoutingCounts(page),
         "CSV must show zero photos and zero captions immediately after deleting the photo",
       ).toEqual({ photoCount: "0", captionCount: "0" });
+
+      expect(consoleErrors, "Scouting caption flow must not log browser console errors").toEqual([]);
+      expect(failedScoutingRequests, "Scouting caption flow API requests must succeed").toEqual([]);
     } finally {
       await deleteScoutingRecord(scoutingId);
     }
