@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
+export function resolvePersistedFilterValue(
+  storedValue: string | null,
+  defaultValue: string,
+  validValues?: readonly string[],
+  isValid?: (value: string) => boolean,
+): string {
+  if (storedValue === null) return defaultValue;
+  if (validValues && !validValues.includes(storedValue)) return defaultValue;
+  if (isValid && !isValid(storedValue)) return defaultValue;
+  return storedValue;
+}
+
 /**
  * Persist an in-tab filter (year/season picker, species filter, etc.) in
  * localStorage, scoped to the farm — the same lazy initializer + wrapped
@@ -33,14 +45,17 @@ export function usePersistedFilter(opts: {
 }): [string, (v: string) => void] {
   const { page, filter, farmId, defaultValue, validValues, isValid } = opts;
   const storageKey = `${page}-${filter}-filter-${farmId ?? 0}`;
+  // Dynamic option lists (for example, columns derived from the current
+  // farm's data) need to trigger the same re-read as a farm switch.
+  const validValuesKey = validValues ? JSON.stringify(validValues) : "";
   const readStored = (): string => {
     try {
-      const v = localStorage.getItem(storageKey);
-      if (v !== null) {
-        if (validValues && !validValues.includes(v)) return defaultValue;
-        if (isValid && !isValid(v)) return defaultValue;
-        return v;
-      }
+      return resolvePersistedFilterValue(
+        localStorage.getItem(storageKey),
+        defaultValue,
+        validValues,
+        isValid,
+      );
     } catch { /* localStorage unavailable */ }
     return defaultValue;
   };
@@ -52,7 +67,7 @@ export function usePersistedFilter(opts: {
     if (firstRun.current) { firstRun.current = false; return; }
     setValueRaw(readStored());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [storageKey, validValuesKey]);
   const setValue = (v: string) => {
     try { localStorage.setItem(storageKey, v); } catch { /* localStorage unavailable */ }
     setValueRaw(v);

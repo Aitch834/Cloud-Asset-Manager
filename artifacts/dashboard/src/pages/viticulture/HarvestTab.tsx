@@ -145,10 +145,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
   const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
   const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
-  const [yieldSortCol, setYieldSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortCol", farmId, defaultValue: "" });
-  const [yieldSortDir, setYieldSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
-  const yieldSort = yieldSortCol ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" } : null;
-  const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
   const [yieldCrossTabOpenStr, setYieldCrossTabOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldCrossTabOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
   const yieldCrossTabOpen = yieldCrossTabOpenStr === "true";
   const setYieldCrossTabOpen = (val: boolean | ((prev: boolean) => boolean)) => setYieldCrossTabOpenStr(typeof val === "function" ? (val(yieldCrossTabOpen) ? "true" : "false") : (val ? "true" : "false"));
@@ -307,6 +303,37 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     }
     return rows;
   }, [data, yearFilter, blockFilter, searchText, blocks]);
+
+  // Yield vintage columns are data-dependent. Revalidate the persisted sort
+  // against the columns currently rendered so a removed vintage falls back
+  // to the useful default alphabetical block order. The hook still reads the
+  // farm-specific value again when switching farms or when columns change,
+  // preserving valid saved sorts for each farm.
+  const yieldSortValidValues = useMemo(() => {
+    const linkedRows = yearFilter === "all"
+      ? filteredHarvest.filter(r => r.blockId != null && r.blockId !== "")
+      : [];
+    const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    return [
+      "",
+      "name",
+      "total:kg",
+      "total:tha",
+      ...uniqueVintages.flatMap(vy => [`vy:kg:${vy}`, `vy:tha:${vy}`]),
+    ];
+  }, [filteredHarvest, yearFilter]);
+  const [yieldSortCol, setYieldSortCol] = usePersistedFilter({
+    page: "viticulture-harvest",
+    filter: "yieldSortCol",
+    farmId,
+    defaultValue: "",
+    validValues: yieldSortValidValues,
+  });
+  const [yieldSortDir, setYieldSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
+  const yieldSort = yieldSortCol && yieldSortValidValues.includes(yieldSortCol)
+    ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" }
+    : null;
+  const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
 
   const printRows = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
