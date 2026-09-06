@@ -88,6 +88,7 @@ export function BlockPerformanceYieldCell({
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 import { apiUrl as api } from "@/lib/api";
+import { getSeasonTaAverageFromBlockAverages } from "@/lib/harvest-ta-summary";
 import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap } from "@/lib/variety-colors";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
@@ -2265,7 +2266,6 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
     const avgThaVal = totalArea > 0 ? totalKg / 1000 / totalArea : 0;
     const brixAll = rows.flatMap(r => r.brixCount > 0 ? [r.brixSum / r.brixCount] : []);
     const phAll = rows.flatMap(r => r.phCount > 0 ? [r.phSum / r.phCount] : []);
-    const taAll = rows.flatMap(r => r.taCount > 0 ? [r.taSum / r.taCount] : []);
     const potAlcAll = rows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
     return {
       rows,
@@ -2274,7 +2274,7 @@ export function ViticulturalEnterpriseReport({ farmId }: { farmId: number }) {
       avgTha: avgThaVal,
       avgBrix: brixAll.length > 0 ? brixAll.reduce((a, b) => a + b, 0) / brixAll.length : null,
       avgPh: phAll.length > 0 ? phAll.reduce((a, b) => a + b, 0) / phAll.length : null,
-      avgTa: taAll.length > 0 ? taAll.reduce((a, b) => a + b, 0) / taAll.length : null,
+      avgTa: getSeasonTaAverageFromBlockAverages(vintageHarvest),
       avgPotAlc: potAlcAll.length > 0 ? potAlcAll.reduce((a, b) => a + b, 0) / potAlcAll.length : null,
     };
   }, [vintageHarvest, blockMap]);
