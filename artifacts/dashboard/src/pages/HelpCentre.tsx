@@ -7,7 +7,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, Loader2, Info,
   Rocket, Droplets, ArrowRightLeft, Pill, ClipboardCheck,
   Tractor, GraduationCap, Leaf, Tag, Egg, Wrench, Shield,
-  CheckCircle2, HeartPulse, Navigation, MapPin, Globe, type LucideIcon,
+  CheckCircle2, Navigation, MapPin, Globe, type LucideIcon,
 } from "lucide-react";
 import { useAppStore } from "@/hooks/use-app-store";
 
@@ -31,7 +31,9 @@ interface Workflow {
   steps: WorkflowStep[];
 }
 
-const WORKFLOWS: Workflow[] = [
+/* Retired legacy guides. */
+/*
+const LEGACY_WORKFLOWS: Workflow[] = [
   {
     id: "getting-started",
     title: "Getting Started with BDE Farm Trac",
@@ -389,6 +391,196 @@ const WORKFLOWS: Workflow[] = [
     ],
   },
 ];
+*/
+
+const WORKFLOWS: Workflow[] = [
+  {
+    id: "farm-setup",
+    title: "Set up your farm",
+    icon: Rocket,
+    moduleKey: null,
+    steps: [
+      { title: "Complete the farm profile", detail: "Add the holding, contact and business details you use on records and reports." },
+      { title: "Build your registers", detail: "Add fields, blocks, livestock groups, equipment and staff that you need to record against." },
+      { title: "Check access", detail: "Enable the modules in your subscription and give each team member the right access before they start recording." },
+    ],
+  },
+  {
+    id: "field-and-crop-recording",
+    title: "Record everyday field and crop work",
+    icon: Tractor,
+    moduleKey: "field-crop-management",
+    steps: [
+      { title: "Choose the field or block", detail: "Start from the field register so the work is attached to the correct land and crop history." },
+      { title: "Record the job while it is fresh", detail: "Add the date, operation, crop or variety, operator or contractor, machinery and a short note." },
+      { title: "Add inputs and outcomes", detail: "Link seed, fertiliser, spray, harvest or other relevant details to keep the season record complete." },
+      { title: "Review the history", detail: "Use the field history before the next operation to see what has already been done." },
+    ],
+  },
+  {
+    id: "spray-input-record",
+    title: "Capture a spray or input record",
+    icon: Droplets,
+    moduleKey: "sprays-inputs",
+    steps: [
+      { title: "Select the treated area", detail: "Choose the field or fields and confirm the crop or growth stage where recorded." },
+      { title: "Enter the application", detail: "Record the product, rate, quantity, application date and operator from the label and job sheet." },
+      { title: "Add conditions and restrictions", detail: "Capture relevant weather, buffer, harvest interval and other label information." },
+      { title: "Check before saving", detail: "Review the record against your own agronomy advice and label requirements; the saved record supports, but does not replace, that judgement." },
+    ],
+  },
+  {
+    id: "mobile-offline",
+    title: "Work on mobile and sync safely",
+    icon: Navigation,
+    moduleKey: null,
+    steps: [
+      { title: "Sync before leaving coverage", detail: "Open the mobile app while online so current assignments and reference data are available." },
+      { title: "Record work in the field", detail: "Save observations and completed work as you go, including dates, locations and notes." },
+      { title: "Reconnect and confirm", detail: "When you have a signal, allow sync to finish and check that the record appears in the dashboard before relying on it for reporting." },
+    ],
+  },
+  {
+    id: "inspection-evidence",
+    title: "Prepare compliance evidence",
+    icon: Shield,
+    moduleKey: "red-tractor-compliance",
+    steps: [
+      { title: "Start with the requirement", detail: "Use your scheme standard and inspector guidance to identify the records and dates that must be available." },
+      { title: "Review linked records", detail: "Check field operations, inputs, medicines, training, equipment and documents for gaps or expired evidence." },
+      { title: "Attach supporting documents", detail: "Store certificates, invoices, test results and signed forms with clear dates and descriptions." },
+      { title: "Export and verify", detail: "Create the relevant report or document pack, then check it is complete for your scheme before an inspection." },
+    ],
+  },
+  {
+    id: "livestock-movement-boundaries",
+    title: "Record a livestock movement",
+    icon: ArrowRightLeft,
+    moduleKey: "livestock-management",
+    steps: [
+      { title: "Create the holding record", detail: "Record the movement type, date, animals or batch, and the source or destination holding details." },
+      { title: "Save the farm register entry", detail: "Keep tag, batch and transport details with the record so your on-farm history is traceable." },
+      { title: "Make the statutory submission separately", detail: "Use the official service required for your species and nation, within its deadline. A Farm Trac record is not confirmation that a statutory submission has been accepted." },
+      { title: "Keep the confirmation", detail: "Add the official reference or retain the paperwork alongside the movement for audit and reconciliation." },
+    ],
+  },
+  {
+    id: "medicine-and-welfare",
+    title: "Log medicine and welfare treatments",
+    icon: Pill,
+    moduleKey: "livestock-management",
+    steps: [
+      { title: "Identify the animal or group", detail: "Select the individual, batch or flock and record the treatment date." },
+      { title: "Capture the treatment details", detail: "Enter the medicine, batch, dose, route, prescriber or operator, and the reason for treatment." },
+      { title: "Record withdrawals and follow-up", detail: "Enter the withdrawal information from the product instructions and record observations or adverse reactions where relevant." },
+      { title: "Review before sale or movement", detail: "Use the register as a check, while following veterinary advice and the product label." },
+    ],
+  },
+  {
+    id: "reports-and-exports",
+    title: "Create a report or export",
+    icon: BookOpen,
+    moduleKey: null,
+    steps: [
+      { title: "Choose the question", detail: "Start from the dashboard or module that owns the records you need: field history, livestock, finance, compliance or planning." },
+      { title: "Set a clear date range and filters", detail: "Limit the report to the holding, fields, batches or period that the recipient needs." },
+      { title: "Check the totals and dates", detail: "Review the on-screen result before exporting, especially when records are still being entered." },
+      { title: "Export and store securely", detail: "Share only with authorised people and retain the version used for an inspection, adviser or business decision." },
+    ],
+  },
+  {
+    id: "connected-services",
+    title: "Use integrations responsibly",
+    icon: Globe,
+    moduleKey: null,
+    steps: [
+      { title: "Check the connection in Settings", detail: "Review the available connection, the account it uses and the data you intend to share." },
+      { title: "Match records before sending", detail: "Confirm holding identifiers, dates, units and contacts are correct in both systems." },
+      { title: "Send a small, reviewable set first", detail: "Confirm the receiving service shows the expected result before relying on a wider transfer." },
+      { title: "Keep the source record", detail: "Retain the Farm Trac entry and any external confirmation; connected services can have their own validation rules and downtime." },
+    ],
+  },
+  {
+    id: "weekly-planning",
+    title: "Plan work, resources and actuals",
+    icon: CheckCircle2,
+    moduleKey: "resource-planner",
+    steps: [
+      { title: "Add the work to the planner", detail: "Schedule the task with its field, timing and owner so the week has a single view of planned work." },
+      { title: "Set requirements", detail: "Add the people, machinery and materials needed, then review clashes before committing the plan." },
+      { title: "Brief the team", detail: "Use the assignment and task details to make the job, location and preparation clear." },
+      { title: "Record what happened", detail: "Capture completion, changes, actual resources and notes so future plans use real evidence." },
+    ],
+  },
+  {
+    id: "organic-workflow",
+    title: "Maintain organic records",
+    icon: Leaf,
+    moduleKey: ["organic-compliance", "organic-arable", "organic-livestock", "organic-dairy", "organic-fresh-produce", "organic-poultry"],
+    steps: [
+      { title: "Start with your certification plan", detail: "Use your current certifier requirements, land status and approved-input rules as the source of truth." },
+      { title: "Record inputs and activities by field or group", detail: "Log purchases, applications, livestock activity and separation measures when they occur." },
+      { title: "Keep evidence with the record", detail: "Attach or retain invoices, approvals, certificates and supplier information needed to support traceability." },
+      { title: "Review before inspection or sale", detail: "Check completeness with your certifier; the workflow helps organise evidence but does not determine approval." },
+    ],
+  },
+  {
+    id: "vineyard-season",
+    title: "Manage vineyard and winery records",
+    icon: MapPin,
+    moduleKey: ["viticulture", "organic-viticulture"],
+    steps: [
+      { title: "Set up vineyard blocks", detail: "Record block names, varieties and relevant site details so each observation and operation has a clear location." },
+      { title: "Log seasonal work", detail: "Record canopy work, crop observations, applications, irrigation and harvest activity against the right block." },
+      { title: "Carry harvest into winery records", detail: "Keep lot, weight, date and quality details together so vineyard and winery traceability can be reconciled." },
+      { title: "Review traceability regularly", detail: "Use the history and reports to check that block, harvest and lot records agree before dispatch or audit." },
+    ],
+  },
+  {
+    id: "pig-and-poultry-batches",
+    title: "Record pig and poultry batches",
+    icon: Egg,
+    moduleKey: ["pig-production", "poultry-production"],
+    steps: [
+      { title: "Create the batch or placement", detail: "Record the arrival date, source, house or unit, breed or strain, and starting numbers." },
+      { title: "Add daily production and welfare records", detail: "Capture mortality, feed, environment, treatments and observations at the interval your system uses." },
+      { title: "Reconcile movements and outputs", detail: "Record transfers, sales, slaughter or egg and crop outputs against the correct batch." },
+    ],
+  },
+  {
+    id: "equipment-readiness",
+    title: "Keep equipment ready for work",
+    icon: Wrench,
+    moduleKey: ["equipment-management", "equipment-workshop"],
+    steps: [
+      { title: "Maintain the asset register", detail: "Add each machine with an identifiable name, key details and responsible person." },
+      { title: "Log service, repair and calibration", detail: "Record work completed, provider, date, cost and the next due date." },
+      { title: "Keep supporting evidence", detail: "Attach or retain certificates and invoices, then check readiness before allocating the machine to a task." },
+    ],
+  },
+  {
+    id: "staff-competency",
+    title: "Track staff competency",
+    icon: GraduationCap,
+    moduleKey: "staff-training",
+    steps: [
+      { title: "Add each worker", detail: "Record their role and the contact details needed to assign work appropriately." },
+      { title: "Record training and certificates", detail: "Add qualification dates, evidence and expiry dates for the tasks they carry out." },
+      { title: "Review before assigning work", detail: "Check competence and supervision requirements rather than treating the record alone as authorisation." },
+    ],
+  },
+  {
+    id: "pig-movement-record",
+    title: "Prepare a pig movement record",
+    icon: Tag,
+    moduleKey: "pig-production",
+    steps: [
+      { title: "Record the movement details", detail: "Capture the date, numbers, source or destination and any batch references in the pig register." },
+      { title: "Use the official movement process", detail: "Complete the required external movement licence or notification through the relevant official service." },
+      { title: "Reconcile the confirmation", detail: "Retain the official reference with your farm record and correct any differences promptly." },
+    ],
+  },
+];
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Getting Started": "bg-blue-50 text-blue-700",
@@ -521,11 +713,13 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
   const Icon = workflow.icon;
 
   return (
-    <Card
-      className="overflow-hidden cursor-pointer hover:border-primary/40 transition-colors"
-      onClick={() => setOpen((o) => !o)}
-    >
-      <div className="flex items-center justify-between px-5 py-4">
+    <Card className="overflow-hidden hover:border-primary/40 transition-colors">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
             <Icon className="w-4 h-4 text-primary" />
@@ -536,7 +730,7 @@ function WorkflowCard({ workflow }: { workflow: Workflow }) {
           ? <ChevronUp className="w-5 h-5 text-foreground/40 flex-shrink-0" />
           : <ChevronDown className="w-5 h-5 text-foreground/40 flex-shrink-0" />
         }
-      </div>
+      </button>
 
       {open && (
         <div className="px-5 pb-5 pt-0 border-t border-border bg-black/[0.015]">

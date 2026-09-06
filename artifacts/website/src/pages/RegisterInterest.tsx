@@ -26,44 +26,44 @@ const FARM_TYPES = [
 ];
 
 const MODULES = [
-  { id: "field-crop-management", label: "Field & Crop Management (spray records, field journal, varieties, Seed Store with field allocation tab and physical stocktake recording)" },
-  { id: "sprays-inputs", label: "Sprays & Inputs (spray application records with GRN-linked batch traceability, PA certificate auto-fill, withholding period alerts, IPM Plans, LERAP Assessments, Beekeeper & Neighbour Notification Log with 48-hour lead time check and printable letters, Spray Store Stocktake with system quantity auto-fill and variance badge)" },
-  { id: "soil-management", label: "Soil Management (NMP, NVZ, sampling, soil sensors)" },
-  { id: "livestock-management", label: "Livestock & Feed Management (BCMS cattle reporting — Record BCMS Ref button on all unnotified cattle rows; automated CTS API in development, LIS one-click sheep/goat/deer on/off submission with LIS portal ref recording for births/deaths, LIS LIP cattle submission — integration built, temporarily paused during Defra service transition, EIDCymru one-click submission (Wales sheep/goat/deer), ScotEID one-click submission (Scotland all-species), eAML2 XML export (pig movements), individual animal linking, Bluetooth RFID scanning, medicine stock deduction (link treatment records to stock items for automatic inventory deduction), lambing records with perinatal ABP disposal, season analytics, date-validated forms, staff/assessor name auto-populates, BVD Testing Register, Johne's Disease Monitoring Register, Casualty/Emergency Slaughter Records with mobile capture, Dairy Management with DCT — POM-V enforcement, VMD medicine database, Vet Ledger finance trail, Dairy Supplies tab — PPE & chemical drawdown against stock registers, live stock overview, restock request workflow with urgency levels and admin approval chain, printable usage history)" },
-  { id: "biosecurity", label: "Biosecurity & Visitors (visitor log with digital signature & photo/document attachments, pest control with attachments, COSHH with SDS photo, cleaning & disinfection with photo evidence, biosecurity plan)" },
-  { id: "organic-compliance", label: "Organic Compliance (certification status, field conversion tracker, inspection log with document attachment, restricted inputs register & mobile offline recording)" },
-  { id: "organic-livestock", label: "Organic Livestock (herd register linkage, treatment compliance from Medicine Register with doubled withdrawal periods, certifier notification, species-filtered herd selector in Feed Records and Outdoor Access tabs, Feed Derogations tab — Art. 22 case register with split New Case / Record Decision workflow, rejection handling with rejection reason / reference / corrective action, Action Required badge, correspondence log and document upload for approval letters and availability search evidence, outdoor access / stocking density logs, date intelligence — all date fields default to today, certification document upload per conversion record, parallel production compliance notice with annual notification manager — record each year's notification, attach certifier acknowledgements, and generate a pre-filled formal notification letter)" },
-  { id: "organic-dairy", label: "Organic Dairy (herd conversion with milk certification date, milk collection records, treatment compliance with organic milk & meat withdrawal tracking, organic feed records linked to Feed Management, feed derogation case linker — non-approved feed deliveries auto-fill certifier reference from linked Organic Livestock derogation case, date intelligence — collection date, feed date and treatment date all default to today on new records, Dairy Supplies tab — same PPE drawdown, chemical drawdown, available stock, restock requests, and usage history as standard Dairy Management)" },
-  { id: "organic-fresh-produce", label: "Organic Fresh Produce (block conversion status register, organic input log with supplier/PO/GRN/applied-by tracking, Input Derogations tab — UK Organic Regulations 2020 Sched. 1 / Annex II case register per substance with split New Case / Record Decision workflow, rejection handling with rejection reason / reference / corrective action, Action Required badge, correspondence log and document upload for approval letters and availability search evidence, certificates register, buyer declarations, print-ready compliance reports)" },
-  { id: "organic-arable", label: "Organic Arable (certification tab with certifying body/parallel production flag, field conversion tracker with visual progress bar, seed sourcing register with derogation approval flow, Seed Stock Ledger — double-entry inventory tracker with stock lines and goods-in/consumption/adjustment/waste movements with running balance, Annex II 33-item input log with Permitted/Restricted/Derogation Required status and certifier notified flag, harvest declarations with separate buyer declaration dialog; view-before-edit on all tabs; RecordAttachments in every view dialog; FilterPills + Print Register + Export CSV per tab; 5 mobile screens — overview hub, offline-first input/seed/stock movement/harvest recording with derogation and restricted-input flows; bundled access to Fields & Crops, Field Operations, Field Inspections, Harvest Records, Storage Locations, and Crop Stock)" },
-  { id: "staff-training", label: "Staff & Training (certificates, right-to-work, PPE Stock / Issue / Risk Assessments registers, PPE Compliance Pack & Staff Record reports, labour & timesheet management, rota & shift planning, actual attendance recording with Bradford Factor analysis, mobile leave request submission with manager approval & SMS notifications, holiday & absence tracking, Holiday Planner calendar view with conflict detection, printable blank leave request form (FT-LR-01), WTR compliance monitoring, department-grouped views across all six Labour Management tabs)" },
-  { id: "finance", label: "Finance & Business (Trade Contacts with supplier directory & UFAS/FEMAS tracking, Purchase Orders with multi-stage status tracking and manager approval workflow, Goods Received Notes with 3-way matching, Financial Records & Business Reports)" },
-  { id: "safety-risk-audits", label: "Safety, Risk & Audits (risk assessments, COSHH, PAT testing with BDE-PAT-XXXX QR label printing & mobile scan-to-test, fire extinguisher register, accident book, contractor H&S file, waste disposal, fly-tipping & encampments, printable H&S Register, inspection correspondence log — log emails, letters, calls, meetings and site visits against each inspection record with direction, type, subject and notes for a complete assessor-ready paper trail)" },
-  { id: "environment-sustainability", label: "Environment & Sustainability (SFI / ELM agreement manager with action codes, evidence-due deadline alerts, and print-ready compliance report; agri-environment scheme correspondence log — log emails, letters, calls, meetings and site visits with Natural England, RPA, and scheme administrators against each scheme record with direction, type, date, subject, and summary notes; Slurry & Manure Management with store register, fill-level progress bars, Fill & Intake Events log, and species-specific storage enforcement with 🔒 locked material types and server-side validation; Silage & Haylage Stock Tracking — cut records per clamp with forage type, cut number, area, yield and DM%, live running stock balance per clamp, usage drawdown log; Straw Bale Inventory — bale batches with crop, bale type, quantity, weight per bale, moisture checks across storage period, biomass contract fields (scheme name and unique bale reference for RTFO/AD traceability), usage events with auto-decrement; Season Reports Forage & Straw tab with CSV export; Carbon & Sustainability: DEFRA 2023 GHG Auto-Calculator — Pre-fill from Farm Records pulls fuel, fertiliser, livestock, and electricity data and returns Scope 1/2 tCO₂e with one-click Create Audit flow; Sustainability Reports tab with certifying body lookup, submission status, PO/invoice tracking, and document attachments)" },
-  { id: "equipment-workshop", label: "Equipment, Workshop & Fuel (Equipment Register with PUWER, insurance & depreciation tabs per machine, QR labels, Workshop job cards & analytics, Fuel & Energy)" },
-  { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
-  { id: "water-irrigation", label: "Water & Irrigation Management" },
-  { id: "fresh-produce", label: "Fresh Produce" },
-  { id: "viticulture", label: "Viticulture (vine register with UK variety & rootstock selects, GI classification (PDO/PGI/Table Wine), vineyard block management with full planting lifecycle (Active / Suspended / Removed states, retire & replant workflows, complete block history), BBCH phenology records, canopy & pruning operations, harvest records with Brix/pH/TA, disease & pest scouting with intelligent notification alerts (critical SMS for Xylella, Phytophthora, Vine Weevil & high disease pressure), Winery Management — 8 production tabs: Harvest Reception (grape intake with source block traceability), Pressing (press runs and juice volumes), Fermentation (vessel logs with yeast strain and daily readings), Vessel Register (tank and barrel register), Cellar Operations (racking, fining, filtering, blending and transfers), Bottling (bottling run records), SO₂ Testing (free/bound/total SO₂ with UK limit compliance check), Equipment Register (winery machinery with service alerts); GI Compliance tab (PDO/PGI designation register, automated Block Compliance view, APHA Certifications with expiry alerts, Harvest Declarations with auto-populate), CSV export, 9 dedicated mobile screens (4 vineyard: vine scouting, phenology, canopy ops, harvest; 5 winery: reception, pressing, fermentation, cellar ops, SO₂ testing — all offline-first) — bundled with Sprays & Inputs, COSHH, Staff & Training, Equipment Management, and Trade Contacts & Stock)" },
-  { id: "organic-viticulture", label: "Organic Viticulture (block conversion register with 3-year period tracking, organic input log, copper register with 28 kg/7yr limit tracker, input derogation case management with split New Case / Record Decision workflow, refusal handling with refusal reason / reference / corrective action, Action Required badge, correspondence log, organic wine production additives and SO₂ compliance (UK-retained EU Reg 203/2012), certificate register, mobile derogation viewer — all Viticulture bundled modules included)" },
-  { id: "sheep-production", label: "Sheep Production (flocks via Livestock register, tupping, scanning, weigh-in & DLWG, shearing, health plans, vaccination programmes incl. Gudair for Johne's Disease/Paratuberculosis, Red Tractor Sheep Assurance, year filter on all tabs, document attachment on every record row)" },
-  { id: "goat-production", label: "Goat Production (herds via Livestock register, mating records, pregnancy scanning, weigh-in & DLWG with BCS, cull & market records, vaccination programmes incl. Johne's Disease/Paratuberculosis — Gudair, disease monitoring (CAE, CLA, Johne's, FEC), analytics tab, mobile capture, year filter on all tabs, document attachment on every record row)" },
-  { id: "beef-production", label: "Beef Production (herds via Livestock register, weigh-in & DLWG, finishing records, body condition scoring, deadweight settlement, year filter on all tabs, document attachment on every record row)" },
-  { id: "venison-production", label: "Venison Production (deer herds via Livestock register, stalking & cull records, carcass processing & venison sales, herd population surveys, health records with bTB testing, firearms & stalking certificate register with expiry alerts, year filter on all tabs, document attachment on every record row)" },
-  { id: "organic-venison", label: "Organic Venison (certifying body & certificate register, grazing compartment land register with conversion status, organic feed & mineral supplement log with approval status, input derogation case management with full lifecycle tracking — Pending/Approved/Refused/Withdrawn, refusal handling with corrective action, mobile offline-first capture)" },
-  { id: "pig-production", label: "Pig Production (herds via Livestock register, farrowing & weaning, stockmanship checks with RecordAttachments, tail biting risk assessments with RecordAttachments, feed consumption & FCR, movements, kill records, mortality, Salmonella Monitoring — NSMP quarterly records, Vaccination Programme — disease-category presets (PRRS, PCV2, Enzootic Pneumonia/MH, Erysipelas/PPV, E. coli/Clostridial, APP, Swine Influenza, PED) with licensed UK vaccine presets, booster alert panel, mobile capture; Disease Monitoring Register — PRRS, MH, Aujeszky's Disease, APP, Swine Influenza; AHDB PRRS & MH accreditation support; PRRS & MH source herd status on Isolation Register, Red Tractor Pigs, year filter on all tabs, document attachment on every row)" },
-  { id: "poultry-production", label: "Poultry Production (flocks via Livestock register, placements & depletions, Chick Purchases tab with year filter & RecordAttachments, Thinning Records with year filter & document attachment, mortality logs, feed & water, egg production, medicines, biosecurity, house cleanout, Campylobacter Monitoring — FSA NCP records with year filter, document attachment, RecordAttachments & print report, Vaccination Programme — disease-category presets (ND, IB, Marek's, Gumboro/IBD, aMPV/TRT, ILT, EDS, AE, Salmonella, MG, Fowl Pox) with licensed UK vaccine presets, booster alert panel, mobile capture; Disease Monitoring Register — AI surveillance, Marek's, ND serology, MG surveillance, IB typing, ART surveillance, Salmonella serology; AI risk level classification; Marek's Disease & Salmonella NCP source flock status on Isolation Register with colour-coded badges, Red Tractor Poultry)" },
-  { id: "organic-poultry", label: "Organic Poultry (Certification tab — certifying body, certificate type for laying hens/broilers/turkeys/ducks/geese/mixed, issue/expiry/status; Outdoor Access tab — birds on range, range area ha, birds/ha stocking density, duration, vegetation condition, compliance status; Feed Records tab — product name, organic approval status: Certified Organic/Approved Non-Organic/Conventional Derogation, certifier reference, supplier, lot number, derogation case linking; Derogations tab — non-permitted input case register with full lifecycle tracking: Pending/Approved/Rejected/Expired/Withdrawn, rejection handling with corrective action; 2 mobile screens for outdoor access and feed capture with offline sync)" },
-  { id: "crop-trials", label: "Crop Trials" },
-  { id: "farm-diversification", label: "Farm Diversification" },
-  { id: "grain-crop-storage", label: "Grain & Crop Storage (stock movements, merchant charges, record linking, Crop Stock Stocktakes with system quantity auto-fill, measurement method picker and variance badge)" },
-  { id: "farm-services-contracting", label: "Farm Services & Contracting (contracting jobs, equipment hire)" },
-  { id: "weather-tracking", label: "Weather Tracking (manual station readings + Fetch Live — auto-fills from Open-Meteo GPS weather with one click, no API key needed; spray-record auto-link and historical charting)" },
-  { id: "platform-addons", label: "Platform Add-ons (SMS Alerts — 3-tab SMS Alerts page: Config tab to enable SMS and set 8 alert types across Critical tier (animal health critical, compliance deadline, stock reconciliation, TB test result) and Standard tier (medicine withdrawal, movement pending, weather alert, task overdue); Team tab for per-member opt-in level (All Alerts / Critical Only / None); History tab with full alert log; push notifications to mobile app on task assignment; Advisor / Inspector Access)" },
-  { id: "resource-planner", label: "Resource Planner (resource registry — tractors, implements, sprayers, trailers, vehicles, staff; drag-and-drop Gantt assignment; resource search and type-filter pills; jump-to-date nav; planner CSV export; inline resource requirements per task with stepper controls; 'Other' named resource descriptions; pinch point analysis — amber alerts when demand exceeds supply; materials tracking per task with weekly preparation checklist; mobile materials visibility on Task Inbox; Planning Status tab — date range filter, task search, past tasks toggle, CSV export, upcoming tasks grouped by Not started / Needs sign-off / Committed; task commitment audit trail — manager name and date recorded on every sign-off; Plan vs Actual (As-Built) — record actual date, resources, materials, outcome and deviation notes on completed tasks; Plan vs Actual comparison table with date slip, resource delta and outcome; Analytics tab — KPI cards, planning status chart, tasks by week, resource demand, utilisation, material totals, and Plan vs Actual variance charts; conflict detection with amber double-booking warnings; colour-coded resource chips on task bars)" },
-  { id: "gps-fleet-tracking", label: "GPS & fleet tracking (live Resource Map, vehicle and machinery live positions, Teltonika RMS, Webfleet, John Deere Operations Center, AGCO Connect integrations)" },
-  { id: "report-builder", label: "Report Builder (in-app custom report builder — pick from 10 datasets, choose columns, apply date-range and field-level filters, sort, optional bar/line/pie chart with configurable aggregation, live preview, CSV export, save and re-run named reports)" },
-  { id: "data-api", label: "Data API Access (read-only REST API with per-farm API keys for Excel Power Query, Power BI, Google Sheets, Python, and R; 10 curated endpoints: fields, livestock movements, medicine records, spray applications, soil tests, inspections, staff training, equipment, financial records, risk assessments; JSON and CSV output with date-range filtering)" },
+  { id: "red-tractor-compliance", name: "Red Tractor Compliance", summary: "Organise assurance records, checks and supporting evidence." },
+  { id: "field-crop-management", name: "Field & Crop Management", summary: "Plan field work, crop records and seed stock in one place." },
+  { id: "sprays-inputs", name: "Sprays & Inputs", summary: "Record applications, inputs and supporting compliance evidence." },
+  { id: "soil-management", name: "Soil Management", summary: "Manage nutrient plans, soil sampling and field conditions." },
+  { id: "livestock-management", name: "Livestock & Feed Management", summary: "Keep livestock, feed, medicine and movement records together." },
+  { id: "biosecurity", name: "Biosecurity & Visitors", summary: "Maintain visitor, cleaning, COSHH and biosecurity records." },
+  { id: "organic-compliance", name: "Organic Compliance", summary: "Track certification, conversion and organic inspection records." },
+  { id: "organic-livestock", name: "Organic Livestock", summary: "Manage organic livestock treatments, feed and derogations." },
+  { id: "organic-dairy", name: "Organic Dairy", summary: "Record organic dairy conversion, milk and feed information." },
+  { id: "organic-fresh-produce", name: "Organic Fresh Produce", summary: "Manage organic growing blocks, inputs and buyer records." },
+  { id: "organic-arable", name: "Organic Arable", summary: "Run organic arable certification, seed and harvest records." },
+  { id: "staff-training", name: "Staff & Training", summary: "Organise training, PPE, rotas, timesheets and leave." },
+  { id: "finance-business", name: "Finance & Business", summary: "Manage suppliers, purchasing and business financial records." },
+  { id: "safety-risk-audits", name: "Safety, Risk & Audits", summary: "Keep risk assessments, safety checks and audit records." },
+  { id: "environment-sustainability", name: "Environment & Sustainability", summary: "Track schemes, environmental records and sustainability data." },
+  { id: "equipment-workshop", name: "Equipment, Workshop & Fuel", summary: "Manage machinery, maintenance jobs and fuel records." },
+  { id: "biofuel-rtfo", name: "Biofuel / RTFO Compliance", summary: "Maintain records for biofuel and RTFO requirements." },
+  { id: "water-irrigation", name: "Water & Irrigation Management", summary: "Plan irrigation and record water use." },
+  { id: "fresh-produce", name: "Fresh Produce", summary: "Manage growing, harvest, packhouse and despatch records." },
+  { id: "viticulture", name: "Viticulture", summary: "Manage vineyard, winery and wine compliance records." },
+  { id: "organic-viticulture", name: "Organic Viticulture", summary: "Manage organic vineyard conversion, inputs and wine records." },
+  { id: "sheep-production", name: "Sheep Production", summary: "Record flock performance, health and production activity." },
+  { id: "goat-production", name: "Goat Production", summary: "Track goat breeding, health and performance records." },
+  { id: "beef-production", name: "Beef Production", summary: "Monitor beef performance, finishing and sale records." },
+  { id: "venison-production", name: "Venison Production", summary: "Manage deer herds, culls, processing and sales." },
+  { id: "organic-venison", name: "Organic Venison", summary: "Maintain organic deer certification, feed and land records." },
+  { id: "pig-production", name: "Pig Production", summary: "Record pig breeding, health, feed and performance." },
+  { id: "poultry-production", name: "Poultry Production", summary: "Manage flock, egg, health and biosecurity records." },
+  { id: "organic-poultry", name: "Organic Poultry", summary: "Track organic poultry certification, range access and feed." },
+  { id: "crop-trials", name: "Crop Trials", summary: "Plan and record crop trials and results." },
+  { id: "farm-diversification", name: "Farm Diversification", summary: "Manage income and records from diversified enterprises." },
+  { id: "grain-crop-storage", name: "Grain & Crop Storage", summary: "Track crop storage, stock movements and charges." },
+  { id: "farm-services-contracting", name: "Farm Services & Contracting", summary: "Manage contracting jobs, customers and equipment hire." },
+  { id: "weather-tracking", name: "Weather Tracking", summary: "Record local weather and link it to farm activity." },
+  { id: "platform-addons", name: "Platform Add-ons", summary: "Add alerts, mobile notifications and adviser access." },
+  { id: "resource-planner", name: "Resource Planner", summary: "Schedule people, machinery and materials across tasks." },
+  { id: "report-builder", name: "Report Builder", summary: "Create, save and export tailored farm reports." },
+  { id: "data-api", name: "Data API Access", summary: "Connect farm data to your reporting tools securely." },
 ];
 
 const HEARD_VIA = [
@@ -79,6 +79,15 @@ const HEARD_VIA = [
   "Trade publication",
   "Other",
 ];
+
+const PRICING_SECTOR_TO_FARM_TYPE: Record<string, string> = {
+  Arable: "Arable / Combinable Crops",
+  Livestock: "Mixed (Arable & Livestock)",
+  Viticulture: "Viticulture / Vineyard",
+  Organic: "Organic",
+  "Fresh Produce": "Fresh Produce / Horticulture",
+  Diversification: "Other",
+};
 
 interface FormState {
   firstName: string;
@@ -122,7 +131,20 @@ export default function RegisterInterest() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get("sector");
-    if (s) setForm(f => ({ ...f, sector: s }));
+    const requestedModules = (params.get("modules") ?? "").split(",").filter(id => MODULES.some(module => module.id === id));
+    const rawFarmCount = Number(params.get("farms"));
+    const requestedFarms = Number.isFinite(rawFarmCount)
+      ? rawFarmCount <= 5 ? String(Math.max(1, rawFarmCount)) : rawFarmCount <= 10 ? "6–10" : "11+"
+      : null;
+    setForm(f => ({
+      ...f,
+      ...(s ? { sector: s } : {}),
+      ...(s && PRICING_SECTOR_TO_FARM_TYPE[s] ? { farmType: PRICING_SECTOR_TO_FARM_TYPE[s] } : {}),
+      ...(requestedModules.length ? { modules: requestedModules } : {}),
+      ...(requestedFarms && ["1", "2", "3", "4", "5", "6–10", "11+"].includes(requestedFarms)
+        ? { numberOfHoldings: requestedFarms }
+        : {}),
+    }));
   }, []);
 
   function toggleModule(id: string) {
@@ -174,9 +196,10 @@ export default function RegisterInterest() {
             <p className="text-sm text-muted-foreground">
               In the meantime, explore our{" "}
               <a href="/features" className="text-brand underline underline-offset-2 hover:text-brand/80">features</a>{" "}
-              and{" "}
+              page, review{" "}
               <a href="/pricing" className="text-brand underline underline-offset-2 hover:text-brand/80">pricing</a>{" "}
-              pages.
+              or visit the{" "}
+              <a href="/help" className="text-brand underline underline-offset-2 hover:text-brand/80">Help Centre</a>.
             </p>
           </motion.div>
         </div>
@@ -190,19 +213,22 @@ export default function RegisterInterest() {
       <div className="relative bg-gradient-to-b from-[#166534]/5 to-transparent border-b border-border">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full mb-4">
-            <Sprout className="w-3.5 h-3.5" />Free 30-Day Trial
+            <Sprout className="w-3.5 h-3.5" />Try BDE Farm Trac for 30 days
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-4">Register Interest</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-4">See BDE Farm Trac on your farm</h1>
           <p className="text-lg text-muted-foreground">
-            Tell us a little about your farm and the modules you need. We will set up your free trial and walk you through the system — no payment details required.
+            Tell us about your farm and the areas you want to manage. We will use this to prepare a relevant trial and introduction to the system. No payment details are required.
+          </p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Prefer to compare options first? <a href="/pricing" className="text-brand underline underline-offset-2 hover:text-brand/80">View pricing</a> or <a href="/help" className="text-brand underline underline-offset-2 hover:text-brand/80">visit the Help Centre</a>.
           </p>
 
           {/* Trial highlights */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
             {[
-              { icon: Star, label: "30-day free trial", sub: "All modules unlocked" },
-              { icon: CheckCircle2, label: "No card required", sub: "No commitment" },
-              { icon: Sprout, label: "UK farm compliance", sub: "Red Tractor ready" },
+              { icon: Star, label: "30-day trial", sub: "Explore the areas relevant to your farm" },
+              { icon: CheckCircle2, label: "No card required", sub: "Submit your details to get started" },
+              { icon: Sprout, label: "Built for UK farms", sub: "Keep everyday records in one place" },
             ].map(({ icon: Icon, label, sub }) => (
               <div key={label} className="flex items-center gap-3 bg-white rounded-xl border border-border px-4 py-3 text-left">
                 <Icon className="w-5 h-5 text-[#166534] shrink-0" />
@@ -222,22 +248,23 @@ export default function RegisterInterest() {
           {/* Contact details */}
           <section>
             <h2 className="text-lg font-bold text-foreground mb-4 pb-2 border-b border-border">Your details</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <p className="text-sm text-muted-foreground mb-4"><span className="text-red-500" aria-hidden="true">*</span> Required fields</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">First name <span className="text-red-500">*</span></label>
-                <Input required value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                <label htmlFor="first-name" className="block text-sm font-medium text-foreground mb-1.5">First name <span className="text-red-500" aria-hidden="true">*</span></label>
+                <Input id="first-name" required value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Last name <span className="text-red-500">*</span></label>
-                <Input required value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                <label htmlFor="last-name" className="block text-sm font-medium text-foreground mb-1.5">Last name <span className="text-red-500" aria-hidden="true">*</span></label>
+                <Input id="last-name" required value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Email address <span className="text-red-500">*</span></label>
-                <Input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">Email address <span className="text-red-500" aria-hidden="true">*</span></label>
+                <Input id="email" type="email" required autoComplete="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Phone number</label>
-                <Input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-1.5">Phone number <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <Input id="phone" type="tel" autoComplete="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
               </div>
             </div>
           </section>
@@ -263,31 +290,31 @@ export default function RegisterInterest() {
           <section>
             <h2 className="text-lg font-bold text-foreground mb-4 pb-2 border-b border-border">Farm details</h2>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Farm name <span className="text-red-500">*</span></label>
-                  <Input required value={form.farmName} onChange={e => setForm(f => ({ ...f, farmName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                  <label htmlFor="farm-name" className="block text-sm font-medium text-foreground mb-1.5">Farm name <span className="text-red-500" aria-hidden="true">*</span></label>
+                  <Input id="farm-name" required value={form.farmName} onChange={e => setForm(f => ({ ...f, farmName: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">CPH / Holding number</label>
-                  <Input placeholder="e.g. 12/345/0001" value={form.holdingNumber} onChange={e => setForm(f => ({ ...f, holdingNumber: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                  <label htmlFor="holding-number" className="block text-sm font-medium text-foreground mb-1.5">CPH / holding number <span className="font-normal text-muted-foreground">(optional)</span></label>
+                  <Input id="holding-number" placeholder="For example, 12/345/0001" value={form.holdingNumber} onChange={e => setForm(f => ({ ...f, holdingNumber: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">County</label>
-                  <Input value={form.county} onChange={e => setForm(f => ({ ...f, county: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
+                  <label htmlFor="county" className="block text-sm font-medium text-foreground mb-1.5">County <span className="font-normal text-muted-foreground">(optional)</span></label>
+                  <Input id="county" autoComplete="address-level1" value={form.county} onChange={e => setForm(f => ({ ...f, county: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Number of holdings</label>
-                  <select value={form.numberOfHoldings} onChange={e => setForm(f => ({ ...f, numberOfHoldings: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
+                  <label htmlFor="number-of-holdings" className="block text-sm font-medium text-foreground mb-1.5">Number of holdings</label>
+                  <select id="number-of-holdings" value={form.numberOfHoldings} onChange={e => setForm(f => ({ ...f, numberOfHoldings: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
                     {["1", "2", "3", "4", "5", "6–10", "11+"].map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Primary farm type <span className="text-red-500">*</span></label>
-                <select required value={form.farmType} onChange={e => setForm(f => ({ ...f, farmType: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
+                <label htmlFor="farm-type" className="block text-sm font-medium text-foreground mb-1.5">Primary farm type <span className="text-red-500" aria-hidden="true">*</span></label>
+                <select id="farm-type" required value={form.farmType} onChange={e => setForm(f => ({ ...f, farmType: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
                   {FARM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -297,12 +324,15 @@ export default function RegisterInterest() {
           {/* Modules */}
           <section>
             <h2 className="text-lg font-bold text-foreground mb-1 pb-2 border-b border-border">Modules of interest</h2>
-            <p className="text-sm text-muted-foreground mb-4">Select all that apply — we will configure your trial accordingly.</p>
+            <p id="modules-help" className="text-sm text-muted-foreground mb-4">Select any areas you would like to discuss. This helps us tailor your trial conversation.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {MODULES.map(m => (
-                <label key={m.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.modules.includes(m.id) ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"}`}>
-                  <input type="checkbox" checked={form.modules.includes(m.id)} onChange={() => toggleModule(m.id)} className="rounded border-border" />
-                  <span className="text-sm text-foreground">{m.label}</span>
+                <label key={m.id} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form.modules.includes(m.id) ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"}`}>
+                  <input id={`module-${m.id}`} type="checkbox" checked={form.modules.includes(m.id)} onChange={() => toggleModule(m.id)} aria-describedby="modules-help" className="mt-1 rounded border-border" />
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">{m.name}</span>
+                    <span className="block mt-0.5 text-xs leading-5 text-muted-foreground">{m.summary}</span>
+                  </span>
                 </label>
               ))}
             </div>
@@ -313,22 +343,22 @@ export default function RegisterInterest() {
             <h2 className="text-lg font-bold text-foreground mb-4 pb-2 border-b border-border">A little more</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">How did you hear about BDE Farm Trac?</label>
-                <select value={form.heardVia} onChange={e => setForm(f => ({ ...f, heardVia: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
+                <label htmlFor="heard-via" className="block text-sm font-medium text-foreground mb-1.5">How did you hear about BDE Farm Trac? <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <select id="heard-via" value={form.heardVia} onChange={e => setForm(f => ({ ...f, heardVia: e.target.value }))} className="h-12 rounded-xl border-2 border-border bg-transparent px-4 py-2 text-base w-full">
                   <option value="">Please select…</option>
                   {HEARD_VIA.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Anything else you'd like to tell us?</label>
-                <Textarea value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} rows={3} placeholder="e.g. current system you use, specific compliance challenges, preferred contact time…" />
+                <label htmlFor="message" className="block text-sm font-medium text-foreground mb-1.5">Anything else you would like us to know? <span className="font-normal text-muted-foreground">(optional)</span></label>
+                <Textarea id="message" value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} rows={3} placeholder="For example: your current system, records you want to improve, or a preferred contact time." />
               </div>
             </div>
           </section>
 
           <Button type="submit" size="lg" disabled={loading} className="w-full">
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sprout className="w-4 h-4 mr-2" />}
-            Register Interest — Start Free Trial
+            Register interest
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">

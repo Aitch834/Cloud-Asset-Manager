@@ -1,1090 +1,161 @@
 import { Layout } from "@/components/layout/Layout";
-import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
 import { modulePrice } from "@/lib/pricing-data";
+import { motion } from "framer-motion";
+import { Link } from "wouter";
 import {
-  ClipboardCheck, Map, Tractor, FileText, LineChart,
-  CloudRain, PawPrint, Sprout, ShieldAlert, GraduationCap,
-  Droplets, AlertTriangle, Leaf, Fuel, Zap,
-  Ham, Bird, Flower2, Store, Waves, Landmark, WheatIcon,
-  Warehouse, Wrench, HeartPulse, Milk, Grape, Crosshair, CalendarClock,
-  FlaskConical, Database, BarChart3,
+  ArrowRight,
+  BarChart3,
+  CalendarCheck,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  Map,
+  Milk,
+  PawPrint,
+  ShieldCheck,
+  Sprout,
+  Tractor,
+  Users,
+  Wheat,
 } from "lucide-react";
 
-type Badge = "required" | "module" | "included";
+const benefits = [
+  {
+    icon: ClipboardCheck,
+    title: "Keep the whole farm record in view",
+    description:
+      "Bring documents, recurring checks, farm tasks and supporting evidence into one working system instead of chasing paper, folders and spreadsheets.",
+    points: ["Shared planner for dates and follow-ups", "Records linked back to the job, field or animal", "Clear history when you need to review work"],
+    color: "bg-brand-pale text-brand-forest border-brand-light/30",
+  },
+  {
+    icon: Map,
+    title: "Record work where it happens",
+    description:
+      "Give office and field teams a practical way to capture activity against fields, assets, crops and livestock, then pick it up again when planning the next job.",
+    points: ["Field, crop and grazing activity", "Equipment, workshop and fuel records", "Mobile-friendly workflows for day-to-day entries"],
+    color: "bg-sky-50 text-sky-700 border-sky-100",
+  },
+  {
+    icon: CalendarCheck,
+    title: "Turn records into next actions",
+    description:
+      "Use due dates, assignments and reminders to make important work visible to the people who need to do it—not buried in a completed form.",
+    points: ["Assign work and follow progress", "Plan around services, withdrawals and inspections", "Review outstanding work across the farm"],
+    color: "bg-amber-50 text-amber-700 border-amber-100",
+  },
+  {
+    icon: FileText,
+    title: "Be ready to explain the detail",
+    description:
+      "Keep the context alongside the record: notes, documents, dates and linked activity. Create clear reports for your own review and for conversations with advisers or assessors.",
+    points: ["Document and photo attachments", "Structured registers and printable views", "Report and export options in selected modules"],
+    color: "bg-violet-50 text-violet-700 border-violet-100",
+  },
+];
 
-interface ModuleDef {
-  title: string;
-  icon: React.ElementType;
-  color: string;
-  badge: Badge;
-  features: string[];
-}
+const workflows = [
+  {
+    icon: Sprout,
+    title: "Crop, soil & inputs",
+    text: "Build a connected picture from field and crop plans through operations, soil samples, applications, harvest and storage.",
+    modules: ["Field & Crop Management", "Sprays & Inputs", "Soil Management", "Grain & Crop Storage"],
+  },
+  {
+    icon: PawPrint,
+    title: "Livestock & feed",
+    text: "Maintain herd and flock records alongside medicine, feeding, welfare, health and production activity.",
+    modules: ["Livestock & Feed Management", "Sheep, Beef, Pig & Poultry Production", "Dairy Management"],
+  },
+  {
+    icon: Tractor,
+    title: "Machinery & farm operations",
+    text: "See what is owned, serviced, used and due next—from equipment records and workshop jobs to fuel and resource planning.",
+    modules: ["Equipment, Workshop & Fuel", "Resource Planner", "Farm Services & Contracting"],
+  },
+  {
+    icon: ShieldCheck,
+    title: "People, safety & farm management",
+    text: "Coordinate staff records, safety work, visitors, environmental activity, water and business administration in one place.",
+    modules: ["Staff & Training", "Safety, Risk & Audits", "Biosecurity & Visitors", "Environment & Sustainability"],
+  },
+];
 
-interface Section {
-  title: string;
-  description: string;
-  modules: ModuleDef[];
-}
+const sectors = [
+  {
+    icon: Wheat,
+    title: "Arable farms",
+    outcome: "Make seasonal decisions with field history close at hand.",
+    copy: "Connect field plans, drilling, inspections, inputs, harvest and grain movements, with soil and weather records available when you need them.",
+    module: "field-crop-management",
+  },
+  {
+    icon: Milk,
+    title: "Dairy & beef enterprises",
+    outcome: "Keep animal, medicine and routine management records together.",
+    copy: "Work from livestock and feed records while keeping health events, treatments, welfare activity and production information easier to review.",
+    module: "livestock-management",
+  },
+  {
+    icon: PawPrint,
+    title: "Sheep, goats, pigs & poultry",
+    outcome: "Give daily stock work a more consistent record trail.",
+    copy: "Use the livestock foundation with production modules for breeding, health, performance and flock or herd activity that fits your enterprise.",
+    module: "sheep-production",
+  },
+  {
+    icon: Sprout,
+    title: "Fresh produce & horticulture",
+    outcome: "Follow activity from growing area to harvest and despatch.",
+    copy: "Bring growing blocks, water checks, crop work, harvest records and packhouse activity into a practical operational view.",
+    module: "fresh-produce",
+  },
+  {
+    icon: Users,
+    title: "Vineyards & wineries",
+    outcome: "Keep vineyard work and wine production connected.",
+    copy: "Record blocks, phenology, harvest, cellar activity and stock alongside the wider farm records your team already uses.",
+    module: "viticulture",
+  },
+  {
+    icon: BarChart3,
+    title: "Mixed & diversified farms",
+    outcome: "Choose the tools that match the business you run.",
+    copy: "Add modules for farm shops, contracting, accommodation, services and financial records without replacing your core farm workflow.",
+    module: "farm-diversification",
+  },
+];
 
-const BADGE_STYLES: Record<Badge, { label: string; className: string }> = {
-  required: {
-    label: "Required",
-    className: "bg-amber-100 text-amber-800 border border-amber-200",
-  },
-  module: {
-    label: "+ Module",
-    className: "bg-blue-50 text-blue-700 border border-blue-200",
-  },
-  included: {
-    label: "Included",
-    className: "bg-green-50 text-green-700 border border-green-200",
-  },
-};
-
-const sections: Section[] = [
+const moduleHighlights = [
   {
-    title: "Core Platform",
-    description: "Included with every subscription — the foundation of Red Tractor compliance on BDE Farm Trac.",
-    modules: [
-      {
-        title: "Red Tractor Compliance",
-        icon: ClipboardCheck,
-        color: "bg-blue-50 text-blue-600 border-blue-100",
-        badge: "required",
-        features: [
-          "Official template matching",
-          "Automated gap analysis",
-          "Audit history log",
-          "One-click print-ready compliance reports",
-          "Farm Planner — switch between a 7-day Week Ahead and 30-day Month Ahead view; draws from over 20 data sources across every active module including certificate expiries, inspection dates, insurance renewals, medicine withdrawal periods, PAT tests, fire extinguisher services, water abstraction licence renewals, COSHH review dates, expected deliveries, crop planting dates, and expected harvest windows; custom reminders let you add one-off events (contractor visits, farm walks, merchant meetings) with colour-coding directly into the planner timeline",
-          "Task Assignment — assign tasks to named staff members from multiple sources: the Week Ahead planner, Equipment defect reports, Risk assessments, Medicine withdrawal records, Vet follow-up visits, Spray applications, Work Orders, Feed bin reorders, TB test read dates, Contractor H&S reviews, and custom one-off reminders; the staff member receives an SMS and an instant push notification to their mobile app with the task title, due date, and any note you add; tapping the push notification opens the Task Inbox directly; assignments are tracked with a pending / in progress / completed / cancelled status workflow; staff selection dropdowns show each person's department alongside their name for quick identification",
-          "Task Board — dedicated manager view of all open and completed task assignments across the farm; filter by staff member, status, source module, or department; date filter on the completed tasks section lets managers review what was done within a specific period without scrolling through all historical records; expandable cards show the full assignment history including completion notes and timestamps; tasks carry the source module tag (Equipment, Vet Ledger, Risk, Spray, TB Test, Contractor H&S etc.) so the origin of every action is always clear; New Task button on the Task Board lets managers raise standalone ad-hoc tasks that are not linked to a specific compliance record — type the task title, pick an assignee, set a due date, add instructions, and raise; the assignee receives the same SMS and push notification as any other task assignment",
-          "Insurance Register — record Employers Liability, Public Liability, and all other farm policies with insurer, policy number, cover level, and expiry date; attach PDF or photo scans of certificates for instant on-screen access during inspections; automatic colour-coded alerts (amber at 60 days, red on expiry) for both legally required and Red Tractor-required policies",
-          "Compliance Documents Register — central register for all farm-level certificates, assurance documents, and compliance paperwork required by Red Tractor; record and store your Red Tractor Assurance Certificate, spray operator certificates (PA1/PA2/PA6), nutrient management plan, COSHH assessments, risk assessments, soil analysis reports, sprayer calibration certificate (NSTS), grain store inspection, farm insurance, employer's liability insurance, and pesticide purchase records; attach a digital copy (PDF, photo, or Word document) to each entry for instant on-screen access during an assessor visit; Red Tractor compliance checklist automatically ticks each required document type as you add it; expiry tracking with colour-coded alerts (amber within 90 days, red on expiry); filter by document category, type, or status",
-          "Smart date validation — date entry fields enforce logical bounds across the entire platform: fields recording past events (medicine treatments, welfare assessments, service history, spray applications, fuel drawdowns) cannot be set to a future date; fields scheduling future events (expected calving, planned spray windows) cannot be set to a past date; prevents the most common source of compliance record errors on both the mobile app and the dashboard",
-          "Staff auto-populate — operator, assessor, 'recorded by', and 'completed by' name fields pre-fill automatically with the logged-in user's name when a new record form is opened on both the mobile app and the dashboard; change the name if entering a record on behalf of a colleague, or leave it as-is for instant consistent staff attribution without typing",
-        ],
-      },
-      {
-        title: "Grants & Funding",
-        icon: Landmark,
-        color: "bg-violet-50 text-violet-600 border-violet-100",
-        badge: "included",
-        features: [
-          "Unified grant register — track FETF, Countryside Stewardship capital grants, SFI capital, RDPE, and other scheme applications in one place",
-          "Status workflow — Draft → Applied → Approved → Purchased → Claimed, with rejected and withdrawn states to suppress alerts",
-          "FETF item reference picker — searchable list of 30+ items across 8 categories (Precision Technology, Slurry Management, Animal Health, Arable, Irrigation, Horticulture, Environment & Energy) based on previous FETF rounds",
-          "Purchase and claim deadline tracking — both dates surface automatically in the Farm Planner (amber within 30 days, red when overdue); alerts suppressed once grant is claimed or withdrawn",
-          "Grant value and actual cost recording — approved grant amount vs. real purchase price with net cost calculation",
-          "Evidence attachment — upload RPA offer letters, purchase invoices, and equipment photos directly to each grant record",
-          "Summary dashboard — total approved grant value, live count by status, upcoming deadline warning card",
-          "Application reference tracking — store RPA reference numbers at point of submission for audit trail",
-          "RPA Agreement / Approval Reference — separate field for SFI and CS applications that appears automatically on approval; holds the agreement reference number issued by the RPA at the point of approval, distinct from the original application reference",
-          "One-click SFI / ELM handoff — approved SFI and CS grant records show a 'Start SFI / ELM Record →' button that navigates to the SFI / ELM page with the agreement reference, scheme name, and managing body pre-filled; no re-typing of references",
-        ],
-      },
-      {
-        title: "Sandbox Test Environment",
-        icon: FlaskConical,
-        color: "bg-amber-50 text-amber-600 border-amber-100",
-        badge: "included",
-        features: [
-          "A complete mirror of your live account — every farm, module, and screen is available to explore freely with no risk of affecting real records, submitting to government systems, or triggering any external integration",
-          "No real-world side-effects — SMS alerts, GPS polling, livestock submission APIs (LIS, EIDCymru, ScotEID), BCMS reporting, and all background jobs are fully suppressed for sandbox sessions",
-          "Persistent amber banner throughout — a clear 'SANDBOX — Test Environment' bar is visible on every page so there is never any doubt you are not in your live account",
-          "Reset sandbox in one click — super-admins can wipe all test data instantly from within the banner; farm structure, settings, and credentials are preserved so the sandbox is ready to use again immediately",
-          "Return to live in one click — the 'Return to Live Dashboard' button in the banner switches you back to your production environment without signing out or navigating away",
-          "Ideal for training new staff — let new team members learn the system, enter records, and explore every screen without the pressure of working in a live compliance environment",
-          "Available at no extra cost — sandbox access is included with every subscription; no separate tier or add-on required",
-        ],
-      },
-      {
-        title: "Resource Map & Live Tracking",
-        icon: Map,
-        color: "bg-sky-50 text-sky-600 border-sky-100",
-        badge: "included",
-        features: [
-          "Live staff location map — staff who enable location sharing on the mobile app appear on the Resource Map as colour-coded pin markers showing their name initials and last-seen time; a status indicator distinguishes live pings (within 2 minutes) from stale ones",
-          "Live GPS asset tracking — machinery and vehicles connected via GPS provider integrations stream live positions to the Resource Map; positions update every 30–60 seconds automatically",
-          "Type-specific map icons — each asset category is rendered with a recognisable SVG icon inside a colour-coded location pin: tractors (brown), combine harvesters (dark amber), sprayers (dark green), vehicles (navy), plant and excavators (deep orange), trailers (grey), ATVs (purple) — for instant visual category identification at a glance without reading labels",
-          "Hover tooltips — hover any marker to see a concise summary: asset name, category, last-seen time, and live speed if the machine is in motion; click any marker for a full detail popup including ignition state, GPS accuracy, provider name, and asset ID",
-          "Per-category filter toggles — filter the live map by asset type using toggle pills; only categories with at least one active asset appear as filter options; Show all / Hide all assets shortcut for one-click switching",
-          "Live status sidebar — a sidebar panel alongside the map lists every visible staff member and GPS asset with category, provider, last-seen time, ignition state, and current speed; live and stale pins are colour-coded green and amber for immediate status awareness",
-          "GPS provider integrations — connect Teltonika RMS (OAuth 2.0), Webfleet.connect (credential-based), John Deere Operations Center (OAuth 2.0), and AGCO Connect (OAuth 2.0 via Okta) via Settings → Farm Settings → GPS Tracking Integration; each provider polls live location data automatically once authorised",
-          "GPS Tracked flag on equipment — mark any machine in the Equipment Register as GPS Tracked; a coloured GPS badge appears on the equipment list for visual confirmation; filter the equipment list to show only tracked machines; tracked machines link automatically to live provider data on the Resource Map",
-        ],
-      },
+    title: "Core farm management",
+    description: "The shared foundation for documents, tasks, planning and farm-wide records.",
+    items: [
+      { name: "Red Tractor Compliance", id: "red-tractor-compliance", required: true },
+      { name: "Staff & Training", id: "staff-training" },
+      { name: "Safety, Risk & Audits", id: "safety-risk-audits" },
+      { name: "Biosecurity & Visitors", id: "biosecurity" },
     ],
   },
   {
-    title: "Crop & Field",
-    description: "End-to-end arable management from field mapping through to harvest audit trail.",
-    modules: [
-      {
-        title: "Field & Crop Management",
-        icon: Map,
-        color: "bg-brand-pale text-brand-forest border-brand-light/30",
-        badge: "module",
-        features: [
-          "GPS boundary mapping",
-          "Crop rotation history — crop rotation reason tags let you record why a crop or land use was chosen for the season (e.g. Black-grass suppression, Break crop, OSR interval compliance, Soil structure recovery, Scheme requirement), shown alongside the assignment in Crop History for a quick rationale at a glance",
-          "Field map year selector — step back through previous seasons on the Field Map to see exactly what was planted in each field historically, useful for checking OSR break intervals and reviewing rotation diversity",
-          "Auto-determined crop season — the season (Autumn, Winter, Spring, Summer) for a crop assignment is derived automatically from the planting date, with a manual override available when a delayed drilling still needs to be recorded as the intended agronomic season",
-          "Black-grass Five-in-Five tracker — scores each flagged field's cultural control diversity against the five recognised pillars (rotational ploughing, delayed drilling, spring cropping, higher seed rate, fallow/cover crop) over its last five seasons; flags herbicide MOA/HRAC group repetition risk and rolls up at-risk fields farm-wide in the Season Production Report",
-          "Seed Store — batch inventory register tracking TGW, bag weight, and remaining stock for every seed delivery, with low-stock and used-up badges; batches link directly to crop assignments so stock is deducted automatically as seed is drilled; Field Allocation tab shows exactly which fields have been seeded from each batch across the season; Stocktakes tab records periodic physical seed counts against system stock with variance tracking, conducted-by attribution, and a permanent audit entry per stocktake",
-          "Seed Rate Calculator — recommends a sowing rate (kg/ha) from a target plant population, TGW, and an establishment percentage adjusted for the field's soil type and drilling date; suggests a higher target population for Black-grass Five-in-Five flagged fields",
-          "Avery-format seed bag labels — print a sheet of 21 batch-traceable labels (crop, variety, batch number, supplier, TGW, destination field) per A4 sheet directly from a crop assignment",
-          "Seed drilling records — crop variety, seed lot, rate & treatment",
-          "Harvest audit trail — transport, storage & yield; harvested tonnage is automatically credited to your Crop Stock Levels and a stock movement entry is written at the same time — no separate stock entry required",
-          "PHI harvest interval compliance alert — every harvest record checks the pre-harvest interval (PHI) for each linked spray application on that field and crop; a red blocking alert is raised when a harvest date falls within the PHI of an active product, preventing accidental early harvest and satisfying the Maximum Residue Level (MRL) documentation requirement for Red Tractor Combinable Crops and Fresh Produce standards; PHI override is available with a mandatory reason captured on record for auditor review",
-          "Planned vs. actual harvest cross-referencing",
-          "Yield history per variety — view t/ha, total yield, moisture, and grade for every season a variety has been grown on a field; season-on-season trend indicators (improving / declining) surface in the field's Season History tab without needing to open a separate report",
-          "Variety document attachments — attach AHDB or KWS variety data sheets, seed certificates, or other variety-level documents directly to each Crops Register entry; documents are stored against the variety and accessible instantly during an assessor visit or agronomist review",
-          "Field operations log — cultivation, tillage, lime & more",
-          "20 operation types with depth, passes & quantity tracking",
-          "Field inspection logging with action flags — Monitor, Treat, Urgent",
-          "Instant SMS alerts for urgent crop actions",
-          "Resolution tracking with audit trail per inspection",
-          "Field inspections map overlay — geo-tagged inspection records appear as colour-coded pins on the Farm Map (red = urgent, orange = treat, amber = monitor); toggle the overlay on or off from the sidebar panel to see open action flags plotted spatially across your farm",
-          "Field quick-links — each field's history tab includes one-click buttons to jump straight to Field Operations or Spray Records pre-filtered for that field, so all activity for a parcel is reachable in two clicks",
-          "Haulage & grain movement records — log haulier, vehicle registration, load type, tonnage, delivery note number and confirmation receipt; haulier directory for quick selection when booking collections or deliveries",
-          "Grassland & Pasture Management register — log every grazing event against a specific field parcel; captures entry and exit dates, grazing system (set-stocking, rotational, strip-grazing, or zero-grazing), species grazed, head count, pre-grazing cover (mm), post-grazing residual (mm), and whether organic manure was applied before entry; events are listed in a scrollable register per field; mobile quick-entry available in the field for in-paddock logging; satisfies the grassland management records requirement for Red Tractor Beef & Lamb and Dairy standards",
-          "Non-crop land use recording — record what every field is doing in seasons when no cash crop is grown; supported types include Fallow, Temporary Grass Ley, Permanent Grassland, SFI Action, Countryside Stewardship, Cover Crop (Unharvested), Woodland / Agroforestry, and Other; fills the rotation gaps that Red Tractor assessors check for",
-          "Agri-environment scheme detail — SFI and Countryside Stewardship land use records capture the specific action or option code (e.g. CSAM1, AB8, GS8) and the agreement reference number alongside the field and season, giving a complete audit trail from scheme action to field parcel",
-          "Field Use Register — the Crops Register tab shows a Non-Crop Land Use section beneath the crop groups listing all land use records for the selected year; the printable Field Use Register covers all fields and all seasons in a single A4 landscape document, combining crop assignments, non-crop land use, and any unrecorded fields",
-          "Land Tenure Register — dedicated register tracking the ownership and occupation basis of every field parcel; record tenure type (Owned Freehold, Owned Leasehold, Farm Business Tenancy, Grazing Licence, Seasonal Licence, Share Farming, or other), landlord or licensor name, annual rent or licence fee, rent review date, and agreement start and expiry dates; summary stats bar shows total area by tenure type (owned vs tenanted vs licensed) with a blended average rent per hectare across all rented and licensed land",
-          "Land Tenure alerts — amber and red alert banners surface automatically when rent reviews are due within 90 days, agreements are expiring within 60 days, or licences have already lapsed; each alert links directly to the affected field's tenure tab for immediate review",
-          "Tenure detail per field — each field's detail drawer includes a dedicated Tenure tab showing the full land tenure record alongside the field boundary, area, and soil data",
-          "Sale price capture on harvest records — record the agreed sale price per tonne (£/t) against each harvest entry; price is stored in pence for precision and displayed as £ to two decimal places; feeds directly into the Season Production Report gross margin calculation",
-          "Seed Drilling Records — structured drilling entries capturing crop, variety, seed lot number, seed rate (kg/ha), area seeded (ha), treated seed toggle (with treatment product name for pesticide-dressed seed, required under BBSRC stewardship guidelines), operator, soil conditions, weather notes, and seed cost (£/kg); seed cost is combined with seed rate and area to compute total seed input cost in the Season Production Report; view-before-edit record dialogs allow full review before any changes are made; drilling entries automatically update the Field Land Use record for the season so the Crop Rotation map stays in sync without a second entry",
-          "Season Production Report with Financial Summary — per-crop-season report combining all drilling, fertiliser, spray, and harvest records into a single view; Financial Summary section shows total seed cost, total fertiliser cost, total spray cost, total revenue (sale price × yield), total input costs, and gross margin (£ and £/ha); Revenue and Gross Margin KPI tiles in the summary strip turn red when the margin is negative; all figures are computed server-side from linked records — no manual re-entry required",
-        ],
-      },
-      {
-        title: "Sprays & Inputs",
-        icon: Droplets,
-        color: "bg-cyan-50 text-cyan-600 border-cyan-100",
-        badge: "module",
-        features: [
-          "Spray application records",
-          "Product & batch tracking with lot number capture",
-          "Operator lookup with PA certificate auto-fill — select a spray operator from your staff list; their PA1/PA2/PA6 certificate number and expiry status auto-populate with a green (valid) or amber (expiring) indicator confirming compliance before you save",
-          "Equipment Used lookup — pick the sprayer or tractor from your Equipment Register; equipment name is stored with the record and cross-referenced against your NSTS sprayer test log",
-          "Supplier auto-fill — supplier pre-populates automatically when a GRN delivery is linked; also selectable as a standalone lookup from your Suppliers register",
-          "Withholding period alerts",
-          "GRN-linked batch traceability — select a specific goods received delivery when logging an application to automatically populate batch and lot numbers, creating a full chain of custody from supplier batch to treated field",
-          "Raise Task from spray application — assign any logged application to a named operator directly from the Applications Log; pre-fills the product and field so the task record is immediately traceable back to the spray event",
-          "Photo and document evidence capture — upload delivery note scans and sprayer calibration certificates from the dashboard to individual spray records; attach camera photos in the field using the mobile app for in-crop evidence such as target weed or pest confirmation; attachments are stored in cloud storage and linked permanently to the record for Red Tractor audit trail purposes",
-          "IPM Plan — structured written Integrated Pest Management plan required by Red Tractor Combinable Crops and Horticulture standards; five-section plan covering threshold monitoring approach, action thresholds, non-chemical controls, spray intervention rationale, and review schedule; crop field links to your registered farm crop records; version-controlled with author, last review date, and next review due date; printable A4 compliance document; individual spray application records link to the IPM Plan via a Spray Rationale field for a complete monitoring-to-application audit trail",
-          "LERAP Assessments — Local Environmental Risk Assessments for Pesticides recorded before each qualifying application adjacent to a watercourse; CRD Assessment Step selector (Step 1 notify only / Step 2 full buffer maintained / Step 3 full assessment performed); standard buffer auto-fills from product label data; crop type and soil type auto-fill from field record; assessor must be selected from your Staff register (PA1 + PA2/PA6 required — blocking panel if no staff records exist); auto-generated LERAP-{id} document reference on every assessment; Pending Review By assigns a named farm member who receives an automatic email notification; assessments can be recorded from the dashboard or directly from the mobile app",
-          "Product cost per unit — record the cost per litre, kg, or applicable unit (£/unit) on each spray application; stored in pence for precision; used by the Season Production Report to calculate total spray input cost and gross margin contribution per crop season",
-          "Bee Precaution flag on products — mark any product in the Product Register as 🐝 Harmful to Bees if the label carries a bee precaution statement; 🐝 indicator column in the product list and amber banner on the product detail panel; once flagged, the Week Ahead Planner automatically generates a notification deadline card 48 hours before any future spray application using that product, with a direct link to the Notification Log; card disappears once a notification is logged — turning a manual check into a proactive, calendar-driven workflow",
-          "Beekeeper & Neighbour Notification Log — complete pre-spray notification register satisfying Red Tractor Combinable Crops, Fresh Produce, and Horticulture requirements; full form captures notification date, planned spray date, recipient type (beekeeper or neighbour), name, contact details (phone/email), postal address, contact method (phone, email, letter, in-person, or text), products notified, fields/areas affected, linked spray application, and confirmation details (date, method, reference); 48-hour lead time badge on every row (green ≥48h / red <48h) and live warning in the form as dates are entered; summary cards show total notifications, beekeeper count, confirmed, and under-48hr count; Contact Book stores regular beekeepers and neighbours with one-click pre-fill when logging repeat notifications; printable formal notification letter auto-filled with farm name, CPH, recipient address block, spray details table, and bee-safe or neighbour-appropriate body text; BeeConnected information panel links to the free BBKA/Bayer automatic beekeeper alert service; mobile quick-entry screen available in the field",
-          "Spray Store Stocktake — periodic physical stock count per registered spray product; select the product from your spray product register (system quantity auto-fills from the current stock record), enter the measured physical quantity in litres, and save; a variance badge (green = zero variance, amber = surplus, red = shortfall) shows the discrepancy immediately; conducted-by field, date, and notes captured on every record; full stocktake history accessible on the Stocktakes tab of the Spray Store page; records captured on the dashboard or via the mobile app with offline-first sync",
-        ],
-      },
-      {
-        title: "Crop Trials",
-        icon: WheatIcon,
-        color: "bg-lime-50 text-lime-700 border-lime-100",
-        badge: "module",
-        features: [
-          "Trial register — create named on-farm trials with crop, season, protocol, and status (Planned → Active → Harvested → Completed)",
-          "Plot management — define treatment and control plots with plot number, rep, area, and treatment label for each trial",
-          "GPS plot pin capture — record the exact latitude and longitude of each plot; coordinates stored and displayed in the plot table",
-          "Interactive satellite map view — all GPS-tagged plots shown on a Leaflet satellite map with colour-coded markers (green = control, blue = treatment); click any marker to see plot details",
-          "Observation log — record dated in-season observations per plot: emergence, canopy, lodging, disease, pest pressure, and yield notes",
-          "Full trial report — generate a print-ready A4 report containing trial overview, all plots with GPS coordinates, and the complete observation log for each plot",
-          "Mobile GPS walk-up — use the mobile app to walk to a trial plot in the field, tap to capture your live GPS coordinates, and update the plot's location directly on site",
-        ],
-      },
-      {
-        title: "Soil Management",
-        icon: Sprout,
-        color: "bg-lime-50 text-lime-600 border-lime-100",
-        badge: "module",
-        features: [
-          "Soil sample register with auto-generated SS-YYYY-NNNN reference numbers, status workflow (Sampled → Sent to Lab → Results Received), and printable register for Red Tractor audit",
-          "GPS sample-point capture — mobile app records the precise location within the field using device GPS (Best Navigation accuracy), with coordinates and accuracy shown live on screen",
-          "Dashboard map pin-picker — click a satellite imagery map inside the Register Sample dialog to drop a draggable pin; co-ordinates populate automatically and link out to Google Maps",
-          "Location description field — free-text note attached to each sample point (e.g. 'NE corner near hedge, 50m from gate') recorded on both mobile and dashboard",
-          "Soil test records linked to accredited testing laboratories — lab selected from picker, UKAS number stored with every sample",
-          "Nutrient results per sample — pH, P, K, Mg, N, S, Organic Matter and more; AHDB index and status (Low/Adequate/High) per nutrient",
-          "Nutrient Management Plans — field-by-field soil data feeds directly into NMP view",
-          "Sample Map view — all GPS-tagged sample points shown on a satellite map as colour-coded pins by status; click any pin to see the field name, sample reference, date, and key nutrient results in a popup",
-          "Soil Trends report — select any field to see line charts for pH, P, K and Mg across all historical sampling events, with AHDB target reference lines and direction-of-travel arrows showing whether each nutrient is improving or declining",
-          "RB209 compliance and NVZ Nitrate Vulnerable Zone records",
-          "Continuous soil monitoring — register sensor probes from any manufacturer (METER Group, Pessl/METOS, Sentek Technologies, Delta-T Devices, and more), log monitoring depths, field assignment, GPS coordinates, and install date for each device",
-          "Time-series readings — log soil moisture %, temperature °C, and electrical conductivity (EC μS/cm) per probe; view as a colour-coded multi-line chart across selectable 30/90/180/365-day windows with dual Y-axes for moisture and temperature",
-          "Manual entry and bulk CSV import — record individual readings with timestamp and depth directly from the dashboard or mobile app; import bulk data logger exports up to 5,000 rows with flexible column-name matching and a 5-row preview before committing",
-          "Entry source tracking — each reading is tagged as manual, csv, or api so you can see at a glance which records came from direct entry, a data logger export, or an automated integration; foundation for future FieldClimate and ZENTRA Cloud API connections",
-        ],
-      },
+    title: "Land, crops & environment",
+    description: "Field-led modules for growing, inputs, resources and environmental work.",
+    items: [
+      { name: "Field & Crop Management", id: "field-crop-management" },
+      { name: "Sprays & Inputs", id: "sprays-inputs" },
+      { name: "Soil Management", id: "soil-management" },
+      { name: "Environment & Sustainability", id: "environment-sustainability" },
     ],
   },
   {
-    title: "Equipment & Operations",
-    description: "Full lifecycle management for machinery, vehicles, workshop job cards, fuel compliance, energy metering, and resource scheduling — in one place.",
-    modules: [
-      {
-        title: "Resource Planner",
-        icon: CalendarClock,
-        color: "bg-indigo-50 text-indigo-700 border-indigo-100",
-        badge: "module",
-        features: [
-          "Resource registry — register all farm resources (tractors, implements, sprayers, trailers, vehicles, and named staff) in a single, colour-coded registry grouped by type",
-          "Colour picker — assign one of nine preset colours to each resource; colours are consistent across all planning views for instant visual recognition",
-          "Archive & restore — retire sold machines or departed staff without losing their allocation history; restore them at any time",
-          "Gantt view resource sidebar — open a collapsible sidebar alongside the Week Ahead Gantt chart listing all active resources as draggable cards",
-          "Drag-and-drop assignment — drag a resource from the sidebar and drop it onto a task bar to assign it to that task on that date; the assignment is created in real time",
-          "Task panel assignment — open any task's expanded panel to add or remove resource assignments using an inline picker, without touching the Gantt chart",
-          "Inline resource requirements — set exactly how many tractors, implements, vehicles, sprayers, trailers, and staff members are required for each task using per-type stepper controls directly on the task card; requirements inform pinch point analysis and the weekly materials summary",
-          "'Other' resource descriptions — when a task needs custom or hired resources not in your standard fleet (water bowser, fuel trailer, hired plant), add any number of named entries under the Other resource type",
-          "Pinch point analysis — automatic amber alert panel identifying every day in the planning week where total resource demand across all tasks exceeds your registered supply; each conflict names the resource type, total required, and total registered in plain English so you can act before the day arrives",
-          "Materials tracking — attach a materials preparation list to any task (product name, quantity, and unit); the weekly Materials Preparation Checklist panel aggregates all materials across the whole planning week into a single checklist for easy stock checking and advance preparation",
-          "Mobile materials visibility — field workers see a 'Materials needed' section in their Task Inbox on the mobile app when an assigned task has materials logged, showing every product, quantity, and unit at a glance before they leave for the field",
-          "Resource search & type filter — search the resource registry by name or description and filter the pool sidebar to a single resource type (Tractors, Implements, etc.) using one-click filter pills; clear filters instantly to return to the full list",
-          "Jump-to-date navigation — jump the Gantt planner to any arbitrary date using the calendar picker next to the week navigation buttons, instead of stepping through weeks one at a time",
-          "Planner CSV export — download the current planning week as a spreadsheet in one click: task name, date, resource requirements, allocated resources, and materials in a single file ready to share with contractors or agronomists",
-          "Planning Status tab — a dedicated manager view showing all upcoming tasks grouped by planning state: Not started (no requirements entered), Needs sign-off (requirements in place, awaiting manager commitment), and Committed (fully planned and signed off); summary count cards at the top give an instant picture of how much planning work remains",
-          "Planning Status filters — date range pills (Next week / 2 weeks / 4 weeks / 8 weeks / All upcoming) narrow the task list to the period that needs attention; a live task-name search filters all groups simultaneously; past tasks are available in a collapsible section at the bottom",
-          "Planning Status CSV export — export the filtered task list as a spreadsheet including task name, date, planning status, resource requirements, committing manager name, and commitment date",
-          "Task commitment with full audit trail — managers formally sign off each task using the Commit button once requirements are in place; the system records the committing manager's full name and exact date and time against the task permanently; Uncommit is available if plans change, resetting the record ready for a fresh sign-off",
-          "Plan vs Actual (As-Built) recording — once a task has passed, record what actually happened: actual date, actual resources used, actual material quantities, and outcome (Completed / Partial / Abandoned); a free-text deviation note captures why things differed from the plan (wet ground, weather delay, nozzle blockage, additional resource required); the modal pre-fills from planned values so only changes need to be entered",
-          "Plan vs Actual comparison table — a scrollable table showing every task with actuals recorded; columns: planned date, actual date, date slip in days (On time / +Nd late / early), planned vs actual resource totals, resource delta (red if over, green if under), outcome, and who recorded it; deviation notes listed separately below the table",
-          "Conflict detection — the planner automatically identifies any resource assigned to more than one task on the same day and shows an amber warning icon on the affected task bars",
-          "Resource chips on task bars — colour-coded dots representing assigned resources are shown directly on Gantt bars for a whole-week utilisation overview at a glance",
-          "Live conflict resolution — conflict markers update instantly as assignments are added or removed; no page refresh needed",
-          "Analytics tab — KPI cards (upcoming tasks, planning completion %, active resources, allocations logged); planning status horizontal bar chart with overall progress bar; tasks-by-week stacked bar chart for next 8 weeks coloured by planning state; resource demand bar chart by type across all upcoming tasks; resource utilisation chart showing how many times each named resource has been allocated (coloured by resource colour); material requirements table aggregating planned quantities across all upcoming tasks; Plan vs Actual variance charts once actuals are recorded — date slip distribution and resource planned-vs-actual grouped bar with average slip badge",
-          `Purchaseable add-on module at £${modulePrice("resource-planner")}/month — activate in Settings for any farm holding`,
-        ],
-      },
-      {
-        title: "Equipment Register, Workshop & Fuel",
-        icon: Tractor,
-        color: "bg-orange-50 text-orange-600 border-orange-100",
-        badge: "module",
-        features: [
-          "Equipment register — make, model, serial number, asset number, type and status",
-          "Service & MOT History — log MOT tests, annual services, interim services, repairs, safety inspections, pre-use checks, warranty work and other events per asset",
-          "MOT Due and Next Service columns — traffic-light status badges (green / amber / red) on the equipment list at a glance",
-          "Full maintenance history per asset with edit and delete, status cards for MOT and next service interval",
-          "Sprayer calibration tracking — NSTS test dates with next-due alerts",
-          "Job cards — log repairs, scheduled services, inspections & modifications with priority and status tracking; link any job to a customer from your Farm Services directory when carrying out work for a neighbouring farm",
-          "Costing per job — labour hours, labour cost and root cause analysis; parts issued from the Parts Store appear as a costed line-item breakdown on the job card with real-time cost totals",
-          "Raise Invoice from job — on any completed job linked to a Farm Services customer, a single click creates a draft invoice in Farm Services & Contracting containing a labour line (hours × rate) and a separate line item for every part issued from the Parts Store; the invoice reference is shown as a badge on the job card once raised",
-          "Service schedule — maintenance intervals, next-due-date tracking with Overdue / Due Soon / OK indicators",
-          "Defect Report Register — a dedicated fault log for every piece of equipment; each report captures severity (Low / Medium / High / Critical), a description, reporting date and person, and follows an Open → In Progress → Resolved status workflow; critical and high-severity defects trigger a warning banner flagging the equipment as potentially unsafe to operate until resolved",
-          "Raise Task from defect — on any open or in-progress defect report, a single click opens the task assignment panel pre-filled with the defect reference and equipment name; assign to a staff member, set a due date, and add repair instructions; the task appears on the Task Board with a direct link back to the defect for close-out tracking",
-          "Photo and document evidence capture — attach camera photos from the mobile app or upload documents (PDF, image) from the dashboard to defect reports and maintenance log entries; attachments are stored in cloud storage and linked permanently to the record for Red Tractor audit trail purposes",
-          "QR code labels — generate and print unique EQ- codes for every piece of equipment",
-          "Universal mobile QR scanner — scan any BDE Farm Trac label (fields, animals, equipment, storage) to instantly pull up the record",
-          "Scan-to-action — quick-log defects, crop events, medicine treatments, or stock movements straight from the scan result",
-          "Awaiting-parts workflow — pause job cards mid-repair and resume when parts arrive",
-          "Parts Store — catalogue of workshop parts and consumables with stock levels, unit cost, and low-stock warnings; receive deliveries and issue stock to job cards with full movement history",
-          "Parts Store stocktake — initiate a periodic stock count from the Parts Store tab; a live count sheet shows every part with its system quantity; record your physical count, and any variance is highlighted in red (over) or orange (under) with the difference shown clearly; completing the stocktake updates all stock levels in a single step",
-          "Fuel tank register — diesel (red and white), heating oil (kerosene), bulk LPG (Calor / Flogas) and bottled cylinders, AdBlue, petrol, and other fuels in a single register with gauge visualisation and low-stock alerts",
-          "Regulatory framework per fuel type — Oil Storage Regulations 2001 notes on diesel and heating oil tanks; DSEAR 2002 / HSE LPGR / UKLPG Code of Practice notes on all LPG entries",
-          "Bunding compliance tracking — mark each tank as bunded or unbunded; bund capacity recorded; automatic warning banner flags any non-bunded oil tanks ≥201 L as per the Oil Storage Regs 2001",
-          "Fuel delivery log — record every tanker delivery with supplier, driver, delivery note number, invoice reference, quantity, unit price, total cost, and qualifying use",
-          "Red diesel usage log — log every draw-down by date, tank, quantity, purpose, qualifying activity, and staff member; demonstrates to HMRC that rebated fuel is used exclusively for permitted activities",
-          "Oil storage inspections — annual inspection checklist covering bunding, labelling, spill kit, fill point lock, pipework, overfill protection, and drainage risk; overdue inspection warnings surfaced in the Farm Planner",
-          "Grid Energy — Meter Register and Readings Log for electricity (MPAN), gas (MPRN), and mains LPG; year-to-date consumption and cost summary cards",
-          "GPS Tracked flag — mark any machine in the Equipment Register as GPS Tracked with a single toggle; a coloured GPS badge appears on the equipment list for instant visual confirmation of which assets are being tracked; filter the equipment list to show only GPS-tracked machines with one click; GPS-tracked machines link automatically to connected GPS provider integrations and appear on the Resource Map live tracking view",
-          "Carbon reporting ready — all fuel and energy consumption data feeds into the Environment & Sustainability module for Scope 1 and Scope 2 emissions calculations",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Livestock",
-    description: "Complete livestock and feed management — welfare records, movements with BCMS, LIS, EIDCymru, and ScotEID government reporting, medicine, breeding traceability, and feed audit trails in one module.",
-    modules: [
-      {
-        title: "Livestock & Feed Management",
-        icon: PawPrint,
-        color: "bg-rose-50 text-rose-600 border-rose-100",
-        badge: "module",
-        features: [
-          "Herd & flock register — record every animal with species, ear tag / EID, breed, date of birth, sex, and current location; full audit trail from birth or arrival to sale or death",
-          "Individual Animal Register — dedicated per-animal record with ear tag / EID number, tag number, species, breed, sex, acquisition date, acquisition source, and live status (Active / Sold / Dead / Transferred); status updates automatically when an animal is linked to a movement — off-holding movements set linked animals to Sold, on-holding movements register arriving animals directly into the register as Active",
-          "Individual Animal Profile — Vaccinations History tab: the animal profile dialog includes a dedicated Vaccinations tab that aggregates every vaccination event recorded for that animal across all species modules (Sheep, Goat, Pig, and Poultry vaccination programmes) plus linked medicine records; each row shows the vaccination date, disease category, vaccine product, batch number, dose, administration route, withdrawal period, and vet-prescribed flag — providing a complete single-animal vaccination audit trail in one view without navigating between production modules",
-          "Livestock Movements register — log all on/off movements with species, animals, origin and destination holding, transport details, and AML reference; register covers cattle, sheep, goats, pigs, deer, and equines across all UK movement databases",
-          "Individual animal linking on movements (off-holding) — when recording a sale or dispatch movement, use the Animal Register Picker to select the specific animals being moved from a searchable list of your active animals, filtered by the movement's species; linked animals are stored in a junction table against the movement record and their status is automatically updated to Sold on save; individual ear tag numbers populate from the selection count; unregistered or overflow tags can still be entered as free text for animals not yet in the Individual Animal Register",
-          "Incoming animal registration (on-holding) — when recording a purchase or arrival movement, enter the new animals' ear tag numbers (one per line or comma-separated) along with default breed and sex; on save, BDE Farm Trac creates a new Individual Animal Register record for every tag entered, sets their status to Active, and links them to the movement via the junction table; the arriving animals are immediately available for selection in medicine records, vet visit logs, disease incidents, and subsequent movement records",
-          "Movement view — the movement detail panel shows a structured Linked Animals list for all recorded movements, displaying ear tag number, breed, and sex for each animal in the junction table; provides a clear per-movement audit trail of exactly which individual animals were moved",
-          "BCMS Cattle Reporting (England) — Record BCMS Ref button on every unnotified cattle movement row (on/off/birth/death): submit the movement on BCMS Online, then click the button and enter the reference number to mark it as notified and store the reference against the record; automated CTS Web Services one-click submission is fully built and in sandbox mode — goes live once DEFRA vendor registration is complete; 3-day overdue alert badges and a BCMS Submissions tab with pending/submitted filter and CSV export",
-          "LIS One-Click Submission (sheep, goats & deer — England) — connect your Livestock Information Service account in Farm Settings; a single click from each on/off sheep, goat or deer movement row submits directly to the England government CLA API; full submission history with reference numbers, status, and JSON payload log; births and deaths are not supported by LIS CLA v1.0 — a 'Register via LIS portal' button on birth/death rows lets you record your LIS keeper portal confirmation reference to complete the audit trail; sandbox mode active until the BDE platform subscription key is configured",
-          "LIS LIP Cattle Submission (England) — integration fully built; temporarily paused from 21 July 2026 while Defra transitions cattle traceability services to a new platform; use BCMS Online with the Record BCMS Ref button for cattle notifications in the meantime; LIP will resume once the new service is available (guidance expected September/October 2026)",
-          "EIDCymru One-Click Submission (Wales — sheep, goats & deer) — for farms with a Wales country setting, connect your EIDCymru API key once in Farm Settings; a single click from each sheep, goat or deer movement row submits directly to the EIDCymru API on behalf of the farmer; EIDCymru Submissions tab shows the full history with reference numbers, submission status, and payload log; sandbox mode active until credentials are issued by EIDCymru / SRUC",
-          "ScotEID One-Click Submission (Scotland — all species) — for farms with a Scotland country setting, connect your ScotEID API key once in Farm Settings; a single click from any cattle, sheep, goat, pig or deer movement row submits directly to the ScotEID API; ScotEID Submissions tab shows the full history with reference numbers, submission status, and payload log; sandbox mode active until credentials are issued by ScotEID / SRUC",
-          "eAML2 XML Export (England pig movements) — the eAML2 XML button above the Movements table generates a standards-compliant XML file for any pig movement record; download the file and upload it directly to eAML2.org.uk to obtain your Animal Movement Licence; works for all farms today with no API credentials required",
-          "Medicine records & withdrawal tracking — log product, batch number, dose, route of administration, and withdrawal period; BDE Farm Trac calculates the end date automatically and warns if an animal with an active withdrawal is recorded as sold or slaughtered; Raise Task on any active withdrawal record to assign a named staff member to carry out the end-of-withdrawal check with the withdrawal end date pre-set as the task due date; link each medicine record to a written vet prescription via a searchable prescription picker — the prescription reference, vet name, and dispensing date auto-populate from the linked prescription for full medicines audit-trail integrity",
-          "Animal mortality records — four-stage disposal workflow (Reported → Disposal Booked → Collected → Documentation Complete) with stage-action buttons on each record card; record cause of death, disposal method, fallen stock contractor details (company name, address, phone, vehicle registration, collection reference, and collection date/time), veterinary declaration (declaring vet name, RCVS/CVL number, and declaration date), invoice information (invoice reference, invoice amount, and payment status), and BCMS mortality notification reference; provides the full contractor and regulatory evidence trail required for Red Tractor mortality and fallen stock audit requirements",
-          "Lambing records with perinatal disposal — full lambing event log (ease score 1–4, litter size up to quads, per-lamb outcome, sex, ear tag, colostrum management, fostering, vet attendance); when any lamb is recorded as stillborn or died within 24 hours, an Animal By-Products disposal panel automatically appears capturing the approved contractor (selected from your Fallen Stock Contractors register), collection date, NFAS / consignment note reference, disposal method, and notes — satisfying the Animal By-Products (Enforcement) (England) Regulations 2011; record cards display a green 'Disposal recorded ✓' or red 'Disposal not recorded' status badge; the audit report flags missing disposal documentation in red; disposal fields also available in the mobile app's Lambing Record screen for in-field capture",
-          "Perinatal mortality analytics — season KPI panel showing Ewes Lambed, Total Lambs Born, Stillborn % and Died-Within-24h % with colour-coded thresholds (green <2%, amber 2–5%, red >5%); season-by-season year-on-year comparison table with inline bar chart when multiple seasons of data are present; both KPI summary and trend table reproduced in the lambing audit report printout",
-          "Annual water quality testing — herd-linked records, lab certificate storage, and automated welfare alerts",
-          "Daily welfare checks with condition scoring",
-          "Vet Health Plans — create and manage annual vet health plans with a structured action item register; mark individual VHP actions complete via a four-section completion dialog (What Was Done, Evidence & Supporting Documents, Manager Verification, Schedule Next Occurrence); manager verification captures verifier name, verified date, and notes for Red Tractor sign-off compliance; completion history panel shows every past completion event with verifier details; plans are signed, printable, and dated for inspection",
-          "Sire Register — centralised directory of bulls, rams, boars, and bucks (owned, hired, or AI stud) with species, breed, ear tag or registration number, date of birth, source, and health status notes; sire auto-fills breed on every AI and reproduction record",
-          "AI & Reproduction records — service date, sire/bull ID, breed, method (AI, synchronised AI, natural service, ET), and confirmation of pregnancy; expected calving and lambing dates surface in the Farm Planner",
-          "Straw Inventory — log every AI semen delivery with supplier, batch number, straws received, storage location, and cost per straw; remaining stock calculated automatically from linked AI records with green / amber / red stock badges; straw picker in the AI form auto-fills batch reference, sire name, and breed for full supplier-to-female traceability",
-          "Veterinary prescriptions — log vet-written prescriptions with drug, dose, withdrawal period, and dispensing vet details for full medicine audit trail",
-          "Automatic medicine stock deduction — link any treatment record to a stock item in your veterinary medicine store; the quantity used is deducted automatically from the stock level and a stock movement is written at the same time, keeping your medicine store register accurate without a separate manual adjustment",
-          "Feed deliveries (GRN) — log every feed delivery with supplier, delivery note number, invoice reference, feed type, quantity, lot/batch number, and unit price; complete audit trail from supplier batch to livestock feeding event",
-          "UFAS / FEMAS supplier traceability — record your feed supplier's UFAS (Universal Feed Assurance Scheme) or FEMAS (Feed Materials Assurance Scheme) registration number on every delivery; UFAS number auto-populated from the Supplier Register",
-          "APHA compound feed registration — record Animal & Plant Health Agency (APHA) registered feed number on GRNs for licensed compound feeds and premixtures",
-          "Medicated feed flagging — flag deliveries as medicated with the active ingredient, withdrawal period end date, and licensed indication; excluded from untreated animal feeding until the withdrawal period has cleared",
-          "Feed Bin Register — register each physical feed bin or storage unit with product name, location, supplier, opening balance, and reorder level; in create mode enter an opening stock figure to seed the live balance immediately; in edit mode a manual adjustment field (positive or negative) with a mandatory reason keeps an audit trail of every stock correction alongside automatic deliveries; live balance shown at all times with reorder alert when stock falls below your threshold",
-          "Feed bin deep-link from Week Ahead — low stock, out-of-stock, and awaiting-delivery alerts on the Week Ahead planner link directly to the specific feed bin card that triggered the alert; the system scrolls to and highlights the bin automatically on arrival",
-          "Raise Reorder — on any feed bin showing low or out-of-stock status, a single button opens a reorder dialog pre-filled with the bin's name, supplier, and current stock level; set an optional expected delivery date and bin notes; optionally assign the reorder task to a named staff member with a task due date and a note; the system creates a Task Board entry with a direct link back to the bin and, if the selected staff member has a phone number registered, sends them an instant SMS notification with the task title, due date, and your note; confirming the reorder marks the bin as Awaiting Delivery, removing it from the low/out-of-stock alerts on Week Ahead until the delivery is received",
-          "Red Tractor traceability readiness — all feed delivery records satisfy the feed materials traceability requirements of Red Tractor Beef & Lamb, Dairy, and Pigs standards",
-          "Vet Ledger — Visit Log: record every vet attendance with date, vet name and practice, reason for visit, affected herds (multi-select from the Herd Register), specific animals (selected by ear tag from the Individual Animal Register), clinical findings, diagnoses, treatment notes, prescription reference, call-out cost, and follow-up requirement with target date",
-          "Vet Ledger — Medicines administered: add one row per medicine per visit with medicine name, batch number, quantity given, dose, route of administration, withdrawal period in days, and a vet-dispensed flag; withdrawal tracking links back to the Medicine Records register",
-          "Vet Ledger — Follow-up tracking: visits requiring a follow-up appear in the summary card count and surface as reminders in the Farm Planner; Raise Task directly from any visit with a follow-up date to assign the check to a named staff member — the follow-up date pre-fills as the task due date and the visit reason pre-fills the task title for instant traceability",
-          "Vet Ledger — Invoices: record each invoice from your vet practice with invoice number, invoice date, line items typed by category (call-out, consultation, medicine, lab test, TB testing, scanning, procedure, or other), net amount per line, and a link to the specific visit each charge relates to",
-          "Vet Ledger — Reconciliation: each invoice automatically calculates a reconciliation status (Unreconciled / Partially Reconciled / Reconciled) from how many of its line items have been matched to a logged visit; payment status (Unpaid / Paid / Part-Paid / Write-Off) is tracked independently so you can see both what has been reconciled and what has been paid",
-          "Vet Ledger — Summary cards: live counts for visits this year, follow-ups due, outstanding invoice balance (£), and invoices awaiting reconciliation",
-          "Photo and document evidence capture — attach camera photos from the mobile app or upload documents (PDF, image) from the dashboard to vet visit records, medicine records, mortality reports, lambing and calving logs, and veterinary prescriptions; attachments are stored in cloud storage and linked permanently to the record, providing photographic evidence for Red Tractor welfare and medicines audit requirements",
-          "Bluetooth RFID ear tag scanning (mobile) — pair any ISO 11784/11785 Bluetooth RFID wand (Tru-Test SRS2, Agrident ABR100, Zee Tag BRT1, Gallagher HR2) with your phone via standard Bluetooth HID keyboard-wedge mode; in the mobile app, every ear tag field has a Bluetooth scan button — tap it to activate scan mode (green border with pulsing indicator), hold the wand near the tag and the 15-digit EID number is automatically detected and confirmed with haptic feedback; livestock movement ear tag fields accumulate each scan on a new line for batch entry; RFID Reader settings screen in the app provides step-by-step pairing instructions, compatible reader list, and a test-scan area; works across calving records (cow and calf tags), lambing records (ewe and all lamb tags), livestock movement records, medicine records, and mortality records",
-          "TB Test Register — log every APHA-required bovine tuberculosis test with test date and read date, Official Veterinarian name (auto-populated from your Vet Health Plans with phone and practice address), test type (Routine / Pre-Movement / Post-Movement / Short Interval / Contiguous / Gamma IFN), number of animals tested, result (Pass / Fail / Inconclusive), APHA breakdown reference, and restriction status; view a complete TB test history panel on each herd showing all past test results in chronological order; print an individual test report or the full herd TB test history for APHA submission or Red Tractor audit; upcoming TB test read dates surface automatically in the Farm Planner as reminder task cards",
-          "TB test → livestock movement linkage — pre-movement and post-movement TB tests can be linked directly to the corresponding off-farm livestock movement record; a dropdown in the TB test form lists your outgoing movements by date, species, head count, and AML licence number; a green Movement badge appears on the test row in the register; creates an auditable link from TB test certificate to BCMS movement notification — satisfying APHA pre-movement testing requirements and providing evidence for cross-compliance inspections",
-          "Welfare Outcome Assessments (WOA) — structured animal-based welfare scoring records for Red Tractor Beef & Lamb, Dairy, and Pigs standards; species-specific herd picker filters your herd register to show only herds of the relevant species; assessment measures adapt automatically to the selected species — cattle, sheep, pig, and poultry assessments each show only the welfare indicators relevant to that type; assessor type selector: choose Staff Member (selected from your staff register with auto-populated name) or External Assessor (selected from your Supplier register — vet practice, consultant, or contracted assessor service); for external assessors, record the expected assessment fee and the platform auto-generates a linked purchase order (PO-YYYY-NNNN reference) at the point of saving so the spend is immediately visible in your procurement trail; for internal assessors, a Walkthrough Observations tally dialog lets you count animals per observation category during the walkthrough — tally values feed directly into the calculated outcome scores; record overall outcome (Good / Satisfactory / Action Required), corrective actions taken, and follow-up date; view-before-edit panel with printable assessment reports suitable for Red Tractor assessor presentation; mobile capture in the field with offline support",
-          "BVD Testing Register — herd-level Bovine Viral Diarrhoea surveillance records required by Red Tractor Beef & Lamb and Dairy standards; test type (blood ELISA, ear notch tissue tag, bulk milk ELISA, or colostrum antibody), laboratory, number of animals tested, result (Negative / Low Positive / Positive / Inconclusive), action taken, and CHeCS certificate reference; running herd BVD status badge displayed on the Herds & Flocks card for at-a-glance compliance view",
-          "Johne's Disease Monitoring Register — structured paratuberculosis monitoring records for all ruminant herds; primarily required by Red Tractor Dairy standards for enrolled dairy cattle herds under the National Johne's Management Plan (NJMP); test method (blood ELISA, milk ELISA, or faecal PCR — individual or pooled), laboratory, animals tested, result category (Negative / Low Positive / High Positive), updated herd risk level (Low / Medium / High per CHECS / AHDB guidance), action taken, and lab report reference; herd risk trend tracked across successive monitoring rounds; NJMP Annual Declaration module for enrolled dairy herds — log the annual declaration submitted to your milk purchaser, record scheme level (1–4), milk purchaser details, declaration date, and generate a printable signed declaration letter for your assurance audit file; note: the NJMP applies to dairy cattle herds only — Johne's disease management for sheep and goats is recorded via the Gudair vaccination programme in the Sheep / Goat Production modules and the source flock vaccination status field on arrival isolation records",
-          "Casualty / Emergency Slaughter Records — on-farm emergency killing log required by Red Tractor for every animal slaughtered on the holding; captures species, ear tag, reason for emergency slaughter, method (captive bolt, free bullet, or barbiturate injection), name and WASK / WATOK certificate reference of the performing person, witness, vet involvement, and carcase disposal details (disposal method, collection date, waste transfer note or NFAS reference); photo attachment for disposal certificate or WASK card; records saved offline on mobile and synced automatically",
-          "Sheep Dipping Records — COSHH-compliant dipping log capturing product name and MAPP number, operator PA certificate (PA6AW) auto-populated from your staff certificate register with expiry validation, number of animals, dip type (plunge / shower / pour-on), bath concentration, disposal method, withholding period end date, and APHA scab notification reference; dip product stock usage recorded against your pesticide / chemical stock for traceability; linked to COSHH register for full audit trail",
-          "AMRM Antibiotic Usage Report — auto-aggregates your Medicine Records by antibiotic class for the reporting year; displays usage in mg per PCU by class including HP-CIA flagging (Fluoroquinolones, 3rd/4th gen Cephalosporins); vet sign-off document upload and printable annual summary for assurance scheme submission; ADR summary panel shows total suspected reactions, how many were reported to a vet, how many were reported to VMD via SARSS, and flags any unreported reactions with a direct link to the ADR Register",
-          "Adverse Drug Reaction (ADR) Recording & SARSS Reporting — VMR 2013 Regulation 58 requires vets and SQPs to report suspected adverse reactions to veterinary medicines to the VMD's SARSS (Suspected Adverse Reaction Surveillance Scheme); toggle the 'Adverse reaction suspected' flag on any medicine treatment record to open the ADR section: capture clinical signs, severity (Mild / Moderate / Severe / Fatal), onset in hours, outcome (Recovered / Recovering / Not Recovered / Unknown / Fatal), the date reported to your vet, the date your vet reported to VMD, and the VMD SARSS reference number; a dedicated ADR Register tab on the Medicines page lists all suspected reactions with severity badges, outcome status, vet-report status, and SARSS reference so nothing falls through the cracks; available on both the dashboard and the mobile app",
-          "ATA Number on Movements — record the commercial transporter's Animal Transporter Authorisation (ATA) number and expiry date on every livestock movement; satisfies Red Tractor requirement to verify ATA validity at the time of loading without a separate paper log",
-          "Livestock purchase invoice → movement record linkage — when adding or editing a purchase invoice in Finance → Livestock Purchases, a Movement Record compliance panel links the invoice to the corresponding on-holding movement; link to an existing movement via a searchable dropdown showing date, head count, licence number, BCMS ref, and from-location, or use Create & link to auto-create a new on-holding movement pre-filled from the invoice data; linked invoices show a green Movement linked badge; creates a permanent database link from invoice number to BCMS submission reference, satisfying Red Tractor's requirement to evidence the full purchase-to-notification audit trail",
-          "Incoming Stock Isolation Register — a dedicated register for all incoming livestock placed in isolation on arrival; each record captures animal description, species, head count, source holding (CPH), supplier name, isolation start date, planned isolation end date (minimum 14 days by default), isolation reason, responsible staff member, and clearance date with veterinary clearance note; for sheep and goat arrivals, each isolation record also captures source flock Johne's vaccination status (vaccinating with Gudair / not vaccinating / unknown) — supporting the AHDB biosecurity recommendation to source only from Gudair-vaccinating flocks — displayed as a colour-coded badge in the expanded record view; daily health check log within each isolation record captures check date, checked-by name, health status (satisfactory / monitoring required / poor — vet notified / clear — released), temperature (°C), action taken, and notes; register is printable for Red Tractor Beef & Lamb, Dairy, and Sheep, Goat & Deer standards; mobile quick-entry available in the field for in-isolation daily checks",
-          "Mobile capture — medicine records, livestock movement records, TB test records (including pre-movement tests with an inline reminder to complete the movement linkage on the dashboard once synced), welfare outcome assessments, lambing and calving records, livestock mortality records, daily livestock checks, livestock purchase records, deadweight kill sheet records, casualty/emergency slaughter records, mart / auction sale records, and incoming stock isolation health checks all available in the mobile app; forms save offline when there is no signal and sync automatically to the dashboard when connectivity is restored",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Dairy",
-    description: "Purpose-built dairy management — from daily milk recording and clinical event logging through to dry-cow therapy compliance with full vet finance trails.",
-    modules: [
-      {
-        title: "Dairy Management",
-        icon: Milk,
-        color: "bg-cyan-50 text-cyan-700 border-cyan-100",
-        badge: "module",
-        features: [
-          "Dairy overview dashboard — live KPI tiles for 30-day mastitis case rate, SCC trend (cells/ml), bulk tank events due, cows pending dry-off, and upcoming calvings; recent clinical events timeline across all dairy tabs in one view",
-          "Milk Recording — log daily yields per cow or per herd with date, quantity (litres), fat %, protein %, and somatic cell count (SCC); rolling 7- and 30-day average cards; trend sparkline per animal for SCC and yield; individual animal SCC history surfaces automatically when you open a Dry Cow Therapy record for that cow",
-          "Mastitis Records — log every clinical mastitis case with cow ear tag, date of onset, quarters affected (left fore, right fore, left hind, right hind — multi-select), clinical grade (Subclinical / Mild / Moderate / Severe), treatment product and duration, vet consultation flag, and vet name; full case history per cow; mobile app offline recording with background sync",
-          "Calving Records — capture every calving event with cow ear tag, calving date, calf ear tag, calf sex, number of calves born, calving ease score (1–5), calf outcome (Live / Stillborn / Died within 24h), colostrum management notes, and any vet attendance; expected calving dates surface as planner reminders from AI & Reproduction records",
-          "Body Condition Score (BCS) — record individual or group BCS assessments on the 1–5 half-point scale; capture life stage (pre-calving, calving, early lactation, mid lactation, late lactation, dry period), BCS score, assessor, and action notes; colour-coded thresholds flag cows below 2.5 (emaciated risk) or above 3.75 (over-fat risk); trend chart per cow across assessments",
-          "Mobility Scoring — individual per-animal lameness assessments using the AHDB 0–3 scale; each session records named animals (by ear tag) one at a time, building a complete per-animal scoring history across all sessions; automatic prevalence calculation (percentage of animals scored 2 or 3) with Red Tractor Dairy threshold indicators; assessor name, date, and pen or group context captured per session; the view dialog shows the full animal-by-animal score breakdown with per-animal notes; printable mobility report for herd health review; full mobile capture — records save offline and sync to the dashboard automatically when connectivity is restored",
-          "Dry Cow Therapy (DCT) Records — protocol-driven recording covering Selective Dry Cow (antibiotic tube + teat sealant), Blanket Dry Cow (antibiotic tube only), and Teat Sealant Only; cow ear tag field auto-fills last recorded SCC and number of mastitis cases in the preceding 12 months to support selective protocol decisions",
-          "DCT — VMD Medicine Combobox: antibiotic tube and teat sealant products are selected from a searchable VMD-sourced intramammary medicine database; selecting a product auto-fills the standard milk and meat withdrawal periods in days, eliminating transcription errors",
-          "DCT — POM-V Enforcement: antibiotic-containing protocols (Selective and Blanket) enforce a POM-V authorisation toggle; the form cannot be saved without confirming prescribing vet authorisation; prescribing vet name is recorded against every antibiotic DCT event for medicines audit trail integrity",
-          "DCT — Vet & Staff Lookups: prescribing vet and administering staff are selected from your registered contacts rather than typed as free text; names auto-populate from your Vet Health Plans and Staff Register respectively",
-          "DCT — Calving Date Compliance Helper: entering the cow's expected calving date triggers an automatic calculation of whether the chosen antibiotic's milk withdrawal period will have cleared before the expected calving date; a coloured advisory banner warns if the withdrawal may not clear in time",
-          "DCT — Estimated Prescription Fee: record the expected cost (£) of the vet prescription authorising the DCT treatment; this value is written directly to a linked Vet Ledger visit created automatically on save, giving your vet finance trail an immediate cost estimate before the invoice arrives",
-          "DCT — Auto Vet Ledger Entry: every saved DCT record with a POM-V authorisation automatically creates a corresponding Vet Ledger visit record with the reason pre-set to 'DCT prescription authorisation — [cow ear tag]'; these visits display an amber 'DCT — invoice expected' badge in the Vet Ledger until an invoice is reconciled against them",
-          "DCT — Raise Invoice from Vet Ledger: the 'Raise Invoice' button on any unreconciled DCT vet visit pre-fills the invoice dialog with the prescribing vet's name, the dry-off date, the estimated prescription fee from the DCT record, and the linked visit ID — so reconciling the actual vet invoice takes seconds rather than minutes",
-          "DCT — Medicine Records cross-post: each saved DCT record automatically creates corresponding entries in the Medicine Records register (antibiotic tube and teat sealant as separate lines) with batch numbers, withdrawal periods, and ear tag — ensuring your AMRM Antibiotic Usage Report and VMD SQP medicine records are populated without double entry",
-          "Antibiotic Residue Testing (ABR) — log bulk milk ABR tests with test date, method, result (Negative / Positive / Inconclusive), reference number, and operator; positive results trigger an immediate warning banner on the Dairy overview and the Week Ahead planner; test history chart shows pass/fail trend over rolling 12 months",
-          "Bulk Tank Records — daily temperature log, tank cleaning records (product, batch, dilution), antibiotic residue test results, and maintenance events in a unified bulk tank register; each tank registered by name and capacity; temperature out-of-range alerts (above 4 °C) flag automatically; cleaning event records satisfy Red Tractor dairy hygiene audit requirements",
-          "Bulk Tank ABR deep-link — positive antibiotic residue test results surface as red alert cards in the Week Ahead planner with a direct link to the specific tank record and the test details so corrective action can begin immediately",
-          "Dairy Supplies — PPE Drawdown: log PPE usage per session (gloves, overshoes, aprons, goggles, face shields, coveralls, boot covers) directly against your PPE stock register; each entry deducts the quantity from the PPE Stock Register in real time and records the session date, dairy type, operator, and notes; stock levels and low-stock warnings update instantly across the platform",
-          "Dairy Supplies — Chemical Drawdown: log chemical usage per cleaning or treatment session (teat dip, udder wash, teat spray, CIP acid/alkaline detergent, disinfectant, sanitiser) against your spray/chemical stock register; each entry deducts from current stock levels and logs a stock movement with a dairy-session reference, giving your chemical audit trail a direct link from stock purchase through to point-of-use",
-          "Dairy Supplies — Available Stock panel: the Supplies tab opens with a live stock overview showing current PPE quantities and chemical stock levels side-by-side; items below a low-stock threshold are highlighted amber; zero-stock items display a red badge",
-          "Dairy Supplies — Restock Requests: raise a restock request for any PPE or chemical item directly from the Supplies tab; set an urgency level (Routine / Urgent / Critical) and a notes field; requests enter a structured approval workflow — admin approves → item ordered → goods received; requests visible to the BDE admin team for fulfilment tracking",
-          "Dairy Supplies — Usage History: view all past drawdown records with year and type filters; print a dated usage report for audit purposes",
-          "Dairy Supplies — available on all six dairy sections: standard Dairy (cattle), Sheep Dairy, Goat Dairy, Organic Dairy, Organic Sheep Dairy, and Organic Goat Dairy — each section maintains its own supply log filtered by dairy type",
-          "NMR Recording Visits — log monthly visits from your National Milk Records (NMR) recorder; captures visit date, recorder name and NMR employee number, cows in milk and cows recorded, and herd averages for yield per cow per day, fat %, protein %, lactose %, and somatic cell count (SCC); high-SCC animal count and ear tag list for targeted follow-up; quality alert note from the NMR report; Fat:Protein (F:P) Ratio auto-calculated with colour-coded interpretation band — green (1.2–1.5 target range), amber (below target or above 1.5 energy-balance warning), red (below 1.0 subclinical acidosis alert); interactive trend charts over rolling 24 visits — SCC bar chart with 200k threshold reference line, and combined Fat%/Protein%/F:P ratio line chart for identifying herd nutrition and health trends over time",
-          "Mobile dairy recording — calving records, mastitis records, DCT records, BCS assessments, bulk tank entries, mobility scorings, and NMR recording visits can all be captured on the mobile app in the field; records save offline and sync to the dashboard automatically when connectivity is restored",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Compliance & Regulatory",
-    description: "The record-keeping that keeps you audit-ready year-round.",
-    modules: [
-      {
-        title: "Biosecurity & Visitors",
-        icon: ShieldAlert,
-        color: "bg-red-50 text-red-600 border-red-100",
-        badge: "module",
-        features: [
-          "Farm Buildings & Areas registry",
-          "GPS map pins — place each building on the Farm Map for visual location tracking",
-          "Farm Map — interactive satellite view of all registered buildings and areas with colour-coded type markers; toggle on the Field Inspections overlay to see geo-tagged inspection records plotted as action-coloured pins (red = urgent, orange = treat, amber = monitor) alongside your farm buildings",
-          "Mobile location registration — add new buildings on site with one-tap GPS capture, saves live to the dashboard",
-          "Visitor & Contractor logs — record visitor name, organisation, purpose, vehicle registration, areas visited, biosecurity and health declarations with digital signature capture on mobile; attach photo evidence and documents from the dashboard (scanned declarations, contractor certificates, delivery paperwork) or capture a photo directly in the mobile app when creating a new record",
-          "Pest control records — log target pest, bait type, active ingredient, location, date, and contracted pest controller details; attach treatment reports, risk assessments, site maps, and invoices to each record from the dashboard Attachments panel",
-          "Cleaning & Disinfection logs — record product, dilution rate, contact time, operative, and area cleaned; attach photos of the completed disinfection process, product labels, and delivery notes to each record from the dashboard Attachments panel",
-          "COSHH assessments — substance register with hazard classification, storage requirements, PPE, emergency procedures, and mandatory review date alerts; attach Safety Data Sheets (SDS), product labels, and supplier data sheets to each assessment from the dashboard; mobile app includes a dedicated Attach Safety Data Sheet Photo button when creating a new assessment",
-          "Biosecurity Plan — 13-section structured written plan (restricted areas, visitor & vehicle controls, footwear hygiene, cleaning protocols, pest management, new animal isolation, feed security, disease outbreak response, notifiable disease procedures, waste management, water protection, staff responsibilities); emergency contacts section for farm vet (auto-populated from your Vet Health Plans) and APHA area office; document control with author, approver, version number, and review dates; Print Plan button generates a formal A4 document with signature blocks suitable for inspector review",
-          "Feed Contingency Plan — required under Red Tractor standards; record stock resilience targets (minimum days' cover and kg alert threshold), primary feed supplier (auto-populated from your Supplier Register with phone and email), alternative suppliers with lead times, trigger conditions, immediate actions, rationing procedures, communication plan, incident record-keeping, and recovery actions; review status badge tracks upcoming and overdue review dates",
-          "Disease & Incident Log — timestamped log of all disease and health events; herd multi-select picker links incidents to named herds from the Herd Register; individual animal picker selects specific animals by ear tag from the Individual Animal Register with species filter; notifiable disease flag prompts immediate APHA contact (03000 200 301) with a dropdown covering FMD, Bluetongue, AI, ASF, Classical Swine Fever, Brucellosis, bTB, Anthrax, and more; vet response section (vet name selected from Vet Health Plans, call date, visit date, advice, treatment autocomplete from Medicine Records, prescription reference); biosecurity response (isolation with location, movement restriction with details); APHA reporting (reference number, notified date); outcome summary, lessons learned, and mortality tracking — specific animals selected as mortalities are automatically marked as deceased in the Individual Animal Register on save; 2-year date filter with Show Older for historical records",
-          "Feed Recall Incidents — raise, track, and close feed withdrawal or recall incidents by concern type (contamination, mislabelling, supplier-issued recall, disease link, or regulatory / APHA advice); feed identification links to delivery batch numbers for supplier-to-farm traceability; impact assessment captures affected herds, estimated animal count, and health impact; records notifications to supplier, authority (APHA, Trading Standards, FSA, DEFRA), and vet with reference numbers and dates; resolution section captures disposal method, replacement sourcing, and lesson learned",
-        ],
-      },
-      {
-        title: "Organic Compliance",
-        icon: Sprout,
-        color: "bg-green-50 text-green-700 border-green-100",
-        badge: "module",
-        features: [
-          "Complementary record — designed to sit alongside your Soil Association or OF&G portal, not to replace it; direct links to both certifier portals from within the module",
-          "Farm certification card — certifying body (Soil Association, OF&G, Biodynamic, or other), certificate number, operator number, certification date, and annual renewal date with amber and red expiry alerts",
-          "Status tracking — certified organic, in-conversion, or conventional at farm level with a clear status badge",
-          "Field status register — record each field as certified organic, in conversion, or conventional; mark fields with parallel production where organic and non-organic land exist on the same holding",
-          "Conversion progress tracker — for in-conversion fields, a visual progress bar shows how far through the statutory two-year conversion period the land is, with automatic expected certification date calculation",
-          "Organic inspection log — record each annual certifier inspection visit: inspector name, certifying body, date, outcome (Pass / Pass with Advisory Notes / Non-conformance Minor or Major / Suspension), certificate reference, and next inspection due date",
-          "Non-conformance and action tracking — fields for recording non-conformances identified and corrective actions required surface automatically when a non-pass outcome is selected",
-          "Print-ready Inspection Register — A4 landscape register suitable for presenting to auditors or advisors, printed directly from the browser",
-          "Next inspection countdown — colour-coded alerts on upcoming inspection due dates (amber within 60 days, red overdue) surface on the inspection card",
-          "Restricted inputs log — document exceptional use of products not normally permitted under organic standards; records product name, category, field, date, applied by, full written justification, certifier approval reference, and a certifier-notified confirmation flag",
-          "Certifier notification tracking — each restricted input record shows whether the certifier has been notified, with an amber badge until confirmed",
-          "Restricted inputs warning banner — a prominent advisory notice reminds staff to consult their certifier before applying any restricted product",
-          "Mobile inspection recording — log organic certifier inspections directly from the mobile app in the field; capture certifier, inspection type, outcome, any non-conformances identified, and follow-up actions required; records are saved offline and sync to the dashboard automatically when connectivity is restored",
-          "Mobile input register — record approved organic inputs on the go; select the field from your field register, enter the product name, supplier, quantity, unit, and approval reference; conditional approval reference field appears automatically for restricted products; syncs offline",
-          "Organic Compliance hub (mobile) — a dedicated mobile overview screen shows your current certification status, next inspection countdown, and quick-action buttons to log a new inspection or add an input register entry without navigating through menus",
-          "Document attachment on inspections — attach a scanned copy of your certifier's inspection report or outcome letter directly to the inspection record from the dashboard, creating a complete documentary audit trail alongside the structured data",
-        ],
-      },
-      {
-        title: "Organic Livestock",
-        icon: HeartPulse,
-        color: "bg-emerald-50 text-emerald-700 border-emerald-100",
-        badge: "module",
-        features: [
-          "Herd register linkage — link any herd or flock from your core Livestock Register to the Organic Livestock module; saving the link automatically marks the herd as organic across Medicine Records, Feed Management, and Livestock Movements — one action, no double-entry",
-          "Organic herds banner — a persistent green banner on the Conversion tab lists every herd currently flagged as organic in the Livestock Register, giving you an at-a-glance view of your organic enterprise",
-          "Conversion record — capture conversion start date, expected and actual certification date, certifier (Soil Association, OF&G, Organic Farmers & Growers), certification reference, parallel production flag, and status (In Conversion / Certified / Suspended / Withdrawn)",
-          "Certification document upload — attach the issued organic certificate or certifier acknowledgement letter directly to each conversion record; stored permanently and retrievable instantly during audit",
-          "Linked badge — each conversion record shows a green ● Linked indicator confirming the organic flag is active in the Livestock Register and propagated across all connected modules",
-          "Parallel production compliance notice — when Parallel Production is enabled on a conversion record, an amber panel in the Add / Edit dialog cites the UK Organic Regulations 2020 requirement for prior written certifier approval and the annual notification obligation",
-          "Annual parallel production notification manager — for each parallel production herd, record one notification per certification year; each year entry stores the notification date, certifier acknowledgement reference, notes, and an individual document slot for the certifier's written response",
-          "Pre-filled annual notification letter — a Generate Letter button on each notification year produces a print-ready formal Annual Notification of Parallel Production Arrangements letter, pre-filled with operator details, herd information, segregation measures checklist, compliance declaration, and signature block; print or save as PDF directly from the browser",
-          "Treatment compliance (no double-entry) — veterinary medicine records flagged as Organic Treatment in the Medicine Register appear automatically at the top of the Treatment Compliance tab in read-only green rows; no re-entry required",
-          "Doubled withdrawal period — when a medicine is flagged as an organic treatment, BDE Farm Trac doubles the standard withdrawal period automatically and calculates the Organic Withdrawal End Date",
-          "Treatment-number counter — tracks the number of organic treatments given to each animal or herd within the certification period; flags when the permitted limit is approached",
-          "Certifier notification tracking — each treatment row shows whether the certifier has been notified (required when treatments approach the limit); update via the Medicine Register and the badge updates in real time",
-          "Standalone treatment records — log historical organic treatment records that pre-date your BDE Farm Trac subscription without altering the Medicine Register",
-          "Raise Task on organic withdrawal — on any standalone treatment row with an Organic Withdrawal End Date, a single click opens the task assignment panel pre-filled with the product name, due date, and check instructions; assign to a named staff member with instant SMS notification",
-          "Week Ahead Planner integration — Expected Certification Dates for in-conversion herds surface as emerald / amber / red event cards in the Farm Planner; parallel production annual notification alerts are date-anchored (quiet within 10 months, amber 'due soon' at 10–12 months, red 'overdue' at 12+ months or never notified); standalone treatment organic withdrawal end dates appear as separate emerald cards; Medicine Register organic treatments surface their doubled withdrawal date as an additional card distinct from the standard withdrawal event",
-          "Organic feed delivery records — feed deliveries marked as Organic Approved in Feed Management (supplier approval number, organic %, derogation reference) flow automatically into the Feed Records tab — no separate data entry",
-          "Date intelligence — all date fields across the Organic Livestock module (Feed Records, Outdoor Access, and Treatments) default to today's date when a new record is opened; no typing required for same-day field recording",
-          "Feed Records tab — record organic and non-organic feed deliveries for each herd; species-filtered herd selector draws registered herds from your Livestock Register and filters them by the chosen species (e.g. selecting Cattle shows only cattle herds); if no linked herds exist for the species, a free-text name field appears instead; organic-approved herds are marked with a 🌿 indicator; non-approved deliveries can be linked directly to an approved derogation case — the case auto-fills the certifier ref and regulatory category on the delivery record",
-          "Feed Derogations tab (UK Organic Regulations 2020, Art. 22) — dedicated case register for non-organic ingredient derogations with a split New Case / Record Decision workflow: the New Case form captures application details (ingredient name, feed product, species, certifier, applied date, availability search date and OFAS/UKOAS reference, regulatory derogation category, justification), leaving the case at Pending status; when a certifier decision is received, Record Decision captures the internal decision date, official decision date, outcome, expiry date, and approval conditions for approved cases — or rejection reason, rejection reference, and corrective action for rejected cases; Action Required badge surfaces on rejected cases where no corrective action has been recorded; status summary chips (Pending / Approved / Rejected / Expired / Withdrawn) at-a-glance; days-remaining badge turns amber below 60 days and red below 14",
-          "Certifier correspondence log — per-case threaded correspondence table records every communication with the certifier (direction: To Certifier / From Certifier / Internal; date; subject; body; notes); provides a complete date-ordered paper trail from initial application letter to the certifier's decision and any subsequent variation notices",
-          "Derogation document upload — attach approval letters, availability search evidence, application letters, conditions letters, and supporting documents directly to each case; document type selector (Approval Letter, Application Letter, Availability Search Evidence, Conditions Letter, Supporting Document) ensures each file is correctly categorised for inspectors; files are stored in secure cloud storage and accessible via a direct View link during audit",
-          "Outdoor access & stocking density log — record grazing events, outdoor space per animal, stocking density, number of animals, and pasture area against organic standard thresholds; species-filtered herd selector draws from the Livestock Register; compliance status recorded per event (Compliant / Derogation / Non-Compliant)",
-          "Print-ready treatment register — a formatted A4 summary of all organic treatments (auto-populated and standalone) with doubled withdrawal dates, suitable for certifier inspection",
-          "Full standard Livestock module access within Organic Livestock — the Organic Livestock page includes all 15 standard Livestock tabs alongside the organic compliance tabs: Herds & Flocks, Animals, Vet Health Plans, Mortality, Contractors, Feed, Water, Sires, Straws, AI & Repro, Vet Rx, Lambing, TB Tests, Welfare Outcome Assessments, and Sheep Dipping Records; organic producers have their complete operational and compliance records in one place without navigating between modules",
-          "Year filter on Outdoor Access Log — filter outdoor access and stocking density records by year; defaults to current year for quick review of the current certification period",
-          "Document attachment on Outdoor Access Log rows — compact attach/view button on every outdoor access record for uploading grazing evidence, paddock maps, certifier inspection notes, and supporting documentation",
-        ],
-      },
-      {
-        title: "Organic Dairy",
-        icon: Milk,
-        color: "bg-teal-50 text-teal-700 border-teal-100",
-        badge: "module",
-        features: [
-          "Herd conversion with herd register linkage — link dairy herds from the Livestock Register; saving marks the herd as organic across Medicine Records, Feed Management, and Movements",
-          "Dairy-specific certification dates — separate fields for Expected Milk Certification Date (when organic milk can first be sold) and Actual Certification Date (confirmed by certifier); distinct from general livestock conversion dates",
-          "Milk collection records — log every tanker uplift with collection date, volume (litres), milk temperature at collection (°C), fat %, protein %, lactose %, somatic cell count (SCC), total bacterial count (TBC), organic certified flag, organic certificate reference from the milk buyer, net value (£), and collector / tanker ID; three-tab add/edit form separates Collection Details, Quality & ABR, and Buyer Lab Results for efficient data entry",
-          "ABR (antibiotic residue) testing at collection — record the on-farm ABR result at the time of each uplift with a 4-state outcome (Negative, Positive, Borderline, Invalid), the tester's name, and the test kit lot and batch numbers; a colour-coded ABR badge on every row in the Milk Collections table gives an instant at-a-glance hygiene and compliance view",
-          "Buyer lab results tracking — record the processor/buyer's independent quality analysis against each collection: result status (Pending / Received / Failed), result date, buyer lab reference, and buyer-returned SCC, TBC, fat %, protein %, and lactose %; these sit alongside the on-farm readings so discrepancies between at-collection and buyer analysis are visible on the same record",
-          "Retest linkage — mark any collection record as a retest and optionally link it to the original collection record being retested; provides a clear audit trail when an initial ABR result triggers a confirmatory retest before the collection is accepted",
-          "Document attachments on all Organic Dairy view dialogs — a RecordAttachments panel is included in the full view dialog for Herd Conversion records, Milk Collection records, and Feed & Nutrition records, allowing PDFs, photos, and Word documents to be linked permanently to any individual compliance record for certifier evidence packages",
-          "Organic milk traceability — filter collections by date range and export to CSV for certifier audit evidence or milk buyer reconciliation",
-          "Treatment compliance (no double-entry) — medicine records flagged as Organic Treatment in the Medicine Register appear automatically in green read-only rows; no re-entry across systems",
-          "Dual organic withdrawal tracking — dairy organic treatments carry two separate doubled withdrawal periods: Organic Milk Withdrawal End Date (doubled milk WP) and Organic Meat Withdrawal End Date (doubled meat WP); both displayed on every treatment row alongside the standard period for reference",
-          "Raise Task on milk & meat withdrawal — standalone treatment rows show two separate clipboard buttons: a teal button for the Organic Milk Withdrawal End Date and an amber button for the Organic Meat Withdrawal End Date; each opens the task panel pre-filled with the product, due date, and verification instructions, and triggers an SMS to the assigned staff member on save",
-          "Week Ahead Planner integration — Expected Milk Certification Dates for in-conversion dairy herds surface as teal / amber / red event cards escalating by urgency; standalone treatment milk and meat organic withdrawal end dates surface as two separate teal event cards labelled distinctly; Medicine Register organic treatments surface their doubled withdrawal date as an additional emerald card",
-          "Certifier notification flag — tracks certifier notification status per treatment row; updates from the Medicine Register propagate in real time",
-          "Organic feed & nutrition records — deliveries marked Organic Approved in Feed Management (supplier approval number, organic %, derogation reference) surface automatically in the Feed & Nutrition tab — one entry, visible in both modules",
-          "Non-organic ingredient derogation tracking — where feed organic % falls below the required 95% threshold, record the certifier derogation reference and justification for inspection evidence",
-          "Feed derogation case linker on Feed & Nutrition records — when a feed delivery is recorded without full organic approval, a Link to Approved Derogation Case picker appears; selecting an approved Feed Derogation case from the Organic Livestock module auto-fills the certifier approval reference and derogation reference on the dairy feed record, creating a direct evidential link between the dairy feed log and the formal certifier approval without any re-keying",
-          "Linked badge and organic herd banner — same herd-register linkage indicators as Organic Livestock, confirming organic status is active and consistent across all modules",
-          "Year filter on Feed & Nutrition tab — filter organic feed and nutrition records by year; defaults to current year",
-          "Document attachment on Feed & Nutrition record rows — compact attach/view button on every feed record row for uploading delivery notes, organic approval certificates, and certifier correspondence",
-          "Full standard dairy recording within Organic Dairy — the Organic Dairy page also includes all standard Dairy Management tabs (Mastitis Records, Calving Records, Body Condition Scoring, Mobility Scoring, Bulk Tank, Dry Cow Therapy, and NMR Recording Visits — monthly NMR recorder visit log with herd averages, F:P ratio colour bands, and 24-visit rolling trend charts); organic dairy farmers use the same NMR recording service and require the same SCC trend management evidence for their organic milk buyer contracts and certifier audits; no separate Dairy Management module subscription required",
-          "Supplies tab included in Organic Dairy — the same PPE drawdown, chemical drawdown, available stock panel, restock request workflow, and usage history reporting available in standard Dairy Management is fully present in Organic Dairy (and Organic Sheep Dairy, Organic Goat Dairy); organic dairy operators' PPE and chemical stock records flow into the same platform-wide stock registers",
-        ],
-      },
-      {
-        title: "Organic Fresh Produce",
-        icon: Leaf,
-        color: "bg-lime-50 text-lime-700 border-lime-100",
-        badge: "module",
-        features: [
-          "Block Conversion Status Register — track each growing block's organic status: in-conversion, fully organic, or non-organic; records certifying body, conversion start date, expected and actual fully-organic date, and pre-conversion land use; a visual progress bar shows percentage through the statutory conversion period with a days-remaining countdown",
-          "Parent field linkage on growing blocks — optionally link any growing block to a registered farm field; the block inherits NVZ designation and organic status badges from the parent field, eliminating duplicate data entry on mixed holdings where horticulture blocks sit within broader farm fields",
-          "Synthetic history log per block — record what substances were applied before conversion, giving certifiers a complete pre-conversion evidence trail alongside the in-conversion records",
-          "Organic Input Log — record every approved input applied to a block: product name, date applied (defaults to today), quantity, unit, and purpose; supplier linked from your Trade Contacts list with datalist suggestions (type to filter against registered suppliers); PO reference and GRN reference auto-suggested from previous entries for the same supplier; applied-by staff lookup from your farm team register using a staff-select combobox",
-          "Certificates Register — store organic certificates per certifying body with certificate number, issue date, expiry date, and scope; certificate expiries surface in the Farm Planner with amber / red escalating alerts",
-          "Buyer Declarations — log each buyer declaration form issued: buyer name, date, product, quantity, certifier reference, and declaration status; view-before-edit record pattern ensures records are reviewed before any changes are made",
-          "Input Derogation Register (UK Organic Regulations 2020 — Schedule 1 / Annex II) — certain inputs require prior written approval from your certification body before use: conventional seed where no certified organic equivalent is available, restricted crop protection substances, and other Schedule 1 / Annex II substances; the Input Derogations tab provides a dedicated case register with one case per input substance using a split New Case / Record Decision workflow: the New Case form captures application-phase fields (input name, input type, crop year, certifier, certifier reference, availability search date and OFAS/UKOAS reference, application date, regulatory basis, and justification) leaving the case at Pending status; Record Decision captures the internal decision date, official decision date, outcome, expiry date, and approval conditions for approved cases — or rejection reason, rejection reference, and corrective action for rejected cases; Action Required badge on rejected cases without a corrective action; status summary chips at the top (Pending / Approved / Rejected / Expired / Withdrawn) give an at-a-glance compliance position; expiry badges turn amber at 60 days and red at 14 days",
-          "FP input derogation correspondence log — per-case correspondence table records every communication with the certifier: date, direction (sent / received), type (Application, Availability Search Evidence, Approval Letter, Rejection Notice, Conditions Letter, and others), summary, and reference; provides a complete date-ordered paper trail for each approval dossier",
-          "FP input derogation document upload — attach availability search evidence, application letters, approval / decision letters, conditions letters, rejection notices, photographs, and supporting documents directly to each case; document type selector ensures correct categorisation for certifier inspection; files accessible via a direct View link during audit",
-          "Print-ready compliance reports on every tab — a Print Report button on each of the five tabs (Block Status Register, Input Log, Input Derogations, Certificates, Buyer Declarations) generates a formatted A4 printout with farm name header, current date, and complete record set, ready for certifier inspection presentation",
-          "View-before-edit across all tabs — clicking any record opens a structured view dialog first; an Edit button within the dialog opens the edit form, preventing accidental overwrites during audits",
-          "Full standard Fresh Produce module access within Organic Fresh Produce — the Organic Fresh Produce page includes all six standard Fresh Produce tabs alongside the organic compliance tabs: Crops (growing block crop records), Water Tests (water quality testing log), Harvest (harvest records), Intake (pre-cooling and intake), Packhouse (packhouse and despatch), and Allergens (allergen management); organic growers have their complete operational and compliance records in one place without navigating between modules; organic status badges from the Organic Fresh Produce module surface on all related block records in the standard Fresh Produce tabs",
-          "Mobile FP input derogations — view the live derogation case register directly from the mobile app (status chips, expandable case cards with certifier details, expiry warnings, availability search evidence, justification, and approval conditions); when logging an FP input with Derogation Required status, a direct View FP Input Derogation Cases link appears to check the approval reference before saving; full case management handled in the dashboard",
-          "Mobile fresh produce input recording — log organic fresh produce input applications directly from the mobile app; select block, enter product name, quantity, unit, and purpose; syncs to the dashboard automatically",
-        ],
-      },
-      {
-        title: "Organic Arable",
-        icon: WheatIcon,
-        color: "bg-amber-50 text-amber-800 border-amber-200",
-        badge: "module",
-        features: [
-          "Certification tab — record the holding's organic arable certification: certifying body (Soil Association, OF&G, Organic Farmers & Growers, or other), certificate number, operator number, certification date, next renewal date, parallel production flag, and status (In Conversion / Certified / Suspended / Withdrawn); parallel production flag triggers an amber notice citing the UK Organic Regulations 2020 requirement for prior written certifier approval and annual notification",
-          "Field Conversion tracker — per-field conversion register linked to your registered field list (FieldSelector picker with free-text fallback); each field record captures conversion start date, expected certification date, actual certification date, certifier, certifier reference, previous land use type, and conversion status; visual conversion progress bar shows percentage through the statutory period with days-remaining countdown; view-before-edit pattern — click any row to open the structured view dialog, then Edit to make changes",
-          "Document attachments on certification and field conversion records — attach scanned certificates, certifier outcome letters, and conversion evidence documents directly to each record from the dashboard; files stored in cloud storage and accessible instantly during audit",
-          "Seed Sourcing register (UK Organic Regulations 2020) — log every seed and planting material used on organic arable fields: crop (from registered commodity types), variety, seed lot number, certified organic seed flag, treatment status (Untreated / Heat Treated / Derogation Approved), supplier, quantity, area drilled (ha), and drilling date; derogation flow — selecting Derogation Approved reveals certifier approval reference and derogation expiry date fields with an amber advisory citing the requirement to verify no certified organic seed is commercially available before applying for derogation",
-          "Seed derogation compliance advisory — when Derogation Approved is selected, an amber panel displays: 'Organic seed derogation required — you must verify that no certified organic equivalent is commercially available (OFAS/UKOAS search) before applying for derogation from your certifying body'; certifier approval reference and expiry date are both required fields when derogation status is selected",
-          "Seed Stock Ledger — a full double-entry seed inventory tracker sitting alongside the Seed Sourcing register: stock lines record each unique seed lot (crop, variety, lot number, supplier, purchase date, certified organic flag, treatment status, derogation reference, quantity received, and current balance in kg); movements log every change to each stock line — Goods In receipts (PO reference, GRN reference, supplier, date received, quantity in kg), Seed Used / Consumption events (field drilled, drilling date, area drilled in ha, quantity used), Stock Adjustments (reason, quantity change), and Waste / Loss records (reason, quantity); the running current balance auto-updates after every movement and is displayed on each stock line card with a green (positive) or amber (low) indicator; the Seed Stock Ledger sub-tab shows all stock lines at a glance with variety, lot number, treatment status chip, and current balance; the Movements sub-tab drills into the full movement history per stock line with date, movement type chip (colour-coded), quantity, and notes; new stock lines and movements can be created, edited, or deleted with confirmation dialogs; movements carry PO and GRN references for three-way matching with purchase records",
-          "Input Log — record every input applied to organic arable fields: substance name (selected from 33 Annex II approved inputs via SubstancePicker with free-text override for unlisted substances), input category, permitted status (Permitted / Restricted / Derogation Required), field (FieldSelector), crop, application date, quantity, unit, area applied (ha), applied by, certifier approval reference, and certifier notified flag; print-ready Input Register per crop or per field",
-          "Annex II substance picker — the SubstancePicker provides a searchable list of 33 Annex II approved inputs across all categories (plant protection products, fertilisers, soil conditioners, pest control, cleaning agents) with a free-text fallback for custom or unlisted substances; selecting a Permitted substance clears the certifier reference field; selecting Restricted or Derogation Required makes the certifier approval reference mandatory and displays an amber advisory",
-          "Restricted input advisory — when a Restricted or Derogation Required status is selected on an Input Log entry, an amber panel appears: 'Restricted input — certifier approval is required before application. Record the certifier approval reference and confirm the certifier has been notified'; certifier notified flag remains amber until ticked",
-          "Harvest Declarations — log arable harvest events: crop, variety, field (FieldSelector), harvest date, yield (t/ha), total yield (t), moisture (%), grade, organic certified flag, certifier harvest reference, storage destination, and notes; view-before-edit on all rows",
-          "Buyer Declaration — a separate dialog accessible from within the harvest view record captures buyer details for each harvest: buyer name, buyer address, buyer certifier reference, declared quantity (t), declaration date, and any transport or identity preservation notes; keeps buyer commercial information cleanly separated from the agronomic harvest record while sharing the same endpoint",
-          "Attachments on all 5 tabs — RecordAttachments (compact) appear within every view dialog across Certification, Field Conversion, Seed Sourcing, Input Log, and Harvest Declarations; attach delivery notes, certifier correspondence, seed certificates, derogation approval letters, and harvest dispatch documents to each individual record",
-          "Per-tab reporting — every tab has a Print Register (print-ready A4 landscape formatted report) and Export CSV button; filters (year, crop, permitted status) apply to both the table and the exported output; print and CSV both carry the farm name header and current date",
-          "FilterPills with live counts — status filter chips above each table show the count of records in each status category; selecting a chip instantly narrows the table; combined with year and crop dropdowns for precise audit navigation",
-          "Mobile app — 5 dedicated organic arable screens: Overview (hub screen with live stats for certifications, field conversion, seed stock balance, seed records, and harvests; quick-action buttons to all four field screens), Input Recording (offline-first permitted/restricted status chips, FieldPicker, substance input, certifier approval flow for restricted inputs), Seed Purchase (offline-first derogation alert flow, crop chip picker, derogation approval reference capture), Seed Stock Movement (offline-first stock movement recording — movement type selector for Goods In / Seed Used / Adjustment / Waste; crop chip picker, batch/lot number, quantity in kg, PO and GRN references for goods-in, field name and drilling date for consumption; saves offline and syncs balance automatically), Harvest Recording (offline-first, organic certified status chips, FieldPicker, yield and grade capture); all four field screens save locally when offline and sync to the dashboard automatically on reconnection",
-          "Full standard field management access within Organic Arable — the Organic Arable subscription includes bundled access to Fields & Crops (field register with NVZ zone designation and organic conversion status badges), Field Operations (cultivations, drilling, rolling, lime spreading, drainage, and all other fieldwork records), Field Inspections (crop walking logs, growth stage assessments, pest and disease pressure flags with action-required notes), Harvest Records (shared harvest register with yield, moisture, grade, and storage destination), Storage Locations (grain store and building register), and Crop Stock (stock position and movement tracking); organic arable producers have their complete operational and compliance records in one place without subscribing to a separate Field & Crop Management module; any improvements made to the underlying field management modules automatically appear within the Organic Arable section as well",
-        ],
-      },
-      {
-        title: "Organic Poultry",
-        icon: Bird,
-        color: "bg-orange-50 text-orange-700 border-orange-100",
-        badge: "module",
-        features: [
-          "Certification tab — record the holding's organic poultry certification per flock or enterprise: certifying body (Soil Association, OF&G, Organic Farmers & Growers, or other), certificate type (Laying Hens, Broilers, Turkeys, Ducks, Geese, or Mixed Poultry), certificate number, issue date, expiry date, scope, and status (Active, Pending, Suspended, or Withdrawn); expiry alerts surface in the Farm Planner as amber and red event cards as the renewal date approaches",
-          "Outdoor Access tab — log every outdoor access event per flock: flock reference, total birds in flock, number of birds on range, range area (ha), auto-calculated stocking density (birds/ha), access duration, vegetation condition (Good, Fair, Poor), and compliance status (Compliant, Derogation, Non-Compliant); access blocked flag reveals a mandatory reason field when the range is temporarily closed (e.g. disease restrictions, adverse conditions, veterinary advice); full event history per flock with year filter",
-          "Stocking density auto-calculation — birds on range ÷ range area (ha) is calculated immediately as values are entered, so you can verify compliance with the 2,500 birds/ha outdoor stocking limit (or 170 kg N/ha where applicable) before saving the record",
-          "Feed Records tab — log every feed delivery for organic compliance: delivery date (defaults to today), product name, product type, organic approval status (Certified Organic / Approved Non-Organic / Conventional Derogation), certifier reference, quantity (kg), supplier, lot number, invoice reference, and linked flock; non-certified deliveries can be linked directly to an active derogation case, auto-filling the certifier approval reference and regulatory basis with no re-keying",
-          "Organic approval status enforcement — the 100% organic feed requirement of the UK Organic Regulations 2020 is supported by the three-state approval status on every feed delivery: Certified Organic confirms full compliance; Approved Non-Organic requires a certifier reference and is reserved for approved exceptions; Conventional Derogation requires a linked derogation case — a mandatory reference picker appears on the delivery form when this status is selected",
-          "Derogations tab — dedicated case register for non-organic and non-permitted input derogations under the UK Organic Regulations 2020: each case captures a unique case reference, input name, regulatory basis, certifying body, application date, status (Pending / Approved / Rejected / Expired / Withdrawn), internal decision date, certifier decision date, expiry date, and approval conditions; rejection handling records rejection reason, rejection reference, and corrective action required; an Action Required badge surfaces on rejected cases where no corrective action has been entered; expiry urgency badges turn amber below 60 days and red below 14",
-          "Mobile app — two dedicated organic poultry recording screens: Outdoor Access (select flock, enter birds on range, range area, duration, vegetation condition, and compliance status; access blocked toggle with reason field; saves offline and syncs to dashboard automatically) and Feed Records (delivery date, product name, approval status chips, quantity, supplier, lot number; derogation case linking for non-certified deliveries; offline-first with automatic sync); GPS coordinates captured automatically on both mobile screens",
-        ],
-      },
-      {
-        title: "Staff & Training",
-        icon: GraduationCap,
-        color: "bg-indigo-50 text-indigo-600 border-indigo-100",
-        badge: "module",
-        features: [
-          "Staff directory — create records for every team member; records-only entries for compliance tracking (no login required) or invite staff to the system with a secure 7-day email link they use to set their own password",
-          "Department Management — create named departments (e.g. Arable, Livestock, Dairy, Maintenance) and assign staff members to one or more departments; a dedicated Departments page lists each department with head-count, member names, and a Former Staff tab showing historical membership; staff selection dropdowns across the platform display each person's department alongside their name so managers can instantly identify the right team member without scrolling long lists",
-          "Department-based task and training filtering — the Task Board and Training Records can be filtered by department, making it straightforward for department heads to view only their team's outstanding tasks or certificate expiry without unrelated records cluttering the view",
-          "Four access types per user — No System Access (records only), Mobile App Only, Web Dashboard Only, or Full Access (both platforms) — set independently for each staff member",
-          "Four permission levels — Operator (field record entry), Senior / Foreman (all farm records + team oversight), Farm Manager (full operational access including financials), Owner (unrestricted including billing); navigation and sensitive pages are automatically hidden based on each user's level",
-          "Multi-farm support — one login can hold different roles on multiple farm holdings within the same group; each association carries its own independent access type and permission level",
-          "Right to Work register — record document type, reference, check date and examiner; track expiry for time-limited visas with urgent alerts within 28 days; automatic flag for any staff member with no check on file",
-          "Certificate register — 50+ certificate types across 10 groups: Pesticide Application (PA1–PA6AW), Livestock Welfare (WASK/WATOK, disbudding, AI), Animal Transport (Cat 1 & 2), Machinery (telehandler, FLT, ATV, combine), Chainsaw (CS30–CS38), Health & Safety (FAW, EFAW, COSHH, confined space), Agronomy (BASIS, FACTS, NRoSO), Veterinary & Medicines (AMTRA SQP), Food & Hygiene (Level 2 & 3), and Formal Qualifications",
-          "Training records — log in-house and external training with provider, assessor, date and competency achieved",
-          "Expiry alerts — colour-coded badges (green / amber / red) on every cert and training record; per-person summary visible on the staff list",
-          "Compliance gap panel — automatic red/amber banners surface missing critical certs (WASK, Animal Transport, PA1, First Aid) that clear once the cert is recorded",
-          "Staff-linked records — cert and training forms use a real-user dropdown so records are tied to the correct person, not a typed name",
-          "Post-invite RTW prompt — after inviting a new team member, the system reminds you to carry out a Right to Work check and record their certificates before they start",
-          "Print Register — generates a formatted A4 document with training and certificate tables plus sign-off blocks, suitable for presenting to a Red Tractor inspector",
-          "Mobile Task Inbox — staff log in to the mobile app to see all tasks assigned to them; each card shows the task, due date, module, and manager's note; staff can mark tasks in progress or complete with an optional completion note; managers see status updates in real time on the Task Board",
-          "PPE Register — three linked sub-registers living in the Staff page under the PPE Register tab: (1) PPE Stock Register tracks every incoming PPE delivery with supplier (linkable to your Supplier register), invoice reference, delivery note reference, batch number, unit cost, and real-time quantity-in-stock (automatically decremented on issue, colour-coded green / amber / red); (2) PPE Issue Register records every item issued to a named staff member under the PPE at Work Regulations 2022 — issue directly from a stock batch to auto-fill type, description, size, and supplier; captures condition at issue, condition checks, replacement date and reason; each staff member's full PPE history is visible on their profile card; mobile app allows field staff to log PPE issues instantly for sync to the dashboard; (3) PPE Risk Assessments records formal risk assessments for each PPE type in use — assessment reference, hazard identified, task or work area, risk level (Low / Medium / High), fit check with name and date, compatibility check, training provided flag, assessor name, assessment date, and review date with overdue highlighting; satisfies the PPE at Work Regulations 2022 requirement for documented risk assessment before PPE selection",
-          "PPE Compliance Pack — one-click landscape PDF combining all three PPE sub-registers into a single audit-ready document; opens with a four-card compliance summary (risk assessments with overdue flags, stock items, active issues with condition alerts, and a gap indicator listing PPE types in active use with no risk assessment recorded); followed by the full Risk Assessments table, Stock Register, and Issue Register — suitable for presenting to a Red Tractor assessor or HSE inspector without further formatting",
-          "PPE Staff Record — per-staff printable PPE record generated from the Issue Register; select any staff member from the filter dropdown and click Print Staff Record to produce a landscape PDF of that person's complete PPE issue history plus all risk assessments covering the PPE types they have been issued; a prominent warning appears if any issued PPE type has no risk assessment on file, directly flagging a Regulations 2022 compliance gap",
-          "Labour & Timesheet Management — six-tab module within Staff & Training covering Timesheets, Rota & Shifts, Actual Attendance, Holiday & Absence, Pay Summary, and Working Time Regulations compliance; access from the main Staff & Training page or via the dedicated Labour Management menu item; when departments are configured, all six tabs display staff grouped by department with a colour-coded left-border section header for each team — if no departments are configured the view falls back to a flat alphabetical list",
-          "Timesheet recording — log hours worked for every staff member against a specific date, operation type (Cultivation, Drilling, Spraying, Harvesting, Livestock Care, Maintenance, Administration, or Other), and optional linked field or livestock group; monthly view groups hours by staff member and operation type with totals; filter by month, staff member, or department; the all-staff summary card view groups staff by department with a colour-coded section header for each team when departments are configured; mobile app allows field staff to log hours offline with automatic sync",
-          "Rota & Shifts planning — create shift entries per staff member with start time, end time, break duration, and role or location; month-at-a-glance view shows all shifts with colour-coded staff cards; the weekly rota grid groups staff by department with a colour-coded left-border section label for each team when departments are configured so coverage gaps are visible at team level; managers can see coverage at a glance for each day without opening individual records",
-          "Actual Attendance recording — log whether each staff member came in as planned each day; record the actual status (Present, Absent, Late, Left Early, Sick, Unauthorised) against their planned rota shift; the discrepancy flag automatically highlights mismatches between the planned shift and the recorded actual status; 'End-of-day: Confirm all present' bulk-confirms attendance for all staff with no exceptions logged; Bradford Factor rolling 52-week sickness analysis per staff member showing absence frequency, absence days count, Bradford score, and pattern summary; future dates are locked — attendance can only be recorded for today or past dates; staff are grouped by department with a colour-coded section header when departments are configured",
-          "Holiday & Absence recording — log holiday requests, approved leave, sick days, and other absences per staff member; captures absence type (Annual Leave, Sick, Compassionate, Maternity, Paternity, Unpaid, or Other), start date, end date, and total days; annual leave entitlement balance is tracked alongside recorded absences so remaining days are always visible; the annual leave entitlement summary card grid groups staff by department with a colour-coded section header when departments are configured; staff can submit leave requests (Annual Leave, Compassionate, Unpaid, Training Day, or Other) directly from the mobile app — request arrives on the dashboard as Pending, triggers an SMS to all opted-in managers, and the Holiday & Absence tab shows a pending badge and an amber approval panel where managers approve or decline with one click; on approval or decline the staff member receives an automatic SMS with the outcome; when declining, the manager can add an optional reason which is included in the SMS and stored on the record",
-          "Holiday Planner view — a List / Planner toggle on the Holiday & Absence tab switches to a month-by-month calendar grid; staff appear as rows, days as columns; cells are colour-coded by absence type (green = Annual Leave, red = Sickness, purple = Compassionate, pink = Maternity/Paternity, sky = Training Day, teal = TOIL) and status (amber = pending, white = approved); rota-only holiday shifts from the Rota & Shifts module that have no matching absence record are shown in lime green with a 'Rota only (unlogged)' legend entry so leave gaps are immediately visible; a 'Staff off' count row at the bottom flags days where ≥40% of the team are absent in red — allowing managers to spot scheduling conflicts before approving new requests; month navigation arrows allow planning weeks and months ahead",
-          "Printable blank leave request form — a 'Blank Leave Form' button on the Holiday & Absence tab generates a print-ready A4 paper form (ref FT-LR-01) for staff without mobile app access; the form includes tick-box leave type selection (Annual Leave, Sick, Compassionate, Maternity/Paternity, Training Day, TOIL, Unpaid, Other), date fields, total days, an employee declaration section with signature block, and a manager decision section with Approved / Declined / Part-approved options; the farm name pre-fills automatically; printed forms can be retained for the physical HR file or transcribed into the system",
-          "Pay Summary — monthly pay summary per staff member showing regular hours, overtime hours, and gross pay calculated from your recorded hourly rate; rows are grouped by department with a colour-coded section header when departments are configured and only departments with entries in the selected period are shown; export as CSV for payroll processing; rate management lets you record different hourly rates per staff member with effective-from dates so historic pay calculations remain accurate if rates change",
-          "Working Time Regulations (WTR) compliance — automatic 17-week rolling average hours calculation per staff member; any worker whose rolling average exceeds the 48-hour weekly limit is flagged with an amber or red alert banner; the compliance card grid groups staff by department with a colour-coded section header when departments are configured; the compliance tab shows the current average for all workers alongside their opt-out agreement status — providing the systematic WTR monitoring required under the Working Time Regulations 1998",
-          "Labour Cross-Reference — dedicated Cross-Reference tab on the Labour Management page that compares total hours logged in Staff Timesheets against hours recorded in Field Operations for the same staff member and time period; each row shows timesheet hours, field operations hours, and the variance with a colour-coded status badge (Matching / Over-Reported / Under-Reported); managers can add annotations to any discrepancy line with a free-text note and mark the row as Explained or Resolved; annotated rows display a colour-coded status badge in the table and an inline preview of the most recent note; satisfies Red Tractor's requirement to cross-check labour records against operational records and demonstrate that discrepancies are investigated and documented",
-        ],
-      },
-      {
-        title: "Safety, Risk & Audits",
-        icon: AlertTriangle,
-        color: "bg-amber-50 text-amber-600 border-amber-100",
-        badge: "module",
-        features: [
-          "Risk assessment records — hazard description, risk level (low / medium / high / critical), control measures, review date tracking, and pre-loaded template library covering the most common agricultural hazards; Raise Task button on every record instantly creates an assigned task for a named staff member to implement or review the control measure",
-          "COSHH records — substance register with product name, hazard classification, storage, PPE requirements, emergency procedures, and mandatory review date alerts",
-          "PAT testing log — record annual Portable Appliance Tests for all electrical equipment on the holding; every appliance is automatically assigned a unique BDE-PAT-XXXX asset code (shown as a violet badge on the register row); click the QR icon on any row to print a label card with a scannable QR code, the asset code, and appliance details — affix to the appliance; mobile app scan-to-test workflow lets a PAT tester scan the label and log a result immediately, with test date and next-due pre-filled; captures tester name, company, certificate number, pass / fail / advisory result, and next-due-date alerts; satisfies Electricity at Work Regulations 1989 duty",
-          "Fire extinguisher register — record each extinguisher with type (CO₂, dry powder, foam, water, wet chemical), capacity, serial number, building and exact position within building; per-extinguisher service history log captures service date, service type (annual check, 5-year discharge test, extended, commissioning), engineer name and company (linked to your Trade Contacts), certificate number, pass / advisory / fail result, and next service due; opening a row expands the full service history inline; logging a service record automatically updates the parent extinguisher's last service date and next due date; attach the service certificate or report PDF directly to the service record; disposal / decommission workflow marks a unit as disposed (with date, reason, and notes) while retaining the record permanently for audit; overdue and due-soon (60-day) warnings on both the register table and the Week Ahead Planner; print H&S Register includes a Fire Safety section listing all active extinguishers with engineer, certificate, and next service due alongside risk assessments, COSHH, and PAT records in a single landscape-format document; satisfies the Regulatory Reform (Fire Safety) Order 2005 annual servicing and record-keeping duty",
-          "Waste disposal logs — EWC codes, carrier licence and transfer note tracking, Duty of Care compliance",
-          "Fly-Tipping Incident Register — waste type, quantity, hazard flag, GPS location, clearance status, reference numbers for police, council, and Environment Agency, insurance claim tracking (claim made flag, linked insurance policy, and claim reference), and photo evidence attached per incident",
-          "Unauthorized Encampments Register — vehicle and person counts, land damage, police direction tracking (Section 61 / PCSC Act 2022), legal action log, insurance claim tracking (claim made flag, linked insurance policy, claim reference), remediation costs, and view-before-edit dialogs on all entries",
-          "Contractor H&S File — dedicated register for every contractor engaged on the holding; records company details, type of work, Public Liability Insurance (policy number, insurer, indemnity limit, expiry with 30-day alert), Employer's Liability Insurance, RAMS received and review date, farm induction completed and date, and notes; H&S Review log records dated reviews (Annual Review, RAMS Update, Insurance Renewal, Induction, Risk Assessment Review) with reviewer name, outcome, and next due date — surfaced in the Farm Planner before they fall due; H&S File badge appears on the contractor's Supplier record confirming the file is active and current; Raise Task directly from a review record to assign follow-up actions to a named staff member; satisfies CDM 2015 and Red Tractor contractor control requirements; printable contractor record for physical H&S file",
-          "Accident Book — RIDDOR-compliant incident register with a four-stage investigation workflow: Reported (initial record with incident type, severity, location, injured person, witnesses, and RIDDOR flag) → Under Investigation (investigating officer, date, and investigation notes) → Corrective Action Recorded (corrective action, who completed it, and date) → Signed Off (manager name and sign-off date); each stage is gated by the previous; RIDDOR flag auto-set for Over 3-Day, Major Injury, and Fatal severities; mobile app captures the initial incident in the field with GPS, photo evidence, and RIDDOR auto-flag; print incident record for H&S file",
-          "Mobile incident reporting — log fly-tipping and encampments in the field with on-device camera capture; syncs to dashboard automatically",
-          "Inspection records — formal site, process, and compliance inspections with pass / fail / advisory outcomes",
-          "Inspection correspondence log — log every communication relating to each inspection record directly against it: emails, letters, phone calls, meetings, site visits, and video calls; captures direction (sent/received), type, date, subject, and a summary note; a Communications tab sits alongside the Details view so the full correspondence trail is accessible in one place; provides a date-ordered audit trail of all pre- and post-inspection correspondence for Red Tractor, RSPCA Assured, and other scheme assessors",
-          "Non-conformance logging with corrective action workflow and close-out tracking",
-          "Print-ready audit summaries and incident registers — A4 format suitable for Red Tractor assessor presentation",
-        ],
-      },
-      {
-        title: "Biofuel / RTFO Compliance",
-        icon: Fuel,
-        color: "bg-yellow-50 text-yellow-700 border-yellow-100",
-        badge: "module",
-        features: [
-          "RTFO Buyers register — record every obligated fuel supplier you deliver to, with their company name, RTF Obligation Number (the government-issued ID), ISCC certification number, contact details, and address; buyers can be deactivated when no longer in use while all historic declarations remain permanently on record",
-          "Field eligibility tracking — record RTFO-eligible fields with crop, area, and eligibility status; links directly to your field register for pre-populated field data",
-          "Delivery log — record every consignment delivered to a registered buyer with date, field, crop, quantity, vehicle, and sustainability declaration reference; each delivery line is the audit evidence your buyer needs for their RTFO return",
-          "Sustainability declaration reference tracking — store the declaration document reference from your buyer on each delivery; surfaced on any audit pack export",
-          "GHG traceability data — fertiliser applications from your NVZ records and spray applications from your Sprays module are automatically counted as GHG inputs; your ISCC auditor or biofuel buyer can use these figures to calculate field-level greenhouse gas footprint",
-          "Certifications tab — record your ISCC or equivalent biofuel sustainability certification with certificate number, body, and expiry date; amber / red expiry alerts surface in the Farm Planner",
-          "Audit pack PDF generation — one-click export covering registered buyers, field eligibility records, delivery log, and sustainability declaration references in a structured document suitable for RTFO audit presentation",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Environment & Sustainability",
-    description: "Agri-environment scheme records, carbon reporting, and water management — combined in one module.",
-    modules: [
-      {
-        title: "Environment & Sustainability",
-        icon: Leaf,
-        color: "bg-green-50 text-green-600 border-green-100",
-        badge: "module",
-        features: [
-          "Environmental feature mapping",
-          "Agri-environment scheme records — Stewardship agreement logging with habitat, hedgerow, and management event records",
-          "Agri-environment scheme correspondence log — log correspondence with scheme administrators such as Natural England and the Rural Payments Agency (RPA) directly against each scheme record; entries capture direction (sent/received), type (email, letter, phone call, meeting, site visit, video call, or other), date, subject, and a summary note; a Communications tab in the scheme detail view provides a complete date-ordered paper trail from initial application through to payment confirmations, monitoring visit notices, and compliance decisions",
-          "Scheme obligation tracking per event — link each management action to the corresponding SFI, CS, or ELM agreement option",
-          "Dedicated SFI & ELM dashboard page — full-page agreement manager in the sidebar; add and manage SFI, Countryside Stewardship, and ELM agreements with individual action and option codes, payment rates, and target areas; evidence-due deadline alerts surface automatically in amber (within 60 days) and red (within 14 days); print-ready compliance report for RPA inspection visits",
-          "SFI / ELMs Actions — log agreements with action codes, payment rates, area, and annual review tracking",
-          "Slurry & Manure Management — full store register with capacity (m³), type, material, and operator fields; per-store fill-level progress bars that update live as intake events are logged; capacity gauge in the store detail view; dedicated Fill & Intake Events log captures date, volume received, material type, and source/origin for every store fill — providing a complete intake audit trail alongside your spreading records; species-specific storage enforcement — when a store has a material type configured (e.g. Cattle Slurry, Pig Slurry, Poultry Manure), the Manure Type field on both the spreading form and the fill event dialog is replaced with a 🔒 locked display the user cannot override; the API enforces the same rule server-side with a descriptive 422 rejection for any mismatched material — ensuring nutrient management records are split by species as required by RB209 and NVZ guidance; spreading records capture source store, field, area (ha), volume (m³), application rate (m³/ha), application method, soil condition at spreading, contractor, and NVZ closed-period compliance flag; material type column with green pill badge in the fill events audit trail",
-          "Silage & Haylage Management — dedicated store register entry for silage clamps, kept distinct from slurry stores; additive/inoculant records per clamp fill (forage type, product, application rate, fill date); dry matter and quality test logging with an automatic high-priority task raised when DM% falls below 25%, flagging elevated effluent risk under SSAFO; clamp safety inspections cover the standard store checks plus clamp-specific structural checks (effluent containment, cover sheet integrity, wall soundness), with a failed effluent-containment check raising an urgent pollution-risk task; Silage & Haylage Stock Tracking — cut records log each cutting event with forage type, cut number, cutting date, field, cutting method, area cut (ha), yield (t/ha), total yield (t), additive used, and dry matter %; the Stock tab shows a live running balance per clamp (tonnes in vs tonnes used) updated automatically as usage events are recorded; usage records capture every drawdown from a clamp with date, recipient livestock group or enterprise, and quantity removed (t); the Season Reports Forage tab aggregates all cut records for the year by forage type alongside straw bale totals for a complete seasonal forage balance sheet",
-          "Straw Bale Inventory — record every bale batch with crop, bale type (round or square), quantity, weight per bale (kg), estimated moisture %, storage location, and date baled; moisture checks can be logged against a batch at any point in the storage period (method, reading %, operator) to track condition through the season; biomass contract fields record whether bales are sold under a biomass energy scheme, the scheme name (e.g. Drax, AD plant, RTFO-accredited scheme), and a unique bale reference number for scheme traceability; usage events decrement the running balance automatically; mobile app allows bale batches and moisture checks to be added or updated in the field with offline-first sync to the dashboard",
-          "Farm carbon footprint calculator — Agrecalc / Cool Farm compatible inputs",
-          "Emissions by category: enteric fermentation, manure, fuel, fertiliser, imported feed",
-          "Year-on-year baseline comparison and trend charts",
-          "Sustainability action plan — log actions, estimate savings, track progress",
-          "Renewable energy production logging — solar installation and generation records auto-populated from the Fuel & Energy module; CO₂ avoided calculated automatically at the UK grid emission factor; manual entry also supported for wind and AD; year-on-year production comparison",
-          "Biodiversity net gain tracking — habitat creation and baseline scoring",
-          "Supply chain sustainability declarations for retailer assurance schemes",
-        ],
-      },
-      {
-        title: "Carbon & Sustainability",
-        icon: Sprout,
-        color: "bg-teal-50 text-teal-700 border-teal-100",
-        badge: "module",
-        features: [
-          "Carbon audit records — log annual farm carbon audits with gross emissions, sequestration, and net tCO₂e; covers all Scope 1 emission sources including livestock, manure, fuel, fertiliser, and imported feed; compatible with Agrecalc and Cool Farm Tool methodology",
-          "Year-on-year bar chart comparison — gross emissions, sequestration credit, and net emissions displayed side-by-side across audit years so you can track performance against your baseline and demonstrate progress to assurance auditors",
-          "FCT import — upload your Farm Carbon Toolkit report directly to pre-populate an audit record; eliminates re-keying and keeps your on-farm data consistent with the independent assessment your agronomist or certifier sees",
-          "Emissions breakdown by category — enteric fermentation, manure management, fuel and transport, synthetic fertiliser, purchased feed, and purchased electricity; each category is a separate input so you can identify where your biggest reduction opportunities lie",
-          "DEFRA 2023 GHG Auto-Calculator — select a year and click Pre-fill from Farm Records; the platform reads your fuel tank deliveries (diesel, red diesel, LPG, gas oil, petrol — joined to tank type), fertiliser applications from the spray records, livestock herd numbers from the Herd Register, and grid electricity consumption from meter readings, and applies the appropriate DEFRA 2023 emission factor to each source; Scope 1 and Scope 2 totals are returned with a source badge (Fuel, Fertiliser, Livestock, Electricity) showing which modules contributed data to each figure",
-          "Use these figures → Create Carbon Audit — a single button on the Auto-Calculator result panel writes the pre-filled tCO₂e totals directly into a new Carbon Audit record, with the calculation year and data sources pre-populated; review and adjust individual line items before confirming",
-          "Sequestration records — log carbon sequestration from woodland creation, hedgerow planting, permanent grassland, cover crops, and organic matter additions; each entry captures area, species or practice, and estimated tCO₂e/year credit",
-          "Automatic sequestration calculator — select a year and the platform reads your Environmental Features register and Field Season Land Use records; Woodland Carbon Code, Peatland Code, and DEFRA agri-environment factors are applied by feature type and area to produce indicative annual tCO₂e sequestration credits; review each line before confirming into the sequestration register",
-          "Sustainability action plan — log actions with estimated tCO₂e saving, responsible person, target completion date, and status; running total of committed savings displayed against your baseline and net-zero trajectory",
-          "Renewable energy integration — solar generation records from the Fuel & Energy module auto-populate CO₂ avoided; manual entry supported for wind and anaerobic digestion; year-on-year renewable generation comparison included",
-          "Biodiversity net gain tracking — log habitat creation with area, habitat type, condition score (Distinctly sub-optimal to Excellent on the statutory BNG metric scale), and estimated biodiversity units gained; supports Environment Act 2021 BNG obligations",
-          "Sustainability Reports tab — track every carbon and sustainability report submitted to supply chain customers (retailers, processors, certifying bodies); each record captures report title, supply chain customer, report type (Carbon Footprint, Sustainability Declaration, BNG, SFI Evidence, Other), audit tool used, certifying body (searchable list: Carbon Trust, BSI PAS 2060, LRQA, Bureau Veritas, SGS UK, Intertek, ADAS, SAC Consulting, Agrecalc Carbon Assurance, Farm Carbon Toolkit, and more), submission date, status (Draft, Submitted, Accepted, Rejected, Under Review), PO reference, invoice reference, and report year; view-before-edit with document attachments for the submitted report, acceptance letter, and supporting evidence",
-          "Reports tab — view emissions by category as a proportion of total, sequestration contribution, and year-on-year change; print-ready summary for retailer sustainability returns, Red Tractor self-assessment, and lender ESG reporting",
-          "Supply chain declarations — attach sustainability statement references per crop year for retailer assurance and ISCC/RTFO audits; links to the Biofuel Compliance module for GHG traceability",
-          "Net-zero pathway tracking — set a baseline year and reduction target percentage; the platform calculates the required annual reduction rate and shows where you stand against it each audit year",
-        ],
-      },
-      {
-        title: "Water & Irrigation Management",
-        icon: Waves,
-        color: "bg-sky-50 text-sky-700 border-sky-100",
-        badge: "module",
-        features: [
-          "Water source register — bore holes, rivers, reservoirs and mains",
-          "Abstraction licence tracking with annual allocation and usage",
-          "Daily / weekly meter readings and volumetric usage logs",
-          "Irrigation event records — field, crop, volume and method",
-          "Soil moisture deficit tracking — log SMD readings per field to support irrigation scheduling decisions; separate from the continuous sensor monitoring available in the Soil Management module",
-          "Pump maintenance records — service dates and calibration",
-          "EA compliance check — CAMS reporting and licence conditions",
-          "Drought management planning and restriction alerts",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Finance & Business",
-    description: "Procurement, sales, financial records, and business reporting — all in one module, with separate add-ons for document storage, weather, and platform utilities.",
-    modules: [
-      {
-        title: "Finance & Business",
-        icon: LineChart,
-        color: "bg-emerald-50 text-emerald-600 border-emerald-100",
-        badge: "module",
-        features: [
-          "Supplier directory — classify each supplier by type (Feed, Agricultural Chemicals, Fuel & Energy, Veterinary, Laboratory, Machinery, Seed, Haulage, and more); UFAS / FEMAS / APHA certification expiry tracking with 60-day amber and expired-red warnings",
-          "Purchase Orders (PO) — raise formal orders with auto-generated PO-YYYY-0001 references, multi-line order items (stock products or services, quantity, unit price, estimated order total); seven-stage status filter tabs with live counts (Outstanding, Awaiting Approval, Draft, Sent, Partially Received, Fully Received, All); manager approval workflow — any PO containing an approval-required product is automatically placed into Awaiting Approval with a pending approvals widget surfaced on the page for managers to approve or reject with one click; submitter name captured on every PO for a full audit trail of who requested each order",
-          "Product-level approval controls — flag any stock catalogue item as requiring manager sign-off before purchase; assign a named farm staff member as the designated approver per product; when a PO is raised containing a flagged item it is automatically held in Awaiting Approval status until the assigned approver reviews it; approval column visible in the product catalogue table",
-          "Goods Received Notes (GRN) — auto-generated GRN-YYYY-0001 references on every delivery; link to an open PO to update received quantities automatically; batch and lot number captured at point of receipt and carried forward to spray application records",
-          "3-way matching — Purchase Order → GRN → Supplier Invoice for a complete procurement audit trail",
-          "Stock stocktake — initiate a periodic count of all main stock items from the Suppliers & Stock page; enter your physical count for each item; any variance is highlighted with colour-coded badges and a mandatory reason must be selected (calibration, spillage, theft, data entry, or other) before the count can be completed — satisfying Red Tractor's requirement for documented stock discrepancy records; completing the stocktake updates stock levels and writes a permanent stock movement audit trail for every adjusted item",
-          "Testing laboratory register — UKAS-accredited labs as a supplier subtype; linked by picker when recording soil samples, grain quality tests, and water quality tests",
-          "Grain trading — spot, forward contract, pool scheme and ex-store sales with buyer, tonnage, £/tonne, moisture, protein, grade, crop year, weighbridge ticket and invoice reference; covers wheat, barley, OSR, beans, peas, oats and more",
-          "Grain Contracts & Pools — dedicated register for forward contracts and pool scheme positions; each contract shows total committed tonnage, called-off progress bar, remaining tonnage, and a full linked-transactions table; pool scheme positions track the crop year, estimated outturn, and settlement status separately from spot-market sales",
-          "Grain sale → forward contract linkage — when recording a forward-contract grain sale, a Linked Forward Contract dropdown automatically appears listing your open contracts filtered by commodity; selecting a contract links the call-off to the parent record; the contract progress bar and called-off tonnage update in real time; a green Contract badge appears on the grain sale row in the table; creates a direct database reference from every weighbridge load back to the original contract — satisfying Red Tractor traceability requirements from merchant contract to delivery",
-          "Livestock deadweight sales — kill sheet capture per species with deadweight, pence/kg, grade classification, gross value, deductions, net payment, and ear tag list; movement record linkage — when recording a deadweight sale, a Link to Off-Farm Movement Record dropdown lists all your outgoing livestock movements (type: Off/Sale/Dispatch), allowing you to link the kill sheet to the exact BCMS movement record for that kill batch; a green Movement badge appears on the kill sheet row; creates a permanent cross-reference between kill sheet and BCMS notification — required for Red Tractor and AHDB audit trail compliance; kill sheet document attachment — upload the abattoir kill sheet or deadweight settlement PDF directly to the record row via the Doc column paperclip",
-          "Livestock mart / auction sales — lot number, auction mart, species, category, head count, price per head or per kg, gross proceeds, auctioneer reference, buyer name, and net payment; movement record linkage — link each mart sale to the corresponding off-farm movement record via a dropdown showing outgoing movements by date, species, head count, and AML licence number; a blue Movement badge appears on the mart sale row; creates a complete chain from auctioneer receipt to BCMS/LIS movement notification; lot sheet document attachment — upload the auctioneer lot sheet or sale docket PDF directly to the mart sale row via the Doc column paperclip",
-          "Milk statements — monthly entry per milk buyer with litres supplied, pence per litre, butterfat %, protein %, SCC, quality bonus/penalty, transport deduction and net payment",
-          "Poultry batch settlements, egg sales, and pig kill records with full settlement capture",
-          "Direct & farm gate sales — farm shop, box scheme, farmers market, wholesale, online or restaurant sales with payment status tracking",
-          "Input cost logging — invoice reference, supplier, cost category and VAT treatment for feed, seed, fertiliser, agrochemicals, fuel and sundry costs",
-          "CSV export and Xero-compatible export for seamless handoff to your accountant",
-          "Gross margin analysis by crop, full P&L income statement, input cost breakdown with category percentages",
-          "Enterprise cost-of-production reports — 7 dedicated reports (Dairy, Beef, Sheep, Pig, Poultry, Labour, and Fleet/Machinery) pulling together feed, medicine, labour, and fixed costs per enterprise to show cost per litre, per head, or per bird, alongside a Season Reports profitability rollup with prorated rent and overhead allocation across enterprises",
-          "Delivery-linked input costing — link feed, fertiliser, and input deliveries directly to the enterprise or field they were used on, so actual delivered cost (not list price) flows straight into the enterprise cost-of-production reports and gross margin figures",
-          "Grain position — harvested vs moved vs in store",
-          "Agri-environment & subsidy income summary; year-on-year comparison across up to 5 seasons",
-          "Asset register with straight-line depreciation",
-          "Mobile capture — grain sales, livestock sales, milk statements and direct farm gate sales recorded offline and synced automatically",
-        ],
-      },
-      {
-        title: "Weather Tracking",
-        icon: CloudRain,
-        color: "bg-sky-50 text-sky-600 border-sky-100",
-        badge: "module",
-        features: [
-          "Weather station register — register named stations (farm base, vehicle-mounted, remote field sensor) and link readings to each",
-          "Vehicle weather device register — register named vehicle-mounted and portable weather devices (manufacturer, model, serial number, installation type) and link each vehicle reading to the specific calibrated instrument that captured it; serial number stored as the key for future cloud API integration with Davis WeatherLink, Pessl iMETOS, and similar platforms",
-          "Calibration tracking — last calibration date and calibration due date per device with colour-coded status badges (OK / Due soon / Overdue) and a prominent amber alert banner on the Device Register tab when any device is within 30 days of its due date or already overdue",
-          "Fetch Live — click the Fetch Live button in the Add Weather Reading dialog to auto-fill temperature, wind speed, humidity, and precipitation from the current conditions at your farm's GPS coordinates; powered by Open-Meteo, a free open-data weather service; no API key or subscription required",
-          "Manual reading entry — log temperature (°C), rainfall (mm), wind speed, wind direction, humidity, and pressure for any date and time",
-          "Vehicle station readings — link vehicle weather readings to both a vehicle from the Equipment Register (auto-populates registration) and a device from the Device Register (auto-populates serial number) for a complete chain of custody from instrument to record",
-          "Spray-record auto-link — weather readings are associated with spray applications logged on the same date for a complete application audit trail",
-          "Historical charting — view temperature, rainfall, and wind trends over selectable date ranges",
-          "Print device register — print a formatted device register from the Device Register tab for inclusion in audit packs or calibration management records",
-        ],
-      },
-      {
-        title: "Platform Add-ons",
-        icon: Zap,
-        color: "bg-indigo-50 text-indigo-700 border-indigo-100",
-        badge: "module",
-        features: [
-          "SMS Text Alerts — receive critical compliance alerts by text message; unnotified livestock movements, expired staff certificates, water quality failures, overdue inspections, medicine withdrawal periods ending within three days (cattle, sheep, goats, deer, and pigs), upcoming key dates, and farm shop out-of-stock events delivered instantly to any UK mobile number",
-          "Push notifications — staff receive an instant push notification on their mobile app device when a task is assigned to them; tapping the notification opens the Task Inbox directly; delivered alongside the SMS so workers are alerted even if they do not have the app open",
-          "Permanent advisor accounts — give agronomists, vets, and FACTS advisers their own login with access scoped to only the modules you choose",
-          "Time-limited inspection sessions — generate a secure, expiring link for Red Tractor certification body assessors to view your records during an audit visit",
-          "21-module scope selector — share only what you choose; advisors and inspectors cannot access any module not explicitly granted",
-          "Full access log with timestamp and accessor name for every advisor or inspector login",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Sales & Trading",
-    description: "Complete grain and crop storage management, forward-to-store traceability, and farm contracting records — all linked to your compliance trail.",
-    modules: [
-      {
-        title: "Grain & Crop Storage",
-        icon: Warehouse,
-        color: "bg-amber-50 text-amber-700 border-amber-100",
-        badge: "module",
-        features: [
-          "Storage location register — create grain stores, silos, general stores, ambient warehouses, cold stores, chemical stores, fertiliser stores, and merchant / elevator positions in a single register; each location carries type, commodity, variety, maximum capacity, and GPS coordinates",
-          "Stock movements — record every intake, dispatch, on-farm transfer (in and out), sample withdrawal, drying loss, and manual adjustment against any storage location; quantity captured in tonnes to 3 decimal places for accurate tonnage accounting",
-          "Running balance — total In, total Out, and current Balance summary cards update in real time as movements are added or removed; visible at a glance without any manual calculation",
-          "Year filter — movements can be filtered to any crop year or viewed across all years; available years are derived automatically from your data and default to the current year",
-          "Record drill-down linking — every stock movement can be linked directly to a source haulage record, grain sale, or harvest record; the movement table shows a clickable reference chip for any linked record, and opening it displays the full details of the linked document (ticket number, date, tonnage, buyer, field, crop, grade and more) without leaving the page",
-          "Merchant storage charges — log periodic storage, drying, cleaning, and handling charges from merchant-held grain positions; year filter, month-by-month table, and total footer with period-aware sum",
-          "Full CRUD with soft-delete protection — movements and charges can be edited or deleted; location records themselves are never hard-deleted, preserving all stock movement history for audit purposes",
-          "QR code label — each storage location can display a unique QR code label for rapid mobile scanning and stock-take identification",
-          "Crop Stock Stocktakes — initiate a periodic physical count from the Stocktakes tab; select the storage bin or location, enter the physical quantity in tonnes, and choose a measurement method (probe measurement, auger sample, weighbridge, or visual estimate); the system quantity auto-fills from the running stock balance so the variance is calculated immediately with a colour-coded badge (green = zero, amber = surplus, red = shortfall); record who conducted the count, the date, and any notes; completing the stocktake writes a permanent audit entry — satisfying the periodic stock verification requirements of combinable crops assurance schemes; records captured on the dashboard or via the mobile app with offline-first sync",
-        ],
-      },
-      {
-        title: "Farm Services & Contracting",
-        icon: Wrench,
-        color: "bg-cyan-50 text-cyan-700 border-cyan-100",
-        badge: "module",
-        features: [
-          "Summary stats — every Farm Services tab (Agreements, Equipment Hire, Grain Intake, Work Orders, Invoices) opens with a 4-card summary bar showing live totals, values, and status counts at a glance before scrolling into records",
-          "Service register — define the contracting and hire services your farm offers: combine harvesting, straw baling, ploughing, drilling, spraying, silage, hedge cutting, equipment hire, and any other custom service type",
-          "Customer directory — maintain a directory of the farms, estates, and landowners you provide services to; records are soft-deleted (inactive flag) so all historic job records are retained permanently when a customer relationship ends",
-          "Service agreements — log standing agreements with customers including agreed service types, rates, and terms; Agreements tab summary cards show total active agreements, value committed, and agreements expiring within 90 days",
-          "Service jobs & bookings — log every job with customer, service type, scheduled date, completed date, area or hours, rate and total value; status workflow tracks booked, in-progress, and completed jobs",
-          "Grain Intake — record third-party grain deliveries accepted on behalf of customers with weighbridge ticket, crop type, variety, moisture, grade, load count, and intake value; summary stats show total loads, total tonnes, average moisture, and intake value for the filtered period",
-          "Work Orders — every work order is a named task assignment; raise one directly from the Work Orders tab (auto-generated WO- reference, assigned staff member required, customer linkable, scheduled date and estimated hours optional) or attach one to any new service invoice via the Schedule a Work Order panel; the assigned staff member receives an SMS notification and the work order appears in their Task Board card list and on the Week Ahead planner on the scheduled date; Work Orders tab summary cards show total open, in-progress, and completed counts with estimated hours outstanding",
-          "Raise Invoice from Work Order — when creating a service invoice, toggling the Schedule a Work Order panel on automatically links the resulting work order to that invoice for full billing traceability; the invoice reference is stored against the work order record so managers can track from job completion to payment in one view; Invoices tab summary cards show total invoiced value, amount outstanding, and count by payment status",
-          "Equipment Hire — track hire-out of individual machines with auto-generated HIRE-YYYY-NNNN booking reference, customer, operator (selected from your Staff register), machine, start and end dates, agreed daily or hourly rate, deposit received date, and return condition; insurance verification flag warns when a booking falls outside your public liability or employer liability policy period",
-          "Equipment Hire — Job Reference & Linked Field — optionally enter a free-text Job / Operation Reference (e.g. 'August combining — South Block') shared across all machine bookings for the same operation, plus a Linked Field dropdown populated from your registered fields; the job reference appears as a subtitle under the booking reference in the hire list and in the booking overview panel, making it immediately clear which machines are working the same job without opening each booking individually",
-          "Equipment Hire summary cards — live counts for active hires today, hires this month, total hire value this month, and insurance warnings requiring attention",
-          "Revenue summary — view total contracting income by service type and customer, filterable by date range; supports gross margin analysis alongside your own farm input costs",
-          "Insurance cross-reference — farm services activities are linked to the insurance register so your public liability and employer liability cover is flagged when jobs are booked outside the policy period",
-        ],
-      },
-    ],
-  },
-  {
-    title: "Specialist Enterprises",
-    description: "Dedicated modules for specialist production systems with their own scheme requirements.",
-    modules: [
-      {
-        title: "Sheep Production",
-        icon: Leaf,
-        color: "bg-green-50 text-green-700 border-green-100",
-        badge: "module",
-        features: [
-          "Flock register — sheep flocks are registered and managed centrally in Livestock → Herds & Animals (the single herd and flock register); the Sheep Production module links every tupping, scanning, lambing, weigh-in, and shearing record to the relevant flock from that register",
-          "Tupping records — log each ram-to-ewe service event with ram ID and breed, flock group, date put to, date removed, and expected scanning date; multiple tupping rounds per flock per season; links to flock fertility analytics",
-          "Pregnancy scanning — record scanning results per ewe or group with scanner name, scanning date, singles, twins, triplets, quads, and empties; scanning summary calculates pregnancy rate and expected litter distribution for lambing planning",
-          "Weigh-in & DLWG — record group or individual weigh-in events with date, average weight per group, individual weights, and calculated daily live weight gain vs target; performance data feeds Red Tractor Sheep Assurance performance records",
-          "Shearing records — log shearing events with date, contractor name and contact, fleece weight per group, and wool merchant / buyer details for BWMB (British Wool Marketing Board) traceability",
-          "Sheep health plans — record annual vet-signed health plans with review date tracking; plan details include key health risks, parasite control strategy (SCOPS-aligned), vaccination programmes, and five-year soil history",
-          "Vaccination programmes — record all flock vaccination events with programme name, vaccine product (preset list includes Gudair / Ovilis Gudair for Johne's Disease / Paratuberculosis, plus Heptavac P Plus, Covexin 8, Ovivac P Plus, Footvax, Toxovax, Ovilis Enzovax, and others), disease targeted (Johne's Disease / Paratuberculosis, Clostridial disease, Pasteurellosis, EAE, Toxoplasmosis, Footrot, Louping ill, and more), batch number, expiry date, vaccination date, booster due date, number of animals vaccinated, dose (ml), administration route, withdrawal period (days), vet prescription flag, and document attachment; year filter and printable compliance report; note: Gudair is the only UK-licensed Johne's vaccine for sheep (cattle vaccination is not available in the UK due to cross-reactivity with the bovine TB skin test)",
-          "Red Tractor Sheep Assurance checklist — structured pre-inspection self-assessment covering identification, movements, medicines, health plans, welfare, feed and water, and fleece management; colour-coded compliance status per section",
-          "Disease monitoring — log disease observations per flock with a Reportable Disease flag; when a reportable disease is suspected the record displays a red APHA advisory reminding you to contact APHA immediately on 03000 200 301, and a Raise APHA Task button pre-fills a task with the disease name and date; supports rapid triage between routine health observations and mandatory APHA notification obligations",
-          "Mobile capture — tupping, scanning, weigh-in, shearing, and health plan entries all available in the mobile app for in-field and in-shed recording; saves offline and syncs automatically when connectivity is restored",
-          "Year filter on all recording tabs — filter tupping, scanning, weigh-in, shearing, and disease monitoring records by year; defaults to current year for quick access to the active season",
-          "Document attachment on record rows — a compact attach/view button on every row across all recording tabs lets you upload and retrieve PDFs, photos, or Word documents (vet certificates, scan certificates, contractor invoices, fleece weight records) directly from the table",
-        ],
-      },
-      {
-        title: "Goat Production",
-        icon: Leaf,
-        color: "bg-emerald-50 text-emerald-700 border-emerald-100",
-        badge: "module",
-        features: [
-          "Herd register — goat herds are registered and managed centrally in Livestock → Herds & Animals (the single herd register); the Goat Production module links every mating, scanning, weigh-in, cull, and health record to the relevant herd from that register",
-          "Mating records — log each buck-to-doe service event with buck breed (Boer, Anglo-Nubian, Cashmere, Pygmy, Crossbred and others), ear tag, owner, mating method (natural service, AI with fresh or frozen semen, or embryo transfer), does exposed, expected kidding date, and CIDR / progesterone sponge flag; printable compliance report with 3-year retention reminder",
-          "Pregnancy scanning — record scan results per herd with scanner name, barren count, singles, doubles, and triplets; scanning percentage calculated automatically; expected total kids displayed; printable landscape scanning report",
-          "Weigh-in & DLWG — record group or individual weigh-in events with animal category (Kids, Weanlings, Yearlings, Does, Bucks), batch reference, average / lightest / heaviest weights, target weight, DLWG (g/day) auto-calculated and colour-coded against target, and BCS (Body Condition Score); Raise Task from any weigh-in record when performance falls below target",
-          "Cull & market records — log each market or slaughter exit with destination CPH, number of head, sale date, liveweight, deadweight, kill-out percentage, EUROP conformation grade, sale value, and reason for cull; summary header shows total head and total value across the filtered record set",
-          "Vaccination programmes — vaccination category preset list includes Johne's Disease — Paratuberculosis (Gudair), CAE prevention, Clostridial diseases, Pasteurella / pneumonia, Enterotoxaemia, Foot rot (Footvax), Caseous Lymphadenitis (CLA), E. coli (neonatal), and Orf; record product name, batch / lot number, vaccination date, number of animals, dose (ml), administration route, withdrawal period (days), vet prescription flag, and next due date; note: Gudair (Ovilis Gudair) is the only UK-licensed Johne's vaccine and is available for goats and sheep only — cattle vaccination is not available in the UK due to cross-reactivity with the bovine TB skin test; printable compliance document for assurance scheme audits",
-          "Disease monitoring — structured surveillance log for CAE (Caprine Arthritis Encephalitis), CLA (Caseous Lymphadenitis), Johne's Disease, foot rot, cryptosporidiosis, toxoplasmosis, chlamydiosis, mycoplasma, and faecal egg count; records testing body, samples, positive / negative results, status (Clear / Positive / Inconclusive), actions taken, and next test due date; CAE records support CAE Accreditation Scheme documentation requirements",
-          "Analytics tab — KPI cards (mating records, avg scanning %, avg DLWG, total cull head), Kid Type Distribution pie chart aggregated across all scanning events, DLWG by Batch bar chart, Cull & Market Summary (records / head / total value), and Mating Summary (cycles / does exposed / buck breeds used)",
-          "Mobile capture — mating, scanning, weigh-in, cull, vaccination, and disease monitoring all available in the mobile app for in-field and in-shed recording; saves offline and syncs automatically when connectivity is restored",
-          "Year filter on all recording tabs — filter mating, scanning, weigh-in, cull, vaccination, and disease monitoring records by year; defaults to current year",
-          "Document attachment on record rows — compact attach/view button on every row across all recording tabs for PDFs, photos, or Word documents (vet reports, lab results, contractor invoices)",
-        ],
-      },
-      {
-        title: "Venison Production",
-        icon: Crosshair,
-        color: "bg-green-50 text-green-700 border-green-100",
-        badge: "module",
-        features: [
-          "Deer herds are registered and managed centrally in Livestock → Herds & Animals (the single herd register); the Venison Production module links every cull record, carcass sale, population survey, health event, and firearms certificate to the relevant deer herd from that register",
-          "Stalking & cull records — log each cull event with cull date, stalker name, species (Red, Roe, Fallow, Sika, Muntjac, Chinese Water Deer, Reindeer), sex (Stag/Hind/Buck/Doe/Calf/Fawn), age class (Calf/Fawn, Yearling, Adult), location/beat, larder number, carcass number, liveweight (kg), gralloch weight (kg), carcass weight (kg), kill-out percentage, cull method (rifle/driven/trap), cull reason (population management, damage control, welfare, sporting, licensed emergency), food safety inspection result (Passed/Conditionally Passed/Failed/Not inspected), and notifiable disease suspect flag with APHA advisory banner on 03000 200 301",
-          "Carcass processing & venison sales — record each processing or sale event with facility type (on-farm approved larder, AGHE, licensed GHE, direct on-farm slaughter), species, number of carcasses, carcass numbers, grade/quality (A Premium / B Standard / C Manufacturing), destination type (game dealer, butcher, wholesale, direct consumer, restaurant, export, own consumption), buyer/game dealer name, price per kg (£), total weight (kg), total value (£), invoice reference, and Wild Game Declaration number",
-          "Herd population surveys — log regular population counts with survey method (driven count, thermal imaging, fixed point count, ADE aerial count, thermal drone, camera trap census), species, male/female/young/total counts, male:female ratio, recruitment rate %, observer name, and weather conditions; supports annual deer management plan evidence",
-          "Health records — structured health event log with event type (vaccination, vet visit, bTB SICCT skin test, bTB gamma-interferon blood test, post mortem, worming/parasite treatment, other vet treatment), product name, batch number, number treated, withdrawal period (days), bTB test result (Clear/Standard reactor/Inconclusive reactor), APHA reference, vet name and prescription flag, and notifiable disease suspect flag with APHA advisory; bTB test results display with colour-coded badges (green for Clear, red for reactor)",
-          "Firearms & stalking certificates register — record all Section 1 Firearms Certificates (FC), Section 2 Shotgun Certificates, DSC1 (Deer Stalking Certificate Level 1), DSC2, Scottish Stalking Certificates, Hunter Food Hygiene (WGMI) certificates, and Larder Hygiene certificates per holder; records expiry date, issuing authority, calibre/description, and status; amber warning banner when any certificate expires within 90 days, red banner for expired certificates — ensures all stalkers hold current valid authorisation before entering the field",
-          "Analytics tab — KPI cards (total culls, total carcass weight, total sales value, average herd count from surveys), Cull by Species pie chart, Monthly Cull Trend bar chart (last 12 months), and Venison Sales Summary with record count, total carcasses sold, and total value",
-          "Year filter on all recording tabs — filter cull records, carcass sales, herd population surveys, and health records by year; defaults to current year",
-          "Document attachment on record rows — compact attach/view button on every row in cull, carcass sales, herd survey, and health record tabs for game dealer invoices, Wild Game Declarations, health certificates, and vet reports",
-        ],
-      },
-      {
-        title: "Beef Production",
-        icon: HeartPulse,
-        color: "bg-orange-50 text-orange-700 border-orange-100",
-        badge: "module",
-        features: [
-          "Weigh-in & DLWG records — record group or individual weigh-in events with entry weight, current weight, target weight, and calculated DLWG; colour-coded performance against breed target; links to individual animals from the Animal Register for full ear tag traceability",
-          "Finishing records — log beef finishing groups with entry date, shed/pen assignment, target finish weight, target finish date, starting DLWG, and feed regime; closing entries capture exit weight, actual finish date, DLWG achieved, and final grade assessment for kill sheet reconciliation",
-          "Body condition scoring — record BCS assessments on the 1–5 scale for beef cattle groups or individuals; capture scores at key production stages (housing, pre-calving, pre-service, weaning) with action flags for animals scoring below threshold",
-          "Deadweight settlement recording — log kill data and settlement documents from the abattoir: kill date, slaughter number, cold deadweight, kill-out percentage, EUROP conformation grade, fat class, value per kg DW, and net settlement value; links to cattle movement records for complete animal-to-kill-sheet traceability",
-          "DLWG performance analytics — running DLWG trend per finishing group with target vs actual comparison across the finishing period; flag underperforming groups early for ration or health intervention",
-          "Red Tractor Beef & Lamb readiness — all weigh-in, finishing, and settlement records map directly to the evidence trail required by Red Tractor Beef & Lamb assurance standards including performance monitoring, feed records, and cattle traceability",
-          "Mobile capture — weigh-in and body condition scoring records available in the mobile app for in-yard and in-shed entry; saves offline and syncs automatically when connectivity is restored",
-          "Year filter on all recording tabs — filter weigh-in, finishing, body condition, and deadweight settlement records by year; defaults to current year",
-          "Document attachment on record rows — compact attach/view button on every row for uploading and retrieving settlement sheets, vet certificates, and supporting documentation directly from the table",
-        ],
-      },
-      {
-        title: "Pig Production",
-        icon: Ham,
-        color: "bg-pink-50 text-pink-700 border-pink-100",
-        badge: "module",
-        features: [
-          "Pig herds are registered and managed centrally in Livestock → Herds & Animals (the single herd and flock register); all pig production records link back to the herd from that register",
-          "Farrowing & weaning records — litter size, total born, born alive, stillborn, piglet weights and survival, sow and boar references, weaning date, and average weaning weight",
-          "Stockmanship checks — daily welfare observation log capturing overall welfare rating (Excellent / Good / Satisfactory / Requires Attention / Urgent Action), system checks (water, feed, ventilation, temperature, lighting, bedding), mortalities and injured found, actions required, and observer name; view-before-edit dialog with full RecordAttachments panel for vet reports and photographic welfare evidence",
-          "Tail biting risk assessments — structured risk log with risk level (Low / Medium / High / Critical), current biting flag, interventions taken, review date, and notes; view-before-edit dialog with full RecordAttachments panel",
-          "Feed consumption & FCR records per house — daily feed usage, feed conversion ratio, and delivery reconciliation",
-          "Movements — APHA-compliant movement recording",
-          "Kill records — deadweight settlement and kill sheet recording",
-          "Mortality records — cause, disposal, and APHA reporting",
-          "Veterinary health plan integration",
-          "Red Tractor Pigs scheme readiness checklist",
-          "Salmonella Monitoring — NSMP quarterly blood serology records (number of samples, APHA / approved laboratory, Category 1 / 2 / 3 result, seroprevalence %, submission reference, and corrective actions; Category 3 results trigger a compliance alert and Week Ahead Planner action plan prompt)",
-          "Vaccination Programme — record all herd vaccinations by disease category (PRRS, PCV2, Enzootic Pneumonia / MH, Erysipelas/PPV, E. coli/Clostridial, APP, Swine Influenza, PED); licensed UK vaccine presets per category (Ingelvac PRRS MLV, Porcilis PRRS, Ingelvac CircoFLEX, Circovac, Ingelvac M.hyo. IDAL, Eryseng Parvo, Porcilis APP, Respiporc FluCombi, and more); batch number, expiry date, age group treated, dose volume, administration route, withdrawal period, vet-prescribed flag, next due date, and document attachment; upcoming and overdue booster alert panel",
-          "Disease Monitoring Register — record PRRS, Enzootic Pneumonia (MH), Aujeszky's Disease, APP, Swine Influenza, PRDC, and general serology surveillance events; supports AHDB PRRS Accreditation, AHDB MH Accreditation, and APHA AD-Free scheme documentation; fields for accreditation scheme, scheme reference, testing body, sample count, positive/negative results, herd status (Negative / Positive-Stable / Positive-Unstable / AD-Free / Inconclusive), next test due date, and document attachment",
-          "PRRS &amp; MH source herd status on Isolation Register — when recording incoming pig arrivals on the Isolation Register, record the source herd's PRRS status (Negative / Positive-Stable / Positive-Unstable / Unknown) and MH status (Negative / Positive-Stable / Positive / Unknown) with free-text biosecurity notes; colour-coded badges displayed on each isolation record for audit trail supporting AHDB PRRS and MH accreditation biosecurity requirements",
-          "Year filter on all recording tabs — filter stockmanship checks, tail biting records, feed records, movements, kill records, and Salmonella monitoring by year; defaults to current year",
-          "Document attachment on record rows — compact attach/view button on every row across all recording tabs; view dialogs on Stockmanship Checks and Tail Biting Assessments include a full RecordAttachments panel for vet reports, photographic evidence, and action documentation",
-          "Mobile app — Pig Vaccination Record screen: select herd, choose disease category (PRRS, PCV2, Enzootic Pneumonia/MH, Erysipelas/PPV, E. coli/Clostridial, APP, Swine Influenza, PED), pick a licensed UK vaccine preset for that category, enter batch number, expiry date, age group treated, number treated, dose volume, administration route, withdrawal period (with amber warning banner), next due date, administered-by name, and vet-prescribed toggle; saves offline and syncs to Pig Production → Vaccination on reconnection",
-        ],
-      },
-      {
-        title: "Poultry Production",
-        icon: Bird,
-        color: "bg-amber-50 text-amber-700 border-amber-100",
-        badge: "module",
-        features: [
-          "Flock register — poultry flocks (broiler, layer, turkey, duck, and speciality species) are registered centrally in Livestock → Herds & Animals; flocks are selected from that register when recording placements, depletions, mortality, and production records",
-          "Placement & depletion records with hatchery traceability",
-          "Daily mortality log — cumulative count, cause analysis, year filter, and year-by-year trend table",
-          "Breed / strain mortality breakdown — compare peak mortality % and total losses across Ross 308, Cobb 500, slower-growing breeds and others",
-          "Hatchery / supplier mortality breakdown — compare chick quality across suppliers by mortality rate and total losses per crop",
-          "Feed & water consumption per herd / pen or house",
-          "Egg production records — lay rate, grading and packing",
-          "Medicine & vaccine records with batch numbers",
-          "Biosecurity checklist with down-time between placements",
-          "House cleanout records — farm staff or contractor, DEFRA-approved disinfectant with approval number and dilution rate, multi-product stock consumption tracking, cost and invoice reference, photo evidence attachments, and swab testing results; when swabs are recorded as taken the record displays an amber food safety advisory: do not restock until negative swab results have been received and confirmed by your vet or Salmonella NCP co-ordinator",
-          "Environmental alarm advisory — when an alarm-activated event is logged in the Environmental Log, an amber advisory is shown on the record reminding you to investigate the cause before the next flush cycle and document corrective action taken; applies to ventilation, temperature, and gas alarms and is shown on both the dashboard and the mobile app",
-          "Red Tractor Poultry & Lion Quality scheme records",
-          "Chick Purchases tab — log each chick placement batch with hatchery, supplier, breed/strain, quantity, cost, and delivery reference; year filter and full RecordAttachments panel in the view dialog for hatchery certificates and delivery documentation",
-          "Thinning Records tab — log each partial depletion event with date, flock, numbers thinned, average weight, reason, and destination; year filter and compact document attachment on every row",
-          "Campylobacter Monitoring print report — formatted A4 landscape compliance report covering all NCP monitoring records for the selected year, suitable for Red Tractor Poultry assessor presentation",
-          "Year filter on Chick Purchases, Thinning Records, and Campylobacter Monitoring tabs — defaults to current year; select previous years to review historical NCP and placement compliance data",
-          "Document attachment and RecordAttachments — compact attach/view button on Thinning Records and Campylobacter Monitoring rows; full RecordAttachments panel in Chick Purchases and Campylobacter Monitoring view dialogs for lab reports, NCP correspondence, and biosecurity evidence",
-          "Chick / Poult Quality Assessment at Placement — structured quality assessment record logged at each placement; captures assessment date, assessor name, overall quality score (excellent / good / acceptable / poor / fail), uniformity (%), cull count and cull % at placement, arrival temperature (°C), hatchery-notified flag, and notes; quality records are linked to the flock for trend review across crops; assessments are printable and satisfy the Red Tractor Poultry requirement to document chick quality and hatchery feedback at every placement",
-          "Vaccination Programme — record all flock vaccinations by disease category (Newcastle Disease, Infectious Bronchitis, Marek's Disease, Gumboro/IBD, Avian Metapneumovirus/TRT, ILT, EDS, AE/Fowl Typhoid, Salmonella, Mycoplasma/MG, Fowl Pox, Other); licensed UK vaccine presets per category (Nobilis ND Clone 30, Avinew, Nobilis IB Ma5, Nobilis IB 4-91, Nobilis Rismavac, Nobilis Gumboro D78, Nobilis TRT, Nobilis SalENT, AviPro Salmonella Vac E, and more); batch number, expiry date, age group treated (Broilers, Layers, Breeders, Pullets, Day-old chicks), dose volume, administration route (Drinking water, Eye drop, Spray, Injection, Wing web/stab, In ovo), withdrawal period, vet-prescribed flag, next due date, and document attachment; upcoming and overdue booster alert panel",
-          "Disease Monitoring Register — record Avian Influenza surveillance, Marek's Disease monitoring, Newcastle Disease serology, Mycoplasma gallisepticum (MG) surveillance, Infectious Bronchitis typing, Avian Rhinotracheitis (ART) surveillance, Salmonella serology, and general antibody profiling events; flock status badges (Negative/Clear, Low Positive, Positive, Inconclusive, Pending); AI risk level classification (Low, Medium, High) for AI surveillance records; next test due date and document attachment per record",
-          "Marek's Disease &amp; Salmonella NCP source flock status on Isolation Register — when recording incoming poultry on the Isolation Register, record the source flock/hatchery Marek's vaccination status (Vaccinated, Not vaccinated, Unknown) and the source flock's most recent Salmonella NCP category (Category 1 / Category 2 / Category 3 / Not tested / Unknown) with free-text notes; colour-coded badges on the isolation record support Red Tractor Poultry and BEIC biosecurity audit trail requirements",
-          "Mobile app — Poultry Vaccination Record screen: select flock using the flock picker, choose disease category (Newcastle Disease, Infectious Bronchitis, Marek's Disease, Gumboro/IBD, aMPV/TRT, ILT, EDS, AE/Fowl Typhoid, Salmonella, Mycoplasma/MG, Fowl Pox, Other), pick a licensed UK vaccine preset for that category, enter batch number, expiry date, age group (Day-old chicks, Broilers, Pullets, Layers, Breeders, Turkeys, All birds), number treated, dose volume, administration route (Drinking water, Eye drop, Spray, Injection, Wing web/stab, In ovo), withdrawal period (with amber warning banner), next due date, administered-by name, and vet-prescribed toggle; saves offline and syncs to Poultry Production → Vaccination on reconnection",
-          "Inter-Site Transfers tab — record movements of birds between holdings you own or manage (distinct from FCI slaughter movements); captures destination farm name, destination CPH, transfer date, quantity transferred, reason (Relocation, Contract rearing, Flock splitting, Site consolidation, Other), optional flock linkage, transport company, vehicle registration, driver name, and estimated journey duration; full add/edit/delete with table view; mobile Inter-Site Transfer screen saves offline and syncs automatically",
-          "Transport Welfare Documentation tab — log welfare records for every poultry journey in compliance with UK Welfare of Animals During Transport (WATD) legislation; captures journey date, purpose (To Slaughter, Inter-Site, Hatchery Collection, Other), vehicle registration, driver, transporter authorisation number, start/end times, journey distance (km), stocking density (birds/m²), three welfare condition flags (temperature adequate, water provision, ventilation adequate), birds dead on arrival, and overall welfare assessment (Satisfactory / Unsatisfactory / Not Assessed); journeys over 65 km are flagged with a WATD badge — transporter authorisation number required at this threshold; welfare assessment displayed as colour-coded badge; required for Red Tractor Poultry, RSPCA Assured, and organic audits; mobile Transport Welfare Log screen shows amber warning automatically when distance exceeds 65 km; saves offline and syncs",
-          "HPAI Zone Alerting banner — two-layer Avian Influenza alerting: platform-level alerts (set by BDE administrators for national or regional HPAI declarations) appear as a colour-coded banner (red for National, orange for Regional, amber for Advisory) at the top of Poultry Production for all subscribers showing alert level, message, and issue date; farm-level zone status (Protection Zone, Surveillance Zone, Temporary Control Zone, or None) is set per farm and displays an orange zone banner with applied date and inline update button; Organic 16-week Housing Clock activates when a Housing Required Since date is entered — counts days since mandatory housing order, turns amber at 98 days and red at 112 days (16-week UK Organic Regulations 2020 limit) with a prompt to contact the certifying body; banner renders only when there is something to show and disappears automatically when all alerts are cleared",
-          "Flock placement delivery fields — extended placement record captures organic certification details at arrival: supplier certificate number, delivery vehicle registration, organic certification status (Certified Organic, Approved Non-Organic, or Conventional Derogation), derogation period start and end dates, and certifying body; supports organic poultry audit trail from day of placement",
-        ],
-      },
-      {
-        title: "Horticulture & Fresh Produce",
-        icon: Flower2,
-        color: "bg-green-50 text-green-700 border-green-100",
-        badge: "module",
-        features: [
-          "Crop & variety register with field / block assignment, growing method, target yield, status and notes",
-          "Planting source & nursery traceability — Planting Method selector (Direct Seed, Seedling (own propagation), Plug Plant (nursery), Bare Root Cane, Crown / Rootstock, Sapling); nursery supplier and batch/delivery reference for nursery-sourced stock; seed supplier, lot number, and treated status for direct-seeded crops; quantity planted per crop record; context-sensitive form hides irrelevant fields automatically; printable Crop Establishment Register",
-          "Planting, transplanting & harvesting activity records — log planting density, area, rows/beds, operator, weather and GPS location; harvest weight capture alongside full harvest grade and pack-out records",
-          "Spray & irrigation records — operator, product and dose",
-          "Harvest grade & quality records — packed weights and rejection rates",
-          "Mobile Intake QC — log incoming produce condition on arrival (Good / Acceptable / Poor / Rejected), intake temperature, target storage temperature, pre-cooling start and end times, harvest batch reference, and inspector name from the mobile app; alert prompt for Poor or Rejected produce; syncs to dashboard automatically",
-          "Cold store temperature logs",
-          "Allergen & traceability chain records",
-          "Red Tractor Fresh Produce, LEAF and GlobalG.A.P. readiness",
-          "Assured Produce / BRCGS-ready audit evidence trail",
-        ],
-      },
-      {
-        title: "Viticulture",
-        icon: Grape,
-        color: "bg-purple-50 text-purple-700 border-purple-100",
-        badge: "module",
-        features: [
-          "Vine register — record each vine variety with UK variety Select (24 varieties incl. Bacchus, Pinot Noir, Pinot Gris, Rondo, Solaris, Chardonnay, Sauvignon Blanc and more), UK rootstock Select (14 rootstocks incl. SO4, 5C Teleki, 3309 Couderc, Gravesac, 41B), vine count, plant spacing, date planted, GI classification (English Wine PDO, English Wine PGI, Welsh Wine PDO, Welsh Wine PGI, UK Table Wine, No GI), wine colour (White / Rosé / Red / Sparkling base), and removal status with removal date and reason; view-before-edit dialogs on all entries",
-          "Vineyard block management — each block is a permanent geographic site (block name, reference, aspect, slope, soil type, organic status, BPS/SFI parcel reference); individual plantings carry their own lifecycle — Active, Suspended (temporarily out of production), or Removed (grubbed up); the block view shows the current active planting with full variety, rootstock, spacing, vine count, and training system detail alongside a complete planting history so no vintage's data is ever lost; retire a planting to capture who deactivated it, the reason type (temporary suspension, grubbed up, replanting, other), and full audit notes; replant a block to create a new planting generation linked to the site's history; every data tab (phenology, operations, harvest, scouting) automatically links to the active planting by block",
-          "BBCH phenology records — log 23 standard BBCH growth stages (dormancy through to harvest ripeness, 00–97) with percentage reached at time of observation, date, block, observer name (auto-filled from logged-in user), and temperature; export all phenology records to CSV for season-by-season comparison",
-          "Canopy & pruning operations — record operation type (Winter Pruning, Spur Pruning, Guyot Pruning, Cane Renewal, Shoot Positioning, Leaf Removal, Green Harvest, Mechanical Harvest, Hand Harvest and more), date, block, pruning system, target and actual buds per vine, pruning weight (kg/vine), shoots removed percentage, leaves removed zone, machine used, operator (auto-filled), contractor, and hours worked",
-          "Harvest records — log vintage harvest events per block with total yield (kg), yield per vine (kg/vine), yield per hectare (t/ha), Brix degrees, pH, titratable acidity (g/L), potential alcohol percentage, botrytis present flag with affected percentage, harvest destination type (Own Holding / Own Processing, Contract Processor / Contract Winery, or Grape Sale) with a linked Trade Contact picker for processor and sale records, and operator name (auto-filled); when botrytis is recorded an amber advisory prompts winemaker review before processing; a Raise Task dialog opens automatically after saving if grape condition is Poor or botrytis exceeds 30%; export to CSV for winery submission",
-          "Disease & pest scouting — walkabout scouting records with pressure ratings (0 None → 3 High) for Downy Mildew, Powdery Mildew, Botrytis, and Phomopsis; Leafhopper and Spider Mite pressure; Vine Weevil sighted flag; Eutypa Dieback sighted flag; Xylella fastidiosa and Phytophthora viticola notifiable organism flags (mandatory APHA alert — 0300 1000 313); action taken notes and next scout date; saving a record with Medium or High pressure, a Vine Weevil sighting, a notifiable organism flag, or Eutypa dieback automatically raises in-app notifications (critical with SMS for Xylella, Phytophthora, Vine Weevil, and High disease pressure; warning for Medium pressure, Eutypa, and elevated pest levels); on the web dashboard, the Raise Task dialog opens automatically after saving a concerning record so you can assign a spray-review or investigation task immediately",
-          "Bundled module access — Viticulture and Organic Viticulture subscribers automatically receive access to Sprays & Inputs, Health, Safety & Risk (COSHH), Staff & Training, Equipment & Vehicle Management, and Trade Contacts & Stock at no extra charge, reflecting the legal compliance requirements of commercial vineyard operations (COSHH assessments for every pesticide product, PA1/PA6W operator certificates, NSTS sprayer testing, agrochemical supplier records)",
-          "Per-section Raise Task buttons — contextual task assignment from any view dialog (vine register, block, phenology, operation, harvest, or scouting record) with the record details pre-populated in the task title and description",
-          "CSV export on every tab — all seven data tabs (vine register, vineyard blocks, block plantings, phenology, operations, harvest, scouting) have an Export CSV button; cells are sanitised for Excel compatibility with UTF-8 BOM",
-          "Staff auto-fill — Observer (phenology), Operator (operations, harvest), and Scouted By (disease scouting) fields pre-populate from the logged-in user's name on every new record form",
-          "Mobile app — 9 dedicated viticulture and winery screens: 4 vineyard screens each with an active block picker (fetches your registered blocks, shows active blocks in green, suspended blocks in amber, falls back to manual text entry when offline or no blocks registered) — Vine Scouting (tap-to-set pressure pickers per disease/pest, notifiable organism alert flow, raise task on high pressure), Vine Phenology (BBCH stage picker with season filter tabs), Vine Operation (operation type grouped by season/canopy, pruning sub-form with bud counts), Vine Harvest (yield, must chemistry, grape condition chips, botrytis flow, raise task on poor condition); 5 winery production screens — Winery Reception (grape intake log with source block, tonnage, Brix, pH, TA, variety, and botrytis status), Winery Pressing (press run records with press type, juice volume, free-run and press-run fractions), Winery Fermentation (fermentation log with vessel, yeast strain, must volume, inoculation date, and gravity/temperature/pH readings), Winery Cellar Ops (cellar operation log for racking, fining, filtering, blending, and vessel transfers), and Winery SO₂ Testing (analytical SO₂ measurement log with free, bound, and total SO₂ readings and automatic UK limit compliance check); all 9 screens save offline and sync to the winery management module on reconnect",
-          "Winery Licensing — premises and personal licence register: licence type, licensing authority, licence reference number, issue date, expiry date, Designated Premises Supervisor (DPS) name, and status (Active, Suspended, Expired, Revoked); expired licence chip flags lapsed licences at a glance",
-          "Excise & Duty Returns — HMRC wine duty return register: return period (start and end date), total wine volume (litres), duty rate (£/litre), duty due (£), submission date, payment status (Draft, Submitted, Paid, Overdue), HMRC reference number, and notes; Overdue chip on any unpaid return past its due date",
-          "Tastings & Tours — cellar door and tasting room event log: session date, session type (Public Tasting, Trade Tasting, Private Tasting, Vineyard Tour), number of attendees, ticket or cover price (£), total session revenue (£), DPS present flag, operator name (auto-filled from logged-in user), and notes; revenue totals support HMRC licensing condition reporting",
-          "Age Verification (Challenge 25) — ID check register for on-site wine sales and tasting events: check date, operator name, location (cellar door, tasting room, farm shop, event), outcome (Passed — over 18, Refused — under 18, Inconclusive), ID type presented, and action taken; provides an auditable Challenge 25 compliance record for licensing authority inspections",
-          "Wine Production — SO₂ compliance and additive register per vintage: vintage year, wine colour, production volume (litres), certified organic status and certifier reference, additive name, additive type (Sulphites / SO₂, Fining Agent, Stabiliser, Acidifier, Preservative, Other), quantity used and unit, maximum permitted level, actual SO₂ (mg/L), maximum SO₂ permitted (mg/L), SO₂ compliant flag, and regulatory basis; Compliant / Exceeds Limit chip on each record; tab shared with Organic Viticulture so organic and conventional records are maintained in one register",
-          "Winery Stock — consumable ledger for winery-specific inputs: add items by category (Bottles, Corks & Stoppers, Capsules & Closures, Labels, Barrels & Oak, Fining Agents, SO₂ & Preservatives, Yeast & Nutrients, Packaging & Cases, Other) with configurable unit and optional low-stock alert threshold; record movements as Delivery / Received, Used in Production, Write-off / Wastage, Stocktake (Actual Count — system auto-computes the balance delta from current running total), or Manual Adjustment; running balance per item updated after every movement; amber low-stock badge and row highlight when balance reaches or falls below the alert threshold; full movement history dialog with running balance column per entry; tab shared with Organic Viticulture so items and movements are visible from both pages",
-          "Winery Management — 8-tab dedicated production record section covering the full journey from grape intake through to bottling: Harvest Reception (grape intake records per source block with variety, tonnage, must volume, Brix, pH, titratable acidity, botrytis status at intake, and origin — links to the vineyard harvest record for end-to-end traceability); Pressing (press run records with press type, cycle, free-run volume, press-run volume, total juice volume, turbidity, and press programme notes); Fermentation (fermentation vessel logs with yeast strain and inoculation date, daily gravity/temperature/pH reading series, fermentation duration, stuck fermentation flag, and nutrient addition log); Vessel Register (tank and barrel register with vessel ID, type — stainless steel tank, oak barrel, amphora, other — capacity in litres, material, current contents vintage and wine type, fill level, and status — In Use, Empty, Cleaning, Maintenance, Decommissioned); Cellar Operations (cellar op log covering racking, fining, filtering, blending, SO₂ addition, barrel topping, and vessel transfers — each record captures source vessel, destination vessel, volume, operator, date, and notes); Bottling (bottling run records with bottling date, wine vintage and type, volume bottled, bottle size, bottle type, closure type — cork, DIAM, screwcap, crown cap — label batch, and operator); SO₂ Testing (analytical SO₂ measurement log per vessel with sample date, vessel, vintage, wine colour, free SO₂ mg/L, bound SO₂ mg/L, total SO₂ mg/L, measurement method — Ripper titration, aeration-oxidation, or enzymatic — and automatic compliance check against UK-retained limits: 150 mg/L conventional white/rosé, 100 mg/L conventional red; 150 mg/L organic white/rosé, 100 mg/L organic red — with a Compliant / Exceeds Limit chip on every record); Equipment Register (winery-specific equipment log — presses, tanks, pumps, filters, chillers, and bottling lines — with asset name, type, serial number, manufacturer, purchase date, service interval, last service date, next service due, and status; amber alert when next service is within 30 days or overdue)",
-          "GI Compliance (PDO / PGI) — four sub-tabs covering UK wine geographical indication obligations: Designations (register PDO and PGI designations with APHA reference, competent authority, region, approved grape variety list, and maximum yield threshold in kg/ha); Block Compliance (automated cross-reference of vine register, harvest records, and designation rules — variety approval check against the designation's approved list with green tick or red cross, and yield vs threshold check with exact exceedance figures); Certifications (per-vintage APHA assessment records: assessment type — Analytical / Organoleptic / Both, result badges — Passed / Failed / Pending / Withdrawn, certificate number, issue and expiry dates, expiry urgency alerts at 90 days and on expiry); Harvest Declarations (per-vintage yield declarations with 'Populate from Harvest Data' auto-fill from harvest records — sums yield and area by vintage and designation, calculates kg/ha, and flags compliance against the designation's maximum)",
-        ],
-      },
-      {
-        title: "Organic Viticulture",
-        icon: Grape,
-        color: "bg-purple-50 text-purple-800 border-purple-200",
-        badge: "module",
-        features: [
-          "Block Conversion Register — log each vineyard block's organic conversion status (In Conversion, Fully Organic, Suspended, Withdrawn), certifying body, conversion start date, fully-organic date, pre-conversion land use history, and synthetic input history; 3-year conversion period tracked per block in line with UK Organic Regulations 2020",
-          "Organic Inputs Log — record all organic-approved inputs applied in the vineyard per block: product name, input type (fungicide, fertiliser, biostimulant, etc.), supplier, date applied, quantity, area (ha), vintage year, approval status (Permitted / Derogation / Not Permitted), certifier approval reference, and operator; full audit trail for annual organic inspection",
-          "Copper Register — dedicated running log of all copper-based fungicide applications with product name, copper content (%), quantity applied, area (ha), and actual copper kg applied; running total displayed against the UK 28 kg/ha per 7-year regulatory limit (4 kg/ha/year average) with colour-coded progress bar (green / amber / red)",
-          "Input Derogations — full case register for UK Organic Regs 2020 Sch. 1 / Annex II derogation applications with a split New Case / Record Decision workflow: the New Case form captures application details only (input name, type, regulatory basis, certifying body, availability search date and reference, application date, vintage year, and justification), leaving the case at Pending status; once a certifier decision is received, click Record Decision on the case card to record the internal decision date, official decision date, status (Approved / Refused / Withdrawn / Expired), expiry date, and approval conditions for approved cases — or refusal reason, refusal reference, and corrective action for refused cases — keeping application evidence and certifier decisions cleanly separated in the audit trail; Action Required badge on refused cases without a corrective action; expiry urgency badges at 90 / 30 days",
-          "Derogation Correspondence Log — expandable within each derogation case: correspondence date, direction (Inbound / Outbound), type (Email, Letter, Phone Call, Portal Submission, Decision Notice, etc.), summary, and reference; full paper trail for certifier audit",
-          "Wine Production Additives — record permitted additive use and SO₂ compliance per vintage: wine colour, volume (litres), certified organic status, certifier reference, additive name and type, quantity used, maximum permitted level, actual SO₂ (mg/L), maximum SO₂ permitted (mg/L), and SO₂ compliant flag; regulatory reference to UK-retained EU Reg 203/2012 (100 mg/L red, 150 mg/L white/rosé); tab shared with standard Viticulture module — all records visible from both pages",
-          "Winery Stock (shared with standard Viticulture) — identical consumable ledger tab as in the standard Viticulture module; items and movements recorded from either page are visible from both; particularly useful for organic producers tracking permitted fining agents (bentonite, plant-based alternatives), SO₂ & preservative batches (potassium metabisulphite and others), approved yeast strains and nutrients, and barrel provenance as part of the organic certification evidence trail",
-          "Winery Compliance tabs (shared with standard Viticulture) — Licensing (premises and personal licence register with DPS and expiry status), Excise & Duty (HMRC wine duty return register with payment status chips), Tastings & Tours (cellar door event log with attendee counts and revenue), and Age Verification (Challenge 25 ID check register with outcome and ID type); all four tabs are identical to those in the standard Viticulture module and share the same underlying data",
-          "Certificates Register — store organic viticulture and wine certificates: certifying body, certificate number, certificate type (Vineyard Organic, Organic Wine, In-Conversion, Other), issue date, expiry date, scope, and status; expiry urgency badges at 90 / 30 days",
-          "Mobile app — dedicated Organic Viticulture Derogations screen: read-only register of all input derogation cases with status chips (including Action Required on refused cases without a corrective action), expandable case detail (certifier, dates, internal decision date, expiry urgency, availability search evidence, justification, approval conditions, refusal reason, refusal reference, corrective action in green when recorded), and a dashboard prompt for correspondence and document management",
-          "Full standard Viticulture module access within Organic Viticulture — the Organic Viticulture page includes all standard Viticulture tabs alongside the organic compliance tabs: Overview (vineyard block overview and summary), Vine Register (variety, rootstock, and planting records), Phenology (BBCH growth stage log), Pruning & Canopy (all canopy operations from winter pruning through to green harvest), Harvest (yield and must chemistry records), Disease Scouting (pest and disease pressure walkabout log with APHA notifiable organism alerts), Winery Management (8 production tabs: Harvest Reception, Pressing, Fermentation, Vessel Register, Cellar Ops, Bottling, SO₂ Testing with UK limit compliance check, and Equipment Register), Licensing, Excise & Duty, Tastings & Tours, Age Verification, Wine Production, and Winery Stock; organic producers have their complete vineyard operational, winery production, winery compliance, and organic certification records in one place without navigating between modules",
-        ],
-      },
-      {
-        title: "Data API",
-        icon: Database,
-        color: "bg-slate-50 text-slate-600 border-slate-100",
-        badge: "module",
-        features: [
-          "Read-only REST API giving external systems direct access to your farm data — fields, livestock, medicines, sprays, soil tests, crop assignments, inspections, training records, equipment, and financials",
-          "10 structured JSON endpoints — one per datasource, all scoped to your holding and returning current live data",
-          "Secure API key management — generate named keys, view the prefix for identification, revoke instantly; the full key value is shown once on creation for security",
-          "Suitable for connecting to third-party farm management systems, Power Query spreadsheets, Power BI, or custom business intelligence tools",
-          "In-app documentation — endpoint URLs, authentication header format, and example JSON responses shown on the Data API dashboard page",
-          "No manual CSV export needed — external tools can poll the API on a schedule and always have current data",
-          `£${modulePrice("data-api")}/month add-on`,
-        ],
-      },
-      {
-        title: "Report Builder",
-        icon: BarChart3,
-        color: "bg-indigo-50 text-indigo-600 border-indigo-100",
-        badge: "module",
-        features: [
-          "4-step report wizard — choose a datasource, pick columns, apply filters, then preview and save",
-          "10 datasources — fields, livestock, medicines, sprays, soil tests, crop assignments, inspections, training, equipment, and financials",
-          "Column picker — include or exclude any available column; select-all and clear-all for speed",
-          "Filters — date range picker plus field-level equals / contains / greater-than / less-than filters to target exactly the records you need",
-          "Optional charts — bar, line, or pie; configure label field, value field, and aggregation (count, sum, or average) to turn raw records into visual insight",
-          "CSV export — download any result set as a formatted spreadsheet in one click",
-          "Saved reports — name and save report definitions; re-run with fresh live data any time from the saved reports list",
-          `£${modulePrice("report-builder")}/month add-on — unlimited custom reports without writing SQL or exporting raw data`,
-        ],
-      },
-      {
-        title: "Farm Diversification",
-        icon: Store,
-        color: "bg-violet-50 text-violet-700 border-violet-100",
-        badge: "module",
-        features: [
-          "Diversification enterprise register — glamping, tourism, B&B, farm shop, events, and other rural enterprises; planning permission and consent tracking",
-          "Booking & occupancy records for accommodation and events with income summaries per enterprise",
-          "Food hygiene inspections — log EHO visits, HACCP audits, allergen compliance checks, Red Tractor inspections and self-audits; 'Relates To' field covers Farm Shop, Food Processing, Events/Catering, Farm Kitchen, Equine/Livery, and Other; Food Hygiene Rating recorded on the 0–5 FHRS scale with colour-coded descriptors; reinspection required toggle with target date; findings summary and corrective actions documented and auditable",
-          "Equine & Livery — horse health event log covering vaccinations, worming, farrier visits, dental checks and vet visits; product name and batch/lot number captured for vaccinations and worming treatments; next due date tracking ensures scheduled events are not missed; cost recording per event for livery business accounts",
-          "Shooting & Game — record each shoot day with shoot type (formal driven, rough shoot, walked-up, pigeon, wildfowl), organiser, number of guns and gamekeeper; per-species bag counts (pheasant, partridge, grouse, duck, woodcock) with running total; game dealer and income or lease fee recorded for accounting purposes",
-          "Farm Shop — product catalogue with unit of measure, selling price, cost price, and reorder level; colour-coded margin column shows profit margin at a glance with green (healthy), amber (tight), and red (below cost) indicators",
-          "Farm Shop Suppliers — supplier directory for shop stock purchases with contact details, notes, and deactivate/reactivate soft-delete so all purchasing history is retained permanently even when a supplier relationship ends",
-          "Purchases ledger — log every stock purchase with date, supplier, product, quantity, unit cost, invoice reference, and auto-calculated total; optional 'update cost price' checkbox keeps the product's margin display current automatically when you receive stock at a new price",
-          "Sales log — record individual shop sales with product, quantity, unit price, customer name, and payment method; stock levels decrement automatically on each sale",
-          "Stock management — live quantity on hand per product updated by both purchases (in) and sales (out); reorder level threshold per product triggers low-stock and out-of-stock alerts",
-          "Automated stock alerts — low-stock notifications sent when stock falls to or below the reorder level; out-of-stock SMS alerts (when SMS Text Alerts add-on is active) sent when a product reaches zero so you can reorder before the next customer arrives",
-          "Business rates and tax liability notes",
-          "Mobile offline capture — equine health events, shooting records, food hygiene inspections, and diversification activity records all captured in the field and synced automatically when connectivity is restored",
-        ],
-      },
+    title: "Animals, assets & business",
+    description: "Build around the enterprises, equipment and commercial activity that matter to you.",
+    items: [
+      { name: "Livestock & Feed Management", id: "livestock-management" },
+      { name: "Equipment, Workshop & Fuel", id: "equipment-workshop" },
+      { name: "Finance & Business", id: "finance-business" },
+      { name: "Farm Diversification", id: "farm-diversification" },
     ],
   },
 ];
@@ -1092,75 +163,161 @@ const sections: Section[] = [
 export default function Features() {
   return (
     <Layout>
-      {/* Hero */}
-      <div className="bg-earth-cream py-16 md:py-24 border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6">Platform Modules</h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            BDE Farm Trac is built modularly. Whether you run a simple arable operation or a complex mixed farm, you only pay for the tools you need.
-          </p>
-          {/* Badge legend */}
-          <div className="flex items-center justify-center gap-4 mt-8 flex-wrap">
-            {(Object.entries(BADGE_STYLES) as [Badge, typeof BADGE_STYLES[Badge]][]).map(([, cfg]) => (
-              <span key={cfg.label} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.className}`}>
-                {cfg.label}
-              </span>
-            ))}
-            <span className="text-xs text-muted-foreground">— shown on each module card</span>
+      <section className="bg-earth-cream border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+          <div className="max-w-3xl">
+            <p className="text-sm font-semibold tracking-wider uppercase text-brand-forest mb-4">
+              BDE Farm Trac features
+            </p>
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground">
+              Less time hunting for records. More confidence in the next job.
+            </h1>
+            <p className="mt-6 text-lg md:text-xl leading-relaxed text-muted-foreground max-w-2xl">
+              BDE Farm Trac brings the day-to-day records of a working farm into connected, configurable modules—so teams can plan work, capture what happened and review it with context.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <Button asChild size="lg" className="bg-brand-forest hover:bg-brand-forest/90">
+                <Link href="/register-interest">
+                  Register your interest <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/pricing">Explore module pricing</Link>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Sections */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-20">
-        {sections.map((section, sIdx) => (
-          <div key={section.title}>
-            {/* Section header */}
-            <div className="mb-8 pb-4 border-b border-border">
-              <h2 className="text-2xl font-bold text-foreground">{section.title}</h2>
-              <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
-            </div>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="max-w-2xl mb-10">
+          <p className="text-sm font-semibold tracking-wider uppercase text-brand-forest">Designed around the work</p>
+          <h2 className="mt-3 text-3xl md:text-4xl font-bold">Useful before, during and after the job</h2>
+        </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          {benefits.map((benefit, index) => (
+            <motion.article
+              key={benefit.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.4, delay: index * 0.06 }}
+              className="rounded-2xl border border-border bg-white p-6 md:p-8 shadow-sm"
+            >
+              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center ${benefit.color}`}>
+                <benefit.icon className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 text-xl font-bold">{benefit.title}</h3>
+              <p className="mt-3 text-muted-foreground leading-relaxed">{benefit.description}</p>
+              <ul className="mt-5 space-y-2.5">
+                {benefit.points.map((point) => (
+                  <li key={point} className="flex gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-brand-light" aria-hidden="true" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </motion.article>
+          ))}
+        </div>
+      </section>
 
-            {/* Module cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {section.modules.map((mod, mIdx) => {
-                const badge = BADGE_STYLES[mod.badge];
-                return (
-                  <motion.div
-                    key={mod.title}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-50px" }}
-                    transition={{ delay: (mIdx % 3) * 0.08 + sIdx * 0.03, duration: 0.45 }}
-                    className="relative bg-white rounded-2xl p-8 border border-border shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    {/* Badge — top-right corner */}
-                    <span className={`absolute top-4 right-4 text-xs font-semibold px-2.5 py-0.5 rounded-full ${badge.className}`}>
-                      {badge.label}
-                    </span>
-
-                    {/* Icon */}
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 border ${mod.color}`}>
-                      <mod.icon className="w-6 h-6" />
-                    </div>
-
-                    <h3 className="text-xl font-bold mb-4 text-foreground pr-16">{mod.title}</h3>
-
-                    <ul className="space-y-3">
-                      {mod.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <div className="w-1.5 h-1.5 rounded-full bg-brand-light mt-1.5 shrink-0" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </motion.div>
-                );
-              })}
-            </div>
+      <section className="bg-brand-pale/60 border-y border-brand-light/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold tracking-wider uppercase text-brand-forest">Connected workflows</p>
+            <h2 className="mt-3 text-3xl md:text-4xl font-bold">Choose modules that work around your farm</h2>
+            <p className="mt-4 text-muted-foreground leading-relaxed">
+              Start with the areas that create the most admin for your team, then add capability as the operation changes.
+            </p>
           </div>
-        ))}
-      </div>
+          <div className="mt-10 grid sm:grid-cols-2 gap-5">
+            {workflows.map((workflow) => (
+              <article key={workflow.title} className="rounded-2xl bg-white border border-brand-light/20 p-6">
+                <workflow.icon className="h-6 w-6 text-brand-forest" aria-hidden="true" />
+                <h3 className="mt-4 text-xl font-bold">{workflow.title}</h3>
+                <p className="mt-2 text-muted-foreground leading-relaxed">{workflow.text}</p>
+                <p className="mt-4 text-sm font-medium text-brand-forest">{workflow.modules.join(" · ")}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5 mb-10">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold tracking-wider uppercase text-brand-forest">Built for different enterprises</p>
+            <h2 className="mt-3 text-3xl md:text-4xl font-bold">A system that reflects how your farm operates</h2>
+          </div>
+          <Link href="/pricing" className="inline-flex items-center font-semibold text-brand-forest hover:underline">
+            View all modules and pricing <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sectors.map((sector) => (
+            <article key={sector.title} className="rounded-2xl border border-border p-6 bg-white">
+              <sector.icon className="h-7 w-7 text-brand-forest" aria-hidden="true" />
+              <h3 className="mt-4 text-xl font-bold">{sector.title}</h3>
+              <p className="mt-2 font-medium text-brand-forest">{sector.outcome}</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{sector.copy}</p>
+              <p className="mt-5 text-sm text-muted-foreground">
+                From <span className="font-semibold text-foreground">£{modulePrice(sector.module)}/month</span> for the relevant module
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-earth-cream border-y border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+          <div className="max-w-2xl mb-10">
+            <p className="text-sm font-semibold tracking-wider uppercase text-brand-forest">Flexible by design</p>
+            <h2 className="mt-3 text-3xl md:text-4xl font-bold">Start with what you need now</h2>
+            <p className="mt-4 text-muted-foreground leading-relaxed">
+              Select modules for the work you manage today. Review the full selection, inclusions and current terms on the pricing page.
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-3 gap-6">
+            {moduleHighlights.map((group) => (
+              <article key={group.title} className="bg-white border border-border rounded-2xl p-6">
+                <h3 className="text-xl font-bold">{group.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{group.description}</p>
+                <ul className="mt-5 divide-y divide-border">
+                  {group.items.map((item) => (
+                    <li key={item.id} className="py-3 flex items-start justify-between gap-3 text-sm">
+                      <span className="font-medium">{item.name}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {item.required ? "Required" : `£${modulePrice(item.id)}/mo`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+          <div className="mt-8">
+            <Button asChild variant="outline">
+              <Link href="/pricing">See all modules and prices <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 text-center">
+        <h2 className="text-3xl md:text-4xl font-bold">Want to see how it could fit your farm?</h2>
+        <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+          Explore the pricing options, register your interest, or visit the Help Centre for practical product guidance.
+        </p>
+        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
+          <Button asChild size="lg" className="bg-brand-forest hover:bg-brand-forest/90">
+            <Link href="/register-interest">Register your interest <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/help">Visit the Help Centre</Link>
+          </Button>
+        </div>
+      </section>
     </Layout>
   );
 }

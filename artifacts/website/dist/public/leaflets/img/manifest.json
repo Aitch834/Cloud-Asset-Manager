@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "pages": {
+    "beef-dairy": [
+      "/leaflets/img/beef-dairy-1.jpg",
+      "/leaflets/img/beef-dairy-2.jpg"
+    ],
+    "sheep-goat": [
+      "/leaflets/img/sheep-goat-1.jpg",
+      "/leaflets/img/sheep-goat-2.jpg"
+    ],
+    "arable": [
+      "/leaflets/img/arable-1.jpg",
+      "/leaflets/img/arable-2.jpg"
+    ],
+    "viticulture": [
+      "/leaflets/img/viticulture-1.jpg",
+      "/leaflets/img/viticulture-2.jpg"
+    ],
+    "mixed": [
+      "/leaflets/img/mixed-1.jpg",
+      "/leaflets/img/mixed-2.jpg"
+    ],
+    "contracting": [
+      "/leaflets/img/contracting-1.jpg",
+      "/leaflets/img/contracting-2.jpg"
+    ]
+  }
+}

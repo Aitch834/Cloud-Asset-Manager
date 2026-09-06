@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, FlaskConical, Check, Gift, Link2 } from "lucide-react";
+import { Info, Plus, X, Pencil, PoundSterling, CalendarCheck, ToggleRight, Check, Gift, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 // ── Sector filter ──────────────────────────────────────────────────────────────
@@ -261,9 +261,9 @@ export default function Pricing() {
     <Layout>
       <div className="bg-brand-forest text-white py-20 pb-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6 text-white">Transparent, Module-Based Pricing</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-6 text-white">Build a monthly price around each farm</h1>
           <p className="text-brand-pale/80 text-lg max-w-2xl mx-auto">
-            Pay a low base platform fee plus only the specific modules you need for each farm.
+            Every holding has a platform base fee and the required Red Tractor Compliance module. Add the optional modules that match the work you want to manage.
           </p>
         </div>
       </div>
@@ -279,7 +279,7 @@ export default function Pricing() {
               </div>
               <div>
                 <p className="font-bold text-foreground">Start from £{BASE_FEE + modulePrice("red-tractor-compliance")}/month</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Base platform + Red Tractor Compliance. Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100} a year for a fully compliant farm.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Platform base fee plus the required Red Tractor Compliance module. Under £{Math.ceil((BASE_FEE + modulePrice("red-tractor-compliance")) * 12 / 100) * 100} a year before optional modules and VAT.</p>
               </div>
             </div>
             <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
@@ -287,8 +287,8 @@ export default function Pricing() {
                 <CalendarCheck className="w-5 h-5 text-brand-forest" />
               </div>
               <div>
-                <p className="font-bold text-foreground">Month to month, no contracts</p>
-                <p className="text-sm text-muted-foreground mt-0.5">No annual commitments and nothing to pay upfront. Cancel any time with no questions asked.</p>
+                <p className="font-bold text-foreground">30-day trial, no card required</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Register your interest to discuss the right setup and current subscription terms before you start.</p>
               </div>
             </div>
             <div className="flex flex-col items-center text-center px-6 py-4 gap-3">
@@ -297,7 +297,7 @@ export default function Pricing() {
               </div>
               <div>
                 <p className="font-bold text-foreground">Only pay for what you need</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Pick exactly the modules your farm uses today. Add or remove them as your needs change.</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Choose optional modules per holding. Some specialist modules include related modules at no extra charge.</p>
               </div>
             </div>
           </div>
@@ -309,17 +309,17 @@ export default function Pricing() {
           
           <div className="flex-1 space-y-8">
             <div>
-              <h3 className="text-xl font-bold mb-4">1. Your Farms</h3>
+              <h2 className="text-xl font-bold mb-2">1. Add your farms or holdings</h2>
+              <p className="text-sm text-muted-foreground mb-4">Pricing is calculated separately for each holding, so mixed and multi-farm businesses can choose a different module set for each one.</p>
               <div className="flex flex-wrap items-center gap-2">
                 {farms.map(farm => (
                   <div
                     key={farm.id}
-                    className={`group relative flex items-center gap-1.5 px-4 py-2 rounded-full border-2 cursor-pointer transition-all text-sm font-medium ${
+                    className={`group relative flex items-center gap-1.5 rounded-full border-2 px-2 py-1.5 text-sm font-medium transition-all ${
                       activeFarmId === farm.id
                         ? "border-brand-forest bg-brand-forest text-white"
                         : "border-border bg-white text-foreground hover:border-brand-light"
                     }`}
-                    onClick={() => setActiveFarmId(farm.id)}
                   >
                     {editingNameId === farm.id ? (
                       <input
@@ -329,31 +329,42 @@ export default function Pricing() {
                         onChange={e => renameFarm(farm.id, e.target.value)}
                         onBlur={() => setEditingNameId(null)}
                         onKeyDown={e => { if (e.key === "Enter") setEditingNameId(null); }}
-                        onClick={e => e.stopPropagation()}
+                        aria-label={`Name for ${getFarmDisplayName(farm)}`}
                       />
                     ) : (
                       <>
-                        <span>{getFarmDisplayName(farm)}</span>
                         <button
+                          type="button"
+                          aria-pressed={activeFarmId === farm.id}
+                          className="rounded-full px-2 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+                          onClick={() => setActiveFarmId(farm.id)}
+                        >
+                          {getFarmDisplayName(farm)}
+                        </button>
+                        <button
+                          type="button"
                           className={`sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20 ${
                             activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"
                           }`}
-                          onClick={e => { e.stopPropagation(); setEditingNameId(farm.id); }}
+                          onClick={() => setEditingNameId(farm.id)}
                           title="Rename farm"
+                          aria-label={`Rename ${getFarmDisplayName(farm)}`}
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
                       </>
                     )}
                     <button
+                      type="button"
                       className={`sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5 rounded ${
                         farms.length <= 1
                           ? "!opacity-30 cursor-not-allowed"
                           : `hover:bg-white/20 ${activeFarmId === farm.id ? "text-white/80" : "text-muted-foreground"}`
                       }`}
                       disabled={farms.length <= 1}
-                      onClick={e => { e.stopPropagation(); removeFarm(farm.id); }}
+                      onClick={() => removeFarm(farm.id)}
                       title="Remove farm"
+                      aria-label={`Remove ${getFarmDisplayName(farm)}`}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -370,7 +381,7 @@ export default function Pricing() {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold mb-1">2. Select Modules</h3>
+              <h2 className="text-xl font-bold mb-1">2. Select modules for this holding</h2>
 
               {/* Sector filter pills */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -454,16 +465,19 @@ export default function Pricing() {
                   }
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={mod.id}
                       onClick={() => toggleModule(mod.id, mod.required)}
+                      disabled={mod.required}
+                      aria-pressed={isSelected}
                       className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
                         isSelected
                           ? "border-brand-forest bg-brand-pale/50"
                           : "border-border hover:border-brand-light"
                       } ${mod.required ? "opacity-80 cursor-not-allowed" : ""}`}
                     >
-                      <div className="flex justify-between items-start">
+                      <div className="flex justify-between items-start text-left">
                         <span className="font-semibold text-foreground">{mod.name}</span>
                         <span className="text-muted-foreground font-mono ml-2 flex-shrink-0">£{mod.price}/mo</span>
                       </div>
@@ -475,7 +489,7 @@ export default function Pricing() {
                           SMS Alerts add-on: £{SMS_ADDON_PRICE}/month per farm
                         </p>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -572,8 +586,8 @@ export default function Pricing() {
                 params.set("modules", allModules.join(","));
                 // Pass the farm count so the Register Interest form can pre-fill it.
                 params.set("farms", String(farms.length));
-                return `/contact?${params.toString()}`;
-              })()}>Start Custom Setup</Link>
+                return `/register-interest?${params.toString()}`;
+              })()}>Discuss this setup</Link>
             </Button>
             <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-1">
               <Info className="w-3 h-3" /> All prices exclude VAT.
@@ -582,17 +596,14 @@ export default function Pricing() {
         </div>
       </div>
 
-      {/* Sandbox callout */}
+      {/* Pricing explanation */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-14 h-14 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
-            <FlaskConical className="w-7 h-7 text-amber-600" />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <p className="font-bold text-foreground text-lg mb-1">Sandbox Test Environment — included at no extra cost</p>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Every subscription includes a full sandbox copy of your account. Enter records, explore every module, and train new staff with zero risk of affecting your live data or submitting to any government or third-party system.
-            </p>
+        <div className="bg-brand-pale/50 border border-brand-light/30 rounded-2xl p-8">
+          <h2 className="font-bold text-foreground text-2xl mb-4">How the estimate works</h2>
+          <div className="grid gap-5 sm:grid-cols-3 text-sm text-muted-foreground leading-relaxed">
+            <p><strong className="block text-foreground mb-1">One base per holding</strong>The platform base fee and required compliance module apply to every farm or holding you add.</p>
+            <p><strong className="block text-foreground mb-1">Bundles appear automatically</strong>Select a module with included modules and the calculator removes those extra charges from the estimate.</p>
+            <p><strong className="block text-foreground mb-1">An estimate, before VAT</strong>Use the result to discuss your setup. We will confirm current terms and the modules available for your trial.</p>
           </div>
         </div>
       </div>

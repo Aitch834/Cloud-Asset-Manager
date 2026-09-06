@@ -43,6 +43,38 @@ import Partners from "./pages/Partners";
 import Resources from "./pages/Resources";
 
 const queryClient = new QueryClient();
+const ROUTE_META: Record<string, { title: string; description: string }> = {
+  "/features": {
+    title: "Farm Management Features | BDE Farm Trac",
+    description: "Explore configurable farm record, planning, compliance, livestock, crop, equipment, finance and reporting modules from BDE Farm Trac.",
+  },
+  "/pricing": {
+    title: "Module-Based Farm Software Pricing | BDE Farm Trac",
+    description: "Build a per-holding BDE Farm Trac estimate from the platform base, required compliance module, optional modules and included bundles.",
+  },
+  "/help": {
+    title: "Farm Software Help Centre | BDE Farm Trac",
+    description: "Find practical answers about BDE Farm Trac setup, mobile and offline records, farming sectors, reporting, integrations and compliance boundaries.",
+  },
+  "/register-interest": {
+    title: "Register Interest in BDE Farm Trac",
+    description: "Tell us about your farm, holdings and modules of interest to discuss a tailored introduction and 30-day BDE Farm Trac trial.",
+  },
+};
+const DEFAULT_META = {
+  title: "BDE Farm Trac | Farm Records, Planning & Compliance",
+  description: "BDE Farm Trac brings farm records, planning, evidence and reporting together in configurable modules for UK farming businesses.",
+};
+
+function setMetaProperty(property: string, content: string) {
+  let element = document.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
+  if (!element) {
+    element = document.createElement("meta");
+    element.setAttribute("property", property);
+    document.head.appendChild(element);
+  }
+  element.content = content;
+}
 
 function Router() {
   return (
@@ -68,6 +100,25 @@ function Router() {
   );
 }
 
+function RouteMetadata() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const path = location.split("?")[0];
+    const meta = ROUTE_META[path] ?? DEFAULT_META;
+    document.title = meta.title;
+    let description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!description) {
+      description = document.createElement("meta");
+      description.name = "description";
+      document.head.appendChild(description);
+    }
+    description.content = meta.description;
+    setMetaProperty("og:title", meta.title);
+    setMetaProperty("og:description", meta.description);
+  }, [location]);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -75,6 +126,7 @@ function App() {
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <ScrollToTop />
+            <RouteMetadata />
             <Router />
           </WouterRouter>
           <Toaster />

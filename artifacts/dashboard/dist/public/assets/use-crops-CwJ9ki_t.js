@@ -1,0 +1,33 @@
+import { aD as useListCrops, aE as useListFieldCropAssignments, c as useQueryClient, aF as useCreateCrop, aG as useCreateFieldCropAssignment, Z as getListCropsQueryKey, Q as getListFieldCropAssignmentsQueryKey } from "./index-Dnqxw-hJ.js";
+function useCrops(farmId) {
+  return useListCrops(farmId, { query: { enabled: !!farmId } });
+}
+function useAddCrop(farmId) {
+  const qc = useQueryClient();
+  return useCreateCrop({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListCropsQueryKey(farmId) });
+      }
+    }
+  });
+}
+function useFieldCropAssignments(farmId) {
+  return useListFieldCropAssignments(farmId, { query: { enabled: !!farmId } });
+}
+function useAssignCrop(farmId) {
+  const qc = useQueryClient();
+  return useCreateFieldCropAssignment({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListFieldCropAssignmentsQueryKey(farmId) });
+      }
+    }
+  });
+}
+export {
+  useFieldCropAssignments as a,
+  useAddCrop as b,
+  useAssignCrop as c,
+  useCrops as u
+};
