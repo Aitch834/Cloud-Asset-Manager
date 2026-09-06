@@ -849,7 +849,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
     const allFarmVarieties = blocks.map(bl => (bl.variety ?? "").trim());
     const varietyColorMap = buildVarietyColorMap(allFarmVarieties);
     const allBlockNames = blocksWithData.map(bl => bl.blockName);
-    const blockColorByName = buildBlockColorMap(allBlockNames, blockVarietyByName, varietyColorMap);
+    const blockColorByName = buildUniqueBlockColorMap(allBlockNames, blockVarietyByName, varietyColorMap);
 
     const blockLines = blocksWithData.map(bl => ({
       key: bl.blockName,

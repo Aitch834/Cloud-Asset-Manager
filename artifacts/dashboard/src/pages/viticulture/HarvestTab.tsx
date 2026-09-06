@@ -3066,4 +3066,3 @@ function getHarvestIntervalExpiry(applicationDate: unknown, intervalDays: unknow
   expiry.setDate(expiry.getDate() + days);
   return expiry.toISOString().slice(0, 10);
 }
-
