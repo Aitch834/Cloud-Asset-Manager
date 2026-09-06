@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { execSync } from "child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import * as path from "path";
 
 /**
@@ -17,30 +17,88 @@ import * as path from "path";
  * The dashboard and API server workflows must be running before executing tests.
  */
 
+const ELF_CLASS_BY_ARCH: Partial<Record<NodeJS.Architecture, number>> = {
+  ia32: 1,
+  x64: 2,
+  arm: 1,
+  arm64: 2,
+};
+
+/** Check the ELF class without running `file`, so discovery also works when
+ * Playwright loads this ESM config in a minimal non-interactive environment. */
+function isHostArchitecture(libraryPath: string): boolean {
+  try {
+    const header = readFileSync(libraryPath).subarray(0, 5);
+    return (
+      header[0] === 0x7f &&
+      header.subarray(1, 4).toString() === "ELF" &&
+      header[4] === ELF_CLASS_BY_ARCH[process.arch]
+    );
+  } catch {
+    return false;
+  }
+}
+
+function packageVersion(storeEntry: string): number[] {
+  const match = storeEntry.match(/-(\d+(?:\.\d+)+)(?:-|$)/);
+  return match ? match[1].split(".").map(Number) : [];
+}
+
+function comparePackageVersionsNewestFirst(a: string, b: string): number {
+  const aVersion = packageVersion(a);
+  const bVersion = packageVersion(b);
+  const length = Math.max(aVersion.length, bVersion.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const difference = (bVersion[index] ?? 0) - (aVersion[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+
+  return a.localeCompare(b);
+}
+
+function findCompatibleNixLib(
+  packageName: RegExp,
+  requiredLibrary: string,
+): string | undefined {
+  try {
+    const entries = readdirSync("/nix/store")
+      .filter((entry) => packageName.test(entry))
+      .sort(comparePackageVersionsNewestFirst);
+
+    for (const entry of entries) {
+      const libDir = path.join("/nix/store", entry, "lib");
+      if (isHostArchitecture(path.join(libDir, requiredLibrary))) return libDir;
+    }
+  } catch {
+    // /nix/store does not exist outside NixOS; Playwright's bundled browser
+    // discovery remains the fallback in those environments.
+  }
+
+  return undefined;
+}
+
 /** Discover additional LD_LIBRARY_PATH entries needed by the Chromium
- *  headless shell in the NixOS Replit container (glib, nss, dbus, etc.).
- *  Falls back gracefully if globs fail or nix store is unavailable. */
+ * headless shell in the NixOS Replit container. Store hashes and package
+ * versions change between images, and both 32-bit and 64-bit outputs may be
+ * present, so only libraries matching the Node/Chromium architecture are used. */
 function buildNixLibPath(): string {
-  const knownNixPaths = [
-    // glib — required for every Chromium launch
-    // NOTE: the 2.84.3 build available in this environment is 32-bit and
-    // breaks Chromium with ELFCLASS32, so we intentionally prefer the 64-bit
-    // 2.82.1 / 2.74.1 builds below.
-    "/nix/store/26hcp8h792wl0h52c5r94qakhvk6q717-glib-2.82.1/lib",
-    "/nix/store/2k366jrbsra97gjfxwvrhvixjfxdach5-glib-2.74.1/lib",
-    // nss / nspr — required for SSL in Chromium
-    "/nix/store/2jsrwgic869zynqljiqa4g7dqzpwm2yd-nss-3.101.2/lib",
-    "/nix/store/1ag0klg91f6gnhlx0iazgysahngp4rf8-nss-3.90.2/lib",
-    // dbus
-    "/nix/store/231d6mmkylzr80pf30dbywa9x9aryjgy-dbus-1.14.10-lib/lib",
-  ].filter(existsSync);
+  const discoveredNixPaths = [
+    findCompatibleNixLib(/-glib-\d/, "libglib-2.0.so.0"),
+    findCompatibleNixLib(/-nss-\d/, "libnss3.so"),
+    findCompatibleNixLib(/-dbus-\d.*-lib$/, "libdbus-1.so.3"),
+  ].filter((entry): entry is string => Boolean(entry));
 
   const profileLib = path.join(
     process.env.HOME ?? "/home/runner",
     ".nix-profile",
     "lib",
   );
-  return [profileLib, ...knownNixPaths, process.env.LD_LIBRARY_PATH ?? ""]
+  return [
+    ...discoveredNixPaths,
+    existsSync(profileLib) ? profileLib : "",
+    process.env.LD_LIBRARY_PATH ?? "",
+  ]
     .filter(Boolean)
     .join(":");
 }
