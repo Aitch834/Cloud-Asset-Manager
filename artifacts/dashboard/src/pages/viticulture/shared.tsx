@@ -1,5 +1,5 @@
 import { useFarmName } from "@/hooks/use-farm-name";
-import { YIELD_CHART_COLORS, buildVarietyColorMap } from "@/lib/variety-colors";
+import { buildVarietyColorMap, buildUniqueBlockColorMap } from "@/lib/variety-colors";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -763,44 +763,6 @@ function escHtml(v: unknown): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#x27;");
 }
-
-// ─── Yield-by-Block × Vintage chart SVG builder (for print) ──────────────────
-
-/**
- * Builds a per-block colour map keyed by block ID (as string), using the
- * same YIELD_CHART_COLORS palette and deterministic variety-first assignment
- * as the shared utility in lib/variety-colors.ts.  This ensures the printed
- * SVG charts produce the same variety→colour mapping as the on-screen
- * Recharts charts.
- *
- * The variety universe is taken from the supplied blockIds so that the
- * same set of blocks drives colour assignment in both the kg and t/ha SVG
- * charts.  For a truly stable key across filter changes, callers should pass
- * ALL farm block IDs (not only those visible in the current filtered view).
- */
-function buildBlockColorMap(
-  blockIds: unknown[],
-  bvarietyFn: (id: unknown) => string,
-): Record<string, string> {
-  // Derive variety names for all blocks then delegate to the shared helper.
-  const blockVarietyByName: Record<string, string> = {};
-  for (const id of blockIds) {
-    blockVarietyByName[String(id)] = bvarietyFn(id).trim();
-  }
-  const varietyColorMap = buildVarietyColorMap(Object.values(blockVarietyByName));
-  const usedColors = new Set(Object.values(varietyColorMap));
-  const fallbackPalette = YIELD_CHART_COLORS.filter(c => !usedColors.has(c));
-  let fbIdx = 0;
-  const colorMap: Record<string, string> = {};
-  for (const id of blockIds) {
-    const v = bvarietyFn(id).trim();
-    colorMap[String(id)] = v
-      ? (varietyColorMap[v] ?? YIELD_CHART_COLORS[0])
-      : (fallbackPalette[fbIdx++ % (fallbackPalette.length || YIELD_CHART_COLORS.length)] ?? YIELD_CHART_COLORS[0]);
-  }
-  return colorMap;
-}
-
 function buildYieldTrendChartSvg(
   records: Record<string, unknown>[],
   blockLookup: Record<number, Record<string, unknown>>,
@@ -825,7 +787,11 @@ function buildYieldTrendChartSvg(
 
   // Use the shared per-block colour map when provided (keeps both charts consistent).
   // Fall back to deriving from this chart's own block set when called standalone.
-  const blockColorMap: Record<string, string> = sharedBlockColorMap ?? buildBlockColorMap(allBlockIds, bvariety);
+  const blockNames = allBlockIds.map(String);
+  const blockVarietyByName = Object.fromEntries(blockNames.map((name, index) => [name, bvariety(allBlockIds[index])]));
+  const varietyColorMap = buildVarietyColorMap(Object.values(blockVarietyByName));
+  const blockColorMap: Record<string, string> = sharedBlockColorMap
+    ?? buildUniqueBlockColorMap(blockNames, blockVarietyByName, varietyColorMap);
 
   // Build data matrix: bidStr → vintageYear → total kg
   const matrix: Record<string, Record<string, number>> = {};
@@ -1004,7 +970,11 @@ function buildYieldTrendChartTHaSvg(
 
   // Use the shared per-block colour map when provided (keeps both charts consistent).
   // Fall back to deriving from this chart's own block set when called standalone.
-  const thaBlockColorMap: Record<string, string> = sharedBlockColorMap ?? buildBlockColorMap(blockIdsWithArea, bvarietyTha);
+  const blockNames = blockIdsWithArea.map(String);
+  const blockVarietyByName = Object.fromEntries(blockNames.map((name, index) => [name, bvarietyTha(blockIdsWithArea[index])]));
+  const varietyColorMap = buildVarietyColorMap(Object.values(blockVarietyByName));
+  const thaBlockColorMap: Record<string, string> = sharedBlockColorMap
+    ?? buildUniqueBlockColorMap(blockNames, blockVarietyByName, varietyColorMap);
 
   // Build kg matrix then convert to t/ha
   const kgMatrix: Record<string, Record<string, number>> = {};
@@ -2877,7 +2847,16 @@ export async function printHarvest(
     const bid = Number(id);
     return !isNaN(bid) && bid > 0 ? String(blockLookup2[bid]?.variety ?? "") : "";
   };
-  const sharedBlockColorMap = buildBlockColorMap(_allFarmBlockIds, _bvariety);
+  const _allFarmBlockNames = _allFarmBlockIds.map(String);
+  const _blockVarietyByName = Object.fromEntries(
+    _allFarmBlockNames.map((name, index) => [name, _bvariety(_allFarmBlockIds[index])]),
+  );
+  const _varietyColorMap = buildVarietyColorMap(Object.values(_blockVarietyByName));
+  const sharedBlockColorMap = buildUniqueBlockColorMap(
+    _allFarmBlockNames,
+    _blockVarietyByName,
+    _varietyColorMap,
+  );
 
   const yieldChartSvgHtml = showCrossTab
     ? buildYieldTrendChartSvg(records, blockLookup2, sharedBlockColorMap)
