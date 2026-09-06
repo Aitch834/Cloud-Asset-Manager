@@ -97,6 +97,7 @@ args = "ad-brand-asset-guard"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "financial-export-columns-api"
+
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "help-content-api"
@@ -104,6 +105,10 @@ args = "help-content-api"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "ad-pdf-draft-warnings-api"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "vitest-e2e-excludes"
 
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
@@ -401,6 +406,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run test:help-content"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "vitest-e2e-excludes"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run check:vitest-e2e-excludes"
 
 [workflows.workflow.metadata]
 isValidation = true
