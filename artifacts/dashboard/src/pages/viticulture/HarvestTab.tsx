@@ -53,6 +53,7 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { isSinglePickYieldCell } from "@/lib/yield-cross-tab";
+import { getChemistrySpreadWarnings } from "@/lib/harvest-chemistry-spread";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
@@ -85,7 +86,6 @@ function buildWineGBLowPickNote(varietyPickCounts: [string, number][]) {
   const plural = lowPickVarieties.length === 1;
   return `NOTE: ${lowPickVarieties.length} variet${plural ? "y" : "ies"} based on a single pick — yield and chemistry averages may be less representative: ${names.join("; ")}`;
 }
-
 export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }: { farmId: number; blocks: Record<string, unknown>[]; highlightBlockId?: number; requestBulkLink?: boolean }) {
   const { data, isLoading, add, edit, remove } = useCrud<Harvest>(farmId, "vineyard-harvest", "vineyard-harvest");
   const farmName = useFarmName(farmId);
@@ -317,6 +317,10 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const wineGBLowPickWarning = useMemo(
     () => buildWineGBLowPickNote(getWineGBVarietyPickCounts(filteredHarvest, blocks)),
     [filteredHarvest, blocks],
+  );
+  const chemistrySpreadWarnings = useMemo(
+    () => getChemistrySpreadWarnings(printRows, blocks),
+    [printRows, blocks],
   );
   const [dismissedWineGBWarningVintage, setDismissedWineGBWarningVintage] = useState<string | null>(null);
 
@@ -1329,6 +1333,34 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         onNavigate={() => setLocation("/settings/farm")}
         targetId="settings-appa-ref"
       />
+      {chemistrySpreadWarnings.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="alert">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="min-w-0">
+              <p className="font-semibold">Review chemistry spread before printing</p>
+              <p className="mt-0.5 text-xs">
+                TA or Pot. Alc. varies unusually across the records selected for printing
+                {printBlockFilter !== "__all__" ? ` for ${String(blocks.find(block => String(block.id) === printBlockFilter)?.blockName ?? printBlockFilter)}` : ""}:{" "}
+                {chemistrySpreadWarnings.map((warning, index) => {
+                  const metrics = [
+                    warning.taSd != null ? `TA SD ${warning.taSd.toFixed(2)} g/L` : "",
+                    warning.potentialAlcoholSd != null ? `Pot. Alc. SD ${warning.potentialAlcoholSd.toFixed(2)}%` : "",
+                  ].filter(Boolean);
+                  return (
+                    <React.Fragment key={warning.blockName}>
+                      {index > 0 ? "; " : ""}
+                      <span className="font-medium">{warning.blockName}</span>
+                      {" "}({metrics.join(", ")})
+                    </React.Fragment>
+                  );
+                })}
+                . Thresholds: TA SD &gt; 1.5 g/L or Pot. Alc. SD &gt; 1.0%.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold">Harvest & Vintage Records</p>
@@ -3034,3 +3066,4 @@ function getHarvestIntervalExpiry(applicationDate: unknown, intervalDays: unknow
   expiry.setDate(expiry.getDate() + days);
   return expiry.toISOString().slice(0, 10);
 }
+
