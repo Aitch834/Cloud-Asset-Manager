@@ -2965,6 +2965,7 @@ function BlockFilterStrip({
         {showSearch && new Set(blockInfos.map(b => b.variety)).size > 1 && (
           <button
             type="button"
+            aria-pressed={groupByVariety}
             onClick={() => setGroupByVariety(!groupByVariety)}
             className={`h-6 px-2.5 rounded-full text-xs font-medium border transition-colors shrink-0 ${
               groupByVariety
