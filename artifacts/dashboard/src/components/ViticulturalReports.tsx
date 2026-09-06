@@ -85,7 +85,6 @@ export function BlockPerformanceYieldCell({
     </span>
   );
 }
-
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 import { apiUrl as api } from "@/lib/api";
 import { getSeasonTaAverageFromBlockAverages } from "@/lib/harvest-ta-summary";
@@ -95,6 +94,7 @@ import {
   buildBlockColorMap,
   buildUniqueBlockColorMap,
 } from "@/lib/variety-colors";
+import { YIELD_CHART_COLORS, buildVarietyColorMap, buildBlockColorMap, buildUniqueBlockColorMap } from "@/lib/variety-colors";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 const fmtN = (v: unknown, dp = 1) =>

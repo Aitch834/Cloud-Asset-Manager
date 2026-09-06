@@ -3,9 +3,11 @@ import { clerk } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const TENANT_ID = 1;
 const GROUPING_FILTER = "trend-chart-group-by-variety";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type TestFarm = {
   tenantSlug: string;
@@ -68,6 +70,7 @@ async function useFarm(page: Page, farm: TestFarm): Promise<void> {
         JSON.stringify({ state: { tenantSlug, farmId }, version: 0 }),
       );
       localStorage.setItem(`viticulture-active-tab-${farmId}`, "vintage-report");
+      localStorage.setItem(`vintage-season-report-year-filter-${farmId}`, "-1");
     },
     [farm.tenantSlug, farm.farmId] as [string, number],
   );
@@ -94,8 +97,33 @@ test("restores the Vintage Season Report grouping independently for each farm", 
         }))),
       });
     });
+    await page.route(`**/api/farms/${farm.farmId}/vineyard-harvest`, async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(Array.from({ length: 8 }, (_, index) => ({
+          id: farm.farmId * 2000 + index,
+          harvestDate: "2025-10-01",
+          vintageYear: 2025,
+          blockId: farm.farmId * 1000 + index,
+          yieldKg: String(4000 + index * 100),
+          yieldTonnesPerHa: null,
+          brix: null,
+          ph: null,
+          titratableAcidityGl: null,
+          potentialAlcohol: null,
+          grapeCondition: null,
+          botrytisPresent: null,
+          botrytisPercentage: null,
+          harvestMethod: null,
+          operatorName: null,
+          notes: null,
+          destinationWinery: null,
+          destinationWineryType: null,
+        }))),
+      });
+    });
     for (const endpoint of [
-      "vineyard-harvest",
       "vineyard-scouting",
       "vineyard-operations",
       "vineyard-spray-diary",
@@ -122,6 +150,8 @@ test("restores the Vintage Season Report grouping independently for each farm", 
 
   await useFarm(page, varietyFarm);
   await expect(groupingButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Chardonnay" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pinot Noir" })).toBeVisible();
 
   await useFarm(page, blockFarm);
   await expect(groupingButton).toHaveAttribute("aria-pressed", "false");
@@ -131,6 +161,8 @@ test("restores the Vintage Season Report grouping independently for each farm", 
 
   await useFarm(page, varietyFarm);
   await expect(groupingButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Chardonnay" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pinot Noir" })).toBeVisible();
   await groupingButton.click();
   await expect(groupingButton).toHaveAttribute("aria-pressed", "false");
 
