@@ -110,6 +110,10 @@ args = "ad-pdf-draft-warnings-api"
 task = "workflow.run"
 args = "vitest-e2e-excludes"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "user-ui-prefs-migration-api"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -417,6 +421,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm run check:vitest-e2e-excludes"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "user-ui-prefs-migration-api"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run test:user-ui-prefs-migration"
 
 [workflows.workflow.metadata]
 isValidation = true

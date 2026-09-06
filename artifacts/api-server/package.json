@@ -25,6 +25,7 @@
     "test:bg-url": "node scripts/check-bg-url.mjs",
     "test:financial-export-columns": "node scripts/check-financial-export-columns.mjs",
     "test:help-content": "tsx scripts/check-help-content.ts",
+    "test:user-ui-prefs-migration": "node scripts/check-user-ui-prefs-migration.mjs",
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",
     "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts"
   },
