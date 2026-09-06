@@ -887,6 +887,7 @@ export default function VineScoutingHistoryScreen() {
       const rows: VineScoutingHistoryRow[] = filtered.map(r => ({
         id: r.id,
         scoutDate: r.scoutDate,
+        nextScoutDate: r.nextScoutDate,
         blockName: r.blockName,
         scoutedBy: r.scoutedBy,
         downyMildewPressure: r.downyMildewPressure,

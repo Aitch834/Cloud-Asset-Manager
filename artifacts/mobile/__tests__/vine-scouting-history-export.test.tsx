@@ -9,6 +9,10 @@ jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock("expo-crypto", () => ({
+  randomUUID: jest.fn(() => "test-uuid"),
+}));
+
 jest.mock("react-native", () => {
   const React = require("react");
   const host = (name: string) =>
@@ -134,6 +138,14 @@ jest.mock("../lib/hooks/usePersistedDateRange", () => ({
 jest.mock("../lib/hooks/usePersistedPressureFilter", () => ({
   usePersistedPressureFilter: jest.fn(),
 }));
+jest.mock("../lib/hooks/usePersistedDateRange", () => ({
+  usePersistedDateRange: () => {
+    const React = require("react");
+    const [dateFrom, setDateFrom] = React.useState("");
+    const [dateTo, setDateTo] = React.useState("");
+    return [dateFrom, setDateFrom, dateTo, setDateTo];
+  },
+}));
 jest.mock("../lib/hooks/usePersistedVintage", () => ({
   usePersistedVintage: jest.fn(),
 }));
@@ -205,8 +217,8 @@ function makeRecord(id: number, scoutDate: string, blockName: string) {
 }
 
 const records = [
-  makeRecord(1, "2026-06-01", "Outside Before"),
-  makeRecord(2, "2026-06-15", "Inside Window"),
+  { ...makeRecord(1, "2026-06-01", "Outside Before"), nextScoutDate: "2000-01-01" },
+  { ...makeRecord(2, "2026-06-15", "Inside Window"), nextScoutDate: "2999-12-31" },
   makeRecord(3, "2026-07-01", "Outside After"),
 ];
 
@@ -326,6 +338,19 @@ describe("VineScoutingHistoryScreen — date-filtered PDF export", () => {
     expect(html).toContain("Outside Before");
     expect(html).toContain("Inside Window");
     expect(html).not.toContain("Outside After");
+  });
+
+  it("exports scheduled, overdue, and unscheduled next scouting states", async () => {
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    fireEvent.press(screen.getByTestId("vine-scouting-export"));
+
+    await waitFor(() => expect(savePdf).toHaveBeenCalledTimes(1));
+    const html = lastPdfHtml();
+    expect(html).toContain("<th>Next Scouting</th>");
+    expect(html).toContain("Overdue &middot; 01 January 2000");
+    expect(html).toContain("Next: 31 December 2999");
+    expect(html).toContain("Next: Not scheduled");
   });
 
   it("shows the reversed-range validation and keeps export disabled", async () => {

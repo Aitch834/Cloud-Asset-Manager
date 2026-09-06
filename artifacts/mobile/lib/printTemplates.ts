@@ -1213,6 +1213,7 @@ export function vineOperationsHtml(
 export interface VineScoutingHistoryRow {
   id: number;
   scoutDate: string | null;
+  nextScoutDate: string | null;
   blockName: string | null;
   scoutedBy: string | null;
   downyMildewPressure: number | null;
@@ -1295,6 +1296,21 @@ export function vineScoutingHistoryHtml(
     }).join("<br>");
   }
 
+  function nextScoutingLabel(nextScoutDate: string | null): string {
+    if (!nextScoutDate) return "Next: Not scheduled";
+    const dateOnly = nextScoutDate.trim().slice(0, 10);
+    const today = new Date();
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+    const label = fmtDate(nextScoutDate);
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateOnly) && dateOnly < todayKey
+      ? `<strong style="color:#c0392b">Overdue &middot; ${label}</strong>`
+      : `Next: ${label}`;
+  }
+
   const header = `
     <div class="header">
       <div class="logo-block">
@@ -1343,6 +1359,7 @@ export function vineScoutingHistoryHtml(
     return `
       <tr>
         <td>${fmtDate(r.scoutDate)}</td>
+        <td style="font-size:8.5pt">${nextScoutingLabel(r.nextScoutDate)}</td>
         <td><strong>${efmt(r.blockName)}</strong></td>
         <td>${efmt(r.scoutedBy)}</td>
         <td style="font-size:8.5pt">${highestCell}</td>
@@ -1352,7 +1369,7 @@ export function vineScoutingHistoryHtml(
       </tr>`;
   }).join("");
 
-  const tableEmpty = `<tr><td colspan="7" style="text-align:center;color:#888;padding:16px 8px;">No scouting records match the current filter.</td></tr>`;
+  const tableEmpty = `<tr><td colspan="8" style="text-align:center;color:#888;padding:16px 8px;">No scouting records match the current filter.</td></tr>`;
 
   const extraCss = `
     table { font-size: 8.5pt; }
@@ -1370,6 +1387,7 @@ export function vineScoutingHistoryHtml(
       <thead>
         <tr>
           <th>Date</th>
+          <th>Next Scouting</th>
           <th>Block</th>
           <th>Scouted By</th>
           <th>Disease Pressure</th>
