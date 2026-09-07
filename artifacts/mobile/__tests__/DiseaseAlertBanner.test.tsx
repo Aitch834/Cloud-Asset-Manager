@@ -93,6 +93,23 @@ describe("DiseaseAlertBanner issue age", () => {
     ).toContain("Issued 16 March 2026");
   });
 
+  it("falls back to the legacy date when issuedAt is invalid", () => {
+    expect(
+      renderedText(
+        activeAlert({
+          issuedAt: "not-a-valid-timestamp",
+          date: "16 March 2026",
+        }),
+      ),
+    ).toContain("Issued 16 March 2026");
+  });
+
+  it("does not render a date line when issuedAt is invalid without a fallback", () => {
+    expect(
+      renderedText(activeAlert({ issuedAt: "not-a-valid-timestamp" })),
+    ).not.toContain(expect.stringMatching(/^Issued\b/));
+  });
+
   it("does not render a date line when neither date field is present", () => {
     expect(renderedText(activeAlert({}))).not.toContain(
       expect.stringMatching(/^Issued\b/),
