@@ -4,15 +4,18 @@
  *
  * Verifies that the legacy POST /farms/:farmId/financial-exports and the
  * newer GET /farms/:farmId/financial-transactions/export produce identical
- * CSV column schemas and correctly populate the Enterprise column.
+ * CSV column schemas and correctly populate the Enterprise and Agri-Env
+ * Project columns.
  *
  * Tests:
  *   A. Headers match — both routes return the same 9-column header row.
  *   B. Non-null enterprise — the legacy POST includes the enterprise label
  *      in column 8 (index 7) for the uniquely-tagged test transaction.
  *   C. Null enterprise — the legacy POST still produces a 9-column row with
- *      an empty string in column 8 for a transaction with no enterprise tag.
- *   D. Empty result — the legacy POST returns a valid header-only CSV for a
+ *      empty strings in columns 8 and 9 for a transaction with no linked data.
+ *   D. Linked Agri-Env project — both exports include the project's scheme name
+ *      in column 9 for the uniquely-tagged linked transaction.
+ *   E. Empty result — the legacy POST returns a valid header-only CSV for a
  *      date range with no matching transactions.
  *
  * Rows are identified by a unique token embedded in the description field so
@@ -37,6 +40,7 @@ const HEADERS = {
 
 let failures = 0;
 const created = []; // transaction IDs cleaned up at the end
+const createdProjects = []; // Agri-Env project IDs cleaned up after transactions
 
 function check(label, ok, detail) {
   if (ok) {
@@ -134,6 +138,34 @@ async function createTx(token, txDate, enterprise) {
   return r.json.record;
 }
 
+// Create a farm-owned Agri-Env project; track it for cleanup after transactions.
+async function createAgriEnvProject(schemeName) {
+  const r = await callJson("POST", `/farms/${FARM_ID}/agri-env-projects`, {
+    schemeName,
+    status: "active",
+  });
+  if (r.status !== 201 || !r.json?.project?.id) {
+    throw new Error(`Failed to create test Agri-Env project: ${r.status} ${JSON.stringify(r.json)}`);
+  }
+  createdProjects.push(r.json.project.id);
+  return r.json.project;
+}
+
+async function linkTxToAgriEnvProject(transactionId, projectId) {
+  let response = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    response = await callJson(
+      "PATCH",
+      `/farms/${FARM_ID}/financial-transactions/${transactionId}/link-agri-env`,
+      { agriEnvProjectId: projectId },
+    );
+    if (response.status === 200 && response.json?.record?.agriEnvProjectId === projectId) return;
+    if (response.status !== 404) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Failed to link test transaction to Agri-Env project: ${response?.status} ${JSON.stringify(response?.json)}`);
+}
+
 // Find all CSV data rows (excluding header) whose Description column contains
 // the unique token.  Description is column index 3.
 function findTestRows(csvText, token) {
@@ -161,10 +193,10 @@ async function getExport(startDate, endDate) {
 // so a successful create response can arrive just before the row is visible to
 // the next request. Poll the exact export under test instead of relying on a
 // fixed delay that becomes flaky under load.
-async function waitForLegacyRows(dateRangeStart, dateRangeEnd, tokens) {
+async function waitForExportRows(loadExport, tokens) {
   let response = null;
   for (let attempt = 0; attempt < 10; attempt++) {
-    response = await legacyPostExport(dateRangeStart, dateRangeEnd);
+    response = await loadExport();
     const allVisible = response.status === 200
       && tokens.every((token) => findTestRows(response.text, token).length === 1);
     if (allVisible) return response;
@@ -177,6 +209,9 @@ async function waitForLegacyRows(dateRangeStart, dateRangeEnd, tokens) {
 async function cleanup() {
   for (const id of created) {
     await callJson("DELETE", `/farms/${FARM_ID}/financial-transactions/${id}`);
+  }
+  for (const id of createdProjects) {
+    await callJson("DELETE", `/farms/${FARM_ID}/agri-env-projects/${id}`);
   }
 }
 
@@ -193,6 +228,7 @@ const RANGE_END   = "2020-06-30";
 const EMPTY_RANGE_START = "0001-01-01";
 const EMPTY_RANGE_END   = "0001-01-31";
 const ENTERPRISE_LABEL = "Arable";
+const AGRI_ENV_SCHEME_NAME = `Export-column check scheme ${TOKEN}`;
 
 const EXPECTED_HEADERS = [
   "*Date", "*Amount", "*AccountCode", "Description",
@@ -201,14 +237,33 @@ const EXPECTED_HEADERS = [
 const EXPECTED_COL_COUNT = EXPECTED_HEADERS.length; // 9
 
 try {
-  // Create both test transactions up front.
+  // Create the project before the linked transaction so the link endpoint can
+  // verify that the project belongs to this farm.
+  const agriEnvProject = await createAgriEnvProject(AGRI_ENV_SCHEME_NAME);
+
+  // Create all test transactions up front.
   await createTx(`${TOKEN}-ENT`, TX_DATE, ENTERPRISE_LABEL);   // enterprise set
   await createTx(`${TOKEN}-NOENT`, TX_DATE, null);              // enterprise null
+  const linkedTx = await createTx(`${TOKEN}-AGRI`, TX_DATE, null);
+  await linkTxToAgriEnvProject(linkedTx.id, agriEnvProject.id);
 
-  // Fetch both exports over the same date range.
+  const expectedTokens = [
+    `${TOKEN}-ENT`,
+    `${TOKEN}-NOENT`,
+    `${TOKEN}-AGRI`,
+  ];
+
+  // Poll both exports because the create and link transactions commit after
+  // their responses finish, so either export can briefly see stale rows.
   const [postResp, getResp] = await Promise.all([
-    waitForLegacyRows(RANGE_START, RANGE_END, [`${TOKEN}-ENT`, `${TOKEN}-NOENT`]),
-    getExport(RANGE_START, RANGE_END),
+    waitForExportRows(
+      () => legacyPostExport(RANGE_START, RANGE_END),
+      expectedTokens,
+    ),
+    waitForExportRows(
+      () => getExport(RANGE_START, RANGE_END),
+      expectedTokens,
+    ),
   ]);
 
   // ── Test A: header parity between both routes ─────────────────────────────
@@ -301,10 +356,43 @@ try {
       row[7] === "",
       `got "${row[7]}"`,
     );
+    check(
+      "column 9 (index 8) is an empty string for an unlinked transaction",
+      row[8] === "",
+      `got "${row[8]}"`,
+    );
   }
 
-  // ── Test D: empty result still returns a valid header-only CSV ────────────
-  console.log("\n── Test D: no matching transactions — header-only CSV ────────────────");
+  // ── Test D: linked Agri-Env project appears in column 9 ──────────────────
+  console.log("\n── Test D: linked Agri-Env project — scheme name in column 9 ───────");
+
+  for (const [exportLabel, csvText] of [
+    ["legacy POST", postResp.text],
+    ["newer GET", getResp.text],
+  ]) {
+    const agriRows = findTestRows(csvText, `${TOKEN}-AGRI`);
+    check(
+      `exactly one ${exportLabel} row matches the Agri-Env-linked test token`,
+      agriRows.length === 1,
+      `found ${agriRows.length} row(s) matching "${TOKEN}-AGRI"`,
+    );
+    if (agriRows.length > 0) {
+      const row = agriRows[0];
+      check(
+        `${exportLabel} Agri-Env-linked row has ${EXPECTED_COL_COUNT} columns`,
+        row.length === EXPECTED_COL_COUNT,
+        `got ${row.length}: ${JSON.stringify(row)}`,
+      );
+      check(
+        `${exportLabel} column 9 (index 8) contains "${AGRI_ENV_SCHEME_NAME}"`,
+        row[8] === AGRI_ENV_SCHEME_NAME,
+        `got "${row[8]}"`,
+      );
+    }
+  }
+
+  // ── Test E: empty result still returns a valid header-only CSV ────────────
+  console.log("\n── Test E: no matching transactions — header-only CSV ────────────────");
 
   const emptyPostResp = await legacyPostExport(EMPTY_RANGE_START, EMPTY_RANGE_END);
   check(
