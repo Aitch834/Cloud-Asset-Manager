@@ -400,6 +400,7 @@ function AssetUploader({
 interface TemplateFormProps {
   initial?: AdTemplate;
   onSave: (data: Omit<AdTemplate, "id" | "createdAt" | "updatedAt" | "archivedAt">) => void;
+  onSaveStart?: () => void;
   onCancel: () => void;
   isSaving: boolean;
   saveError?: string;
@@ -584,7 +585,7 @@ export function TemplatePlaceholderPreview({
   );
 }
 
-export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, previewHeadline = "", previewBody = "", previewAccentColor = "" }: TemplateFormProps) {
+export function TemplateForm({ initial, onSave, onSaveStart, onCancel, isSaving, saveError, previewHeadline = "", previewBody = "", previewAccentColor = "" }: TemplateFormProps) {
   const [name,     setName]     = useState(initial?.name     ?? "");
   const [slug,     setSlug]     = useState(initial?.slug     ?? "");
   const [widthMm,  setWidthMm]  = useState(String(initial?.widthMm  ?? "190"));
@@ -654,6 +655,7 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    onSaveStart?.();
     // If there are near-miss typo placeholders and the admin hasn't yet
     // acknowledged them, pause and show the inline confirmation instead of saving.
     if (typoPlaceholders.length > 0 && !awaitingTypoConfirm) {
@@ -2168,7 +2170,11 @@ export default function AdPdfGenerator() {
             {panel === "create" ? (
               <TemplateForm
                 key="create"
-                onSave={(data) => createMutation.mutate(data)}
+                onSave={(data) => {
+                  createMutation.reset();
+                  createMutation.mutate(data);
+                }}
+                onSaveStart={() => createMutation.reset()}
                 onCancel={() => setPanel("none")}
                 isSaving={createMutation.isPending}
                 saveError={createMutation.error instanceof Error ? createMutation.error.message : undefined}
@@ -2180,7 +2186,11 @@ export default function AdPdfGenerator() {
               <TemplateForm
                 key={(panel as { edit: AdTemplate }).edit.id}
                 initial={(panel as { edit: AdTemplate }).edit}
-                onSave={(data) => updateMutation.mutate({ id: (panel as { edit: AdTemplate }).edit.id, data })}
+                onSave={(data) => {
+                  updateMutation.reset();
+                  updateMutation.mutate({ id: (panel as { edit: AdTemplate }).edit.id, data });
+                }}
+                onSaveStart={() => updateMutation.reset()}
                 onCancel={() => setPanel("none")}
                 isSaving={updateMutation.isPending}
                 saveError={updateMutation.error instanceof Error ? updateMutation.error.message : undefined}
