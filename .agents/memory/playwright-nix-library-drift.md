@@ -9,4 +9,6 @@ Playwright browser downloads can advance to a build whose shared-library needs a
 
 The Nix store may also contain both 32-bit and 64-bit outputs for the same library version. An existing path is not necessarily compatible with the downloaded browser.
 
+Newer browser revisions can additionally require GBM (`libgbm.so.1`), which may be absent even after Chromium and the usual glib/nss runtime packages are installed.
+
 **How to apply:** Treat this as test-infrastructure failure, not an app regression. In ESM Playwright configs, use imported `node:fs` APIs rather than `require` for Nix-store discovery. Select candidate package outputs by checking the required shared object's ELF class against `process.arch`; package version or path existence alone cannot distinguish a same-version 32-bit output from its 64-bit counterpart. Put the selected compatible directories before inherited `LD_LIBRARY_PATH` entries.
