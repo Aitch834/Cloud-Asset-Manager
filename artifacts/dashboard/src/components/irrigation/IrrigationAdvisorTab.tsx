@@ -17,7 +17,7 @@
  *  Yield response via FAO-56: (1 − Ya/Ym) = Ky × (1 − ETa/ETm).
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -168,6 +168,67 @@ function fmtGbp(v: number) {
 function fmtPct(v: number) { return `${(v * 100).toFixed(1)}%`; }
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
+
+export interface SmdChartPoint {
+  date: string;
+  smd: number | null;
+  rain: number | null;
+  etC: number | null;
+  smdProjected: number | null;
+}
+
+export function SmdHistoryChart({
+  chartData,
+  todayChartDate,
+  criticalThreshold,
+}: {
+  chartData: SmdChartPoint[];
+  todayChartDate: string;
+  criticalThreshold: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+        <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 10 }} unit=" mm" />
+        <Tooltip
+          contentStyle={{ fontSize: 11 }}
+          formatter={(val, name) => {
+            if (val === null || val === undefined) return [null, null];
+            if (name === "smdProjected") return [`${Number(val).toFixed(1)} mm`, "Projected (with forecast rain)"];
+            if (name === "smd") return [`${Number(val).toFixed(1)} mm`, "SMD"];
+            if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
+            return [`${Number(val).toFixed(2)} mm`, "ETc"];
+          }}
+        />
+        <ReferenceLine
+          x={todayChartDate}
+          stroke="#64748b"
+          strokeDasharray="3 3"
+          strokeWidth={1}
+          label={{ value: "Today", position: "insideTop", fontSize: 10, fill: "#64748b" }}
+        />
+        <ReferenceLine
+          y={criticalThreshold}
+          stroke="#f97316"
+          strokeDasharray="4 2"
+          label={{ value: `Critical ${criticalThreshold}mm`, position: "insideTopRight", fontSize: 9, fill: "#f97316" }}
+        />
+        <Area
+          type="monotone" dataKey="smd" stroke="#3b82f6" fill="#93c5fd"
+          fillOpacity={0.3} name="smd" strokeWidth={1.5}
+        />
+        <Area
+          type="monotone" dataKey="smdProjected" stroke="#3b82f6" fill="#93c5fd"
+          fillOpacity={0.12} name="smdProjected" strokeWidth={1.5}
+          strokeDasharray="5 3" strokeOpacity={0.65}
+          connectNulls
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
 
 function SmdGauge({ smd, fc, critical }: { smd: number; fc: number; critical: number }) {
   const pct = Math.min(100, (smd / fc) * 100);
@@ -1147,50 +1208,11 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
                   </span>
                 ) : null}
               </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} unit=" mm" />
-                  <Tooltip
-                    contentStyle={{ fontSize: 11 }}
-                    formatter={(val, name) => {
-                      if (val === null || val === undefined) return [null, null];
-                      if (name === "smdProjected") return [`${Number(val).toFixed(1)} mm`, "Projected (with forecast rain)"];
-                      if (name === "smd") return [`${Number(val).toFixed(1)} mm`, "SMD"];
-                      if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
-                      return [`${Number(val).toFixed(2)} mm`, "ETc"];
-                    }}
-                  />
-                  {/* Mark the boundary between historical data and projection. */}
-                  <ReferenceLine
-                    x={todayChartDate}
-                    stroke="#64748b"
-                    strokeDasharray="3 3"
-                    strokeWidth={1}
-                    label={{ value: "Today", position: "insideTop", fontSize: 10, fill: "#64748b" }}
-                  />
-                  {/* Critical threshold line */}
-                  <ReferenceLine
-                    y={criticalThreshold}
-                    stroke="#f97316"
-                    strokeDasharray="4 2"
-                    label={{ value: `Critical ${criticalThreshold}mm`, position: "insideTopRight", fontSize: 9, fill: "#f97316" }}
-                  />
-                  {/* Historical SMD */}
-                  <Area
-                    type="monotone" dataKey="smd" stroke="#3b82f6" fill="#93c5fd"
-                    fillOpacity={0.3} name="smd" strokeWidth={1.5}
-                  />
-                  {/* 7-day projected SMD — dashed, lighter fill */}
-                  <Area
-                    type="monotone" dataKey="smdProjected" stroke="#3b82f6" fill="#93c5fd"
-                    fillOpacity={0.12} name="smdProjected" strokeWidth={1.5}
-                    strokeDasharray="5 3" strokeOpacity={0.65}
-                    connectNulls
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <SmdHistoryChart
+                chartData={chartData}
+                todayChartDate={todayChartDate}
+                criticalThreshold={criticalThreshold}
+              />
             </div>
           )}
 
