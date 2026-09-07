@@ -2,7 +2,7 @@
  * E2E: BarrelFillHistory — rack-out tooltip.
  *
  * Seeds a barrel and an open fill, then verifies that the quick rack-out
- * action explains what date it records when hovered.
+ * action explains what date it records when hovered or focused with the keyboard.
  */
 
 import { expect, test } from "@playwright/test";
@@ -130,7 +130,7 @@ async function openVesselRegister(page: import("@playwright/test").Page) {
   ).toBeVisible({ timeout: 20_000 });
 }
 
-test("shows the rack-out explanation when hovering an open barrel fill", async ({
+test("shows the rack-out explanation when hovering or keyboard-focusing an open barrel fill", async ({
   page,
 }) => {
   await setupClerkTestingToken({ page, userId: getTestUserId() });
@@ -159,14 +159,27 @@ test("shows the rack-out explanation when hovering an open barrel fill", async (
     await expect(rackOutButton).toBeVisible({
       message: "An open fill must offer the rack-out quick action",
     });
-    await rackOutButton.hover();
+    const explanation = page.getByRole("tooltip", {
+      name: "Record the date wine left this barrel",
+      exact: true,
+    });
 
-    await expect(
-      page.getByRole("tooltip", {
-        name: "Record the date wine left this barrel",
-        exact: true,
-      }),
-    ).toBeVisible();
+    await rackOutButton.hover();
+    await expect(explanation).toBeVisible();
+    await page.mouse.move(0, 0);
+    await expect(explanation).toBeHidden();
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (await rackOutButton.evaluate((button) => button === document.activeElement)) {
+        break;
+      }
+      await page.keyboard.press("Tab");
+    }
+    await expect(rackOutButton).toBeFocused({
+      message: "Keyboard navigation must reach the rack-out quick action",
+    });
+
+    await expect(explanation).toBeVisible();
   } finally {
     await deleteFixture(vesselId, fillId);
   }
