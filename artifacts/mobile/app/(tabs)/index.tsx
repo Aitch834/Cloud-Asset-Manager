@@ -23,6 +23,7 @@ import { HomePersonaliseSheet } from "@/components/home/HomePersonaliseSheet";
 import { MyTasksCard } from "@/components/home/MyTasksCard";
 import { QuickAction } from "@/components/home/QuickAction";
 import { WeatherWidget } from "@/components/home/WeatherWidget";
+import { WinegbSurveyNudge } from "@/components/home/WinegbSurveyNudge";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -759,25 +760,7 @@ export default function HomeScreen() {
         {isViticultureActive && winegbPendingCount > 0 && (
           <>
             <SectionHeader title="WineGB Surveys" />
-            <Pressable
-              style={styles.winegbNudgeBanner}
-              onPress={() => router.push("/vine-phenology-history")}
-            >
-              <View style={styles.winegbNudgeIconWrap}>
-                <Feather name="globe" size={18} color="#059669" />
-              </View>
-              <View style={styles.unlinkedContent}>
-                <Text style={styles.unlinkedTitle}>
-                  {winegbPendingCount === 1
-                    ? "1 WineGB survey to submit"
-                    : `${winegbPendingCount} WineGB surveys to submit`}
-                </Text>
-                <Text style={styles.unlinkedSubtitle}>
-                  Open the checklist to mark surveys as submitted
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={18} color={colors.textSecondary} />
-            </Pressable>
+            <WinegbSurveyNudge pendingCount={winegbPendingCount} />
           </>
         )}
 
@@ -1579,26 +1562,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.lg,
     color: colors.text,
-  },
-  winegbNudgeBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: "#ecfdf5",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#6ee7b755",
-    gap: spacing.md,
-  },
-  winegbNudgeIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#d1fae5",
-    alignItems: "center",
-    justifyContent: "center",
   },
 });
