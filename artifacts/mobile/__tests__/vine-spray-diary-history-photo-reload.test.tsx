@@ -287,6 +287,83 @@ describe("SprayPhotoLightbox cover badge", () => {
   });
 });
 
+describe("SprayPhotoLightbox photo action state", () => {
+  it("disables and dims actions only for the failed photo while swiping away and back", () => {
+    const screen = render(
+      <SprayPhotoLightbox
+        photos={[
+          { ...photo, id: 101, downloadUrl: "https://cdn.example.com/failed-photo.jpg" },
+          { ...photo, id: 102, downloadUrl: "https://cdn.example.com/healthy-photo.jpg" },
+        ]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        farmId={3}
+        sprayDiaryId={7}
+        onCaptionSaved={jest.fn()}
+      />,
+    );
+
+    const actionState = () => {
+      const save = screen.getByTestId("spray-photo-save-to-roll");
+      const share = screen.getByTestId("spray-photo-share");
+      return {
+        saveDisabled: save.props.disabled,
+        shareDisabled: share.props.disabled,
+        saveOpacity: save.props.style.flat(Infinity).find((style: { opacity?: number }) => style?.opacity)?.opacity,
+        shareOpacity: share.props.style.flat(Infinity).find((style: { opacity?: number }) => style?.opacity)?.opacity,
+      };
+    };
+    const gesture = screen.getByTestId("spray-lightbox-gesture").props.gesture as {
+      onBegin: () => void;
+      onUpdate: (event: { translationX: number; translationY: number }) => void;
+      onEnd: (event: { translationX: number }) => void;
+    };
+    const swipe = (translationX: number) => {
+      act(() => {
+        gesture.onBegin();
+        gesture.onUpdate({ translationX, translationY: 0 });
+        gesture.onEnd({ translationX });
+      });
+    };
+
+    const failedImage = screen
+      .UNSAFE_getAllByType(Image)
+      .find((node) => node.props.source?.uri === "https://cdn.example.com/failed-photo.jpg");
+    expect(failedImage).toBeTruthy();
+    fireEvent(failedImage!, "error");
+
+    expect(actionState()).toEqual({
+      saveDisabled: true,
+      shareDisabled: true,
+      saveOpacity: 0.4,
+      shareOpacity: 0.4,
+    });
+
+    swipe(-100);
+    expect(actionState()).toEqual({
+      saveDisabled: false,
+      shareDisabled: false,
+      saveOpacity: undefined,
+      shareOpacity: undefined,
+    });
+
+    swipe(100);
+    fireEvent(
+      screen
+        .UNSAFE_getAllByType(Image)
+        .find((node) => node.props.source?.uri === "https://cdn.example.com/failed-photo.jpg")!,
+      "error",
+    );
+    expect(actionState()).toEqual({
+      saveDisabled: true,
+      shareDisabled: true,
+      saveOpacity: 0.4,
+      shareOpacity: 0.4,
+    });
+  });
+});
+
 describe("VineSprayDiaryHistoryScreen — filtered empty states", () => {
   beforeEach(() => {
     jest.clearAllMocks();

@@ -486,6 +486,8 @@ export function SprayPhotoLightbox({
           {/* Save to camera roll button */}
           {photo ? (
             <Pressable
+              testID="spray-photo-save-to-roll"
+              accessibilityLabel="Save to Roll"
               style={[
                 lbStyles.saveBtn,
                 { top: insets.top + 12 },
@@ -506,6 +508,8 @@ export function SprayPhotoLightbox({
           {/* Share button */}
           {photo ? (
             <Pressable
+              testID="spray-photo-share"
+              accessibilityLabel="Share"
               style={[
                 lbStyles.shareBtn,
                 { top: insets.top + 12 },
