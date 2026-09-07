@@ -76,6 +76,64 @@ describe("TemplateForm — preview values callout", () => {
 
     expect(screen.getByText(/Sample text shown/i)).toBeDefined();
   });
+
+  it("clears immediately when the inline body is entered and returns when it is cleared", () => {
+    render(
+      <TemplateForm
+        initial={TEMPLATE_WITH_PREVIEW_PLACEHOLDERS}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isSaving={false}
+        previewHeadline="Existing headline"
+        previewAccentColor="#336699"
+      />,
+    );
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+
+    const bodyInput = screen.getByPlaceholderText(
+      "Vine register, spray logs — all in one place.",
+    );
+    fireEvent.change(bodyInput, {
+      target: { value: "Real body copy" },
+    });
+
+    expect(screen.queryByText(/Sample text shown/i)).toBeNull();
+
+    fireEvent.change(bodyInput, {
+      target: { value: "" },
+    });
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+  });
+
+  it("clears immediately when the inline accent is entered and returns when it is cleared", () => {
+    render(
+      <TemplateForm
+        initial={TEMPLATE_WITH_PREVIEW_PLACEHOLDERS}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isSaving={false}
+        previewHeadline="Existing headline"
+        previewBody="Existing body copy"
+      />,
+    );
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+
+    const accentInput = screen.getByPlaceholderText("#C49A6C");
+    fireEvent.change(accentInput, {
+      target: { value: "#336699" },
+    });
+
+    expect(screen.queryByText(/Sample text shown/i)).toBeNull();
+
+    fireEvent.change(accentInput, {
+      target: { value: "" },
+    });
+
+    expect(screen.getByText(/Sample text shown/i)).toBeDefined();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
