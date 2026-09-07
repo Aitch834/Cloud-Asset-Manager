@@ -20,8 +20,9 @@ import {
 } from "../src/lib/e2e-test-user";
 
 const TENANT_SLUG = "oakfield-farms";
+const VITICULTURE_FARM_ID = 5;
 
-export { TENANT_SLUG };
+export { TENANT_SLUG, VITICULTURE_FARM_ID };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,6 +150,53 @@ export default async function globalSetup() {
       throw new Error(`No active E2E tenant found for slug ${TENANT_SLUG}`);
     }
 
+    // Keep the shared winery fixture usable without exercising Stripe. This
+    // row is deliberately local-only (no Stripe subscription identifiers), so
+    // billing webhooks cannot update or cancel it.
+    const viticultureFarmRes = await db.query<{ name: string }>(
+      `SELECT name
+         FROM farms
+        WHERE id = $1 AND tenant_id = $2 AND is_active = true
+        LIMIT 1`,
+      [VITICULTURE_FARM_ID, tenantId],
+    );
+    const viticultureFarm = viticultureFarmRes.rows[0];
+    if (!viticultureFarm) {
+      throw new Error(
+        `Stable Viticulture E2E farm ${VITICULTURE_FARM_ID} is missing or inactive ` +
+          `for tenant ${TENANT_SLUG}`,
+      );
+    }
+
+    const viticultureModuleRes = await db.query<{ id: number }>(
+      "SELECT id FROM modules WHERE key = 'viticulture' AND is_active = true LIMIT 1",
+    );
+    const viticultureModuleId = viticultureModuleRes.rows[0]?.id;
+    if (!viticultureModuleId) {
+      throw new Error("Active Viticulture module is missing from the module catalogue");
+    }
+
+    await db.query(
+      `WITH activated AS (
+         UPDATE subscriptions
+            SET status = 'active',
+                stripe_subscription_id = NULL,
+                stripe_subscription_item_id = NULL,
+                current_period_start = NULL,
+                current_period_end = NULL,
+                updated_at = NOW()
+          WHERE tenant_id = $1 AND farm_id = $2 AND module_id = $3
+            AND stripe_subscription_id IS NULL
+            AND stripe_subscription_item_id IS NULL
+          RETURNING id
+       )
+       INSERT INTO subscriptions
+         (tenant_id, farm_id, module_id, status, stripe_subscription_id, stripe_subscription_item_id)
+       SELECT $1, $2, $3, 'active', NULL, NULL
+        WHERE NOT EXISTS (SELECT 1 FROM activated)`,
+      [tenantId, VITICULTURE_FARM_ID, viticultureModuleId],
+    );
+
     const roleRes = await db.query<{ id: number }>("SELECT id FROM roles LIMIT 1");
     const roleId = roleRes.rows[0]?.id;
     if (!roleId) throw new Error("No roles found in database");
@@ -187,7 +235,8 @@ export default async function globalSetup() {
 
     console.log(
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
-        `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}`,
+        `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}; ` +
+        `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) active`,
     );
   } catch (error) {
     await db.query("ROLLBACK").catch(() => undefined);
