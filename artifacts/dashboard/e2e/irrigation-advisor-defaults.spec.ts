@@ -17,6 +17,7 @@ const FARM_ID = 5;
 const DEFAULTS_STORAGE_KEY = `irrigation-advisor-defaults-${FARM_ID}`;
 
 type FarmResponse = { record: Record<string, unknown> };
+type PlatformConfigResponse = { config: Record<string, string> };
 
 function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
@@ -59,20 +60,43 @@ async function patchFarm(body: Record<string, unknown>): Promise<FarmResponse> {
   return response.json() as Promise<FarmResponse>;
 }
 
-async function openAdvisor(
+async function getPlatformConfig(): Promise<Record<string, string>> {
+  const response = await fetch(`${apiBase()}/api/platform-config`);
+  if (!response.ok) {
+    throw new Error(`GET platform config failed (${response.status}): ${await response.text()}`);
+  }
+  const payload = await response.json() as PlatformConfigResponse;
+  return payload.config;
+}
+
+async function initialiseDashboard(
   page: import("@playwright/test").Page,
-  localDefaults: { costPerMmHa: string; cropPricePerTonne: string; irrigateMm: string },
+  options: { clearAdvisorDefaults?: boolean } = {},
 ) {
   await setupClerkTestingToken({ page, userId: getTestUserId() });
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(
-    ([slug, farmId, defaultsKey, defaults]) => {
+    ([slug, farmId, defaultsKey, clearAdvisorDefaults]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);
       localStorage.setItem(
         "farmtrac-storage",
         JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
       );
+      if (clearAdvisorDefaults) localStorage.removeItem(defaultsKey);
+    },
+    [TENANT_SLUG, FARM_ID, DEFAULTS_STORAGE_KEY, options.clearAdvisorDefaults ?? false] as const,
+  );
+  await page.reload({ waitUntil: "networkidle" });
+}
+
+async function openAdvisor(
+  page: import("@playwright/test").Page,
+  localDefaults: { costPerMmHa: string; cropPricePerTonne: string; irrigateMm: string },
+) {
+  await initialiseDashboard(page);
+  await page.evaluate(
+    ([defaultsKey, defaults]) => {
       localStorage.setItem(
         defaultsKey,
         JSON.stringify({
@@ -81,9 +105,7 @@ async function openAdvisor(
         }),
       );
     },
-    [TENANT_SLUG, FARM_ID, DEFAULTS_STORAGE_KEY, localDefaults] as [
-      string,
-      number,
+    [DEFAULTS_STORAGE_KEY, localDefaults] as [
       string,
       typeof localDefaults,
     ],
@@ -96,6 +118,24 @@ async function openAdvisor(
   await expect(page.getByText("What-if Parameters", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
+}
+
+async function openFarmSettings(page: import("@playwright/test").Page) {
+  await initialiseDashboard(page, { clearAdvisorDefaults: true });
+  await page.goto("/dashboard/settings/farm");
+  await expect(page.getByRole("heading", { name: "Farm Settings", exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("Water & Irrigation", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+}
+
+async function selectFirstAdvisorField(page: import("@playwright/test").Page) {
+  const fieldPicker = page.getByText("Field", { exact: true }).locator("..").getByRole("combobox");
+  await fieldPicker.click();
+  await page.getByRole("option").first().click();
+  await expect(page.getByText("Abstraction Source", { exact: true })).toBeVisible();
 }
 
 function advisorInput(
@@ -182,6 +222,71 @@ test("seeds farm defaults across devices and only offers save for changed values
       irrigationCostPerMmHa: original.record.irrigationCostPerMmHa ?? null,
       irrigationCropPricePerTonne: original.record.irrigationCropPricePerTonne ?? null,
       irrigationApplicationRateMm: original.record.irrigationApplicationRateMm ?? null,
+    }).catch(() => {});
+  }
+});
+
+test("uses platform water defaults when farm overrides are blank and farm overrides otherwise", async ({
+  page,
+}) => {
+  const original = await getFarm();
+  const platformConfig = await getPlatformConfig();
+  const platformCost = platformConfig["irrigation.costPerMmHa"];
+  const platformSource = platformConfig["irrigation.abstractionSource"];
+  const farmCostOverride = "8.25";
+  const farmSourceOverride = "North reservoir";
+
+  expect(platformCost, "platform irrigation cost must be configured").toBeTruthy();
+  expect(platformSource, "platform abstraction source must be configured").toBeTruthy();
+
+  try {
+    await patchFarm({
+      irrigationCostPerMmHa: null,
+      irrigationAbstractionSource: null,
+    });
+
+    await openFarmSettings(page);
+    await expect(page.locator("#settings-irrig-cost")).toHaveValue("");
+    await expect(page.locator("#settings-irrig-source")).toHaveValue("");
+    await expect(
+      page.getByText(
+        `Using platform default: £${Number(platformCost).toFixed(2)}/mm/ha`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`Using platform default: ${platformSource}`, { exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/dashboard/water-irrigation?tab=advisor");
+    await expect(page.getByText("What-if Parameters", { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(advisorInput(page, "Cost per mm/ha (£)")).toHaveValue(platformCost);
+    await selectFirstAdvisorField(page);
+    await expect(page.getByText(platformSource, { exact: true })).toBeVisible();
+
+    await patchFarm({
+      irrigationCostPerMmHa: farmCostOverride,
+      irrigationAbstractionSource: farmSourceOverride,
+    });
+
+    await openFarmSettings(page);
+    await expect(page.locator("#settings-irrig-cost")).toHaveValue(farmCostOverride);
+    await expect(page.locator("#settings-irrig-source")).toHaveValue(farmSourceOverride);
+    await expect(page.getByText(/Using platform default:/)).toHaveCount(0);
+
+    await page.goto("/dashboard/water-irrigation?tab=advisor");
+    await expect(page.getByText("What-if Parameters", { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(advisorInput(page, "Cost per mm/ha (£)")).toHaveValue(farmCostOverride);
+    await selectFirstAdvisorField(page);
+    await expect(page.getByText(farmSourceOverride, { exact: true })).toBeVisible();
+  } finally {
+    await patchFarm({
+      irrigationCostPerMmHa: original.record.irrigationCostPerMmHa ?? null,
+      irrigationAbstractionSource: original.record.irrigationAbstractionSource ?? null,
     }).catch(() => {});
   }
 });
