@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readSync,
+  readdirSync,
+} from "node:fs";
 import * as path from "path";
 
 /**
@@ -26,8 +32,13 @@ const ELF_CLASS_BY_ARCH: Partial<Record<NodeJS.Architecture, number>> = {
 /** Check the ELF class without running `file`, so discovery also works when
  * Playwright loads this ESM config in a minimal non-interactive environment. */
 function isHostArchitecture(libraryPath: string): boolean {
+  let descriptor: number | undefined;
   try {
-    const header = readFileSync(libraryPath).subarray(0, 5);
+    const header = Buffer.allocUnsafe(5);
+    descriptor = openSync(libraryPath, "r");
+    if (readSync(descriptor, header, 0, header.length, 0) !== header.length) {
+      return false;
+    }
     return (
       header[0] === 0x7f &&
       header.subarray(1, 4).toString() === "ELF" &&
@@ -35,6 +46,8 @@ function isHostArchitecture(libraryPath: string): boolean {
     );
   } catch {
     return false;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
 }
 
@@ -56,12 +69,24 @@ function comparePackageVersionsNewestFirst(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+let nixStoreEntries: string[] | undefined;
+
+function getNixStoreEntries(): string[] {
+  if (nixStoreEntries) return nixStoreEntries;
+  try {
+    nixStoreEntries = readdirSync("/nix/store");
+  } catch {
+    nixStoreEntries = [];
+  }
+  return nixStoreEntries;
+}
+
 function findCompatibleNixLib(
   packageName: RegExp,
   requiredLibrary: string,
 ): string | undefined {
   try {
-    const entries = readdirSync("/nix/store")
+    const entries = getNixStoreEntries()
       .filter((entry) => packageName.test(entry))
       .sort(comparePackageVersionsNewestFirst);
 
@@ -88,7 +113,10 @@ function buildNixLibPath(): string {
     findCompatibleNixLib(/-nspr-\d/, "libnspr4.so"),
     findCompatibleNixLib(/-dbus-\d.*-lib$/, "libdbus-1.so.3"),
     findCompatibleNixLib(/-atk-\d/, "libatk-1.0.so.0"),
-    findCompatibleNixLib(/-at-spi2-core-\d/, "libatk-bridge-2.0.so.0"),
+    // ATK 2.38 is packaged with its matching bridge in at-spi2-atk. Newer
+    // at-spi2-core bridges expect symbols that the installed ATK ABI lacks.
+    findCompatibleNixLib(/-at-spi2-atk-\d/, "libatk-bridge-2.0.so.0"),
+    findCompatibleNixLib(/-at-spi2-core-\d/, "libatspi.so.0"),
     findCompatibleNixLib(/-cups-\d.*-lib$/, "libcups.so.2"),
     findCompatibleNixLib(/-libdrm-\d/, "libdrm.so.2"),
     findCompatibleNixLib(/-libxkbcommon-\d/, "libxkbcommon.so.0"),

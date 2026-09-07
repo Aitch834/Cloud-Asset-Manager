@@ -109,11 +109,20 @@ jest.mock("../lib/uploadPhoto", () => ({
   uploadPhotoToStorage: jest.fn(),
 }));
 jest.mock("../lib/scoutingLightboxHelpers", () => ({
+  claimDeleteConfirmation: jest.fn((lock: { current: boolean }) => {
+    if (lock.current) return false;
+    lock.current = true;
+    return true;
+  }),
   getSwipeDirection: jest.fn(() => null),
   shouldAllowSwipe: jest.fn(() => false),
   getPaginationItems: jest.fn(() => []),
   isPaginationItemActive: jest.fn(() => false),
   scheduleScoutingPhotoAutoRetry: jest.fn(),
+  mergeRefreshedPhotoCaptions: jest.fn(
+    (refreshedPhotos: Array<{ id: number; caption: string | null }>) =>
+      refreshedPhotos,
+  ),
   updatePhotoCaption: jest.fn(),
 }));
 

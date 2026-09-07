@@ -179,6 +179,11 @@ jest.mock("../lib/scoutingPhotosApi", () => ({
 // Keep the test focused on the count callback instead of native gesture
 // implementation details inside the lightbox.
 jest.mock("../lib/scoutingLightboxHelpers", () => ({
+  claimDeleteConfirmation: jest.fn((lock: { current: boolean }) => {
+    if (lock.current) return false;
+    lock.current = true;
+    return true;
+  }),
   getSwipeDirection: jest.fn(
     (deleting: boolean, dx: number, threshold = 50) => {
       if (deleting || Math.abs(dx) <= threshold) return null;
@@ -191,6 +196,10 @@ jest.mock("../lib/scoutingLightboxHelpers", () => ({
   ),
   isPaginationItemActive: jest.fn((item: number, currentIndex: number) => item === currentIndex),
   scheduleScoutingPhotoAutoRetry: jest.fn(),
+  mergeRefreshedPhotoCaptions: jest.fn(
+    (refreshedPhotos: Array<{ id: number; caption: string | null }>) =>
+      refreshedPhotos,
+  ),
   updatePhotoCaption: jest.fn((photos: Array<{ id: number; [key: string]: unknown }>, photoId: number, caption: string | null) =>
     photos.map((photo: { id: number }) => photo.id === photoId ? { ...photo, caption } : photo),
   ),
