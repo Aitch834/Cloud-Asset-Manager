@@ -38963,11 +38963,32 @@ router.put("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId",
 router.delete("/farms/:farmId/winery-vessels/:vesselId/maintenance/:maintenanceId", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const vesselId = parseInt(req.params.vesselId as string);
-  const result = await db.execute(sql`
-    DELETE FROM winery_barrel_maintenance
-    WHERE id=${parseInt(req.params.maintenanceId as string)} AND farm_id=${farmId} AND vessel_id=${vesselId}`);
-  if (!(result as unknown as { rowCount?: number }).rowCount) { res.status(404).json({ error: "Record not found" }); return; }
-  res.json({ success: true });
+  const maintenanceId = parseInt(req.params.maintenanceId as string);
+  if (isNaN(vesselId) || isNaN(maintenanceId)) {
+    res.status(400).json({ error: "Invalid vessel or maintenance record ID" });
+    return;
+  }
+  try {
+    const result = await db.execute(sql`
+      DELETE FROM winery_barrel_maintenance
+      WHERE id=${maintenanceId} AND farm_id=${farmId} AND vessel_id=${vesselId}
+      RETURNING id`);
+    if (!result.rows.length) {
+      res.status(404).json({ error: "Maintenance record not found for this vessel" });
+      return;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    const cause = err instanceof Error && "cause" in err
+      ? (err as Error & { cause?: { code?: string } }).cause
+      : undefined;
+    if (cause?.code === "23503") {
+      res.status(409).json({ error: "This maintenance record cannot be deleted because it is referenced by another winery record" });
+      return;
+    }
+    console.error("[WINERY MAINTENANCE DELETE]", err);
+    res.status(500).json({ error: "Unable to delete the maintenance record. Please try again" });
+  }
 });
 
 // ── Barrel Movement Log ────────────────────────────────────────────────────────

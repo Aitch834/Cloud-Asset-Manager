@@ -555,7 +555,10 @@ export function BarrelMaintenanceLog({ farmId, vesselId, readOnly, retirementThr
   const delMut = useMutation({
     mutationFn: async (id: number) => {
       const r = await fetch(api(`farms/${farmId}/winery-vessels/${vesselId}/maintenance/${id}`), { method: "DELETE", credentials: "include" });
-      if (!r.ok) throw new Error("Delete failed");
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error((e as { error?: string }).error || `Delete failed (HTTP ${r.status})`);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qKey });
@@ -2531,7 +2534,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                     };
                     const counts: Record<VesselDetailTab, number> = {
                       fills: Number(view.fill_count ?? fillsQuery.data?.length ?? 0),
-                      maintenance: Number(view.maintenance_count ?? maintenanceQuery.data?.length ?? 0),
+                      maintenance: Number(maintenanceQuery.data?.length ?? view.maintenance_count ?? 0),
                       location: Number(view.movement_count ?? movementQuery.data?.length ?? 0),
                       cleaning: Number(view.clean_count ?? cleaningQuery.data?.length ?? 0),
                     };
