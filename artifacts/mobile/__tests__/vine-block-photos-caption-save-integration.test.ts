@@ -73,6 +73,7 @@ jest.mock("react-native", () => {
     Platform: { OS: "android" },
     Pressable: host("Pressable"),
     ScrollView: host("ScrollView"),
+    StatusBar: host("StatusBar"),
     StyleSheet: {
       create: (styles: Record<string, unknown>) => styles,
       flatten: (style: unknown) =>
@@ -135,6 +136,7 @@ jest.mock("react-native-gesture-handler", () => {
 jest.mock("react-native-reanimated", () => {
   const ReactNative = require("react-native");
   return {
+    __esModule: true,
     default: { View: ReactNative.View },
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     useAnimatedStyle: (fn: () => unknown) => fn(),
@@ -460,6 +462,107 @@ describe("VineBlockPhotosScreen — rendered Android caption failure", () => {
       expect(captionPatchAttempts).toBe(2);
       expect(screen.queryByText(CAPTION_SAVE_ERROR_MESSAGE)).toBeNull();
       expect(screen.queryByText("Edit Caption")).toBeNull();
+    });
+  });
+});
+
+describe("VineBlockPhotosScreen — caption persistence after reopening", () => {
+  it("shows the saved caption beneath the thumbnail and in the lightbox after a fresh gallery load", async () => {
+    useFarm.mockReturnValue({
+      currentFarm: { id: FARM_ID, name: "Test Farm" },
+      user: { id: "test-user" },
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [{
+        id: BLOCK_ID,
+        blockName: "North Block",
+        blockRef: null,
+        fieldParcelRef: null,
+        variety: "Chardonnay",
+        rootstock: null,
+        areaHa: 1.2,
+        numberOfVines: 1000,
+        plantingStatus: "active",
+        isActive: true,
+        isOrganicBlock: false,
+        coverPhotoUrl: null,
+        photoCount: 1,
+      }],
+      loading: false,
+    });
+    useFarmIdentifiers.mockReturnValue({ address: "Test Farm Lane", loading: false });
+    useUiPrefs.mockReturnValue({
+      prefsReady: true,
+      prefs: {},
+      setPref: jest.fn(),
+      isHintDismissed: () => true,
+      dismissHint: jest.fn(),
+    });
+
+    const savedCaption = "Canopy trimmed after flowering";
+    let serverCaption = "Before trimming";
+    let photoListLoads = 0;
+    (apiFetch as jest.MockedFunction<typeof apiFetch>).mockImplementation(
+      async (url, options) => {
+        if (options?.method === "PATCH" && url === EXPECTED_URL) {
+          serverCaption = JSON.parse(options.body as string).caption;
+          return okResponse({ id: PHOTO_ID, caption: serverCaption });
+        }
+        if (
+          !options?.method
+          && url === `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos`
+        ) {
+          photoListLoads++;
+          return okResponse({
+            photos: [{
+              id: PHOTO_ID,
+              blockId: BLOCK_ID,
+              farmId: FARM_ID,
+              objectPath: "vineyard/block-7/photo-101.jpg",
+              fileName: "photo-101.jpg",
+              caption: serverCaption,
+              isCover: true,
+              uploadedAt: "2025-06-01T10:00:00Z",
+              downloadUrl: "https://cdn.example.com/photo-101.jpg",
+            }],
+          });
+        }
+        return errorResponse(404);
+      },
+    );
+
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.find((button) => button.text === "Edit Caption")?.onPress?.();
+    });
+
+    const firstVisit = render(React.createElement(VineBlockPhotosScreen));
+    fireEvent.press(firstVisit.getByText("North Block"));
+    const firstThumbnail = await firstVisit.findByTestId(`vine-block-photo-${PHOTO_ID}`);
+    fireEvent(firstThumbnail, "longPress");
+    fireEvent(firstThumbnail, "pressOut");
+
+    const input = await firstVisit.findByPlaceholderText("e.g. Post-harvest Oct 2025");
+    fireEvent.changeText(input, savedCaption);
+    await act(async () => {
+      fireEvent.press(firstVisit.getByText("Save"));
+    });
+    await waitFor(() => {
+      expect(firstVisit.getByText(savedCaption)).toBeTruthy();
+      expect(serverCaption).toBe(savedCaption);
+    });
+
+    firstVisit.unmount();
+
+    const reopened = render(React.createElement(VineBlockPhotosScreen));
+    fireEvent.press(reopened.getByText("North Block"));
+
+    const reopenedThumbnail = await reopened.findByTestId(`vine-block-photo-${PHOTO_ID}`);
+    expect(reopened.getByText(savedCaption)).toBeTruthy();
+    expect(photoListLoads).toBe(2);
+
+    fireEvent.press(reopenedThumbnail);
+    await waitFor(() => {
+      expect(reopened.getAllByText(savedCaption)).toHaveLength(2);
     });
   });
 });
