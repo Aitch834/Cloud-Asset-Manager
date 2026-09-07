@@ -82,7 +82,7 @@ const OPERATIONS: OperationFixture[] = [
 ];
 
 function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — e2e/.test-user-id is missing");
   }
@@ -90,7 +90,7 @@ function getTestUserId(): string {
 }
 
 function getTestUserEmail(): string {
-  const stateFile = path.join(__dirname, ".test-user-email");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — e2e/.test-user-email is missing");
   }

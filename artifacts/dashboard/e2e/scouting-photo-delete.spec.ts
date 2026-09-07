@@ -52,7 +52,7 @@ const SCOUT_NAME = `E2EScout-882-${Date.now()}`;
 
 /** Clerk user ID written by global-setup.ts */
 function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) throw new Error("global-setup did not run — .test-user-id missing");
   return fs.readFileSync(stateFile, "utf-8").trim();
 }

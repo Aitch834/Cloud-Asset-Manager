@@ -225,7 +225,7 @@ async function signInAndOpenViticultureTab(
   await page.waitForLoadState("networkidle");
 
   // 2. Sign in — must happen after window.Clerk is loaded
-  await clerk.signIn({ page, emailAddress: getStateFile(".test-user-email") });
+  await clerk.signIn({ page, emailAddress: getStateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
 
   // 3. Seed localStorage
   await page.evaluate(

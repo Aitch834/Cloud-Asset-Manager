@@ -23,7 +23,7 @@ function apiBase() {
 }
 
 function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-id missing");
   }

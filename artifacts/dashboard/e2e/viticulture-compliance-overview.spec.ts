@@ -18,7 +18,7 @@ const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getTestUserEmail(): string {
-  const emailFile = path.join(__dirname, ".test-user-email");
+  const emailFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
   if (!fs.existsSync(emailFile)) {
     throw new Error("global-setup did not run — .test-user-email missing");
   }

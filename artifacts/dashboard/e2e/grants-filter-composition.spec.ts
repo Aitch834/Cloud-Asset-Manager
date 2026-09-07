@@ -17,7 +17,7 @@ const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5;
 
 function getTestUserId(): string {
-  const stateFile = path.join(path.dirname(fileURLToPath(import.meta.url)), ".test-user-id");
+  const stateFile = path.join(path.dirname(fileURLToPath(import.meta.url)), process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-id missing");
   }
@@ -25,7 +25,7 @@ function getTestUserId(): string {
 }
 
 function getTestUserEmail(): string {
-  const stateFile = path.join(path.dirname(fileURLToPath(import.meta.url)), ".test-user-email");
+  const stateFile = path.join(path.dirname(fileURLToPath(import.meta.url)), process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-email missing");
   }

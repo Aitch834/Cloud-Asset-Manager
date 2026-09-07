@@ -20,7 +20,7 @@ const NEUTRAL_DEFAULT_FILLS = "6";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getTestUserEmail(): string {
-  const stateFile = path.join(__dirname, ".test-user-email");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-email missing");
   }

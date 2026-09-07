@@ -30,7 +30,7 @@ function apiBase() {
 }
 
 function getTestUserEmail(): string {
-  const emailFile = path.join(__dirname, ".test-user-email");
+  const emailFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
   if (!fs.existsSync(emailFile)) {
     throw new Error("global-setup did not run — .test-user-email missing");
   }

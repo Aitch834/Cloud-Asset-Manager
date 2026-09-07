@@ -7,6 +7,7 @@ import {
   readdirSync,
 } from "node:fs";
 import * as path from "path";
+import { randomUUID } from "node:crypto";
 
 /**
  * Playwright configuration for the BDE Farm Trac Dashboard.
@@ -151,6 +152,14 @@ function buildNixLibPath(): string {
 }
 
 const nixLibPath = buildNixLibPath();
+
+// Playwright loads this config once in the coordinator before it starts global
+// setup and workers. Preserve an explicitly supplied run ID for subprocesses,
+// otherwise assign this invocation its own state-file suffix.
+const e2eRunId = process.env.PLAYWRIGHT_E2E_RUN_ID ?? randomUUID();
+process.env.PLAYWRIGHT_E2E_RUN_ID = e2eRunId;
+process.env.PLAYWRIGHT_E2E_USER_ID_FILE = `.test-user-id-${e2eRunId}`;
+process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE = `.test-user-email-${e2eRunId}`;
 
 export default defineConfig({
   testDir: "./e2e",

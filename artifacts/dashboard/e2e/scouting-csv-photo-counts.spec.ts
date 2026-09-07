@@ -28,7 +28,7 @@ const SCOUT_NAME = `E2EScoutCsv-${Date.now()}`;
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 function getTestUserId(): string {
-  const stateFile = path.join(currentDirectory, ".test-user-id");
+  const stateFile = path.join(currentDirectory, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — .test-user-id missing");
   }

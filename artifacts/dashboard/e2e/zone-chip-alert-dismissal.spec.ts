@@ -95,7 +95,7 @@ function readSetupFile(name: string): string {
 async function openVesselRegister(page: Page): Promise<void> {
   await setupClerkTestingToken({
     page,
-    userId: readSetupFile(".test-user-id"),
+    userId: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!),
   });
 
   await page.route("**/api/farms/5/winery-vessels*", async route => {
@@ -111,7 +111,7 @@ async function openVesselRegister(page: Page): Promise<void> {
   await page.goto("/dashboard/", { waitUntil: "domcontentloaded" });
   await clerk.signIn({
     page,
-    emailAddress: readSetupFile(".test-user-email"),
+    emailAddress: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!),
   });
   await page.evaluate(
     ([slug, farmId]) => {

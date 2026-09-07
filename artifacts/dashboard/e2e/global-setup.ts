@@ -3,8 +3,8 @@
  * maps it to the development tenant so the E2E tests can authenticate as a
  * super-admin.
  *
- * The shared user's Clerk ID is written to e2e/.test-user-id so each test
- * file can read it without repeating the setup.
+ * The shared user's Clerk ID is written to a run-scoped state file so each
+ * test can read it without colliding with another Playwright invocation.
  */
 
 import { clerkSetup } from "@clerk/testing/playwright";
@@ -24,8 +24,14 @@ export { TENANT_SLUG };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const STATE_FILE = path.join(__dirname, ".test-user-id");
-const EMAIL_FILE = path.join(__dirname, ".test-user-email");
+const STATE_FILE = path.join(
+  __dirname,
+  process.env.PLAYWRIGHT_E2E_USER_ID_FILE ?? ".test-user-id-missing-run-id",
+);
+const EMAIL_FILE = path.join(
+  __dirname,
+  process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE ?? ".test-user-email-missing-run-id",
+);
 
 const CLERK_USERS_PAGE_SIZE = 100;
 
@@ -110,20 +116,27 @@ export default async function globalSetup() {
     process.env.PLAYWRIGHT_CLERK_USER_EMAIL ?? SHARED_E2E_TEST_EMAIL
   ).trim().toLowerCase();
 
-  const provisionedUser = await provisionReusableClerkTestUser({
-    preferredEmail: configuredEmail,
-    listUsers: () => listClerkUsers(clerkSecretKey),
-    createUser: (email) => createSharedClerkTestUser(clerkSecretKey, email),
-  });
-  const clerkUserId = provisionedUser.id;
-  const mappedEmail = provisionedUser.email;
-  const reusedExistingUser = provisionedUser.reused;
-
-  // ── 3. Map the Clerk user to the development tenant in PostgreSQL ─────────
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
 
   try {
+    // Provisioning and mapping one shared identity must be atomic across
+    // Playwright invocations. Without this lock, two empty-cache runs can each
+    // create/select a different Clerk ID for the reserved email, then race on
+    // the application's unique users.email constraint.
+    await db.query(
+      "SELECT pg_advisory_lock(hashtext('dashboard-e2e-clerk-identity'))",
+    );
+
+    const provisionedUser = await provisionReusableClerkTestUser({
+      preferredEmail: configuredEmail,
+      listUsers: () => listClerkUsers(clerkSecretKey),
+      createUser: (email) => createSharedClerkTestUser(clerkSecretKey, email),
+    });
+    const clerkUserId = provisionedUser.id;
+    const mappedEmail = provisionedUser.email;
+
+    // ── 3. Map the Clerk user to the development tenant in PostgreSQL ───────
     await db.query("BEGIN");
 
     const tenantRes = await db.query<{ id: number }>(
@@ -165,20 +178,20 @@ export default async function globalSetup() {
       [clerkUserId, tenantId, roleId],
     );
     await db.query("COMMIT");
+
+    // Publish the run identity only after its application mapping commits. If
+    // setup fails, specs cannot accidentally consume a half-provisioned user.
+    fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
+    fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
+
+    console.log(
+      `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
+        `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}`,
+    );
   } catch (error) {
     await db.query("ROLLBACK").catch(() => undefined);
     throw error;
   } finally {
     await db.end();
   }
-
-  // Publish the run identity only after its application mapping commits. If
-  // setup fails, specs cannot accidentally consume a half-provisioned user.
-  fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
-  fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
-
-  console.log(
-    `[e2e] Test user ${reusedExistingUser ? "reused" : "created"}: ` +
-      `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}`,
-  );
 }

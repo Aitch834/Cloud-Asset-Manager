@@ -114,10 +114,10 @@ async function prepareDashboard(page: Page) {
     });
   });
 
-  await setupClerkTestingToken({ page, userId: readSetupFile(".test-user-id") });
+  await setupClerkTestingToken({ page, userId: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: readSetupFile(".test-user-email") });
+  await clerk.signIn({ page, emailAddress: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
   await page.evaluate(
     ([tenantSlug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", tenantSlug);

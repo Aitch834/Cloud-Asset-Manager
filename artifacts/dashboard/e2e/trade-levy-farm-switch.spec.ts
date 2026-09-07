@@ -99,13 +99,13 @@ test("Trade & Levy links remain available and correct after switching farms", as
   const requests = await mockFarmContext(page);
   await setupClerkTestingToken({
     page,
-    userId: readSetupFile(".test-user-id"),
+    userId: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!),
   });
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await clerk.signIn({
     page,
-    emailAddress: readSetupFile(".test-user-email"),
+    emailAddress: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!),
   });
 
   await page.evaluate(

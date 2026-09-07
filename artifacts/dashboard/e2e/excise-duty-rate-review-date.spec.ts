@@ -13,7 +13,7 @@ const FARM_ID = 5;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getTestUserId(): string {
-  const stateFile = path.join(__dirname, ".test-user-id");
+  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
     throw new Error("global-setup did not run — e2e/.test-user-id is missing");
   }

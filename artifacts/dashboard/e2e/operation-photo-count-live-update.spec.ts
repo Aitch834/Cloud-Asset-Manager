@@ -137,10 +137,10 @@ async function preparePage(page: Page): Promise<void> {
     route.fulfill({ status: 200, body: "" }),
   );
 
-  await setupClerkTestingToken({ page, userId: stateFile(".test-user-id") });
+  await setupClerkTestingToken({ page, userId: stateFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: stateFile(".test-user-email") });
+  await clerk.signIn({ page, emailAddress: stateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
 
   await page.evaluate(farmId => {
     const tenantSlug = "oakfield-farms";
