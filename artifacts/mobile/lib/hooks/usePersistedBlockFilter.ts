@@ -5,8 +5,10 @@ import { getItem, setItem } from "@/lib/storage";
 /**
  * Persist a multi-block filter selection in AsyncStorage, scoped per farm.
  *
- * Returns `[selectedIds, setSelectedIds]`.
+ * Returns `[selectedIds, setSelectedIds, loadedForFarmId]`.
  * - An empty array means "all blocks shown" (no filter applied).
+ * - `loadedForFarmId` identifies the farm whose selection is currently exposed;
+ *   it is undefined while a new farm's value is loading.
  * - Switching farms re-reads that farm's stored selection.
  * - Saving an empty array explicitly records the cleared state so stale
  *   selections don't reappear on the next visit.
@@ -15,21 +17,27 @@ import { getItem, setItem } from "@/lib/storage";
  */
 export function usePersistedBlockFilter(
   farmId: string | undefined,
-): [number[], (ids: number[]) => void] {
+): [number[], (ids: number[]) => void, string | undefined] {
   const storageKey = farmId ? `bde_vine_block_filter_${farmId}` : null;
 
   const [selectedIds, setSelectedIdsRaw] = useState<number[]>([]);
+  const [loadedForFarmId, setLoadedForFarmId] = useState<string | undefined>(undefined);
   // Track which farm we last loaded for so we reset when switching farms
   const loadedForFarm = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!farmId || !storageKey) {
       setSelectedIdsRaw([]);
-      loadedForFarm.current = farmId;
+      setLoadedForFarmId(undefined);
+      loadedForFarm.current = undefined;
       return;
     }
     // Skip re-read if already loaded for this farm (prevents reset mid-session)
     if (loadedForFarm.current === farmId) return;
+
+    setSelectedIdsRaw([]);
+    setLoadedForFarmId(undefined);
+    loadedForFarm.current = undefined;
 
     let cancelled = false;
     getItem<number[]>(storageKey).then((stored) => {
@@ -43,6 +51,7 @@ export function usePersistedBlockFilter(
         setSelectedIdsRaw([]);
       }
       loadedForFarm.current = farmId;
+      setLoadedForFarmId(farmId);
     });
     return () => {
       cancelled = true;
@@ -61,5 +70,5 @@ export function usePersistedBlockFilter(
     [storageKey],
   );
 
-  return [selectedIds, setSelectedIds];
+  return [selectedIds, setSelectedIds, loadedForFarmId];
 }

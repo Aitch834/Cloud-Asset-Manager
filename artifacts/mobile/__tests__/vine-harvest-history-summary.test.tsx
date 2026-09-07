@@ -128,12 +128,6 @@ jest.mock("../lib/hooks/useFarmIdentifiers", () => ({
 jest.mock("../lib/hooks/useIdentifierBannerDismiss", () => ({
   useIdentifierBannerDismiss: jest.fn(),
 }));
-jest.mock("../lib/hooks/usePersistedBlockFilter", () => {
-  const React = require("react");
-  return {
-    usePersistedBlockFilter: () => React.useState<number[]>([]),
-  };
-});
 jest.mock("../lib/hooks/usePersistedVintage", () => ({
   usePersistedVintage: jest.fn(),
 }));
@@ -151,6 +145,8 @@ jest.mock("../lib/hooks/usePersistedChemistryCrossTabSort", () => ({
 }));
 jest.mock("../lib/storage", () => ({
   getList: jest.fn(async () => []),
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => {}),
 }));
 jest.mock("../lib/sync-engine", () => ({
   subscribe: jest.fn(() => () => {}),
@@ -211,6 +207,10 @@ const { usePersistedChemistryCrossTabSort } = require("../lib/hooks/usePersisted
 };
 const { apiFetch } = require("../lib/apiFetch") as {
   apiFetch: jest.MockedFunction<() => Promise<Response>>;
+};
+const { getItem, setItem } = require("../lib/storage") as {
+  getItem: jest.Mock;
+  setItem: jest.Mock;
 };
 
 const FARM_ID = "farm-1";
@@ -363,6 +363,69 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     pressFilterChip(screen, "South Block");
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 3 records", "3.50 t", "1.17", "12.7°");
+    });
+  });
+
+  it("clears a stale block selection and loads the next farm's own selection", async () => {
+    let farmId = FARM_ID;
+    let resolveSecondFarmSelection!: (ids: number[]) => void;
+    const secondFarmSelection = new Promise<number[]>((resolve) => {
+      resolveSecondFarmSelection = resolve;
+    });
+    useFarm.mockImplementation(() => ({
+      currentFarm: { id: farmId, name: farmId === FARM_ID ? "Test Vineyard" : "Second Vineyard" },
+      user: { id: "test-user" },
+    }));
+    useApiFetch.mockImplementation(() => ({
+      records: farmId === FARM_ID
+        ? [
+            makeRecord(1, 101, "North Block", 1000, 10),
+            makeRecord(2, 202, "South Block", 2000, 16),
+          ]
+        : [
+            makeRecord(3, 303, "East Block", 900, 14),
+            makeRecord(4, 404, "West Block", 1100, 18),
+          ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: farmId,
+    }));
+    useApiVineBlocks.mockImplementation(() => ({
+      blocks: farmId === FARM_ID
+        ? [makeBlock(101, "North Block", 1), makeBlock(202, "South Block", 2)]
+        : [makeBlock(303, "East Block", 1), makeBlock(404, "West Block", 1)],
+      loading: false,
+    }));
+    usePersistedVintage.mockImplementation((requestedFarmId: string) => [
+      VINTAGE,
+      jest.fn(),
+      requestedFarmId,
+    ]);
+    getItem.mockImplementation((key: string) =>
+      key.endsWith(FARM_ID) ? Promise.resolve([999]) : secondFarmSelection,
+    );
+
+    const screen = render(<VineHarvestHistoryScreen />);
+
+    await waitFor(() => {
+      expectSummary(screen, "2025 Vintage · 2 records", "3.00 t", "1.00", "13.0°");
+      expect(setItem).toHaveBeenCalledWith(`bde_vine_block_filter_${FARM_ID}`, []);
+    });
+
+    farmId = "farm-2";
+    screen.rerender(<VineHarvestHistoryScreen />);
+
+    // The second farm's stored value is still loading. The first committed
+    // render must treat the filter as "Show all", never reuse farm 1's IDs.
+    expectSummary(screen, "2025 Vintage · 2 records", "2.00 t", "1.00", "16.0°");
+
+    resolveSecondFarmSelection([404]);
+
+    await waitFor(() => {
+      expectSummary(screen, "2025 Vintage · 1 record", "1.10 t", "1.10", "18.0°");
+      expect(screen.getAllByText("West Block").length).toBeGreaterThan(0);
     });
   });
 

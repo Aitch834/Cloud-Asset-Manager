@@ -914,7 +914,9 @@ export default function VineHarvestHistoryScreen() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
-  const [selectedBlockIds, setSelectedBlockIds] = usePersistedBlockFilter(currentFarm?.id);
+  const [persistedBlockIds, setSelectedBlockIds, blockFilterLoadedForFarmId] = usePersistedBlockFilter(currentFarm?.id);
+  const selectedBlockIds =
+    blockFilterLoadedForFarmId === currentFarm?.id ? persistedBlockIds : [];
   const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<HarvestRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -1056,6 +1058,32 @@ export default function VineHarvestHistoryScreen() {
     () => blocks.filter(b => recordBlockIds.has(b.id)),
     [blocks, recordBlockIds],
   );
+
+  // A saved selection can refer to blocks removed from this farm. Resolve it
+  // only when the persisted value and current-farm data are authoritative, so
+  // a prior farm's IDs never hide the incoming farm's harvest records.
+  React.useEffect(() => {
+    if (blockFilterLoadedForFarmId !== currentFarm?.id) return;
+    if (recordsFarmId !== currentFarm?.id || blocksLoading) return;
+    if (selectedBlockIds.length === 0) return;
+
+    const availableIds = new Set(filterBlocks.map(block => block.id));
+    const validIds = selectedBlockIds.filter(id => availableIds.has(id));
+    if (
+      validIds.length !== selectedBlockIds.length ||
+      validIds.some((id, index) => id !== selectedBlockIds[index])
+    ) {
+      setSelectedBlockIds(validIds);
+    }
+  }, [
+    blockFilterLoadedForFarmId,
+    blocksLoading,
+    currentFarm?.id,
+    filterBlocks,
+    recordsFarmId,
+    selectedBlockIds,
+    setSelectedBlockIds,
+  ]);
 
   // Block-filtered records (applied before free-text search)
   const blockFilteredRecords = useMemo(() => {
