@@ -20,6 +20,7 @@
  *   7. Navigation opens freely at an interior photo
  *   8. Counter text always reflects current position
  *   9. Share / Delete target the currently displayed photo, not the one tapped to open
+ *  10. Failed images hide Save / Share while keeping retry available
  */
 
 import {
@@ -29,6 +30,7 @@ import {
   showCounter,
   counterText,
   currentPhotoId,
+  photoActionVisibility,
   SWIPE_HORIZ_THRESHOLD,
 } from "../lib/vineBlockLightboxHelpers";
 
@@ -212,5 +214,35 @@ describe("currentPhotoId — always targets the displayed photo", () => {
     // 3 photos; user at 2; photo 303 deleted → newLength=2; clamp to 1 → id 202
     const newIndex = clampIndexAfterDelete(2, 2);
     expect(currentPhotoId(photos.slice(0, 2), newIndex)).toBe(202);
+  });
+});
+
+// ===========================================================================
+// 10. Image load failure — unavailable actions stay hidden until load succeeds
+// ===========================================================================
+
+describe("photoActionVisibility — image load state", () => {
+  it("hides Save and Share after an image error while keeping retry available", () => {
+    expect(photoActionVisibility(true, true, false)).toEqual({
+      showSave: false,
+      showShare: false,
+      showRetry: true,
+    });
+  });
+
+  it("keeps Save and Share available for a successfully loaded photo", () => {
+    expect(photoActionVisibility(true, false, false)).toEqual({
+      showSave: true,
+      showShare: true,
+      showRetry: false,
+    });
+  });
+
+  it("temporarily hides retry while a reload is already in progress", () => {
+    expect(photoActionVisibility(true, true, true)).toEqual({
+      showSave: false,
+      showShare: false,
+      showRetry: false,
+    });
   });
 });

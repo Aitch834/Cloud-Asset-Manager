@@ -182,6 +182,33 @@ export function currentPhotoId(
 }
 
 // ---------------------------------------------------------------------------
+// Image action visibility
+// ---------------------------------------------------------------------------
+
+export interface PhotoActionVisibility {
+  showSave: boolean;
+  showShare: boolean;
+  showRetry: boolean;
+}
+
+/**
+ * Keep actions that require image bytes hidden after an image load failure,
+ * while leaving the manual retry affordance available.
+ */
+export function photoActionVisibility(
+  hasPhoto: boolean,
+  imgError: boolean,
+  retryBusy: boolean,
+): PhotoActionVisibility {
+  const imageActionsAvailable = hasPhoto && !imgError;
+  return {
+    showSave: imageActionsAvailable,
+    showShare: imageActionsAvailable,
+    showRetry: hasPhoto && imgError && !retryBusy,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Pinch-to-zoom boundary
 // ---------------------------------------------------------------------------
 

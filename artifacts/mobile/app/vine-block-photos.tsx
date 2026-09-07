@@ -59,6 +59,7 @@ import {
   DIR_HORIZ,
   DIR_VERT,
   currentPhotoId as resolveCurrentPhotoId,
+  photoActionVisibility,
 } from "@/lib/vineBlockLightboxHelpers";
 import { VineBlockPicker, BlockThumbnail } from "@/components/VineBlockPicker";
 interface BlockPhoto {
@@ -892,6 +893,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
   const imageKey = photo && uri ? `${photo.id}:${uri}` : null;
   const imgError = imageKey !== null && failedImageKey === imageKey;
   const imageReady = imageKey !== null && loadedImageKey === imageKey;
+  const actionVisibility = photoActionVisibility(!!photo, imgError, retryBusy);
 
   // Auto-retry once when a presigned image URL expires.  If the refresh does
   // not replace the URL, the existing manual "Tap to reload" fallback remains.
@@ -942,7 +944,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         </Pressable>
 
         {/* Save to camera roll button */}
-        {photo && !imgError ? (
+        {actionVisibility.showSave ? (
           <Pressable
             style={[styles.lbSaveBtn, { top: insets.top + 12 }]}
             hitSlop={24}
@@ -958,7 +960,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         ) : null}
 
         {/* Share button */}
-        {photo && !imgError ? (
+        {actionVisibility.showShare ? (
           <Pressable
             style={[styles.lbShareBtn, { top: insets.top + 12 }]}
             hitSlop={24}
@@ -1023,7 +1025,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         <GestureDetector gesture={composed}>
           <Animated.View style={[styles.lbImageContainer, imageStyle]}>
             {uri && imageKey ? (
-              imgError && !retryBusy ? (
+              actionVisibility.showRetry ? (
                   <Pressable
                     style={styles.lbRetryContainer}
                     onPress={onReload}
