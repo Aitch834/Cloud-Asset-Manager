@@ -1,6 +1,6 @@
 export const SHARED_E2E_TEST_EMAIL = "e2e-dashboard@bde-test.example.com";
 
-const LEGACY_E2E_TEST_EMAIL = /^e2e-1277-\d+@bde-test\.example\.com$/i;
+const LEGACY_E2E_TEST_EMAIL = /^e2e-\d+-\d+@bde-test\.example\.com$/i;
 
 export interface ClerkUserRecord {
   id: string;
@@ -19,8 +19,9 @@ export interface ProvisionedClerkTestUser extends ReusableClerkTestUser {
 /**
  * Select the persistent dashboard E2E identity from Clerk's user list.
  *
- * The legacy pattern is included so a run can adopt a user left behind by the
- * old per-run setup without creating another account first.
+ * The legacy pattern is intentionally limited to the test-only domain and the
+ * old e2e-<task>-<timestamp> shape. This lets a run adopt identities leaked by
+ * any interrupted historical dashboard suite without selecting real users.
  */
 export function findReusableClerkTestUser(
   users: ClerkUserRecord[],

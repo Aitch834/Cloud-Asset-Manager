@@ -43,6 +43,22 @@ describe("dashboard Playwright Clerk test identity", () => {
     });
   });
 
+  it("adopts generated identities from older dashboard task prefixes", () => {
+    expect(
+      findReusableClerkTestUser([
+        {
+          id: "older-task-user",
+          email_addresses: [
+            { email_address: "e2e-882-1720000000000@bde-test.example.com" },
+          ],
+        },
+      ]),
+    ).toEqual({
+      id: "older-task-user",
+      email: "e2e-882-1720000000000@bde-test.example.com",
+    });
+  });
+
   it("returns no user when Clerk has no dashboard E2E identity", () => {
     expect(
       findReusableClerkTestUser([

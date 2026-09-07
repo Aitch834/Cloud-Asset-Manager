@@ -93,6 +93,12 @@ async function createSharedClerkTestUser(
 }
 
 export default async function globalSetup() {
+  // A process killed before Playwright's global teardown can leave these
+  // per-run markers behind. Never let a later failed setup expose stale
+  // credentials to a spec or teardown from a previous run.
+  fs.rmSync(STATE_FILE, { force: true });
+  fs.rmSync(EMAIL_FILE, { force: true });
+
   // ── 1. Configure Clerk for testing mode ──────────────────────────────────
   await clerkSetup();
 
@@ -112,10 +118,6 @@ export default async function globalSetup() {
   const clerkUserId = provisionedUser.id;
   const mappedEmail = provisionedUser.email;
   const reusedExistingUser = provisionedUser.reused;
-
-  // Persist the Clerk user ID and email for tests.
-  fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
-  fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
 
   // ── 3. Map the Clerk user to the development tenant in PostgreSQL ─────────
   const db = new Client({ connectionString: process.env.DATABASE_URL });
@@ -169,6 +171,11 @@ export default async function globalSetup() {
   } finally {
     await db.end();
   }
+
+  // Publish the run identity only after its application mapping commits. If
+  // setup fails, specs cannot accidentally consume a half-provisioned user.
+  fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
+  fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
 
   console.log(
     `[e2e] Test user ${reusedExistingUser ? "reused" : "created"}: ` +
