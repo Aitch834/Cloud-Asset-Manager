@@ -538,7 +538,12 @@ export function ScoutingPhotoLightbox({
 
           {/* Right chevron */}
           {hasMultiple && currentIndex < photos.length - 1 ? (
-            <Pressable style={[lbStyles.chevron, lbStyles.chevronRight]} onPress={goNext} hitSlop={12}>
+            <Pressable
+              testID="scouting-photo-next"
+              style={[lbStyles.chevron, lbStyles.chevronRight]}
+              onPress={goNext}
+              hitSlop={12}
+            >
               <Feather name="chevron-right" size={32} color="#fff" />
             </Pressable>
           ) : null}
