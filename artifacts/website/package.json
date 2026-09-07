@@ -10,6 +10,7 @@
     "test:contact-modules-banner": "node scripts/test-contact-modules-banner.mjs",
     "test:pricing-share-link": "node scripts/test-pricing-share-link.mjs",
     "test:module-labels": "tsx scripts/check-module-labels.ts",
+    "test:annual-pricing-ceiling": "node scripts/test-annual-pricing-ceiling.mjs",
     "test:leaflet-pdf-generation": "node scripts/test-generate-leaflet-pdfs.mjs",
     "test:sector-leaflet-downloads": "node scripts/test-sector-leaflet-downloads.mjs",
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
