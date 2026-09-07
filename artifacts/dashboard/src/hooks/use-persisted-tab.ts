@@ -1,5 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 
+export function persistedTabStorageKey(page: string, farmId: number | null | undefined): string {
+  return `${page}-active-tab-${farmId ?? 0}`;
+}
+
+export function resolvePersistedTabValue<T extends string>(
+  storedValue: string | null,
+  validIds: readonly string[],
+  defaultTab: T,
+  urlOverride?: string | null,
+): T {
+  if (urlOverride && validIds.includes(urlOverride)) return urlOverride as T;
+  if (storedValue && validIds.includes(storedValue)) return storedValue as T;
+  return defaultTab;
+}
+
 /**
  * Persist a page's active tab in localStorage, scoped to the farm — the same
  * lazy initializer + wrapped setter + farmId re-sync + tab-id validation
@@ -21,16 +36,24 @@ export function usePersistedTab<T extends string>(opts: {
   urlOverride?: string | null;
 }): [T, (v: T) => void] {
   const { page, farmId, validIds, defaultTab, urlOverride } = opts;
-  const storageKey = `${page}-active-tab-${farmId ?? 0}`;
+  const storageKey = persistedTabStorageKey(page, farmId);
   const readStored = (): T => {
+    let storedValue: string | null = null;
     try {
-      const v = localStorage.getItem(storageKey);
-      if (v && validIds.includes(v)) return v as T;
+      storedValue = localStorage.getItem(storageKey);
     } catch { /* localStorage unavailable */ }
-    return defaultTab;
+    return resolvePersistedTabValue(storedValue, validIds, defaultTab);
   };
   const [tab, setTabRaw] = useState<T>(() =>
-    urlOverride && validIds.includes(urlOverride) ? (urlOverride as T) : readStored()
+    resolvePersistedTabValue(
+      (() => {
+        try { return localStorage.getItem(storageKey); }
+        catch { return null; }
+      })(),
+      validIds,
+      defaultTab,
+      urlOverride,
+    )
   );
   // Re-sync when the farm (and therefore the storage key) changes — but not on
   // first mount, so a valid URL override isn't clobbered by the stored value.
