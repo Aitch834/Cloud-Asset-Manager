@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
 import { downloadCsvFile } from "@/lib/csv";
+import { shouldShowMissingLevyWarning } from "./trade-body-levy-warning";
 import {
   Plus, Pencil, Trash2, Printer, PoundSterling, Info, AlertTriangle, Download, Building2,
 } from "lucide-react";
@@ -387,14 +388,12 @@ export default function TradeBodiesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {bodies.map((cfg) => {
                 const total = summaryQ.data?.totalsPerBody?.[cfg.body] ?? 0;
-                const hasNoRecordsThisYear =
-                  year === THIS_YEAR &&
-                  summaryQ.data?.year === year &&
-                  (cfg.type === "levy" || cfg.type === "statutory") &&
-                  !Object.prototype.hasOwnProperty.call(
-                    summaryQ.data.totalsPerBody,
-                    cfg.body,
-                  );
+                const hasNoRecordsThisYear = shouldShowMissingLevyWarning(
+                  cfg,
+                  summaryQ.data,
+                  year,
+                  THIS_YEAR,
+                );
                 const reg = regByBody[cfg.body];
                 const badge = TYPE_BADGE[cfg.type];
                 return (
