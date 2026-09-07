@@ -36,6 +36,7 @@ const now = Date.now();
 function latestHtml(): string {
   const html = capturedMessages.at(-1)?.html;
   assert.ok(html, "expected the fake transport to receive rendered HTML");
+  assert.doesNotMatch(html, /\b(?:NaN|Infinity)\b|issued -\d+ days? ago/i);
   return html;
 }
 
@@ -71,6 +72,39 @@ async function assertAllClearEmailAge(issuedAt: Date, expectedAge: string): Prom
   assert.match(latestHtml(), new RegExp(`\\(issued ${expectedAge}\\)`));
 }
 
+async function assertInvalidIssueTimestampIsRejected(): Promise<void> {
+  capturedMessages.length = 0;
+  const invalidIssuedAt = new Date("not-a-sector-alert-date");
+
+  const issuedResult = await sendSectorAlertIssuedEmail({
+    to: "advisor@example.com",
+    sectorLabel: "Arable",
+    level: "high",
+    issuedAt: invalidIssuedAt,
+  });
+  const allClearResult = await sendSectorAlertAllClearEmail({
+    to: "advisor@example.com",
+    sectorLabel: "Arable",
+    level: "high",
+    issuedAt: invalidIssuedAt,
+    endedAt: new Date(now),
+  });
+
+  assert.deepEqual(issuedResult, {
+    sent: false,
+    reason: "Invalid sector alert issue timestamp",
+  });
+  assert.deepEqual(allClearResult, {
+    sent: false,
+    reason: "Invalid sector alert issue timestamp",
+  });
+  assert.equal(
+    capturedMessages.length,
+    0,
+    "invalid issue timestamps must remain retryable and must not reach SMTP",
+  );
+}
+
 try {
   await assertIssuedEmailAge(new Date(now), "today");
   await assertIssuedEmailAge(new Date(now - 3 * DAY_MS), "3 days ago");
@@ -79,8 +113,9 @@ try {
   await assertAllClearEmailAge(new Date(now), "today");
   await assertAllClearEmailAge(new Date(now - 3 * DAY_MS), "3 days ago");
   await assertAllClearEmailAge(new Date(now + DAY_MS), "today");
+  await assertInvalidIssueTimestampIsRejected();
 
-  console.log("Sector alert email age checks passed for issued and all-clear templates.");
+  console.log("Sector alert email age checks passed; invalid issue timestamps are rejected before SMTP.");
 } finally {
   nodemailer.createTransport = originalCreateTransport;
 }

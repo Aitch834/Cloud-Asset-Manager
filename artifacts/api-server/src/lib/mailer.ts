@@ -467,6 +467,10 @@ function formatAlertAge(issuedAt: Date): string {
   return `Issued ${days} day${days !== 1 ? "s" : ""} ago`;
 }
 
+function hasValidDate(value: unknown): value is Date {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
 export async function sendSectorAlertIssuedEmail(opts: {
   to: string;
   toName?: string;
@@ -476,6 +480,10 @@ export async function sendSectorAlertIssuedEmail(opts: {
   message?: string | null;
   issuedAt: Date;
 }): Promise<{ sent: boolean; reason?: string }> {
+  if (!hasValidDate(opts.issuedAt)) {
+    return { sent: false, reason: "Invalid sector alert issue timestamp" };
+  }
+
   const levelLabel = opts.level.charAt(0).toUpperCase() + opts.level.slice(1);
 
   const formatDate = (d: Date) =>
@@ -557,6 +565,13 @@ export async function sendSectorAlertAllClearEmail(opts: {
   endedAt: Date;
   endedReason?: string | null;
 }): Promise<{ sent: boolean; reason?: string }> {
+  if (!hasValidDate(opts.issuedAt)) {
+    return { sent: false, reason: "Invalid sector alert issue timestamp" };
+  }
+  if (!hasValidDate(opts.endedAt)) {
+    return { sent: false, reason: "Invalid sector alert end timestamp" };
+  }
+
   const levelLabel = opts.level.charAt(0).toUpperCase() + opts.level.slice(1);
 
   const formatDate = (d: Date) =>
