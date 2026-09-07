@@ -18,8 +18,11 @@ import * as path from "path";
  *   VITE_CLERK_PUBLISHABLE_KEY  Clerk frontend publishable key
  *   DATABASE_URL              PostgreSQL connection string
  *   DEV_BYPASS_TOKEN          API dev-bypass token (defaults to "bde-dev-bypass-local")
+ *   PLAYWRIGHT_CLERK_USER_EMAIL optional reserved E2E identity email
  *
- * The dashboard and API server workflows must be running before executing tests.
+ * The dashboard and API server workflows must be running before executing
+ * tests. Global setup reuses the reserved Clerk identity rather than creating
+ * a new user on every run.
  */
 
 const ELF_CLASS_BY_ARCH: Partial<Record<NodeJS.Architecture, number>> = {
