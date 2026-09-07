@@ -47,10 +47,12 @@ describe("restoreStoredTrailSection", () => {
     expect(storage.getItem(sectionKey)).toBe("bt-bottling");
   });
 
-  it("clears a saved section that is no longer rendered", () => {
+  it("clears only the stale per-batch key when a saved section is no longer rendered", () => {
     const sectionKey = "bt-trail-section:42:BATCH-2026";
+    const otherBatchSectionKey = "bt-trail-section:42:BATCH-2025";
     const storage = createMemoryStorage();
     storage.setItem(sectionKey, "bt-bottling");
+    storage.setItem(otherBatchSectionKey, "bt-fermentation");
     vi.stubGlobal("localStorage", storage);
 
     const contentBody = {
@@ -65,6 +67,7 @@ describe("restoreStoredTrailSection", () => {
     expect(restoreStoredTrailSection(sectionKey, contentBody, scrollContainer)).toBeNull();
     expect(scrollBy).not.toHaveBeenCalled();
     expect(storage.getItem(sectionKey)).toBeNull();
+    expect(storage.getItem(otherBatchSectionKey)).toBe("bt-fermentation");
   });
 });
 
