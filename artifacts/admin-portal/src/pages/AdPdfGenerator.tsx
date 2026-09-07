@@ -1087,10 +1087,18 @@ export default function AdPdfGenerator() {
   });
 
   // Resolvability status — checked separately so the warning reflects the server-side fallback logic
-  const { data: brandAssetStatus, isLoading: brandAssetStatusLoading, refetch: refetchBrandAssetStatus } = useQuery<{ logoResolvable: boolean; qrResolvable: boolean }>({
+  const {
+    data: brandAssetStatus,
+    isLoading: brandAssetStatusLoading,
+    isError: brandAssetStatusError,
+    isFetching: brandAssetStatusFetching,
+    refetch: refetchBrandAssetStatus,
+  } = useQuery<{ logoResolvable: boolean; qrResolvable: boolean }>({
     queryKey: ["brand-assets-status"],
     queryFn: fetchBrandAssetStatus,
   });
+  const brandAssetStatusUnavailable = brandAssetStatusError || (!brandAssetStatusLoading && !brandAssetStatus);
+  const brandAssetStatusBlocked = brandAssetStatusLoading || brandAssetStatusUnavailable;
   const hasMissingAssets = !!brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable);
   const missingAssetsTitle = !brandAssetStatus ? undefined
     : !brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
@@ -1880,6 +1888,32 @@ export default function AdPdfGenerator() {
               className="h-9 rounded-md bg-muted/60 animate-pulse"
               aria-hidden="true"
             />
+          ) : brandAssetStatusUnavailable ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <p className="text-sm text-destructive">
+                  <span className="font-medium">Brand-asset check failed.</span>{" "}
+                  Generate and Preview are unavailable until the check succeeds.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { void refetchBrandAssetStatus(); }}
+                disabled={brandAssetStatusFetching}
+              >
+                {brandAssetStatusFetching ? (
+                  <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Retrying…</>
+                ) : (
+                  <><RotateCcw className="mr-2 h-3.5 w-3.5" />Retry check</>
+                )}
+              </Button>
+            </div>
           ) : brandAssetStatus ? (
             <div className="sticky top-0 z-10">
               <BrandAssetWarning status={brandAssetStatus} variant="compact" />
@@ -1889,13 +1923,13 @@ export default function AdPdfGenerator() {
             <div className="flex flex-wrap gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                  <span className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
                     <Button
                       variant="outline"
                       onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
-                      disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0}
                       size="lg"
-                      className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                      className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
                     >
                       {previewMutation.isPending ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
@@ -1907,10 +1941,12 @@ export default function AdPdfGenerator() {
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {(brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                {(brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
                   <TooltipContent>
                     {brandAssetStatusLoading
                       ? "Checking brand assets — please wait…"
+                      : brandAssetStatusUnavailable
+                      ? "Brand-asset check failed — retry the check to continue"
                       : hasMissingAssets
                       ? missingAssetsTitle
                       : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}
@@ -1920,12 +1956,12 @@ export default function AdPdfGenerator() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                  <span className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
                     <Button
                       onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
-                      disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0}
                       size="lg"
-                      className={brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                      className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
                     >
                       {mutation.isPending ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
@@ -1937,10 +1973,12 @@ export default function AdPdfGenerator() {
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {(brandAssetStatusLoading || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                {(brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
                   <TooltipContent>
                     {brandAssetStatusLoading
                       ? "Checking brand assets — please wait…"
+                      : brandAssetStatusUnavailable
+                      ? "Brand-asset check failed — retry the check to continue"
                       : hasMissingAssets
                       ? missingAssetsTitle
                       : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}

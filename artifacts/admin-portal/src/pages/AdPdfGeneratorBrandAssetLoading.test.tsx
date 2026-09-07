@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import AdPdfGenerator from "./AdPdfGenerator";
@@ -59,6 +59,29 @@ function makeFetch(
   });
 }
 
+function makeSequentialStatusFetch(statusResponses: Response[]) {
+  let statusCall = 0;
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input as Request).url;
+
+    if (url.includes("ad-brand-assets/status")) {
+      const response = statusResponses[statusCall++];
+      if (!response) throw new Error("Unexpected brand-asset status request");
+      return response;
+    }
+    if (url.includes("ad-templates")) return jsonResponse([TEMPLATE]);
+    if (url.includes("platform-config")) return jsonResponse({ items: [] });
+    if (url.includes("ad-copy-presets")) return jsonResponse([]);
+
+    throw new Error(`Unmocked fetch: ${url}`);
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -103,6 +126,36 @@ describe("AdPdfGenerator — brand asset status loading", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("brand-asset-status-skeleton")).toBeNull();
+      expect((previewButton as HTMLButtonElement).disabled).toBe(false);
+      expect((generateButton as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
+
+  it("shows a retryable error and restores both actions after a successful retry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeSequentialStatusFetch([
+        jsonResponse({ error: "temporary failure" }, 503),
+        jsonResponse({ logoResolvable: true, qrResolvable: true }),
+      ]),
+    );
+    renderPage();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Brand-asset check failed.");
+    expect(alert.textContent).toContain("unavailable until the check succeeds");
+
+    const previewButton = screen.getByRole("button", { name: /^Preview$/i });
+    const generateButton = screen.getByRole("button", {
+      name: /Generate & Download CMYK PDF/i,
+    });
+    expect((previewButton as HTMLButtonElement).disabled).toBe(true);
+    expect((generateButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry check/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
       expect((previewButton as HTMLButtonElement).disabled).toBe(false);
       expect((generateButton as HTMLButtonElement).disabled).toBe(false);
     });
