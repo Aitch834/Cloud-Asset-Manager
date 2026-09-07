@@ -77,6 +77,7 @@ jest.mock("react-native", () => {
   };
 });
 
+
 jest.mock("@expo/vector-icons", () => {
   const React = require("react");
   const ReactNative = require("react-native");
@@ -355,6 +356,40 @@ describe("VineHarvestHistoryScreen — missing variety t/ha guidance", () => {
     fireEvent.press(guidance[0]);
     expect(Alert.alert).toHaveBeenNthCalledWith(
       2,
+      "Block area not set",
+      BLOCK_AREA_MESSAGE,
+      [{ text: "OK" }],
+    );
+  });
+
+  it("shows actionable guidance for a variety linked to a zero-area block", async () => {
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        {
+          id: BLOCK_WITHOUT_AREA,
+          blockName: "North Block",
+          variety: "Chardonnay",
+          areaHa: 0,
+        },
+        {
+          id: BLOCK_WITH_AREA,
+          blockName: "South Block",
+          variety: "Pinot Noir",
+          areaHa: 1,
+        },
+      ],
+      loading: false,
+    });
+
+    const screen = render(<VineHarvestHistoryScreen />);
+    const zeroAreaGuidance = await screen.findByLabelText(
+      "Set block area to calculate t/ha for Chardonnay",
+    );
+
+    expect(screen.getByText("Set block area to calculate")).toBeTruthy();
+
+    fireEvent.press(zeroAreaGuidance);
+    expect(Alert.alert).toHaveBeenCalledWith(
       "Block area not set",
       BLOCK_AREA_MESSAGE,
       [{ text: "OK" }],
