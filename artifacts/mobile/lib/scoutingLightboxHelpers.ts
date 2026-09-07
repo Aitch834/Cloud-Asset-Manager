@@ -18,6 +18,18 @@ export {
 } from "./vineScoutingLightboxHelpers";
 
 export type ScoutingPaginationItem = number | "leading-ellipsis" | "trailing-ellipsis";
+
+/**
+ * Synchronously claim the delete confirmation for a photo view.
+ * React state updates are not immediate, so a ref-backed claim prevents rapid
+ * repeated taps from opening or queueing more than one confirmation.
+ */
+export function claimDeleteConfirmation(lock: { current: boolean }): boolean {
+  if (lock.current) return false;
+  lock.current = true;
+  return true;
+}
+
 /**
  * Derive the id of the photo that Share / Delete should target.
  * Always resolves from the current display index so that navigating

@@ -28,6 +28,7 @@ import {
   isPaginationItemActive,
   currentPhotoId,
   getSwipeDirection,
+  claimDeleteConfirmation,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
   shouldAllowSwipe,
@@ -393,4 +394,29 @@ describe("getSwipeDirection — deletion takes priority at release", () => {
     expect(getSwipeDirection(false, 50)).toBeNull();
     expect(getSwipeDirection(false, -50)).toBeNull();
   });
+});
+
+// ---------------------------------------------------------------------------
+// 15. Repeated delete taps cannot queue duplicate confirmations
+// ---------------------------------------------------------------------------
+
+describe("claimDeleteConfirmation", () => {
+  it("allows only the first claim while a confirmation is open", () => {
+    const lock = { current: false };
+
+    expect(claimDeleteConfirmation(lock)).toBe(true);
+    expect(claimDeleteConfirmation(lock)).toBe(false);
+    expect(lock.current).toBe(true);
+  });
+
+  it.each(["cancellation", "failed request"])(
+    "allows a retry after %s releases the confirmation",
+    () => {
+      const lock = { current: false };
+
+      expect(claimDeleteConfirmation(lock)).toBe(true);
+      lock.current = false;
+      expect(claimDeleteConfirmation(lock)).toBe(true);
+    },
+  );
 });

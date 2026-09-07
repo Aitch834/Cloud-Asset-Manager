@@ -40,6 +40,7 @@ import {
   shouldAllowSwipe,
   getPaginationItems,
   isPaginationItemActive,
+  claimDeleteConfirmation,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
 } from "@/lib/scoutingLightboxHelpers";
@@ -227,6 +228,7 @@ export function ScoutingPhotoLightbox({
   /** Tracks whether we have already fired one automatic retry for the current photo view. */
   const autoRetried = useRef(false);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteConfirmationOpenRef = useRef(false);
 
   /** Cancel any scheduled auto-retry and reset related state. */
   const cancelAutoRetry = useCallback(() => {
@@ -248,6 +250,7 @@ export function ScoutingPhotoLightbox({
     setDeleting(false);
     setSettingCover(false);
     setReloading(false);
+    deleteConfirmationOpenRef.current = false;
     cancelAutoRetry();
   }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -268,6 +271,7 @@ export function ScoutingPhotoLightbox({
     setSettingCover(false);
     setImgError(false);
     setReloading(false);
+    deleteConfirmationOpenRef.current = false;
     cancelAutoRetry();
   }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -399,12 +403,25 @@ export function ScoutingPhotoLightbox({
   }, [photo, sharing]);
 
   const handleDelete = useCallback(() => {
-    if (!photo || deleting) return;
+    if (
+      !photo ||
+      deleting ||
+      !claimDeleteConfirmation(deleteConfirmationOpenRef)
+    ) return;
+
+    const releaseDeleteConfirmation = () => {
+      deleteConfirmationOpenRef.current = false;
+    };
+
     Alert.alert(
       "Delete Photo",
       "Are you sure you want to delete this photo? This cannot be undone.",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: releaseDeleteConfirmation,
+        },
         {
           text: "Delete",
           style: "destructive",
@@ -427,10 +444,12 @@ export function ScoutingPhotoLightbox({
             } finally {
               deletingRef.current = false;
               setDeleting(false);
+              releaseDeleteConfirmation();
             }
           },
         },
       ],
+      { onDismiss: releaseDeleteConfirmation },
     );
   }, [photo, deleting, onDelete, onClose]);
 
