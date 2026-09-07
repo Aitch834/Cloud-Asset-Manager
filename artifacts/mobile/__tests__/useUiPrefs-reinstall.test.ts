@@ -1452,3 +1452,87 @@ describe("dismissHint — concurrent dismissals preserve pending queue entries",
     expect(pending).toEqual({ flush_window_second: true });
   });
 });
+
+// ===========================================================================
+// 11. setPref — rapid toggles serialize and preserve the newest value
+//
+// Unlike dismissHint, setPref keeps its PATCH inside the per-user write queue.
+// A rapid true → false → true sequence must therefore reach the server in that
+// exact order, and a failure of the newest PATCH must leave that newest value
+// in both durable cache and pending storage for retry.
+// ===========================================================================
+
+describe("setPref — rapid toggles keep the newest setting", () => {
+  it("serializes PATCHes in call order and retains the newest cache and pending value", async () => {
+    const uid = nextUid();
+    const prefKey = "show_only_blocks_needing_photos";
+    const patchBodies: PrefsMap[] = [];
+    const patchResolvers: Array<(response: Partial<Response>) => void> = [];
+    let activePatches = 0;
+    let maxActivePatches = 0;
+
+    mockApiFetch.mockImplementation(
+      (url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse({}));
+        }
+
+        patchBodies.push(JSON.parse(opts.body as string) as PrefsMap);
+        activePatches += 1;
+        maxActivePatches = Math.max(maxActivePatches, activePatches);
+
+        return new Promise<Partial<Response>>((resolve) => {
+          patchResolvers.push((response) => {
+            activePatches -= 1;
+            resolve(response);
+          });
+        });
+      },
+    );
+
+    const { setPref } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    // Deliberately do not await between calls: this models a grower changing
+    // the switch faster than any of the network requests can complete.
+    setPref(prefKey, true);
+    setPref(prefKey, false);
+    setPref(prefKey, true);
+    await drain(4);
+
+    expect(patchBodies).toEqual([{ [prefKey]: true }]);
+    expect(maxActivePatches).toBe(1);
+
+    patchResolvers[0]({ ok: true } as Partial<Response>);
+    await drain(4);
+    expect(patchBodies).toEqual([
+      { [prefKey]: true },
+      { [prefKey]: false },
+    ]);
+    expect(maxActivePatches).toBe(1);
+
+    patchResolvers[1]({ ok: true } as Partial<Response>);
+    await drain(4);
+    expect(patchBodies).toEqual([
+      { [prefKey]: true },
+      { [prefKey]: false },
+      { [prefKey]: true },
+    ]);
+    expect(maxActivePatches).toBe(1);
+
+    // Leave the newest write pending, as it would be after a network failure.
+    patchResolvers[2]({ ok: false } as Partial<Response>);
+    await drain();
+
+    const cache = JSON.parse(
+      asyncStore.get(`ui_prefs_cache_${uid}`)!,
+    ) as PrefsMap;
+    const pending = JSON.parse(
+      asyncStore.get(`ui_prefs_pending_${uid}`)!,
+    ) as PrefsMap;
+
+    expect(cache[prefKey]).toBe(true);
+    expect(pending[prefKey]).toBe(true);
+  });
+});
