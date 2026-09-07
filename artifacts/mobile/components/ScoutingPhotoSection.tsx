@@ -293,6 +293,9 @@ export function ScoutingPhotoLightbox({
       setReloading(true);
       try {
         await onReload(photo.id);
+      } catch {
+        // Automatic recovery is best-effort. Keep imgError set so the manual
+        // "Tap to reload" fallback appears after this single attempt fails.
       } finally {
         setReloading(false);
       }

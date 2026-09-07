@@ -61,7 +61,7 @@ jest.mock("../lib/uploadPhoto", () => ({
 jest.mock("../lib/scoutingPhotosApi", () => ({ fetchScoutingPhotoUrl: jest.fn() }));
 
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { Image } from "react-native";
 import {
   ScoutingPhotoLightbox,
@@ -126,5 +126,34 @@ describe("ScoutingPhotoLightbox retry allowance after navigation", () => {
 
     expect(onReload).toHaveBeenCalledTimes(2);
     expect(onReload).toHaveBeenLastCalledWith(202);
+  });
+
+  it("does not loop automatic retries and leaves manual reload available after failure", async () => {
+    const onReload = jest.fn().mockRejectedValue(new Error("refresh failed"));
+    const rendered = render(
+      <ScoutingPhotoLightbox
+        photos={[photo(101)]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        onDelete={jest.fn()}
+        onReload={onReload}
+      />,
+    );
+
+    fireEvent(displayedImage(rendered), "error");
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(onReload).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Tap to reload")).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(onReload).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Tap to reload")).toBeTruthy();
   });
 });
