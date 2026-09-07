@@ -1255,6 +1255,57 @@ describe("runUiPrefBatchMigration — preserves a concurrent dismissal", () => {
     expect(pending[migratedKey]).toBe(true);
     expect(pending[dismissedKey]).toBe(true);
   });
+
+  it("keeps both the migrated key and a racing setPref update in the pending queue", async () => {
+    const uid = nextUid();
+    const legacyKey = "winegb-multi-dismissed-concurrent-pref-farm";
+    const migratedKey = "winegb_banner_dismissed_excise_concurrent_pref";
+    const preferenceKey = "field_register_show_archived";
+    const pendingKey = `ui_prefs_pending_${uid}`;
+    let releasePendingRead!: () => void;
+    const pendingReadGate = new Promise<void>((resolve) => {
+      releasePendingRead = resolve;
+    });
+    let pendingReadCount = 0;
+    let pendingReadStarted = false;
+
+    asyncStore.set(legacyKey, JSON.stringify([migratedKey]));
+    // Failed PATCHes leave both writes in the durable pending queue.
+    mockApiFetch.mockResolvedValue({ ok: false });
+    mockGetItem.mockImplementation(async (key: string) => {
+      if (key === pendingKey && pendingReadCount++ === 0) {
+        pendingReadStarted = true;
+        await pendingReadGate;
+      }
+      return asyncStore.get(key) ?? null;
+    });
+
+    const { setPref } = useUiPrefs(uid);
+    setPref(preferenceKey, false);
+
+    // Pause setPref inside its queued pending read, then start migration for
+    // the same user so both operations overlap before either PATCH settles.
+    await flushPromises();
+    expect(pendingReadStarted).toBe(true);
+
+    const migrationPromise = runUiPrefBatchMigration(
+      uid,
+      legacyKey,
+      (raw) => JSON.parse(raw) as string[],
+    );
+
+    await drain(4);
+    releasePendingRead();
+
+    await migrationPromise;
+    await drain();
+
+    const pendingJson = asyncStore.get(pendingKey);
+    expect(pendingJson).toBeDefined();
+    const pending = JSON.parse(pendingJson!) as PrefsMap;
+    expect(pending[migratedKey]).toBe(true);
+    expect(pending[preferenceKey]).toBe(false);
+  });
 });
 
 // ===========================================================================
