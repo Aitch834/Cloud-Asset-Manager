@@ -49,6 +49,9 @@ test("blocks Generate and Preview for missing placeholders, then re-enables them
 
   await page.route("**/api/admin/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    expect(route.request().headers()["x-admin-secret"]).toBe(
+      ADMIN_SECRET_PLACEHOLDER,
+    );
 
     if (path === "/api/admin/ad-templates") {
       await route.fulfill({
@@ -119,4 +122,113 @@ test("blocks Generate and Preview for missing placeholders, then re-enables them
   await expect(generateButton).toBeEnabled();
   await expect(previewButton).toBeEnabled();
   await expect(page.getByText("Generate blocked")).toBeHidden();
+});
+
+
+test("keeps the compact missing-brand-assets warning visible without covering the PDF actions", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.addInitScript((secret) => {
+    sessionStorage.setItem("bde_admin_secret", secret);
+  }, ADMIN_SECRET_PLACEHOLDER);
+
+  await page.route("**/api/admin/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    expect(route.request().headers()["x-admin-secret"]).toBe(
+      ADMIN_SECRET_PLACEHOLDER,
+    );
+
+    if (path === "/api/admin/ad-templates") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([templates[1]]),
+      });
+      return;
+    }
+    if (path === "/api/admin/platform-config") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            { key: "brand.adLogoDataUrl", currentValue: "", defaultValue: "" },
+            { key: "brand.adQrDataUrl", currentValue: "", defaultValue: "" },
+          ],
+        }),
+      });
+      return;
+    }
+    if (path === "/api/admin/ad-brand-assets/status") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ logoResolvable: false, qrResolvable: false }),
+      });
+      return;
+    }
+    if (path === "/api/admin/ad-copy-presets") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([]),
+      });
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.goto("/admin-portal/ad-pdf");
+
+  const main = page.locator("main");
+  const actionPanel = page.getByTestId("pdf-action-panel");
+  const fullWarning = page.getByTestId("brand-asset-warning-full");
+  const compactWarning = page.getByTestId("brand-asset-warning-compact");
+  const previewButton = page.getByRole("button", { name: "Preview" });
+  const generateButton = page.getByRole("button", {
+    name: "Generate & Download CMYK PDF",
+  });
+
+  await expect(fullWarning).toBeVisible();
+  const mainBox = await main.boundingBox();
+  const naturalPanelBox = await actionPanel.boundingBox();
+  expect(mainBox).not.toBeNull();
+  expect(naturalPanelBox).not.toBeNull();
+  await main.evaluate(
+    (element, delta) => {
+      element.scrollTop += delta;
+    },
+    naturalPanelBox!.y - mainBox!.y + 10,
+  );
+  const pinnedTop = (await actionPanel.boundingBox())?.y;
+  expect(pinnedTop).toBeDefined();
+  expect(Math.abs(pinnedTop! - mainBox!.y)).toBeLessThanOrEqual(1);
+
+  await main.evaluate((element) => {
+    element.scrollTop += 80;
+  });
+
+  await expect(fullWarning).not.toBeInViewport();
+  await expect(compactWarning).toBeInViewport();
+  await expect(previewButton).toBeInViewport();
+  await expect(generateButton).toBeInViewport();
+  await expect(previewButton).toBeEnabled();
+  await expect(generateButton).toBeEnabled();
+  const scrolledTop = (await actionPanel.boundingBox())?.y;
+  expect(scrolledTop).toBeDefined();
+  expect(Math.abs(scrolledTop! - pinnedTop!)).toBeLessThanOrEqual(1);
+
+  for (const button of [previewButton, generateButton]) {
+    const isUncovered = await button.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      return hit === element || (hit !== null && element.contains(hit));
+    });
+    expect(isUncovered).toBe(true);
+  }
 });

@@ -1099,15 +1099,6 @@ export default function AdPdfGenerator() {
   });
   const brandAssetStatusUnavailable = brandAssetStatusError || (!brandAssetStatusLoading && !brandAssetStatus);
   const brandAssetStatusBlocked = brandAssetStatusLoading || brandAssetStatusUnavailable;
-  const hasMissingAssets = !!brandAssetStatus && (!brandAssetStatus.logoResolvable || !brandAssetStatus.qrResolvable);
-  const missingAssetsTitle = !brandAssetStatus ? undefined
-    : !brandAssetStatus.logoResolvable && !brandAssetStatus.qrResolvable
-      ? "Upload the logo and QR code in Brand Assets below before generating"
-      : !brandAssetStatus.logoResolvable
-      ? "Upload the logo in Brand Assets below before generating"
-      : !brandAssetStatus.qrResolvable
-      ? "Upload the QR code in Brand Assets below before generating"
-      : undefined;
 
   // Selected template for rendering (only from active templates)
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -1880,8 +1871,13 @@ export default function AdPdfGenerator() {
           </div>
         )}
 
+      </div>
+
         {/* Actions */}
-        <div className="flex flex-col gap-3">
+        <div
+          data-testid="pdf-action-panel"
+          className="sticky top-0 z-10 flex flex-col gap-3 bg-background py-2"
+        >
           {brandAssetStatusLoading ? (
             <div
               data-testid="brand-asset-status-skeleton"
@@ -1915,7 +1911,7 @@ export default function AdPdfGenerator() {
               </Button>
             </div>
           ) : brandAssetStatus ? (
-            <div className="sticky top-0 z-10">
+            <div>
               <BrandAssetWarning status={brandAssetStatus} variant="compact" />
             </div>
           ) : null}
@@ -1923,13 +1919,13 @@ export default function AdPdfGenerator() {
             <div className="flex flex-wrap gap-3">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                  <span className={brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
                     <Button
                       variant="outline"
                       onClick={() => { if (!ensureBgUrlChecked()) previewMutation.mutate(); }}
-                      disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      disabled={!effectiveId || previewMutation.isPending || mutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0}
                       size="lg"
-                      className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                      className={brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
                     >
                       {previewMutation.isPending ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rendering preview…</>
@@ -1941,14 +1937,12 @@ export default function AdPdfGenerator() {
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {(brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                {(brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0) && (
                   <TooltipContent>
                     {brandAssetStatusLoading
                       ? "Checking brand assets — please wait…"
                       : brandAssetStatusUnavailable
                       ? "Brand-asset check failed — retry the check to continue"
-                      : hasMissingAssets
-                      ? missingAssetsTitle
                       : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}
                   </TooltipContent>
                 )}
@@ -1956,12 +1950,12 @@ export default function AdPdfGenerator() {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
+                  <span className={brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0 ? "cursor-not-allowed" : undefined}>
                     <Button
                       onClick={() => { if (!ensureBgUrlChecked()) mutation.mutate(); }}
-                      disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0}
+                      disabled={!effectiveId || mutation.isPending || previewMutation.isPending || bgUrlCheckStatus === "checking" || brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0}
                       size="lg"
-                      className={brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
+                      className={brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0 ? "pointer-events-none" : undefined}
                     >
                       {mutation.isPending ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating — this takes about a minute…</>
@@ -1973,14 +1967,12 @@ export default function AdPdfGenerator() {
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {(brandAssetStatusBlocked || hasMissingAssets || missingTemplatePlaceholders.length > 0) && (
+                {(brandAssetStatusBlocked || missingTemplatePlaceholders.length > 0) && (
                   <TooltipContent>
                     {brandAssetStatusLoading
                       ? "Checking brand assets — please wait…"
                       : brandAssetStatusUnavailable
                       ? "Brand-asset check failed — retry the check to continue"
-                      : hasMissingAssets
-                      ? missingAssetsTitle
                       : `Template is missing required placeholder${missingTemplatePlaceholders.length > 1 ? "s" : ""}: ${missingTemplatePlaceholders.join(", ")}`}
                   </TooltipContent>
                 )}
@@ -2141,8 +2133,6 @@ export default function AdPdfGenerator() {
             )}
           </div>
         )}
-      </div>
-
       {/* ── Brand assets section ── */}
       <div id="brand-assets" className="border-t border-border pt-8 space-y-5">
         <div>
@@ -2401,7 +2391,7 @@ function BrandAssetWarning({ status, variant }: BrandAssetWarningProps) {
     const placeholder = bothMissing ? "these placeholders" : "this placeholder";
 
     return (
-      <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
+      <div data-testid="brand-asset-warning-full" className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3">
         <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{heading}</p>
@@ -2425,7 +2415,7 @@ function BrandAssetWarning({ status, variant }: BrandAssetWarningProps) {
     : "QR code is missing";
 
   return (
-    <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2">
+    <div data-testid="brand-asset-warning-compact" className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2">
       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
       <p className="text-sm text-amber-800 dark:text-amber-300">
         {label}{" "}— the rendered output will show blank placeholders.{" "}
