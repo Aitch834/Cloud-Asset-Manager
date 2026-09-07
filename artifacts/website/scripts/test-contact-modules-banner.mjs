@@ -9,6 +9,14 @@
  * Run with: node artifacts/website/scripts/test-contact-modules-banner.mjs
  */
 
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import net from "node:net";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright-core";
+
 const AVAILABLE_MODULES = [
   { id: "red-tractor-compliance", label: "Red Tractor Compliance" },
   { id: "field-crop-management", label: "Field & Crop Management" },
@@ -68,7 +76,7 @@ function getBanner(search) {
 let passed = 0;
 let failed = 0;
 
-function assert(label, condition, detail = "") {
+function check(label, condition, detail = "") {
   if (condition) {
     console.log(`  ✓ ${label}`);
     passed++;
@@ -81,9 +89,9 @@ function assert(label, condition, detail = "") {
 console.log("\nKnown module IDs render the expected banner pills:");
 {
   const banner = getBanner("?modules=field-crop-management,finance-business");
-  assert("banner is visible", banner !== null);
-  assert("selection heading is shown", banner?.heading === "From your Pricing calculator selection:");
-  assert(
+  check("banner is visible", banner !== null);
+  check("selection heading is shown", banner?.heading === "From your Pricing calculator selection:");
+  check(
     "known module labels are rendered in URL order",
     JSON.stringify(banner?.pills) === JSON.stringify(["Field & Crop Management", "Finance & Business"]),
   );
@@ -92,27 +100,143 @@ console.log("\nKnown module IDs render the expected banner pills:");
 console.log("\nUnknown module IDs are ignored:");
 {
   const banner = getBanner("?modules=field-crop-management,unknown-module,ghost-module");
-  assert("known module remains visible", banner?.pills?.includes("Field & Crop Management"));
-  assert("unknown module is not rendered", !banner?.pills?.includes("unknown-module"));
-  assert("unknown module is not rendered (second ID)", !banner?.pills?.includes("Ghost Module"));
-  assert("only known module pill remains", banner?.pills?.length === 1);
-  assert("unknown-only selection does not create an empty banner", getBanner("?modules=unknown-module") === null);
+  check("known module remains visible", banner?.pills?.includes("Field & Crop Management"));
+  check("unknown module is not rendered", !banner?.pills?.includes("unknown-module"));
+  check("unknown module is not rendered (second ID)", !banner?.pills?.includes("Ghost Module"));
+  check("only known module pill remains", banner?.pills?.length === 1);
+  check("unknown-only selection does not create an empty banner", getBanner("?modules=unknown-module") === null);
 }
 
 console.log("\nSector and explicit modules render together:");
 {
   const banner = getBanner("?sector=Arable&modules=viticulture,finance-business");
-  assert(
+  check(
     "combined heading identifies the sector and pricing selection",
     banner?.heading === "Sector: Arable — from your Pricing calculator selection:",
   );
-  assert(
+  check(
     "explicit module pills are rendered",
     JSON.stringify(banner?.pills) === JSON.stringify(["Viticulture", "Finance & Business"]),
   );
-  assert("explicit modules take priority over sector defaults", !banner?.pills?.includes("Field & Crop Management"));
-  assert("sector defaults are not used for explicit selections", banner?.usesSectorDefaults === false);
+  check("explicit modules take priority over sector defaults", !banner?.pills?.includes("Field & Crop Management"));
+  check("sector defaults are not used for explicit selections", banner?.usesSectorDefaults === false);
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  });
+}
+
+async function waitForWebsite(url, child) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (child.exitCode !== null) {
+      throw new Error(`Vite exited before becoming ready (code ${child.exitCode}).`);
+    }
+    try {
+      const response = await fetch(url);
+      if (response.ok) return;
+    } catch {
+      // The server is still starting.
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Timed out waiting for the website test server.");
+}
+
+function findChromiumExecutable() {
+  const candidates = [
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    process.env.CHROMIUM_PATH,
+    "/repl/tools/bin/chromium",
+    chromium.executablePath(),
+  ].filter(Boolean);
+  const nixStore = "/nix/store";
+  if (fs.existsSync(nixStore)) {
+    for (const entry of fs.readdirSync(nixStore)) {
+      if (!entry.includes("playwright-browsers-chromium")) continue;
+      candidates.push(path.join(nixStore, entry, "chrome-linux", "chrome"));
+    }
+  }
+  return candidates.find(candidate => fs.existsSync(candidate));
+}
+
+async function expectContactBanner(page, label) {
+  const heading = "Sector: Arable — from your Pricing calculator selection:";
+  const expectedPills = ["Viticulture", "Finance & Business"];
+  const banner = page.getByText(heading, { exact: true }).locator("..");
+
+  await banner.waitFor();
+  assert.deepEqual(
+    await banner.locator("span").allTextContents(),
+    expectedPills,
+    `${label}: exact module pills remain in URL order`,
+  );
+  console.log(`  ✓ ${label}`);
+}
+
+const websiteDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const viteBin = path.resolve(websiteDir, "node_modules/vite/bin/vite.js");
+const port = await getFreePort();
+const baseUrl = `http://127.0.0.1:${port}`;
+const vite = spawn(process.execPath, [viteBin, "--host", "127.0.0.1"], {
+  cwd: websiteDir,
+  env: {
+    ...process.env,
+    NODE_ENV: "test",
+    PORT: String(port),
+    BASE_PATH: "/",
+  },
+  stdio: ["ignore", "pipe", "pipe"],
+});
+
+let serverOutput = "";
+vite.stdout.on("data", chunk => { serverOutput += chunk; });
+vite.stderr.on("data", chunk => { serverOutput += chunk; });
+
+let browser;
+try {
+  await waitForWebsite(baseUrl, vite);
+  const executablePath = findChromiumExecutable();
+  assert.ok(executablePath, "A Chromium executable is available for the Contact browser check.");
+  browser = await chromium.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  const page = await browser.newPage();
+  const contactPath = "/contact?sector=Arable&modules=viticulture,finance-business";
+
+  console.log("\nContact banner browser-history navigation:");
+  await page.goto(`${baseUrl}${contactPath}`, { waitUntil: "networkidle" });
+  await expectContactBanner(page, "combined sector and modules render on direct arrival");
+
+  await page.getByRole("link", { name: "Pricing", exact: true }).first().click();
+  await page.waitForURL(url => url.pathname === "/pricing");
+
+  await page.goBack({ waitUntil: "networkidle" });
+  assert.equal(new URL(page.url()).pathname + new URL(page.url()).search, contactPath);
+  await expectContactBanner(page, "browser back restores the heading and exact pills");
+
+  await page.goForward({ waitUntil: "networkidle" });
+  assert.equal(new URL(page.url()).pathname, "/pricing");
+  console.log("  ✓ browser forward restores the page navigated away to");
+} catch (error) {
+  console.error(error);
+  if (serverOutput.trim()) {
+    console.error("\nVite output:\n" + serverOutput.trim());
+  }
+  process.exitCode = 1;
+} finally {
+  await browser?.close();
+  vite.kill("SIGTERM");
+}
