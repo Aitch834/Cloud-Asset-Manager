@@ -41,6 +41,7 @@ import {
   getPaginationItems,
   isPaginationItemActive,
   claimDeleteConfirmation,
+  mergeRefreshedPhotoCaptions,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
 } from "@/lib/scoutingLightboxHelpers";
@@ -986,6 +987,8 @@ export function ScoutingPhotoSection({
   // cannot start two concurrent reloads before React commits the first state update.
   const reloadInFlightRef = useRef(false);
   const openedInitialPhotoRef = useRef<number | null>(null);
+  const captionRevisionRef = useRef(0);
+  const captionRevisionsByPhotoRef = useRef(new Map<number, number>());
 
   // Notify parent whenever the local photo count changes (add or delete).
   // We skip the very first render (when photos is still the initial []) so we
@@ -1000,6 +1003,7 @@ export function ScoutingPhotoSection({
   }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
+    const refreshStartedAtRevision = captionRevisionRef.current;
     if (!opts?.silent) setLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`, {
@@ -1007,7 +1011,14 @@ export function ScoutingPhotoSection({
       });
       if (res.ok) {
         const data: { photos: ScoutingPhoto[] } = await res.json();
-        setPhotos(data.photos ?? []);
+        setPhotos((currentPhotos) =>
+          mergeRefreshedPhotoCaptions(
+            data.photos ?? [],
+            currentPhotos,
+            captionRevisionsByPhotoRef.current,
+            refreshStartedAtRevision,
+          ),
+        );
       }
     } catch (error) {
       if (!isAbortError(error)) {
@@ -1193,6 +1204,9 @@ export function ScoutingPhotoSection({
       });
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const captionRevision = captionRevisionRef.current + 1;
+        captionRevisionRef.current = captionRevision;
+        captionRevisionsByPhotoRef.current.set(photoId, captionRevision);
         setPhotos((prev) => updatePhotoCaption(prev, photoId, trimmed || null));
       } else {
         Alert.alert("Save Failed", "Could not save the caption. Please try again.");

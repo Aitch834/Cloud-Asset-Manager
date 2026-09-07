@@ -71,6 +71,26 @@ export function updatePhotoCaption<T extends { id: number; caption: string | nul
   );
 }
 
+/**
+ * Apply a full-list refresh without letting a response that started before a
+ * caption save replace that newer local caption. Other server fields still
+ * refresh normally.
+ */
+export function mergeRefreshedPhotoCaptions<T extends { id: number; caption: string | null }>(
+  refreshedPhotos: ReadonlyArray<T>,
+  currentPhotos: ReadonlyArray<T>,
+  captionRevisions: ReadonlyMap<number, number>,
+  refreshStartedAtRevision: number,
+): T[] {
+  const currentById = new Map(currentPhotos.map((photo) => [photo.id, photo]));
+
+  return refreshedPhotos.map((photo) => {
+    const captionRevision = captionRevisions.get(photo.id) ?? 0;
+    const currentPhoto = currentById.get(photo.id);
+    if (captionRevision <= refreshStartedAtRevision || !currentPhoto) return photo;
+    return { ...photo, caption: currentPhoto.caption };
+  });
+}
 export function isPaginationItemActive(
   item: ScoutingPaginationItem,
   currentIndex: number,

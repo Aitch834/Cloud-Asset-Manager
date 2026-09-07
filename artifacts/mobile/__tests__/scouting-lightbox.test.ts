@@ -29,6 +29,7 @@ import {
   currentPhotoId,
   getSwipeDirection,
   claimDeleteConfirmation,
+  mergeRefreshedPhotoCaptions,
   scheduleScoutingPhotoAutoRetry,
   updatePhotoCaption,
   shouldAllowSwipe,
@@ -302,6 +303,63 @@ describe("updatePhotoCaption — caption save while the lightbox navigates", () 
       { id: 202, caption: "Second photo" },
       { id: 303, caption: "Third photo" },
     ]);
+  });
+});
+
+describe("mergeRefreshedPhotoCaptions — refresh and caption save ordering", () => {
+  type TestPhoto = {
+    id: number;
+    caption: string | null;
+    downloadUrl: string;
+  };
+
+  it("keeps a caption saved after the refresh began while accepting other refreshed fields", () => {
+    const staleServerResponse: TestPhoto[] = [
+      { id: 101, caption: "Old caption", downloadUrl: "fresh-url-101" },
+      { id: 202, caption: "Second photo", downloadUrl: "fresh-url-202" },
+    ];
+    const localPhotosAfterSave = updatePhotoCaption(
+      [
+        { id: 101, caption: "Old caption", downloadUrl: "old-url-101" },
+        { id: 202, caption: "Second photo", downloadUrl: "old-url-202" },
+      ],
+      101,
+      "Just saved",
+    );
+
+    const merged = mergeRefreshedPhotoCaptions(
+      staleServerResponse,
+      localPhotosAfterSave,
+      new Map([[101, 1]]),
+      0,
+    );
+
+    expect(merged).toEqual([
+      { id: 101, caption: "Just saved", downloadUrl: "fresh-url-101" },
+      { id: 202, caption: "Second photo", downloadUrl: "fresh-url-202" },
+    ]);
+  });
+
+  it("accepts the server caption when the save happened before the refresh began", () => {
+    const merged = mergeRefreshedPhotoCaptions(
+      [{ id: 101, caption: "Server caption", downloadUrl: "fresh-url" }],
+      [{ id: 101, caption: "Local caption", downloadUrl: "old-url" }],
+      new Map([[101, 1]]),
+      1,
+    );
+
+    expect(merged[0].caption).toBe("Server caption");
+  });
+
+  it("preserves a newly cleared caption as well as non-empty captions", () => {
+    const merged = mergeRefreshedPhotoCaptions(
+      [{ id: 101, caption: "Stale caption", downloadUrl: "fresh-url" }],
+      [{ id: 101, caption: null, downloadUrl: "old-url" }],
+      new Map([[101, 2]]),
+      1,
+    );
+
+    expect(merged[0].caption).toBeNull();
   });
 });
 
