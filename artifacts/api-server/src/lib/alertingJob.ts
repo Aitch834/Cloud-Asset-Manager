@@ -2101,7 +2101,7 @@ async function excludeSectorAlertEmailOptOuts(unique: Map<string, string>) {
   }
 }
 
-async function runSectorAlertAllClearNotifications() {
+export async function runSectorAlertAllClearNotifications() {
   // Find ended episodes where SMS and/or email all-clear has not yet completed.
   // end_notified  = SMS dispatched (set immediately; no retry needed)
   // end_email_notified = all advisor emails confirmed sent (retried until true)
