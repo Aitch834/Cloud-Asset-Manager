@@ -93,3 +93,40 @@ describe("executePhotoSetCover — stale deleted-photo PATCH", () => {
     );
   });
 });
+
+describe("executePhotoSetCover — network failure", () => {
+  it("leaves local photos unchanged and surfaces an error when the PATCH rejects", async () => {
+    (apiFetch as jest.MockedFunction<typeof apiFetch>).mockRejectedValueOnce(
+      new TypeError("Network request failed"),
+    );
+
+    const initialPhotos = [
+      makePhoto({ id: 100, isCover: true }),
+      makePhoto({ id: PHOTO_ID, isCover: false }),
+    ];
+    let photosState = initialPhotos;
+    const setPhotos = jest.fn(
+      (updater: (photos: BlockPhotoRecord[]) => BlockPhotoRecord[]) => {
+        photosState = updater(photosState);
+      },
+    );
+    const showError = jest.fn();
+
+    const result = await executePhotoSetCover(FARM_ID, BLOCK_ID, PHOTO_ID, {
+      setPhotos,
+      showError,
+    });
+
+    expect(result).toBe(false);
+    expect(apiFetch).toHaveBeenCalledWith(EXPECTED_URL, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isCover: true }),
+    });
+
+    expect(setPhotos).not.toHaveBeenCalled();
+    expect(photosState).toEqual(initialPhotos);
+    expect(photosState.find((photo) => photo.id === PHOTO_ID)?.isCover).toBe(false);
+    expect(showError).toHaveBeenCalledWith("Could not set the cover photo.");
+  });
+});
