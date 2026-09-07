@@ -54,18 +54,37 @@ async function devFetch(
 async function createBarrel(
   vesselRef: string,
   cellarZone?: string,
+  vesselType = "barrel",
+  status = "active",
 ): Promise<number> {
   const body = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/winery-vessels`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       vesselRef,
-      vesselType: "barrel",
+      vesselType,
       capacityLitres: 225,
       cellarZone,
-      status: "active",
+      status,
     }),
   });
+  return Number((body.record as ApiRecord).id);
+}
+
+async function createFill(vesselId: number): Promise<number> {
+  const body = await devFetch(
+    `${apiBase()}/api/farms/${FARM_ID}/winery-vessels/${vesselId}/fills`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fillNumber: 1,
+        fillDate: new Date().toISOString().slice(0, 10),
+        wineName: `${RUN_TAG} wine`,
+        operatorName: RUN_TAG,
+      }),
+    },
+  );
   return Number((body.record as ApiRecord).id);
 }
 
@@ -107,6 +126,24 @@ async function waitForCleanCounts(
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error("Seeded barrels were not readable with the expected clean counts");
+}
+
+async function waitForFillCounts(
+  expected: Map<string, number>,
+): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const body = await devFetch(
+      `${apiBase()}/api/farms/${FARM_ID}/winery-vessels`,
+    );
+    const records = (body.records ?? []) as ApiRecord[];
+    const matches = [...expected].every(([ref, fillCount]) => {
+      const record = records.find(candidate => candidate.vessel_ref === ref);
+      return record && Number(record.fill_count ?? 0) === fillCount;
+    });
+    if (matches) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Seeded vessels were not readable with the expected fill counts");
 }
 
 async function openVesselRegister(
@@ -158,6 +195,107 @@ async function openVesselRegister(
 }
 
 test.describe("VesselRegisterTab — never-cleaned filter", () => {
+  test("counts and filters active no-fill barrel variants", async ({ page }) => {
+    const barrelRef = `${RUN_TAG}-barrel-no-fill`;
+    const oakBarrelRef = `${RUN_TAG}-oak-barrel-no-fill`;
+    const barriqueRef = `${RUN_TAG}-barrique-no-fill`;
+    const filledRef = `${RUN_TAG}-filled`;
+    const tankRef = `${RUN_TAG}-tank-no-fill`;
+    const inactiveRef = `${RUN_TAG}-inactive-no-fill`;
+    const visibleRefs = [
+      barrelRef,
+      oakBarrelRef,
+      barriqueRef,
+      filledRef,
+      tankRef,
+      inactiveRef,
+    ];
+    const vesselIds: number[] = [];
+
+    try {
+      vesselIds.push(await createBarrel(barrelRef));
+      vesselIds.push(await createBarrel(oakBarrelRef, undefined, "oak-barrel"));
+      vesselIds.push(await createBarrel(barriqueRef, undefined, "French barrique"));
+      const filledId = await createBarrel(filledRef, undefined, "barrel");
+      vesselIds.push(filledId);
+      vesselIds.push(await createBarrel(tankRef, undefined, "tank"));
+      vesselIds.push(await createBarrel(inactiveRef, undefined, "oak-barrel", "retired"));
+      await createFill(filledId);
+      await waitForFillCounts(
+        new Map([
+          [barrelRef, 0],
+          [oakBarrelRef, 0],
+          [barriqueRef, 0],
+          [filledRef, 1],
+          [tankRef, 0],
+          [inactiveRef, 0],
+        ]),
+      );
+
+      await openVesselRegister(page, visibleRefs);
+
+      const noFillsChip = page.getByRole("button", {
+        name: "No fills — no records 3",
+        exact: true,
+      });
+      await expect(noFillsChip).toBeVisible();
+      await noFillsChip.click();
+
+      await expect(page.locator("tbody tr", { hasText: barrelRef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: oakBarrelRef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: barriqueRef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: filledRef })).toHaveCount(0);
+      await expect(page.locator("tbody tr", { hasText: tankRef })).toHaveCount(0);
+      await expect(page.locator("tbody tr", { hasText: inactiveRef })).toHaveCount(0);
+      await expect(page.locator("p", {
+        hasText: "Showing barrels flagged as no fills — no records",
+      })).toBeVisible();
+
+      await page.getByRole("button", { name: "Show all", exact: true }).click();
+      await expect(page.locator("tbody tr", { hasText: filledRef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: tankRef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: inactiveRef })).toBeVisible();
+    } finally {
+      for (const vesselId of vesselIds) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+
+  test("hides the no-fills chip when no active barrel lacks fill history", async ({
+    page,
+  }) => {
+    const filledRef = `${RUN_TAG}-only-filled-barrel`;
+    const tankRef = `${RUN_TAG}-only-empty-tank`;
+    const inactiveRef = `${RUN_TAG}-only-inactive-barrel`;
+    const visibleRefs = [filledRef, tankRef, inactiveRef];
+    const vesselIds: number[] = [];
+
+    try {
+      const filledId = await createBarrel(filledRef, undefined, "oak-barrel");
+      vesselIds.push(filledId);
+      vesselIds.push(await createBarrel(tankRef, undefined, "tank"));
+      vesselIds.push(await createBarrel(inactiveRef, undefined, "barrique", "retired"));
+      await createFill(filledId);
+      await waitForFillCounts(new Map([
+        [filledRef, 1],
+        [tankRef, 0],
+        [inactiveRef, 0],
+      ]));
+
+      await openVesselRegister(page, visibleRefs);
+
+      await expect(page.getByRole("button", {
+        name: /No fills — (?:no records|cooperage only)/,
+      })).toHaveCount(0);
+      await expect(page.locator("tbody tr", { hasText: filledRef })).toBeVisible();
+    } finally {
+      for (const vesselId of vesselIds) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+
   test("filters to never-cleaned barrels and restores the full list", async ({
     page,
   }) => {
