@@ -71,6 +71,7 @@ export function getOpenMeteoCacheBucketKey(
 
 export class OpenMeteoCache {
   private readonly cache: LruCache<OpenMeteoCacheEntry>;
+  private readonly inFlight = new Map<string, Promise<OpenMeteoCacheEntry | undefined>>();
 
   constructor(maxSize = OPEN_METEO_CACHE_MAX_SIZE) {
     this.cache = new LruCache(maxSize);
@@ -102,6 +103,30 @@ export class OpenMeteoCache {
   set(key: string, entry: OpenMeteoCacheEntry): void {
     this.cache.set(key, entry);
     this.prune();
+  }
+
+  /**
+   * Share a cache-miss request with every caller in the same coarse coordinate
+   * bucket. The promise is removed regardless of how the request settles, so a
+   * failed or timed-out request never blocks a later retry.
+   */
+  getOrCreateInFlight(
+    lookupKey: string,
+    create: () => Promise<OpenMeteoCacheEntry | undefined>,
+  ): Promise<OpenMeteoCacheEntry | undefined> {
+    const existing = this.inFlight.get(lookupKey);
+    if (existing) return existing;
+
+    const request = create();
+    this.inFlight.set(lookupKey, request);
+    void request.finally(() => {
+      if (this.inFlight.get(lookupKey) === request) {
+        this.inFlight.delete(lookupKey);
+      }
+    }).catch(() => {
+      // The original request remains responsible for surfacing the rejection.
+    });
+    return request;
   }
 
   private prune(): void {

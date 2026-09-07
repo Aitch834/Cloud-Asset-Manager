@@ -24029,32 +24029,38 @@ router.get("/farms/:farmId/irrigation-advisor", requireAuth, requireTenant, requ
           // Cache miss or expired — fetch from Open-Meteo. Its daily response
           // starts with today, while SMD history already includes today, so
           // request eight calendar days and expose the next seven full days.
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&forecast_days=8&timezone=Europe%2FLondon`;
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          try {
-            const resp = await fetch(url, { signal: controller.signal });
-            if (resp.ok) {
+          const entry = await _openMeteoCache.getOrCreateInFlight(cacheLookupKey, async () => {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=precipitation_sum&forecast_days=8&timezone=Europe%2FLondon`;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            try {
+              const resp = await fetch(url, { signal: controller.signal });
+              if (!resp.ok) return undefined;
+
               const json = await resp.json() as {
                 daily?: { time?: string[]; precipitation_sum?: (number | null)[] };
               };
               const sums = (json.daily?.precipitation_sum ?? []).slice(1, 8);
               const times = json.daily?.time ?? [];
               const total = sums.reduce<number>((acc, v) => acc + (v ?? 0), 0);
-              forecastRainfall7dMm = Math.round(total * 10) / 10;
-              forecastDailyMm = sums.map((v, i) => ({
-                date: times[i + 1] ?? "",
-                mm: Math.round((v ?? 0) * 10) / 10,
-              }));
-              // Store in cache and evict any expired entries
-              _openMeteoCache.set(cacheKey, {
+              const createdEntry = {
                 fetchedAt: Date.now(),
-                forecastRainfall7dMm,
-                forecastDailyMm,
-              });
+                forecastRainfall7dMm: Math.round(total * 10) / 10,
+                forecastDailyMm: sums.map((v, i) => ({
+                  date: times[i + 1] ?? "",
+                  mm: Math.round((v ?? 0) * 10) / 10,
+                })),
+              };
+              // Store in cache and evict any expired entries
+              _openMeteoCache.set(cacheKey, createdEntry);
+              return createdEntry;
+            } finally {
+              clearTimeout(timeout);
             }
-          } finally {
-            clearTimeout(timeout);
+          });
+          if (entry) {
+            forecastRainfall7dMm = entry.forecastRainfall7dMm;
+            forecastDailyMm = entry.forecastDailyMm;
           }
         }
       }
