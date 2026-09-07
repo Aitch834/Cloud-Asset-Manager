@@ -177,7 +177,17 @@ jest.mock("../lib/hooks/useBarrelAlertThresholds", () => ({
 }));
 
 jest.mock("../lib/hooks/usePersistedAlertFlag", () => ({
-  usePersistedAlertFlag: () => [null, jest.fn()],
+  usePersistedAlertFlag: () => {
+    const React = require("react");
+    return React.useState(null);
+  },
+}));
+
+jest.mock("../lib/hooks/usePersistedVesselZoneFilter", () => ({
+  usePersistedVesselZoneFilter: () => {
+    const React = require("react");
+    return React.useState([]);
+  },
 }));
 
 jest.mock("../lib/database", () => ({
@@ -313,6 +323,36 @@ describe("winery vessel register quick-fill refresh", () => {
       expect(screen.queryByTestId(`vessel-no-fills-${mockInitialVessel.id}`)).toBeNull();
     });
 
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
+  it("shows no-fills guidance and closes the fill form without changing data", () => {
+    const screen = render(
+      <BarrelAlertProvider>
+        <WineryVesselRegisterScreen />
+      </BarrelAlertProvider>,
+    );
+
+    fireEvent.press(screen.getByText("1 no fills"));
+
+    expect(
+      screen.getByText("Tap a “No fills logged” badge to log a fill"),
+    ).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId(`vessel-no-fills-${mockInitialVessel.id}`), {
+      stopPropagation: jest.fn(),
+    });
+
+    expect(screen.getByText(`Log Fill — ${mockInitialVessel.vessel_ref}`)).toBeTruthy();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByTestId("close-vessel-fill"));
+
+    expect(screen.queryByText(`Log Fill — ${mockInitialVessel.vessel_ref}`)).toBeNull();
+    expect(screen.getByTestId(`vessel-row-${mockInitialVessel.id}`)).toBeTruthy();
+    expect(screen.getByTestId(`vessel-no-fills-${mockInitialVessel.id}`)).toBeTruthy();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockRefreshSpy).not.toHaveBeenCalled();
     expect(mockRouterPush).not.toHaveBeenCalled();
   });
 

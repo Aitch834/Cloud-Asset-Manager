@@ -325,7 +325,14 @@ function LogFillModal({ visible, farmId, vesselId, vesselRef, onClose, onSuccess
         <View style={formStyles.sheet}>
           <View style={formStyles.sheetHeader}>
             <Text style={formStyles.sheetTitle}>Log Fill — {vesselRef}</Text>
-            <Pressable onPress={handleClose} style={formStyles.closeBtn} disabled={submitting}>
+            <Pressable
+              onPress={handleClose}
+              style={formStyles.closeBtn}
+              disabled={submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Close Log Fill form"
+              testID="close-vessel-fill"
+            >
               <Feather name="x" size={20} color={colors.text} />
             </Pressable>
           </View>
