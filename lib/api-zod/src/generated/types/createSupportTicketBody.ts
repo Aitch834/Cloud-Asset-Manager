@@ -13,4 +13,9 @@ export interface CreateSupportTicketBody {
   subject: string;
   description: string;
   conversationHistory?: ChatHistoryItem[];
+  source?: string;
+  /** @nullable */
+  farmId?: number | null;
+  /** @nullable */
+  tenantSlug?: string | null;
 }

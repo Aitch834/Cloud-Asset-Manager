@@ -3366,6 +3366,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChatHistoryItem"
+        source:
+          type: string
+        farmId:
+          type: ["integer", "null"]
+        tenantSlug:
+          type: ["string", "null"]
       required:
         - name
         - email
@@ -3376,6 +3382,8 @@ components:
       properties:
         id:
           type: integer
+        ticketRef:
+          type: ["string", "null"]
         name:
           type: string
         email:
@@ -3384,8 +3392,16 @@ components:
           type: string
         description:
           type: string
+        conversationHistory:
+          type: ["string", "null"]
         status:
           type: string
+        source:
+          type: string
+        farmId:
+          type: ["integer", "null"]
+        tenantSlug:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -3584,6 +3600,20 @@ components:
           type: boolean
         sectorHorticulture:
           type: boolean
+        sectorSheep:
+          type: boolean
+        sectorEggs:
+          type: boolean
+        sectorGoats:
+          type: boolean
+        sectorEquine:
+          type: boolean
+        sectorViticulture:
+          type: boolean
+        sectorFreshProduce:
+          type: boolean
+        sectorDeer:
+          type: boolean
         isActive:
           type: boolean
         createdAt:
@@ -3630,6 +3660,20 @@ components:
         sectorPoultry:
           type: boolean
         sectorHorticulture:
+          type: boolean
+        sectorSheep:
+          type: boolean
+        sectorEggs:
+          type: boolean
+        sectorGoats:
+          type: boolean
+        sectorEquine:
+          type: boolean
+        sectorViticulture:
+          type: boolean
+        sectorFreshProduce:
+          type: boolean
+        sectorDeer:
           type: boolean
       required: [name]
     InvitationListResponse:

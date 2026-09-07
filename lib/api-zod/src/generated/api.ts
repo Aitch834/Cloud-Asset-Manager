@@ -75,8 +75,8 @@ export const CreateSupportTicketBody = zod.object({
     )
     .optional(),
   source: zod.string().optional(),
-  farmId: zod.number().nullable().optional(),
-  tenantSlug: zod.string().nullable().optional(),
+  farmId: zod.number().nullish(),
+  tenantSlug: zod.string().nullish(),
 });
 
 /**
@@ -687,11 +687,16 @@ export const AdminListSupportTicketsResponse = zod.object({
   tickets: zod.array(
     zod.object({
       id: zod.number(),
+      ticketRef: zod.string().nullish(),
       name: zod.string(),
       email: zod.string(),
       subject: zod.string(),
       description: zod.string(),
+      conversationHistory: zod.string().nullish(),
       status: zod.string(),
+      source: zod.string().optional(),
+      farmId: zod.number().nullish(),
+      tenantSlug: zod.string().nullish(),
       createdAt: zod.date(),
     }),
   ),
@@ -707,11 +712,16 @@ export const AdminGetSupportTicketParams = zod.object({
 export const AdminGetSupportTicketResponse = zod.object({
   ticket: zod.object({
     id: zod.number(),
+    ticketRef: zod.string().nullish(),
     name: zod.string(),
     email: zod.string(),
     subject: zod.string(),
     description: zod.string(),
+    conversationHistory: zod.string().nullish(),
     status: zod.string(),
+    source: zod.string().optional(),
+    farmId: zod.number().nullish(),
+    tenantSlug: zod.string().nullish(),
     createdAt: zod.date(),
   }),
   messages: zod.array(
@@ -751,11 +761,16 @@ export const AdminUpdateTicketStatusBody = zod.object({
 export const AdminUpdateTicketStatusResponse = zod.object({
   ticket: zod.object({
     id: zod.number(),
+    ticketRef: zod.string().nullish(),
     name: zod.string(),
     email: zod.string(),
     subject: zod.string(),
     description: zod.string(),
+    conversationHistory: zod.string().nullish(),
     status: zod.string(),
+    source: zod.string().optional(),
+    farmId: zod.number().nullish(),
+    tenantSlug: zod.string().nullish(),
     createdAt: zod.date(),
   }),
 });

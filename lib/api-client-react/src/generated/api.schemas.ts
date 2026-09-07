@@ -80,15 +80,29 @@ export interface CreateSupportTicketBody {
   subject: string;
   description: string;
   conversationHistory?: ChatHistoryItem[];
+  source?: string;
+  /** @nullable */
+  farmId?: number | null;
+  /** @nullable */
+  tenantSlug?: string | null;
 }
 
 export interface SupportTicket {
   id: number;
+  /** @nullable */
+  ticketRef?: string | null;
   name: string;
   email: string;
   subject: string;
   description: string;
+  /** @nullable */
+  conversationHistory?: string | null;
   status: string;
+  source?: string;
+  /** @nullable */
+  farmId?: number | null;
+  /** @nullable */
+  tenantSlug?: string | null;
   createdAt: string;
 }
 
@@ -217,6 +231,13 @@ export interface Farm {
   sectorPigs?: boolean;
   sectorPoultry?: boolean;
   sectorHorticulture?: boolean;
+  sectorSheep?: boolean;
+  sectorEggs?: boolean;
+  sectorGoats?: boolean;
+  sectorEquine?: boolean;
+  sectorViticulture?: boolean;
+  sectorFreshProduce?: boolean;
+  sectorDeer?: boolean;
   isActive: boolean;
   createdAt?: string;
 }
@@ -242,6 +263,13 @@ export interface CreateFarmBody {
   sectorPigs?: boolean;
   sectorPoultry?: boolean;
   sectorHorticulture?: boolean;
+  sectorSheep?: boolean;
+  sectorEggs?: boolean;
+  sectorGoats?: boolean;
+  sectorEquine?: boolean;
+  sectorViticulture?: boolean;
+  sectorFreshProduce?: boolean;
+  sectorDeer?: boolean;
 }
 
 export type InvitationListResponseInvitationsItem = { [key: string]: unknown };

@@ -8,10 +8,19 @@
 
 export interface SupportTicket {
   id: number;
+  /** @nullable */
+  ticketRef?: string | null;
   name: string;
   email: string;
   subject: string;
   description: string;
+  /** @nullable */
+  conversationHistory?: string | null;
   status: string;
+  source?: string;
+  /** @nullable */
+  farmId?: number | null;
+  /** @nullable */
+  tenantSlug?: string | null;
   createdAt: Date;
 }
