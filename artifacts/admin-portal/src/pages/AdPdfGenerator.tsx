@@ -1285,6 +1285,8 @@ export default function AdPdfGenerator() {
   const [editAccentColor,  setEditAccentColor]  = useState("");
   const [editBgUrl,        setEditBgUrl]        = useState("");
   const [editErr,          setEditErr]          = useState<string | null>(null);
+  const [awaitingEditTypoConfirm, setAwaitingEditTypoConfirm] = useState(false);
+  const editTypoPlaceholders = findTypoPlaceholders(`${editHeadline}\n${editBody}`);
 
   const updatePresetMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: { name: string; headline: string; body: string; accentColor: string; bgUrl: string } }) =>
@@ -1293,6 +1295,7 @@ export default function AdPdfGenerator() {
       qc.invalidateQueries({ queryKey: ["ad-copy-presets"] });
       setEditingPresetId(null);
       setEditErr(null);
+      setAwaitingEditTypoConfirm(false);
     },
     onError: (err) => {
       setEditErr(err instanceof Error ? err.message : "Update failed");
@@ -1303,6 +1306,7 @@ export default function AdPdfGenerator() {
     // Always clear any stale mutation error immediately — even when re-opening
     // the same preset's form or when the user cancels a discard prompt.
     setEditErr(null);
+    setAwaitingEditTypoConfirm(false);
     updatePresetMutation.reset();
     if (editingPresetId !== null && editingPresetId !== p.id) {
       const orig = presets.find((x) => x.id === editingPresetId);
@@ -1327,11 +1331,17 @@ export default function AdPdfGenerator() {
   function handleCancelEdit() {
     setEditingPresetId(null);
     setEditErr(null);
+    setAwaitingEditTypoConfirm(false);
     updatePresetMutation.reset();
   }
 
   function handleSubmitEdit(id: number) {
     if (!editName.trim()) { setEditErr("Name is required"); return; }
+    if (editTypoPlaceholders.length > 0 && !awaitingEditTypoConfirm) {
+      setEditErr(null);
+      setAwaitingEditTypoConfirm(true);
+      return;
+    }
     setEditErr(null);
     updatePresetMutation.mutate({ id, data: { name: editName.trim(), headline: editHeadline, body: editBody, accentColor: editAccentColor, bgUrl: editBgUrl } });
   }
@@ -1711,13 +1721,13 @@ export default function AdPdfGenerator() {
                           <input
                             type="text"
                             value={editHeadline}
-                            onChange={(e) => { setEditHeadline(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
+                            onChange={(e) => { setEditHeadline(e.target.value); setEditErr(null); setAwaitingEditTypoConfirm(false); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                             placeholder="Headline HTML (optional)"
                             className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                           />
                           <textarea
                             value={editBody}
-                            onChange={(e) => { setEditBody(e.target.value); setEditErr(null); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
+                            onChange={(e) => { setEditBody(e.target.value); setEditErr(null); setAwaitingEditTypoConfirm(false); if (updatePresetMutation.isError) updatePresetMutation.reset(); }}
                             placeholder="Body copy HTML (optional)"
                             rows={2}
                             className="w-full text-sm border border-input rounded-md px-3 py-1.5 bg-background placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y font-mono"
@@ -1749,6 +1759,31 @@ export default function AdPdfGenerator() {
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />{editErr}
                             </p>
                           )}
+                          {awaitingEditTypoConfirm && editTypoPlaceholders.length > 0 && (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                                <div className="text-sm text-amber-900 space-y-1">
+                                  <p className="font-semibold">
+                                    Confirm save with typo placeholder{editTypoPlaceholders.length > 1 ? "s" : ""}
+                                  </p>
+                                  <p className="text-xs text-amber-800">
+                                    The following token{editTypoPlaceholders.length > 1 ? "s don't" : " doesn't"} match any recognised placeholder and will render as blank in this preset:
+                                  </p>
+                                  <ul className="text-xs space-y-0.5 mt-1">
+                                    {editTypoPlaceholders.map(({ found, expected }) => (
+                                      <li key={found} className="flex items-center gap-1.5">
+                                        <code className="bg-amber-100 px-1 rounded">{found}</code>
+                                        <span className="text-amber-600">→ did you mean</span>
+                                        <code className="bg-amber-100 px-1 rounded">{expected}</code>
+                                        <span className="text-amber-600">?</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 pt-0.5">
                             <Button
                               type="button"
@@ -1758,7 +1793,9 @@ export default function AdPdfGenerator() {
                             >
                               {updatePresetMutation.isPending
                                 ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
-                                : <><Save className="w-3.5 h-3.5 mr-1.5" />Save changes</>}
+                                : awaitingEditTypoConfirm && editTypoPlaceholders.length > 0
+                                  ? <><Save className="w-3.5 h-3.5 mr-1.5" />Save anyway</>
+                                  : <><Save className="w-3.5 h-3.5 mr-1.5" />Save changes</>}
                             </Button>
                             <Button
                               type="button"

@@ -68,6 +68,18 @@ function makeFetch() {
   });
 }
 
+function presetUpdateCalls(fetchSpy: ReturnType<typeof makeFetch>) {
+  return fetchSpy.mock.calls.filter(([input, init]) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input as Request).url;
+    return url.includes("ad-copy-presets/42") && init?.method === "PUT";
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -173,6 +185,78 @@ describe("AdPdfGenerator — preset edit navigation guard", () => {
       expect(screen.queryByRole("button", { name: /Save changes/i })).toBeNull();
       expect(dispatchBeforeUnload()).toBe(true);
     });
+  });
+
+  it("pauses a preset edit with a near-miss placeholder before sending the update", async () => {
+    const fetchSpy = makeFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+    await openPresetEditor();
+
+    fireEvent.change(screen.getByDisplayValue(PRESET.headline), {
+      target: { value: "Grow with {{ Headline }}" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+
+    expect(presetUpdateCalls(fetchSpy)).toHaveLength(0);
+    expect(screen.getByText("{{ Headline }}")).toBeDefined();
+    expect(screen.getAllByText("{{headline}}").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Save anyway/i })).toBeDefined();
+  });
+
+  it("saves a clean preset edit without showing the typo confirmation", async () => {
+    const fetchSpy = makeFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+    await openPresetEditor();
+
+    fireEvent.change(screen.getByDisplayValue(PRESET.body), {
+      target: { value: "Clean body copy" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+
+    await waitFor(() => expect(presetUpdateCalls(fetchSpy)).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: /Save anyway/i })).toBeNull();
+  });
+
+  it("sends the preset update after an explicit Save anyway", async () => {
+    const fetchSpy = makeFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+    await openPresetEditor();
+
+    fireEvent.change(screen.getByDisplayValue(PRESET.body), {
+      target: { value: "Body with {{ Body }}" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save anyway/i }));
+
+    await waitFor(() => expect(presetUpdateCalls(fetchSpy)).toHaveLength(1));
+  });
+
+  it("requires a fresh confirmation after the warned typo changes", async () => {
+    const fetchSpy = makeFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+    await openPresetEditor();
+
+    const headlineInput = screen.getByDisplayValue(PRESET.headline);
+    fireEvent.change(headlineInput, {
+      target: { value: "Grow with {{ Headline }}" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    expect(screen.getByRole("button", { name: /Save anyway/i })).toBeDefined();
+
+    fireEvent.change(headlineInput, {
+      target: { value: "Grow with {{ Body }}" },
+    });
+    expect(screen.queryByRole("button", { name: /Save anyway/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+
+    expect(presetUpdateCalls(fetchSpy)).toHaveLength(0);
+    expect(screen.getByText("{{ Body }}")).toBeDefined();
+    expect(screen.getByRole("button", { name: /Save anyway/i })).toBeDefined();
   });
 
   it("keeps the dirty editor open when sidebar discard is cancelled, then navigates without a second prompt when accepted", async () => {
