@@ -742,6 +742,14 @@ router.get("/farms/:farmId/vineyard-scouting/:id/photos", requireAuth, requireTe
   const farmId = Number(req.params.farmId);
   const scoutingId = Number(req.params.id);
 
+  // Verify the farm belongs to the caller's tenant before issuing any URLs.
+  const [farm] = await db
+    .select({ id: farmsTable.id })
+    .from(farmsTable)
+    .where(and(eq(farmsTable.id, farmId), eq(farmsTable.tenantId, req.tenantId!)))
+    .limit(1);
+  if (!farm) { res.status(404).json({ error: "Farm not found" }); return; }
+
   // Verify scouting record ownership
   const [record] = await db.select({ id: vineyardScoutingTable.id })
     .from(vineyardScoutingTable)

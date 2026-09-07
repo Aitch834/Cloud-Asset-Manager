@@ -1,5 +1,5 @@
 /**
- * API-level regression test for scouting photo URL ownership.
+ * API-level regression test for scouting photo list and URL ownership.
  *
  * The test calls the production Express app over HTTP, while replacing only
  * the object-storage signer with a call-counting test double. This keeps the
@@ -140,16 +140,67 @@ async function main(): Promise<void> {
     };
     const requestUrl = (farmId: number, scoutingId: number, photoId: number) =>
       `${apiBase}/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photoId}/url`;
+    const listUrl = (farmId: number, scoutingId: number) =>
+      `${apiBase}/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`;
+
+    const validListResponse = await fetch(listUrl(farmAId!, scoutingAId!), { headers });
+    assert.equal(validListResponse.status, 200, "a photo list belonging to the requested record and farm should be accessible");
+    const validListBody = await validListResponse.json() as {
+      photos: Array<{ id: number; objectPath: string; downloadUrl: string }>;
+    };
+    assert.equal(validListBody.photos.length, 1);
+    assert.deepEqual(
+      {
+        id: validListBody.photos[0]?.id,
+        objectPath: validListBody.photos[0]?.objectPath,
+        downloadUrl: validListBody.photos[0]?.downloadUrl,
+      },
+      {
+        id: validPhotoId,
+        objectPath: `/objects/scouting/${suffix}/valid.jpg`,
+        downloadUrl: "https://storage.test/signed/1",
+      },
+    );
+    assert.equal(signerCalls.length, 1, "the valid list should generate exactly one storage URL");
+
+    const mismatchedRecordListResponse = await fetch(
+      listUrl(farmAId!, scoutingOtherFarmId!),
+      { headers },
+    );
+    assert.equal(mismatchedRecordListResponse.status, 404, "a scouting record from another farm must return 404");
+
+    const mismatchedFarmListResponse = await fetch(
+      listUrl(farmBId!, scoutingAId!),
+      { headers },
+    );
+    assert.equal(mismatchedFarmListResponse.status, 404, "a farm that does not own the scouting record must return 404");
+
+    const tenantBoundaryListResponse = await fetch(
+      listUrl(farmBId!, scoutingOtherFarmId!),
+      { headers },
+    );
+    assert.equal(tenantBoundaryListResponse.status, 404, "a photo list outside the caller tenant must return 404");
+    assert.equal(
+      signerCalls.length,
+      1,
+      "rejected list requests must not generate storage URLs",
+    );
 
     const validResponse = await fetch(requestUrl(farmAId!, scoutingAId!, validPhotoId!), { headers });
     assert.equal(validResponse.status, 200, "a photo belonging to the requested record and farm should be accessible");
     assert.deepEqual(await validResponse.json(), {
-      downloadUrl: "https://storage.test/signed/1",
+      downloadUrl: "https://storage.test/signed/2",
     });
-    assert.deepEqual(signerCalls, [{
-      objectPath: `/objects/scouting/${suffix}/valid.jpg`,
-      ttlSec: 300,
-    }]);
+    assert.deepEqual(signerCalls, [
+      {
+        objectPath: `/objects/scouting/${suffix}/valid.jpg`,
+        ttlSec: 300,
+      },
+      {
+        objectPath: `/objects/scouting/${suffix}/valid.jpg`,
+        ttlSec: 300,
+      },
+    ]);
 
     const otherRecordResponse = await fetch(
       requestUrl(farmAId!, scoutingAId!, otherRecordPhotoId!),
@@ -171,11 +222,15 @@ async function main(): Promise<void> {
 
     assert.equal(
       signerCalls.length,
-      1,
+      2,
       "rejected cross-record, cross-farm, and cross-tenant requests must not generate storage URLs",
     );
 
     console.log("Scouting photo access regression passed.");
+    console.log("  valid list: 200 and one storage URL generated");
+    console.log("  mismatched list record: 404 without storage access");
+    console.log("  mismatched list farm: 404 without storage access");
+    console.log("  other-tenant list: 404 without storage access");
     console.log("  valid request: 200 and one storage URL generated");
     console.log("  other record: 404 without storage access");
     console.log("  other farm: 404 without storage access");
