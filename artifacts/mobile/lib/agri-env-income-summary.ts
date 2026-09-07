@@ -2,10 +2,44 @@ export interface IncomeSummaryMilestone {
   projectId: number;
   status: string;
   completionDate: string | null;
+  claimAmountPence?: number | null;
 }
 
 export function hasCompletionDateInYear(completionDate: string | null, year: number): boolean {
   return typeof completionDate === "string" && completionDate.slice(0, 4) === String(year);
+}
+
+export interface PaidIncomeSummary {
+  farmPaidPence: number;
+  paidPenceByProject: Map<number, number>;
+}
+
+export function getPaidIncomeSummary(
+  milestones: IncomeSummaryMilestone[],
+  includedProjectIds: Set<number>,
+  year: number | "all",
+): PaidIncomeSummary {
+  const paidPenceByProject = new Map<number, number>();
+
+  for (const milestone of milestones) {
+    if (
+      milestone.status !== "paid"
+      || !includedProjectIds.has(milestone.projectId)
+      || (year !== "all" && !hasCompletionDateInYear(milestone.completionDate, year))
+    ) {
+      continue;
+    }
+
+    paidPenceByProject.set(
+      milestone.projectId,
+      (paidPenceByProject.get(milestone.projectId) ?? 0) + (milestone.claimAmountPence ?? 0),
+    );
+  }
+
+  return {
+    farmPaidPence: Array.from(paidPenceByProject.values()).reduce((sum, amount) => sum + amount, 0),
+    paidPenceByProject,
+  };
 }
 
 export function getIncomeSummaryYears(

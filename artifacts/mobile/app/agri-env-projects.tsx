@@ -24,7 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { canApplyAgriEnvCacheLoad } from "@/lib/agri-env-cache";
 import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
-import { getIncomeSummaryYears } from "@/lib/agri-env-income-summary";
+import { getIncomeSummaryYears, getPaidIncomeSummary } from "@/lib/agri-env-income-summary";
 import { applyTransactionProjectLink } from "@/lib/agri-env-transaction-link";
 import { usePersistedAgriEnvStatusFilter } from "@/lib/hooks/usePersistedAgriEnvStatusFilter";
 import {
@@ -212,9 +212,8 @@ function FarmDrawdownSummary({
     ...additionalYears,
   ])).sort((a, b) => b - a);
 
-  const paidPence = milestones
-    .filter(m => m.status === "paid" && includedIds.has(m.projectId) && matchesIncomeYear(m.completionDate, selectedYear))
-    .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+  const paidIncome = getPaidIncomeSummary(milestones, includedIds, selectedYear);
+  const paidPence = paidIncome.farmPaidPence;
 
   const submittedPence = milestones
     .filter(m => m.status === "submitted" && includedIds.has(m.projectId) && matchesIncomeYear(m.completionDate, selectedYear))
@@ -226,9 +225,7 @@ function FarmDrawdownSummary({
   // Per-project breakdown — only shown when there are multiple active projects.
   const perProject = withValue.length > 1
     ? withValue.map(p => {
-        const projPaid = milestones
-          .filter(m => m.status === "paid" && m.projectId === p.id && matchesIncomeYear(m.completionDate, selectedYear))
-          .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
+        const projPaid = paidIncome.paidPenceByProject.get(p.id) ?? 0;
         const projSubmitted = milestones
           .filter(m => m.status === "submitted" && m.projectId === p.id && matchesIncomeYear(m.completionDate, selectedYear))
           .reduce((s, m) => s + (m.claimAmountPence ?? 0), 0);
