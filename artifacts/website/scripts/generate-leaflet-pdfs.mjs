@@ -25,6 +25,7 @@ const LEAFLETS = [
 ];
 
 const KNOWN_CHROMIUM_PATH =
+  process.env.LEAFLET_PDF_KNOWN_CHROMIUM_PATH ??
   "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
 
 function findChromiumPath() {

@@ -8,6 +8,7 @@
     "check:leaflet-pdfs": "node scripts/check-stale-leaflets.mjs --strict",
     "generate:leaflet-thumbnails": "node scripts/generate-leaflet-thumbnails.mjs",
     "test:contact-modules-banner": "node scripts/test-contact-modules-banner.mjs",
+    "test:leaflet-pdf-generation": "node scripts/test-generate-leaflet-pdfs.mjs",
     "test:sector-leaflet-downloads": "node scripts/test-sector-leaflet-downloads.mjs",
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "prebuild": "node scripts/generate-leaflet-pdfs.mjs && node scripts/generate-leaflet-previews.mjs && node scripts/generate-leaflet-thumbnails.mjs",
