@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalisePostcode(raw: string): string {
   const stripped = raw.replace(/\s+/g, "").toUpperCase();
@@ -229,6 +230,10 @@ function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantContactEdit
   async function handleSave() {
     if (!contactName.trim()) { setError("Contact name cannot be empty"); return; }
     if (!contactEmail.trim()) { setError("Contact email cannot be empty"); return; }
+    if (contactEmail.trim().length > 320 || !EMAIL_RE.test(contactEmail.trim())) {
+      setError("Enter a valid contact email address");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -285,7 +290,11 @@ function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantContactEdit
             <input
               type="email"
               value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
+              onChange={(e) => {
+                setContactEmail(e.target.value);
+                setError(null);
+              }}
+              aria-invalid={error === "Enter a valid contact email address"}
               className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g. john@example.com"
             />

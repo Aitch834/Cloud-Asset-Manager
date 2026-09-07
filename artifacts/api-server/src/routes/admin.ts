@@ -1206,6 +1206,8 @@ function generateReferralCode(): string {
   return code;
 }
 
+const CONTACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: Response): Promise<void> => {
   if (!(await checkPlatformAdmin(req, res))) return;
 
@@ -1232,8 +1234,13 @@ router.patch("/admin/tenants/:tenantId", requireAuth, async (req: Request, res: 
     updates.name = contactName.trim();
   }
   if (contactEmail !== undefined) {
-    if (!contactEmail.trim()) { res.status(400).json({ error: "Contact email cannot be empty" }); return; }
-    updates.contactEmail = contactEmail.trim();
+    const trimmedContactEmail = contactEmail.trim();
+    if (!trimmedContactEmail) { res.status(400).json({ error: "Contact email cannot be empty" }); return; }
+    if (trimmedContactEmail.length > 320 || !CONTACT_EMAIL_RE.test(trimmedContactEmail)) {
+      res.status(400).json({ error: "Enter a valid contact email address" });
+      return;
+    }
+    updates.contactEmail = trimmedContactEmail;
   }
   if (contactPhone !== undefined) updates.contactPhone = contactPhone?.trim() || null;
 
