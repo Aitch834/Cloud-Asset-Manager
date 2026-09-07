@@ -1,5 +1,5 @@
 - [Week-ahead poolDb + text date fix](week-ahead-pooldb-and-text-date-fix.md) — cascade fix (poolDb for concurrent batch) + farm_task_assignments.due_date is text, needs plain string compare not ::date cast
-- [Mobile preview routing](mobile-preview-routing.md) — do NOT use router=expo-domain; use configure+proxyReq (not headers) to override Origin for Metro CORS
+- [Mobile preview routing](mobile-preview-routing.md) — use router=expo-domain so the mobile workflow serves directly; gateway-only routing returns 502 when the website is stopped
 - [Metro baseUrl HMR crash](metro-baseur-hmr-crash.md) — never set experiments.baseUrl in Expo app.json; breaks HMR when bundle URL is rewritten
 - [IPM plan field name mismatches](ipm-field-names.md) — threshold dialog field names corrected; DB columns and API field names for IPM plans documented
 - [Organic-arable module — COMPLETE](organic-arable-complete.md) — fully built; never re-examine or re-implement any part of it
