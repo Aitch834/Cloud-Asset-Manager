@@ -441,7 +441,7 @@ export const CONTENT: [string, string][] = [
     `<h2>Livestock Movement Records</h2>
 <p>Every movement of cattle, sheep, pigs, or goats on or off your holding must be recorded and, for cattle and pigs, reported to the relevant authority within the required reporting window. BDE Farm Trac captures the movement data needed for all UK government livestock reporting databases.</p>
 <h3>Recording a movement</h3>
-<p>Navigate to <strong>Livestock &amp; Feed Management → Movements</strong> and click <strong>New Movement</strong>. Select the movement type:</p>
+<p>Navigate to <strong>Movements</strong> in the dashboard sidebar and click <strong>New Movement</strong>. Select the movement type:</p>
 <ul>
 <li><strong>On — Purchase/Transfer In:</strong> animals arriving from another holding.</li>
 <li><strong>Off — Sale/Transfer Out:</strong> animals leaving for sale, slaughter, or another holding.</li>
@@ -565,9 +565,9 @@ export const CONTENT: [string, string][] = [
     `<h2>Weather Station Setup</h2>
 <p>Accurate weather records are a requirement for spray application audit trails — Red Tractor and BASIS both expect temperature, wind speed, and rainfall to be logged with each application. The Weather module lets you register named stations, log manual readings, fetch live conditions automatically, and track device calibration.</p>
 <h3>Registering a weather station</h3>
-<p>Navigate to <strong>Weather Records → Device Register</strong> and click <strong>Add Device</strong>. Record the device name, manufacturer, model, serial number, installation type (fixed field, vehicle-mounted, or portable), last calibration date, and next calibration due date.</p>
+<p>Navigate to <strong>Weather</strong> in the dashboard sidebar, open <strong>Device Register</strong>, and click <strong>Add Device</strong>. Record the device name, manufacturer, model, serial number, installation type (fixed field, vehicle-mounted, or portable), last calibration date, and next calibration due date.</p>
 <h3>Logging readings</h3>
-<p>Go to <strong>Weather Records → Readings</strong> and click <strong>Add Reading</strong>. Enter the date, time, temperature (°C), rainfall (mm), wind speed (km/h), wind direction, relative humidity (%), and atmospheric pressure. The <strong>Fetch Live</strong> button uses your farm's GPS coordinates to retrieve current conditions from the Open-Meteo free weather service — no API key required.</p>
+<p>Go to <strong>Weather</strong> in the dashboard sidebar, open <strong>Readings</strong>, and click <strong>Add Reading</strong>. Enter the date, time, temperature (°C), rainfall (mm), wind speed (km/h), wind direction, relative humidity (%), and atmospheric pressure. The <strong>Fetch Live</strong> button uses your farm's GPS coordinates to retrieve current conditions from the Open-Meteo free weather service — no API key required.</p>
 <h3>Vehicle station readings</h3>
 <p>Vehicle-mounted devices are registered with their associated vehicle from the Equipment Register. A vehicle station reading links to both the vehicle (auto-populates the registration) and the device (auto-populates the serial number), providing a complete chain from the calibrated instrument to the logged reading.</p>
 <h3>Calibration alerts</h3>
@@ -742,7 +742,7 @@ export const CONTENT: [string, string][] = [
     `<h2>Livestock Medicine Records and Withdrawal Periods</h2>
 <p>Medicine records are one of the most closely examined elements of a livestock farm assurance audit. BDE Farm Trac captures every treatment in a structured record that satisfies the Red Tractor medicine book requirements, and automatically calculates withdrawal periods to protect food safety.</p>
 <h3>Recording a treatment</h3>
-<p>Navigate to <strong>Livestock &amp; Feed Management → Medicines</strong> and click <strong>New Treatment</strong>. Each record captures:</p>
+<p>Navigate to <strong>Medicine</strong> in the dashboard sidebar and click <strong>New Treatment</strong>. Each record captures:</p>
 <ul>
 <li><strong>Animal or group:</strong> individual ear tag (from the Individual Animal Register) or a group/pen description.</li>
 <li><strong>Medicine name and batch number:</strong> the batch number must match the GRN receipt in Trade Contacts &amp; Stock for full batch traceability.</li>
@@ -6623,7 +6623,7 @@ The Livestock Information Service has confirmed that LIP Cattle API submissions 
 <p>The Data API module gives your external tools — spreadsheets, business intelligence platforms, farm management systems — direct read-only access to your BDE Farm Trac farm data via a secure REST API. No manual CSV exports, no copying and pasting: your third-party system queries the API and always receives current data.</p>
 
 <h3>Enabling the Data API</h3>
-<p>The Data API is an optional add-on module at £15 per month. Once active on your subscription, navigate to <strong>Integrations &amp; API → Data API</strong> in the dashboard sidebar. The page shows your list of API keys and the full endpoint documentation.</p>
+<p>The Data API is an optional add-on module at £15 per month. Once active on your subscription, navigate to <strong>Data API Access</strong> in the dashboard sidebar. The page shows your list of API keys and the full endpoint documentation.</p>
 
 <h3>Generating an API Key</h3>
 <p>Click <strong>Generate New Key</strong>. Enter a descriptive name — for example &quot;Power BI connector&quot; or &quot;Third-party FMS&quot; — so you can identify which system each key belongs to. The full API key is shown <strong>once only</strong> immediately after generation. Copy and store it securely — it will not be shown again. Once closed, only the key prefix (the first eight characters) is visible in the key list, allowing you to identify a key without exposing it.</p>
@@ -6664,7 +6664,7 @@ x-api-key: your_full_api_key_here</code></pre>
 <p>The Report Builder module lets you build tailored data reports from your BDE Farm Trac farm records — without writing SQL or exporting raw data. Design reports using a four-step wizard, optionally add a chart, export the results to CSV, and save report definitions to re-run any time with fresh live data.</p>
 
 <h3>Enabling the Report Builder</h3>
-<p>The Report Builder is an optional add-on module at £20 per month. Once active, navigate to <strong>Integrations &amp; API → Report Builder</strong> in the dashboard sidebar.</p>
+<p>The Report Builder is an optional add-on module at £20 per month. Once active, navigate to <strong>Report Builder</strong> in the dashboard sidebar.</p>
 
 <h3>Step 1 — Choose a Datasource</h3>
 <p>Select one of the 10 available datasources: Fields, Livestock, Medicine Records, Spray Applications, Soil Tests, Crop Assignments, Inspections, Training Records, Equipment, or Financials.</p>
@@ -6827,9 +6827,57 @@ export const DEFAULT_HELP_ARTICLES: DefaultArticle[] = TITLES.map(([title, categ
   };
 });
 
+export const LEGACY_HELP_NAVIGATION_UPDATES = [
+  {
+    title: "Livestock Movement Records",
+    oldText: "<p>Navigate to <strong>Livestock &amp; Feed Management → Movements</strong> and click <strong>New Movement</strong>.",
+    newText: "<p>Navigate to <strong>Movements</strong> in the dashboard sidebar and click <strong>New Movement</strong>.",
+  },
+  {
+    title: "Weather Station Setup",
+    oldText: "<p>Navigate to <strong>Weather Records → Device Register</strong> and click <strong>Add Device</strong>.",
+    newText: "<p>Navigate to <strong>Weather</strong> in the dashboard sidebar, open <strong>Device Register</strong>, and click <strong>Add Device</strong>.",
+  },
+  {
+    title: "Weather Station Setup",
+    oldText: "<p>Go to <strong>Weather Records → Readings</strong> and click <strong>Add Reading</strong>.",
+    newText: "<p>Go to <strong>Weather</strong> in the dashboard sidebar, open <strong>Readings</strong>, and click <strong>Add Reading</strong>.",
+  },
+  {
+    title: "Livestock Medicine Records and Withdrawal Periods",
+    oldText: "<p>Navigate to <strong>Livestock &amp; Feed Management → Medicines</strong> and click <strong>New Treatment</strong>.",
+    newText: "<p>Navigate to <strong>Medicine</strong> in the dashboard sidebar and click <strong>New Treatment</strong>.",
+  },
+  {
+    title: "Data API — Generating and Managing API Keys",
+    oldText: "navigate to <strong>Integrations &amp; API → Data API</strong> in the dashboard sidebar.",
+    newText: "navigate to <strong>Data API Access</strong> in the dashboard sidebar.",
+  },
+  {
+    title: "Report Builder — Creating, Running and Saving Custom Reports",
+    oldText: "navigate to <strong>Integrations &amp; API → Report Builder</strong> in the dashboard sidebar.",
+    newText: "navigate to <strong>Report Builder</strong> in the dashboard sidebar.",
+  },
+] as const;
+
 const DEFAULT_CONTENT_FINGERPRINTS = new Set(
   DEFAULT_HELP_ARTICLES.map(({ excerpt, content }) => JSON.stringify([excerpt, content])),
 );
+
+for (const article of DEFAULT_HELP_ARTICLES) {
+  const updates = LEGACY_HELP_NAVIGATION_UPDATES.filter(
+    ({ title }) => title === article.title,
+  );
+  if (updates.length === 0) continue;
+
+  let legacyContent = article.content;
+  for (const update of updates) {
+    legacyContent = legacyContent.replace(update.newText, update.oldText);
+  }
+  DEFAULT_CONTENT_FINGERPRINTS.add(
+    JSON.stringify([article.excerpt, legacyContent]),
+  );
+}
 
 function hasMatchingDefaultMetadata(
   existing: HelpArticleSyncCandidate,

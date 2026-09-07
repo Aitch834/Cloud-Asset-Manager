@@ -15282,7 +15282,7 @@ BDE Farm Trac includes a secure external access system that lets you share read-
 <p>The Data API module gives your external tools — spreadsheets, business intelligence platforms, farm management systems — direct read-only access to your BDE Farm Trac farm data via a secure REST API. No manual CSV exports, no copying and pasting: your third-party system queries the API and always receives current data.</p>
 
 <h3>Enabling the Data API</h3>
-<p>The Data API is an optional add-on module at £15 per month. Once active on your subscription, navigate to <strong>Integrations &amp; API → Data API</strong> in the dashboard sidebar. The page shows your list of API keys and the full endpoint documentation.</p>
+<p>The Data API is an optional add-on module at £15 per month. Once active on your subscription, navigate to <strong>Data API Access</strong> in the dashboard sidebar. The page shows your list of API keys and the full endpoint documentation.</p>
 
 <h3>Generating an API Key</h3>
 <p>Click <strong>Generate New Key</strong>. Enter a descriptive name — for example &quot;Power BI connector&quot; or &quot;Third-party FMS&quot; — so you can identify which system each key belongs to. The full API key is shown <strong>once only</strong> immediately after generation. Copy and store it securely — it will not be shown again. Once closed, only the key prefix (the first eight characters) is visible in the key list, allowing you to identify a key without exposing it.</p>
@@ -15325,7 +15325,7 @@ x-api-key: your_full_api_key_here</code></pre>
 <p>The Report Builder module lets you build tailored data reports from your BDE Farm Trac farm records — without writing SQL or exporting raw data. Design reports using a four-step wizard, optionally add a chart, export the results to CSV, and save report definitions to re-run any time with fresh live data.</p>
 
 <h3>Enabling the Report Builder</h3>
-<p>The Report Builder is an optional add-on module at £20 per month. Once active, navigate to <strong>Integrations &amp; API → Report Builder</strong> in the dashboard sidebar.</p>
+<p>The Report Builder is an optional add-on module at £20 per month. Once active, navigate to <strong>Report Builder</strong> in the dashboard sidebar.</p>
 
 <h3>Step 1 — Choose a Datasource</h3>
 <p>Select one of the 10 available datasources:</p>
