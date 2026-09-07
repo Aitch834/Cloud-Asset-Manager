@@ -43041,11 +43041,21 @@ router.get("/farms/:farmId/agri-env-projects/:projectId/milestones", requireAuth
   res.json({ milestones });
 });
 
+function isFutureMilestoneCompletionDate(value: unknown): boolean {
+  return value != null &&
+    value !== "" &&
+    String(value) > new Date().toISOString().slice(0, 10);
+}
+
 router.post("/farms/:farmId/agri-env-projects/:projectId/milestones", requireAuth, requireTenant, async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res); if (!farmId) return;
   const projectId = parseInt(req.params.projectId as string); if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
   const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = req.body as Record<string, unknown>;
   if (!milestoneName || typeof milestoneName !== "string") { res.status(400).json({ error: "milestoneName is required" }); return; }
+  if (isFutureMilestoneCompletionDate(completionDate)) {
+    res.status(400).json({ error: "Completion date cannot be in the future", field: "completionDate" });
+    return;
+  }
   const [milestone] = await db.insert(agriEnvMilestonesTable).values({
     farmId,
     projectId,
@@ -43065,6 +43075,10 @@ router.put("/farms/:farmId/agri-env-projects/:projectId/milestones/:id", require
   const id = parseInt(req.params.id as string); if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const body = req.body as Record<string, unknown>;
   const { milestoneName, dueDate, completionDate, claimAmountPence, status, evidenceNotes } = body;
+  if ("completionDate" in body && isFutureMilestoneCompletionDate(completionDate)) {
+    res.status(400).json({ error: "Completion date cannot be in the future", field: "completionDate" });
+    return;
+  }
   const [existing] = await db.select({
     dueDate: agriEnvMilestonesTable.dueDate,
     completionDate: agriEnvMilestonesTable.completionDate,

@@ -10,6 +10,7 @@
     "test:alert": "tsx scripts/test-alert-county-filter.ts",
     "test:agri-env-milestone-overlap": "tsx scripts/test-agri-env-milestone-overlap.ts",
     "test:agri-env-milestone-push": "tsx scripts/test-agri-env-milestone-push.ts",
+    "test:agri-env-milestone-completion-date": "tsx scripts/test-agri-env-milestone-completion-date.ts",
     "test:sector-alert-issue": "tsx scripts/test-sector-alert-issue.ts",
     "test:sector-alert-email-preferences": "tsx scripts/test-sector-alert-email-preferences.ts",
     "test:sector-alert-email-age": "tsx scripts/test-sector-alert-email-age.ts",
