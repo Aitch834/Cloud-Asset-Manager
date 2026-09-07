@@ -418,7 +418,21 @@ router.post("/farms/:farmId/vineyard-phenology", requireAuth, requireTenant, req
 router.put("/farms/:farmId/vineyard-phenology/:id", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
-  const [record] = await (db.update(vineyardPhenologyTable) as any).set(sanitiseBody(req.body as Record<string, unknown>)).where(and(eq(vineyardPhenologyTable.id, id), eq(vineyardPhenologyTable.farmId, farmId))).returning();
+  const body = sanitiseBody(req.body as Record<string, unknown>);
+  // Keep plantingId consistent with blockId whenever blockId is being updated
+  if ("blockId" in body) {
+    if (body.blockId) {
+      const [active] = await db.select({ id: vineyardBlockPlantingsTable.id })
+        .from(vineyardBlockPlantingsTable)
+        .where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active")))
+        .limit(1);
+      body.plantingId = active ? active.id : null;
+    } else {
+      // Unlinking block — clear the planting association too
+      body.plantingId = null;
+    }
+  }
+  const [record] = await (db.update(vineyardPhenologyTable) as any).set(body).where(and(eq(vineyardPhenologyTable.id, id), eq(vineyardPhenologyTable.farmId, farmId))).returning();
   res.json({ record });
 });
 
