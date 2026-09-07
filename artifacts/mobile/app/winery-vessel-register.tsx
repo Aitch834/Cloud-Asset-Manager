@@ -30,6 +30,7 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useBarrelAlertThresholds } from "@/lib/hooks/useBarrelAlertThresholds";
 import { usePersistedAlertFlag } from "@/lib/hooks/usePersistedAlertFlag";
+import { usePersistedVesselZoneFilter } from "@/lib/hooks/usePersistedVesselZoneFilter";
 import { getApiBase } from "@/lib/uploadPhoto";
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -841,11 +842,9 @@ export default function WineryVesselRegisterScreen() {
     setAlertFlag(alertFlag === flag ? null : flag);
   }
 
-  const [zoneFilter, setZoneFilter] = useState<string[]>([]);
-
-  useEffect(() => {
-    setZoneFilter([]);
-  }, [currentFarm?.id]);
+  const [zoneFilter, setZoneFilter] = usePersistedVesselZoneFilter(
+    currentFarm?.id ? String(currentFarm.id) : undefined,
+  );
 
   function toggleZone(zone: string): void {
     setZoneFilter(current => toggleVesselZoneFilter(current, zone));
