@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BARREL_HEALTH_PRINT_HEADERS,
+  buildBarrelCleaningColumns,
   buildBarrelHealthColumns,
   buildBarrelHealthPrintRows,
 } from "./VesselRegisterTab";
@@ -69,6 +70,48 @@ describe("barrel health exports", () => {
       "",
       "0",
       "No records at all",
+    ]);
+  });
+
+  it("keeps latest-clean measurements in fixed CSV columns, including blanks", () => {
+    const columns = buildBarrelCleaningColumns(new Map([
+      [42, {
+        lastCleanDate: "07/09/2026",
+        cleanCount: 3,
+        lastContactTimeMin: "25",
+        lastWaterTempC: "72.5",
+      }],
+      [43, {
+        lastCleanDate: "06/09/2026",
+        cleanCount: 1,
+        lastContactTimeMin: "",
+        lastWaterTempC: "",
+      }],
+    ]));
+
+    expect(columns.map(column => column.label)).toEqual([
+      "Last Clean Date",
+      "Total Clean Count",
+      "Contact Time (min)",
+      "Water Temp (°C)",
+    ]);
+    expect(columns.map(column => column.fmt({ id: 42 }))).toEqual([
+      "07/09/2026",
+      "3",
+      "25",
+      "72.5",
+    ]);
+    expect(columns.map(column => column.fmt({ id: 43 }))).toEqual([
+      "06/09/2026",
+      "1",
+      "",
+      "",
+    ]);
+    expect(columns.map(column => column.fmt({ id: 44 }))).toEqual([
+      "",
+      "0",
+      "",
+      "",
     ]);
   });
 });

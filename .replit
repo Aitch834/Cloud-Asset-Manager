@@ -118,6 +118,10 @@ args = "user-ui-prefs-migration-api"
 task = "workflow.run"
 args = "sector-alert-issue-sms-api"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "barrel-clean-summary-api"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -447,6 +451,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run test:sector-alert-issue"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "barrel-clean-summary-api"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run test:barrel-clean-summary"
 
 [workflows.workflow.metadata]
 isValidation = true

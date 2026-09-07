@@ -44,6 +44,13 @@ export type BarrelHealthColumn = {
   fmt: (record: BarrelHealthRecord) => string;
 };
 
+export type BarrelCleaningSummary = {
+  lastCleanDate: string;
+  cleanCount: number;
+  lastContactTimeMin: string;
+  lastWaterTempC: string;
+};
+
 export const BARREL_HEALTH_PRINT_HEADERS = [
   "Vessel Ref",
   "Type",
@@ -100,6 +107,17 @@ export function buildBarrelHealthColumns(approachingNeutralFills: number): Barre
       fmt: record => Number(record.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
     },
     { key: "last_activity", label: "Last Activity", fmt: record => record.last_activity ? fmtDate(record.last_activity) : "Never" },
+  ];
+}
+
+export function buildBarrelCleaningColumns(
+  cleanMap: Map<number, BarrelCleaningSummary>,
+): BarrelHealthColumn[] {
+  return [
+    { key: "_last_clean_date", label: "Last Clean Date", fmt: record => cleanMap.get(Number(record.id))?.lastCleanDate ?? "" },
+    { key: "_clean_count", label: "Total Clean Count", fmt: record => String(cleanMap.get(Number(record.id))?.cleanCount ?? 0) },
+    { key: "_contact_time_min", label: "Contact Time (min)", fmt: record => cleanMap.get(Number(record.id))?.lastContactTimeMin ?? "" },
+    { key: "_water_temp_c", label: "Water Temp (°C)", fmt: record => cleanMap.get(Number(record.id))?.lastWaterTempC ?? "" },
   ];
 }
 
@@ -1963,7 +1981,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       // Build lookup: vesselId → latest cleaning summary.
                       // Measurement values come from the same latest clean row
                       // represented in the barrel history print report.
-                      const cleanMap = new Map<number, { lastCleanDate: string; cleanCount: number; lastContactTimeMin: string; lastWaterTempC: string }>();
+                      const cleanMap = new Map<number, BarrelCleaningSummary>();
                       for (const row of (summaryBody.records ?? []) as Record<string, unknown>[]) {
                         cleanMap.set(Number(row.vessel_id), {
                           lastCleanDate: row.last_clean_date ? fmtDate(row.last_clean_date) : "",
@@ -2007,10 +2025,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                         ...barrelHealthCols,
                         { key: "_last_fill_date", label: "Last Fill Date", fmt: (r) => fillMap.get(Number(r.id))?.lastFillDate ?? "" },
                         { key: "_last_rack_out_date", label: "Last Rack-out Date", fmt: (r) => fillMap.get(Number(r.id))?.lastRackOutDate ?? "" },
-                        { key: "_last_clean_date", label: "Last Clean Date", fmt: (r) => cleanMap.get(Number(r.id))?.lastCleanDate ?? "" },
-                        { key: "_clean_count", label: "Total Clean Count", fmt: (r) => String(cleanMap.get(Number(r.id))?.cleanCount ?? 0) },
-                        { key: "_contact_time_min", label: "Contact Time (min)", fmt: (r) => cleanMap.get(Number(r.id))?.lastContactTimeMin ?? "" },
-                        { key: "_water_temp_c", label: "Water Temp (°C)", fmt: (r) => cleanMap.get(Number(r.id))?.lastWaterTempC ?? "" },
+                        ...buildBarrelCleaningColumns(cleanMap),
                         { key: "_maint_total", label: "Total Cooperage Cost (£)", fmt: (r) => {
                           const entry = maintMap.get(Number(r.id));
                           return entry && entry.totalPence > 0 ? (entry.totalPence / 100).toFixed(2) : "";

@@ -23,6 +23,7 @@
     "test:ad-pdf-draft-warnings": "node scripts/check-ad-pdf-draft-warnings.mjs",
     "test:rack-out-note": "node scripts/check-winery-rack-out-note.mjs",
     "test:rack-out-note:integration": "tsx scripts/test-winery-rack-out-note.ts",
+    "test:barrel-clean-summary": "tsx scripts/test-barrel-clean-summary.ts",
     "test:bg-url": "node scripts/check-bg-url.mjs",
     "test:financial-export-columns": "node scripts/check-financial-export-columns.mjs",
     "test:help-content": "tsx scripts/check-help-content.ts",
