@@ -978,6 +978,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         {/* Set as Cover button — only shown for non-cover photos */}
         {photo && !photo.isCover ? (
           <Pressable
+            testID="vine-block-lightbox-set-cover"
             style={[styles.lbSetCoverBtn, { top: insets.top + 12 }]}
             hitSlop={24}
             onPress={() => onSetCover(photo)}
@@ -989,6 +990,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         {/* Delete button */}
         {photo ? (
           <Pressable
+            testID="vine-block-lightbox-delete"
             style={[styles.lbDeleteBtn, { top: insets.top + 12 }]}
             hitSlop={24}
             onPress={() => {
