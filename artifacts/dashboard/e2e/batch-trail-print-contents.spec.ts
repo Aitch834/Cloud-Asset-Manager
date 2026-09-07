@@ -10,11 +10,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const PRESSING_ID = 2232001;
 const BATCH_REF = "E2E-BATCH-PRINT-CONTENTS";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type ApiRecord = Record<string, unknown>;
 
@@ -173,7 +175,7 @@ test("keeps Batch Trail contents wrapping on screen and aligned in print", async
   const popup = await popupPromise;
   await popup.waitForLoadState("domcontentloaded");
   await expect(popup).toHaveTitle(/Batch Trail/i);
-  await expect(popup.locator(".toc-link")).toHaveCount(5);
+  await expect(popup.locator(".toc-link")).toHaveCount(6);
 
   await popup.emulateMedia({ media: "screen" });
   await expect(popup.locator(".toc-list")).toHaveCSS("display", "flex");
@@ -187,8 +189,8 @@ test("keeps Batch Trail contents wrapping on screen and aligned in print", async
   await popup.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
 
   await expect(popup.locator(".toc-list")).toHaveCSS("display", "block");
-  await expect(popup.locator(".toc-link")).toHaveCount(5);
-  await expect.poll(() => popup.locator(".toc-link[data-page-num]").count()).toBe(5);
+  await expect(popup.locator(".toc-link")).toHaveCount(6);
+  await expect.poll(() => popup.locator(".toc-link[data-page-num]").count()).toBe(6);
 
   const printLayout = await popup.locator(".toc-link").evaluateAll(links =>
     links.map(link => {
@@ -207,7 +209,7 @@ test("keeps Batch Trail contents wrapping on screen and aligned in print", async
     }),
   );
 
-  expect(printLayout).toHaveLength(5);
+  expect(printLayout).toHaveLength(6);
   expect(new Set(printLayout.map(entry => entry.display))).toEqual(new Set(["grid"]));
   expect(new Set(printLayout.map(entry => entry.columns))).toEqual(new Set([3]));
   expect(new Set(printLayout.map(entry => entry.whiteSpace))).toEqual(new Set(["normal"]));

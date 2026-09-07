@@ -92,3 +92,4 @@
 - [Cached hook farm freshness](cached-hook-farm-freshness.md) — return no items when provenance differs from the requested farm; effect-time clearing alone is too late
 - [Dashboard E2E setup stalls](dashboard-e2e-setup-stalls.md) — a focused Playwright run can time out before the first test when shared Clerk global setup stalls; distinguish this from test failures
 - [Mobile cover-action regression tests](mobile-cover-action-tests.md) — extracted photo actions require rendered tests, source guards, and complete helper mocks
+- [Shared advert-PDF validation fixture](ad-pdf-validation-fixture.md) — advert-PDF checks mutate one cache/DB/filesystem fixture and must serialize across processes

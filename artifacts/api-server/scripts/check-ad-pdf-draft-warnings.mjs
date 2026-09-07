@@ -18,6 +18,7 @@
 
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { acquireProcessLock } from "./lib/process-lock.mjs";
 
 const require = createRequire(import.meta.url);
 let pg;
@@ -36,6 +37,9 @@ if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is required to set up the super-admin test fixture.");
   process.exit(2);
 }
+
+const releaseAdPdfValidationLock =
+  await acquireProcessLock("bde-ad-pdf-validation");
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 let insertedUser = false;
@@ -237,4 +241,5 @@ try {
   process.exitCode = 1;
 } finally {
   await cleanup();
+  await releaseAdPdfValidationLock();
 }

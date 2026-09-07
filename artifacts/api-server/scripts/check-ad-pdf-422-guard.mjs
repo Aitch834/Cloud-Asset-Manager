@@ -48,6 +48,7 @@ import { createRequire } from "node:module";
 import { renameSync, existsSync } from "node:fs";
 import { resolve as pathResolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { acquireProcessLock } from "./lib/process-lock.mjs";
 
 // Absolute path to the legacy on-disk fallback directory, relative to this script.
 // The API server resolves it via path.resolve(process.cwd(), "scripts/ad-templates")
@@ -69,6 +70,9 @@ if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is required to set up the super-admin test fixture.");
   process.exit(2);
 }
+
+const releaseAdPdfValidationLock =
+  await acquireProcessLock("bde-ad-pdf-validation");
 
 // ─── pg setup ─────────────────────────────────────────────────────────────────
 let pgPkg;
@@ -632,6 +636,8 @@ try {
 } finally {
   await cleanup();
 }
+
+await releaseAdPdfValidationLock();
 
 if (failures) {
   console.error(`\n${failures} check(s) FAILED`);
