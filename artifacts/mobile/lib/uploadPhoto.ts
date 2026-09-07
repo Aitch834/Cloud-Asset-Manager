@@ -1,20 +1,10 @@
-import { Platform, Alert } from "react-native";
+import { Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
-import { kvGet } from "@/lib/database";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 export async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const t = await SecureStore.getItemAsync("auth_session_token");
-      if (t) return t;
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  return getMobileAuthToken();
 }
 
 export function getApiBase(): string {

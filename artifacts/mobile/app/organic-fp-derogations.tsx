@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Platform } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +17,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 
 function fmtDate(val: string | null | undefined): string {
   if (!val) return "—";
@@ -36,15 +36,7 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      token = raw ? JSON.parse(raw) : null;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

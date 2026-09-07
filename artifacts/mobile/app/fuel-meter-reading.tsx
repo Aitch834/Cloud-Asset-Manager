@@ -23,7 +23,6 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { kvGet } from "@/lib/database";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
@@ -42,18 +41,6 @@ const READING_TYPES: { key: ReadingType; label: string }[] = [
   { key: "actual", label: "Actual — meter read directly" },
   { key: "estimated", label: "Estimated — calculated from usage" },
 ];
-
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const t = await SecureStore.getItemAsync("auth_session_token");
-      if (t) return t;
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
 
 function getApiBase(): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;

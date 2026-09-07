@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 import { getRefCache, getRefCacheUpdatedAt, saveRefCache } from "./database";
 
@@ -19,21 +20,7 @@ export type RefBatch = {
 };
 
 async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        return localStorage.getItem("auth_session_token");
-      } catch {
-        return null;
-      }
-    }
-  } catch {
-    return null;
-  }
+  return getMobileAuthToken();
   return null;
 }
 

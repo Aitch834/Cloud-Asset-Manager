@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Platform } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,20 +17,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
-
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SS = await import("expo-secure-store");
-      const t = await SS.getItemAsync("auth_session_token");
-      if (t) return t;
-    } else {
-      try { const t = localStorage.getItem("auth_session_token"); if (t) return t; } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 
 async function getTenantSlug(): Promise<string> {
   try {
@@ -123,7 +109,7 @@ export default function GrainLotsScreen() {
     if (!apiDomain) { setIsOffline(true); setLoading(false); setRefreshing(false); return; }
 
     try {
-      const [token, slug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+      const [token, slug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
       if (!slug) { setIsOffline(true); setLoading(false); setRefreshing(false); return; }
 
       const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
@@ -152,7 +138,7 @@ export default function GrainLotsScreen() {
     if (!apiDomain) return;
     setLoadingMovements(intakeId);
     try {
-      const [token, slug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+      const [token, slug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
       if (!slug) return;
       const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
       if (token) headers["Authorization"] = `Bearer ${token}`;

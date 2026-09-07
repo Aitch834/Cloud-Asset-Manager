@@ -37,6 +37,7 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { appendToList, generateId, getList, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import type { FieldBoundary, SprayRecord, WeatherEntry } from "@/lib/types";
 import { usePrint } from "@/lib/hooks/usePrint";
 import { sprayRecordHtml } from "@/lib/printTemplates";
@@ -315,7 +316,7 @@ export default function SprayRecordScreen() {
     // 1. Try connected API sensor stations first
     try {
       const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
-      const token = await kvGet("bde_auth_token");
+      const token = await getCurrentAuthToken();
       const tenantRaw = await kvGet("bde_current_farm");
       const tenantParsed = tenantRaw ? JSON.parse(tenantRaw) : null;
       const tenantSlug = tenantParsed ? (tenantParsed.tenantSlug || tenantParsed.slug || "") : "";
@@ -382,7 +383,7 @@ export default function SprayRecordScreen() {
     const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
     (async () => {
       try {
-        const token = await kvGet("bde_auth_token");
+        const token = await getCurrentAuthToken();
         const tenantId = await kvGet("bde_current_farm");
         const res = await fetch(
           `${domain}/api/farms/${currentFarm.id}/crop-for-field?fieldName=${encodeURIComponent(fieldName)}&date=${today}`,

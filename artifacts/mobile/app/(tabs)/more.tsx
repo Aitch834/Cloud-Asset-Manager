@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "@clerk/expo";
 
 import { APP_VERSION_FULL as VERSION_FALLBACK } from "@/constants/version";
 import { Input } from "@/components/ui/Input";
@@ -20,7 +21,6 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
-import { useAuth } from "@/lib/auth";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { apiFetch } from "@/lib/apiFetch";
@@ -28,8 +28,8 @@ import { useApiModules } from "@/lib/hooks/useApiModules";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { identifierJustSavedKey } from "@/lib/hooks/useFarmIdentifiers";
-import { getItem, removeItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { getMobileAuthToken } from "@/lib/authToken";
 import * as Location from "expo-location";
 
 import { SMS_CATEGORIES } from "@/constants/smsCategories";
@@ -46,7 +46,7 @@ type LisStatus = {
 } | null;
 
 async function lisApiFetch(path: string, method = "GET"): Promise<Response> {
-  const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+  const token = await getMobileAuthToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return fetch(`${getApiBase()}${path}`, { method, headers });
@@ -55,7 +55,7 @@ async function lisApiFetch(path: string, method = "GET"): Promise<Response> {
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, farms, setCurrentFarm, updateFarm, user } = useFarm();
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
   const { pendingCount, failedCount, isSyncing, isConnected, lastSyncTime, triggerSync } = useSync();
   const { triggerSmsRefresh } = useSmsPrefsContext();
   const { activeModuleKeys } = useApiModules(currentFarm?.id);
@@ -336,7 +336,7 @@ export default function MoreScreen() {
 
   async function postLocationPing(sharing: boolean): Promise<void> {
     if (!currentFarm?.id) return;
-    const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+    const token = await getMobileAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const slug = (currentFarm as any).tenantSlug || (currentFarm as any).slug || "";
@@ -1215,9 +1215,7 @@ export default function MoreScreen() {
                     text: "Sign Out",
                     style: "destructive",
                     onPress: async () => {
-                      await logout();
-                      await removeItem(STORAGE_KEYS.AUTH_STATE);
-                      await removeItem(STORAGE_KEYS.AUTH_TOKEN);
+                      await signOut();
                       router.replace("/login");
                     },
                   },

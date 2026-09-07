@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 84" role="img" aria-label="BDE Farm Trac">
+  <rect width="360" height="84" rx="16" fill="#f5f0e8"/>
+  <path d="M20 59V39c0-14 10-24 24-24h10l7-8h22v27l28 9v16h-9a15 15 0 0 1-30 0H52a15 15 0 0 1-30 0Zm32 0a7 7 0 1 0-14 0 7 7 0 0 0 14 0Zm50 0a7 7 0 1 0-14 0 7 7 0 0 0 14 0Z" fill="#2d6a2e"/>
+  <path d="M68 18h17v17H68z" fill="#7cb87c"/>
+  <text x="122" y="39" fill="#2d6a2e" font-family="Inter,Arial,sans-serif" font-size="31" font-weight="800">BDE</text>
+  <text x="122" y="65" fill="#8b5e3c" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="800" letter-spacing="2">FARM TRAC</text>
+</svg>

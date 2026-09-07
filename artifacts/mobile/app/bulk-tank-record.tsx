@@ -22,6 +22,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { apiFetch } from "@/lib/apiFetch";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
@@ -350,15 +351,9 @@ export default function BulkTankRecordScreen() {
       };
 
       const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-      let token: string | null = null;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       try {
-        if (Platform.OS !== "web") {
-          const SecureStore = await import("expo-secure-store");
-          token = await SecureStore.getItemAsync("auth_session_token");
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch {}
-        }
+        const token = await getCurrentAuthToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
         const farmRaw = await (await import("@/lib/database")).kvGet("bde_current_farm");
         if (farmRaw) {

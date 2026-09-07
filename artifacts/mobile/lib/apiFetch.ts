@@ -1,5 +1,6 @@
 import { kvGet } from "@/lib/database";
-import { getApiBase, getAuthToken } from "@/lib/uploadPhoto";
+import { getApiBase } from "@/lib/uploadPhoto";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 async function getTenantSlug(): Promise<string | null> {
   try {
@@ -25,7 +26,7 @@ async function getTenantSlug(): Promise<string | null> {
  */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const base = getApiBase();
-  const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+  const [token, tenantSlug] = await Promise.all([getMobileAuthToken(), getTenantSlug()]);
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
   };

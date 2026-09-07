@@ -26,6 +26,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFarmMembers } from "@/lib/hooks/useApiFarmMembers";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import type { RightToWorkCheck } from "@/lib/types";
 
 const LIST_A_DOCS = [
@@ -48,15 +49,7 @@ const LIST_B_DOCS = [
 type DocList = "A" | "B";
 
 async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const t = await SecureStore.getItemAsync("auth_session_token");
-      if (t) return t;
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  return await getCurrentAuthToken();
 }
 
 async function getTenantSlug(): Promise<string> {

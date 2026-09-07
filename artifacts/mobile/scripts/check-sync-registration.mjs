@@ -104,8 +104,7 @@ const ENDPOINT_ONLY_KEYS = new Set([
 // not yet connected to an API endpoint.
 // ---------------------------------------------------------------------------
 const NON_SYNC_KEYS = new Set([
-  // Auth / session — never sent to server via sync queue
-  "bde_auth_token",
+  // Profile cache — never sent to server via sync queue
   "bde_auth_state",
   "bde_user_profile",
   // Farm / UI state — read from server, never pushed via sync

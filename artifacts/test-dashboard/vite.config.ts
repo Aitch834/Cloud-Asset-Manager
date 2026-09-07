@@ -817,11 +817,6 @@ export default defineConfig({
       { find: "@radix-ui/react-toggle-group",    replacement: td("@radix-ui/react-toggle-group") },
       { find: "@radix-ui/react-tooltip",         replacement: td("@radix-ui/react-tooltip") },
 
-      // ── @clerk/react ─────────────────────────────────────────────────────
-      // Lives only in dashboard/node_modules; alias so Vite pre-bundles it
-      // with the react alias above applied (avoiding a second React instance).
-      { find: "@clerk/react", replacement: path.resolve(import.meta.dirname, "../dashboard/node_modules/@clerk/react") },
-
       // ── @workspace/object-storage-web ────────────────────────────────────
       // MUST be aliased to point directly at the compiled entry file (use-upload.ts),
       // NOT at the package root. When Vite resolves the package root it scans
@@ -934,7 +929,9 @@ export default defineConfig({
       // module-level side effects (async session polling, window listeners, etc.)
       // which otherwise throw a plain `{}` object into the React tree ~20 s
       // after page load, crashing the ErrorBoundary.
-      { find: "@clerk/react", replacement: path.resolve(import.meta.dirname, "./src/clerk-bypass.ts") },
+      { find: /^@clerk\/react\/internal$/, replacement: path.resolve(import.meta.dirname, "./src/clerk-internal-bypass.ts") },
+      { find: /^@clerk\/themes$/, replacement: path.resolve(import.meta.dirname, "./src/clerk-theme-bypass.ts") },
+      { find: /^@clerk\/react$/, replacement: path.resolve(import.meta.dirname, "./src/clerk-bypass.ts") },
 
       // ── use-sync-external-store (peer dep of zustand/traditional + @uppy/react) ──
       // zustand/traditional.mjs imports use-sync-external-store/shim/with-selector.

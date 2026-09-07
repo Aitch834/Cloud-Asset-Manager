@@ -24,6 +24,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import { useApiCrops } from "@/lib/hooks/useApiCrops";
 
 interface SeedBatch {
@@ -45,22 +46,7 @@ interface SeedBatch {
 }
 
 async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  return await getCurrentAuthToken();
 }
 
 async function getTenantSlug(): Promise<string> {

@@ -1,22 +1,12 @@
-import { Platform } from "react-native";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { getCurrentAuthToken } from "../authToken";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch {}
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      if (raw) token = JSON.parse(raw) as string;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

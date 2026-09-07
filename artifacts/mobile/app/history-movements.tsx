@@ -23,8 +23,8 @@ import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
-import { getItem, STORAGE_KEYS } from "@/lib/storage";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 interface MovementRecord {
   id: number;
@@ -273,7 +273,7 @@ export default function HistoryMovementsScreen() {
                           style: "destructive",
                           onPress: async () => {
                             try {
-                              const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+                              const token = await getMobileAuthToken();
                               const headers: Record<string, string> = { "Content-Type": "application/json" };
                               if (token) headers["Authorization"] = `Bearer ${token}`;
                               const res = await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/lis/review-movement`, {
@@ -290,7 +290,7 @@ export default function HistoryMovementsScreen() {
                           text: "Accept",
                           onPress: async () => {
                             try {
-                              const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+                              const token = await getMobileAuthToken();
                               const headers: Record<string, string> = { "Content-Type": "application/json" };
                               if (token) headers["Authorization"] = `Bearer ${token}`;
                               const res = await fetch(`${getApiBase()}/api/farms/${currentFarm.id}/lis/review-movement`, {

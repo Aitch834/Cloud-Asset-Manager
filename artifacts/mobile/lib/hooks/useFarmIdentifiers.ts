@@ -1,8 +1,8 @@
-import { Platform } from "react-native";
 import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { kvGet } from "@/lib/database";
 import { getApiBase } from "@/lib/uploadPhoto";
+import { getCurrentAuthToken } from "../authToken";
 
 const JUST_SAVED_TTL_MS = 30_000; // 10 s — long enough to survive navigation back
 
@@ -26,17 +26,7 @@ interface FarmIdentifiers {
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch {}
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      if (raw) token = JSON.parse(raw) as string;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

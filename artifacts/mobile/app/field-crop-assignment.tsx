@@ -24,6 +24,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
 import { useApiFields } from "@/lib/hooks/useApiFields";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 
 interface AssignmentRec {
   id: number;
@@ -47,25 +48,6 @@ const REASON_TAG_OPTIONS = [
   "Other",
 ];
 
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 async function getTenantSlug(): Promise<string> {
   try {
     const raw = await kvGet("bde_current_farm");
@@ -79,7 +61,7 @@ async function getTenantSlug(): Promise<string> {
 
 async function authedFetch(path: string, options: RequestInit = {}) {
   const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-  const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+  const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "x-tenant-slug": tenantSlug,

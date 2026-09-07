@@ -6,6 +6,9 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 import { Stack, router, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
@@ -16,58 +19,51 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
-import { AuthProvider, useAuth } from "@/lib/auth";
+import { installMobileApiAuthFetch, setMobileAuthTokenGetter } from "@/lib/authToken";
 import { BarrelAlertProvider } from "@/lib/context/BarrelAlertContext";
 import { FarmProvider, useFarm } from "@/lib/context/FarmContext";
 import { RFIDProvider } from "@/lib/context/RFIDContext";
 import { SyncProvider } from "@/lib/context/SyncContext";
-import { getItem, STORAGE_KEYS } from "@/lib/storage";
-import type { AuthState } from "@/lib/types";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+const domain = process.env.EXPO_PUBLIC_DOMAIN;
+if (domain) setBaseUrl(`https://${domain}`);
+if (domain) installMobileApiAuthFetch(`https://${domain}`);
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isAuthenticated, isLoading } = useAuth();
-  const [demoAuth, setDemoAuth] = useState(false);
-  const [checked, setChecked] = useState(false);
-
-  const checkDemoAuth = useCallback(async () => {
-    try {
-      const authState = await getItem<AuthState>(STORAGE_KEYS.AUTH_STATE);
-      setDemoAuth(!!authState?.isAuthenticated);
-    } catch {
-      setDemoAuth(false);
-    } finally {
-      setChecked(true);
-      SplashScreen.hideAsync();
-    }
-  }, []);
+  const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
-    checkDemoAuth();
-  }, [checkDemoAuth]);
-
-  useEffect(() => {
-    checkDemoAuth();
-  }, [pathname, checkDemoAuth]);
-
-  const loggedIn = isAuthenticated || demoAuth;
-  const ready = checked && !isLoading;
-
-  useEffect(() => {
-    if (!ready) return;
-    if (!loggedIn && pathname !== "/login") {
+    if (isLoaded && !isSignedIn && pathname !== "/login" && pathname !== "/sign-up") {
       router.replace("/login");
     }
-  }, [ready, loggedIn, pathname]);
+  }, [isLoaded, isSignedIn, pathname]);
 
-  if (!ready) return null;
-  if (!loggedIn && pathname !== "/login") return null;
+  if (!isLoaded) return null;
+  if (!isSignedIn && pathname !== "/login" && pathname !== "/sign-up") return null;
 
   return <>{children}</>;
+}
+
+function ClerkTokenBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    const getter = () => getToken();
+    setMobileAuthTokenGetter(getter);
+    setAuthTokenGetter(getter);
+    return () => {
+      setMobileAuthTokenGetter(async () => null);
+      setAuthTokenGetter(null);
+    };
+  }, [getToken]);
+
+  return null;
 }
 
 const FOREGROUND_POLL_INTERVAL_MS = 30_000;
@@ -120,6 +116,7 @@ function RootLayoutNav() {
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerBackTitle: "Back" }}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="sign-up" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="spray-record" options={{ headerShown: false, presentation: "modal" }} />
         <Stack.Screen name="weather-entry" options={{ headerShown: false, presentation: "modal" }} />
@@ -194,20 +191,27 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView>
             <KeyboardProvider>
-              <AuthProvider>
-                <FarmProvider>
-                  <FarmRefresher />
-                  <BarrelAlertProvider>
-                    <SyncProvider>
-                      <RFIDProvider>
-                        <AuthGate>
-                          <RootLayoutNav />
-                        </AuthGate>
-                      </RFIDProvider>
-                    </SyncProvider>
-                  </BarrelAlertProvider>
-                </FarmProvider>
-              </AuthProvider>
+              <ClerkProvider
+                publishableKey={publishableKey}
+                tokenCache={tokenCache}
+                proxyUrl={proxyUrl}
+              >
+                <ClerkLoaded>
+                  <ClerkTokenBridge />
+                  <FarmProvider>
+                    <FarmRefresher />
+                    <BarrelAlertProvider>
+                      <SyncProvider>
+                        <RFIDProvider>
+                          <AuthGate>
+                            <RootLayoutNav />
+                          </AuthGate>
+                        </RFIDProvider>
+                      </SyncProvider>
+                    </BarrelAlertProvider>
+                  </FarmProvider>
+                </ClerkLoaded>
+              </ClerkProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

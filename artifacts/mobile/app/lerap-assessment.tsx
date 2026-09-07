@@ -26,6 +26,7 @@ import { useApiFields, type ApiField } from "@/lib/hooks/useApiFields";
 import { useApiSprayProducts, type ApiSprayProduct } from "@/lib/hooks/useApiSprayProducts";
 import { useApiStaff } from "@/lib/hooks/useApiStaff";
 import { kvGet } from "@/lib/database";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import { PhotoAttachButton } from "@/components/ui/PhotoAttachButton";
 
 const CRD_STEPS = [
@@ -142,7 +143,7 @@ export default function LerapAssessmentScreen() {
 
     try {
       const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
-      const token = await kvGet("bde_auth_token");
+      const token = await getCurrentAuthToken();
       const tenantId = await kvGet("bde_current_farm");
 
       const body: Record<string, unknown> = {

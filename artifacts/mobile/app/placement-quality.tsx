@@ -21,7 +21,7 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
-import { getItem, STORAGE_KEYS } from "@/lib/storage";
+import { getMobileAuthToken } from "@/lib/authToken";
 import { getApiBase } from "@/lib/uploadPhoto";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
@@ -37,7 +37,7 @@ const SCORES: { key: QualityScore; label: string; color: string }[] = [
 ];
 
 async function apiFetch(path: string, method: string, body?: object, signal?: AbortSignal) {
-  const token = await getItem<string>(STORAGE_KEYS.AUTH_TOKEN);
+  const token = await getMobileAuthToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return fetch(`${getApiBase()}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal });

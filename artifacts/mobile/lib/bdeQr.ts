@@ -1,5 +1,5 @@
-import { Platform } from "react-native";
 import { kvGet } from "@/lib/database";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 export type BdeEntityType = "equipment" | "field" | "animal" | "storage" | "tank" | "poultry-house";
 
@@ -33,17 +33,7 @@ export function bdeEntityDisplayName(type: BdeEntityType, data: Record<string, u
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch {}
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      token = raw ? JSON.parse(raw) : null;
-    }
+    const token = await getMobileAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

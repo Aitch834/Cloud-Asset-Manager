@@ -21,6 +21,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { getPendingSyncItems, kvGet, requestPendingSyncItemDiscard } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { parseQueuedOrganicInputEdit } from "@/lib/organicInputOfflineEdit";
 import { buildInputRegisterCsv } from "@/lib/organicInputRegisterCsv";
@@ -117,17 +118,7 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch { token = null; }
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      token = raw ? JSON.parse(raw) : null;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

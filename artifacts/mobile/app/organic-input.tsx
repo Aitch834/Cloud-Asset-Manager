@@ -24,6 +24,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { kvGet, replacePendingSyncItem } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import { savePendingOrganicInputRevision } from "@/lib/organicInputPendingEdit";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { OrganicInput } from "@/lib/types";
@@ -57,17 +58,7 @@ const QUANTITY_UNITS = ["kg", "g", "tonnes", "L", "mL", "bags", "units", "other"
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch { token = null; }
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      token = raw ? JSON.parse(raw) : null;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

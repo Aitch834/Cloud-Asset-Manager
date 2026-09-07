@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@clerk/react";
+import { customFetch } from "@workspace/api-client-react/src/custom-fetch";
 import { useLocation } from "wouter";
 import { Loader2, Building2, MapPin, Users, CreditCard, Shield, ChevronDown, ChevronUp, Tractor, Package, MessageSquare, UserCheck } from "lucide-react";
 
@@ -79,7 +80,7 @@ type AdminStats = {
 type AdminTab = "tenants" | "tickets";
 
 export default function Admin() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -98,27 +99,18 @@ export default function Admin() {
   const [loadingTicketDetail, setLoadingTicketDetail] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      setLocation("/login");
+    if (isLoaded && !isSignedIn) {
+      setLocation("/sign-in");
     }
-  }, [isLoading, isAuthenticated, setLocation]);
+  }, [isLoaded, isSignedIn, setLocation]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isLoaded || !isSignedIn) return;
 
     Promise.all([
-      fetch("/api/admin/tenants", { credentials: "include" }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<{ tenants: TenantSummary[] }>;
-      }),
-      fetch("/api/admin/stats", { credentials: "include" }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<{ stats: AdminStats }>;
-      }),
-      fetch("/api/admin/support-tickets", { credentials: "include" }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<{ tickets: SupportTicketItem[] }>;
-      }),
+      customFetch<{ tenants: TenantSummary[] }>("/api/admin/tenants", { credentials: "include", responseType: "json" }),
+      customFetch<{ stats: AdminStats }>("/api/admin/stats", { credentials: "include", responseType: "json" }),
+      customFetch<{ tickets: SupportTicketItem[] }>("/api/admin/support-tickets", { credentials: "include", responseType: "json" }),
     ])
       .then(([tenantsData, statsData, ticketsData]) => {
         setTenants(tenantsData.tenants);
@@ -130,7 +122,7 @@ export default function Admin() {
         setError(err.message || "Failed to load admin data");
         setLoadingData(false);
       });
-  }, [isAuthenticated]);
+  }, [isLoaded, isSignedIn]);
 
   const toggleTenantDetail = async (tenantId: number) => {
     if (expandedTenantId === tenantId) {
@@ -144,9 +136,7 @@ export default function Admin() {
 
     setLoadingDetail(tenantId);
     try {
-      const r = await fetch(`/api/admin/tenants/${tenantId}`, { credentials: "include" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json() as TenantDetail;
+      const data = await customFetch<TenantDetail>(`/api/admin/tenants/${tenantId}`, { credentials: "include", responseType: "json" });
       setTenantDetails((prev) => ({ ...prev, [tenantId]: data }));
     } catch {
       setTenantDetails((prev) => ({ ...prev, [tenantId]: { tenant: tenants.find((t) => t.id === tenantId)!, farms: [], subscriptions: [], users: [] } }));
@@ -156,14 +146,13 @@ export default function Admin() {
 
   const handleImpersonate = async (userId: string, tenantId: number) => {
     try {
-      const r = await fetch("/api/admin/impersonate", {
+      const data = await customFetch<{ impersonation: { userId: string; email: string | null; tenantId: number } }>("/api/admin/impersonate", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, tenantId }),
+        responseType: "json",
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json() as { impersonation: { userId: string; email: string | null; tenantId: number } };
       setImpersonating(data.impersonation);
     } catch {
       alert("Failed to start impersonation");
@@ -175,11 +164,8 @@ export default function Admin() {
     setReplyText("");
     setLoadingTicketDetail(true);
     try {
-      const r = await fetch(`/api/admin/support-tickets/${ticket.id}`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json() as { ticket: SupportTicketItem; messages: TicketMessage[] };
-        setTicketMessages(data.messages);
-      }
+      const data = await customFetch<{ ticket: SupportTicketItem; messages: TicketMessage[] }>(`/api/admin/support-tickets/${ticket.id}`, { credentials: "include", responseType: "json" });
+      setTicketMessages(data.messages);
     } catch (err) {
       console.warn("Failed to load ticket detail:", err);
     }
@@ -190,14 +176,13 @@ export default function Admin() {
     if (!selectedTicket || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      const r = await fetch(`/api/admin/support-tickets/${selectedTicket.id}/reply`, {
+      const data = await customFetch<{ message: TicketMessage }>(`/api/admin/support-tickets/${selectedTicket.id}/reply`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: replyText.trim() }),
+        responseType: "json",
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json() as { message: TicketMessage };
       setTicketMessages((prev) => [...prev, data.message]);
       setReplyText("");
     } catch (err) {
@@ -209,13 +194,13 @@ export default function Admin() {
 
   const handleUpdateTicketStatus = async (ticketId: number, newStatus: string) => {
     try {
-      const r = await fetch(`/api/admin/support-tickets/${ticketId}/status`, {
+      await customFetch(`/api/admin/support-tickets/${ticketId}/status`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
+        responseType: "json",
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus } : t));
       if (selectedTicket?.id === ticketId) {
         setSelectedTicket((prev) => prev ? { ...prev, status: newStatus } : null);
@@ -230,7 +215,7 @@ export default function Admin() {
     setImpersonating(null);
   };
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <Layout>
         <div className="min-h-[80vh] flex items-center justify-center">

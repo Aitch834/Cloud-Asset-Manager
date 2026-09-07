@@ -27,6 +27,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { WeatherEntry } from "@/lib/types";
+import { getCurrentAuthToken } from "@/lib/authToken";
 
 const CONDITIONS = ["Sunny", "Partly Cloudy", "Cloudy", "Overcast", "Light Rain", "Heavy Rain", "Drizzle", "Fog", "Windy", "Stormy", "Snow", "Frost"];
 
@@ -108,13 +109,7 @@ export default function WeatherEntryScreen() {
       try {
         const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
         if (!apiDomain) return;
-        let token: string | null = null;
-        if (Platform.OS !== "web") {
-          const SecureStore = await import("expo-secure-store");
-          token = await SecureStore.getItemAsync("auth_session_token");
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch { }
-        }
+        const token = await getCurrentAuthToken();
         const { kvGet } = await import("@/lib/database");
         const raw = await kvGet("bde_current_farm");
         const farm = raw ? JSON.parse(raw) : null;
@@ -146,13 +141,7 @@ export default function WeatherEntryScreen() {
       if (currentFarm?.id) {
         try {
           const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
-          let token: string | null = null;
-          if (Platform.OS !== "web") {
-            const SecureStore = await import("expo-secure-store");
-            token = await SecureStore.getItemAsync("auth_session_token");
-          } else {
-            try { token = localStorage.getItem("auth_session_token"); } catch { }
-          }
+          const token = await getCurrentAuthToken();
           const { kvGet } = await import("@/lib/database");
           const raw = await kvGet("bde_current_farm");
           const farm = raw ? JSON.parse(raw) : null;

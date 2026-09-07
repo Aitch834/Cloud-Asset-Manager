@@ -25,6 +25,7 @@ import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import type { OrganicArableHarvest } from "@/lib/types";
 
 function todayDate(): string {
@@ -72,16 +73,8 @@ export default function OrganicArableHarvestScreen() {
     const date = harvestDate || new Date().toISOString().split("T")[0];
     (async () => {
       try {
-        let token: string | null = null;
         let tenantSlug = "";
-        if (Platform.OS !== "web") {
-          try { const SecureStore = await import("expo-secure-store"); token = await SecureStore.getItemAsync("auth_session_token"); } catch {}
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch {}
-        }
-        if (!token) {
-          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
-        }
+        const token = await getCurrentAuthToken();
         try { const raw = await kvGet("bde_current_farm"); if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; } } catch {}
         const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": tenantSlug };
         if (token) headers["Authorization"] = `Bearer ${token}`;

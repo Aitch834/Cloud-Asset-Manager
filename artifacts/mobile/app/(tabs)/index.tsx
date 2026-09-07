@@ -361,17 +361,8 @@ export default function HomeScreen() {
   const fetchLiveWeather = useCallback(async () => {
     if (!currentFarm?.id) return;
     try {
-      const { kvGet } = await import("@/lib/database");
-      const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
-      const token = await kvGet("bde_auth_token");
-      const tenantRaw = await kvGet("bde_current_farm");
-      const tenantParsed = tenantRaw ? JSON.parse(tenantRaw) : null;
-      const tenantSlug = tenantParsed ? (tenantParsed.tenantSlug || tenantParsed.slug || "") : "";
-      const headers: Record<string, string> = { "x-tenant-slug": tenantSlug };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(
-        `${domain}/api/farms/${currentFarm.id}/sensor-readings?category=weather&limit=50`,
-        { headers },
+      const res = await apiFetch(
+        `/api/farms/${currentFarm.id}/sensor-readings?category=weather&limit=50`,
       );
       if (res.ok) {
         const data = await res.json();

@@ -1,9 +1,5 @@
 export * from "./generated/api";
 export type {
-  AuthUser,
-  AuthUserEnvelope,
-  AuthorizationSessionHeaderParameter,
-  BeginBrowserLoginParams,
   ChatHistoryItem,
   ChatHistoryItemRole,
   ChatMessageBody,
@@ -12,11 +8,7 @@ export type {
   CreateSupportTicketBody as CreateSupportTicketBodyType,
   ErrorEnvelope,
   ErrorResponse,
-  HandleBrowserLoginCallbackParams,
   HealthStatus,
   Lead,
-  LogoutSuccess,
-  MobileTokenExchangeRequest,
-  MobileTokenExchangeSuccess,
   SupportTicket,
 } from "./generated/types";

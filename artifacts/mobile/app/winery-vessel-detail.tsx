@@ -26,6 +26,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useBarrelAlertContext } from "@/lib/context/BarrelAlertContext";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet, kvSet } from "@/lib/database";
+import { getCurrentAuthToken } from "@/lib/authToken";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getApiBase } from "@/lib/uploadPhoto";
 import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
@@ -40,17 +41,7 @@ import {
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   try {
-    let token: string | null = null;
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      token = await SecureStore.getItemAsync("auth_session_token");
-    } else {
-      try { token = localStorage.getItem("auth_session_token"); } catch {}
-    }
-    if (!token) {
-      const raw = await kvGet("bde_auth_token");
-      if (raw) token = JSON.parse(raw) as string;
-    }
+    const token = await getCurrentAuthToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const farmRaw = await kvGet("bde_current_farm");
     if (farmRaw) {

@@ -1,25 +1,6 @@
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
 import { kvGet, kvSet } from "@/lib/database";
-
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
+import { getCurrentAuthToken } from "../authToken";
 
 async function getTenantSlug(): Promise<string> {
   try {
@@ -52,7 +33,7 @@ export function useMobileLookup(lookupKey: string, fallback: string[]): string[]
       if (!apiDomain) return;
 
       try {
-        const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+        const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
         if (!tenantSlug) return;
 
         const headers: Record<string, string> = {

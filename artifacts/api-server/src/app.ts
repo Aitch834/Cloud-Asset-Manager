@@ -5,7 +5,12 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import { clerkMiddleware } from "@clerk/express";
-import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
+import {
+  CLERK_PROXY_PATH,
+  clerkProxyMiddleware,
+  getClerkProxyHost,
+} from "./middlewares/clerkProxyMiddleware";
 import { tenantMiddleware } from "./middlewares/tenantMiddleware";
 import { devBypassMiddleware } from "./middlewares/devBypassMiddleware";
 import { adminPortalMiddleware } from "./middlewares/adminPortalMiddleware";
@@ -156,7 +161,14 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(adminPortalMiddleware);
 app.use(devBypassMiddleware);
-app.use(clerkMiddleware());
+app.use(
+  clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })),
+);
 app.use(tenantMiddleware);
 
 // Apply public rate limiter to unauthenticated submission endpoints.

@@ -42,7 +42,7 @@ export function Footer() {
               <li><Link href="/privacy" className="text-brand-pale/80 hover:text-white transition-colors">Privacy Policy &amp; DPA</Link></li>
               <li><Link href="/cookies" className="text-brand-pale/80 hover:text-white transition-colors">Cookie Policy</Link></li>
 
-              <li><Link href="/login" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
+              <li><Link href="/sign-in" className="text-brand-pale/80 hover:text-white transition-colors">Client Login</Link></li>
               <li>
                 <button
                   onClick={() => window.dispatchEvent(new Event("bde:open-cookie-settings"))}

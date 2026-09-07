@@ -13,26 +13,16 @@ import { syncRefData } from "@/lib/refCache";
 import { refreshApiModules } from "@/lib/hooks/useApiModules";
 import type { Farm, UserProfile } from "@/lib/types";
 import { mapApiFarm, type ApiFarm } from "@/lib/utils/mapApiFarm";
+import { getMobileAuthToken } from "@/lib/authToken";
 
 async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try { return localStorage.getItem("auth_session_token"); } catch { return null; }
-    }
-  } catch { }
-  return null;
+  return getMobileAuthToken();
 }
 
 function buildApiHeaders(token: string | null): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
-  } else if (__DEV__) {
-    headers["x-dev-bypass"] = "bde-dev-bypass-local";
   }
   return headers;
 }
@@ -41,13 +31,11 @@ async function fetchUserProfileFromApi(token: string | null): Promise<UserProfil
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (!domain) return null;
   try {
-    const res = await fetch(`https://${domain}/api/auth/user`, {
+    const res = await fetch(`https://${domain}/api/account/profile`, {
       headers: buildApiHeaders(token),
     });
     if (!res.ok) return null;
-    const data = await res.json() as { user?: { id: string; email: string | null; firstName: string | null; lastName: string | null } };
-    const u = data.user;
-    if (!u) return null;
+    const u = await res.json() as { id: string; email: string | null; firstName: string | null; lastName: string | null };
     const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "Unknown";
     return { id: u.id, name, email: u.email ?? "", farmIds: [] };
   } catch {
@@ -115,38 +103,6 @@ async function registerPushToken(token: string | null, farmId: string): Promise<
   }
 }
 
-const DEMO_FARMS: Farm[] = [
-  {
-    id: "farm-1",
-    name: "Manor Farm",
-    tenantSlug: "manor-farm",
-    sectorArable: true,
-    sectorBeef: true,
-    sectorDairy: false,
-    sectorPigs: false,
-    sectorPoultry: false,
-    sectorViticulture: false,
-  },
-  {
-    id: "farm-2",
-    name: "Hill Top Farm",
-    tenantSlug: "hilltop-farm",
-    sectorArable: true,
-    sectorBeef: false,
-    sectorDairy: true,
-    sectorPigs: false,
-    sectorPoultry: true,
-    sectorViticulture: false,
-  },
-];
-
-const DEMO_USER: UserProfile = {
-  id: "user-1",
-  name: "James Wilson",
-  email: "james@manorfarm.co.uk",
-  farmIds: ["farm-1", "farm-2"],
-};
-
 const [FarmProviderInner, useFarm] = createContextHook(
   function useFarmState() {
     const [farms, setFarms] = useState<Farm[]>([]);
@@ -161,18 +117,19 @@ const [FarmProviderInner, useFarm] = createContextHook(
         const savedFarm = await getItem<Farm>(STORAGE_KEYS.CURRENT_FARM);
         const savedUser = await getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE);
 
-        // Try to load real farms and user profile from the API.
-        // In production: requires a real auth token.
-        // In development: falls back to the dev bypass header so the preview works
-        // without the user having to complete an OIDC login flow.
+        // Clerk supplies a current bearer token through the root token bridge.
         const token = await getAuthToken();
-        if (token || __DEV__) {
+        if (token) {
           const [apiFarms, apiUser] = await Promise.all([
             fetchFarmsFromApi(token),
             fetchUserProfileFromApi(token),
           ]);
           if (apiFarms !== null) {
-            const resolvedUser = apiUser || savedUser || DEMO_USER;
+            const resolvedUser = apiUser || savedUser;
+            if (!resolvedUser) {
+              setIsLoading(false);
+              return;
+            }
             await setItem(STORAGE_KEYS.FARM_LIST, apiFarms);
             clearExpiredAgriEnvCaches(apiFarms.map((farm) => farm.id)).catch(() => {});
 
@@ -205,18 +162,11 @@ const [FarmProviderInner, useFarm] = createContextHook(
           }
         }
 
-        // Fall back to locally stored data or demo farms
+        // Offline data is available only after a signed-in session has loaded it.
         if (savedFarms && savedFarms.length > 0) {
           setFarms(savedFarms);
           setCurrentFarmState(savedFarm || savedFarms[0]);
-          setUser(savedUser || DEMO_USER);
-        } else {
-          await setItem(STORAGE_KEYS.FARM_LIST, DEMO_FARMS);
-          await setItem(STORAGE_KEYS.CURRENT_FARM, DEMO_FARMS[0]);
-          await setItem(STORAGE_KEYS.USER_PROFILE, DEMO_USER);
-          setFarms(DEMO_FARMS);
-          setCurrentFarmState(DEMO_FARMS[0]);
-          setUser(DEMO_USER);
+          setUser(savedUser);
         }
         setIsLoading(false);
       })();
@@ -243,7 +193,7 @@ const [FarmProviderInner, useFarm] = createContextHook(
 
     const refreshFarms = useCallback(async () => {
       const token = await getAuthToken();
-      if (!token && !__DEV__) return;
+      if (!token) return;
       const apiFarms = await fetchFarmsFromApi(token);
       if (apiFarms === null) return;
       const currentFarmId = currentFarm?.id;

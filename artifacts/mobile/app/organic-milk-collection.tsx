@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/Input";
 import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
-import { useAuth } from "@/lib/auth";
+import { useUser } from "@clerk/expo";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
@@ -92,7 +92,7 @@ export default function OrganicMilkCollectionScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
-  const { user } = useAuth();
+  const { user } = useUser();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(INITIAL);
 
@@ -138,7 +138,7 @@ export default function OrganicMilkCollectionScreen() {
         nonOrganicReason: form.isOrganicCollection ? null : form.nonOrganicReason,
         isRetest: form.isRetest,
         witnessedBy: form.witnessedBy || null,
-        recordedByUserName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || null : null,
+        recordedByUserName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.primaryEmailAddress?.emailAddress || null : null,
         notes: form.notes || null,
         syncEndpoint: `/api/farms/${currentFarm?.id}/organic-dairy/collections`,
         syncMethod: "POST",

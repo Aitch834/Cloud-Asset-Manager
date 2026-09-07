@@ -189,8 +189,6 @@ export async function removeFromList<T extends { id: string }>(
 }
 
 export const STORAGE_KEYS = {
-  AUTH_TOKEN: "bde_auth_token",
-  AUTH_STATE: "bde_auth_state",
   CURRENT_FARM: "bde_current_farm",
   SPRAY_RECORDS: "bde_spray_records",
   WEATHER_ENTRIES: "bde_weather_entries",

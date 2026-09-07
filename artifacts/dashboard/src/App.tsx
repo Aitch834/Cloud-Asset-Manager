@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
+import { publishableKeyFromHost } from "@clerk/react/internal";
+import { shadcn } from "@clerk/themes";
 
 import "@/lib/fetch-patch";
 
@@ -131,10 +133,62 @@ const SMSAlertsPage = React.lazy(() => import("@/pages/SMSAlertsPage"));
 
 import { NavHistoryProvider } from "@/context/NavHistoryContext";
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-// NOTE: in dev this env var will be empty, in prod it will be automatically set
+const clerkPubKey = publishableKeyFromHost(
+  window.location.hostname,
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const clerkAppearance = {
+  theme: shadcn,
+  cssLayerName: "clerk",
+  options: {
+    logoPlacement: "inside" as const,
+    logoLinkUrl: basePath || "/",
+    logoImageUrl: `${window.location.origin}${basePath}/images/logo-icon.png`,
+    socialButtonsPlacement: "top" as const,
+  },
+  variables: {
+    colorPrimary: "#2f6f3e",
+    colorForeground: "#17221a",
+    colorMutedForeground: "#66736a",
+    colorDanger: "#b42318",
+    colorBackground: "#ffffff",
+    colorInput: "#ffffff",
+    colorInputForeground: "#17221a",
+    colorNeutral: "#d9ded9",
+    fontFamily: "'DM Sans', sans-serif",
+    borderRadius: "0.75rem",
+  },
+  elements: {
+    rootBox: "w-full flex justify-center",
+    cardBox: "bg-white rounded-2xl w-[440px] max-w-full overflow-hidden",
+    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    headerTitle: "text-foreground font-bold",
+    headerSubtitle: "text-muted-foreground",
+    socialButtonsBlockButtonText: "text-foreground",
+    formFieldLabel: "text-foreground",
+    footerActionLink: "text-primary font-semibold",
+    footerActionText: "text-muted-foreground",
+    dividerText: "text-muted-foreground",
+    identityPreviewEditButton: "text-primary",
+    formFieldSuccessText: "text-primary",
+    alertText: "text-foreground",
+    logoBox: "h-14",
+    logoImage: "h-12 w-12 object-contain",
+    socialButtonsBlockButton: "border-border",
+    formButtonPrimary: "bg-primary hover:bg-primary/90",
+    formFieldInput: "border-border text-foreground",
+    footerAction: "bg-muted/30",
+    dividerLine: "bg-border",
+    alert: "border-border",
+    otpCodeFieldInput: "border-border",
+    formFieldRow: "text-foreground",
+    main: "text-foreground",
+  },
+};
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -427,6 +481,23 @@ function ClerkProviderWrapper() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
+      appearance={clerkAppearance}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      localization={{
+        signIn: {
+          start: {
+            title: "Welcome back",
+            subtitle: "Sign in to access BDE Farm Trac",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your BDE Farm Trac account",
+            subtitle: "Get started with your farm compliance workspace",
+          },
+        },
+      }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >

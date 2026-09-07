@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
 import { useEffect, useState } from "react";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "../authToken";
 
 export interface ApiCrop {
   id: number;
@@ -8,25 +8,6 @@ export interface ApiCrop {
   name: string;
   variety?: string | null;
   category?: string | null;
-}
-
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
 }
 
 async function getTenantSlug(): Promise<string> {
@@ -60,7 +41,7 @@ export function useApiCrops(farmId: string | undefined) {
       setLoading(true);
       setError(null);
       try {
-        const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+        const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
 
         const headers: Record<string, string> = {
           "Content-Type": "application/json",

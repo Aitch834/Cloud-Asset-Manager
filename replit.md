@@ -45,6 +45,7 @@ The monorepo is built using `pnpm workspaces` with Node.js 24 and TypeScript 5.9
 
 **Marketing Website (`artifacts/website`):**
 - React + Vite application with `wouter` for routing, covering marketing content, pricing, and legal information.
+- Uses branded Clerk sign-in and sign-up routes; the public home page redirects signed-in customers to the dashboard.
 
 **Test Dashboard (`artifacts/test-dashboard`):**
 - A login-free development and testing version of the dashboard, sharing the same React source.

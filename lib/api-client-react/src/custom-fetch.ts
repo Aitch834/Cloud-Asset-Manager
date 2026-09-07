@@ -8,6 +8,20 @@ export type BodyType<T> = T;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+type AuthTokenGetter = () => Promise<string | null>;
+
+let authTokenGetter: AuthTokenGetter | null = null;
+let baseUrl = "";
+
+/** Configure an absolute API origin for non-browser clients such as Expo. */
+export function setBaseUrl(url: string): void {
+  baseUrl = url.replace(/\/+$/, "");
+}
+
+/** Configure the token source for native clients. Browser clients use cookies. */
+export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
+  authTokenGetter = getter;
+}
 
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
@@ -26,9 +40,8 @@ function isUrl(input: RequestInfo | URL): input is URL {
 }
 
 function resolveUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  if (isUrl(input)) return input.toString();
-  return input.url;
+  const url = typeof input === "string" ? input : isUrl(input) ? input.toString() : input.url;
+  return baseUrl && url.startsWith("/") ? `${baseUrl}${url}` : url;
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
@@ -284,6 +297,10 @@ export async function customFetch<T = unknown>(
   }
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  if (authTokenGetter && !headers.has("authorization")) {
+    const token = await authTokenGetter();
+    if (token) headers.set("authorization", `Bearer ${token}`);
+  }
 
   if (
     typeof init.body === "string" &&
@@ -299,7 +316,7 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(resolveUrl(input), { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

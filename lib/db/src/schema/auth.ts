@@ -12,7 +12,8 @@ export type SmsCategory = "livestock" | "dairy" | "arable" | "viticulture" | "ta
 /** Per-category SMS preferences stored in sms_categories JSONB. null = all categories enabled (legacy/default). */
 export type SmsCategories = Partial<Record<SmsCategory, boolean>>;
 
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+// Retained for existing data and foreign-key compatibility. Clerk owns new
+// browser sessions, but this table must not be dropped during the migration.
 export const sessionsTable = pgTable(
   "sessions",
   {
@@ -23,7 +24,8 @@ export const sessionsTable = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+// Local application user records remain the authorization bridge for Clerk
+// identities and are referenced throughout the farm-management schema.
 export const usersTable = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),

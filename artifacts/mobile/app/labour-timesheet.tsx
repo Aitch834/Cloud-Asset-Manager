@@ -21,6 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import { generateId } from "@/lib/storage";
 import {
   type DraftEntry,
@@ -51,18 +52,6 @@ const TASK_TYPES = [
 ];
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      return await SecureStore.getItemAsync("auth_session_token");
-    }
-    try { return localStorage.getItem("auth_session_token"); } catch { return null; }
-  } catch {
-    return null;
-  }
-}
-
 async function getTenantSlug(): Promise<string> {
   try {
     const raw = await kvGet("bde_current_farm");
@@ -181,7 +170,7 @@ export default function LabourTimesheetScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             try {
               const apiBase = getApiBase();
-              const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+              const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
               let successCount = 0;
               let failCount = 0;
 

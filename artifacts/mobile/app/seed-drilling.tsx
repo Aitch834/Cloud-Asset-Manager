@@ -30,6 +30,8 @@ import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import type { SeedDrillingRecord } from "@/lib/types";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
+import { getCurrentAuthToken } from "@/lib/authToken";
+import { kvGet } from "@/lib/database";
 
 function todayDate(): string {
   return new Date().toISOString().split("T")[0];
@@ -82,15 +84,7 @@ export default function SeedDrillingScreen() {
     async function fetchBatches() {
       setLoadingBatches(true);
       try {
-        const { Platform } = await import("react-native");
-        const SecureStore = Platform.OS !== "web" ? await import("expo-secure-store") : null;
-        let token: string | null = null;
-        if (SecureStore) {
-          token = await SecureStore.getItemAsync("auth_session_token");
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch {}
-        }
-        const { kvGet } = await import("@/lib/database");
+        const token = await getCurrentAuthToken();
         const farmRaw = await kvGet("bde_current_farm");
         const slug = farmRaw ? (JSON.parse(farmRaw).tenantSlug || "") : "";
         const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;

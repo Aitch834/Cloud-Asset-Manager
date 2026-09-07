@@ -22,26 +22,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { kvGet } from "@/lib/database";
-
-// ─── Auth helpers (same pattern as useApiCrops) ───────────────────────
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch {}
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 
 async function getTenantSlug(): Promise<string> {
   try {
@@ -126,7 +107,7 @@ export default function AddFarmLocationScreen() {
 
     // ── API call ───────────────────────────────────────────────────
     try {
-      const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+      const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",

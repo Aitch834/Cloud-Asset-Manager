@@ -27,6 +27,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet, kvSet } from "@/lib/database";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import type { HaulageConfirmation } from "@/lib/types";
 import { useMobileLookup } from "@/lib/hooks/useMobileLookup";
 import { cropDispatchDocketHtml } from "@/lib/printTemplates";
@@ -35,20 +36,6 @@ import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
 interface Haulier { id: number; companyName: string; }
-
-async function _getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SS = await import("expo-secure-store");
-      const t = await SS.getItemAsync("auth_session_token");
-      if (t) return t;
-    } else {
-      try { const t = localStorage.getItem("auth_session_token"); if (t) return t; } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
 
 async function _getTenantSlug(): Promise<string> {
   try {
@@ -74,7 +61,7 @@ function useGrainBinLookup(farmId: string | number | undefined): GrainBin[] {
       const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
       if (!apiDomain) return;
       try {
-        const [token, slug] = await Promise.all([_getAuthToken(), _getTenantSlug()]);
+        const [token, slug] = await Promise.all([getCurrentAuthToken(), _getTenantSlug()]);
         if (!slug) return;
         const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
         if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -104,7 +91,7 @@ function useHaulierLookup(farmId: string | number | undefined): Haulier[] {
       const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
       if (!apiDomain) return;
       try {
-        const [token, slug] = await Promise.all([_getAuthToken(), _getTenantSlug()]);
+        const [token, slug] = await Promise.all([getCurrentAuthToken(), _getTenantSlug()]);
         if (!slug) return;
         const headers: Record<string, string> = { "Content-Type": "application/json", "x-tenant-slug": slug };
         if (token) headers["Authorization"] = `Bearer ${token}`;

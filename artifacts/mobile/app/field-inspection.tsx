@@ -32,6 +32,7 @@ import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 import { useApiFields } from "@/lib/hooks/useApiFields";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { kvGet } from "@/lib/database";
+import { getMobileAuthToken as getCurrentAuthToken } from "@/lib/authToken";
 import type { FieldInspection } from "@/lib/types";
 
 type ActionRequired = FieldInspection["actionRequired"];
@@ -227,20 +228,8 @@ export default function FieldInspectionScreen() {
 
     (async () => {
       try {
-        let token: string | null = null;
         let tenantSlug = "";
-
-        if (Platform.OS !== "web") {
-          try {
-            const SecureStore = await import("expo-secure-store");
-            token = await SecureStore.getItemAsync("auth_session_token");
-          } catch {}
-        } else {
-          try { token = localStorage.getItem("auth_session_token"); } catch {}
-        }
-        if (!token) {
-          try { const raw = await kvGet("bde_auth_token"); token = raw ? JSON.parse(raw) : null; } catch {}
-        }
+        const token = await getCurrentAuthToken();
         try {
           const raw = await kvGet("bde_current_farm");
           if (raw) { const farm = JSON.parse(raw); tenantSlug = farm.tenantSlug || farm.slug || ""; }

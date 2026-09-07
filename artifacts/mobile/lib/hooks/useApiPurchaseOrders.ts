@@ -1,6 +1,6 @@
-import { Platform } from "react-native";
 import { useEffect, useState, useCallback } from "react";
 import { kvGet } from "@/lib/database";
+import { getCurrentAuthToken } from "../authToken";
 
 export interface PurchaseOrder {
   id: number;
@@ -24,25 +24,6 @@ export interface PurchaseOrderCounts {
   draft: number;
   partially_received: number;
   fully_received: number;
-}
-
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      const SecureStore = await import("expo-secure-store");
-      const token = await SecureStore.getItemAsync("auth_session_token");
-      if (token) return token;
-    } else {
-      try {
-        const token = localStorage.getItem("auth_session_token");
-        if (token) return token;
-      } catch { }
-    }
-    const raw = await kvGet("bde_auth_token");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
 }
 
 async function getTenantSlug(): Promise<string> {
@@ -87,7 +68,7 @@ export function useApiPurchaseOrders(farmId: string | undefined, statusFilter?: 
     setLoading(true);
     setError(null);
     try {
-      const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+      const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "x-tenant-slug": tenantSlug,
@@ -132,7 +113,7 @@ export async function createPurchaseOrder(
   if (!apiDomain) return { success: false, error: "No API domain configured" };
 
   try {
-    const [token, tenantSlug] = await Promise.all([getAuthToken(), getTenantSlug()]);
+    const [token, tenantSlug] = await Promise.all([getCurrentAuthToken(), getTenantSlug()]);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "x-tenant-slug": tenantSlug,
