@@ -1,9 +1,143 @@
+jest.mock("react-native", () => {
+  const React = require("react");
+  const host = (name: string) =>
+    React.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) =>
+      React.createElement(name, { ...props, ref }, props.children));
+  const FlatList = ({
+    data = [],
+    renderItem,
+    ListHeaderComponent,
+    ListEmptyComponent,
+    ...props
+  }: {
+    data?: unknown[];
+    renderItem?: (args: { item: unknown; index: number }) => React.ReactNode;
+    ListHeaderComponent?: React.ReactNode;
+    ListEmptyComponent?: React.ReactNode;
+    [key: string]: unknown;
+  }) => React.createElement(
+    "FlatList",
+    props,
+    ListHeaderComponent,
+    data.length > 0
+      ? data.map((item, index) => React.createElement(
+          React.Fragment,
+          { key: index },
+          renderItem?.({ item, index }),
+        ))
+      : ListEmptyComponent,
+  );
+
+  return {
+    ActivityIndicator: host("ActivityIndicator"),
+    Alert: { alert: jest.fn() },
+    FlatList,
+    Platform: { OS: "web" },
+    Pressable: host("Pressable"),
+    RefreshControl: host("RefreshControl"),
+    ScrollView: host("ScrollView"),
+    StyleSheet: {
+      create: (styles: Record<string, unknown>) => styles,
+      flatten: (style: unknown) => style,
+    },
+    Text: host("Text"),
+    TextInput: host("TextInput"),
+    View: host("View"),
+  };
+});
+
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
+  return {
+    Feather: ({ name, ...props }: { name: string; [key: string]: unknown }) =>
+      React.createElement(Text, props, name),
+  };
+});
+
+let mockProjectListFocusCallback: (() => void | (() => void)) | null = null;
+jest.mock("expo-router", () => {
+  const React = require("react");
+  return {
+    router: { push: jest.fn(), back: jest.fn() },
+    useLocalSearchParams: () => ({ projectId: "7", milestoneId: "101" }),
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      mockProjectListFocusCallback = callback;
+      React.useEffect(callback, [callback]);
+    },
+  };
+});
+
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+jest.mock("@react-native-community/datetimepicker", () => {
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: () => React.createElement("DateTimePicker"),
+    DateTimePickerAndroid: { open: jest.fn() },
+  };
+});
+
+jest.mock("../components/KeyboardAwareScrollViewCompat", () => {
+  const React = require("react");
+  const { ScrollView } = require("react-native");
+  return {
+    KeyboardAwareScrollViewCompat: ({ children, ...props }: {
+      children?: React.ReactNode;
+      [key: string]: unknown;
+    }) => React.createElement(ScrollView, props, children),
+  };
+});
+
+jest.mock("../lib/context/FarmContext", () => ({
+  useFarm: () => ({ currentFarm: { id: 3, name: "Test Farm" } }),
+}));
+
+jest.mock("../lib/hooks/usePersistedAgriEnvStatusFilter", () => ({
+  usePersistedAgriEnvStatusFilter: () => [null, jest.fn()],
+}));
+
+const mockApiFetch = jest.fn();
+jest.mock("../lib/apiFetch", () => ({
+  apiFetch: (...args: unknown[]) => mockApiFetch(...args),
+}));
+
+const mockStorage = new Map<string, unknown>();
+jest.mock("../lib/storage", () => ({
+  AGRI_ENV_CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000,
+  getItem: jest.fn(async (key: string) => mockStorage.get(key) ?? null),
+  setItem: jest.fn(async (key: string, value: unknown) => {
+    mockStorage.set(key, value);
+  }),
+  removeItem: jest.fn(async (key: string) => {
+    mockStorage.delete(key);
+  }),
+  STORAGE_KEYS: {
+    AGRI_ENV_PROJECTS_CACHE: "agri-env-projects",
+    AGRI_ENV_MILESTONES_CACHE: "agri-env-milestones",
+    AGRI_ENV_TRANSACTIONS_CACHE: "agri-env-transactions",
+    AGRI_ENV_PROJECT_MILESTONES_CACHE: "agri-env-project-milestones",
+    AGRI_ENV_SCHEME_FILTER: "agri-env-scheme-filter",
+  },
+}));
+
 import {
   canApplyMilestoneLoad,
   mergeMilestone,
   persistMilestoneCacheUpdate,
 } from "../lib/agriEnvMilestoneCache";
 import { canApplyAgriEnvCacheLoad } from "../lib/agri-env-cache";
+import React from "react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import AgriEnvMilestoneDetailScreen from "../app/agri-env-milestone-detail";
+import AgriEnvProjectsScreen from "../app/agri-env-projects";
+
+const { router: mockRouter } = require("expo-router") as {
+  router: { push: jest.Mock; back: jest.Mock };
+};
 
 interface CachedMilestone {
   id: number;
@@ -12,6 +146,12 @@ interface CachedMilestone {
 }
 
 describe("agri-environment milestone detail cache refresh", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockStorage.clear();
+    mockProjectListFocusCallback = null;
+  });
+
   it("merges a saved response into a freshly fetched farm-wide list", () => {
     const farmMilestones = [
       {
@@ -152,5 +292,118 @@ describe("agri-environment milestone detail cache refresh", () => {
     await applyFarmACache;
 
     expect(renderedTransactions).toEqual([]);
+  });
+
+  it("refreshes the project drawdown after returning from an updated milestone", async () => {
+    const cachedAt = new Date().toISOString();
+    const project = {
+      id: 7,
+      schemeName: "Countryside Stewardship",
+      administeringBody: "RPA",
+      agreementReference: "AG-7",
+      startDate: "2026-01-01",
+      endDate: "2027-12-31",
+      totalGrantValuePence: 100_000,
+      status: "active",
+    };
+    const staleMilestone = {
+      id: 101,
+      projectId: 7,
+      farmId: 3,
+      milestoneName: "Hedgerow management",
+      dueDate: "2026-12-31",
+      completionDate: "2026-09-01",
+      claimAmountPence: 10_000,
+      status: "paid",
+      evidenceNotes: null,
+    };
+    const refreshedMilestone = {
+      ...staleMilestone,
+      claimAmountPence: 30_000,
+      evidenceNotes: "Updated on site",
+    };
+    let farmWideMilestones = [staleMilestone];
+
+    mockStorage.set("agri-env-projects_3", { data: [project], cachedAt });
+    mockStorage.set("agri-env-milestones_3", { data: [staleMilestone], cachedAt });
+    mockStorage.set("agri-env-transactions_3", { data: [], cachedAt });
+    mockStorage.set("agri-env-project-milestones_3_7", {
+      milestones: [staleMilestone],
+      cachedAt,
+    });
+
+    const response = (payload: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => payload,
+    }) as Response;
+    mockApiFetch.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === "PUT") {
+        farmWideMilestones = [refreshedMilestone];
+        return response({ milestone: refreshedMilestone });
+      }
+      if (url.endsWith("/agri-env-projects/7/milestones")) {
+        return response({ milestones: farmWideMilestones });
+      }
+      if (url.endsWith("/agri-env-projects")) {
+        return response({ projects: [project] });
+      }
+      if (url.endsWith("/agri-env-milestones")) {
+        return response({ milestones: farmWideMilestones });
+      }
+      if (url.endsWith("/financial-transactions")) {
+        return response({ records: [] });
+      }
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+
+    const projectsScreen = render(React.createElement(AgriEnvProjectsScreen));
+    await waitFor(() => {
+      expect(projectsScreen.getByText("10%")).toBeTruthy();
+    });
+
+    fireEvent.press(projectsScreen.getByLabelText(
+      "Countryside Stewardship, Active. Expand details.",
+    ));
+    fireEvent.press(projectsScreen.getByLabelText(
+      "Hedgerow management, Paid. Open milestone detail.",
+    ));
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/agri-env-milestone-detail",
+      params: { projectId: "7", milestoneId: "101" },
+    });
+
+    const detailScreen = render(React.createElement(AgriEnvMilestoneDetailScreen));
+    await waitFor(() => {
+      expect(detailScreen.getByTestId("edit-milestone-button")).toBeTruthy();
+    });
+    fireEvent.press(detailScreen.getByTestId("edit-milestone-button"));
+    fireEvent.changeText(
+      detailScreen.getByTestId("milestone-claim-amount-input"),
+      "300",
+    );
+    fireEvent.press(detailScreen.getByTestId("save-milestone-button"));
+
+    await waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        "/api/farms/3/agri-env-projects/7/milestones/101",
+        expect.objectContaining({ method: "PUT" }),
+      );
+      expect(mockStorage.get("agri-env-milestones_3")).toEqual(
+        expect.objectContaining({ data: [refreshedMilestone] }),
+      );
+    });
+
+    fireEvent.press(detailScreen.getByText("arrow-left"));
+    expect(mockRouter.back).toHaveBeenCalled();
+
+    await act(async () => {
+      mockProjectListFocusCallback?.();
+    });
+
+    await waitFor(() => {
+      expect(projectsScreen.getByText("30%")).toBeTruthy();
+      expect(projectsScreen.getByText("£300 of £1,000 claimed in 2026")).toBeTruthy();
+    });
   });
 });
