@@ -28,6 +28,7 @@
     "test:financial-export-columns": "node scripts/check-financial-export-columns.mjs",
     "test:help-content": "tsx scripts/check-help-content.ts",
     "test:user-ui-prefs-migration": "node scripts/check-user-ui-prefs-migration.mjs",
+    "test:lead-sector-notes-cleanup": "tsx scripts/test-lead-sector-notes-cleanup.ts",
     "test:phenology-planting-link": "node scripts/check-phenology-planting-link.mjs",
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",
     "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts",
