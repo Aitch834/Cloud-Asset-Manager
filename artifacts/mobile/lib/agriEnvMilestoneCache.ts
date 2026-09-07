@@ -35,6 +35,27 @@ interface PersistMilestoneCacheUpdateResult {
   hydration: Promise<void> | null;
 }
 
+interface ConfirmedMilestoneSaveResult<T> {
+  milestone: T;
+  offlineAvailable: boolean;
+}
+
+/**
+ * Keep a successful server save authoritative even when the device cannot
+ * persist the matching offline cache entry.
+ */
+export async function confirmMilestoneSave<T>(
+  milestone: T,
+  persistCache: (milestone: T) => Promise<void>,
+): Promise<ConfirmedMilestoneSaveResult<T>> {
+  try {
+    await persistCache(milestone);
+    return { milestone, offlineAvailable: true };
+  } catch {
+    return { milestone, offlineAvailable: false };
+  }
+}
+
 /**
  * Persist the confirmed edit before starting any optional network hydration.
  * This ordering is what makes a force-quit during hydration safe.

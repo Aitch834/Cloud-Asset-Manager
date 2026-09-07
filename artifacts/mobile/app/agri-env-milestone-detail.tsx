@@ -21,6 +21,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { apiFetch } from "@/lib/apiFetch";
 import {
   canApplyMilestoneLoad,
+  confirmMilestoneSave,
   persistMilestoneCacheUpdate,
 } from "@/lib/agriEnvMilestoneCache";
 import { getItem, removeItem, setItem, STORAGE_KEYS } from "@/lib/storage";
@@ -197,6 +198,7 @@ export default function AgriEnvMilestoneDetailScreen() {
     evidenceNotes: "",
   });
   const [editError, setEditError] = useState<string | null>(null);
+  const [offlineCacheWarning, setOfflineCacheWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showCompletionDatePicker, setShowCompletionDatePicker] = useState(false);
   const cancelRef = useRef(false);
@@ -446,12 +448,11 @@ export default function AgriEnvMilestoneDetailScreen() {
           ? prev.map(m => m.id === data.milestone.id ? { ...m, ...data.milestone } : m)
           : [...prev, data.milestone],
       );
-      try {
-        await updateMilestoneCache(data.milestone);
-      } catch {
-        // The server response is authoritative; keep the confirmed UI update
-        // even if the device's local cache cannot be written.
-      }
+      const confirmedSave = await confirmMilestoneSave(
+        data.milestone,
+        updateMilestoneCache,
+      );
+      setOfflineCacheWarning(!confirmedSave.offlineAvailable);
       setEditing(false);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : "Could not save milestone.");
@@ -760,6 +761,24 @@ export default function AgriEnvMilestoneDetailScreen() {
             />
           }
         >
+          {offlineCacheWarning && (
+            <View
+              style={styles.offlineCacheWarning}
+              accessibilityRole="alert"
+              testID="milestone-offline-cache-warning"
+            >
+              <Feather name="wifi-off" size={18} color="#92400e" />
+              <View style={styles.offlineCacheWarningContent}>
+                <Text style={styles.offlineCacheWarningTitle}>
+                  Saved online, but not available offline yet
+                </Text>
+                <Text style={styles.offlineCacheWarningText}>
+                  Reconnect and refresh this milestone before relying on it for offline access.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Name + status */}
           <View style={styles.card}>
             <View style={styles.nameRow}>
@@ -972,6 +991,32 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.md,
     gap: spacing.sm,
+  },
+  offlineCacheWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  offlineCacheWarningContent: {
+    flex: 1,
+  },
+  offlineCacheWarningTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#92400e",
+  },
+  offlineCacheWarningText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    lineHeight: 19,
+    color: "#92400e",
+    marginTop: 2,
   },
   editIntro: {
     paddingVertical: spacing.xs,

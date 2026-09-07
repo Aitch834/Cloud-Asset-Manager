@@ -126,6 +126,7 @@ jest.mock("../lib/storage", () => ({
 
 import {
   canApplyMilestoneLoad,
+  confirmMilestoneSave,
   mergeMilestone,
   persistMilestoneCacheUpdate,
 } from "../lib/agriEnvMilestoneCache";
@@ -232,6 +233,25 @@ describe("agri-environment milestone detail cache refresh", () => {
     ]);
     await result.hydration;
     expect(allWrites[1]).toHaveLength(2);
+  });
+
+  it("keeps confirmed server values and reports unavailable offline access when the cache write fails", async () => {
+    const savedMilestone = {
+      id: 17,
+      status: "submitted",
+      completionDate: "2026-09-02",
+      claimAmountPence: 123456,
+      evidenceNotes: "Confirmed by the server",
+    };
+
+    const result = await confirmMilestoneSave(savedMilestone, async () => {
+      throw new Error("SQLite write failed");
+    });
+
+    expect(result).toEqual({
+      milestone: savedMilestone,
+      offlineAvailable: false,
+    });
   });
 
   it("keeps the confirmed save when a pre-save GET resolves afterwards", async () => {
