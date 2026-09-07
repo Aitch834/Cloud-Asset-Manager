@@ -126,6 +126,10 @@ args = "sector-alert-issue-sms-api"
 task = "workflow.run"
 args = "barrel-clean-summary-api"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "module-label-consistency"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -477,6 +481,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run test:barrel-clean-summary"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "module-label-consistency"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/website run test:module-labels"
 
 [workflows.workflow.metadata]
 isValidation = true

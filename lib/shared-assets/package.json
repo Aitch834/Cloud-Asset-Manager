@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./tokens": "./src/tokens.ts",
+    "./modules": "./src/modules.ts",
     "./tailwind-preset": "./src/tailwind-preset.ts",
     "./css-variables": "./src/css-variables.css",
     "./logo/*": "./logo/*"

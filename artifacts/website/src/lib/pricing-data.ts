@@ -86,6 +86,9 @@ export const MODULES: PricingModule[] = [
   { id: "resource-planner", name: "Resource Planner", price: 20, note: "Centralised resource registry for tractors, implements, sprayers, trailers, vehicles, and named staff — each with a colour dot; drag-and-drop resource assignment onto Week Ahead Gantt task bars; pinch point analysis; materials tracking; Planning Status tab; Plan vs Actual (As-Built) recording with variance charts; automatic conflict detection; real-time conflict resolution" },
 ] as const;
 
+// Pricing names are checked against the shared sales catalogue by
+// scripts/check-module-labels.ts so price metadata cannot drift from lead labels.
+
 /** Look up a module's monthly price by its ID. Returns 0 if the ID is not found (which would be a bug). */
 export function modulePrice(id: string): number {
   return MODULES.find(m => m.id === id)?.price ?? 0;

@@ -8,6 +8,7 @@ import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
   X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout, BarChart3, Trash2,
 } from "lucide-react";
+import { salesModuleLabel } from "@workspace/shared-assets/modules";
 
 const STATUSES = [
   { value: "new", label: "New", color: "bg-blue-100 text-blue-700", icon: Clock },
@@ -32,49 +33,6 @@ const SOURCES = [
   "Direct Mail",
   "Other",
 ];
-
-const MODULE_LABELS: Record<string, string> = {
-  "red-tractor-compliance": "Red Tractor",
-  "field-crop-management": "Field & Crops",
-  "sprays-inputs": "Sprays & Inputs",
-  "crop-trials": "Crop Trials",
-  "soil-management": "Soil Management",
-  "equipment-workshop": "Equipment, Workshop & Fuel",
-  "livestock-management": "Livestock",
-  "biosecurity": "Biosecurity",
-  "staff-training": "Staff & Training",
-  "safety-risk-audits": "Safety, Risk & Audits",
-  "environment-sustainability": "Environment & Sustainability",
-  "water-irrigation": "Water & Irrigation",
-  "finance": "Finance & Business",
-  "finance-business": "Finance & Business",
-  "grain-crop-storage": "Grain & Crop Storage",
-  "farm-services-contracting": "Farm Services & Contracting",
-  "weather-tracking": "Weather Tracking",
-  "biofuel-rtfo": "Biofuel / RTFO",
-  "organic-compliance": "Organic Compliance",
-  "organic-livestock": "Organic Livestock",
-  "organic-dairy": "Organic Dairy",
-  "organic-arable": "Organic Arable",
-  "organic-fresh-produce": "Organic Fresh Produce",
-  "organic-viticulture": "Organic Viticulture",
-  "organic-venison": "Organic Venison",
-  "organic-poultry": "Organic Poultry",
-  "fresh-produce": "Fresh Produce",
-  "viticulture": "Viticulture",
-  "sheep-production": "Sheep Production",
-  "beef-production": "Beef Production",
-  "goat-production": "Goat Production",
-  "venison-production": "Venison Production",
-  "pig-production": "Pig Production",
-  "poultry-production": "Poultry Production",
-  "farm-diversification": "Farm Diversification",
-  "report-builder": "Report Builder",
-  "data-api": "Data API Access",
-  "resource-planner": "Resource Planner",
-  "platform-addons": "Platform Add-ons",
-};
-
 const SECTORS = [
   "Beef & Dairy",
   "Sheep & Goat",
@@ -311,7 +269,7 @@ export function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
             <div className="flex flex-wrap gap-2">
               {lead.modulesInterested.map((m) => (
                 <span key={m} className="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full">
-                  {MODULE_LABELS[m] ?? m}
+                  {salesModuleLabel(m)}
                 </span>
               ))}
             </div>

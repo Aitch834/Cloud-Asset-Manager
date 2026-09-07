@@ -11,6 +11,7 @@ import { useCreateLead } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Tag } from "lucide-react";
 import { motion } from "framer-motion";
+import { SALES_MODULES } from "@workspace/shared-assets/modules";
 
 // Modules that are relevant to each sector (mirrors the SECTOR_MODULES list on the Pricing page).
 // Used to pre-check the module list when a prospect arrives with ?sector=<name>.
@@ -62,46 +63,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-const AVAILABLE_MODULES = [
-  { id: "red-tractor-compliance", label: "Red Tractor Compliance" },
-  { id: "field-crop-management", label: "Field & Crop Management" },
-  { id: "sprays-inputs", label: "Sprays & Inputs" },
-  { id: "crop-trials", label: "Crop Trials" },
-  { id: "soil-management", label: "Soil Management" },
-  { id: "equipment-workshop", label: "Equipment, Workshop & Fuel" },
-  { id: "livestock-management", label: "Livestock & Feed Management" },
-  { id: "biosecurity", label: "Biosecurity & Visitors" },
-  { id: "staff-training", label: "Staff & Training" },
-  { id: "safety-risk-audits", label: "Safety, Risk & Audits" },
-  { id: "environment-sustainability", label: "Environment & Sustainability" },
-  { id: "water-irrigation", label: "Water & Irrigation Management" },
-  { id: "finance-business", label: "Finance & Business" },
-  { id: "grain-crop-storage", label: "Grain & Crop Storage" },
-  { id: "farm-services-contracting", label: "Farm Services & Contracting" },
-  { id: "weather-tracking", label: "Weather Tracking" },
-  { id: "platform-addons", label: "Platform Add-ons (SMS & Advisor Access)" },
-  { id: "biofuel-rtfo", label: "Biofuel / RTFO Compliance" },
-  { id: "organic-compliance", label: "Organic Compliance" },
-  { id: "organic-livestock", label: "Organic Livestock" },
-  { id: "organic-dairy", label: "Organic Dairy" },
-  { id: "organic-arable", label: "Organic Arable" },
-  { id: "organic-fresh-produce", label: "Organic Fresh Produce" },
-  { id: "organic-viticulture", label: "Organic Viticulture" },
-  { id: "fresh-produce", label: "Fresh Produce" },
-  { id: "viticulture", label: "Viticulture" },
-  { id: "sheep-production", label: "Sheep Production" },
-  { id: "beef-production", label: "Beef Production" },
-  { id: "goat-production", label: "Goat Production" },
-  { id: "venison-production", label: "Venison Production" },
-  { id: "pig-production", label: "Pig Production" },
-  { id: "poultry-production", label: "Poultry Production" },
-  { id: "farm-diversification", label: "Farm Diversification" },
-  { id: "report-builder", label: "Report Builder" },
-  { id: "data-api", label: "Data API Access" },
-  { id: "resource-planner", label: "Resource Planner" },
-  { id: "organic-venison", label: "Organic Venison" },
-  { id: "organic-poultry", label: "Organic Poultry" },
-];
+const AVAILABLE_MODULES = SALES_MODULES;
 
 const VALID_MODULE_IDS = new Set(AVAILABLE_MODULES.map(m => m.id));
 

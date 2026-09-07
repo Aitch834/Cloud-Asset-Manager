@@ -324,6 +324,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/shared-assets':
+        specifier: workspace:*
+        version: link:../../lib/shared-assets
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -1480,6 +1483,9 @@ importers:
       '@workspace/replit-auth-web':
         specifier: workspace:*
         version: link:../../lib/replit-auth-web
+      '@workspace/shared-assets':
+        specifier: workspace:*
+        version: link:../../lib/shared-assets
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1

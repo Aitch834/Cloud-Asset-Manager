@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Sprout, Star } from "lucide-react";
 import { motion } from "framer-motion";
+import { SALES_MODULES } from "@workspace/shared-assets/modules";
 
 const FARM_TYPES = [
   "Arable / Combinable Crops",
@@ -25,7 +26,7 @@ const FARM_TYPES = [
   "Other",
 ];
 
-const MODULES = [
+export const REGISTER_INTEREST_MODULE_DETAILS = [
   { id: "red-tractor-compliance", name: "Red Tractor Compliance", summary: "Organise assurance records, checks and supporting evidence." },
   { id: "field-crop-management", name: "Field & Crop Management", summary: "Plan field work, crop records and seed stock in one place." },
   { id: "sprays-inputs", name: "Sprays & Inputs", summary: "Record applications, inputs and supporting compliance evidence." },
@@ -65,6 +66,12 @@ const MODULES = [
   { id: "report-builder", name: "Report Builder", summary: "Create, save and export tailored farm reports." },
   { id: "data-api", name: "Data API Access", summary: "Connect farm data to your reporting tools securely." },
 ];
+
+const MODULES = SALES_MODULES.map(({ id, label }) => ({
+  id,
+  name: label,
+  summary: REGISTER_INTEREST_MODULE_DETAILS.find((module) => module.id === id)?.summary ?? "",
+}));
 
 const HEARD_VIA = [
   "Red Tractor Assessor / Auditor",

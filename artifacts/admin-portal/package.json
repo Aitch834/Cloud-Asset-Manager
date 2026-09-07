@@ -56,6 +56,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@vitest/coverage-v8": "^4.1.10",
     "@workspace/api-client-react": "workspace:*",
+    "@workspace/shared-assets": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
