@@ -673,19 +673,43 @@ export async function runUiPrefMigration(
 export async function dismissHintDurable(uid: string, key: string): Promise<void> {
   if (!uid) return;
 
+  const previousValue = getSingleton(uid).prefs[key];
+
   // Optimistic update — reflect the dismissal immediately.
   const next = { ...getSingleton(uid).prefs, [key]: true };
   setUserState(uid, next, /* ready */ true);
 
-  // Await the durable writes through the write queue.
-  await enqueueWrite(uid, async () => {
-    const current = { ...getSingleton(uid).prefs, [key]: true };
-    // Use durable helpers that throw on failure so the caller can detect
-    // whether the write actually settled.
-    await saveCacheDurable(uid, current);
-    const pending = await loadPending(uid);
-    await savePendingDurable(uid, { ...pending, [key]: true });
-  });
+  try {
+    // Await the durable writes through the write queue.
+    await enqueueWrite(uid, async () => {
+      const current = { ...getSingleton(uid).prefs, [key]: true };
+      const previousCache = await loadCached(uid);
+      const previousPending = await loadPending(uid);
+      try {
+        // Use durable helpers that throw on failure so the caller can detect
+        // whether the write actually settled.
+        await saveCacheDurable(uid, current);
+        await savePendingDurable(uid, { ...previousPending, [key]: true });
+      } catch (error) {
+        // Do not leave a partial durable success (cache without pending queue,
+        // or vice versa) that would hide a prompt which was not fully saved.
+        try { await saveCacheDurable(uid, previousCache); } catch { /* best-effort rollback */ }
+        try { await savePendingDurable(uid, previousPending); } catch { /* best-effort rollback */ }
+        throw error;
+      }
+    });
+  } catch (error) {
+    // A durable dismissal must not remain recorded only in memory. Roll the
+    // optimistic key back so the caller can keep the prompt visible and retry.
+    const rolledBack = { ...getSingleton(uid).prefs };
+    if (previousValue === undefined) {
+      delete rolledBack[key];
+    } else {
+      rolledBack[key] = previousValue;
+    }
+    setUserState(uid, rolledBack, /* ready */ true);
+    throw error;
+  }
 
   // Server PATCH is best-effort and runs outside the write queue.
   void (async () => {

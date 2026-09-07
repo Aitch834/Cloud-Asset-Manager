@@ -123,7 +123,13 @@ export default function VinePhenologyScreen() {
       // an immediate app background/termination after dismissal cannot lose the choice.
       try {
         await dismissHintDurable(userId, winegbPrefKey(winegbSurveyBanner.surveyName, currentSeasonYear));
-      } catch { /* best-effort — navigate regardless */ }
+      } catch {
+        Alert.alert(
+          "Could not dismiss prompt",
+          "Your preference could not be saved. Please try again.",
+        );
+        return;
+      }
     }
     setWinegbSurveyBanner(null);
     router.back();

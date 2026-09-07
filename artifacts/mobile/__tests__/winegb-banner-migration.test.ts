@@ -110,7 +110,11 @@ jest.mock("expo-secure-store", () => ({
 // Imports under test (after all mocks are in place)
 // ---------------------------------------------------------------------------
 
-import { runUiPrefBatchMigration, useUiPrefs } from "../lib/hooks/useUiPrefs";
+import {
+  dismissHintDurable,
+  runUiPrefBatchMigration,
+  useUiPrefs,
+} from "../lib/hooks/useUiPrefs";
 import { useUiPrefBatchMigrationGuard } from "../lib/hooks/useUiPrefBatchMigrationGuard";
 import { shouldOfferWinegbSurvey, winegbPrefKey } from "../lib/winegbSurveys";
 
@@ -790,5 +794,87 @@ describe("runUiPrefBatchMigration — waits for active fetchPromise before readi
     expect(result).toBe("absent");
     // Now the legacy key was read (after bootstrap settled).
     expect(mockGetItem).toHaveBeenCalledWith(legKey);
+  });
+});
+
+describe("WineGB prompt durable dismissal", () => {
+  const YEAR = 2026;
+  const SURVEY = "Fruit Set Survey";
+
+  function renderPrefs(uid: string) {
+    mockSlotIdx = 0;
+    mockEffects.length = 0;
+    return useUiPrefs(uid);
+  }
+
+  it("persists the dismissed survey in both the durable cache and pending queue", async () => {
+    const uid = nextUid();
+    const key = winegbPrefKey(SURVEY, YEAR);
+    mockApiFetch.mockResolvedValue({ ok: false });
+
+    await dismissHintDurable(uid, key);
+    await drain();
+
+    expect(JSON.parse(asyncStore.get(`ui_prefs_cache_${uid}`)!)).toMatchObject({
+      [key]: true,
+    });
+    expect(JSON.parse(asyncStore.get(`ui_prefs_pending_${uid}`)!)).toMatchObject({
+      [key]: true,
+    });
+  });
+
+  it("does not offer the dismissed survey after remounting with the same user and farm", async () => {
+    const uid = nextUid();
+    const key = winegbPrefKey(SURVEY, YEAR);
+    mockApiFetch.mockResolvedValue({ ok: false });
+
+    await dismissHintDurable(uid, key);
+    await drain();
+
+    const remounted = renderPrefs(uid);
+    expect(remounted.prefsReady).toBe(true);
+    expect(remounted.isHintDismissed(key)).toBe(true);
+    expect(shouldOfferWinegbSurvey({
+      stageCode: "71",
+      year: YEAR,
+      prefsReady: remounted.prefsReady,
+      migrationChecked: true,
+      isHintDismissed: remounted.isHintDismissed,
+    })).toBe(false);
+  });
+
+  it("rolls back the optimistic dismissal when durable storage fails", async () => {
+    const uid = nextUid();
+    const key = winegbPrefKey(SURVEY, YEAR);
+    mockSetItem.mockRejectedValueOnce(new Error("QuotaExceededError"));
+
+    await expect(dismissHintDurable(uid, key)).rejects.toThrow("QuotaExceededError");
+
+    const afterFailure = renderPrefs(uid);
+    expect(afterFailure.isHintDismissed(key)).toBe(false);
+    expect(shouldOfferWinegbSurvey({
+      stageCode: "71",
+      year: YEAR,
+      prefsReady: true,
+      migrationChecked: true,
+      isHintDismissed: afterFailure.isHintDismissed,
+    })).toBe(true);
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+  });
+
+  it("removes a partial cache write when the pending-queue write fails", async () => {
+    const uid = nextUid();
+    const key = winegbPrefKey(SURVEY, YEAR);
+    mockSetItem
+      .mockImplementationOnce(async (storageKey: string, value: string) => {
+        asyncStore.set(storageKey, value);
+      })
+      .mockRejectedValueOnce(new Error("PendingQueueWriteError"));
+
+    await expect(dismissHintDurable(uid, key)).rejects.toThrow("PendingQueueWriteError");
+
+    expect(JSON.parse(asyncStore.get(`ui_prefs_cache_${uid}`) ?? "{}")).not.toHaveProperty(key);
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+    expect(renderPrefs(uid).isHintDismissed(key)).toBe(false);
   });
 });
