@@ -67,6 +67,7 @@ jest.mock("@/lib/apiFetch", () => ({
 const mockEffects: Array<() => unknown> = [];
 let mockSlotIdx = 0;
 const mockSlots: unknown[] = [];
+const mockStateSetterCalls: number[] = [];
 
 function mockApplySetterValue(slotIndex: number, v: unknown): void {
   mockSlots[slotIndex] =
@@ -83,7 +84,10 @@ jest.mock("react", () => ({
         typeof init === "function" ? (init as () => unknown)() : init,
       );
     }
-    const setter = (v: unknown) => mockApplySetterValue(i, v);
+    const setter = (v: unknown) => {
+      mockStateSetterCalls.push(i);
+      mockApplySetterValue(i, v);
+    };
     return [mockSlots[i], setter];
   },
   useEffect: (fn: () => unknown) => {
@@ -166,6 +170,7 @@ beforeEach(() => {
   mockEffects.length = 0;
   mockSlots.length = 0;
   mockSlotIdx = 0;
+  mockStateSetterCalls.length = 0;
 
   mockApiFetch.mockResolvedValue(makeServerResponse({}));
 });
@@ -497,6 +502,46 @@ describe("useUiPrefBatchMigrationGuard — conservative hide during async migrat
 
     deferred.release();
     await drain();
+    expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
+  });
+
+  it("finishes the durable migration without updating an inactive screen after cleanup", async () => {
+    const uid = nextUid();
+    const farm = nextFarm();
+    const legacyKey = winegbLegacyKey(farm, YEAR);
+    const migratedPrefKey = winegbPrefKey("Fruit Set Survey", YEAR);
+    asyncStore.set(
+      legacyKey,
+      makeLegacyWinegbValue(["Fruit Set Survey"]),
+    );
+
+    let releaseLegacyRead!: () => void;
+    const legacyRead = new Promise<void>((resolve) => {
+      releaseLegacyRead = resolve;
+    });
+    mockGetItem.mockImplementation(async (key: string) => {
+      if (key === legacyKey) {
+        await legacyRead;
+      }
+      return asyncStore.get(key) ?? null;
+    });
+
+    const mount = renderGuard({ userId: uid, farmId: farm });
+    const cleanup = mount.runEffect();
+    expect(typeof cleanup).toBe("function");
+    expect(mount.migrationChecked).toBe(false);
+
+    (cleanup as () => void)();
+    const setterCallsAfterCleanup = mockStateSetterCalls.length;
+    releaseLegacyRead();
+    await drain();
+
+    const cache = JSON.parse(
+      asyncStore.get(`ui_prefs_cache_${uid}`) ?? "{}",
+    ) as PrefsMap;
+    expect(cache[migratedPrefKey]).toBe(true);
+    expect(asyncStore.has(legacyKey)).toBe(false);
+    expect(mockStateSetterCalls).toHaveLength(setterCallsAfterCleanup);
     expect(renderGuard({ userId: uid, farmId: farm }).migrationChecked).toBe(true);
   });
 
