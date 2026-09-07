@@ -11,6 +11,7 @@
     "test": "vitest run --config vitest.config.ts --exclude '**/e2e/**'",
     "test:e2e:install-browser": "playwright install chromium",
     "test:e2e": "playwright test",
+    "test:e2e:vine-register-parcel-ref": "playwright test e2e/vine-register-parcel-ref-popover.spec.ts",
     "test:e2e:print-pagination": "playwright test e2e/viticulture-print-pagination.spec.ts",
     "test:e2e:analytics-print": "playwright test e2e/analytics-chart-print-pagination.spec.ts"
   },
