@@ -46,9 +46,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function makeStatefulFetch() {
+function makeStatefulFetch({ failFirstOverwrite = false } = {}) {
   let currentPreset: typeof INITIAL_PRESET | null = null;
   const overwrittenUpdatedAt = UPDATED_PRESET.updatedAt;
+  let overwriteAttempts = 0;
 
   const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
@@ -78,6 +79,10 @@ function makeStatefulFetch() {
       };
 
       if (payload.overwrite && currentPreset?.name === payload.name) {
+        overwriteAttempts += 1;
+        if (failFirstOverwrite && overwriteAttempts === 1) {
+          return jsonResponse({ error: "Preset save failed" }, 500);
+        }
         currentPreset = {
           ...currentPreset,
           headline: payload.headline,
@@ -210,6 +215,62 @@ describe("AdPdfGenerator — preset overwrite refresh", () => {
       return url.includes("ad-copy-presets") && (init?.method ?? "GET") === "GET";
     });
     expect(presetListRequests.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("preserves the overwrite choice after a failed save and sends it again on retry", async () => {
+    const { fetchSpy } = makeStatefulFetch({ failFirstOverwrite: true });
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+
+    await screen.findByRole("option", { name: /Test Template/i });
+    fireEvent.click(screen.getByText("Customise copy & colour"));
+    await screen.findByPlaceholderText(/Your vineyard/);
+
+    fireEvent.change(screen.getByPlaceholderText(/Your vineyard/), {
+      target: { value: INITIAL_PRESET.headline },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Vine register, phenology/), {
+      target: { value: INITIAL_PRESET.body },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Preset name, e.g. Harvest 2026"), {
+      target: { value: PRESET_NAME },
+    });
+    clickPresetSave();
+    await screen.findByText("Saved presets");
+
+    fireEvent.change(screen.getByPlaceholderText(/Your vineyard/), {
+      target: { value: UPDATED_PRESET.headline },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Preset name, e.g. Harvest 2026"), {
+      target: { value: PRESET_NAME },
+    });
+    const overwriteCheckbox = screen.getByRole("checkbox", {
+      name: /Overwrite existing preset/i,
+    }) as HTMLInputElement;
+    fireEvent.click(overwriteCheckbox);
+    clickPresetSave();
+
+    await screen.findByText("Preset save failed");
+    expect(overwriteCheckbox.checked).toBe(true);
+
+    clickPresetSave();
+
+    await waitFor(() => {
+      const overwritePayloads = fetchSpy.mock.calls
+        .filter(([input, init]) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.href
+                : (input as Request).url;
+          return url.includes("ad-copy-presets") && init?.method === "POST";
+        })
+        .map(([, init]) => JSON.parse(String(init?.body)) as { overwrite?: boolean })
+        .filter((payload) => payload.overwrite === true);
+
+      expect(overwritePayloads).toHaveLength(2);
+    });
   });
 
   it("requires confirmation before saving near-miss placeholders in ad copy", async () => {
