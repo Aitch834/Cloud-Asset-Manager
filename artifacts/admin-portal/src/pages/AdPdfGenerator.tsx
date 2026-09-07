@@ -626,6 +626,14 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
   // current one are discarded, preventing stale responses from overwriting a newer preview.
   const previewRevision = useRef(0);
 
+  // A template switch unmounts this form. Invalidate any request that is still
+  // resolving so its response cannot finish against a different form instance.
+  useEffect(() => {
+    return () => {
+      previewRevision.current += 1;
+    };
+  }, []);
+
 
   function handleNameChange(v: string) {
     setName(v);
@@ -686,6 +694,7 @@ export function TemplateForm({ initial, onSave, onCancel, isSaving, saveError, p
       const warningsHeader = res.headers.get("X-Ad-Render-Warnings");
       const warnings: string[] = warningsHeader ? (JSON.parse(warningsHeader) as string[]) : [];
       const blob = await res.blob();
+      if (thisRevision !== previewRevision.current) return;
       const url = URL.createObjectURL(blob);
       if (prevDraftObjectUrl.current) URL.revokeObjectURL(prevDraftObjectUrl.current);
       prevDraftObjectUrl.current = url;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import AdPdfGenerator from "./AdPdfGenerator";
@@ -76,6 +76,54 @@ function makeFetch() {
   });
 }
 
+function makeDeferredPreviewFetch() {
+  let resolvePreview!: (response: Response) => void;
+  const previewResponse = new Promise<Response>((resolve) => {
+    resolvePreview = resolve;
+  });
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input as Request).url;
+
+    if (url.includes("ad-brand-assets/status")) {
+      return jsonResponse({ logoResolvable: true, qrResolvable: true });
+    }
+    if (url.includes("ad-templates")) {
+      return jsonResponse([FIRST_TEMPLATE, SECOND_TEMPLATE]);
+    }
+    if (url.includes("platform-config")) {
+      return jsonResponse({ items: [] });
+    }
+    if (url.includes("ad-copy-presets")) {
+      return jsonResponse([]);
+    }
+    if (url.includes("ad-pdf/preview-draft") && init?.method === "POST") {
+      return previewResponse;
+    }
+
+    throw new Error(`Unmocked fetch: ${init?.method ?? "GET"} ${url}`);
+  });
+
+  return {
+    fetchMock,
+    resolvePreview,
+  };
+}
+
+function previewResponseWithWarning(): Response {
+  return new Response(new Blob(["preview"]), {
+    status: 200,
+    headers: {
+      "Content-Type": "image/png",
+      "X-Ad-Render-Warnings": JSON.stringify(["Unknown placeholder {{headline_html}}"]),
+    },
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -122,6 +170,38 @@ describe("AdPdfGenerator — template switch preview state", () => {
     await waitFor(() => {
       expect(screen.queryByText(/Likely placeholder typo detected in this draft/i)).toBeNull();
       expect(screen.queryByAltText("Draft template preview")).toBeNull();
+    });
+  });
+
+  it("does not let a delayed old preview affect the next template", async () => {
+    const { fetchMock, resolvePreview } = makeDeferredPreviewFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+
+    await screen.findByRole("option", { name: /First template/i });
+
+    const editButtons = screen.getAllByTitle("Edit");
+    fireEvent.click(editButtons[0]);
+
+    await screen.findByRole("heading", { name: "Edit — First template" });
+    const draftPreviewButton = screen
+      .getAllByRole("button", { name: /^Preview$/i })
+      .find((button) => button.closest("form"));
+    expect(draftPreviewButton).toBeDefined();
+    fireEvent.click(draftPreviewButton as HTMLButtonElement);
+    await screen.findByRole("button", { name: /Rendering…/i });
+
+    fireEvent.click(screen.getAllByTitle("Edit")[1]);
+    await screen.findByRole("heading", { name: "Edit — Second template" });
+
+    await act(async () => {
+      resolvePreview(previewResponseWithWarning());
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Likely placeholder typo detected in this draft/i)).toBeNull();
+      expect(screen.queryByAltText("Draft template preview")).toBeNull();
+      expect(screen.queryByRole("button", { name: /Rendering…/i })).toBeNull();
     });
   });
 });
