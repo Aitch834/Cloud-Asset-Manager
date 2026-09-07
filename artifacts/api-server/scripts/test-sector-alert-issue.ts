@@ -4,8 +4,8 @@
  * This test uses the production issue-notification function and mailer, but
  * points SMTP at a local capture server so no real advisor receives a test
  * email. It verifies county selection, advisor deduplication, delivery-outbox
- * persistence, the episode completion flag, failed-delivery retry age, and
- * retry deduplication.
+ * persistence, the episode completion flag, failed-delivery retry age, SMS
+ * county targeting, and retry deduplication across both channels.
  *
  * Run with:
  *   pnpm --filter @workspace/api-server run test:sector-alert-issue
@@ -20,6 +20,11 @@ import { runSectorAlertMigrations } from "../src/lib/sectorAlertMigrations.js";
 type CapturedMessage = {
   recipient: string;
   raw: string;
+};
+
+type CapturedSms = {
+  body: string;
+  to: string;
 };
 
 class SmtpCaptureServer {
@@ -121,10 +126,16 @@ async function main(): Promise<void> {
   const testCounty = `Sector Alert Test County ${suffix}`;
   const otherCounty = `Sector Alert Other County ${suffix}`;
   const slug = `sector-alert-e2e-${suffix}`;
+  const outsideSlug = `sector-alert-e2e-outside-${suffix}`;
   const tokenPrefix = `sector-alert-e2e-token-${suffix}`;
+  const relevantUserId = `sector-alert-e2e-user-${suffix}`;
+  const outsideUserId = `sector-alert-e2e-outside-user-${suffix}`;
+  const relevantPhone = "+447700900101";
+  const outsidePhone = "+447700900202";
   const smtp = new SmtpCaptureServer();
   const smtpPort = await smtp.listen();
   const issuedAt = new Date(Date.now() - (3 * 86_400_000) - (5 * 60_000));
+  const capturedSms: CapturedSms[] = [];
 
   // mailer.ts reads its SMTP settings at module evaluation time.
   process.env.SMTP_HOST = "127.0.0.1";
@@ -132,11 +143,32 @@ async function main(): Promise<void> {
   process.env.SMTP_USER = "sector-alert-test";
   process.env.SMTP_PASS = "sector-alert-test";
   process.env.SMTP_FROM = "test@bdefarmtrac.co.uk";
+  // sms.ts also reads configuration at module evaluation time. Point it at a
+  // fully local fetch stub so this test can prove dispatch behaviour without
+  // allowing a real Twilio request.
+  process.env.TWILIO_ACCOUNT_SID = "sector-alert-test-account";
+  process.env.TWILIO_AUTH_TOKEN = "sector-alert-test-token";
+  process.env.TWILIO_FROM_NUMBER = "+447700900000";
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input);
+    assert.match(url, /^https:\/\/api\.twilio\.com\//, "unexpected network request in sector alert test");
+    const params = new URLSearchParams(String(init?.body ?? ""));
+    capturedSms.push({
+      to: params.get("To") ?? "",
+      body: params.get("Body") ?? "",
+    });
+    return new Response("", { status: 201 });
+  }) as typeof fetch;
 
   let tenantId: number | undefined;
+  let outsideTenantId: number | undefined;
   let episodeId: number | undefined;
   let relevantFarmId: number | undefined;
   let outsideFarmId: number | undefined;
+  let relevantRoleId: number | undefined;
+  let outsideRoleId: number | undefined;
 
   try {
     await runSectorAlertMigrations();
@@ -151,6 +183,13 @@ async function main(): Promise<void> {
     `);
     tenantId = Number((tenantRows.rows[0] as { id: number }).id);
 
+    const outsideTenantRows = await db.execute(sql`
+      INSERT INTO tenants (name, slug, contact_email)
+      VALUES (${`Outside sector alert E2E ${suffix}`}, ${outsideSlug}, ${`outside-tenant-${suffix}@example.test`})
+      RETURNING id
+    `);
+    outsideTenantId = Number((outsideTenantRows.rows[0] as { id: number }).id);
+
     const farmRows = await db.execute(sql`
       INSERT INTO farms (tenant_id, name, county)
       VALUES (${tenantId}, ${`Relevant farm ${suffix}`}, ${testCounty})
@@ -160,10 +199,49 @@ async function main(): Promise<void> {
 
     const outsideRows = await db.execute(sql`
       INSERT INTO farms (tenant_id, name, county)
-      VALUES (${tenantId}, ${`Outside farm ${suffix}`}, ${otherCounty})
+      VALUES (${outsideTenantId}, ${`Outside farm ${suffix}`}, ${otherCounty})
       RETURNING id
     `);
     outsideFarmId = Number((outsideRows.rows[0] as { id: number }).id);
+
+    const relevantRoleRows = await db.execute(sql`
+      INSERT INTO roles (tenant_id, name, description)
+      VALUES (${tenantId}, ${`Sector alert role ${suffix}`}, ${"Sector alert SMS regression test"})
+      RETURNING id
+    `);
+    relevantRoleId = Number((relevantRoleRows.rows[0] as { id: number }).id);
+
+    const outsideRoleRows = await db.execute(sql`
+      INSERT INTO roles (tenant_id, name, description)
+      VALUES (${outsideTenantId}, ${`Outside sector alert role ${suffix}`}, ${"Sector alert SMS county regression test"})
+      RETURNING id
+    `);
+    outsideRoleId = Number((outsideRoleRows.rows[0] as { id: number }).id);
+
+    await db.execute(sql`
+      INSERT INTO users (id, email, phone_number, sms_opt_in)
+      VALUES
+        (${relevantUserId}, ${`sms-relevant-${suffix}@example.test`}, ${relevantPhone}, ${"critical"}),
+        (${outsideUserId}, ${`sms-outside-${suffix}@example.test`}, ${outsidePhone}, ${"critical"})
+    `);
+    await db.execute(sql`
+      INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active, receive_alerts)
+      VALUES
+        (${relevantUserId}, ${tenantId}, ${relevantRoleId}, true, true),
+        (${outsideUserId}, ${outsideTenantId}, ${outsideRoleId}, true, true)
+    `);
+
+    const smsModuleRows = await db.execute(sql`
+      SELECT id FROM modules WHERE key = 'sms-alerts' LIMIT 1
+    `);
+    assert.equal(smsModuleRows.rows.length, 1, "sms-alerts module must exist for the regression test");
+    const smsModuleId = Number((smsModuleRows.rows[0] as { id: number }).id);
+    await db.execute(sql`
+      INSERT INTO subscriptions (tenant_id, farm_id, module_id, status)
+      VALUES
+        (${tenantId}, ${relevantFarmId}, ${smsModuleId}, ${"active"}),
+        (${outsideTenantId}, ${outsideFarmId}, ${smsModuleId}, ${"active"})
+    `);
 
     await db.execute(sql`
       INSERT INTO farm_advisors
@@ -217,9 +295,31 @@ async function main(): Promise<void> {
       false,
       "episode must remain incomplete while issue email delivery is pending",
     );
+    assert.equal(capturedSms.length, 1, "a newly issued alert should send SMS once to the relevant tenant");
+    assert.equal(capturedSms[0]?.to, relevantPhone, "county-scoped SMS must only target the relevant tenant");
+    assert.notEqual(capturedSms[0]?.to, outsidePhone, "county-scoped SMS must not target an unrelated tenant");
+    assert.match(capturedSms[0]?.body ?? "", /Arable \/ Crop Health/, "SMS should include the sector label");
+    assert.match(capturedSms[0]?.body ?? "", /alert level: Regional/, "SMS should include the alert level");
+    assert.match(capturedSms[0]?.body ?? "", /Issued 3 days ago/, "SMS should include the issue-age label");
+
+    const firstSmsState = await db.execute(sql`
+      SELECT issue_sms_notified
+      FROM sector_alert_episodes
+      WHERE id = ${episodeId}
+    `);
+    assert.equal(
+      (firstSmsState.rows[0] as { issue_sms_notified: boolean }).issue_sms_notified,
+      true,
+      "successful issue SMS dispatch should be completed independently of failed advisor email",
+    );
 
     smtp.rejectData = false;
     await runSectorAlertIssueNotifications(episodeId);
+    assert.equal(
+      capturedSms.length,
+      1,
+      "retrying the job after advisor email failure must not resend the grower SMS",
+    );
 
     const firstRecipients = smtp.messages.map((message) => message.recipient).sort();
     assert.deepEqual(
@@ -287,6 +387,7 @@ async function main(): Promise<void> {
     console.log(`  recipients: ${firstRecipients.join(", ")}`);
     console.log("  failed first attempt: no outbox rows and episode remained pending");
     console.log("  retried email age: issued 3 days ago");
+    console.log("  issue SMS: one relevant-tenant dispatch, no retry duplicate or outside-county send");
     console.log("  issue_email_notified: true");
     console.log("  second run: no additional sends");
   } finally {
@@ -299,10 +400,37 @@ async function main(): Promise<void> {
         WHERE farm_id IN (${relevantFarmId ?? -1}, ${outsideFarmId ?? -1})
       `);
     }
-    if (tenantId !== undefined) {
-      await db.execute(sql`DELETE FROM farms WHERE tenant_id = ${tenantId}`);
-      await db.execute(sql`DELETE FROM tenants WHERE id = ${tenantId}`);
+    await db.execute(sql`
+      DELETE FROM subscriptions
+      WHERE tenant_id IN (${tenantId ?? -1}, ${outsideTenantId ?? -1})
+    `);
+    await db.execute(sql`
+      DELETE FROM user_tenants
+      WHERE user_id IN (${relevantUserId}, ${outsideUserId})
+    `);
+    await db.execute(sql`
+      DELETE FROM users
+      WHERE id IN (${relevantUserId}, ${outsideUserId})
+    `);
+    if (tenantId !== undefined || outsideTenantId !== undefined) {
+      await db.execute(sql`
+        DELETE FROM farms
+        WHERE tenant_id IN (${tenantId ?? -1}, ${outsideTenantId ?? -1})
+      `);
     }
+    if (relevantRoleId !== undefined || outsideRoleId !== undefined) {
+      await db.execute(sql`
+        DELETE FROM roles
+        WHERE id IN (${relevantRoleId ?? -1}, ${outsideRoleId ?? -1})
+      `);
+    }
+    if (tenantId !== undefined || outsideTenantId !== undefined) {
+      await db.execute(sql`
+        DELETE FROM tenants
+        WHERE id IN (${tenantId ?? -1}, ${outsideTenantId ?? -1})
+      `);
+    }
+    globalThis.fetch = originalFetch;
     await smtp.close();
     await pool.end();
   }
