@@ -42,4 +42,20 @@ describe("mobile agri-environment milestone deadline counts", () => {
       { overdue: 1, upcoming: 1 },
     ]);
   });
+
+  it("classifies today and the 30-day boundary without counting later or missing dates", () => {
+    const project = [{ id: 303, schemeName: "Boundary Scheme" }];
+    const countsFor = (dueDate: string | null) =>
+      getMilestoneDeadlineCounts(
+        project,
+        [{ projectId: 303, dueDate, status: "pending" }],
+        "",
+        now,
+      );
+
+    expect(countsFor("2026-09-02")).toEqual({ overdue: 0, upcoming: 1 });
+    expect(countsFor("2026-10-02")).toEqual({ overdue: 0, upcoming: 1 });
+    expect(countsFor("2026-10-03")).toEqual({ overdue: 0, upcoming: 0 });
+    expect(countsFor(null)).toEqual({ overdue: 0, upcoming: 0 });
+  });
 });

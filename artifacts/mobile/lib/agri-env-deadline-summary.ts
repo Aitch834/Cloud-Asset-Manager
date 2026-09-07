@@ -14,11 +14,12 @@ function deadlineStatus(
   now: Date,
 ): "overdue" | "warning" | "ok" | "none" {
   if (!dateStr) return "none";
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(dateStr);
-  dueDate.setHours(0, 0, 0, 0);
-  const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / 86_400_000);
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (!dateOnlyMatch) return "none";
+  const [, year, month, day] = dateOnlyMatch;
+  const dueDay = Date.UTC(Number(year), Number(month) - 1, Number(day));
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysUntilDue = Math.round((dueDay - today) / 86_400_000);
   if (daysUntilDue < 0) return "overdue";
   if (daysUntilDue <= 30) return "warning";
   return "ok";
