@@ -2,10 +2,10 @@ import { signInDashboard } from "./auth";
 /**
  * E2E: filtered agri-environment print reports retain farm-wide drawdown.
  *
- * Seed two active schemes with different claim states, filter the print report
- * to one scheme, and inspect the real print popup. The drawdown card must still
- * describe both active schemes while the project detail section contains only
- * the selected scheme.
+ * Seed two drawdown-eligible schemes with different project and claim states,
+ * then inspect the real print popup with scheme-only and status-only filters.
+ * The drawdown card must still describe both schemes while the project detail
+ * section contains only the selected filter match.
  */
 
 import { expect, test } from "@playwright/test";
@@ -53,6 +53,7 @@ async function devFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 async function createProject(
   schemeName: string,
   totalGrantValuePence: number,
+  status: "active" | "applied",
 ): Promise<number> {
   const { project } = await devFetch<{ project: { id: number } }>(
     `${apiBase()}/api/farms/${FARM_ID}/agri-env-projects`,
@@ -63,7 +64,7 @@ async function createProject(
         schemeName,
         administeringBody: "RPA (Rural Payments Agency)",
         totalGrantValuePence,
-        status: "active",
+        status,
       }),
     },
   );
@@ -175,16 +176,16 @@ async function openAgriEnvironmentTab(
   ).toBeVisible({ timeout: 20_000 });
 }
 
-test("keeps farm-wide drawdown context when printing a filtered scheme", async ({
+test("keeps farm-wide drawdown context with scheme-only and status-only print filters", async ({
   page,
 }) => {
   const projectIds: number[] = [];
 
   try {
-    const firstProjectId = await createProject(FIRST_SCHEME, 100_000);
+    const firstProjectId = await createProject(FIRST_SCHEME, 100_000, "active");
     projectIds.push(firstProjectId);
     await waitForProject(firstProjectId);
-    const secondProjectId = await createProject(SECOND_SCHEME, 200_000);
+    const secondProjectId = await createProject(SECOND_SCHEME, 200_000, "applied");
     projectIds.push(secondProjectId);
     await waitForProject(secondProjectId);
 
@@ -266,6 +267,48 @@ test("keeps farm-wide drawdown context when printing a filtered scheme", async (
     expect(await progressBar.locator(":scope > div").count()).toBeGreaterThan(0);
 
     await popup.close();
+
+    await schemeFilter.click();
+    await page.getByRole("option", { name: "All schemes", exact: true }).click();
+    const statusFilter = exportFilterBar.locator("select");
+    await statusFilter.selectOption("active");
+    await expect(statusFilter).toHaveValue("active");
+    await expect(exportFilterBar).toContainText(
+      `1 of ${snapshot.projects.length} schemes selected`,
+    );
+
+    const statusPopupPromise = page.waitForEvent("popup");
+    await page.getByRole("button", { name: "Print", exact: true }).click();
+    const statusPopup = await statusPopupPromise;
+    await statusPopup.waitForLoadState("domcontentloaded");
+
+    const statusPrintBody = statusPopup.locator("body");
+    await expect(statusPrintBody).toContainText("Filtered: Active");
+    await expect(statusPrintBody).toContainText(`1. ${FIRST_SCHEME}`);
+    await expect(statusPrintBody).toContainText("[Active]");
+    await expect(statusPrintBody).not.toContainText(SECOND_SCHEME);
+
+    const statusDrawdownCard = statusPrintBody.locator(".ae-print-card").first();
+    const statusProjectDetail = statusPrintBody.locator(".ae-print-card").nth(1);
+    await expect(statusDrawdownCard).toContainText(
+      `Farm-wide Drawdown — ${drawdownProjects.length} active projects`,
+    );
+    await expect(statusDrawdownCard).toContainText(
+      `${formatPence(paidPence)} of ${formatPence(totalPence)} claimed across ${drawdownProjects.length} projects`,
+    );
+    await expect(statusDrawdownCard).toContainText(`${drawnPercent}% drawn`);
+    await expect(statusDrawdownCard).toContainText(
+      `+ ${formatPence(submittedPence)} submitted (awaiting payment)`,
+    );
+    await expect(statusProjectDetail).toContainText(`1. ${FIRST_SCHEME}`);
+
+    const statusProgressBar = statusDrawdownCard.locator(
+      "div[style*='height: 10px'][style*='overflow: hidden']",
+    );
+    await expect(statusProgressBar).toHaveCount(1);
+    expect(await statusProgressBar.locator(":scope > div").count()).toBeGreaterThan(0);
+
+    await statusPopup.close();
   } finally {
     for (const projectId of projectIds) {
       await deleteProject(projectId).catch(() => {});
