@@ -26,6 +26,7 @@ import { canApplyAgriEnvCacheLoad } from "@/lib/agri-env-cache";
 import { getMilestoneDeadlineCounts } from "@/lib/agri-env-deadline-summary";
 import { getIncomeSummaryYears } from "@/lib/agri-env-income-summary";
 import { applyTransactionProjectLink } from "@/lib/agri-env-transaction-link";
+import { usePersistedAgriEnvStatusFilter } from "@/lib/hooks/usePersistedAgriEnvStatusFilter";
 import {
   AGRI_ENV_CACHE_TTL_MS,
   getItem,
@@ -132,12 +133,6 @@ function transactionsCacheKey(farmId: string | number): string {
 function schemeFilterKey(farmId: string | number): string {
   return `${STORAGE_KEYS.AGRI_ENV_SCHEME_FILTER}_${farmId}`;
 }
-
-function statusFilterKey(farmId: string | number): string {
-  return `${STORAGE_KEYS.AGRI_ENV_STATUS_FILTER}_${farmId}`;
-}
-
-const PERSISTED_STATUS_FILTERS = new Set(["active", "pending", "completed"]);
 
 function MilestoneDeadlineSummary({
   overdueCount,
@@ -424,7 +419,7 @@ export default function AgriEnvProjectsScreen() {
   const [error,         setError]         = useState<string | null>(null);
   const [expandedId,    setExpandedId]    = useState<number | null>(null);
   const [searchQuery,   setSearchQuery]   = useState("");
-  const [statusFilter,  setStatusFilter]  = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = usePersistedAgriEnvStatusFilter(currentFarm?.id);
   const [selectedIncomeYear, setSelectedIncomeYear] = useState<IncomeYear>(CURRENT_YEAR);
   const [cachedAt,      setCachedAt]      = useState<Date | null>(null);
   const cancelRef  = useRef(false);
@@ -479,8 +474,6 @@ export default function AgriEnvProjectsScreen() {
   // preventing a farm-switch render's prior closure from writing the
   // old farm's query under the new farm's key.
   const [hydratedFarmId, setHydratedFarmId] = useState<string | number | null>(null);
-  const statusFilterChangedRef = useRef(false);
-
   // Restore the scheme filter from storage when the farm changes.
   // Resets searchQuery and hydratedFarmId to neutral immediately so no
   // carry-over from the previous farm leaks into persistence. A
@@ -504,34 +497,6 @@ export default function AgriEnvProjectsScreen() {
       })
       .catch(() => {
         if (!cancelled) setHydratedFarmId(farmId);
-      });
-    return () => { cancelled = true; };
-  }, [currentFarm?.id]);
-
-  // Restore the status filter from storage when the farm changes. Reset the
-  // in-memory value immediately so a previous farm's preference cannot leak
-  // into the new farm while its storage read is pending.
-  useEffect(() => {
-    if (!currentFarm?.id) {
-      setStatusFilter(null);
-      statusFilterChangedRef.current = false;
-      return;
-    }
-    const farmId = currentFarm.id;
-    setStatusFilter(null);
-    statusFilterChangedRef.current = false;
-    let cancelled = false;
-    getItem<unknown>(statusFilterKey(farmId))
-      .then((stored) => {
-        if (cancelled || statusFilterChangedRef.current) return;
-        setStatusFilter(
-          typeof stored === "string" && PERSISTED_STATUS_FILTERS.has(stored)
-            ? stored
-            : null,
-        );
-      })
-      .catch(() => {
-        // A missing or unreadable preference falls back to All.
       });
     return () => { cancelled = true; };
   }, [currentFarm?.id]);
@@ -817,16 +782,8 @@ export default function AgriEnvProjectsScreen() {
   ].filter(chip => chip.key === null || projects.some(project => project.status === chip.key));
 
   const handleStatusFilterChange = useCallback((next: string | null) => {
-    statusFilterChangedRef.current = true;
-    setStatusFilter(next);
-    if (!currentFarm?.id) return;
-    const key = statusFilterKey(currentFarm.id);
-    if (next === null) {
-      removeItem(key).catch(() => { /* ignore write failures */ });
-    } else {
-      setItem<string>(key, next).catch(() => { /* ignore write failures */ });
-    }
-  }, [currentFarm?.id]);
+    setStatusFilter(next as "active" | "pending" | "completed" | null);
+  }, [setStatusFilter]);
 
   const filteredProjects = projects.filter(p => {
     const nameOk = !searchQuery.trim() ||
