@@ -30,7 +30,17 @@ const RECORD_TYPES: { key: string; label: string; icon: string }[] = [
 
 export default function SyncStatusScreen() {
   const insets = useSafeAreaInsets();
-  const { pendingCount, failedCount, isSyncing, isConnected, lastSyncTime, lastError, triggerSync } = useSync();
+  const {
+    pendingCount,
+    failedCount,
+    isSyncing,
+    isConnected,
+    lastSyncTime,
+    lastError,
+    moduleUnavailableNotice,
+    dismissModuleUnavailableNotice,
+    triggerSync,
+  } = useSync();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -142,6 +152,29 @@ export default function SyncStatusScreen() {
                 <Feather name="alert-triangle" size={16} color={colors.error} />
                 <Text style={[styles.rowLabel, { color: colors.error }]}>{lastError}</Text>
               </View>
+            </View>
+          </View>
+        )}
+
+        {moduleUnavailableNotice && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Record not added</Text>
+            <View style={[styles.card, styles.noticeCard]}>
+              <View style={styles.row}>
+                <Feather name="info" size={16} color={colors.accent} />
+                <Text style={styles.rowLabel}>{moduleUnavailableNotice}</Text>
+              </View>
+              <Text style={styles.noticeHelp}>
+                The discarded record is no longer waiting to sync.
+              </Text>
+              <TouchableOpacity
+                style={styles.dismissBtn}
+                onPress={dismissModuleUnavailableNotice}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss module unavailable notice"
+              >
+                <Text style={styles.dismissLabel}>Dismiss</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -278,6 +311,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorBg,
     borderColor: colors.error + "44",
   },
+  noticeCard: {
+    backgroundColor: colors.accent + "10",
+    borderColor: colors.accent + "44",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -304,6 +341,23 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     lineHeight: 20,
     paddingBottom: spacing.sm,
+  },
+  noticeHelp: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontFamily: fonts.regular,
+    lineHeight: 20,
+    paddingBottom: spacing.sm,
+  },
+  dismissBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  dismissLabel: {
+    color: colors.primary,
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
   },
   syncNowBtn: {
     backgroundColor: colors.primary,

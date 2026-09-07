@@ -15,9 +15,17 @@ import { useSync } from "@/lib/context/SyncContext";
 import { router } from "expo-router";
 
 export function SyncStatusBar() {
-  const { pendingCount, failedCount, isSyncing, isConnected, lastError, triggerSync } = useSync();
+  const {
+    pendingCount,
+    failedCount,
+    isSyncing,
+    isConnected,
+    lastError,
+    moduleUnavailableNotice,
+    triggerSync,
+  } = useSync();
 
-  if (pendingCount === 0 && failedCount === 0 && isConnected && !isSyncing && !lastError) {
+  if (pendingCount === 0 && failedCount === 0 && isConnected && !isSyncing && !lastError && !moduleUnavailableNotice) {
     return null;
   }
 
@@ -37,6 +45,10 @@ export function SyncStatusBar() {
     bgColor = colors.error;
     icon = "alert-triangle";
     text = lastError;
+  } else if (moduleUnavailableNotice) {
+    bgColor = colors.accent;
+    icon = "alert-triangle";
+    text = "Offline record not added";
   } else if (pendingCount > 0) {
     bgColor = colors.accent;
     icon = "upload-cloud";
@@ -48,6 +60,10 @@ export function SyncStatusBar() {
   }
 
   const handlePress = () => {
+    if (moduleUnavailableNotice) {
+      router.push("/sync-status");
+      return;
+    }
     if (failedCount > 0) {
       router.push("/sync-status");
       return;
@@ -59,9 +75,9 @@ export function SyncStatusBar() {
 
   return (
     <Pressable
-      onPress={failedCount > 0 || (isConnected && !isSyncing && pendingCount > 0) ? handlePress : undefined}
+      onPress={moduleUnavailableNotice || failedCount > 0 || (isConnected && !isSyncing && pendingCount > 0) ? handlePress : undefined}
       accessibilityRole="button"
-      accessibilityLabel={failedCount > 0 ? "View failed sync records" : "Sync pending records"}
+      accessibilityLabel={moduleUnavailableNotice ? "View offline record notice" : failedCount > 0 ? "View failed sync records" : "Sync pending records"}
       style={[styles.container, { backgroundColor: bgColor }]}
     >
       <View style={styles.content}>

@@ -33,6 +33,7 @@ export interface SyncState {
   isConnected: boolean;
   lastSyncTime: string | null;
   lastError: string | null;
+  moduleUnavailableNotice: string | null;
 }
 
 const INITIAL_STATE: SyncState = {
@@ -42,6 +43,7 @@ const INITIAL_STATE: SyncState = {
   isConnected: true,
   lastSyncTime: null,
   lastError: null,
+  moduleUnavailableNotice: null,
 };
 
 const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000];
@@ -152,6 +154,10 @@ export function subscribe(listener: SyncListener): () => void {
 
 export function getState(): SyncState {
   return { ...state };
+}
+
+export function dismissModuleUnavailableNotice(): void {
+  setState({ moduleUnavailableNotice: null });
 }
 
 export async function refreshPendingCount(): Promise<number> {
@@ -569,6 +575,7 @@ async function processQueue(): Promise<void> {
     let successCount = 0;
     let failCount = 0;
     let supersededCount = 0;
+    let moduleRejectedCount = 0;
 
     for (const item of items) {
       if (!state.isConnected) {
@@ -621,6 +628,19 @@ async function processQueue(): Promise<void> {
           requestFollowupAfterCurrentSync(deferredDelay);
           continue;
         }
+        if (err instanceof ModuleUnavailableSyncError) {
+          const completed = await markSyncItemCompletedIfUnchanged(item.id, item.data_json);
+          if (!completed) {
+            supersededCount++;
+            continue;
+          }
+          const table = getTableForKey(item.record_type);
+          if (table) {
+            await markRecordSynced(table, item.record_id);
+          }
+          moduleRejectedCount++;
+          continue;
+        }
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         const retryDelay = RETRY_DELAYS[Math.min(item.retry_count, RETRY_DELAYS.length - 1)];
         const retryAt = new Date(Date.now() + retryDelay).toISOString();
@@ -643,16 +663,22 @@ async function processQueue(): Promise<void> {
     await clearCompletedSyncItems();
     await refreshPendingCount();
 
+    const moduleUnavailableNotice = moduleRejectedCount > 0
+      ? `${moduleRejectedCount === 1 ? "An offline record was" : `${moduleRejectedCount} offline records were`} not added because the relevant module is unavailable for the selected farm. ${moduleRejectedCount === 1 ? "The record was" : "These records were"} removed from the sync queue; after the module is enabled, ${moduleRejectedCount === 1 ? "it must" : "they must"} be entered again.`
+      : state.moduleUnavailableNotice;
+
     if (failCount === 0) {
       setState({
         isSyncing: false,
         lastSyncTime: new Date().toISOString(),
         lastError: null,
+        moduleUnavailableNotice,
       });
     } else {
       setState({
         isSyncing: false,
         lastError: `${failCount} item${failCount > 1 ? "s" : ""} failed to sync`,
+        moduleUnavailableNotice,
       });
     }
     if (supersededCount > 0) {
@@ -813,6 +839,13 @@ interface UploadSyncResult {
   deletedSprayRecord?: boolean;
 }
 
+class ModuleUnavailableSyncError extends Error {
+  constructor() {
+    super("The relevant module is unavailable for the selected farm");
+    this.name = "ModuleUnavailableSyncError";
+  }
+}
+
 async function uploadSyncItem(item: {
   id: string;
   record_type: string;
@@ -841,8 +874,8 @@ async function uploadSyncItem(item: {
       }
       const hasWinery = moduleKeys.includes("viticulture");
       if (!hasWinery) {
-        // Confirmed non-viticulture farm: discard the record without uploading.
-        return {};
+        // Confirmed non-viticulture farm: discard without retrying and explain why.
+        throw new ModuleUnavailableSyncError();
       }
     }
   }
@@ -863,8 +896,8 @@ async function uploadSyncItem(item: {
         throw new SyncDeferredError("Module cache not yet resolved for farm; deferring irrigation sync");
       }
       if (!moduleKeys.includes("water-irrigation")) {
-        // Confirmed module-absent farm: discard the record to clear the sync badge.
-        return {};
+        // Confirmed module-absent farm: discard without retrying and explain why.
+        throw new ModuleUnavailableSyncError();
       }
     }
   }

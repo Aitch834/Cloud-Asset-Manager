@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import {
   cleanup,
+  dismissModuleUnavailableNotice,
   getState,
   initialize,
   refreshPendingCount as engineRefresh,
@@ -39,6 +40,8 @@ const [SyncProviderInner, useSync] = createContextHook(
       isConnected: syncState.isConnected,
       lastSyncTime: syncState.lastSyncTime,
       lastError: syncState.lastError,
+      moduleUnavailableNotice: syncState.moduleUnavailableNotice,
+      dismissModuleUnavailableNotice,
       triggerSync,
       refreshPendingCount,
     };
