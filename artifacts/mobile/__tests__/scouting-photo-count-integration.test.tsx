@@ -10,6 +10,10 @@ jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock("expo-crypto", () => ({
+  randomUUID: jest.fn(() => "test-uuid"),
+}));
+
 jest.mock("react-native", () => {
   const React = require("react");
   const host = (name: string) =>
@@ -182,8 +186,10 @@ jest.mock("../lib/scoutingLightboxHelpers", () => ({
     },
   ),
   shouldAllowSwipe: jest.fn(() => false),
-  getPaginationItems: jest.fn(() => []),
-  isPaginationItemActive: jest.fn(() => false),
+  getPaginationItems: jest.fn((photosCount: number) =>
+    Array.from({ length: photosCount }, (_, index) => index),
+  ),
+  isPaginationItemActive: jest.fn((item: number, currentIndex: number) => item === currentIndex),
   scheduleScoutingPhotoAutoRetry: jest.fn(),
   updatePhotoCaption: jest.fn((photos: Array<{ id: number; [key: string]: unknown }>, photoId: number, caption: string | null) =>
     photos.map((photo: { id: number }) => photo.id === photoId ? { ...photo, caption } : photo),
@@ -363,6 +369,44 @@ describe("scouting photo count badge", () => {
 });
 
 describe("ScoutingPhotoLightbox cover badge", () => {
+  it("jumps to a tapped dot and keeps the active dot in sync with swipe navigation", () => {
+    const screen = render(
+      <ScoutingPhotoLightbox
+        photos={[makePhoto(1), makePhoto(2), makePhoto(3)]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("scouting-photo-dot-0").props.accessibilityState).toEqual({
+      selected: true,
+    });
+
+    fireEvent.press(screen.getByTestId("scouting-photo-dot-2"));
+
+    expect(screen.getByText("3 / 3")).toBeTruthy();
+    expect(screen.getByTestId("scouting-photo-dot-2").props.accessibilityState).toEqual({
+      selected: true,
+    });
+    expect(screen.getByTestId("scouting-photo-dot-0").props.accessibilityState).toEqual({
+      selected: false,
+    });
+
+    const swipeableView = screen
+      .UNSAFE_getAllByType(View)
+      .find((node) => typeof node.props.onResponderRelease === "function");
+    expect(swipeableView).toBeTruthy();
+
+    fireEvent(swipeableView!, "responderRelease", {}, { dx: 60, dy: 0 });
+
+    expect(screen.getByText("2 / 3")).toBeTruthy();
+    expect(screen.getByTestId("scouting-photo-dot-1").props.accessibilityState).toEqual({
+      selected: true,
+    });
+  });
+
   it("hides the badge after swiping to a non-cover photo and restores it when swiping back", () => {
     const screen = render(
       <ScoutingPhotoLightbox

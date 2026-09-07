@@ -549,13 +549,22 @@ export function ScoutingPhotoLightbox({
           <View style={lbStyles.paginationDots} accessibilityLabel={`Photo ${currentIndex + 1} of ${photos.length}`}>
             {paginationItems.map((item, itemPosition) =>
               typeof item === "number" ? (
-                <View
+                <Pressable
                   key={`photo-dot-${item}`}
-                  style={[
-                    lbStyles.paginationDot,
-                    isPaginationItemActive(item, currentIndex) && lbStyles.paginationDotActive,
-                  ]}
-                />
+                  style={lbStyles.paginationDotButton}
+                  onPress={() => setCurrentIndex(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show photo ${item + 1} of ${photos.length}`}
+                  accessibilityState={{ selected: isPaginationItemActive(item, currentIndex) }}
+                  testID={`scouting-photo-dot-${item}`}
+                >
+                  <View
+                    style={[
+                      lbStyles.paginationDot,
+                      isPaginationItemActive(item, currentIndex) && lbStyles.paginationDotActive,
+                    ]}
+                  />
+                </Pressable>
               ) : (
                 <Text key={`${item}-${itemPosition}`} style={lbStyles.paginationEllipsis}>
                   …
@@ -697,9 +706,14 @@ const lbStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
     marginTop: 10,
-    minHeight: 10,
+    minHeight: 44,
+  },
+  paginationDotButton: {
+    width: 28,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   paginationDot: {
     width: 7,
@@ -717,7 +731,7 @@ const lbStyles = StyleSheet.create({
     color: "rgba(255,255,255,0.55)",
     fontSize: 12,
     lineHeight: 10,
-    width: 7,
+    width: 14,
     textAlign: "center",
   },
   reloadLabel: {
