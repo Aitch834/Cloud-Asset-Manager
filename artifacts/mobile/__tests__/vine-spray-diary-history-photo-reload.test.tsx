@@ -258,6 +258,146 @@ describe("SprayPhotoThumbnail — history retry control", () => {
   });
 });
 
+describe("VineSprayDiaryHistoryScreen — thumbnail URL refresh", () => {
+  const record = {
+    id: 7,
+    applicationDate: "2026-09-03",
+    blockId: null,
+    productName: "Copper Spray",
+    mappNumber: null,
+    activeIngredient: null,
+    productType: null,
+    ratePerHectare: null,
+    rateUnit: null,
+    areaTreatedHa: null,
+    totalQuantityApplied: null,
+    harvestIntervalDays: null,
+    windSpeedMph: null,
+    temperatureCelsius: null,
+    weatherConditions: null,
+    operatorName: null,
+    operatorCertificateNo: null,
+    notes: null,
+    photoCount: 1,
+  };
+
+  const deferred = () => {
+    let resolve!: (value: { ok: boolean; json?: () => Promise<{ photos: typeof photo[] }> }) => void;
+    const promise = new Promise<{ ok: boolean; json?: () => Promise<{ photos: typeof photo[] }> }>(
+      (resolvePromise) => {
+        resolve = resolvePromise;
+      },
+    );
+    return { promise, resolve };
+  };
+
+  const configureScreenHooks = () => {
+    useFarm.mockReturnValue({
+      currentFarm: { id: "farm-1", name: "Test Vineyard" },
+      user: { id: "test-user" },
+    });
+    useApiFetch.mockReturnValue({
+      records: [record],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    useApiVineBlocks.mockReturnValue({ blocks: [], loading: false });
+    useFarmIdentifiers.mockReturnValue({
+      address: "Test Lane",
+      postcode: "AB1 2CD",
+      cphNumber: "12/345/6789",
+      sbiNumber: "123456789",
+      loading: false,
+      justSaved: false,
+      clearJustSaved: jest.fn(),
+      refetch: jest.fn(),
+    });
+    useIdentifierBannerDismiss.mockReturnValue({ dismissed: true, dismiss: jest.fn() });
+    usePersistedBlockFilter.mockReturnValue([[], jest.fn()]);
+    usePrint.mockReturnValue({ savePdf: jest.fn() });
+  };
+
+  const openBrokenThumbnail = async (screen: ReturnType<typeof render>) => {
+    fireEvent.press(screen.getByText("Copper Spray"));
+    const image = await waitFor(() =>
+      screen
+        .UNSAFE_getAllByType(Image)
+        .find((node) => node.props.source?.uri === photo.downloadUrl),
+    );
+    expect(image).toBeTruthy();
+    fireEvent(image!, "error");
+    return screen.getByText("Tap to reload").parent!;
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    configureScreenHooks();
+  });
+
+  it("shows a spinner, blocks duplicate refreshes, and renders the replacement URL", async () => {
+    const refresh = deferred();
+    const refreshedPhoto = {
+      ...photo,
+      downloadUrl: "https://cdn.example.com/replacement-photo.jpg",
+    };
+    apiFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ photos: [photo] }) })
+      .mockImplementationOnce(() => refresh.promise);
+
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+    const retryControl = await openBrokenThumbnail(screen);
+    const retryEvent = { stopPropagation: jest.fn() };
+
+    fireEvent(retryControl, "press", retryEvent);
+
+    expect(retryEvent.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(screen.UNSAFE_getAllByType("ActivityIndicator").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Tap to reload")).toBeNull();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+
+    fireEvent(retryControl, "press", { stopPropagation: jest.fn() });
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      refresh.resolve({ ok: true, json: async () => ({ photos: [refreshedPhoto] }) });
+      await refresh.promise;
+    });
+
+    await waitFor(() => {
+      expect(
+        screen
+          .UNSAFE_getAllByType(Image)
+          .some((node) => node.props.source?.uri === refreshedPhoto.downloadUrl),
+      ).toBe(true);
+    });
+    expect(screen.queryByText("Tap to reload")).toBeNull();
+  });
+
+  it("restores Tap to reload after the refresh request fails", async () => {
+    const failedRefresh = deferred();
+    apiFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ photos: [photo] }) })
+      .mockImplementationOnce(() => failedRefresh.promise);
+
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+    const retryControl = await openBrokenThumbnail(screen);
+
+    fireEvent(retryControl, "press", { stopPropagation: jest.fn() });
+    expect(screen.queryByText("Tap to reload")).toBeNull();
+
+    await act(async () => {
+      failedRefresh.resolve({ ok: false });
+      await failedRefresh.promise;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Tap to reload")).toBeTruthy();
+    });
+  });
+});
+
 
 describe("SprayPhotoLightbox cover badge", () => {
   it("hides the badge after swiping to a non-cover photo and restores it when swiping back", () => {
