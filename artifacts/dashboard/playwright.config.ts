@@ -1,5 +1,4 @@
 import { defineConfig, devices } from "@playwright/test";
-import { execSync } from "child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import * as path from "path";
 
@@ -86,7 +85,24 @@ function buildNixLibPath(): string {
   const discoveredNixPaths = [
     findCompatibleNixLib(/-glib-\d/, "libglib-2.0.so.0"),
     findCompatibleNixLib(/-nss-\d/, "libnss3.so"),
+    findCompatibleNixLib(/-nspr-\d/, "libnspr4.so"),
     findCompatibleNixLib(/-dbus-\d.*-lib$/, "libdbus-1.so.3"),
+    findCompatibleNixLib(/-atk-\d/, "libatk-1.0.so.0"),
+    findCompatibleNixLib(/-at-spi2-core-\d/, "libatk-bridge-2.0.so.0"),
+    findCompatibleNixLib(/-cups-\d.*-lib$/, "libcups.so.2"),
+    findCompatibleNixLib(/-libdrm-\d/, "libdrm.so.2"),
+    findCompatibleNixLib(/-libxkbcommon-\d/, "libxkbcommon.so.0"),
+    findCompatibleNixLib(/-mesa-\d/, "libgbm.so.1"),
+    findCompatibleNixLib(/-pango-\d/, "libpango-1.0.so.0"),
+    findCompatibleNixLib(/-cairo-\d/, "libcairo.so.2"),
+    findCompatibleNixLib(/-alsa-lib-\d/, "libasound.so.2"),
+    findCompatibleNixLib(/-libX11-\d/, "libX11.so.6"),
+    findCompatibleNixLib(/-libXcomposite-\d/, "libXcomposite.so.1"),
+    findCompatibleNixLib(/-libXdamage-\d/, "libXdamage.so.1"),
+    findCompatibleNixLib(/-libXext-\d/, "libXext.so.6"),
+    findCompatibleNixLib(/-libXfixes-\d/, "libXfixes.so.3"),
+    findCompatibleNixLib(/-libXrandr-\d/, "libXrandr.so.2"),
+    findCompatibleNixLib(/-libxcb-\d/, "libxcb.so.1"),
   ].filter((entry): entry is string => Boolean(entry));
 
   const profileLib = path.join(
@@ -103,20 +119,7 @@ function buildNixLibPath(): string {
     .join(":");
 }
 
-function findChromiumExecutable(): string | undefined {
-  try {
-    const result = execSync(
-      "ls -d /nix/store/*playwright-chromium/chrome-linux/chrome-wrapper 2>/dev/null | head -n 1",
-      { encoding: "utf-8" },
-    ).trim();
-    return result || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 const nixLibPath = buildNixLibPath();
-const chromiumExecutablePath = findChromiumExecutable();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -137,7 +140,9 @@ export default defineConfig({
     trace: "retain-on-failure",
 
     launchOptions: {
-      executablePath: chromiumExecutablePath,
+      // Do not override executablePath with a Nix-provided Chromium. Playwright
+      // must launch the browser revision matching @playwright/test, installed
+      // with `pnpm run test:e2e:install-browser`.
       // Pass the Nix store library paths so the Chromium headless shell can
       // find glib, nss, etc. in the NixOS Replit container.
       env: nixLibPath
