@@ -203,7 +203,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       });
       // If the trigger shows a specific year, open and pick "All years"
       if (await yearTrigger.isVisible({ timeout: 2_000 })) {
-        const triggerText = await printBlockTrigger.textContent();
+        const triggerText = await yearTrigger.textContent();
         if (triggerText && /^\d{4}$/.test(triggerText.trim())) {
           await yearTrigger.click();
           await page.getByRole("option", { name: /all years/i }).click();
@@ -324,7 +324,23 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   }) => {
     await signInDashboard(page);
 
+    const blocksRes = await fetch(
+      `${apiBase()}/api/farms/${FARM_ID}/vineyard-blocks`,
+      {
+        headers: {
+          "x-dev-bypass": DEV_BYPASS,
+          "x-tenant-slug": TENANT_SLUG,
+        },
+      },
+    );
+    if (!blocksRes.ok)
+      throw new Error(`GET vineyard-blocks → ${blocksRes.status}`);
+    const blocksBody = (await blocksRes.json()) as {
+      blocks: { id: number; blockName: string }[];
+    };
     const firstBlock = blocksBody.blocks?.[0];
+    if (!firstBlock)
+      throw new Error("No vineyard blocks found on farm 5 — test cannot run");
     const sprayId = await createSprayRecord(null);
 
     try {

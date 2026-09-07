@@ -220,7 +220,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
     // ── Seed: two blocks + one vine-register row linked to block A ──────────
     const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockId);
+    const entryId = await createVineRegisterEntry(blockAId);
 
     try {
       await navigateToVineRegisterTab(page);
@@ -271,7 +271,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
     // ── Seed ─────────────────────────────────────────────────────────────────
     const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockId);
+    const entryId = await createVineRegisterEntry(blockAId);
 
     try {
       await navigateToVineRegisterTab(page);
@@ -343,7 +343,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
   test("C — switching tabs while picker is active fires toast and clears picker", async ({ page }) => {
     const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockId);
+    const entryId = await createVineRegisterEntry(blockAId);
 
     try {
       await navigateToVineRegisterTab(page);

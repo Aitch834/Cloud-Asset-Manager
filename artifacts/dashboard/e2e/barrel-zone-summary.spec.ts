@@ -172,7 +172,11 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
   }) => {
     const zoneA = `${RUN_TAG}-unfiltered-a`;
     const zoneB = `${RUN_TAG}-unfiltered-b`;
-    const refs = [`${RUN_TAG}-unfiltered-1`, `${RUN_TAG}-unfiltered-2`];
+    const refs = [
+      `${RUN_TAG}-unfiltered-1`,
+      `${RUN_TAG}-unfiltered-2`,
+      `${RUN_TAG}-unfiltered-3`,
+    ];
     const vesselIds: number[] = [];
 
     try {
@@ -215,7 +219,12 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
   }) => {
     const zoneA = `${RUN_TAG}-unfiltered-a`;
     const zoneB = `${RUN_TAG}-unfiltered-b`;
-    const refs = [`${RUN_TAG}-unfiltered-1`, `${RUN_TAG}-unfiltered-2`];
+    const refs = [
+      `${RUN_TAG}-unfiltered-1`,
+      `${RUN_TAG}-unfiltered-2`,
+      `${RUN_TAG}-unfiltered-3`,
+      `${RUN_TAG}-unfiltered-4`,
+    ];
     const vesselIds: number[] = [];
 
     try {

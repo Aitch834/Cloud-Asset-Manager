@@ -49,7 +49,9 @@ test("switches winery threshold hints from platform defaults to override descrip
 
   await page.route(`**/api/farms/${FARM_ID}`, async route => {
     const response = await route.fetch();
-    const body = await response.json() as { config: Record<string, string> };
+    const body = await response.json() as {
+      record: Record<string, unknown>;
+    };
     await route.fulfill({
       response,
       json: {

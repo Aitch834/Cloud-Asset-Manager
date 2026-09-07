@@ -170,7 +170,8 @@ test.describe("Scouting photo — delete interactions", () => {
     await signInDashboard(page);
 
     const scoutingId = await createScoutingRecord();
-    await attachPhoto(scoutingId, "solo");
+    await attachPhoto(scoutingId, "first");
+    await attachPhoto(scoutingId, "second");
 
     try {
       await navigateToScoutingTab(page);
@@ -178,10 +179,10 @@ test.describe("Scouting photo — delete interactions", () => {
       const row = page.locator("tr", { hasText: SCOUT_NAME });
       await expect(row).toBeVisible({ timeout: 15_000 });
 
-      // ── Pre-condition: grid badge shows 1 ────────────────────────────────
+      // ── Pre-condition: grid badge shows 2 ────────────────────────────────
       const gridBadge = row.getByTitle("View photos");
-      await expect(gridBadge).toContainText("1", {
-        message: "Grid badge must show 1 before any deletion",
+      await expect(gridBadge).toContainText("2", {
+        message: "Grid badge must show 2 before any deletion",
       });
 
       // ── Open lightbox via the grid camera badge ───────────────────────────
