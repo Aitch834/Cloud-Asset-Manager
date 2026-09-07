@@ -74,8 +74,8 @@ function successfulPdfResponse(): Response {
   });
 }
 
-function successfulPreviewResponse(): Response {
-  return new Response(new Blob(["png"], { type: "image/png" }), {
+function successfulPreviewResponse(marker = "png"): Response {
+  return new Response(new Blob([marker], { type: "image/png" }), {
     status: 200,
     headers: { "Content-Type": "image/png" },
   });
@@ -291,6 +291,45 @@ describe("AdPdfGenerator — missing-assets banner", () => {
       expect(screen.queryByText(/Cannot generate preview/i)).toBeNull();
       expect(screen.getByRole("img", { name: "Ad preview" })).toBeDefined();
     });
+    expect(previewAttempts).toBe(2);
+  });
+
+  it("Preview — replaces an older successful image after a successful retry", async () => {
+    let previewAttempts = 0;
+    vi.mocked(URL.createObjectURL)
+      .mockReturnValueOnce("blob:preview-old")
+      .mockReturnValueOnce("blob:preview-latest");
+    vi.stubGlobal(
+      "fetch",
+      makeFetch([
+        {
+          urlIncludes: "ad-pdf/preview",
+          method: "GET",
+          response: () => {
+            previewAttempts += 1;
+            return successfulPreviewResponse(`preview-${previewAttempts}`);
+          },
+        },
+      ]),
+    );
+
+    renderWithQueryClient(<AdPdfGenerator />);
+    await screen.findByRole("option", { name: /Test Template/i });
+
+    const previewBtn = screen.getByRole("button", { name: /^Preview$/i });
+
+    fireEvent.click(previewBtn);
+    const preview = await screen.findByRole("img", { name: "Ad preview" });
+    await waitFor(() => {
+      expect(preview.getAttribute("src")).toBe("blob:preview-old");
+    });
+
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(preview.getAttribute("src")).toBe("blob:preview-latest");
+    });
+    expect(preview.getAttribute("src")).not.toBe("blob:preview-old");
     expect(previewAttempts).toBe(2);
   });
 
