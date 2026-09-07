@@ -12,6 +12,10 @@ export interface ReusableClerkTestUser {
   email: string;
 }
 
+export interface ProvisionedClerkTestUser extends ReusableClerkTestUser {
+  reused: boolean;
+}
+
 /**
  * Select the persistent dashboard E2E identity from Clerk's user list.
  *
@@ -39,4 +43,44 @@ export function findReusableClerkTestUser(
       .filter((candidate) => LEGACY_E2E_TEST_EMAIL.test(candidate.email))
       .sort((a, b) => a.email.localeCompare(b.email))[0] ?? null
   );
+}
+
+/**
+ * Reuse the reserved identity before attempting creation. If creation loses a
+ * race or hits quota, refresh once so an identity created by another run (or a
+ * legacy generated identity at capacity) can still be adopted.
+ */
+export async function provisionReusableClerkTestUser({
+  preferredEmail = SHARED_E2E_TEST_EMAIL,
+  listUsers,
+  createUser,
+}: {
+  preferredEmail?: string;
+  listUsers: () => Promise<ClerkUserRecord[]>;
+  createUser: (email: string) => Promise<ReusableClerkTestUser>;
+}): Promise<ProvisionedClerkTestUser> {
+  const existing = findReusableClerkTestUser(
+    await listUsers(),
+    preferredEmail,
+  );
+  if (existing) return { ...existing, reused: true };
+
+  try {
+    const created = await createUser(preferredEmail);
+    return { ...created, reused: false };
+  } catch (error) {
+    const refreshed = findReusableClerkTestUser(
+      await listUsers(),
+      preferredEmail,
+    );
+    if (refreshed) return { ...refreshed, reused: true };
+
+    const message = error instanceof Error ? error.message : String(error);
+    const isQuotaError = /quota|user_quota_exceeded/i.test(message);
+    throw new Error(
+      isQuotaError
+        ? `${message}; the tenant is at quota and no reusable E2E test identity was found`
+        : message,
+    );
+  }
 }

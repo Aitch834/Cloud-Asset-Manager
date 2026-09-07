@@ -13,7 +13,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import {
-  findReusableClerkTestUser,
+  provisionReusableClerkTestUser,
   SHARED_E2E_TEST_EMAIL,
   type ClerkUserRecord,
 } from "../src/lib/e2e-test-user";
@@ -104,46 +104,14 @@ export default async function globalSetup() {
     process.env.PLAYWRIGHT_CLERK_USER_EMAIL ?? SHARED_E2E_TEST_EMAIL
   ).trim().toLowerCase();
 
-  let users = await listClerkUsers(clerkSecretKey);
-  let reusable = findReusableClerkTestUser(users, configuredEmail);
-  let reusedExistingUser = Boolean(reusable);
-  let clerkUserId: string;
-  let mappedEmail = configuredEmail;
-
-  if (reusable) {
-    clerkUserId = reusable.id;
-    mappedEmail = reusable.email;
-  } else {
-    try {
-      const createdUser = await createSharedClerkTestUser(
-        clerkSecretKey,
-        configuredEmail,
-      );
-      clerkUserId = createdUser.id;
-    } catch (error) {
-      const body = error instanceof Error ? error.message : String(error);
-      // A concurrent run can provision the reserved identity between the
-      // lookup and POST. Refresh before treating the failure as fatal.
-      users = await listClerkUsers(clerkSecretKey);
-      reusable = findReusableClerkTestUser(users, configuredEmail);
-
-      if (!reusable) {
-        const isQuotaError = /quota|user_quota_exceeded/i.test(body);
-        throw new Error(
-          isQuotaError
-            ? `${body}; the tenant is at quota and no reusable E2E test identity was found`
-            : body,
-        );
-      }
-
-      clerkUserId = reusable.id;
-      mappedEmail = reusable.email;
-      reusedExistingUser = true;
-      console.warn(
-        `[e2e] Adopting existing test user ${clerkUserId} after create failure`,
-      );
-    }
-  }
+  const provisionedUser = await provisionReusableClerkTestUser({
+    preferredEmail: configuredEmail,
+    listUsers: () => listClerkUsers(clerkSecretKey),
+    createUser: (email) => createSharedClerkTestUser(clerkSecretKey, email),
+  });
+  const clerkUserId = provisionedUser.id;
+  const mappedEmail = provisionedUser.email;
+  const reusedExistingUser = provisionedUser.reused;
 
   // Persist the Clerk user ID and email for tests.
   fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   findReusableClerkTestUser,
+  provisionReusableClerkTestUser,
   SHARED_E2E_TEST_EMAIL,
 } from "./e2e-test-user";
 
@@ -51,5 +52,63 @@ describe("dashboard Playwright Clerk test identity", () => {
         },
       ]),
     ).toBeNull();
+  });
+
+  it("reuses the persistent identity without creating another Clerk user", async () => {
+    const createUser = vi.fn();
+    const listUsers = vi.fn().mockResolvedValue([
+      {
+        id: "shared-user",
+        email_addresses: [{ email_address: SHARED_E2E_TEST_EMAIL }],
+      },
+    ]);
+
+    await expect(
+      provisionReusableClerkTestUser({ listUsers, createUser }),
+    ).resolves.toEqual({
+      id: "shared-user",
+      email: SHARED_E2E_TEST_EMAIL,
+      reused: true,
+    });
+    expect(listUsers).toHaveBeenCalledTimes(1);
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it("adopts an identity found after a quota-limited create race", async () => {
+    const listUsers = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "concurrent-user",
+          email_addresses: [{ email_address: SHARED_E2E_TEST_EMAIL }],
+        },
+      ]);
+    const createUser = vi
+      .fn()
+      .mockRejectedValue(new Error("user_quota_exceeded"));
+
+    await expect(
+      provisionReusableClerkTestUser({ listUsers, createUser }),
+    ).resolves.toEqual({
+      id: "concurrent-user",
+      email: SHARED_E2E_TEST_EMAIL,
+      reused: true,
+    });
+    expect(listUsers).toHaveBeenCalledTimes(2);
+    expect(createUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails clearly when quota is full and no reusable identity exists", async () => {
+    await expect(
+      provisionReusableClerkTestUser({
+        listUsers: vi.fn().mockResolvedValue([]),
+        createUser: vi
+          .fn()
+          .mockRejectedValue(new Error("user_quota_exceeded")),
+      }),
+    ).rejects.toThrow(
+      "tenant is at quota and no reusable E2E test identity was found",
+    );
   });
 });
