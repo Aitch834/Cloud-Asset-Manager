@@ -5,7 +5,10 @@ import { runUiPrefMigration, useUiPrefs } from "./useUiPrefs";
 // Key helpers
 // ---------------------------------------------------------------------------
 
-function prefKey(screen: string, farmId: string | undefined): string {
+export function identifierBannerPrefKey(
+  screen: string,
+  farmId: string | undefined,
+): string {
   return `identifier_banner_dismissed_${screen}_${farmId ?? "unknown"}`;
 }
 
@@ -111,7 +114,7 @@ export function useIdentifierBannerDismiss(
   farmId: string | undefined,
   userId: string | null | undefined,
 ): { dismissed: boolean; dismiss: () => void } {
-  const key = prefKey(screen, farmId);
+  const key = identifierBannerPrefKey(screen, farmId);
   const { prefsReady, isHintDismissed, dismissHint } = useUiPrefs(userId);
 
   // Used only to trigger re-renders when the module-level Set is updated after
@@ -150,7 +153,7 @@ export function useIdentifierBannerDismiss(
       const result = await runUiPrefMigration(
         userId,
         legacyKey(screen, farmId),
-        prefKey(screen, farmId),
+        identifierBannerPrefKey(screen, farmId),
         isLegacyValueValid,
       );
 

@@ -121,7 +121,10 @@ import {
   runUiPrefMigration,
   useUiPrefs,
 } from "../lib/hooks/useUiPrefs";
-import { useIdentifierBannerDismiss } from "../lib/hooks/useIdentifierBannerDismiss";
+import {
+  identifierBannerPrefKey,
+  useIdentifierBannerDismiss,
+} from "../lib/hooks/useIdentifierBannerDismiss";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -713,6 +716,41 @@ describe("dismissHint — fresh app load after dismissal confirms dismissed=true
     const prefs = mockSlots[0] as PrefsMap;
     expect(prefs["winery_winegb_banner"]).toBe(true);
   });
+});
+
+describe("scanning identifier warnings — restart persistence and farm isolation", () => {
+  for (const screen of ["sheep-scanning", "goat-scanning"]) {
+    it(`${screen} stays dismissed after restart for the same farm`, async () => {
+      const uid = nextUid();
+      const dismissedFarm = "farm-with-dismissal";
+      const dismissedKey = identifierBannerPrefKey(screen, dismissedFarm);
+
+      // This cache is the durable state read on a fresh native app launch.
+      asyncStore.set(
+        `ui_prefs_cache_${uid}`,
+        JSON.stringify({ [dismissedKey]: true }),
+      );
+      mockApiFetch.mockResolvedValue(
+        makeServerResponse({ [dismissedKey]: true }),
+      );
+
+      useIdentifierBannerDismiss(screen, dismissedFarm, uid);
+      mockEffects[2]?.(); // bootstrap
+      mockEffects[3]?.(); // legacy migration
+      await drain();
+
+      mockSlotIdx = 0;
+      expect(
+        useIdentifierBannerDismiss(screen, dismissedFarm, uid).dismissed,
+      ).toBe(true);
+    });
+
+    it(`${screen} uses an independent dismissal for each farm`, () => {
+      expect(identifierBannerPrefKey(screen, "farm-a")).not.toBe(
+        identifierBannerPrefKey(screen, "farm-b"),
+      );
+    });
+  }
 });
 
 // ===========================================================================

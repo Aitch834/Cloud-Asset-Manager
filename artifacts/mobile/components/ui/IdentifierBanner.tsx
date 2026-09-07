@@ -7,6 +7,14 @@ import { colors } from "@/constants/colors";
 import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 
+export function dismissIdentifierWarning(
+  event: { stopPropagation: () => void },
+  onDismiss: () => void,
+): void {
+  event.stopPropagation();
+  onDismiss();
+}
+
 interface IdentifierBannerProps {
   /** True when the grower just saved identifiers from the More/Settings screen */
   justSaved: boolean;
@@ -112,7 +120,7 @@ export function IdentifierBanner({
           {" "}Tap to go to Settings.
         </Text>
         <Pressable
-          onPress={(e) => { e.stopPropagation(); onDismiss(); }}
+          onPress={(e) => dismissIdentifierWarning(e, onDismiss)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityLabel="Dismiss warning"
         >
