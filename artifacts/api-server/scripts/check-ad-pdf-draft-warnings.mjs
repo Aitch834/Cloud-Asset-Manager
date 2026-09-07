@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * API regression check for draft ad preview render warnings.
+ * API regression check for draft and saved-template ad render warnings.
  *
  * This deliberately calls the running Express API instead of testing the
- * detector in isolation. It proves that a successful PNG response preserves
- * the warning header the admin portal reads, while canonical placeholders do
- * not produce a warning header.
+ * detector in isolation. It proves that successful draft preview, saved
+ * preview, and saved PDF responses preserve the warning header the admin
+ * portal reads, while canonical placeholders do not produce a warning header.
  *
  * Run with:
  *   node scripts/check-ad-pdf-draft-warnings.mjs
@@ -44,6 +44,7 @@ const releaseAdPdfValidationLock =
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 let insertedUser = false;
 let insertedMembershipTenantId = null;
+let insertedTemplateId = null;
 
 const STUB_LOGO =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==";
@@ -159,6 +160,32 @@ async function flushBrandAssetCache() {
   assert.equal(result.response.status, 200, "brand asset cache flush should succeed");
 }
 
+async function insertSavedTemplate(htmlBody) {
+  const result = await pool.query(
+    `INSERT INTO ad_templates
+       (name, slug, width_mm, height_mm, html_body, is_default)
+     VALUES ($1, $2, 190, 133, $3, false)
+     RETURNING id`,
+    [
+      "Ad render warning regression fixture",
+      `ad-render-warning-regression-${process.pid}-${Date.now()}`,
+      htmlBody,
+    ],
+  );
+  insertedTemplateId = result.rows[0]?.id ?? null;
+  assert(insertedTemplateId, "temporary saved template should be inserted");
+}
+
+async function updateSavedTemplate(htmlBody) {
+  const result = await pool.query(
+    `UPDATE ad_templates
+        SET html_body = $1, updated_at = NOW()
+      WHERE id = $2`,
+    [htmlBody, insertedTemplateId],
+  );
+  assert.equal(result.rowCount, 1, "temporary saved template should be updated");
+}
+
 function assertPngResponse(result, label) {
   assert.equal(result.response.status, 200, `${label} should render successfully`);
   assert.equal(
@@ -173,6 +200,48 @@ function assertPngResponse(result, label) {
   );
 }
 
+function assertPdfResponse(result, label) {
+  assert.equal(result.response.status, 200, `${label} should render successfully`);
+  assert.equal(
+    result.response.headers.get("Content-Type"),
+    "application/pdf",
+    `${label} should return a PDF`,
+  );
+  assert.equal(
+    result.bytes.subarray(0, 5).toString("ascii"),
+    "%PDF-",
+    `${label} should return PDF bytes`,
+  );
+}
+
+function assertExpectedWarning(result, label) {
+  assert.equal(
+    result.warningHeader,
+    JSON.stringify([EXPECTED_WARNING]),
+    `${label} should preserve the near-miss warning in X-Ad-Render-Warnings`,
+  );
+  assert.deepEqual(
+    JSON.parse(result.warningHeader),
+    [EXPECTED_WARNING],
+    `${label} warning header should contain the expected typo warning`,
+  );
+}
+
+function savedPreviewPath() {
+  const params = new URLSearchParams({
+    templateId: String(insertedTemplateId),
+    bgUrl: "https://httpbin.org/image/jpeg",
+  });
+  return `/admin/ad-pdf/preview?${params}`;
+}
+
+function savedPdfBody() {
+  return {
+    templateId: insertedTemplateId,
+    bgUrl: "https://httpbin.org/image/jpeg",
+  };
+}
+
 async function run() {
   await preflight();
   await setupSuperAdminFixture();
@@ -185,16 +254,7 @@ async function run() {
     heightMm: 133,
   });
   assertPngResponse(warningResult, "a draft containing a near-miss placeholder");
-  assert.equal(
-    warningResult.warningHeader,
-    JSON.stringify([EXPECTED_WARNING]),
-    "the near-miss warning should be preserved in X-Ad-Render-Warnings",
-  );
-  assert.deepEqual(
-    JSON.parse(warningResult.warningHeader),
-    [EXPECTED_WARNING],
-    "the warning header should contain the expected typo warning",
-  );
+  assertExpectedWarning(warningResult, "the draft preview");
 
   const canonicalResult = await call("POST", "/admin/ad-pdf/preview-draft", {
     htmlBody: CANONICAL_BODY,
@@ -209,12 +269,49 @@ async function run() {
     "canonical placeholders should not produce X-Ad-Render-Warnings",
   );
 
-  console.log("Draft ad preview warning regression passed.");
-  console.log("  near-miss placeholder: successful PNG with expected warning header");
-  console.log("  canonical placeholders: successful PNG without warning header");
+  await insertSavedTemplate(WARNING_BODY);
+
+  const savedWarningPreview = await call("GET", savedPreviewPath());
+  assertPngResponse(savedWarningPreview, "a saved preview containing a near-miss placeholder");
+  assertExpectedWarning(savedWarningPreview, "the saved preview");
+
+  const savedWarningPdf = await call("POST", "/admin/ad-pdf", savedPdfBody());
+  assertPdfResponse(savedWarningPdf, "a saved PDF containing a near-miss placeholder");
+  assertExpectedWarning(savedWarningPdf, "the saved PDF");
+
+  await updateSavedTemplate(CANONICAL_BODY);
+
+  const savedCanonicalPreview = await call("GET", savedPreviewPath());
+  assertPngResponse(savedCanonicalPreview, "a saved preview containing only canonical placeholders");
+  assert.equal(
+    savedCanonicalPreview.warningHeader,
+    null,
+    "a canonical-only saved preview should omit X-Ad-Render-Warnings",
+  );
+
+  const savedCanonicalPdf = await call("POST", "/admin/ad-pdf", savedPdfBody());
+  assertPdfResponse(savedCanonicalPdf, "a saved PDF containing only canonical placeholders");
+  assert.equal(
+    savedCanonicalPdf.warningHeader,
+    null,
+    "a canonical-only saved PDF should omit X-Ad-Render-Warnings",
+  );
+
+  console.log("Ad render warning regression passed.");
+  console.log("  draft preview: warning and canonical control verified");
+  console.log("  saved preview: warning and canonical control verified");
+  console.log("  saved PDF: warning and canonical control verified");
 }
 
 async function cleanup() {
+  if (insertedTemplateId !== null) {
+    try {
+      await pool.query("DELETE FROM ad_templates WHERE id = $1", [insertedTemplateId]);
+    } catch (error) {
+      console.warn("Warning: could not remove the temporary ad template:", error.message);
+    }
+  }
+
   try {
     await flushBrandAssetCache();
   } catch (error) {
@@ -236,7 +333,7 @@ async function cleanup() {
 try {
   await run();
 } catch (error) {
-  console.error("Draft ad preview warning regression failed.");
+  console.error("Ad render warning regression failed.");
   console.error(error);
   process.exitCode = 1;
 } finally {
