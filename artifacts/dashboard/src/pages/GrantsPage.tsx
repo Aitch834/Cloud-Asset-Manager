@@ -179,6 +179,7 @@ interface AgriEnvMilestone {
 
 const AE_PROJECT_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string }> = {
   applied:   { label: "Applied",   bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200" },
+  pending:   { label: "Pending",   bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
   active:    { label: "Active",    bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200" },
   completed: { label: "Completed", bg: "bg-teal-50",   text: "text-teal-700",   border: "border-teal-200" },
   suspended: { label: "Suspended", bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200" },
@@ -209,7 +210,7 @@ const AE_COMMON_BODIES = [
   "Local Authority",
 ];
 const AE_FIPL_THEMES    = ["Climate", "Nature", "People", "Place", "Multiple", "General / Other"];
-const AE_PROJECT_STATUSES = ["applied", "active", "completed", "suspended", "withdrawn"] as const;
+const AE_PROJECT_STATUSES = ["applied", "pending", "active", "completed", "suspended", "withdrawn"] as const;
 const AE_MILESTONE_STATUSES = ["pending", "completed", "submitted", "paid", "overdue"] as const;
 const AE_MILESTONE_FILTERS = ["all", ...AE_MILESTONE_STATUSES] as const;
 
