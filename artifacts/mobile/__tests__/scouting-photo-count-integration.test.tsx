@@ -210,10 +210,6 @@ jest.mock("../lib/scoutingLightboxHelpers", () => ({
     });
   }),
   scheduleScoutingPhotoAutoRetry: jest.fn(),
-  mergeRefreshedPhotoCaptions: jest.fn(
-    (refreshedPhotos: Array<{ id: number; caption: string | null }>) =>
-      refreshedPhotos,
-  ),
   updatePhotoCaption: jest.fn((photos: Array<{ id: number; [key: string]: unknown }>, photoId: number, caption: string | null) =>
     photos.map((photo: { id: number }) => photo.id === photoId ? { ...photo, caption } : photo),
   ),

@@ -33,7 +33,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
-import { fetchScoutingPhotoUrl } from "@/lib/scoutingPhotosApi";
+import {
+  executeScoutingPhotoSetCover,
+  fetchScoutingPhotoUrl,
+} from "@/lib/scoutingPhotosApi";
 import { SWIPE_THRESHOLD } from "@/lib/vineScoutingLightboxHelpers";
 import {
   getSwipeDirection,
@@ -1174,23 +1177,17 @@ export function ScoutingPhotoSection({
   }, [farmId, scoutingId]);
 
   const handleSetCover = async (photo: ScoutingPhoto) => {
-    try {
-      const res = await apiFetch(
-        `/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos/${photo.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isCover: true }),
-        },
-      );
-      if (res.ok) {
-        setPhotos((prev) => prev.map((p) => ({ ...p, isCover: p.id === photo.id })));
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Alert.alert("Error", "Could not set the cover photo. Please try again.");
-      }
-    } catch {
-      Alert.alert("Error", "Could not set the cover photo.");
+    const succeeded = await executeScoutingPhotoSetCover(
+      farmId,
+      scoutingId,
+      photo.id,
+      {
+        setPhotos,
+        showError: (message) => Alert.alert("Error", message),
+      },
+    );
+    if (succeeded) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 

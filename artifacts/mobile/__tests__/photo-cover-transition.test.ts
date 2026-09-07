@@ -29,6 +29,10 @@ const screenSources = [
   ...screen,
   source: fs.readFileSync(path.resolve(__dirname, screen.file), "utf8"),
 }));
+const scoutingPhotoApiSource = fs.readFileSync(
+  path.resolve(__dirname, "../lib/scoutingPhotosApi.ts"),
+  "utf8",
+);
 
 function promoteCover(photos: Photo[], promotedId: number): Photo[] {
   return photos.map((photo) => ({
@@ -54,14 +58,15 @@ describe("mobile photo cover transitions", () => {
     expect(photos.filter((photo) => photo.isCover)).toHaveLength(1);
   });
 
-  it.each(screenSources)(
-    "$name clears the previous cover when the server accepts the promotion",
-    ({ source }) => {
-      expect(source).toMatch(
-        /if \(res\.ok\) \{\s*setPhotos\(\(prev\) => prev\.map\(\(p\) => \(\{ \.\.\.p, isCover: p\.id === photo\.id \}\)\)\);/s,
-      );
-    },
-  );
+  it("scouting records use the shared cover request helper", () => {
+    expect(screenSources[0].source).toContain("executeScoutingPhotoSetCover");
+  });
+
+  it("the shared cover helper clears the previous cover after success", () => {
+    expect(scoutingPhotoApiSource).toMatch(
+      /callbacks\.setPhotos\(\(prev\) =>\s*prev\.map\(\(photo\) => \(\{ \.\.\.photo, isCover: photo\.id === Number\(photoId\) \}\)\),?\s*\);/s,
+    );
+  });
 
   it.each(screenSources)(
     "$name renders the star badge from current isCover state",
