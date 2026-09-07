@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { SmallRuminantPicker } from "@/components/ui/SmallRuminantPicker";
 import { colors } from "@/constants/colors";
@@ -23,6 +24,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiSheepFlocks } from "@/lib/hooks/useApiSheepFlocks";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 
 function todayDate(): string {
@@ -48,6 +50,7 @@ export default function SheepMilkRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm } = useFarm();
   const { refreshPendingCount } = useSync();
+  const sheepAlert = useDiseaseAlert("sheep");
   const { flocks, loading: flocksLoading, fromCache: flocksCached, error: flocksError } = useApiSheepFlocks(currentFarm?.id);
   const [saving, setSaving] = useState(false);
 
@@ -141,6 +144,7 @@ export default function SheepMilkRecordScreen() {
         <Text style={styles.headerTitle}>Sheep Milk Record</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={sheepAlert} sector="Sheep" />
 
       <ScrollView
         style={styles.scroll}

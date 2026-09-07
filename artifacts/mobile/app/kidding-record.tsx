@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
+import { DiseaseAlertBanner } from "@/components/ui/DiseaseAlertBanner";
 import { Input } from "@/components/ui/Input";
 import { SmallRuminantPicker } from "@/components/ui/SmallRuminantPicker";
 import { colors } from "@/constants/colors";
@@ -24,6 +25,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiGoatFlocks } from "@/lib/hooks/useApiGoatFlocks";
+import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
@@ -68,6 +70,7 @@ export default function KiddingRecordScreen() {
   const insets = useSafeAreaInsets();
   const { currentFarm, user } = useFarm();
   const { refreshPendingCount } = useSync();
+  const goatAlert = useDiseaseAlert("goat");
   const { print, savePdf } = usePrint();
   const { cphNumber, sbiNumber, loading: identifiersLoading, justSaved, clearJustSaved, refetch: refetchIdentifiers } = useFarmIdentifiers(currentFarm?.id);
   const missingIdentifiers = !identifiersLoading && (!cphNumber || !sbiNumber);
@@ -172,6 +175,7 @@ export default function KiddingRecordScreen() {
         <Text style={styles.headerTitle}>Kidding Record</Text>
         <View style={{ width: 36 }} />
       </View>
+      <DiseaseAlertBanner alert={goatAlert} sector="Goat" />
 
       <IdentifierBanner
         justSaved={justSaved && !identifiersLoading}
