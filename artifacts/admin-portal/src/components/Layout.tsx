@@ -44,6 +44,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     e.preventDefault();
     // Let any registered page guard confirm before navigating away.
     if (!checkNavGuard()) return;
+    // Clear the guard before the route change so an approved navigation cannot
+    // trigger a second prompt through a subsequent unload or route event.
+    setNavGuard(null);
     navigate(href);
   }
 

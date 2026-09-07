@@ -3,9 +3,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import AdPdfGenerator from "./AdPdfGenerator";
+import { Layout } from "@/components/Layout";
 import { setNavGuard } from "@/lib/nav-guard";
 
 vi.mock("@/lib/auth", () => ({ getSecret: () => "test-secret" }));
+
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock("wouter", () => ({
+  useLocation: () => ["/ad-pdf", mockNavigate],
+}));
 
 const TEMPLATE = {
   id: 1,
@@ -73,6 +79,19 @@ function renderPage() {
   );
 }
 
+function renderPortalPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Layout>
+        <AdPdfGenerator />
+      </Layout>
+    </QueryClientProvider>,
+  );
+}
+
 function dispatchBeforeUnload(): boolean {
   return window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
 }
@@ -88,6 +107,7 @@ async function openPresetEditor() {
 describe("AdPdfGenerator — preset edit navigation guard", () => {
   beforeEach(() => {
     setNavGuard(null);
+    mockNavigate.mockReset();
     vi.stubGlobal("fetch", makeFetch());
   });
 
@@ -153,5 +173,46 @@ describe("AdPdfGenerator — preset edit navigation guard", () => {
       expect(screen.queryByRole("button", { name: /Save changes/i })).toBeNull();
       expect(dispatchBeforeUnload()).toBe(true);
     });
+  });
+
+  it("keeps the dirty editor open when sidebar discard is cancelled, then navigates without a second prompt when accepted", async () => {
+    renderPortalPage();
+    await openPresetEditor();
+
+    fireEvent.change(screen.getByDisplayValue(PRESET.headline), {
+      target: { value: "Changed headline" },
+    });
+
+    const confirmSpy = vi.spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+
+    fireEvent.click(screen.getByRole("link", { name: "Dashboard" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Discard unsaved changes to this preset?");
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("Changed headline")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("link", { name: "Dashboard" }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(mockNavigate).toHaveBeenCalledWith("/");
+    expect(dispatchBeforeUnload()).toBe(true);
+  });
+
+  it("keeps the dirty editor open when browser Back is cancelled", async () => {
+    renderPage();
+    await openPresetEditor();
+
+    fireEvent.change(screen.getByDisplayValue(PRESET.headline), {
+      target: { value: "Changed headline" },
+    });
+
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    window.history.pushState(null, "", "/admin-portal/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    expect(window.location.pathname).toBe("/");
+    expect(screen.getByDisplayValue("Changed headline")).toBeDefined();
   });
 });
