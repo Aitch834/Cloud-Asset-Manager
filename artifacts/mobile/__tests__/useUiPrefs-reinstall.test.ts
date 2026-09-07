@@ -71,6 +71,9 @@ jest.mock("@/lib/apiFetch", () => ({
 const mockEffects: Array<() => unknown> = [];
 let mockSlotIdx = 0;
 const mockSlots: unknown[] = [];
+let mockAppState = "active";
+let mockAppStateChange: ((state: string) => void) | null = null;
+const mockAppStateRemove = jest.fn();
 
 /**
  * Called by the mocked useState setter.  Extracted here (outside the
@@ -107,7 +110,16 @@ jest.mock("react", () => ({
 // Misc mocks required by transitive imports
 // ---------------------------------------------------------------------------
 
-jest.mock("react-native", () => ({ Platform: { OS: "ios" } }));
+jest.mock("react-native", () => ({
+  Platform: { OS: "ios" },
+  AppState: {
+    get currentState() { return mockAppState; },
+    addEventListener: jest.fn((_event: string, listener: (state: string) => void) => {
+      mockAppStateChange = listener;
+      return { remove: mockAppStateRemove };
+    }),
+  },
+}));
 jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
 }));
@@ -163,9 +175,114 @@ beforeEach(() => {
   mockEffects.length = 0;
   mockSlots.length = 0;
   mockSlotIdx = 0;
+  mockAppState = "active";
+  mockAppStateChange = null;
 
   // Default: server returns empty prefs so tests that don't set this won't hang.
   mockApiFetch.mockResolvedValue(makeServerResponse({}));
+});
+
+describe("useUiPrefs — foreground retry of queued dismissals", () => {
+  function mountForegroundListener(uid: string): void {
+    useUiPrefs(uid);
+    // The mounted-state effect also owns the AppState listener.
+    mockEffects[0]?.();
+  }
+
+  it("PATCHes queued dismissals when the app returns to active", async () => {
+    const uid = nextUid();
+    asyncStore.set(`ui_prefs_pending_${uid}`, JSON.stringify({ offline_banner: true }));
+    mountForegroundListener(uid);
+
+    mockAppStateChange?.("background");
+    mockAppStateChange?.("active");
+    await drain();
+
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      "/api/account/ui-prefs",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ offline_banner: true }),
+      }),
+    );
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+  });
+
+  it("preserves the pending queue when the foreground PATCH fails", async () => {
+    const uid = nextUid();
+    asyncStore.set(`ui_prefs_pending_${uid}`, JSON.stringify({ offline_banner: true }));
+    mockApiFetch.mockResolvedValue({ ok: false });
+    mountForegroundListener(uid);
+
+    mockAppStateChange?.("inactive");
+    mockAppStateChange?.("active");
+    await drain();
+
+    expect(JSON.parse(asyncStore.get(`ui_prefs_pending_${uid}`)!)).toEqual({
+      offline_banner: true,
+    });
+  });
+
+  it("removes only the snapshot sent by the successful foreground attempt", async () => {
+    const uid = nextUid();
+    const pendingKey = `ui_prefs_pending_${uid}`;
+    asyncStore.set(pendingKey, JSON.stringify({ sent_banner: true }));
+    let resolvePatch!: (response: Partial<Response>) => void;
+    mockApiFetch.mockImplementation((_url, opts) => {
+      if (opts?.method === "PATCH") {
+        return new Promise((resolve) => { resolvePatch = resolve; });
+      }
+      return Promise.resolve(makeServerResponse({}));
+    });
+    mountForegroundListener(uid);
+
+    mockAppStateChange?.("background");
+    mockAppStateChange?.("active");
+    await drain(4);
+    asyncStore.set(
+      pendingKey,
+      JSON.stringify({ sent_banner: true, newer_banner: true }),
+    );
+    resolvePatch({ ok: true });
+    await drain();
+
+    expect(JSON.parse(asyncStore.get(pendingKey)!)).toEqual({
+      newer_banner: true,
+    });
+  });
+
+  it("finishes an older foreground retry before sending a newer false value", async () => {
+    const uid = nextUid();
+    const key = "offline_banner";
+    asyncStore.set(`ui_prefs_pending_${uid}`, JSON.stringify({ [key]: true }));
+    const patchBodies: PrefsMap[] = [];
+    let resolveForegroundPatch!: (response: Partial<Response>) => void;
+    mockApiFetch.mockImplementation((_url, opts) => {
+      if (opts?.method !== "PATCH") return Promise.resolve(makeServerResponse({}));
+      patchBodies.push(JSON.parse(opts.body as string) as PrefsMap);
+      if (patchBodies.length === 1) {
+        return new Promise((resolve) => { resolveForegroundPatch = resolve; });
+      }
+      return Promise.resolve({ ok: true });
+    });
+
+    const { setPref } = useUiPrefs(uid);
+    mockEffects[0]?.();
+    mockAppStateChange?.("background");
+    mockAppStateChange?.("active");
+    await drain(4);
+
+    setPref(key, false);
+    await drain(4);
+    // The newer PATCH must wait; otherwise the delayed true retry could finish
+    // last and overwrite false on the server.
+    expect(patchBodies).toEqual([{ [key]: true }]);
+
+    resolveForegroundPatch({ ok: true });
+    await drain();
+    expect(patchBodies).toEqual([{ [key]: true }, { [key]: false }]);
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+  });
 });
 
 // ===========================================================================

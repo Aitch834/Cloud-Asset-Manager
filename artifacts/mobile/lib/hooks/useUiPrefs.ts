@@ -40,6 +40,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { apiFetch } from "@/lib/apiFetch";
 
 type PrefsMap = Record<string, boolean>;
@@ -121,6 +122,7 @@ interface UserSingleton {
    * pending-queue entries.
    */
   writeQueue: Promise<void>;
+  foregroundFlushPromise: Promise<void> | null;
 }
 
 const singletons = new Map<string, UserSingleton>();
@@ -133,6 +135,7 @@ function getSingleton(uid: string): UserSingleton {
       fetchPromise: null,
       listeners: [],
       writeQueue: Promise.resolve(),
+      foregroundFlushPromise: null,
     });
   }
   return singletons.get(uid)!;
@@ -159,6 +162,37 @@ function enqueueWrite<T>(uid: string, work: () => Promise<T>): Promise<T> {
     () => { /* settled — error handled by caller */ },
   );
   return result;
+}
+
+/**
+ * Retry the current pending snapshot once, de-duplicated across every mounted
+ * useUiPrefs instance for the same user.
+ */
+function flushPendingOnForeground(uid: string): Promise<void> {
+  const s = getSingleton(uid);
+  if (s.foregroundFlushPromise) return s.foregroundFlushPromise;
+
+  s.foregroundFlushPromise = enqueueWrite(uid, async () => {
+    // Keep the foreground PATCH in the same ordering domain as setPref so an
+    // older retry can never reach the server after a newer preference value.
+    const sent = await loadPending(uid);
+    if (Object.keys(sent).length === 0) return;
+
+    const ok = await patchServerPrefs(sent);
+    if (!ok) return;
+
+    const afterFlush = await loadPending(uid);
+    const remaining: PrefsMap = {};
+    for (const [key, value] of Object.entries(afterFlush)) {
+      // A newer value for the same key is a new queue entry and must survive.
+      if (!(key in sent) || sent[key] !== value) remaining[key] = value;
+    }
+    await savePending(uid, remaining);
+  }).finally(() => {
+    s.foregroundFlushPromise = null;
+  });
+
+  return s.foregroundFlushPromise;
 }
 
 function setUserState(uid: string, prefs: PrefsMap, ready: boolean): void {
@@ -217,8 +251,22 @@ export function useUiPrefs(userId: string | null | undefined) {
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
+    let previousState: AppStateStatus = AppState.currentState;
+    const subscription = userId
+      ? AppState.addEventListener("change", (nextState) => {
+          const returnedToForeground =
+            nextState === "active" && previousState !== "active";
+          previousState = nextState;
+          if (returnedToForeground) {
+            void flushPendingOnForeground(userId);
+          }
+        })
+      : null;
+    return () => {
+      mounted.current = false;
+      subscription?.remove();
+    };
+  }, [userId]);
 
   // Subscribe to singleton updates so other instances' writes are reflected.
   useEffect(() => {
