@@ -7,7 +7,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
 import { printElementReport } from "@/lib/print-report";
-import { AGRI_ENV_GRANT_CSV_HEADERS, buildAgriEnvProjectCsvRows } from "@/lib/business-reports-csv";
+import {
+  AGRI_ENV_GRANT_CSV_HEADERS,
+  PL_CSV_HEADERS,
+  buildAgriEnvProjectCsvRows,
+  buildPlAgriEnvProjectCsvRows,
+} from "@/lib/business-reports-csv";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -555,24 +560,12 @@ function PLTab({ farmId, year, onRegisterExport }: { farmId: number; year: numbe
   useEffect(() => {
     onRegisterExport(() => {
       const rows: (string | number | null | undefined)[][] = [
-        ["Line Item", "Claimed this year", "Total grant value", "All-time claimed", "Remaining grant value", "Note"],
+        [...PL_CSV_HEADERS],
         ["INCOME", "", "", "", "", ""],
         ...INCOME_CATS.filter(c => incomeValues[c] > 0).map(c => [c, fmt(incomeValues[c]), "", "", "", ""]),
         ...(agriEnvYearTotal > 0 ? [
           ["Agri-environment schemes (milestone claims)", fmt(agriEnvYearTotal), "", "", "", `${agriEnvActiveProjects.length} project(s) with claims in ${year}${hasDoubleCountRisk ? " — WARNING: also recorded as financial transaction" : ""}`],
-          ...agriEnvActiveProjects.map((p: any) => {
-            const remaining = p.totalGrantValuePence != null
-              ? (p.totalGrantValuePence ?? 0) - (p.allTimeClaimedPence ?? 0)
-              : null;
-            return [
-              `  ↳ ${p.schemeName}`,
-              fmt(p.yearClaimedPence),
-              p.totalGrantValuePence != null ? fmt(p.totalGrantValuePence) : "—",
-              p.allTimeClaimedPence != null ? fmt(p.allTimeClaimedPence) : "—",
-              remaining != null ? fmt(remaining) : "—",
-              "",
-            ];
-          }),
+          ...buildPlAgriEnvProjectCsvRows(agriEnvActiveProjects),
         ] : []),
         ["Total Farm Output", fmt(totalOutput), "", "", "", ""],
         [],

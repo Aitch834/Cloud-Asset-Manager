@@ -5,6 +5,12 @@ export const AGRI_ENV_GRANT_CSV_HEADERS = [
   "Remaining grant value",
 ] as const;
 
+export const PL_CSV_HEADERS = [
+  "Line Item",
+  ...AGRI_ENV_GRANT_CSV_HEADERS,
+  "Note",
+] as const;
+
 interface AgriEnvProjectForCsv {
   schemeName?: string | null;
   yearClaimedPence?: number | null;
@@ -36,4 +42,10 @@ export function buildAgriEnvProjectCsvRows(
       remaining != null ? formatPence(remaining) : "—",
     ];
   });
+}
+
+export function buildPlAgriEnvProjectCsvRows(
+  projects: AgriEnvProjectForCsv[],
+): (string | number)[][] {
+  return buildAgriEnvProjectCsvRows(projects).map((row) => [...row, ""]);
 }
