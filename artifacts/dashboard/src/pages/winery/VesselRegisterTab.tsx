@@ -36,6 +36,102 @@ function fillOakLabel(fillNumber: number): { label: string; cls: string } {
   return { label: `${fillNumber}th fill – neutral`, cls: "bg-gray-100 text-gray-600" };
 }
 
+export type BarrelHealthRecord = Record<string, unknown>;
+
+export type BarrelHealthColumn = {
+  key: string;
+  label: string;
+  fmt: (record: BarrelHealthRecord) => string;
+};
+
+export const BARREL_HEALTH_PRINT_HEADERS = [
+  "Vessel Ref",
+  "Type",
+  "Cellar Zone",
+  "Fill No.",
+  "Fill Count",
+  "Fill Tier",
+  "Is Full",
+  "Empty Since",
+  "Idle Days",
+  "Last Activity",
+  "Approaching Neutral",
+  "Retirement Warning",
+  "Last Clean Date",
+];
+
+function barrelHealthDaysSince(dateStr: unknown): number | null {
+  if (!dateStr) return null;
+  const date = new Date(String(dateStr));
+  if (isNaN(date.getTime())) return null;
+  return Math.floor((Date.now() - date.getTime()) / 86400000);
+}
+
+export function buildBarrelHealthColumns(approachingNeutralFills: number): BarrelHealthColumn[] {
+  return [
+    { key: "vessel_ref", label: "Vessel Ref", fmt: record => String(record.vessel_ref ?? "") },
+    { key: "vessel_type", label: "Vessel Type", fmt: record => String(record.vessel_type ?? "") },
+    { key: "cellar_zone", label: "Cellar Zone", fmt: record => String(record.cellar_zone ?? "") },
+    { key: "fill_number", label: "Fill Number", fmt: record => record.fill_number != null ? String(record.fill_number) : "" },
+    { key: "fill_count", label: "Fill Count", fmt: record => String(Number(record.fill_count ?? 0)) },
+    {
+      key: "_fill_tier",
+      label: "Fill Tier",
+      fmt: record => {
+        if (Number(record.fill_count ?? 0) === 0) {
+          return Number(record.maintenance_count ?? 0) > 0 ? "No fills — cooperage only" : "No records at all";
+        }
+        return fillOakLabel(Number(record.fill_number)).label;
+      },
+    },
+    { key: "is_full", label: "Is Full", fmt: record => record.is_full ? "Yes" : "No" },
+    { key: "empty_since", label: "Empty Since", fmt: record => record.empty_since ? fmtDate(record.empty_since) : "" },
+    {
+      key: "_idle_days",
+      label: "Idle Days",
+      fmt: record => {
+        const days = barrelHealthDaysSince(record.empty_since);
+        return !record.is_full && days !== null ? String(days) : "";
+      },
+    },
+    {
+      key: "_approaching_neutral",
+      label: "Approaching Neutral",
+      fmt: record => Number(record.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
+    },
+    { key: "last_activity", label: "Last Activity", fmt: record => record.last_activity ? fmtDate(record.last_activity) : "Never" },
+  ];
+}
+
+export function buildBarrelHealthPrintRows(
+  exportBarrels: BarrelHealthRecord[],
+  approachingNeutralFills: number,
+  retirementThresholdPence: number,
+  maintenanceTotals: Map<number, number>,
+): string[][] {
+  return exportBarrels.map(record => {
+    const idleDays = !record.is_full && barrelHealthDaysSince(record.empty_since) !== null
+      ? String(barrelHealthDaysSince(record.empty_since))
+      : "—";
+    const retirementWarning = (maintenanceTotals.get(Number(record.id)) ?? 0) > retirementThresholdPence ? "Yes" : "No";
+    return [
+      String(record.vessel_ref ?? ""),
+      String(record.vessel_type ?? ""),
+      String(record.cellar_zone ?? ""),
+      record.fill_number != null ? String(record.fill_number) : "—",
+      String(Number(record.fill_count ?? 0)),
+      buildBarrelHealthColumns(approachingNeutralFills)[5].fmt(record),
+      record.is_full ? "Yes" : "No",
+      record.empty_since ? fmtDate(record.empty_since) : "—",
+      idleDays,
+      record.last_activity ? fmtDate(record.last_activity) : "Never",
+      Number(record.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
+      retirementWarning,
+      fmtDate(record.last_cleaned_date),
+    ];
+  });
+}
+
 function durationLabel(fillDate: unknown, rackOutDate: unknown): string {
   const start = fillDate ? new Date(String(fillDate)) : null;
   if (!start || isNaN(start.getTime())) return "—";
@@ -1528,14 +1624,6 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
   // Barrel health CSV export loading state
   const [csvExporting, setCsvExporting] = useState(false);
 
-  // Helper: days since a date string
-  function daysSince(dateStr: unknown): number | null {
-    if (!dateStr) return null;
-    const d = new Date(String(dateStr));
-    if (isNaN(d.getTime())) return null;
-    return Math.floor((Date.now() - d.getTime()) / 86400000);
-  }
-
   // Barrel health stats derived from vessel data (fill_number kept in sync by API)
   const barrelStats = useMemo(() => {
     const tier: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5plus": 0 };
@@ -1562,7 +1650,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
       // Idle: no open fill (is_full=false) AND empty for longer than the farm threshold
       const isEmpty = !r.is_full;
       if (isEmpty) {
-        const since = daysSince(r.empty_since);
+        const since = barrelHealthDaysSince(r.empty_since);
         if (since !== null && since > idleBarrelDays) idle++;
       }
       if (Number(r.clean_count ?? 0) === 0) neverCleaned++;
@@ -1588,7 +1676,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (!alertFlagFilter) return true;
     const fill = Number(r.fill_number ?? 0);
     const isEmpty = !r.is_full;
-    const since = daysSince(r.empty_since);
+    const since = barrelHealthDaysSince(r.empty_since);
     if (alertFlagFilter === "approaching-neutral") return fill >= approachingNeutralFills;
     if (alertFlagFilter === "idle") return isEmpty && since !== null && since > idleBarrelDays;
     if (alertFlagFilter === "no-fills") return Number(r.fill_count ?? 0) === 0;
@@ -1732,24 +1820,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
             else if (alertFlagFilter === "retirement-risk") scopeParts.push(`Flag: retirement risk (maintenance spend > £${(retirementThresholdPence / 100).toFixed(0)})`);
             if (isFullFilter === "true") scopeParts.push("Is Full: Yes");
             else if (isFullFilter === "false") scopeParts.push("Is Full: No (empty)");
-            const barrelHealthCols: { key: string; label: string; fmt: (r: Record<string, unknown>) => string }[] = [
-              { key: "vessel_ref", label: "Vessel Ref", fmt: r => String(r.vessel_ref ?? "") },
-              { key: "vessel_type", label: "Vessel Type", fmt: r => String(r.vessel_type ?? "") },
-              { key: "cellar_zone", label: "Cellar Zone", fmt: r => String(r.cellar_zone ?? "") },
-              { key: "fill_number", label: "Fill Number", fmt: r => r.fill_number != null ? String(r.fill_number) : "" },
-              { key: "fill_count", label: "Fill Count", fmt: r => String(Number(r.fill_count ?? 0)) },
-              { key: "_fill_tier", label: "Fill Tier", fmt: r => {
-                if (Number(r.fill_count ?? 0) === 0) {
-                  return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
-                }
-                return fillOakLabel(Number(r.fill_number)).label;
-              } },
-              { key: "is_full", label: "Is Full", fmt: r => r.is_full ? "Yes" : "No" },
-              { key: "empty_since", label: "Empty Since", fmt: r => r.empty_since ? fmtDate(r.empty_since) : "" },
-              { key: "_idle_days", label: "Idle Days", fmt: r => { const d = daysSince(r.empty_since); return !r.is_full && d !== null ? String(d) : ""; } },
-              { key: "_approaching_neutral", label: "Approaching Neutral", fmt: r => Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No" },
-              { key: "last_activity", label: "Last Activity", fmt: r => r.last_activity ? fmtDate(r.last_activity) : "Never" },
-            ];
+            const barrelHealthCols = buildBarrelHealthColumns(approachingNeutralFills);
             const handlePrint = async () => {
               const scope = `Active barrels${scopeParts.length ? " \u2014 " + scopeParts.join(", ") : " (all)"}`;
               const win = window.open("", "_blank");
@@ -1765,31 +1836,8 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                   maintMap.set(vesselId, (maintMap.get(vesselId) ?? 0) + Number(row.total_pence ?? 0));
                 }
 
-                const headers = ["Vessel Ref", "Type", "Cellar Zone", "Fill No.", "Fill Count", "Fill Tier", "Is Full", "Empty Since", "Idle Days", "Last Activity", "Approaching Neutral", "Retirement Warning", "Last Clean Date"];
-                const rows = exportBarrels.map(r => {
-                  const idleDays = !r.is_full && daysSince(r.empty_since) !== null ? String(daysSince(r.empty_since)) : "\u2014";
-                  const retirementWarning = (maintMap.get(Number(r.id)) ?? 0) > retirementThresholdPence ? "Yes" : "No";
-                  return [
-                    String(r.vessel_ref ?? ""),
-                    String(r.vessel_type ?? ""),
-                    String(r.cellar_zone ?? ""),
-                    r.fill_number != null ? String(r.fill_number) : "\u2014",
-                    String(Number(r.fill_count ?? 0)),
-                    (() => {
-                      if (Number(r.fill_count ?? 0) === 0) {
-                        return Number(r.maintenance_count ?? 0) > 0 ? "No fills \u2014 cooperage only" : "No records at all";
-                      }
-                      return fillOakLabel(Number(r.fill_number)).label;
-                    })(),
-                    r.is_full ? "Yes" : "No",
-                    r.empty_since ? fmtDate(r.empty_since) : "\u2014",
-                    idleDays,
-                    r.last_activity ? fmtDate(r.last_activity) : "Never",
-                    Number(r.fill_number ?? 0) >= approachingNeutralFills ? "Yes" : "No",
-                    retirementWarning,
-                    fmtDate(r.last_cleaned_date),
-                  ];
-                });
+                const headers = BARREL_HEALTH_PRINT_HEADERS;
+                const rows = buildBarrelHealthPrintRows(exportBarrels, approachingNeutralFills, retirementThresholdPence, maintMap);
 
                 const doc = win.document;
 
@@ -2284,7 +2332,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
                       <div>{fmt(r.vessel_type)}</div>
                       {isBarrelRow && (() => {
                         const fill = Number(r.fill_number ?? 0);
-                        const isIdle = !r.is_full && (() => { const d = daysSince(r.empty_since); return d !== null && d > idleBarrelDays; })();
+                        const isIdle = !r.is_full && (() => { const d = barrelHealthDaysSince(r.empty_since); return d !== null && d > idleBarrelDays; })();
                         const isApproaching = fill >= approachingNeutralFills;
                         return (
                           <div className="flex flex-wrap items-center gap-1 mt-0.5">
