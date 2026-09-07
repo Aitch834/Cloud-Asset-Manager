@@ -319,4 +319,64 @@ describe("AdPdfGenerator — preset overwrite refresh", () => {
       });
     });
   });
+
+  it("clears typo confirmation when copy is corrected and saves only the corrected token", async () => {
+    const { fetchSpy, getCurrentPreset } = makeStatefulFetch();
+    vi.stubGlobal("fetch", fetchSpy);
+    renderPage();
+
+    await screen.findByRole("option", { name: /Test Template/i });
+    fireEvent.click(screen.getByText("Customise copy & colour"));
+
+    const headlineInput = await screen.findByPlaceholderText(/Your vineyard/);
+    fireEvent.change(headlineInput, {
+      target: { value: "Your {{ headline }}." },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Vine register, phenology/), {
+      target: { value: "Body copy" },
+    });
+    const presetNameInput = screen.getByPlaceholderText("Preset name, e.g. Harvest 2026");
+    fireEvent.change(presetNameInput, {
+      target: { value: "Corrected placeholder preset" },
+    });
+
+    clickPresetSave();
+    await screen.findByText("Confirm save with typo placeholder");
+
+    fireEvent.change(headlineInput, {
+      target: { value: "Your {{headline}}." },
+    });
+
+    expect(screen.queryByText("Confirm save with typo placeholder")).toBeNull();
+    const saveButton = presetNameInput.parentElement?.querySelector("button");
+    expect(saveButton).not.toBeNull();
+    expect((saveButton as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(saveButton as HTMLButtonElement);
+
+    await waitFor(() => {
+      expect(getCurrentPreset()).toMatchObject({
+        name: "Corrected placeholder preset",
+        headline: "Your {{headline}}.",
+        body: "Body copy",
+      });
+    });
+
+    const presetPost = fetchSpy.mock.calls.find(([input, init]) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url;
+      return url.includes("ad-copy-presets") && init?.method === "POST";
+    });
+    expect(presetPost).toBeDefined();
+
+    const payload = JSON.parse(String(presetPost?.[1]?.body)) as {
+      headline: string;
+    };
+    expect(payload.headline).toBe("Your {{headline}}.");
+    expect(payload.headline).not.toContain("{{ headline }}");
+  });
 });
