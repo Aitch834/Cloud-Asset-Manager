@@ -46,6 +46,7 @@ try {
   const missingBrowser = runGenerator({
     CHROMIUM_PATH: path.join(tempDir, "missing-configured-chromium"),
     LEAFLET_PDF_KNOWN_CHROMIUM_PATH: path.join(tempDir, "missing-known-chromium"),
+    LEAFLET_SKIP_PLAYWRIGHT_BROWSER_PATH: "1",
   });
 
   assert.equal(missingBrowser.status, 0, missingBrowser.stderr);

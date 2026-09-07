@@ -9,6 +9,7 @@
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
+import { loadLeafletBrowserRuntime } from "./leaflet-browser-runtime.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const leafletsDir = path.resolve(__dirname, "../public/leaflets");
@@ -24,29 +25,8 @@ const LEAFLETS = [
   "contracting-v7",
 ];
 
-async function loadChromium() {
-  try {
-    const { chromium } = await import("playwright-core");
-    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
-    if (!executablePath || !fs.existsSync(executablePath)) {
-      console.warn(
-        "⚠  Leaflet preview generation skipped: Playwright Chromium is not installed.\n" +
-          "   Existing preview images remain in place.",
-      );
-      return null;
-    }
-    return { chromium, executablePath };
-  } catch {
-    console.warn(
-      "⚠  Leaflet preview generation skipped: playwright-core is not installed.\n" +
-        "   Existing preview images remain in place.",
-    );
-    return null;
-  }
-}
-
 async function main() {
-  const browserRuntime = await loadChromium();
+  const browserRuntime = await loadLeafletBrowserRuntime("preview");
   if (!browserRuntime) return;
 
   fs.mkdirSync(imagesDir, { recursive: true });

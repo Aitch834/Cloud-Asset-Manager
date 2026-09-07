@@ -11,12 +11,11 @@
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
 import fs from "fs";
+import { loadLeafletBrowserRuntime } from "./leaflet-browser-runtime.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const leafletsDir = path.resolve(__dirname, "../public/leaflets");
 const imagesDir = path.join(leafletsDir, "img");
-const projectChromiumPath =
-  "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
 
 function findLatestLeaflets() {
   const latestBySector = new Map();
@@ -38,39 +37,13 @@ function findLatestLeaflets() {
     .map(([sector, { filename, version }]) => ({ sector, filename, version }));
 }
 
-async function loadChromium() {
-  try {
-    const { chromium } = await import("playwright-core");
-    const executablePath = [
-      process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-      process.env.CHROMIUM_PATH,
-      chromium.executablePath(),
-      projectChromiumPath,
-    ].find((candidate) => candidate && fs.existsSync(candidate));
-    if (!executablePath) {
-      console.warn(
-        "⚠  Leaflet thumbnail generation skipped: Playwright Chromium is not installed.\n" +
-          "   Existing thumbnail images remain in place.",
-      );
-      return null;
-    }
-    return { chromium, executablePath };
-  } catch {
-    console.warn(
-      "⚠  Leaflet thumbnail generation skipped: playwright-core is not installed.\n" +
-        "   Existing thumbnail images remain in place.",
-    );
-    return null;
-  }
-}
-
 async function main() {
   const leaflets = findLatestLeaflets();
   if (leaflets.length === 0) {
     throw new Error(`No versioned leaflet HTML files found in ${leafletsDir}`);
   }
 
-  const browserRuntime = await loadChromium();
+  const browserRuntime = await loadLeafletBrowserRuntime("thumbnail");
   if (!browserRuntime) return;
 
   fs.mkdirSync(imagesDir, { recursive: true });

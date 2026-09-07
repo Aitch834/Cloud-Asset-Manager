@@ -5,12 +5,10 @@
  * Output: artifacts/website/public/leaflets/<name>-v7.pdf
  */
 
-import pkg from "/home/runner/workspace/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/index.js";
-const { chromium } = pkg;
-import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
+import { loadLeafletBrowserRuntime } from "./leaflet-browser-runtime.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const leafletsDir = path.resolve(__dirname, "../public/leaflets");
@@ -24,57 +22,13 @@ const LEAFLETS = [
   "contracting-v7",
 ];
 
-const KNOWN_CHROMIUM_PATH =
-  process.env.LEAFLET_PDF_KNOWN_CHROMIUM_PATH ??
-  "/nix/store/0n9rl5l9syy808xi9bk4f6dhnfrvhkww-playwright-browsers-chromium/chromium-1080/chrome-linux/chrome";
-
-function findChromiumPath() {
-  const configuredPath = process.env.CHROMIUM_PATH?.trim();
-  if (configuredPath && fs.existsSync(configuredPath)) {
-    return configuredPath;
-  }
-
-  for (const command of [
-    "chromium",
-    "chromium-browser",
-    "google-chrome",
-    "google-chrome-stable",
-  ]) {
-    try {
-      const discoveredPath = execFileSync("which", [command], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }).trim();
-
-      if (discoveredPath && fs.existsSync(discoveredPath)) {
-        return discoveredPath;
-      }
-    } catch {
-      // This command is not installed; try the next known browser name.
-    }
-  }
-
-  if (fs.existsSync(KNOWN_CHROMIUM_PATH)) {
-    return KNOWN_CHROMIUM_PATH;
-  }
-
-  return null;
-}
-
 async function main() {
-  const chromiumPath = findChromiumPath();
-  if (!chromiumPath) {
-    console.warn(
-      "⚠  Leaflet PDF generation skipped: Chromium was not found in the " +
-        "configured path, PATH, or the known Nix location.\n" +
-        "   Pre-generated PDFs in the repo remain in place."
-    );
-    return;
-  }
+  const browserRuntime = await loadLeafletBrowserRuntime("PDF");
+  if (!browserRuntime) return;
 
-  console.log(`Launching Chromium from ${chromiumPath}...`);
-  const browser = await chromium.launch({
-    executablePath: chromiumPath,
+  console.log(`Launching Chromium from ${browserRuntime.executablePath}...`);
+  const browser = await browserRuntime.chromium.launch({
+    executablePath: browserRuntime.executablePath,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
