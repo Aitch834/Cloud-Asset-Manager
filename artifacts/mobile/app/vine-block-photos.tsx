@@ -487,7 +487,7 @@ interface LightboxProps {
   reloading?: boolean;
 }
 
-function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload, onSetCover, reloading = false }: LightboxProps) {
+export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete, onReorder, onEditCaption, onReload, onSetCover, reloading = false }: LightboxProps) {
   const insets = useSafeAreaInsets();
   const { user } = useFarm();
 
