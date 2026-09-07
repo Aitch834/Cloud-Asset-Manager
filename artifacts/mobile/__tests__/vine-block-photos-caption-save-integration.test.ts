@@ -26,6 +26,146 @@ jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock("react-native", () => {
+  const React = require("react");
+  const host = (name: string) =>
+    React.forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<unknown>) =>
+        React.createElement(name, { ...props, ref }, props.children),
+    );
+  const View = host("View");
+  const Modal = ({ visible, children, ...props }: Record<string, unknown>) =>
+    visible ? React.createElement("Modal", props, children) : null;
+  const FlatList = ({
+    data,
+    renderItem,
+    ListHeaderComponent,
+    ListFooterComponent,
+    ListEmptyComponent,
+    ...props
+  }: {
+    data: unknown[];
+    renderItem: (info: { item: unknown; index: number }) => React.ReactNode;
+    ListHeaderComponent?: React.ReactNode;
+    ListFooterComponent?: React.ReactNode;
+    ListEmptyComponent?: React.ReactNode;
+    [key: string]: unknown;
+  }) =>
+    React.createElement(
+      View,
+      props,
+      ListHeaderComponent,
+      data.length
+        ? data.map((item, index) =>
+            React.createElement(React.Fragment, { key: index }, renderItem({ item, index })),
+          )
+        : ListEmptyComponent,
+      data.length ? ListFooterComponent : null,
+    );
+  return {
+    ActivityIndicator: host("ActivityIndicator"),
+    Alert: { alert: jest.fn(), prompt: jest.fn() },
+    Dimensions: { get: () => ({ width: 390, height: 844 }) },
+    FlatList,
+    Image: host("Image"),
+    KeyboardAvoidingView: host("KeyboardAvoidingView"),
+    Modal,
+    Platform: { OS: "android" },
+    Pressable: host("Pressable"),
+    ScrollView: host("ScrollView"),
+    StyleSheet: {
+      create: (styles: Record<string, unknown>) => styles,
+      flatten: (style: unknown) =>
+        Array.isArray(style)
+          ? style.reduce((merged, item) => ({ ...merged, ...(item ?? {}) }), {})
+          : (style ?? {}),
+    },
+    Text: host("Text"),
+    TextInput: host("TextInput"),
+    View,
+  };
+});
+jest.mock("expo-file-system/legacy", () => ({
+  cacheDirectory: "file:///cache/",
+  downloadAsync: jest.fn(),
+}));
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Medium: "medium" },
+  NotificationFeedbackType: { Success: "success" },
+}));
+jest.mock("expo-image-picker", () => ({}));
+jest.mock("expo-media-library", () => ({}));
+jest.mock("expo-sharing", () => ({}));
+jest.mock("expo-router", () => ({
+  router: { back: jest.fn(), push: jest.fn() },
+  useFocusEffect: jest.fn(),
+}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const gesture = () => {
+    const chain = {
+      activateAfterLongPress: () => chain,
+      minDuration: () => chain,
+      numberOfTaps: () => chain,
+      onBegin: () => chain,
+      onEnd: () => chain,
+      onFinalize: () => chain,
+      onStart: () => chain,
+      onUpdate: () => chain,
+    };
+    return chain;
+  };
+  return {
+    Gesture: {
+      Pan: gesture,
+      Pinch: gesture,
+      Tap: gesture,
+      LongPress: gesture,
+      Simultaneous: (...gestures: unknown[]) => gestures[0],
+      Race: (...gestures: unknown[]) => gestures[0],
+    },
+    GestureDetector: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(ReactNative.View, null, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
+jest.mock("react-native-reanimated", () => {
+  const ReactNative = require("react-native");
+  return {
+    default: { View: ReactNative.View },
+    runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
+    useAnimatedStyle: (fn: () => unknown) => fn(),
+    useSharedValue: (value: unknown) => ({ value }),
+    withSpring: (value: unknown) => value,
+    withTiming: (value: unknown) => value,
+  };
+});
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  return {
+    Feather: ({ name, ...props }: { name: string; [key: string]: unknown }) =>
+      React.createElement(ReactNative.Text, props, name),
+  };
+});
+jest.mock("../lib/context/FarmContext", () => ({ useFarm: jest.fn() }));
+jest.mock("../lib/hooks/useApiVineBlocks", () => ({
+  useApiVineBlocks: jest.fn(),
+  setCachedBlockCoverUrl: jest.fn(),
+}));
+jest.mock("../lib/hooks/useFarmIdentifiers", () => ({ useFarmIdentifiers: jest.fn() }));
+jest.mock("../lib/hooks/useUiPrefs", () => ({ useUiPrefs: jest.fn() }));
+jest.mock("../lib/uploadPhoto", () => ({
+  uploadPhotoToStorage: jest.fn(),
+  getApiBase: jest.fn(),
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { apiFetch } = require("../lib/apiFetch") as {
   apiFetch: jest.MockedFunction<() => Promise<Response>>;
@@ -36,6 +176,23 @@ import {
   CAPTION_SAVE_ERROR_MESSAGE,
   handleCaptionSaveFailure,
 } from "../lib/vineBlockPhotosHelpers";
+import React from "react";
+import { Alert } from "react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import VineBlockPhotosScreen from "../app/vine-block-photos";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useFarm } = require("../lib/context/FarmContext") as { useFarm: jest.Mock };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useApiVineBlocks } = require("../lib/hooks/useApiVineBlocks") as {
+  useApiVineBlocks: jest.Mock;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useFarmIdentifiers } = require("../lib/hooks/useFarmIdentifiers") as {
+  useFarmIdentifiers: jest.Mock;
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useUiPrefs } = require("../lib/hooks/useUiPrefs") as { useUiPrefs: jest.Mock };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,6 +221,7 @@ const EXPECTED_URL = `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos/$
 
 beforeEach(() => {
   (apiFetch as jest.MockedFunction<typeof apiFetch>).mockReset();
+  jest.clearAllMocks();
 });
 
 // ===========================================================================
@@ -210,5 +368,98 @@ describe("handleCaptionSaveFailure — platform feedback", () => {
 
     expect(setInlineError).toHaveBeenCalledWith(CAPTION_SAVE_ERROR_MESSAGE);
     expect(showAlert).not.toHaveBeenCalled();
+  });
+});
+
+describe("VineBlockPhotosScreen — rendered Android caption failure", () => {
+  it("keeps the sheet open with an inline error, then clears it and closes after retry", async () => {
+    useFarm.mockReturnValue({
+      currentFarm: { id: FARM_ID, name: "Test Farm" },
+      user: { id: "test-user" },
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [{
+        id: BLOCK_ID,
+        blockName: "North Block",
+        blockRef: null,
+        fieldParcelRef: null,
+        variety: "Chardonnay",
+        rootstock: null,
+        areaHa: 1.2,
+        numberOfVines: 1000,
+        plantingStatus: "active",
+        isActive: true,
+        isOrganicBlock: false,
+        coverPhotoUrl: null,
+        photoCount: 1,
+      }],
+      loading: false,
+    });
+    useFarmIdentifiers.mockReturnValue({ address: "Test Farm Lane", loading: false });
+    useUiPrefs.mockReturnValue({
+      prefsReady: true,
+      prefs: {},
+      setPref: jest.fn(),
+      isHintDismissed: () => true,
+      dismissHint: jest.fn(),
+    });
+
+    let captionPatchAttempts = 0;
+    (apiFetch as jest.MockedFunction<typeof apiFetch>).mockImplementation(
+      async (url, options) => {
+        if (options?.method === "PATCH" && url === EXPECTED_URL) {
+          captionPatchAttempts++;
+          return captionPatchAttempts === 1
+            ? errorResponse(500)
+            : okResponse({ id: PHOTO_ID, caption: "New caption" });
+        }
+        return okResponse({
+        photos: [{
+          id: PHOTO_ID,
+          blockId: BLOCK_ID,
+          farmId: FARM_ID,
+          objectPath: "vineyard/block-7/photo-101.jpg",
+          fileName: "photo-101.jpg",
+          caption: "Old caption",
+          isCover: true,
+          uploadedAt: "2025-06-01T10:00:00Z",
+          downloadUrl: "https://cdn.example.com/photo-101.jpg",
+        }],
+        });
+      },
+    );
+
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.find((button) => button.text === "Edit Caption")?.onPress?.();
+    });
+
+    const screen = render(React.createElement(VineBlockPhotosScreen));
+    fireEvent.press(screen.getByText("North Block"));
+    const thumbnail = await screen.findByTestId(`vine-block-photo-${PHOTO_ID}`);
+    fireEvent(thumbnail, "longPress");
+    fireEvent(thumbnail, "pressOut");
+
+    const input = await screen.findByPlaceholderText("e.g. Post-harvest Oct 2025");
+    fireEvent.changeText(input, "New caption");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Save"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(CAPTION_SAVE_ERROR_MESSAGE)).toBeTruthy();
+      expect(screen.getByText("Edit Caption")).toBeTruthy();
+      expect(screen.getByText("Save").parent?.props.disabled).not.toBe(true);
+      expect(captionPatchAttempts).toBe(1);
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Save"));
+    });
+
+    await waitFor(() => {
+      expect(captionPatchAttempts).toBe(2);
+      expect(screen.queryByText(CAPTION_SAVE_ERROR_MESSAGE)).toBeNull();
+      expect(screen.queryByText("Edit Caption")).toBeNull();
+    });
   });
 });
