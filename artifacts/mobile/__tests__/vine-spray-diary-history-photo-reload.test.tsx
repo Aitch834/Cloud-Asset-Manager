@@ -80,6 +80,7 @@ jest.mock("expo-file-system/legacy", () => ({}));
 jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(),
   notificationAsync: jest.fn(),
+  selectionAsync: jest.fn(),
   ImpactFeedbackStyle: { Medium: "medium" },
   NotificationFeedbackType: { Success: "success", Warning: "warning" },
 }));
@@ -176,8 +177,8 @@ jest.mock("../lib/apiFetch", () => ({
 }));
 
 import React from "react";
-import { act, fireEvent, render } from "@testing-library/react-native";
-import { Image } from "react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { Alert, Image } from "react-native";
 import {
   default as VineSprayDiaryHistoryScreen,
   SprayPhotoLightbox,
@@ -195,6 +196,11 @@ const { usePersistedBlockFilter } = require("../lib/hooks/usePersistedBlockFilte
   usePersistedBlockFilter: jest.Mock;
 };
 const { usePrint } = require("../lib/hooks/usePrint") as { usePrint: jest.Mock };
+const { apiFetch } = require("../lib/apiFetch") as { apiFetch: jest.Mock };
+const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
+  pickPhoto: jest.Mock;
+  uploadPhotoToStorage: jest.Mock;
+};
 
 const photo = {
   id: 101,
@@ -339,5 +345,118 @@ describe("VineSprayDiaryHistoryScreen — filtered empty states", () => {
     );
 
     expect(screen.getByText("No entries match the current filters.")).toBeTruthy();
+  });
+});
+
+describe("VineSprayDiaryHistoryScreen — photo badge callbacks", () => {
+  const makeRecord = (id: number, productName: string, photoCount: number) => ({
+    id,
+    applicationDate: "2026-09-03",
+    blockId: null,
+    productName,
+    mappNumber: null,
+    activeIngredient: null,
+    productType: null,
+    ratePerHectare: null,
+    rateUnit: null,
+    areaTreatedHa: null,
+    totalQuantityApplied: null,
+    harvestIntervalDays: null,
+    windSpeedMph: null,
+    temperatureCelsius: null,
+    weatherConditions: null,
+    operatorName: null,
+    operatorCertificateNo: null,
+    notes: null,
+    photoCount,
+  });
+
+  const makePhoto = (id: number) => ({
+    ...photo,
+    id,
+    sprayDiaryId: 7,
+    fileName: `photo-${id}.jpg`,
+    objectPath: `spray-diary/photo-${id}.jpg`,
+    downloadUrl: `https://cdn.example.com/photo-${id}.jpg`,
+    isCover: id === 101,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useFarm.mockReturnValue({
+      currentFarm: { id: "farm-1", name: "Test Vineyard" },
+      user: { id: "test-user" },
+    });
+    useApiFetch.mockReturnValue({
+      records: [
+        makeRecord(7, "Copper Spray", 1),
+        makeRecord(8, "Sulphur Spray", 4),
+      ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    useApiVineBlocks.mockReturnValue({ blocks: [], loading: false });
+    useFarmIdentifiers.mockReturnValue({
+      address: "Test Lane",
+      postcode: "AB1 2CD",
+      cphNumber: "12/345/6789",
+      sbiNumber: "123456789",
+      loading: false,
+      justSaved: false,
+      clearJustSaved: jest.fn(),
+      refetch: jest.fn(),
+    });
+    useIdentifierBannerDismiss.mockReturnValue({ dismissed: true, dismiss: jest.fn() });
+    usePersistedBlockFilter.mockReturnValue([[], jest.fn()]);
+    usePrint.mockReturnValue({ savePdf: jest.fn() });
+  });
+
+  it("applies photo add and delete counts only to the row opened for editing", async () => {
+    const firstPhoto = makePhoto(101);
+    const addedPhoto = makePhoto(102);
+    apiFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ photos: [firstPhoto] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ photo: addedPhoto }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ photos: [firstPhoto, addedPhoto] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    pickPhoto.mockResolvedValue("file:///new-spray-photo.jpg");
+    uploadPhotoToStorage.mockResolvedValue("spray-diary/photo-102.jpg");
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.find((button) => button.text === "Delete")?.onPress?.();
+    });
+
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+    expect(screen.getByText("1 photo")).toBeTruthy();
+    expect(screen.getByText("4 photos")).toBeTruthy();
+
+    fireEvent.press(screen.getByText("Copper Spray"));
+    await waitFor(() => expect(screen.getByText("1 attached")).toBeTruthy());
+
+    fireEvent.press(screen.getByText("Add Photo"));
+    await waitFor(() => {
+      expect(screen.getByText("2 photos")).toBeTruthy();
+      expect(screen.getByText("4 photos")).toBeTruthy();
+    });
+
+    const addedImage = screen
+      .UNSAFE_getAllByType(Image)
+      .find((node) => node.props.source?.uri === addedPhoto.downloadUrl);
+    expect(addedImage).toBeTruthy();
+    const thumbnail = addedImage!.parent?.parent;
+    expect(thumbnail).toBeTruthy();
+    fireEvent(thumbnail!, "longPress");
+    fireEvent(thumbnail!, "pressOut");
+
+    await waitFor(() => {
+      expect(screen.getByText("1 photo")).toBeTruthy();
+      expect(screen.getByText("4 photos")).toBeTruthy();
+      expect(screen.queryByText("2 photos")).toBeNull();
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/farms/farm-1/vineyard-spray-diary/7/photos/102",
+      { method: "DELETE" },
+    );
   });
 });
