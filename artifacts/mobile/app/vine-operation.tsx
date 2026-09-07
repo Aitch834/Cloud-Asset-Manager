@@ -29,6 +29,7 @@ import { useApiVineBlocks, type VineBlock } from "@/lib/hooks/useApiVineBlocks";
 import { useFarmIdentifiers } from "@/lib/hooks/useFarmIdentifiers";
 import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismiss";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
+import { buildVineSprayDiaryRoute } from "@/lib/vineSprayDiaryHelpers";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -276,13 +277,7 @@ export default function VineOperationScreen() {
           <Text style={styles.quickLinkHint}>Jump to a related record for this vineyard operation</Text>
           <Pressable
             style={styles.quickLinkBtn}
-            onPress={() => {
-              if (selectedBlock?.id) {
-                router.push({ pathname: "/vine-spray-diary", params: { blockId: String(selectedBlock.id) } });
-              } else {
-                router.push("/vine-spray-diary");
-              }
-            }}
+            onPress={() => router.push(buildVineSprayDiaryRoute(selectedBlock?.id))}
           >
             <Feather name="droplet" size={16} color={colors.primary} />
             <Text style={styles.quickLinkText}>Log Spray Diary Entry</Text>

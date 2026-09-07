@@ -1,5 +1,8 @@
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
-import { findPreselectedVineBlock } from "../lib/vineSprayDiaryHelpers";
+import {
+  buildVineSprayDiaryRoute,
+  findPreselectedVineBlock,
+} from "../lib/vineSprayDiaryHelpers";
 
 function makeBlock(id: number, blockName: string): VineBlock {
   return {
@@ -19,6 +22,31 @@ function makeBlock(id: number, blockName: string): VineBlock {
 }
 
 describe("vine spray diary route block pre-selection", () => {
+  it("opens a clean diary form when the operation quick-link has no selected block", () => {
+    const availableBlock = makeBlock(42, "North Field");
+    const route = buildVineSprayDiaryRoute(undefined);
+
+    expect(route).toBe("/vine-spray-diary");
+    expect(findPreselectedVineBlock(undefined, [availableBlock], false)).toBeNull();
+
+    // With no route selection, the destination picker still receives the
+    // available blocks and can accept a normal user selection.
+    expect(availableBlock.id).toBe(42);
+  });
+
+  it("does not put blank or null block ids on the diary route", () => {
+    expect(buildVineSprayDiaryRoute(null)).toBe("/vine-spray-diary");
+    expect(buildVineSprayDiaryRoute("")).toBe("/vine-spray-diary");
+    expect(buildVineSprayDiaryRoute("   ")).toBe("/vine-spray-diary");
+  });
+
+  it("keeps the selected-block route covered separately", () => {
+    expect(buildVineSprayDiaryRoute(42)).toEqual({
+      pathname: "/vine-spray-diary",
+      params: { blockId: "42" },
+    });
+  });
+
   it("keeps the route selection pending during a cold launch and resolves it when blocks load", () => {
     const target = makeBlock(42, "North Field");
     const other = makeBlock(7, "South Field");
