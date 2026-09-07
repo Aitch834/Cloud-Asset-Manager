@@ -2948,7 +2948,11 @@ const AD_TEMPLATE_REQUIRED_PLACEHOLDERS = ["{{font_css}}", "{{logo}}", "{{bg}}",
 
 function detectAdTemplateMissingRequiredPlaceholders(htmlBody: string): string[] {
   return AD_TEMPLATE_REQUIRED_PLACEHOLDERS
-    .filter((p) => !htmlBody.includes(p))
+    .filter((p) => !htmlBody.includes(p));
+}
+
+function describeAdTemplateMissingRequiredPlaceholders(htmlBody: string): string[] {
+  return detectAdTemplateMissingRequiredPlaceholders(htmlBody)
     .map((p) => `Required placeholder ${p} is missing — the rendered PDF will have a blank asset`);
 }
 
@@ -2968,7 +2972,7 @@ router.post("/admin/ad-templates", requireAuth, async (req: Request, res: Respon
       htmlBody, isDefault: !!isDefault,
     }).returning();
     const warnings = [
-      ...detectAdTemplateMissingRequiredPlaceholders(htmlBody),
+      ...describeAdTemplateMissingRequiredPlaceholders(htmlBody),
       ...detectAdTemplateNearMissPlaceholders(htmlBody),
     ];
     res.status(201).json({ ...row, warnings });
@@ -3002,7 +3006,7 @@ router.put("/admin/ad-templates/:id", requireAuth, async (req: Request, res: Res
       .returning();
     if (!row) { res.status(404).json({ error: "Template not found" }); return; }
     const warnings = [
-      ...detectAdTemplateMissingRequiredPlaceholders(htmlBody),
+      ...describeAdTemplateMissingRequiredPlaceholders(htmlBody),
       ...detectAdTemplateNearMissPlaceholders(htmlBody),
     ];
     res.json({ ...row, warnings });

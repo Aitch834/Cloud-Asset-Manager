@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Integration check: 422 missing-asset guard on the three ad-PDF render endpoints,
+// Integration check: stable 422 contracts on the three ad-PDF render endpoints,
 // AND the brand-asset status endpoint used by the admin-portal warning banner.
 //
 // Part 1 — 422 guard (loadAdBrandAssets / in-memory cache path)
@@ -253,7 +253,7 @@ async function assertStatusScenario(label, logoExpected, qrExpected) {
 // ─── Status-check suite ───────────────────────────────────────────────────────
 
 async function runStatusChecks() {
-  console.log("\n\n══ Part 2: brand-asset status endpoint ═════════════════════════");
+  console.log("\n\n══ Part 3: brand-asset status endpoint ═════════════════════════");
   console.log(
     "   (GET /admin/ad-brand-assets/status — uses resolveAdBrandAssets(),\n" +
     "    which is cache-free and reads from the DB then the on-disk fallback.)",
@@ -571,6 +571,59 @@ async function assertScenario(scenarioLabel, logoUri, qrUri, expectedMissing) {
   );
 }
 
+// ─── Missing-placeholder response contract ───────────────────────────────────
+// The admin portal renders each missingPlaceholders item as a token. Keep this
+// array canonical and stable rather than returning explanatory sentences.
+async function runMissingPlaceholderChecks() {
+  console.log("\n\n══ Part 2: missing-placeholder response contract ═══════════════");
+
+  const missingLogoBody = "<p>missing logo contract test</p>{{font_css}}{{bg}}{{qr}}";
+  const expected = ["{{logo}}"];
+
+  // Saved-template endpoints check brand assets before placeholders, so ensure
+  // both assets are resolvable and replace the fixture body with one missing token.
+  await overrideCache(STUB_LOGO, STUB_QR);
+  await pool.query(
+    "UPDATE ad_templates SET html_body = $1, updated_at = NOW() WHERE id = $2",
+    [missingLogoBody, createdTemplateId],
+  );
+
+  const endpoints = [
+    {
+      label: "preview-draft",
+      call: () => call("POST", "/admin/ad-pdf/preview-draft", { htmlBody: missingLogoBody }),
+    },
+    {
+      label: "ad-pdf/preview",
+      call: () => call("GET", `/admin/ad-pdf/preview?templateId=${createdTemplateId}`),
+    },
+    {
+      label: "ad-pdf",
+      call: () => call("POST", "/admin/ad-pdf", { templateId: createdTemplateId }),
+    },
+  ];
+
+  for (const endpoint of endpoints) {
+    await overrideCache(STUB_LOGO, STUB_QR);
+    const result = await endpoint.call();
+    check(
+      `${endpoint.label} missing placeholder → 422`,
+      result.status === 422,
+      `got ${result.status}: ${JSON.stringify(result.json)}`,
+    );
+    check(
+      `${endpoint.label} missingPlaceholders uses canonical tokens`,
+      JSON.stringify(result.json?.missingPlaceholders) === JSON.stringify(expected),
+      `got ${JSON.stringify(result.json?.missingPlaceholders)}`,
+    );
+    check(
+      `${endpoint.label} error remains user-readable`,
+      typeof result.json?.error === "string" && result.json.error.includes("{{logo}}"),
+      `error was: ${JSON.stringify(result.json?.error)}`,
+    );
+  }
+}
+
 // Minimal 1×1 PNG data-URIs — different pixel colours so they are distinct assets.
 const STUB_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==";
 const STUB_QR   = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -627,7 +680,9 @@ try {
   console.log("   Scenario B: missingAssets=[\"logo\"] proves QR-present does not trigger guard.");
   console.log("   Scenario C: missingAssets=[\"QR code\"] proves logo-present does not trigger guard.");
 
-  // ── Part 2: status endpoint ──────────────────────────────────────────────────
+  await runMissingPlaceholderChecks();
+
+  // ── Part 3: status endpoint ──────────────────────────────────────────────────
   // runStatusChecks() manages its own DB state and fallback-dir rename/restore
   // inside its own try/finally, so it is safe to call here even if Part 1 had
   // failures.  The outer cleanup() also has a safety-restore in case this throws.
@@ -643,4 +698,4 @@ if (failures) {
   console.error(`\n${failures} check(s) FAILED`);
   process.exit(1);
 }
-console.log("\nAll ad-pdf 422-guard and brand-asset status checks passed.");
+console.log("\nAll ad-pdf 422 contracts and brand-asset status checks passed.");
