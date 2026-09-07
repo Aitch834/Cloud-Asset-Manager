@@ -521,6 +521,7 @@ router.get("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requir
 router.post("/farms/:farmId/vineyard-harvest", requireAuth, requireTenant, requireModuleByKey("viticulture", "write"), async (req: Request, res: Response): Promise<void> => {
   const farmId = Number(req.params.farmId);
   const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (typeof req.body?.harvestDate === "string") body.harvestDate = req.body.harvestDate;
   if (body.blockId && !body.plantingId) {
     const [active] = await db.select({ id: vineyardBlockPlantingsTable.id }).from(vineyardBlockPlantingsTable).where(and(eq(vineyardBlockPlantingsTable.blockId, Number(body.blockId)), eq(vineyardBlockPlantingsTable.farmId, farmId), eq(vineyardBlockPlantingsTable.status, "active"))).limit(1);
     if (active) body.plantingId = active.id;
@@ -533,6 +534,7 @@ router.put("/farms/:farmId/vineyard-harvest/:id", requireAuth, requireTenant, re
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   const body = sanitiseBody(req.body as Record<string, unknown>);
+  if (typeof req.body?.harvestDate === "string") body.harvestDate = req.body.harvestDate;
   // Keep plantingId consistent with blockId whenever blockId is being updated
   if ("blockId" in body) {
     if (body.blockId) {
