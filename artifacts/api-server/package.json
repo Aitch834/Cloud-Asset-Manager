@@ -28,7 +28,8 @@
     "test:user-ui-prefs-migration": "node scripts/check-user-ui-prefs-migration.mjs",
     "test:phenology-planting-link": "node scripts/check-phenology-planting-link.mjs",
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",
-    "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts"
+    "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts",
+    "test:tenant-contact-audit": "tsx scripts/test-tenant-contact-audit.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.63",
