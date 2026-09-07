@@ -495,10 +495,26 @@ export function RecordSignOffDialog({ farmId, endpoint, queryKey, recordLabel, r
 // Batch-trail table button. The base Button applies `disabled:pointer-events-none`,
 // which suppresses the native `title` tooltip on a disabled button — so the
 // explanatory title lives on a wrapping <span>, which still receives hover events.
-export function BatchTrailButton({ batchRef, onClick }: { batchRef: unknown; onClick: () => void }) {
+export function BatchTrailButton({ batchRef, vintageYear, onClick }: { batchRef: unknown; vintageYear?: unknown; onClick: () => void }) {
+  const hasBatchRef = batchRef != null && String(batchRef).trim() !== "";
+  const hasVintageYear = vintageYear != null && String(vintageYear).trim() !== "";
+  const label = hasBatchRef
+    ? `View batch trail for ${String(batchRef)}`
+    : hasVintageYear
+      ? `View full vintage trail for ${String(vintageYear)}`
+      : "No batch reference or vintage year — batch trail unavailable";
   return (
-    <span title={batchRef ? `View batch trail for ${String(batchRef)}` : "No batch reference — batch trail unavailable"} className="inline-flex">
-      <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600 disabled:opacity-40" disabled={!batchRef} onClick={onClick}><GitBranch className="h-4 w-4" /></Button>
+    <span title={label} className="inline-flex">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-blue-600 disabled:opacity-40"
+        disabled={!hasBatchRef && !hasVintageYear}
+        aria-label={label}
+        onClick={onClick}
+      >
+        <GitBranch className="h-4 w-4" />
+      </Button>
     </span>
   );
 }

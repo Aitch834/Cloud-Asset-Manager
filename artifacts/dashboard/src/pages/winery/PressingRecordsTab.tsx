@@ -950,7 +950,7 @@ export function PressingRecordsTab({ farmId }: { farmId: number }) {
                     }
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <BatchTrailButton batchRef={r.batch_ref} onClick={() => setTrailRecord(r)} />
+                    <BatchTrailButton batchRef={r.batch_ref} vintageYear={r.vintage_year} onClick={() => setTrailRecord(r)} />
                     {/* Title lives on a wrapping span (same pattern as BatchTrailButton):
                         the base Button's disabled:pointer-events-none suppresses native
                         tooltips on the disabled button itself. */}
