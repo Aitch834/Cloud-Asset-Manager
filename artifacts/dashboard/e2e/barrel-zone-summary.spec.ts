@@ -214,6 +214,74 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
     }
   });
 
+  test("decrements a ranked zone after logging a barrel's first clean", async ({
+    page,
+  }) => {
+    const zoneA = `${RUN_TAG}-clean-zone-a`;
+    const zoneB = `${RUN_TAG}-clean-zone-b`;
+    const refs = [
+      `${RUN_TAG}-clean-a-1`,
+      `${RUN_TAG}-clean-a-2`,
+      `${RUN_TAG}-clean-b-1`,
+      `${RUN_TAG}-clean-b-2`,
+    ];
+    const vesselIds: number[] = [];
+
+    try {
+      vesselIds.push(await createBarrel(refs[0], zoneA));
+      vesselIds.push(await createBarrel(refs[1], zoneA));
+      vesselIds.push(await createBarrel(refs[2], zoneB));
+      const cleanedVesselId = await createBarrel(refs[3], zoneB);
+      vesselIds.push(cleanedVesselId);
+      await waitForVesselZones(new Map([
+        [refs[0], zoneA],
+        [refs[1], zoneA],
+        [refs[2], zoneB],
+        [refs[3], zoneB],
+      ]));
+
+      await openVesselRegister(page, refs);
+
+      const neverCleanedFilter = page.getByRole("button", {
+        name: /Never cleaned \d+/,
+      });
+      await neverCleanedFilter.click();
+      await expect(rankedSummary(page)).toHaveText(`${zoneA} 2 · ${zoneB} 2`);
+
+      const targetRow = page.locator("tbody tr", { hasText: refs[3] });
+      await targetRow.getByRole("button", { name: "Never cleaned", exact: true }).click();
+
+      const dialog = page
+        .getByRole("dialog")
+        .filter({ hasText: `Vessel — ${refs[3]}` });
+      const cleanForm = dialog.getByText("New clean record", { exact: true }).locator("..");
+      await expect(cleanForm).toBeVisible();
+
+      const cleanSave = page.waitForResponse(response =>
+        response.request().method() === "POST"
+        && new URL(response.url()).pathname.endsWith(
+          `/winery-vessels/${cleanedVesselId}/cleans`,
+        ),
+      );
+      const vesselListRefresh = page.waitForResponse(response =>
+        response.request().method() === "GET"
+        && new URL(response.url()).pathname.endsWith(
+          `/farms/${FARM_ID}/winery-vessels`,
+        ),
+      );
+
+      await cleanForm.getByRole("button", { name: "Save Clean", exact: true }).click();
+      expect((await cleanSave).ok()).toBe(true);
+      expect((await vesselListRefresh).ok()).toBe(true);
+
+      await expect(rankedSummary(page)).toHaveText(`${zoneA} 2 · ${zoneB} 1`);
+    } finally {
+      for (const vesselId of vesselIds) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+
   test("hides the summary when flagged barrels are in only one zone", async ({
     page,
   }) => {
