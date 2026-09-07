@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { api, type Lead } from "@/lib/api";
 import { getSecret } from "@/lib/auth";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DialogMutationError } from "@/components/ui/dialog-error";
 import {
   Search, TrendingUp, Users, Mail, Calendar, ChevronRight,
   X, CheckCircle, Clock, PhoneCall, Presentation, XCircle, Leaf, Save, Tag, Sprout, BarChart3, Trash2,
@@ -151,7 +152,7 @@ interface PanelProps {
   onDeleted: () => void;
 }
 
-function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
+export function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
   const secret = getSecret()!;
   const [, navigate] = useLocation();
   const [status, setStatus] = useState(lead.status);
@@ -160,6 +161,7 @@ function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
   const [userNotes, setUserNotes] = useState(lead.notes ?? "");
   const [source, setSource] = useState(lead.source ?? "");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<unknown>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -167,6 +169,7 @@ function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updates: Parameters<typeof api.updateLead>[1] = {
         status,
@@ -183,6 +186,7 @@ function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
       setDirty(false);
     } catch (e) {
       console.error(e);
+      setSaveError(e);
     } finally {
       setSaving(false);
     }
@@ -377,6 +381,10 @@ function LeadPanel({ lead, onClose, onSaved, onDeleted }: PanelProps) {
         </div>
 
         <div className="px-6 py-4 border-t border-border shrink-0 space-y-3">
+          <DialogMutationError
+            mutation={{ isError: saveError !== null, isPending: saving, error: saveError }}
+            message="Lead changes were not saved."
+          />
           <button
             onClick={handleSave}
             disabled={saving || !dirty}
