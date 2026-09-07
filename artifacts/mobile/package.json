@@ -9,6 +9,7 @@
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:external-urls": "node scripts/check-external-url-guard.mjs",
+    "check:identifier-banner-loading": "node scripts/check-identifier-banner-loading.mjs",
     "test": "jest"
   },
   "devDependencies": {

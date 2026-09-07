@@ -118,12 +118,12 @@ args = "user-ui-prefs-migration-api"
 name = "mobile-sync-key-guard"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node artifacts/mobile/scripts/check-sync-registration.mjs && pnpm --filter @workspace/mobile run check:external-urls"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node artifacts/mobile/scripts/check-sync-registration.mjs && pnpm --filter @workspace/mobile run check:external-urls && pnpm --filter @workspace/mobile run check:identifier-banner-loading"
 
 [[workflows.workflow]]
 name = "typecheck-mobile"
