@@ -4,6 +4,7 @@
  * The filter is derived entirely from each vessel's clean_count. Seed one
  * barrel with no cleaning records and one with a cleaning record, then verify
  * that the alert chip filters the table and toggles back to the full list.
+ * Also lock down the combined Never cleaned + cellar-zone shortcut.
  */
 
 import { expect, test } from "@playwright/test";
@@ -50,7 +51,10 @@ async function devFetch(
   return response.json() as Promise<ApiRecord>;
 }
 
-async function createBarrel(vesselRef: string): Promise<number> {
+async function createBarrel(
+  vesselRef: string,
+  cellarZone?: string,
+): Promise<number> {
   const body = await devFetch(`${apiBase()}/api/farms/${FARM_ID}/winery-vessels`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -58,6 +62,7 @@ async function createBarrel(vesselRef: string): Promise<number> {
       vesselRef,
       vesselType: "barrel",
       capacityLitres: 225,
+      cellarZone,
       status: "active",
     }),
   });
@@ -106,8 +111,21 @@ async function waitForCleanCounts(
 
 async function openVesselRegister(
   page: import("@playwright/test").Page,
+  visibleRefs?: string[],
 ): Promise<void> {
   await setupClerkTestingToken({ page, userId: getTestUserId() });
+
+  if (visibleRefs) {
+    await page.route("**/api/farms/5/winery-vessels*", async route => {
+      const response = await route.fetch();
+      const body = await response.json() as ApiRecord;
+      const records = ((body.records ?? []) as ApiRecord[]).filter(record =>
+        visibleRefs.includes(String(record.vessel_ref)),
+      );
+      await route.fulfill({ response, json: { ...body, records } });
+    });
+  }
+
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 
@@ -179,6 +197,57 @@ test.describe("VesselRegisterTab — never-cleaned filter", () => {
       await neverCleanedChip.click();
       await expect(uncleanedRow).toBeVisible();
       await expect(cleanedRow).toBeVisible();
+    } finally {
+      for (const vesselId of vesselIds) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+
+  test("keeps Never cleaned and one zone selected together", async ({ page }) => {
+    const zoneA = `${RUN_TAG}-zone-a`;
+    const zoneB = `${RUN_TAG}-zone-b`;
+    const neverCleanedARef = `${RUN_TAG}-never-a`;
+    const neverCleanedBRef = `${RUN_TAG}-never-b`;
+    const cleanedARef = `${RUN_TAG}-cleaned-a`;
+    const visibleRefs = [neverCleanedARef, neverCleanedBRef, cleanedARef];
+    const vesselIds: number[] = [];
+
+    try {
+      vesselIds.push(await createBarrel(neverCleanedARef, zoneA));
+      vesselIds.push(await createBarrel(neverCleanedBRef, zoneB));
+      const cleanedAId = await createBarrel(cleanedARef, zoneA);
+      vesselIds.push(cleanedAId);
+      await createCleaning(cleanedAId);
+      await waitForCleanCounts(
+        new Map([
+          [neverCleanedARef, 0],
+          [neverCleanedBRef, 0],
+          [cleanedARef, 1],
+        ]),
+      );
+
+      await openVesselRegister(page, visibleRefs);
+
+      const neverCleanedChip = page.getByRole("button", {
+        name: /Never cleaned \d+/,
+      });
+      await neverCleanedChip.click();
+
+      const zoneAChip = page.getByRole("button", {
+        name: new RegExp(`^${zoneA} \\d+ never cleaned$`),
+      });
+      await zoneAChip.click();
+
+      await expect(page.locator("tbody tr", { hasText: neverCleanedARef })).toBeVisible();
+      await expect(page.locator("tbody tr", { hasText: neverCleanedBRef })).toHaveCount(0);
+      await expect(page.locator("tbody tr", { hasText: cleanedARef })).toHaveCount(0);
+
+      await expect(neverCleanedChip).toHaveClass(/ring-2/);
+      await expect(zoneAChip).toHaveClass(/ring-2/);
+      await expect(page.locator("p", {
+        hasText: `Showing barrels in ${zoneA} · flagged as never cleaned`,
+      })).toBeVisible();
     } finally {
       for (const vesselId of vesselIds) {
         await deleteBarrel(vesselId).catch(() => {});
