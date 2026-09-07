@@ -18,7 +18,9 @@
  */
 
 import { describe, it, expect } from "vitest";
+import fixtures from "../../../../../test-fixtures/irrigation-forecast-verdicts.json";
 import { computeScenarios, computeForecastVerdict } from "../irrigationSMD";
+import type { ForecastVerdict } from "../irrigationSMD";
 
 // ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -406,5 +408,31 @@ describe("computeForecastVerdict — daily water-balance verdict", () => {
     // 16 mm SMD. A flat 10 mm/day value would incorrectly clamp to zero.
     expect(result!.projectedSmd).toBeCloseTo(16, 6);
     expect(result!.verdict).toBe("partial");
+  });
+});
+
+type ForecastFixture = {
+  name: string;
+  input: Parameters<typeof computeForecastVerdict>[0];
+  expected: {
+    projectedSmd: number;
+    forecastTotal: number;
+    verdict: ForecastVerdict;
+  } | null;
+};
+
+describe("dashboard forecast verdict matches the shared cross-platform fixtures", () => {
+  it.each(fixtures as ForecastFixture[])("$name", ({ input, expected }) => {
+    const result = computeForecastVerdict(input);
+
+    if (expected === null) {
+      expect(result).toBeNull();
+      return;
+    }
+
+    expect(result).not.toBeNull();
+    expect(result!.projectedSmd).toBeCloseTo(expected.projectedSmd, 6);
+    expect(result!.forecastTotal).toBeCloseTo(expected.forecastTotal, 6);
+    expect(result!.verdict).toBe(expected.verdict);
   });
 });

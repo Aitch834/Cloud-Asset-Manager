@@ -1,0 +1,101 @@
+[
+  {
+    "name": "suppresses advice when there is no current deficit",
+    "input": {
+      "currentSmdMm": 0,
+      "forecastDailyMm": [{ "date": "2026-08-01", "mm": 5 }],
+      "dailyEtcMm": 2,
+      "fieldCapacityMm": 100
+    },
+    "expected": null
+  },
+  {
+    "name": "suppresses advice when the forecast is empty",
+    "input": {
+      "currentSmdMm": 20,
+      "forecastDailyMm": [],
+      "dailyEtcMm": 2,
+      "fieldCapacityMm": 100
+    },
+    "expected": null
+  },
+  {
+    "name": "treats a fully closed deficit as sufficient",
+    "input": {
+      "currentSmdMm": 20,
+      "forecastDailyMm": [{ "date": "2026-08-01", "mm": 22 }],
+      "dailyEtcMm": 2,
+      "fieldCapacityMm": 100
+    },
+    "expected": {
+      "projectedSmd": 0,
+      "forecastTotal": 22,
+      "verdict": "sufficient"
+    }
+  },
+  {
+    "name": "treats the exact half-deficit boundary as insufficient",
+    "input": {
+      "currentSmdMm": 40,
+      "forecastDailyMm": [{ "date": "2026-08-01", "mm": 22 }],
+      "dailyEtcMm": 2,
+      "fieldCapacityMm": 100
+    },
+    "expected": {
+      "projectedSmd": 20,
+      "forecastTotal": 22,
+      "verdict": "insufficient"
+    }
+  },
+  {
+    "name": "treats just below the half-deficit boundary as partial",
+    "input": {
+      "currentSmdMm": 40,
+      "forecastDailyMm": [{ "date": "2026-08-01", "mm": 22.01 }],
+      "dailyEtcMm": 2,
+      "fieldCapacityMm": 100
+    },
+    "expected": {
+      "projectedSmd": 19.99,
+      "forecastTotal": 22.01,
+      "verdict": "partial"
+    }
+  },
+  {
+    "name": "recalculates each forecast day with its interpolated crop coefficient",
+    "input": {
+      "currentSmdMm": 50,
+      "forecastDailyMm": [
+        { "date": "2026-08-02", "mm": 22 },
+        { "date": "2026-08-03", "mm": 22 },
+        { "date": "2026-08-04", "mm": 22 },
+        { "date": "2026-08-05", "mm": 22 },
+        { "date": "2026-08-06", "mm": 22 },
+        { "date": "2026-08-07", "mm": 22 },
+        { "date": "2026-08-08", "mm": 22 }
+      ],
+      "dailyEtcMm": 10,
+      "fieldCapacityMm": 100,
+      "cropProfile": {
+        "label": "Test crop",
+        "Kc_ini": 1,
+        "Kc_mid": 2,
+        "Kc_end": 2,
+        "fracDev": 0,
+        "fracMid": 0.5,
+        "fracLate": 1,
+        "Ky": 1,
+        "criticalSmdMm": 30,
+        "typicalYieldTha": 1
+      },
+      "plantingDate": "2026-08-01",
+      "harvestDate": "2026-08-11",
+      "referenceDate": "2026-08-01"
+    },
+    "expected": {
+      "projectedSmd": 16,
+      "forecastTotal": 154,
+      "verdict": "partial"
+    }
+  }
+]

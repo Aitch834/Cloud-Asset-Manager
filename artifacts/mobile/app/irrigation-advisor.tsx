@@ -40,6 +40,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
 import { buildSmdChartData, type SmdChartPoint } from "@/lib/irrigationAdvisorChart";
+import { computeForecastVerdict } from "@/lib/irrigationForecastVerdict";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { scheduleSync } from "@/lib/sync-engine";
 
@@ -233,65 +234,6 @@ function computeScenarios(opts: {
     wait7: buildResult("Wait 7 days", wait7Sim, irrigateMm),
     skip: buildResult("Don't irrigate", skipSim, 0),
   };
-}
-
-// ─── Forecast verdict ─────────────────────────────────────────────────────────
-
-type ForecastVerdict = "sufficient" | "partial" | "insufficient";
-
-interface ForecastVerdictResult {
-  projectedSmd: number;
-  forecastTotal: number;
-  verdict: ForecastVerdict;
-}
-
-function computeForecastVerdict(opts: {
-  currentSmdMm: number;
-  forecastDailyMm: Array<{ date: string; mm: number }>;
-  dailyEtcMm: number;
-  fieldCapacityMm: number;
-  cropProfile?: CropProfile | null;
-  plantingDate?: string | null;
-  harvestDate?: string | null;
-  /** Date represented by dailyEtcMm; defaults to today. */
-  referenceDate?: string;
-}): ForecastVerdictResult | null {
-  const {
-    currentSmdMm,
-    forecastDailyMm,
-    dailyEtcMm,
-    fieldCapacityMm,
-    cropProfile,
-    plantingDate,
-    harvestDate,
-    referenceDate,
-  } = opts;
-  if (currentSmdMm <= 0 || forecastDailyMm.length === 0) return null;
-
-  const hasCropTiming = !!cropProfile && !!plantingDate;
-  const today = referenceDate ?? new Date().toISOString().slice(0, 10);
-  const referenceKc = hasCropTiming
-    ? getKc(cropProfile!, plantingDate!, harvestDate ?? undefined, today)
-    : 1;
-  const referenceEt0 = referenceKc > 0 ? dailyEtcMm / referenceKc : dailyEtcMm;
-
-  let smd = currentSmdMm;
-  let forecastTotal = 0;
-  for (const day of forecastDailyMm) {
-    forecastTotal += day.mm;
-    const kc = hasCropTiming
-      ? getKc(cropProfile!, plantingDate!, harvestDate ?? undefined, day.date)
-      : 1;
-    const forecastEtc = referenceEt0 * kc;
-    smd = Math.max(0, Math.min(fieldCapacityMm, smd + forecastEtc - day.mm));
-  }
-
-  const verdict: ForecastVerdict =
-    smd <= 0 ? "sufficient" :
-    smd < currentSmdMm * 0.5 ? "partial" :
-    "insufficient";
-
-  return { projectedSmd: smd, forecastTotal, verdict };
 }
 
 // ─── API types ────────────────────────────────────────────────────────────────
