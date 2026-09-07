@@ -34,7 +34,8 @@
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",
     "test:lis-closure-email-failure": "tsx scripts/test-lis-closure-email-failure.ts",
     "test:tenant-contact-audit": "tsx scripts/test-tenant-contact-audit.ts",
-    "test:lead-notes-location": "tsx scripts/test-lead-notes-location-preservation.ts"
+    "test:lead-notes-location": "tsx scripts/test-lead-notes-location-preservation.ts",
+    "test:mobile-task-assignment": "tsx scripts/test-mobile-task-assignment.ts"
   },
   "dependencies": {
     "@clerk/express": "^2.1.63",

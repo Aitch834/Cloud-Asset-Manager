@@ -9750,7 +9750,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
   const userId = req.userId ?? "unknown";
-  const tenantId = farmId;
+  const tenantId = req.tenantId!;
   const { assignedToMemberId, title, description, dueDate, endDate, module: mod, href, assignmentNote, taskType, taskSourceId, isWorkOrder, serviceInvoiceId, customerId, estimatedHours, startTime: taStartTime, endTime: taEndTime, reqTractors: taTractors, reqImplements: taImplements, reqVehicles: taVehicles, reqSprayers: taSprayers, reqTrailers: taTrailers, reqStaff: taStaff, reqOther: taOther, reqOtherNotes: taOtherNotes, reqMaterials: taMatls } = req.body;
   if (!title) { res.status(400).json({ error: "title is required" }); return; }
   const hasExplicitAssignee = assignedToMemberId !== undefined && assignedToMemberId !== null && String(assignedToMemberId).trim() !== "";
@@ -9775,7 +9775,7 @@ router.post("/farms/:farmId/task-assignments", requireAuth, requireTenant, async
   const staffName = `${member.firstName} ${member.lastName}`.trim();
   const staffPhone = member.phone ?? null;
   const [record] = await db.insert(farmTaskAssignmentsTable).values({
-    farmId, tenantId: typeof tenantId === "number" ? tenantId : farmId,
+    farmId, tenantId,
     assignedToMemberId: member.id,
     assignedByUserId: userId,
     taskType: isWorkOrder ? "work_order" : (taskType || "custom"),
