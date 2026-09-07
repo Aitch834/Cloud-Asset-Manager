@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Farm Settings winery threshold hints.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,9 +28,7 @@ function getTestUserEmail(): string {
 }
 
 async function prepareDashboard(page: Page): Promise<void> {
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.evaluate(
     ([slug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);
@@ -51,7 +49,7 @@ test("switches winery threshold hints from platform defaults to override descrip
 
   await page.route(`**/api/farms/${FARM_ID}`, async route => {
     const response = await route.fetch();
-    const body = await response.json() as { record: Record<string, unknown> };
+    const body = await response.json() as { config: Record<string, string> };
     await route.fulfill({
       response,
       json: {

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: vineyard operation photo badges update after attachment changes.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,10 +137,7 @@ async function preparePage(page: Page): Promise<void> {
     route.fulfill({ status: 200, body: "" }),
   );
 
-  await setupClerkTestingToken({ page, userId: stateFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: stateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
+  await signInDashboard(page);
 
   await page.evaluate(farmId => {
     const tenantSlug = "oakfield-farms";

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — no-fills fill shortcut.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,9 +50,7 @@ async function getVessels(): Promise<ApiRecord[]> {
 async function openVesselRegister(
   page: import("@playwright/test").Page,
 ): Promise<void> {
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([slug, farmId]) => {

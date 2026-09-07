@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Viticulture Overview compliance summary.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,8 +26,7 @@ function getTestUserEmail(): string {
 }
 
 async function signInAndOpenOverview(page: Page): Promise<void> {
-  await page.goto("/dashboard/");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.evaluate(
     ([slug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);

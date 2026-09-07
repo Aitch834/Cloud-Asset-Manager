@@ -3,8 +3,9 @@
  * maps it to the development tenant so the E2E tests can authenticate as a
  * super-admin.
  *
- * The shared user's Clerk ID is written to a run-scoped state file so each
- * test can read it without colliding with another Playwright invocation.
+ * The shared user's Clerk ID and email are written to run-scoped state files
+ * so concurrent Playwright invocations cannot collide. Authenticated specs
+ * read the email through the shared sign-in helper.
  */
 
 import { clerkSetup } from "@clerk/testing/playwright";

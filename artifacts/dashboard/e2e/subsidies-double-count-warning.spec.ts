@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Subsidies double-count warning visibility and live clearing.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -129,7 +129,7 @@ async function openSubsidiesTab(
   page: import("@playwright/test").Page,
   year: number,
 ) {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 

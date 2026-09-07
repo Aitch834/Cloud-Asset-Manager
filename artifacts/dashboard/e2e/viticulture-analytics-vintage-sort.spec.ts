@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Viticulture Analytics block-performance vintage sorting.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -163,8 +163,7 @@ test("vintage headers sort block performance and keep missing yields last", asyn
       await seedHarvest(missingCurrentId, PRIOR_VINTAGE, 2000),
     );
 
-    await page.goto("/dashboard/");
-    await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+    await signInDashboard(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(
       ([slug, farmId, currentVintage]) => {

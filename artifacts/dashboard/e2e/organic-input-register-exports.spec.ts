@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: authenticated Organic Input Register exports retain derogation expiry.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -129,7 +129,7 @@ async function prepareInputRegister(page: Page, farm: OrganicFarm): Promise<void
     });
   });
 
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(
@@ -219,9 +219,7 @@ async function prepareInputRegisterFilterPersistence(
     });
   });
 
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await expect(
     page.getByRole("heading", { name: "Select a Farm", exact: true }),
   ).toBeVisible({ timeout: 15_000 });
@@ -290,7 +288,7 @@ async function prepareEmptyAuditPack(page: Page, farm: OrganicFarm): Promise<() 
     });
   });
 
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — ranked flagged-zone summary.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -118,7 +118,7 @@ async function openVesselRegister(
   page: import("@playwright/test").Page,
   visibleRefs: string[],
 ): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
 
   // Use the real API response, but scope the browser fixture to this test's
   // barrels. This keeps absence assertions independent of shared farm data.
@@ -170,13 +170,9 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
   test("shows correct ranked counts after adding and moving flagged barrels", async ({
     page,
   }) => {
-    const zoneA = `${RUN_TAG}-zone-a`;
-    const zoneB = `${RUN_TAG}-zone-b`;
-    const refs = [
-      `${RUN_TAG}-a-1`,
-      `${RUN_TAG}-a-2`,
-      `${RUN_TAG}-moved`,
-    ];
+    const zoneA = `${RUN_TAG}-unfiltered-a`;
+    const zoneB = `${RUN_TAG}-unfiltered-b`;
+    const refs = [`${RUN_TAG}-unfiltered-1`, `${RUN_TAG}-unfiltered-2`];
     const vesselIds: number[] = [];
 
     try {
@@ -217,14 +213,9 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
   test("decrements a ranked zone after logging a barrel's first clean", async ({
     page,
   }) => {
-    const zoneA = `${RUN_TAG}-clean-zone-a`;
-    const zoneB = `${RUN_TAG}-clean-zone-b`;
-    const refs = [
-      `${RUN_TAG}-clean-a-1`,
-      `${RUN_TAG}-clean-a-2`,
-      `${RUN_TAG}-clean-b-1`,
-      `${RUN_TAG}-clean-b-2`,
-    ];
+    const zoneA = `${RUN_TAG}-unfiltered-a`;
+    const zoneB = `${RUN_TAG}-unfiltered-b`;
+    const refs = [`${RUN_TAG}-unfiltered-1`, `${RUN_TAG}-unfiltered-2`];
     const vesselIds: number[] = [];
 
     try {
@@ -286,7 +277,7 @@ test.describe("VesselRegisterTab — ranked zone summary", () => {
     page,
   }) => {
     const zone = `${RUN_TAG}-single-zone`;
-    const refs = [`${RUN_TAG}-single-1`, `${RUN_TAG}-single-2`];
+    const refs = [`${RUN_TAG}-unfiltered-1`, `${RUN_TAG}-unfiltered-2`];
     const vesselIds: number[] = [];
 
     try {

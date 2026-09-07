@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Harvest block productivity exports.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -147,8 +147,7 @@ async function openSeededHarvest(
   expectedBlockNames: string[] = [POSITIVE_BLOCK, MISSING_AREA_BLOCK],
   yearFilter: string = String(VINTAGE_YEAR),
 ): Promise<void> {
-  await page.goto("/dashboard/");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.waitForLoadState("networkidle");
 
   await page.evaluate(

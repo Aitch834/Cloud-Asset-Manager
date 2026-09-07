@@ -1,5 +1,5 @@
+import { signInDashboard } from "./auth";
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -118,7 +118,7 @@ test("keeps the Fruit Set WineGB link transient and independently dismissible", 
   const originalSubmissions = await getSubmissions();
   await setSubmission("flowering", false);
 
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await openPhenology(page);
 
   const storedOffersBefore = await page.evaluate(prefix => {
@@ -145,8 +145,8 @@ test("keeps the Fruit Set WineGB link transient and independently dismissible", 
     await expect(
       page.evaluate(prefix => {
         const keys: string[] = [];
-        for (let index = 0; index < localStorage.length; index += 1) {
-          const key = localStorage.key(index);
+          for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
           if (key?.startsWith(prefix)) keys.push(key);
         }
         return keys.sort();

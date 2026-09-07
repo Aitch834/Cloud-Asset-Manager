@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Barrel fill history — rack-out notes survive a later full edit.
  *
@@ -10,7 +11,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -114,7 +114,7 @@ async function openVesselRegister(page: import("@playwright/test").Page): Promis
 }
 
 test("preserves a rack-out note when the fill is edited afterwards", async ({ page }) => {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   const vesselId = await createBarrel();
 
   try {

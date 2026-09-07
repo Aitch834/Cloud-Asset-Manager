@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: P&L removal warning after a submitted milestone is reverted.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,8 +119,7 @@ test("warns before an out-of-year completion date removes submitted claim income
       },
     );
 
-    await page.goto("/dashboard/");
-    await clerk.signIn({ page, userId: getTestUserId() });
+    await signInDashboard(page);
     await page.waitForLoadState("networkidle");
     await page.evaluate(
       ([slug, farmId, year]) => {

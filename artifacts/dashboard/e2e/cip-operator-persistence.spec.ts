@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Bottling-machine CIP operator persistence.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,10 +100,7 @@ test("remembers a successfully saved CIP operator after reopen and reload withou
     },
   );
 
-  await setupClerkTestingToken({ page, userId: readStateFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: readStateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
+  await signInDashboard(page);
   await page.evaluate(
     ([tenantSlug, farmId, operatorKey, operator]) => {
       localStorage.setItem("farmtrac_tenantSlug", tenantSlug);

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Operations PDF export honours the selected year and print-block filters.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -188,10 +188,7 @@ async function prepareOperations(page: Page, farm: ViticultureFarm): Promise<voi
     });
   });
 
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([tenantSlug, farmId]) => {

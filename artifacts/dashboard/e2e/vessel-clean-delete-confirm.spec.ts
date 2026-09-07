@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — vessel delete confirmation.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,8 +86,7 @@ async function deleteBarrel(vesselId: number): Promise<void> {
 async function openVesselRegister(
   page: import("@playwright/test").Page,
 ): Promise<void> {
-  await page.goto("/dashboard/");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.waitForLoadState("networkidle");
 
   await page.evaluate(

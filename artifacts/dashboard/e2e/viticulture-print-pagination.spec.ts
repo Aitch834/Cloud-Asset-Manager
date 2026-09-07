@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Viticulture print reports — pagination guards
  *
@@ -9,7 +10,6 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -99,7 +99,7 @@ async function prepareDashboard(
   page: Page,
   farm: ViticultureFarm,
 ): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
 
   // Keep the generated rows deterministic and avoid changing shared farm data.
   await page.route(

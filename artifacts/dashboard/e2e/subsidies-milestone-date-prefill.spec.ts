@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Subsidies report — completion date is prefilled when a claim status is selected.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,10 +88,7 @@ test("prefills past due dates and falls back to today before Save", async ({ pag
     },
     [TENANT_SLUG, FARM_ID, REPORT_YEAR] as [string, number, number],
   );
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.goto("/dashboard/business-reports");
   await page.waitForLoadState("networkidle");
 

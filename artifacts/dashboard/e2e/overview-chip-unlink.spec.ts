@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Overview chip count updates immediately after unlink
  *
@@ -14,19 +15,11 @@
  * Both query keys are shared with OverviewTab's useCrud calls, so the chip
  * count in UnlinkedRecordsBar must update immediately on SPA tab switch.
  *
- * Authentication — correct order
+ * Authentication
  * ───────────────────────────────
- * @clerk/testing/playwright's `clerk.signIn()` is the correct API for
- * programmatic sign-in. It:
- *   1. Internally calls setupClerkTestingToken (CAPTCHA bypass via context.route)
- *   2. Waits for window.Clerk to load on the current page
- *   3. Creates a sign-in token via the Clerk Backend API (uses CLERK_SECRET_KEY)
- *   4. Evaluates window.Clerk sign-in via ticket strategy
- *   5. Waits for window.Clerk.user !== null
- *
- * So the page MUST be navigated first (so window.Clerk is loaded), then
- * clerk.signIn() is called. After that, Clerk stores the session in browser
- * storage, and subsequent reloads preserve the session.
+ * The shared e2e/auth helper opens the public dashboard root, waits for Clerk
+ * to load, reads the run-scoped generated test email, and signs in with
+ * Clerk's supported email-based testing API.
  *
  * Tab navigation
  * ──────────────
@@ -38,7 +31,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -208,26 +200,20 @@ async function deleteRecord(url: string) {
  * Authenticate via Clerk and open the viticulture page on `tabId`.
  *
  * Order:
- *  1. page.goto("/dashboard/") — loads app; window.Clerk initialises
- *  2. clerk.signIn({ page, emailAddress }) — clerk SDK must be loaded first;
- *     internally sets up CAPTCHA bypass + signs in via ticket strategy
- *  3. Seed localStorage (tenant slug, farm id, active viticulture tab)
- *  4. page.reload() — Zustand picks up seeded farm/tenant; usePersistedTab
+ *  1. Shared helper loads Clerk and signs in with the generated email
+ *  2. Seed localStorage (tenant slug, farm id, active viticulture tab)
+ *  3. page.reload() — Zustand picks up seeded farm/tenant; usePersistedTab
  *     opens on tabId automatically (no button click needed)
- *  5. Click "Viticulture" sidebar link — rendered once module fetch completes
+ *  4. Click "Viticulture" sidebar link — rendered once module fetch completes
  */
 async function signInAndOpenViticultureTab(
   page: import("@playwright/test").Page,
   tabId: string,
 ) {
-  // 1. Navigate — Clerk SDK loads on the page
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
+  // 1. Load Clerk on the public page and sign in.
+  await signInDashboard(page);
 
-  // 2. Sign in — must happen after window.Clerk is loaded
-  await clerk.signIn({ page, emailAddress: getStateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
-
-  // 3. Seed localStorage
+  // 2. Seed localStorage
   await page.evaluate(
     ([slug, farmId, tab]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug as string);
@@ -240,7 +226,7 @@ async function signInAndOpenViticultureTab(
     [TENANT_SLUG, FARM_ID, tabId] as [string, number, string],
   );
 
-  // 4. Reload — Zustand re-reads seeded state; usePersistedTab opens tabId
+  // 3. Reload — Zustand re-reads seeded state; usePersistedTab opens tabId
   await page.reload({ waitUntil: "networkidle" });
 
   // 5. Click Viticulture sidebar link. The sidebar renders two identical links

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — "Never cleaned" barrel filter.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -113,7 +113,7 @@ async function openVesselRegister(
   page: import("@playwright/test").Page,
   visibleRefs?: string[],
 ): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
 
   if (visibleRefs) {
     await page.route("**/api/farms/5/winery-vessels*", async route => {

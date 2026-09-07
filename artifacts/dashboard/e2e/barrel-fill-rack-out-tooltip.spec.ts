@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: BarrelFillHistory — rack-out tooltip.
  *
@@ -6,7 +7,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -133,7 +133,7 @@ async function openVesselRegister(page: import("@playwright/test").Page) {
 test("shows the rack-out explanation when hovering or keyboard-focusing an open barrel fill", async ({
   page,
 }) => {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   const { vesselId, fillId } = await createFixture();
 
   try {

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Planning Status — marking an overdue milestone complete refreshes the
  * summary strip without a page reload.
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -153,9 +153,7 @@ async function deleteFixture(projectId: number): Promise<void> {
 }
 
 async function openPlanningStatus(page: import("@playwright/test").Page): Promise<void> {
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([slug, farmId]) => {

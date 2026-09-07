@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — edit and cancel cleaning records.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -107,7 +107,7 @@ async function openCleaningHistory(
   page: import("@playwright/test").Page,
   vesselRef: string,
 ): Promise<import("@playwright/test").Locator> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 
@@ -165,9 +165,9 @@ test.describe("VesselRegisterTab — cleaning record edits", () => {
   test("opens a clean row pre-filled, saves its change, and keeps the other row", async ({
     page,
   }) => {
-    const vesselRef = `${RUN_TAG}-save`;
-    const originalProduct = `${RUN_TAG}-original`;
-    const otherProduct = `${RUN_TAG}-other`;
+    const vesselRef = `${RUN_TAG}-cancel`;
+    const originalProduct = `${RUN_TAG}-cancel-original`;
+    const otherProduct = `${RUN_TAG}-cancel-other`;
     const updatedProduct = `${RUN_TAG}-updated`;
     let vesselId: number | undefined;
 

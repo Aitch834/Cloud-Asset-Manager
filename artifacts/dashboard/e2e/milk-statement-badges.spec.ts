@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: BulkTankTab — milk statement badges on populated collection lists.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -77,7 +77,7 @@ async function deleteCollection(id: number): Promise<void> {
 }
 
 async function openBulkTank(page: import("@playwright/test").Page): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 

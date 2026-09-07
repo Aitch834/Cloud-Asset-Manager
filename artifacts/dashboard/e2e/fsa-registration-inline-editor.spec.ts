@@ -1,5 +1,5 @@
+import { signInDashboard } from "./auth";
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +50,7 @@ async function getFarm() {
 }
 
 async function openViticulture(page: import("@playwright/test").Page) {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(

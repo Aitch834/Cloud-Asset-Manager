@@ -1,5 +1,5 @@
+import { signInDashboard } from "./auth";
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,10 +114,7 @@ async function prepareDashboard(page: Page) {
     });
   });
 
-  await setupClerkTestingToken({ page, userId: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
+  await signInDashboard(page);
   await page.evaluate(
     ([tenantSlug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", tenantSlug);

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VineRegisterTab — block-picker reminder toast (Task #1267)
  *
@@ -35,7 +36,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -158,9 +158,7 @@ async function deleteVineRegisterEntry(entryId: number): Promise<void> {
 // ─── Navigation helper ────────────────────────────────────────────────────────
 
 async function navigateToVineRegisterTab(page: import("@playwright/test").Page) {
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
 
   // Seed localStorage so the Zustand store pre-selects Highfield Vineyard.
   await page.evaluate(([slug, farmId]) => {
@@ -220,28 +218,23 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
    */
   test("A — dismiss View dialog fires 'Block selection still pending' toast", async ({ page }) => {
     // ── Seed: two blocks + one vine-register row linked to block A ──────────
-    const blockAId = await createBlock(`E2E-1267-A-${Date.now()}`);
-    const blockBId = await createBlock(`E2E-1267-B-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockAId);
+    const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
+    const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
+    const entryId = await createVineRegisterEntry(blockId);
 
     try {
       await navigateToVineRegisterTab(page);
+      let row = await findSeededRow(page);
 
-      // ── Find the seeded row in the table ────────────────────────────────
-      const row = await findSeededRow(page);
-
-      // ── Open the inline block-change picker ──────────────────────────────
-      // The ArrowLeftRight button is opacity-0 until hovered; use force:true.
       const changeBlockBtn = row.getByTitle("Change block link");
       await changeBlockBtn.click({ force: true });
 
-      // Confirm the picker Select (drop-down trigger) is now visible.
       const pickerTrigger = row.locator('[role="combobox"]');
       await expect(pickerTrigger).toBeVisible({
         message: "Inline block-change picker must appear after clicking ArrowLeftRight",
       });
 
-      // ── Open the View dialog via the Eye button in the actions cell ────────
+      // ── Open the View dialog ─────────────────────────────────────────────
       const eyeBtn = row.locator("td").last().locator("button").first();
       await eyeBtn.click();
 
@@ -276,16 +269,14 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
    */
   test("B — View→Edit flow: no toast on View-close, toast fires on Edit-close", async ({ page }) => {
     // ── Seed ─────────────────────────────────────────────────────────────────
-    const blockAId = await createBlock(`E2E-1267-C-${Date.now()}`);
-    const blockBId = await createBlock(`E2E-1267-D-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockAId);
+    const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
+    const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
+    const entryId = await createVineRegisterEntry(blockId);
 
     try {
       await navigateToVineRegisterTab(page);
+      let row = await findSeededRow(page);
 
-      const row = await findSeededRow(page);
-
-      // ── Open the inline block-change picker ──────────────────────────────
       const changeBlockBtn = row.getByTitle("Change block link");
       await changeBlockBtn.click({ force: true });
 
@@ -352,12 +343,11 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
   test("C — switching tabs while picker is active fires toast and clears picker", async ({ page }) => {
     const blockAId = await createBlock(`E2E-1267-E-${Date.now()}`);
     const blockBId = await createBlock(`E2E-1267-F-${Date.now()}`);
-    const entryId = await createVineRegisterEntry(blockAId);
+    const entryId = await createVineRegisterEntry(blockId);
 
     try {
       await navigateToVineRegisterTab(page);
-
-      const row = await findSeededRow(page);
+      let row = await findSeededRow(page);
 
       const changeBlockBtn = row.getByTitle("Change block link");
       await changeBlockBtn.click({ force: true });
@@ -384,13 +374,13 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
   });
 
   test("D — no-photo badge opens the correct block gallery and exposes its tooltip shortcut", async ({ page }) => {
-    const blockName = `E2E-gallery-empty-${Date.now()}`;
+    const blockName = `E2E-gallery-photo-${Date.now()}`;
     const blockId = await createBlock(blockName);
     const entryId = await createVineRegisterEntry(blockId);
 
     try {
       await navigateToVineRegisterTab(page);
-      const row = await findSeededRow(page);
+      let row = await findSeededRow(page);
       const noPhotoButton = row.getByRole("button", { name: `Add photos for ${blockName}` });
 
       await noPhotoButton.hover();
@@ -399,7 +389,7 @@ test.describe("VineRegisterTab — block-picker reminder toast", () => {
 
       await noPhotoButton.click();
 
-      const blockDialog = page.getByRole("dialog").filter({ hasText: blockName });
+      let blockDialog = page.getByRole("dialog").filter({ hasText: blockName });
       await expect(blockDialog).toBeVisible();
       await expect(blockDialog.getByText("Add block photos", { exact: true })).toBeVisible();
     } finally {

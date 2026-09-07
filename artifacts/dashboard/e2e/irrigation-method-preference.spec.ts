@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Applications and Irrigation Advisor share one per-farm method preference.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -27,7 +27,7 @@ async function openIrrigation(page: Page) {
   // The installed Clerk runtime accepts userId (as used by the existing
   // dashboard E2E suite), although its published parameter type omits it.
   // @ts-expect-error Clerk's runtime supports the test user selected by global setup.
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(

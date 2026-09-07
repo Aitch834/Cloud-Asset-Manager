@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Batch Trail print contents layout.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -136,9 +136,7 @@ async function prepareReadOnlyFixture(page: Page): Promise<void> {
     }
   });
 
-  await setupClerkTestingToken({ page, userId: readStateFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
-  await page.goto("/dashboard/", { waitUntil: "domcontentloaded" });
-  await clerk.signIn({ page, emailAddress: readStateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([tenantSlug, farmId]) => {

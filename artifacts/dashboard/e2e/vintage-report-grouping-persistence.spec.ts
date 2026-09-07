@@ -1,5 +1,5 @@
+import { signInDashboard } from "./auth";
 import { test, expect, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -134,8 +134,7 @@ test("restores the Vintage Season Report grouping independently for each farm", 
     }
   }
 
-  await page.goto("/dashboard/");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.waitForLoadState("networkidle");
 
   await page.evaluate(

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Disease Scouting CSV photo and caption counts
  *
@@ -16,7 +17,6 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -205,7 +205,7 @@ async function downloadScoutingCounts(page: Page) {
 
 test.describe("Disease Scouting CSV photo and caption counts", () => {
   test("refreshes photoCount and captionCount after add, caption, and delete", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const scoutingId = await createScoutingRecord();
     const consoleErrors: string[] = [];

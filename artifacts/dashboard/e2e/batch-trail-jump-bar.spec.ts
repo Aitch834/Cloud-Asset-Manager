@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Batch Trail data-aware jump navigation.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,10 +145,7 @@ async function mockWineryData(page: Page): Promise<void> {
 }
 
 async function openPressingRecords(page: Page): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.evaluate(
     ([slug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);

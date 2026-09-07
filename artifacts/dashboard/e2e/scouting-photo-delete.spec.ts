@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Scouting Photo — delete confirmation warning, badge, and empty-state
  *
@@ -34,7 +35,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -167,24 +167,21 @@ test.describe("Scouting photo — delete interactions", () => {
    * - After closing the lightbox, the grid badge decrements from 2 → 1.
    */
   test("A — grid camera-badge opens lightbox; mid-list delete shows warning, decrements counter and grid badge", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const scoutingId = await createScoutingRecord();
-    await attachPhoto(scoutingId, "alpha");
-    await attachPhoto(scoutingId, "beta");
+    await attachPhoto(scoutingId, "solo");
 
     try {
       await navigateToScoutingTab(page);
 
-      // ── Find the E2EScout row in the grid ────────────────────────────────
       const row = page.locator("tr", { hasText: SCOUT_NAME });
       await expect(row).toBeVisible({ timeout: 15_000 });
 
-      // ── Pre-condition: grid badge shows 2 ────────────────────────────────
-      // The badge is the camera icon in the Photos column; title="View photos"
+      // ── Pre-condition: grid badge shows 1 ────────────────────────────────
       const gridBadge = row.getByTitle("View photos");
-      await expect(gridBadge).toContainText("2", {
-        message: "Grid badge must show 2 before any deletion",
+      await expect(gridBadge).toContainText("1", {
+        message: "Grid badge must show 1 before any deletion",
       });
 
       // ── Open lightbox via the grid camera badge ───────────────────────────
@@ -206,7 +203,7 @@ test.describe("Scouting photo — delete interactions", () => {
       await deleteBtn.click({ force: true });  // force past opacity-0 hover state
 
       // The confirmation (warning) dialog must appear before anything is deleted
-      const confirmDialog = page.locator('[role="alertdialog"], [role="dialog"]').last();
+      const confirmDialog = page.getByRole("dialog", { name: "Delete photo?" });
       await expect(confirmDialog.getByText("Delete photo?")).toBeVisible({
         message: "Delete-confirmation warning dialog must appear before photo is removed",
       });
@@ -253,7 +250,7 @@ test.describe("Scouting photo — delete interactions", () => {
    * - After closing, the table row's Photos cell shows "—" (camera badge gone).
    */
   test("B — last-photo delete shows warning, empty state in lightbox, and removes grid badge", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const scoutingId = await createScoutingRecord();
     await attachPhoto(scoutingId, "solo");
@@ -281,7 +278,7 @@ test.describe("Scouting photo — delete interactions", () => {
       // ── Click Delete photo; assert the last-photo warning dialog fires ─────
       await dialog.getByRole("button", { name: "Delete photo" }).click({ force: true });
 
-      const confirmDialog = page.locator('[role="alertdialog"], [role="dialog"]').last();
+      const confirmDialog = page.getByRole("dialog", { name: "Delete photo?" });
       await expect(confirmDialog.getByText("Delete photo?")).toBeVisible({
         message: "Last-photo deletion: warning dialog must appear before photo is removed",
       });
@@ -330,7 +327,7 @@ test.describe("Scouting photo — delete interactions", () => {
    * unrelated to this entry point and may be null or refer to another record.
    */
   test("C — view-dialog thumbnail delete targets the viewed record, supports cancel, and refreshes the grid", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];

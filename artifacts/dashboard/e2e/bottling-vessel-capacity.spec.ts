@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Bottling Records — source vessel and capacity regression coverage.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -90,10 +90,7 @@ async function openBottlingRecords(page: Page): Promise<void> {
     await route.fulfill({ json: { records: [BOTTLING_RECORD] } });
   });
 
-  await setupClerkTestingToken({ page, userId: readStateFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!) });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: readStateFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!) });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([tenantSlug, farmId]) => {

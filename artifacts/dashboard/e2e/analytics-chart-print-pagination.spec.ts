@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Shared analytics chart cards — print pagination guards
  *
@@ -8,7 +9,6 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -217,7 +217,7 @@ async function expectSharedPrintContract(page: Page, moduleName: string): Promis
 
 test("shared analytics chart cards stay capped and unsplit when printed", async ({ page }) => {
   const modules = await getAnalyticsModules();
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
 
   for (const module of modules) {
     await selectFarm(page, module.farm);

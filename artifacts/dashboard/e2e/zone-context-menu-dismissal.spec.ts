@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — zone-chip context menu dismissal.
  *
@@ -6,7 +7,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,7 +75,7 @@ async function deleteBarrel(vesselId: number): Promise<void> {
 async function openVesselRegister(
   page: import("@playwright/test").Page,
 ): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 

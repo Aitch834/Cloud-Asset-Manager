@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: VesselRegisterTab — zone-chip alert dismissal.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,10 +93,7 @@ function readSetupFile(name: string): string {
 }
 
 async function openVesselRegister(page: Page): Promise<void> {
-  await setupClerkTestingToken({
-    page,
-    userId: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_ID_FILE!),
-  });
+  await signInDashboard(page);
 
   await page.route("**/api/farms/5/winery-vessels*", async route => {
     if (route.request().method() !== "GET") {
@@ -108,11 +105,7 @@ async function openVesselRegister(page: Page): Promise<void> {
     await route.fulfill({ response, json: { ...body, records: vessels } });
   });
 
-  await page.goto("/dashboard/", { waitUntil: "domcontentloaded" });
-  await clerk.signIn({
-    page,
-    emailAddress: readSetupFile(process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!),
-  });
+  await signInDashboard(page);
   await page.evaluate(
     ([slug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", slug);

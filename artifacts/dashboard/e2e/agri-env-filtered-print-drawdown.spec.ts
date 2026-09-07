@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: filtered agri-environment print reports retain farm-wide drawdown.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -148,9 +148,7 @@ async function deleteProject(projectId: number): Promise<void> {
 async function openAgriEnvironmentTab(
   page: import("@playwright/test").Page,
 ): Promise<void> {
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
 
   await page.evaluate(
     ([slug, farmId]) => {

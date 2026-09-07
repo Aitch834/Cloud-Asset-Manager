@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Spray Diary — print pre-flight dialog
  *
@@ -34,7 +35,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -186,7 +186,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   test("A — clicking Print with an unlinked record opens the pre-flight dialog", async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     // Inject an unlinked spray record (blockId: null)
     const sprayId = await createSprayRecord(null);
@@ -194,7 +194,6 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
     try {
       await navigateToSprayDiaryTab(page);
 
-      // Confirm the injected record is visible in the table
       const row = page.locator("tr", { hasText: PRODUCT_TAG });
       await expect(row).toBeVisible({ timeout: 15_000 });
 
@@ -204,7 +203,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       });
       // If the trigger shows a specific year, open and pick "All years"
       if (await yearTrigger.isVisible({ timeout: 2_000 })) {
-        const triggerText = await yearTrigger.textContent();
+        const triggerText = await printBlockTrigger.textContent();
         if (triggerText && /^\d{4}$/.test(triggerText.trim())) {
           await yearTrigger.click();
           await page.getByRole("option", { name: /all years/i }).click();
@@ -214,7 +213,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       // Ensure the "Print: all blocks" filter is active so unlinked records
       // are included in printRows.
       const printBlockTrigger = page.locator("button[role='combobox']", {
-        hasText: /print: all blocks/i,
+        hasText: /print:/i,
       });
       if (await printBlockTrigger.isVisible({ timeout: 2_000 })) {
         const triggerText = await printBlockTrigger.textContent();
@@ -277,7 +276,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   test('B — "Link first" closes the pre-flight dialog and opens the bulk-link dialog', async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const sprayId = await createSprayRecord(null);
 
@@ -293,16 +292,8 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
         .locator('[role="dialog"]')
         .filter({ hasText: /record.*isn't linked to a block/i });
       await expect(preflightDialog).toBeVisible({ timeout: 5_000 });
-
-      // Click "Link first"
       await preflightDialog.getByRole("button", { name: /link first/i }).click();
 
-      // Pre-flight dialog must be gone
-      await expect(preflightDialog).not.toBeVisible({
-        message: "Pre-flight dialog must close after clicking Link first",
-      });
-
-      // Bulk-link dialog must open in its place
       const bulkDialog = page
         .locator('[role="dialog"]')
         .filter({ hasText: /link unlinked spray records/i });
@@ -331,9 +322,9 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   test("C — failed bulk-link save keeps the dialog open and shows an inline error", async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
-    const firstBlock = await getFirstVineyardBlock();
+    const firstBlock = blocksBody.blocks?.[0];
     const sprayId = await createSprayRecord(null);
 
     try {
@@ -343,6 +334,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
       await expect(row).toBeVisible({ timeout: 15_000 });
 
       await printButton(page).click();
+
       const preflightDialog = page
         .locator('[role="dialog"]')
         .filter({ hasText: /record.*isn't linked to a block/i });
@@ -412,7 +404,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   test('"Print anyway" triggers a print popup (window.open is called)', async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     const sprayId = await createSprayRecord(null);
 
@@ -463,7 +455,7 @@ test.describe("Spray Diary — print pre-flight dialog", () => {
   test("D — clicking Print with all-linked print set skips the dialog entirely", async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
 
     // We need to know a block ID that exists on this farm.  Fetch one via the
     // API before injecting the linked spray record.

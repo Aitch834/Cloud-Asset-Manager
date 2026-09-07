@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Capital grants keep the selected scheme while composing filters.
  *
@@ -8,7 +9,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,10 +123,7 @@ async function openCapitalGrants(page: import("@playwright/test").Page): Promise
     route.fulfill({ json: { records: grants } }),
   );
 
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.evaluate(([slug, farmId]) => {
     localStorage.setItem("farmtrac_tenantSlug", slug);
     localStorage.setItem(

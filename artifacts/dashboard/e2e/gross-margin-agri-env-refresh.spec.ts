@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Gross Margin refreshes after an Agri-Environment milestone claim.
  *
@@ -9,7 +10,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -112,7 +112,7 @@ async function deleteRecord(url: string) {
 }
 
 async function openBusinessReports(page: import("@playwright/test").Page) {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: WineGB overview nudge persistence and reset behaviour.
  *
@@ -8,7 +9,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -98,7 +98,7 @@ async function clearNudgeStorage(page: import("@playwright/test").Page) {
 
 test.describe("WineGB overview nudge persistence", () => {
   test("stays collapsed but visible after an overview page refresh", async ({ page }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
     const before = await getSubmissions();
     await setSubmission("bud_burst", false);
 
@@ -137,7 +137,7 @@ test.describe("WineGB overview nudge persistence", () => {
   test("resets to collapsed and visible when an API un-tick makes a survey pending", async ({
     page,
   }) => {
-    await setupClerkTestingToken({ page, userId: getTestUserId() });
+    await signInDashboard(page);
     const before = await getSubmissions();
     await setSubmission("bud_burst", true);
     await setSubmission("frost_damage", false);

@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Subsidies report — reverting a claimed milestone clears its date
  *
@@ -10,7 +11,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -115,10 +115,7 @@ async function getMilestone(projectId: number, milestoneId: number) {
 }
 
 async function openSubsidiesReport(page: import("@playwright/test").Page) {
-  const clerkTestingTokenParams = { page, userId: getTestUserId() } as Parameters<
-    typeof setupClerkTestingToken
-  >[0];
-  await setupClerkTestingToken(clerkTestingTokenParams);
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
   await page.evaluate(

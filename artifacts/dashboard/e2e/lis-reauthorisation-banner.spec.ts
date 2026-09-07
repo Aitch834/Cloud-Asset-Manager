@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: LIS re-authorisation warning
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Client } from "pg";
@@ -55,7 +55,7 @@ async function prepareDashboard(
   tokenScopeMismatch: boolean,
 ) {
   const { tenantSlug, farmId } = await getTestFarm();
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
   await page.goto("/dashboard/");
   await page.waitForLoadState("networkidle");
 

@@ -1,9 +1,9 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: Excise return view keeps the HMRC duty-rate review context visible.
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ async function openExciseReturn(
   farmId: number,
   ratesLastUpdated: string | null,
 ): Promise<void> {
-  await setupClerkTestingToken({ page, userId: getTestUserId() });
+  await signInDashboard(page);
 
   await page.route(`**/api/farms/${farmId}/winery-excise-returns`, async route => {
     if (route.request().method() !== "GET") {

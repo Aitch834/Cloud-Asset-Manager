@@ -1,5 +1,5 @@
+import { signInDashboard } from "./auth";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,8 +82,7 @@ test("active block pills match yield lines and toggling only changes visibility"
     );
   }
 
-  await page.goto("/dashboard/");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.waitForLoadState("networkidle");
   await useVintageReport(page);
 

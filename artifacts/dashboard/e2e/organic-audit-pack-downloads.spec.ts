@@ -1,3 +1,4 @@
+import { signInDashboard } from "./auth";
 /**
  * E2E: the Organic Compliance audit pack downloads every register.
  *
@@ -7,7 +8,6 @@
  */
 
 import { expect, test, type Download, type Page } from "@playwright/test";
-import { clerk } from "@clerk/testing/playwright";
 import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -167,9 +167,7 @@ async function prepareOrganicCompliance(page: Page, farm: OrganicFarm): Promise<
     },
   ]);
 
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await clerk.signIn({ page, emailAddress: getTestUserEmail() });
+  await signInDashboard(page);
   await page.evaluate(
     ([tenantSlug, farmId]) => {
       localStorage.setItem("farmtrac_tenantSlug", tenantSlug);
