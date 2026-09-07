@@ -143,11 +143,16 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 
 jest.mock("../components/VineBlockPicker", () => ({ VineBlockPicker: () => null }));
+jest.mock("../components/StaffMemberPicker", () => ({
+  StaffMemberPicker: () => null,
+  memberFullName: jest.fn(() => "Test Grower"),
+}));
 jest.mock("../components/ui/Button", () => ({ Button: () => null }));
 jest.mock("../components/ui/Input", () => ({ Input: () => null }));
 jest.mock("../components/ui/IdentifierBanner", () => ({ IdentifierBanner: () => null }));
 jest.mock("../lib/context/FarmContext", () => ({ useFarm: jest.fn() }));
 jest.mock("../lib/hooks/useApiFetch", () => ({ useApiFetch: jest.fn() }));
+jest.mock("../lib/hooks/useApiFarmMembers", () => ({ useApiFarmMembers: jest.fn(() => ({ members: [] })) }));
 jest.mock("../lib/hooks/useApiVineBlocks", () => ({ useApiVineBlocks: jest.fn() }));
 jest.mock("../lib/hooks/useFarmIdentifiers", () => ({ useFarmIdentifiers: jest.fn() }));
 jest.mock("../lib/hooks/useIdentifierBannerDismiss", () => ({ useIdentifierBannerDismiss: jest.fn() }));
@@ -155,6 +160,7 @@ jest.mock("../lib/hooks/usePersistedBlockFilter", () => ({ usePersistedBlockFilt
 jest.mock("../lib/hooks/usePrint", () => ({ usePrint: jest.fn() }));
 jest.mock("../lib/vineyardCountEvents", () => ({ vineyardCountEvents: {} }));
 jest.mock("../lib/printTemplates", () => ({ vineSprayDiaryHtml: jest.fn() }));
+jest.mock("../lib/vineSprayDiaryHelpers", () => ({ findPreselectedVineBlock: jest.fn(() => null) }));
 jest.mock("../lib/uploadPhoto", () => ({
   getApiBase: jest.fn(),
   pickPhoto: jest.fn(),
@@ -168,7 +174,14 @@ jest.mock("../lib/vineSprayDiaryLightboxHelpers", () => ({
   MIN_SCALE: 1,
   SWIPE_DOWN_THRESHOLD: 80,
   SWIPE_HORIZ_THRESHOLD: 80,
+  clampIndexAfterDelete: jest.fn((index: number, length: number) => length === 0 ? -1 : Math.min(index, length - 1)),
+  currentPhotoId: jest.fn((photos: Array<{ id: number }>, index: number) => photos[index]?.id ?? null),
   counterText: jest.fn((index: number, count: number) => `${index + 1} / ${count}`),
+  displayedIndexAfterPhotosChange: jest.fn((photos: Array<{ id: number }>, photoId: number | null, index: number) => {
+    if (photos.length === 0) return -1;
+    const found = photos.findIndex((photo) => photo.id === photoId);
+    return found >= 0 ? found : Math.min(index, photos.length - 1);
+  }),
   showCounter: jest.fn((count: number) => count > 1),
 }));
 
@@ -184,6 +197,7 @@ import {
   SprayPhotoLightbox,
   SprayPhotoThumbnail,
 } from "../app/vine-spray-diary-history";
+import { SprayDiaryLightbox } from "../app/vine-spray-diary";
 
 const { useFarm } = require("../lib/context/FarmContext") as { useFarm: jest.Mock };
 const { useApiFetch } = require("../lib/hooks/useApiFetch") as { useApiFetch: jest.Mock };
@@ -284,6 +298,78 @@ describe("SprayPhotoLightbox cover badge", () => {
       gesture.onEnd({ translationX: 100 });
     });
     expect(screen.getByText("★")).toBeTruthy();
+  });
+});
+
+describe("SprayDiaryLightbox caption editing", () => {
+  it("saves a caption and shows the persisted value after reopening", async () => {
+    const onSaveCaption = jest.fn().mockResolvedValue(true);
+    const props = {
+      photos: [photo],
+      initialIndex: 0,
+      visible: true,
+      onClose: jest.fn(),
+      onDelete: jest.fn(),
+      onSaveCaption,
+    };
+    const screen = render(<SprayDiaryLightbox {...props} />);
+
+    fireEvent.press(screen.getByTestId("spray-diary-caption-edit"));
+    fireEvent.changeText(screen.getByTestId("spray-diary-caption-input"), "  Canopy after spray  ");
+    fireEvent.press(screen.getByTestId("spray-diary-caption-save"));
+
+    await waitFor(() => {
+      expect(onSaveCaption).toHaveBeenCalledWith(photo.id, "Canopy after spray");
+    });
+
+    screen.rerender(
+      <SprayDiaryLightbox
+        {...props}
+        visible={false}
+        photos={[{ ...photo, caption: "Canopy after spray" }]}
+      />,
+    );
+    screen.rerender(
+      <SprayDiaryLightbox
+        {...props}
+        visible
+        photos={[{ ...photo, caption: "Canopy after spray" }]}
+      />,
+    );
+
+    expect(screen.getByText("Canopy after spray")).toBeTruthy();
+  });
+
+  it("keeps a failed caption draft visible and retries successfully", async () => {
+    const onSaveCaption = jest.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const screen = render(
+      <SprayDiaryLightbox
+        photos={[photo]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        onDelete={jest.fn()}
+        onSaveCaption={onSaveCaption}
+      />,
+    );
+
+    fireEvent.press(screen.getByTestId("spray-diary-caption-edit"));
+    fireEvent.changeText(screen.getByTestId("spray-diary-caption-input"), "Retry this caption");
+    fireEvent.press(screen.getByTestId("spray-diary-caption-save"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Could not save the caption. Please try again.")).toBeTruthy();
+    });
+    expect(screen.getByTestId("spray-diary-caption-input").props.value).toBe("Retry this caption");
+
+    fireEvent.press(screen.getByTestId("spray-diary-caption-save"));
+
+    await waitFor(() => {
+      expect(onSaveCaption).toHaveBeenCalledTimes(2);
+    });
+    expect(onSaveCaption).toHaveBeenLastCalledWith(photo.id, "Retry this caption");
   });
 });
 

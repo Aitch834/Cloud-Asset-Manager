@@ -195,6 +195,20 @@ jest.mock("../lib/scoutingLightboxHelpers", () => ({
     Array.from({ length: photosCount }, (_, index) => index),
   ),
   isPaginationItemActive: jest.fn((item: number, currentIndex: number) => item === currentIndex),
+  mergeRefreshedPhotoCaptions: jest.fn((
+    refreshedPhotos: Array<{ id: number; caption: string | null; [key: string]: unknown }>,
+    currentPhotos: Array<{ id: number; caption: string | null; [key: string]: unknown }>,
+    captionRevisions: ReadonlyMap<number, number>,
+    refreshStartedAtRevision: number,
+  ) => {
+    const currentById = new Map(currentPhotos.map((photo) => [photo.id, photo]));
+    return refreshedPhotos.map((photo) => {
+      const captionRevision = captionRevisions.get(photo.id) ?? 0;
+      const currentPhoto = currentById.get(photo.id);
+      if (captionRevision <= refreshStartedAtRevision || !currentPhoto) return photo;
+      return { ...photo, caption: currentPhoto.caption };
+    });
+  }),
   scheduleScoutingPhotoAutoRetry: jest.fn(),
   mergeRefreshedPhotoCaptions: jest.fn(
     (refreshedPhotos: Array<{ id: number; caption: string | null }>) =>

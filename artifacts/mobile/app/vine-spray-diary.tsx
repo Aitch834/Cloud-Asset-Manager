@@ -17,6 +17,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -204,6 +205,7 @@ interface SprayDiaryLightboxProps {
   visible: boolean;
   onClose: () => void;
   onDelete: (photoId: number) => void;
+  onSaveCaption: (photoId: number, caption: string | null) => Promise<boolean>;
   onSetCover?: (photo: SprayDiaryPhoto) => void | Promise<void>;
 }
 
@@ -221,12 +223,13 @@ interface SprayDiaryLightboxProps {
  *   • Double-tap          → toggle 2.5× zoom
  *   • Pan while zoomed    → free pan
  */
-function SprayDiaryLightbox({
+export function SprayDiaryLightbox({
   photos,
   initialIndex,
   visible,
   onClose,
   onDelete,
+  onSaveCaption,
   onSetCover,
 }: SprayDiaryLightboxProps) {
   const insets = useSafeAreaInsets();
@@ -291,6 +294,10 @@ function SprayDiaryLightbox({
 
   const [imgError, setImgError] = useState(false);
   const [settingCover, setSettingCover] = useState(false);
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [captionSaving, setCaptionSaving] = useState(false);
+  const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
   const prevUriRef = useRef<string | null>(null);
 
   // Reset animation state when the lightbox opens / closes
@@ -300,6 +307,9 @@ function SprayDiaryLightbox({
       setCurrentPhotoId(photosRef.current[idx]?.id ?? null);
       lastDisplayedIndexRef.current = idx;
       setSettingCover(false);
+      setEditingCaption(false);
+      setCaptionDraft("");
+      setCaptionSaveError(null);
       indexSv.value = idx;
       scale.value = 1;
       savedScale.value = 1;
@@ -311,6 +321,9 @@ function SprayDiaryLightbox({
       bgOpacity.value = withTiming(1, { duration: 200 });
     } else {
       bgOpacity.value = withTiming(0, { duration: 150 });
+      setEditingCaption(false);
+      setCaptionDraft("");
+      setCaptionSaveError(null);
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -318,6 +331,9 @@ function SprayDiaryLightbox({
   const goToIndex = useCallback((idx: number) => {
     const photo = photosRef.current[idx];
     setCurrentPhotoId(photo?.id ?? null);
+    setEditingCaption(false);
+    setCaptionDraft("");
+    setCaptionSaveError(null);
     scale.value = 1;
     savedScale.value = 1;
     translateX.value = 0;
@@ -458,6 +474,26 @@ function SprayDiaryLightbox({
     }
   }, [photo, onSetCover, settingCover]);
 
+  const handleSaveCaption = useCallback(async () => {
+    if (!photo || captionSaving) return;
+    const caption = captionDraft.trim() || null;
+    setCaptionSaving(true);
+    setCaptionSaveError(null);
+    try {
+      const saved = await onSaveCaption(photo.id, caption);
+      if (!saved) {
+        setCaptionSaveError("Could not save the caption. Please try again.");
+        return;
+      }
+      setEditingCaption(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setCaptionSaveError("Could not save the caption. Please try again.");
+    } finally {
+      setCaptionSaving(false);
+    }
+  }, [photo, captionDraft, captionSaving, onSaveCaption]);
+
   // Reset image error when navigating to a new photo or URLs are refreshed
   if (prevUriRef.current !== uri) {
     prevUriRef.current = uri;
@@ -552,11 +588,83 @@ function SprayDiaryLightbox({
             </View>
           ) : null}
 
-          {/* Caption (read-only) */}
-          {photo?.caption ? (
-            <View style={[lbStyles.captionBar, { paddingBottom: insets.bottom + 16 }]}>
-              <Text style={lbStyles.captionText} numberOfLines={3}>{photo.caption}</Text>
-            </View>
+          {/* Caption bar — add/edit without leaving the lightbox */}
+          {photo ? (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={[lbStyles.captionBar, { paddingBottom: insets.bottom + 12 }]}
+            >
+              {editingCaption ? (
+                <>
+                  <TextInput
+                    style={lbStyles.captionInput}
+                    value={captionDraft}
+                    onChangeText={(value) => {
+                      setCaptionDraft(value);
+                      if (captionSaveError) setCaptionSaveError(null);
+                    }}
+                    placeholder="Add a caption…"
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    multiline
+                    autoFocus
+                    maxLength={500}
+                    editable={!captionSaving}
+                    testID="spray-diary-caption-input"
+                  />
+                  {captionSaveError ? (
+                    <Text style={lbStyles.captionError} accessibilityRole="alert">
+                      {captionSaveError}
+                    </Text>
+                  ) : null}
+                  <View style={lbStyles.captionEditActions}>
+                    <Pressable
+                      style={lbStyles.captionCancelBtn}
+                      onPress={() => {
+                        setEditingCaption(false);
+                        setCaptionDraft(photo.caption ?? "");
+                        setCaptionSaveError(null);
+                      }}
+                      hitSlop={8}
+                      disabled={captionSaving}
+                    >
+                      <Text style={lbStyles.captionCancelText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={lbStyles.captionSaveBtn}
+                      onPress={handleSaveCaption}
+                      hitSlop={8}
+                      disabled={captionSaving}
+                      testID="spray-diary-caption-save"
+                    >
+                      {captionSaving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={lbStyles.captionSaveText}>Save</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <View style={lbStyles.captionReadRow}>
+                  <Text style={[lbStyles.captionText, { flex: 1 }]} numberOfLines={3}>
+                    {photo.caption ?? "Add a caption"}
+                  </Text>
+                  <Pressable
+                    style={lbStyles.captionEditBtn}
+                    onPress={() => {
+                      setCaptionDraft(photo.caption ?? "");
+                      setCaptionSaveError(null);
+                      setEditingCaption(true);
+                    }}
+                    hitSlop={12}
+                    accessibilityLabel={photo.caption ? "Edit caption" : "Add caption"}
+                    testID="spray-diary-caption-edit"
+                  >
+                    <Feather name="edit-2" size={16} color="rgba(255,255,255,0.75)" />
+                  </Pressable>
+                </View>
+              )}
+            </KeyboardAvoidingView>
           ) : null}
         </Animated.View>
       </GestureHandlerRootView>
@@ -704,6 +812,26 @@ function SprayDiaryPhotoSection({
     }
   };
 
+  const handleSaveCaption = useCallback(async (photoId: number, caption: string | null) => {
+    try {
+      const res = await apiFetch(
+        `/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos/${photoId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption }),
+        },
+      );
+      if (!res.ok) return false;
+      setPhotos((prev) =>
+        prev.map((photo) => (photo.id === photoId ? { ...photo, caption } : photo)),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, [farmId, sprayDiaryId]);
+
   const handlePressPhoto = (photo: SprayDiaryPhoto) => {
     const idx = photos.findIndex((p) => p.id === photo.id);
     setLightboxIndex(idx >= 0 ? idx : 0);
@@ -795,6 +923,7 @@ function SprayDiaryPhotoSection({
           // Lightbox closes automatically via the photos-shrink guard inside
           // SprayDiaryLightbox when the deleted photo was the last one.
         }}
+        onSaveCaption={handleSaveCaption}
         onSetCover={handleSetCover}
       />
     </View>
@@ -1386,5 +1515,67 @@ const lbStyles = StyleSheet.create({
     fontFamily: fonts.regular,
     lineHeight: 20,
     textAlign: "center",
+  },
+  captionReadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  captionEditBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  captionInput: {
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minHeight: 48,
+    textAlignVertical: "top",
+    marginBottom: spacing.xs,
+  },
+  captionError: {
+    color: colors.error,
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    marginBottom: spacing.xs,
+  },
+  captionEditActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+  },
+  captionCancelBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  captionCancelText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.8)",
+  },
+  captionSaveBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    minWidth: 64,
+    alignItems: "center",
+  },
+  captionSaveText: {
+    fontFamily: fonts.semiBold,
+    fontSize: fontSize.sm,
+    color: "#fff",
   },
 });
