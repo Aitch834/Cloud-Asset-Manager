@@ -2,9 +2,10 @@
 /**
  * Integration check for GET /api/admin/check-bg-url.
  *
- * It uses one real image CDN response, one successful non-image response, and
- * one broken URL.  This exercises the server-side probe that avoids browser
- * CORS limitations and verifies its stable JSON contract.
+ * It uses real image CDN responses (including redirects and a host that rejects
+ * HEAD), successful non-image responses, an unsafe redirect, and one broken
+ * URL. This exercises the server-side probe that avoids browser CORS
+ * limitations and verifies its stable JSON contract.
  *
  * Usage: node scripts/check-bg-url.mjs
  * Env: API_BASE (default http://localhost:80/api)
@@ -126,10 +127,34 @@ try {
       expectedContentType: "image/jpeg",
     },
     {
+      label: "HTTPS redirect to image",
+      url: "https://httpbin.org/redirect-to?url=%2Fimage%2Fjpeg",
+      expectedOk: true,
+      expectedContentType: "image/jpeg",
+    },
+    {
+      label: "HEAD-rejecting CDN GET fallback",
+      url: "https://picsum.photos/64/64",
+      expectedOk: true,
+      expectedContentType: "image/jpeg",
+    },
+    {
       label: "successful non-image URL",
       url: "https://example.com/",
       expectedOk: false,
       expectedContentType: "text/html",
+    },
+    {
+      label: "HTTPS redirect to non-image",
+      url: "https://httpbin.org/redirect-to?url=https%3A%2F%2Fexample.com%2F",
+      expectedOk: false,
+      expectedContentType: "text/html",
+    },
+    {
+      label: "redirect to unsafe HTTP target",
+      url: "https://httpbin.org/redirect-to?url=http%3A%2F%2Fexample.com%2F",
+      expectedOk: false,
+      expectedContentType: null,
     },
     {
       label: "broken URL",
@@ -154,7 +179,9 @@ try {
     );
     check(
       `${testCase.label}: response has contentType`,
-      typeof body?.contentType === "string" && body.contentType.length > 0,
+      testCase.expectedContentType === null
+        ? body?.contentType === null
+        : typeof body?.contentType === "string" && body.contentType.length > 0,
       `body was ${JSON.stringify(body)}`,
     );
     check(
