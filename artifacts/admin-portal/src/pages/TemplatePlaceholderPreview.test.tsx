@@ -268,6 +268,63 @@ describe("TemplatePlaceholderPreview — headline debounce", () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe("TemplatePlaceholderPreview — rapid template switching", () => {
+  it("keeps unchanged values in the current template snapshot when an old timer is pending", () => {
+    const firstTemplate =
+      "<p>{{headline}}</p><p>{{body}}</p>";
+    const switchedTemplate =
+      "<p>{{body}}</p><p>{{headline}}</p><p style='color:{{accent_color}}'>.</p>";
+
+    const { rerender } = render(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Original headline"
+        body="Original body"
+        accentColor="#ff0000"
+      />,
+    );
+
+    // Start a body update on the old template and leave its timer pending.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={firstTemplate}
+        headline="Original headline"
+        body="Shared body"
+        accentColor="#ff0000"
+      />,
+    );
+    tick(75);
+
+    // The body prop stays unchanged during the switch, while the other values
+    // change. The template change must still cancel the body's old timer.
+    rerender(
+      <TemplatePlaceholderPreview
+        htmlBody={switchedTemplate}
+        headline="Switched headline"
+        body="Shared body"
+        accentColor="#00ff00"
+      />,
+    );
+
+    // At the old body's deadline, no value from its partial snapshot may flash.
+    tick(75);
+    expect(screen.getByText(/Original body/i)).toBeDefined();
+    expect(screen.queryByText(/Shared body/i)).toBeNull();
+    expect(screen.queryByText(/Switched headline/i)).toBeNull();
+    expect(screen.queryByText("#00ff00")).toBeNull();
+
+    // The complete switched-template snapshot settles together.
+    tick(75);
+    expect(screen.getByText("{{body}}")).toBeDefined();
+    expect(screen.getByText("{{headline}}")).toBeDefined();
+    expect(screen.getByText("{{accent_color}}")).toBeDefined();
+    expect(screen.getByText(/Shared body/i)).toBeDefined();
+    expect(screen.getByText(/Switched headline/i)).toBeDefined();
+    expect(screen.getByText("#00ff00")).toBeDefined();
+    expect(screen.queryByText(/Original body/i)).toBeNull();
+    expect(screen.queryByText(/Original headline/i)).toBeNull();
+    expect(screen.queryByText("#ff0000")).toBeNull();
+  });
+
   it("discards the old headline timer and shows the new template content together after 150 ms", () => {
     const firstTemplate = "<p>{{headline}}</p>";
     const switchedTemplate =
