@@ -308,6 +308,8 @@ export default function SeedRateCalculatorScreen() {
                 {SOIL_TYPES.map((s) => (
                   <Pressable
                     key={s}
+                    testID={`seed-rate-soil-chip-${s.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                    accessibilityState={{ selected: soilType === s }}
                     style={[styles.chip, soilType === s && styles.chipSelected]}
                     onPress={() => { setSoilType(soilType === s ? "" : s); setShowNoSoilHint(false); }}
                   >

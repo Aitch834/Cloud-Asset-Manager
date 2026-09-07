@@ -206,7 +206,11 @@ export default function FieldEditScreen() {
             const expanded = expandedId === item.id;
             const area = areaDisplay(item);
             return (
-              <View style={[styles.fieldCard, expanded && styles.fieldCardExpanded]}>
+              <View
+                testID={`field-register-card-${item.id}`}
+                accessibilityState={{ expanded }}
+                style={[styles.fieldCard, expanded && styles.fieldCardExpanded]}
+              >
                 {/* Row header — tap to expand */}
                 <Pressable style={styles.fieldRow} onPress={() => toggleExpand(item)}>
                   <View style={styles.fieldIcon}>
@@ -234,6 +238,8 @@ export default function FieldEditScreen() {
                       {SOIL_TYPE_OPTIONS.map(opt => (
                         <Pressable
                           key={opt.value}
+                          testID={`field-register-soil-chip-${opt.value}`}
+                          accessibilityState={{ selected: selectedSoilType === opt.value }}
                           style={[styles.soilChip, selectedSoilType === opt.value && styles.soilChipSelected]}
                           onPress={() => {
                             Haptics.selectionAsync();
