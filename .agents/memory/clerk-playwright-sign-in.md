@@ -7,4 +7,4 @@ description: How dashboard browser tests authenticate with current Clerk testing
 
 **Why:** A browser regression repeatedly timed out waiting for authenticated navigation even though global setup created and mapped a valid Clerk user. The installed package documents `clerk.signIn` as the authentication helper.
 
-**How to apply:** Navigate to a public page that loads Clerk, then call `clerk.signIn({ page, emailAddress })` using the generated test user's email before visiting protected routes. Keep `setupClerkTestingToken` for bot bypass only when direct sign-in is not needed.
+**How to apply:** Navigate to a public page that loads Clerk, then call `clerk.signIn({ page, emailAddress })` using the generated test user's email before visiting protected routes. Keep `setupClerkTestingToken` for bot bypass only when direct sign-in is not needed. If a test needs a selected farm, seed its persisted tenant/farm state with `page.addInitScript` before navigation; setting it after sign-in can race tenant discovery and be cleared before the protected page mounts.
