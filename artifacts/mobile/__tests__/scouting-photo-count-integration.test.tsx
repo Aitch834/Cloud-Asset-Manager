@@ -224,7 +224,7 @@ const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
 };
 
 import React, { useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Image, View } from "react-native";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import {
   ScoutingPhotoLightbox,
@@ -256,6 +256,9 @@ function makePhoto(id: number): ScoutingPhoto {
   };
 }
 
+function makePhotoWithCover(id: number, isCover: boolean): ScoutingPhoto {
+  return { ...makePhoto(id), isCover };
+}
 function makeRecord(photoCount: number) {
   return {
     id: 42,
@@ -280,6 +283,33 @@ function makeRecord(photoCount: number) {
   };
 }
 
+function HistoryPhotoHarness({
+  item,
+}: {
+  item: ReturnType<typeof makeRecord> & {
+    coverPhotoId: number | null;
+    coverPhotoUrl: string | null;
+  };
+}) {
+  const [initialPhotoId, setInitialPhotoId] = useState<number | null>(null);
+
+  return (
+    <>
+      <ScoutingRow
+        item={item}
+        onEdit={(_record, photoId) => setInitialPhotoId(photoId ?? null)}
+        onDelete={jest.fn()}
+      />
+      {initialPhotoId !== null ? (
+        <ScoutingPhotoSection
+          farmId={7}
+          scoutingId={42}
+          initialPhotoId={initialPhotoId}
+        />
+      ) : null}
+    </>
+  );
+}
 function CountBadgeHarness() {
   const [photoCount, setPhotoCount] = useState(2);
   const handlePhotoCountChange = (count: number) => {
@@ -387,6 +417,88 @@ describe("scouting photo count badge", () => {
   });
 });
 
+describe("scouting history thumbnail lightbox target", () => {
+  it("uses a second photo marked as cover and opens the lightbox on that photo", async () => {
+    const coverPhoto = makePhotoWithCover(202, true);
+    const firstPhoto = makePhotoWithCover(101, false);
+    apiFetch.mockResolvedValueOnce(okResponse({ photos: [firstPhoto, coverPhoto] }));
+
+    const screen = render(
+      <HistoryPhotoHarness
+        item={{
+          ...makeRecord(2),
+          coverPhotoId: coverPhoto.id,
+          coverPhotoUrl: coverPhoto.downloadUrl,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("scouting-photo-badge-42")).toBeTruthy();
+    expect(
+      screen.UNSAFE_getAllByType(Image).find(
+        (image) => image.props.source?.uri === coverPhoto.downloadUrl,
+      ),
+    ).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText("Open scouting cover photo"), {
+      stopPropagation: jest.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Photo 2 of 2")).toBeTruthy();
+      expect(screen.getByTestId("scouting-photo-dot-1").props.accessibilityState).toEqual({
+        selected: true,
+      });
+    });
+    expect(
+      screen.UNSAFE_getAllByType(Image).find(
+        (image) => image.props.source?.uri === coverPhoto.downloadUrl,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("uses the first photo when the record has no marked cover", async () => {
+    const firstPhoto = makePhotoWithCover(301, false);
+    const secondPhoto = makePhotoWithCover(302, false);
+    apiFetch.mockResolvedValueOnce(okResponse({ photos: [firstPhoto, secondPhoto] }));
+
+    const screen = render(
+      <HistoryPhotoHarness
+        item={{
+          ...makeRecord(2),
+          // The history endpoint resolves an unmarked gallery to its first
+          // photo, so the mobile row still receives a concrete target ID.
+          coverPhotoId: firstPhoto.id,
+          coverPhotoUrl: firstPhoto.downloadUrl,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("scouting-photo-badge-42")).toBeTruthy();
+    expect(
+      screen.UNSAFE_getAllByType(Image).find(
+        (image) => image.props.source?.uri === firstPhoto.downloadUrl,
+      ),
+    ).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText("Open scouting cover photo"), {
+      stopPropagation: jest.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Photo 1 of 2")).toBeTruthy();
+      expect(screen.getByTestId("scouting-photo-dot-0").props.accessibilityState).toEqual({
+        selected: true,
+      });
+    });
+    expect(
+      screen.UNSAFE_getAllByType(Image).find(
+        (image) => image.props.source?.uri === firstPhoto.downloadUrl,
+      ),
+    ).toBeTruthy();
+  });
+});
+
 describe("ScoutingPhotoLightbox cover badge", () => {
   it("jumps to a tapped dot and keeps the active dot in sync with swipe navigation", () => {
     const screen = render(
@@ -416,6 +528,7 @@ describe("ScoutingPhotoLightbox cover badge", () => {
     const swipeableView = screen
       .UNSAFE_getAllByType(View)
       .find((node) => typeof node.props.onResponderRelease === "function");
+
     expect(swipeableView).toBeTruthy();
 
     fireEvent(swipeableView!, "responderRelease", {}, { dx: 60, dy: 0 });
