@@ -263,8 +263,9 @@ export async function rerenderHook<T>(
   ctx.capturedEffect.value = null;
   const hookResult = hookFn(farmId) as HookReturn<T>;
 
-  if (ctx.capturedEffect.value) {
-    ctx.capturedEffect.value();
+  const capturedEffect = ctx.capturedEffect.value as (() => void) | null;
+  if (capturedEffect) {
+    capturedEffect();
     afterEffect?.();
   }
 

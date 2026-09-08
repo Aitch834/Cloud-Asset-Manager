@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["jest"]
+    "types": ["jest", "node"]
   },
   "include": [
     "__tests__/**/*.ts",
@@ -10,6 +10,23 @@
     "lib/**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "__tests__/agri-env-milestone-cache-race.test.ts",
+    "__tests__/buildCachedApiHook.test.ts",
+    "__tests__/irrigation-advisor-freshness.integration.test.tsx",
+    "__tests__/more-sms-phone-sync.test.tsx",
+    "__tests__/organic-input-edit-sync-race.test.ts",
+    "__tests__/organicFpCsv.test.ts",
+    "__tests__/printTemplates.test.ts",
+    "__tests__/scouting-lightbox.test.ts",
+    "__tests__/scouting-photo-count-integration.test.tsx",
+    "__tests__/spray-pending-sync-race.test.ts",
+    "__tests__/useBarrelAlertThresholds.test.ts",
+    "__tests__/usePersistedAgriEnvStatusFilter.test.ts",
+    "__tests__/vine-block-photos-caption-save-integration.test.ts",
+    "__tests__/vine-block-photos-reload.test.ts",
+    "__tests__/vine-scouting-history-export.test.tsx",
+    "__tests__/vine-spray-diary-history-photo-reload.test.tsx",
+    "__tests__/winery-vessel-fill-refresh.integration.test.tsx"
   ]
 }

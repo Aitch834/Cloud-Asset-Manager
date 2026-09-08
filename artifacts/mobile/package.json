@@ -8,6 +8,7 @@
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "check:external-urls": "node scripts/check-external-url-guard.mjs",
     "check:identifier-banner-loading": "node scripts/check-identifier-banner-loading.mjs",
     "test": "jest"
@@ -25,6 +26,7 @@
     "@tanstack/react-query": "catalog:",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
+    "@types/node": "^25.0.0",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
     "@ungap/structured-clone": "^1.3.0",
