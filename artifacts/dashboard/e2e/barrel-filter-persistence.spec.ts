@@ -15,6 +15,7 @@ import * as path from "node:path";
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
+const SECOND_FARM = { id: 923_319, name: "Barrel Filter Test Vineyard" };
 
 type ApiRecord = Record<string, unknown>;
 
@@ -61,8 +62,10 @@ async function openVesselRegister(
         JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
       );
       localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
-      for (const filter of ["zone", "fill-tier", "alert-flag", "is-full"]) {
-        localStorage.removeItem(`vessel-register-${filter}-filter-${farmId}`);
+      for (const id of [farmId, SECOND_FARM.id]) {
+        for (const filter of ["zone", "fill-tier", "alert-flag", "is-full"]) {
+          localStorage.removeItem(`vessel-register-${filter}-filter-${id}`);
+        }
       }
     },
     [TENANT_SLUG, FARM_ID] as [string, number],
@@ -85,6 +88,47 @@ async function returnToVesselRegister(
   await page
     .getByRole("button", { name: "Tank & Vessel Register", exact: true })
     .click();
+  await expect(
+    page.getByText("Tank & Vessel Register", { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
+}
+
+async function mockSecondWineryFarm(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await page.route("**/api/tenants/current/farms", route =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        farms: [
+          { id: FARM_ID, name: "Highfield Vineyard" },
+          SECOND_FARM,
+        ],
+      }),
+    }),
+  );
+
+  await page.route(new RegExp(`/api/farms/${SECOND_FARM.id}(?:/|$)`), async route => {
+    const sourceUrl = new URL(route.request().url());
+    sourceUrl.pathname = sourceUrl.pathname.replace(
+      `/api/farms/${SECOND_FARM.id}`,
+      `/api/farms/${FARM_ID}`,
+    );
+    const response = await route.fetch({ url: sourceUrl.toString() });
+    await route.fulfill({ response });
+  });
+}
+
+async function switchFarm(
+  page: import("@playwright/test").Page,
+  farmName: string,
+): Promise<void> {
+  await page.getByRole("button", { name: /Switch Farm/ }).first().click();
+  await expect(page).toHaveURL(/\/dashboard\/select$/);
+  await page.getByText(farmName, { exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard\/dashboard$/);
+  await page.getByRole("link", { name: "Viticulture", exact: true }).first().click();
   await expect(
     page.getByText("Tank & Vessel Register", { exact: true }),
   ).toBeVisible({ timeout: 20_000 });
@@ -155,5 +199,52 @@ test.describe("VesselRegisterTab — alert filter persistence", () => {
     ).toHaveCount(0);
     await expect(tableRows.filter({ hasText: "B-01" })).toBeVisible();
     await expect(tableRows.filter({ hasText: "T-01" })).toBeVisible();
+  });
+
+  test("keeps the selected alert scoped to its farm when switching farms", async ({
+    page,
+  }) => {
+    const vessels = await getVessels();
+    await mockSecondWineryFarm(page);
+    await openVesselRegister(page);
+
+    const noFillsFilter = page.getByRole("button", {
+      name: /No fills logged \d+/,
+    });
+    const tableRows = page.locator("tbody tr");
+
+    await noFillsFilter.click();
+    await expect(tableRows).toHaveCount(2);
+    await expect(
+      page.getByText(/Showing barrels .*flagged as no fills logged/),
+    ).toBeVisible();
+
+    await switchFarm(page, SECOND_FARM.name);
+
+    await expect(tableRows).toHaveCount(vessels.length);
+    await expect(
+      page.getByText(/Showing barrels .*flagged as no fills logged/),
+    ).toHaveCount(0);
+    await expect(
+      page.evaluate(
+        storageKey => localStorage.getItem(storageKey),
+        `vessel-register-alert-flag-filter-${SECOND_FARM.id}`,
+      ),
+    ).resolves.toBeNull();
+
+    await switchFarm(page, "Highfield Vineyard");
+
+    await expect(tableRows).toHaveCount(2);
+    await expect(tableRows.filter({ hasText: "B-01" })).toBeVisible();
+    await expect(tableRows.filter({ hasText: "B-02" })).toBeVisible();
+    await expect(
+      page.getByText(/Showing barrels .*flagged as no fills logged/),
+    ).toBeVisible();
+    await expect(
+      page.evaluate(
+        storageKey => localStorage.getItem(storageKey),
+        `vessel-register-alert-flag-filter-${FARM_ID}`,
+      ),
+    ).resolves.toBe("no-fills");
   });
 });
