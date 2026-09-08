@@ -48,6 +48,38 @@ jest.mock("expo-haptics", () => ({
 }));
 jest.mock("expo-media-library", () => ({}));
 jest.mock("expo-sharing", () => ({}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const makeGesture = () => {
+    const gesture: Record<string, unknown> = {};
+    for (const method of ["onBegin", "onUpdate", "onEnd", "numberOfTaps"]) {
+      gesture[method] = () => gesture;
+    }
+    return gesture;
+  };
+  return {
+    Gesture: {
+      Pinch: makeGesture,
+      Pan: makeGesture,
+      Tap: makeGesture,
+      Race: (_doubleTap: unknown, pan: unknown) => pan,
+      Simultaneous: (primary: unknown) => primary,
+    },
+    GestureDetector: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      React.createElement(ReactNative.View, props, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
+jest.mock("react-native-reanimated", () => ({
+  __esModule: true,
+  default: { View: require("react-native").View },
+  runOnJS: (fn: unknown) => fn,
+  useAnimatedStyle: jest.fn(() => ({})),
+  useSharedValue: jest.fn((value: unknown) => ({ value })),
+  withSpring: jest.fn((value: unknown) => value),
+  withTiming: jest.fn((value: unknown) => value),
+}));
 jest.mock("expo-router", () => ({ useFocusEffect: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),

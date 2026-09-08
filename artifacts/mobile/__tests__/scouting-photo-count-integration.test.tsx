@@ -6,6 +6,12 @@
  * add/delete paths without unmounting or navigating away from the row.
  */
 
+let mockPanGesture: {
+  onBegin: (callbackOrEvent: unknown) => unknown;
+  onUpdate: (callbackOrEvent: unknown) => unknown;
+  onEnd: (callbackOrEvent: unknown) => unknown;
+} | null = null;
+
 jest.mock("../lib/apiFetch", () => ({
   apiFetch: jest.fn(),
 }));
@@ -108,6 +114,65 @@ jest.mock("expo-haptics", () => ({
 jest.mock("expo-image-picker", () => ({}));
 jest.mock("expo-media-library", () => ({}));
 jest.mock("expo-sharing", () => ({}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const makeGesture = (kind: "pan" | "other") => {
+    const gesture: Record<string, unknown> = {};
+    let onBegin: ((event?: unknown) => void) | undefined;
+    let onUpdate: ((event?: unknown) => void) | undefined;
+    let onEnd: ((event?: unknown) => void) | undefined;
+    gesture.onBegin = (callbackOrEvent?: unknown) => {
+      if (typeof callbackOrEvent === "function") onBegin = callbackOrEvent as typeof onBegin;
+      else onBegin?.(callbackOrEvent);
+      return gesture;
+    };
+    gesture.onUpdate = (callbackOrEvent?: unknown) => {
+      if (typeof callbackOrEvent === "function") onUpdate = callbackOrEvent as typeof onUpdate;
+      else onUpdate?.(callbackOrEvent);
+      return gesture;
+    };
+    gesture.onEnd = (callbackOrEvent?: unknown) => {
+      if (typeof callbackOrEvent === "function") onEnd = callbackOrEvent as typeof onEnd;
+      else onEnd?.(callbackOrEvent);
+      return gesture;
+    };
+    gesture.numberOfTaps = () => gesture;
+    if (kind === "pan") mockPanGesture = gesture as typeof mockPanGesture;
+    return gesture;
+  };
+  return {
+    Gesture: {
+      Pinch: () => makeGesture("other"),
+      Pan: () => makeGesture("pan"),
+      Tap: () => makeGesture("other"),
+      Race: (_doubleTap: unknown, pan: unknown) => pan,
+      Simultaneous: (primary: unknown) => primary,
+    },
+    GestureDetector: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      React.createElement(ReactNative.View, props, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: { View: require("react-native").View },
+    runOnJS: (fn: unknown) => fn,
+    useAnimatedStyle: jest.fn(() => ({})),
+    useSharedValue: jest.fn((value: unknown) => {
+      const ref = React.useRef<{ value: unknown } | null>(null);
+      if (ref.current === null) ref.current = { value };
+      return ref.current;
+    }),
+    withSpring: jest.fn((value: unknown) => value),
+    withTiming: jest.fn((value: unknown, _config: unknown, callback?: () => void) => {
+      callback?.();
+      return value;
+    }),
+  };
+});
 jest.mock("expo-router", () => ({
   useFocusEffect: jest.fn(),
 }));
@@ -225,7 +290,7 @@ const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
 
 import React, { useState } from "react";
 import { Alert, Image, View } from "react-native";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import {
   ScoutingPhotoLightbox,
   ScoutingPhotoSection,
@@ -525,13 +590,12 @@ describe("ScoutingPhotoLightbox cover badge", () => {
       selected: false,
     });
 
-    const swipeableView = screen
-      .UNSAFE_getAllByType(View)
-      .find((node) => typeof node.props.onResponderRelease === "function");
-
-    expect(swipeableView).toBeTruthy();
-
-    fireEvent(swipeableView!, "responderRelease", {}, { dx: 60, dy: 0 });
+    expect(mockPanGesture).toBeTruthy();
+    act(() => {
+      mockPanGesture?.onBegin({});
+      mockPanGesture?.onUpdate({ translationX: 60, translationY: 0 });
+      mockPanGesture?.onEnd({ translationX: 60, translationY: 0 });
+    });
 
     expect(screen.getByText("2 / 3")).toBeTruthy();
     expect(screen.getByTestId("scouting-photo-dot-1").props.accessibilityState).toEqual({
@@ -552,15 +616,19 @@ describe("ScoutingPhotoLightbox cover badge", () => {
 
     expect(screen.getByText("★")).toBeTruthy();
 
-    const swipeableView = screen
-      .UNSAFE_getAllByType(View)
-      .find((node) => typeof node.props.onResponderRelease === "function");
-    expect(swipeableView).toBeTruthy();
-
-    fireEvent(swipeableView!, "responderRelease", {}, { dx: -60, dy: 0 });
+    expect(mockPanGesture).toBeTruthy();
+    act(() => {
+      mockPanGesture?.onBegin({});
+      mockPanGesture?.onUpdate({ translationX: -60, translationY: 0 });
+      mockPanGesture?.onEnd({ translationX: -60, translationY: 0 });
+    });
     expect(screen.queryByText("★")).toBeNull();
 
-    fireEvent(swipeableView!, "responderRelease", {}, { dx: 60, dy: 0 });
+    act(() => {
+      mockPanGesture?.onBegin({});
+      mockPanGesture?.onUpdate({ translationX: 60, translationY: 0 });
+      mockPanGesture?.onEnd({ translationX: 60, translationY: 0 });
+    });
     expect(screen.getByText("★")).toBeTruthy();
   });
 });

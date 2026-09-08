@@ -20,7 +20,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   StatusBar,
@@ -29,6 +28,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { apiFetch, isAbortError } from "@/lib/apiFetch";
@@ -37,10 +44,16 @@ import {
   executeScoutingPhotoSetCover,
   fetchScoutingPhotoUrl,
 } from "@/lib/scoutingPhotosApi";
-import { SWIPE_THRESHOLD } from "@/lib/vineScoutingLightboxHelpers";
 import {
-  getSwipeDirection,
-  shouldAllowSwipe,
+  DIR_HORIZ,
+  DIR_NONE,
+  DIR_VERT,
+  MAX_SCALE,
+  MIN_SCALE,
+  SWIPE_DOWN_THRESHOLD,
+  SWIPE_THRESHOLD,
+} from "@/lib/vineScoutingLightboxHelpers";
+import {
   getPaginationItems,
   isPaginationItemActive,
   claimDeleteConfirmation,
@@ -233,6 +246,30 @@ export function ScoutingPhotoLightbox({
   const autoRetried = useRef(false);
   const autoRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deleteConfirmationOpenRef = useRef(false);
+  const indexSv = useSharedValue(initialIndex);
+  const totalSv = useSharedValue(photos.length);
+  const scale = useSharedValue(MIN_SCALE);
+  const savedScale = useSharedValue(MIN_SCALE);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const slideX = useSharedValue(0);
+  const gestureDir = useSharedValue(DIR_NONE);
+  const deletingSv = useSharedValue(false);
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+
+  const resetGestureState = useCallback(() => {
+    scale.value = MIN_SCALE;
+    savedScale.value = MIN_SCALE;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    slideX.value = 0;
+    gestureDir.value = DIR_NONE;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Cancel any scheduled auto-retry and reset related state. */
   const cancelAutoRetry = useCallback(() => {
@@ -255,6 +292,12 @@ export function ScoutingPhotoLightbox({
     setSettingCover(false);
     setReloading(false);
     deleteConfirmationOpenRef.current = false;
+    if (visible) {
+      indexSv.value = Math.min(initialIndex, Math.max(0, photos.length - 1));
+    }
+    totalSv.value = photos.length;
+    deletingSv.value = false;
+    resetGestureState();
     cancelAutoRetry();
   }, [visible, initialIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,6 +312,7 @@ export function ScoutingPhotoLightbox({
 
   // Reset in-flight flags and image error when displayed photo changes
   useEffect(() => {
+    indexSv.value = currentIndex;
     setSaving(false);
     setSharing(false);
     setDeleting(false);
@@ -276,6 +320,7 @@ export function ScoutingPhotoLightbox({
     setImgError(false);
     setReloading(false);
     deleteConfirmationOpenRef.current = false;
+    resetGestureState();
     cancelAutoRetry();
   }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,42 +373,167 @@ export function ScoutingPhotoLightbox({
   }, [onReload, photo, reloading]);
 
   const goNext = useCallback(() => {
-    setCurrentIndex((i) => Math.min(i + 1, photos.length - 1));
+    setCurrentIndex((i) => {
+      const next = Math.min(i + 1, photos.length - 1);
+      indexSv.value = next;
+      return next;
+    });
   }, [photos.length]);
 
   const goPrev = useCallback(() => {
-    setCurrentIndex((i) => Math.max(i - 1, 0));
+    setCurrentIndex((i) => {
+      const previous = Math.max(i - 1, 0);
+      indexSv.value = previous;
+      return previous;
+    });
   }, []);
 
-  // Keep a ref to photos.length so the PanResponder closure stays current
+  // Keep a ref to photos.length so gesture callbacks stay current
   const photosLenRef = useRef(photos.length);
   photosLenRef.current = photos.length;
 
-  // Keep a ref to deleting so the PanResponder closure can block swipes
+  // Keep a ref to deleting so gesture callbacks can block navigation
   // while a delete is in flight, preventing a race where a fast swipe
   // advances to a photo that is about to be removed.
   const deletingRef = useRef(deleting);
   deletingRef.current = deleting;
 
-  // Horizontal swipe navigation
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, gs) =>
-        shouldAllowSwipe(deletingRef.current, gs.dx, gs.dy),
-      onPanResponderRelease: (_evt, gs) => {
-        const direction = getSwipeDirection(
-          deletingRef.current,
-          gs.dx,
-          SWIPE_THRESHOLD,
-        );
-        if (direction === "next") {
-          setCurrentIndex((i) => Math.min(i + 1, photosLenRef.current - 1));
-        } else if (direction === "previous") {
-          setCurrentIndex((i) => Math.max(i - 1, 0));
+  useEffect(() => {
+    totalSv.value = photos.length;
+  }, [photos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const goToIndex = useCallback((index: number) => {
+    const nextPhoto = photosRef.current[index];
+    if (!nextPhoto || deletingSv.value) return;
+    setCurrentIndex(index);
+    setImgError(false);
+    resetGestureState();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pinch-to-zoom, double-tap zoom, pan-while-zoomed, swipe-down dismissal,
+  // and horizontal navigation all share the same gesture surface.
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((event) => {
+      "worklet";
+      if (deletingSv.value) return;
+      scale.value = Math.min(
+        Math.max(savedScale.value * event.scale, MIN_SCALE),
+        MAX_SCALE,
+      );
+    })
+    .onEnd(() => {
+      "worklet";
+      if (deletingSv.value) return;
+      savedScale.value = scale.value;
+      if (scale.value < MIN_SCALE) {
+        scale.value = withSpring(MIN_SCALE);
+        savedScale.value = MIN_SCALE;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .onBegin(() => {
+      "worklet";
+      gestureDir.value = DIR_NONE;
+    })
+    .onUpdate((event) => {
+      "worklet";
+      if (deletingSv.value) return;
+
+      if (scale.value > MIN_SCALE) {
+        translateX.value = savedTranslateX.value + event.translationX;
+        translateY.value = savedTranslateY.value + event.translationY;
+        return;
+      }
+
+      if (gestureDir.value === DIR_NONE) {
+        if (Math.abs(event.translationX) > 8 || Math.abs(event.translationY) > 8) {
+          gestureDir.value =
+            Math.abs(event.translationX) >= Math.abs(event.translationY)
+              ? DIR_HORIZ
+              : DIR_VERT;
         }
-      },
-    }),
-  ).current;
+        return;
+      }
+
+      if (gestureDir.value === DIR_HORIZ) {
+        slideX.value = event.translationX;
+      } else {
+        translateY.value = Math.max(0, event.translationY);
+      }
+    })
+    .onEnd((event) => {
+      "worklet";
+      if (deletingSv.value) return;
+
+      if (scale.value > MIN_SCALE) {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+        return;
+      }
+
+      if (gestureDir.value === DIR_HORIZ) {
+        if (event.translationX < -SWIPE_THRESHOLD && indexSv.value < totalSv.value - 1) {
+          const next = indexSv.value + 1;
+          indexSv.value = next;
+          slideX.value = withTiming(-SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(next);
+          });
+        } else if (event.translationX > SWIPE_THRESHOLD && indexSv.value > 0) {
+          const previous = indexSv.value - 1;
+          indexSv.value = previous;
+          slideX.value = withTiming(SCREEN.width, { duration: 220 }, () => {
+            runOnJS(goToIndex)(previous);
+          });
+        } else {
+          slideX.value = withSpring(0);
+        }
+      } else if (gestureDir.value === DIR_VERT) {
+        if (event.translationY > SWIPE_DOWN_THRESHOLD) {
+          translateY.value = withTiming(SCREEN.height, { duration: 220 }, () => {
+            runOnJS(onClose)();
+          });
+        } else {
+          translateY.value = withSpring(0);
+        }
+      }
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      "worklet";
+      if (deletingSv.value) return;
+      if (scale.value > MIN_SCALE) {
+        scale.value = withSpring(MIN_SCALE);
+        savedScale.value = MIN_SCALE;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      } else {
+        const doubleTapScale = Math.min(Math.max(2.5, MIN_SCALE), MAX_SCALE);
+        scale.value = withSpring(doubleTapScale);
+        savedScale.value = doubleTapScale;
+      }
+    });
+
+  const composedGesture = Gesture.Simultaneous(
+    Gesture.Race(doubleTapGesture, panGesture),
+    pinchGesture,
+  );
+
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value + slideX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   const handleSaveToRoll = useCallback(async () => {
     if (!photo?.downloadUrl || saving) return;
@@ -433,10 +603,11 @@ export function ScoutingPhotoLightbox({
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            // Set the ref synchronously so PanResponder closures see it
+            // Set both refs synchronously so gesture callbacks see it
             // immediately — before the next React render propagates the
             // setDeleting(true) state change.
             deletingRef.current = true;
+            deletingSv.value = true;
             setDeleting(true);
             try {
               await onDelete(photo.id);
@@ -450,6 +621,7 @@ export function ScoutingPhotoLightbox({
               Alert.alert("Delete Failed", "Could not delete the photo. Please try again.");
             } finally {
               deletingRef.current = false;
+              deletingSv.value = false;
               setDeleting(false);
               releaseDeleteConfirmation();
             }
@@ -484,8 +656,9 @@ export function ScoutingPhotoLightbox({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
-      <View style={lbStyles.backdrop}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
+        <View style={lbStyles.backdrop}>
         {/* Close button */}
         <Pressable
           style={[lbStyles.closeBtn, { top: insets.top + 12 }]}
@@ -511,50 +684,52 @@ export function ScoutingPhotoLightbox({
           </View>
         ) : null}
 
-        {/* Swipeable photo area */}
-        <View style={lbStyles.imageWrapper} {...panResponder.panHandlers}>
-          {uri && !imgError ? (
-            <Image
-              source={{ uri }}
-              style={lbStyles.image}
-              resizeMode="contain"
-              onError={() => setImgError(true)}
-            />
-          ) : reloading || autoRetryPending ? (
-            <View style={lbStyles.imagePlaceholder}>
-              <ActivityIndicator size="large" color="rgba(255,255,255,0.75)" />
-            </View>
-          ) : (
-            <Pressable
-              style={lbStyles.imagePlaceholder}
-              onPress={handleReload}
-              hitSlop={12}
-              disabled={!onReload}
-            >
-              <Feather name="refresh-cw" size={40} color="rgba(255,255,255,0.55)" />
-              <Text style={lbStyles.reloadLabel}>Tap to reload</Text>
-            </Pressable>
-          )}
+          {/* Zoomable and swipeable photo area */}
+          <GestureDetector gesture={composedGesture}>
+            <Animated.View style={[lbStyles.imageWrapper, imageStyle]}>
+              {uri && !imgError ? (
+                <Image
+                  source={{ uri }}
+                  style={lbStyles.image}
+                  resizeMode="contain"
+                  onError={() => setImgError(true)}
+                />
+              ) : reloading || autoRetryPending ? (
+                <View style={lbStyles.imagePlaceholder}>
+                  <ActivityIndicator size="large" color="rgba(255,255,255,0.75)" />
+                </View>
+              ) : (
+                <Pressable
+                  style={lbStyles.imagePlaceholder}
+                  onPress={handleReload}
+                  hitSlop={12}
+                  disabled={!onReload}
+                >
+                  <Feather name="refresh-cw" size={40} color="rgba(255,255,255,0.55)" />
+                  <Text style={lbStyles.reloadLabel}>Tap to reload</Text>
+                </Pressable>
+              )}
 
-          {/* Left chevron */}
-          {hasMultiple && currentIndex > 0 ? (
-            <Pressable style={[lbStyles.chevron, lbStyles.chevronLeft]} onPress={goPrev} hitSlop={12}>
-              <Feather name="chevron-left" size={32} color="#fff" />
-            </Pressable>
-          ) : null}
+              {/* Left chevron */}
+              {hasMultiple && currentIndex > 0 ? (
+                <Pressable style={[lbStyles.chevron, lbStyles.chevronLeft]} onPress={goPrev} hitSlop={12}>
+                  <Feather name="chevron-left" size={32} color="#fff" />
+                </Pressable>
+              ) : null}
 
-          {/* Right chevron */}
-          {hasMultiple && currentIndex < photos.length - 1 ? (
-            <Pressable
-              testID="scouting-photo-next"
-              style={[lbStyles.chevron, lbStyles.chevronRight]}
-              onPress={goNext}
-              hitSlop={12}
-            >
-              <Feather name="chevron-right" size={32} color="#fff" />
-            </Pressable>
-          ) : null}
-        </View>
+              {/* Right chevron */}
+              {hasMultiple && currentIndex < photos.length - 1 ? (
+                <Pressable
+                  testID="scouting-photo-next"
+                  style={[lbStyles.chevron, lbStyles.chevronRight]}
+                  onPress={goNext}
+                  hitSlop={12}
+                >
+                  <Feather name="chevron-right" size={32} color="#fff" />
+                </Pressable>
+              ) : null}
+            </Animated.View>
+          </GestureDetector>
 
         {/* At-a-glance photo position */}
         {hasMultiple ? (
@@ -665,7 +840,8 @@ export function ScoutingPhotoLightbox({
             </Text>
           </Pressable>
         </View>
-      </View>
+        </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -3,9 +3,8 @@
  *
  * This module deliberately has no React Native or Expo imports so the
  * lightbox contract can be regression-tested in the Node/Jest environment.
- * The scouting viewer currently uses a horizontal PanResponder, while the
- * shared down-swipe and zoom bounds keep its gesture values aligned with the
- * other vineyard photo viewers.
+ * The scouting viewer uses the shared down-swipe and zoom bounds so its
+ * gesture values stay aligned with the other vineyard photo viewers.
  */
 
 import {
@@ -96,7 +95,7 @@ export function navigationIndexAfterSwipe(
 }
 
 /**
- * Whether a PanResponder should start a horizontal navigation gesture.
+ * Whether a horizontal navigation gesture should be allowed to start.
  * Deletion takes priority so a gesture cannot race with a photo removal.
  */
 export function shouldAllowSwipe(deleting: boolean, dx: number, dy: number): boolean {
@@ -104,7 +103,7 @@ export function shouldAllowSwipe(deleting: boolean, dx: number, dy: number): boo
 }
 
 /**
- * Resolve a completed scouting PanResponder swipe.  The strict comparison
+ * Resolve a completed scouting horizontal swipe.  The strict comparison
  * preserves the existing behavior at exactly the threshold.
  */
 export function getSwipeDirection(
