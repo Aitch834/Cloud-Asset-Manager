@@ -30,6 +30,7 @@ import { getCurrentAuthToken } from "@/lib/authToken";
 import { useApiModules } from "@/lib/hooks/useApiModules";
 import { getApiBase } from "@/lib/uploadPhoto";
 import { shouldShowModuleLoading } from "@/lib/utils/moduleLoadingGuard";
+import { deleteWineryVesselRecord } from "@/lib/utils/wineryVesselDelete";
 import {
   BARREL_RETIREMENT_THRESHOLD_PENCE,
   isBarrelType,
@@ -1447,17 +1448,20 @@ export default function WineryVesselDetailScreen() {
               const apiBase = getApiBase();
               if (!apiBase) throw new Error("No API domain configured.");
               const headers = await getAuthHeaders();
-              const res = await fetch(
-                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/fills/${fill.id}`,
-                { method: "DELETE", headers },
-              );
-              if (!res.ok) {
-                const body = await res.json().catch(() => ({})) as { error?: string };
-                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+              const result = await deleteWineryVesselRecord({
+                apiBase,
+                farmId: currentFarm!.id,
+                vesselId: params.vesselId,
+                kind: "fills",
+                recordId: fill.id,
+                headers,
+                triggerBarrelRefresh,
+                refreshDetail: refresh,
+              });
+              if (!result.ok) {
+                Alert.alert("Error", result.error ?? `Server error (${result.status})`);
                 return;
               }
-              triggerBarrelRefresh();
-              refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete fill record.");
             }
@@ -1481,17 +1485,20 @@ export default function WineryVesselDetailScreen() {
               const apiBase = getApiBase();
               if (!apiBase) throw new Error("No API domain configured.");
               const headers = await getAuthHeaders();
-              const res = await fetch(
-                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/movements/${record.id}`,
-                { method: "DELETE", headers },
-              );
-              if (!res.ok) {
-                const body = await res.json().catch(() => ({})) as { error?: string };
-                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+              const result = await deleteWineryVesselRecord({
+                apiBase,
+                farmId: currentFarm!.id,
+                vesselId: params.vesselId,
+                kind: "movements",
+                recordId: record.id,
+                headers,
+                triggerBarrelRefresh,
+                refreshDetail: refresh,
+              });
+              if (!result.ok) {
+                Alert.alert("Error", result.error ?? `Server error (${result.status})`);
                 return;
               }
-              triggerBarrelRefresh();
-              refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete movement.");
             }
@@ -1515,17 +1522,20 @@ export default function WineryVesselDetailScreen() {
               const apiBase = getApiBase();
               if (!apiBase) throw new Error("No API domain configured.");
               const headers = await getAuthHeaders();
-              const res = await fetch(
-                `${apiBase}/api/farms/${currentFarm!.id}/winery-vessels/${params.vesselId}/maintenance/${record.id}`,
-                { method: "DELETE", headers },
-              );
-              if (!res.ok) {
-                const body = await res.json().catch(() => ({})) as { error?: string };
-                Alert.alert("Error", body.error ?? `Server error (${res.status})`);
+              const result = await deleteWineryVesselRecord({
+                apiBase,
+                farmId: currentFarm!.id,
+                vesselId: params.vesselId,
+                kind: "maintenance",
+                recordId: record.id,
+                headers,
+                triggerBarrelRefresh,
+                refreshDetail: refresh,
+              });
+              if (!result.ok) {
+                Alert.alert("Error", result.error ?? `Server error (${result.status})`);
                 return;
               }
-              triggerBarrelRefresh();
-              refresh();
             } catch (err) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete record.");
             }
