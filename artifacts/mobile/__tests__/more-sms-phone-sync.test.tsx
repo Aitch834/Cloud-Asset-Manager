@@ -68,9 +68,9 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
-jest.mock("../lib/auth", () => ({
+jest.mock("@clerk/expo", () => ({
   useAuth: jest.fn(),
-}));
+}), { virtual: true });
 
 jest.mock("../lib/context/FarmContext", () => ({
   useFarm: jest.fn(),
@@ -139,11 +139,11 @@ jest.mock("../components/ui/SectionHeader", () => ({
 
 import React from "react";
 import { Alert } from "react-native";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import MoreScreen from "../app/(tabs)/more";
+import { useAuth } from "@clerk/expo";
 import { apiFetch } from "../lib/apiFetch";
-import { useAuth } from "../lib/auth";
 import { useFarm } from "../lib/context/FarmContext";
 import { useSmsPrefsContext } from "../lib/context/SmsPrefsContext";
 import { useSync } from "../lib/context/SyncContext";
@@ -231,7 +231,7 @@ function configureScreen(contactPhone = EXISTING_CONTACT): void {
   globalThis.fetch = jest.fn(async () => jsonResponse({ full: "1.0.0" })) as unknown as typeof fetch;
 }
 
-async function saveContactPhone(phone: string): Promise<void> {
+async function saveContactPhone(phone: string): Promise<ReturnType<typeof render>> {
   const screen = render(<MoreScreen />);
 
   await waitFor(() => {
@@ -248,6 +248,30 @@ async function saveContactPhone(phone: string): Promise<void> {
       `/api/farms/${FARM_ID}`,
       expect.objectContaining({ method: "PATCH" }),
     );
+  });
+
+  return screen;
+}
+
+async function acceptSmsPhoneUpdate(): Promise<void> {
+  await waitFor(() => {
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Update SMS number?",
+      expect.any(String),
+      expect.any(Array),
+    );
+  });
+
+  const nudgeCall = (Alert.alert as jest.Mock).mock.calls.find(
+    ([title]) => title === "Update SMS number?",
+  );
+  const updateAction = nudgeCall?.[2]?.find(
+    (button: { text?: string }) => button.text === "Update to +447800987654",
+  );
+
+  expect(updateAction?.onPress).toEqual(expect.any(Function));
+  await act(async () => {
+    await updateAction.onPress();
   });
 }
 
@@ -276,6 +300,56 @@ describe("MoreScreen SMS phone sync nudge", () => {
         ]),
       );
     });
+  });
+
+  it("updates the SMS phone while preserving the loaded opt-in tier and categories", async () => {
+    const screen = await saveContactPhone(NEW_CONTACT);
+
+    await acceptSmsPhoneUpdate();
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/account/profile",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          phoneNumber: "+447800987654",
+          smsOptIn: "critical",
+          smsCategories: { livestock: true },
+          consentGiven: true,
+        }),
+      }),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("input-Mobile Number (for SMS)").props.value).toBe(
+        "+447800987654",
+      );
+    });
+  });
+
+  it("shows the existing error Alert and keeps the previous SMS phone when the update fails", async () => {
+    apiFetchMock.mockImplementation(async (path, options) => {
+      if (options?.method === "PATCH") return jsonResponse({});
+      if (path === "/api/account/profile" && options?.method === "PUT") {
+        return { ok: false, status: 500, json: async () => ({}) } as Response;
+      }
+      return jsonResponse({
+        phoneNumber: CURRENT_SMS,
+        smsOptIn: "critical",
+        smsCategories: { livestock: true },
+        smsConsentAt: "2026-09-01T10:00:00.000Z",
+      });
+    });
+    const screen = await saveContactPhone(NEW_CONTACT);
+
+    await acceptSmsPhoneUpdate();
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Couldn't save SMS number",
+      "The SMS number could not be saved automatically. Please update it manually in the SMS section below.",
+    );
+    expect(screen.getByTestId("input-Mobile Number (for SMS)").props.value).toBe(
+      CURRENT_SMS,
+    );
   });
 
   it("does not show an Alert when contact and SMS numbers normalise to the same value", async () => {
