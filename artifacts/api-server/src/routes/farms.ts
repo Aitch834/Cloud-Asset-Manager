@@ -6865,6 +6865,22 @@ router.post("/farms/:farmId/purchase-orders", requireAuth, requireTenant, requir
   res.status(201).json({ record: po });
 });
 
+// Keep static purchase-order routes above /:poId so Express cannot treat
+// "counts" as a purchase-order ID.
+router.get("/farms/:farmId/purchase-orders/counts", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
+  const farmId = await validateFarmAccess(req, res);
+  if (!farmId) return;
+  const rows = await db.select({ status: purchaseOrdersTable.status, count: sql<number>`count(*)::int` })
+    .from(purchaseOrdersTable)
+    .where(eq(purchaseOrdersTable.farmId, farmId))
+    .groupBy(purchaseOrdersTable.status);
+  const counts: Record<string, number> = {};
+  let outstanding = 0;
+  const OUTSTANDING_STATUSES = ["draft", "submitted", "sent", "partially_received"];
+  for (const r of rows) { counts[r.status] = r.count; if (OUTSTANDING_STATUSES.includes(r.status)) outstanding += r.count; }
+  res.json({ counts, outstanding });
+});
+
 router.get("/farms/:farmId/purchase-orders/:poId", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
   const farmId = await validateFarmAccess(req, res);
   if (!farmId) return;
@@ -6966,21 +6982,6 @@ router.get("/farms/:farmId/staff", requireAuth, requireTenant, async (req: Reque
     ...memberStaff.filter(m => m.name && !seen.has(m.name)),
   ];
   res.json({ staff });
-});
-
-// PO status counts summary
-router.get("/farms/:farmId/purchase-orders/counts", requireAuth, requireTenant, requireModuleByKey("stock-suppliers", "read"), async (req: Request, res: Response): Promise<void> => {
-  const farmId = await validateFarmAccess(req, res);
-  if (!farmId) return;
-  const rows = await db.select({ status: purchaseOrdersTable.status, count: sql<number>`count(*)::int` })
-    .from(purchaseOrdersTable)
-    .where(eq(purchaseOrdersTable.farmId, farmId))
-    .groupBy(purchaseOrdersTable.status);
-  const counts: Record<string, number> = {};
-  let outstanding = 0;
-  const OUTSTANDING_STATUSES = ["draft", "submitted", "sent", "partially_received"];
-  for (const r of rows) { counts[r.status] = r.count; if (OUTSTANDING_STATUSES.includes(r.status)) outstanding += r.count; }
-  res.json({ counts, outstanding });
 });
 
 // Farm managers list (for approval visibility)
