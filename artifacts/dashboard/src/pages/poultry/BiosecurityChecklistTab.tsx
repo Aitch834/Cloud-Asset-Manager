@@ -51,6 +51,16 @@ function BioBoolField({ label, field, form, setForm }: { label: string; field: s
   );
 }
 
+async function fetchBiosecurityJson(url: string, resourceName: string) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message = payload?.message ?? payload?.error;
+    throw new Error(typeof message === "string" ? message : `Unable to load ${resourceName} (${response.status})`);
+  }
+  return response.json();
+}
+
 export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { data: bioMembersData, isLoading: bioMembersLoading } = useFarmMembers(farmId);
@@ -61,9 +71,26 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
   const [raiseTaskFor, setRaiseTaskFor] = useState<Record<string, unknown> | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const flocks = useFlocks(farmId);
-  const { data: rawHouses = [] } = useQuery({ queryKey: ["poultry-houses", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-houses`), { credentials: "include" }).then(r => r.json()) });
-  const houses = rawHouses as Record<string, unknown>[];
-  const { data: records = [], isLoading } = useQuery({ queryKey: ["poultry-biosecurity", farmId], queryFn: () => fetch(api(`farms/${farmId}/poultry-biosecurity-checklists`), { credentials: "include" }).then(r => r.json()).then(d => d.records ?? []) });
+  const housesQuery = useQuery({
+    queryKey: ["poultry-houses", farmId],
+    queryFn: async () => {
+      const data = await fetchBiosecurityJson(api(`farms/${farmId}/poultry-houses`), "poultry houses");
+      if (!Array.isArray(data)) throw new Error("Poultry houses are unavailable.");
+      return data as Record<string, unknown>[];
+    },
+  });
+  const checklistQuery = useQuery({
+    queryKey: ["poultry-biosecurity", farmId],
+    queryFn: async () => {
+      const data = await fetchBiosecurityJson(api(`farms/${farmId}/poultry-biosecurity-checklists`), "biosecurity checklists");
+      if (!Array.isArray(data?.records)) throw new Error("Biosecurity checklists are unavailable.");
+      return data.records as Record<string, unknown>[];
+    },
+  });
+  const houses = Array.isArray(housesQuery.data) ? housesQuery.data : [];
+  const records = Array.isArray(checklistQuery.data) ? checklistQuery.data : [];
+  const isLoading = housesQuery.isLoading || checklistQuery.isLoading;
+  const loadError = housesQuery.error ?? checklistQuery.error;
   const save = useMutation({
     mutationFn: (b: Record<string, unknown>) => {
       const payload = { ...b };
@@ -98,6 +125,33 @@ export function BiosecurityChecklistTab({ farmId }: { farmId: number }) {
     { key: "downtimeDays", label: "Downtime (days)" }, { key: "overallComplianceStatus", label: "Status" },
     { key: "completedBy", label: "Completed By" }, { key: "verifiedBy", label: "Verified By" },
   ];
+  if (loadError) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+          <div className="space-y-2">
+            <div>
+              <h3 className="font-semibold text-sm text-amber-950">Biosecurity records unavailable</h3>
+              <p className="mt-1 text-sm text-amber-900">
+                {loadError instanceof Error ? loadError.message : "You may not have access to the Poultry Production module for this farm."}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void housesQuery.refetch();
+                void checklistQuery.refetch();
+              }}
+            >
+              Try again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
