@@ -7,6 +7,7 @@ import { sumCellarSo2, cellarSo2RunningTotals } from "@/lib/so2-summary";
 import { BOTTLING_COLUMNS, BOTTLING_IMPORT_HEADERS, resolveBottlingField, bottlingImportRecord, parseCsvText, parseBottlingCsv } from "@/lib/bottling-csv";
 import { computePrimaryPhTa, computePhTaStagePoints } from "@/lib/ph-ta-stages";
 import { isBarrelRetirementRisk } from "@/lib/barrel-retirement-risk";
+import { BARREL_MAINTENANCE_CSV_COLUMNS, barrelMaintenanceCsvFilename } from "@/lib/barrel-maintenance-csv";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2, Pencil, Eye, FlaskConical, Wine, Beaker, Gauge, Thermometer, Package, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Wrench, ShieldCheck, FileDown, Printer, Settings2, RefreshCw, GitBranch, Leaf, Search, Upload, PenLine, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
@@ -1406,16 +1407,7 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     try {
       const response = await fetchWineryJson(`farms/${farmId}/winery-vessels/${vessel.id}/maintenance`);
       const records = (response.records ?? []) as Record<string, unknown>[];
-      const vesselRef = String(vessel.vessel_ref ?? "").trim().replace(/[^a-zA-Z0-9._-]+/g, "-") || String(vessel.id);
-
-      exportCSV(records, `barrel-maintenance-${vesselRef}.csv`, [
-        { key: "maintenance_date", label: "Date", fmt: r => r.maintenance_date ? fmtDate(r.maintenance_date) : "—" },
-        { key: "work_type", label: "Work Type", fmt: r => String(r.work_type ?? "—") },
-        { key: "cooperage_name", label: "Cooperage", fmt: r => String(r.cooperage_name ?? "—") },
-        { key: "cost_pence", label: "Cost (£)", fmt: r => r.cost_pence != null ? `£${(Number(r.cost_pence) / 100).toFixed(2)}` : "—" },
-        { key: "operator_name", label: "Operator", fmt: r => String(r.operator_name ?? "—") },
-        { key: "notes", label: "Notes", fmt: r => String(r.notes ?? "") },
-      ]);
+      exportCSV(records, barrelMaintenanceCsvFilename(vessel), BARREL_MAINTENANCE_CSV_COLUMNS);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : "Could not load maintenance records.", variant: "destructive" });
     } finally {

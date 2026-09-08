@@ -29,14 +29,18 @@ export const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateSt
 export const fmtNum = (v: unknown, dp = 1) => (v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp));
 export const today = new Date().toISOString().split("T")[0];
 
-export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], prefixLines?: string[]) {
+export function buildCsvText(rows: Record<string, unknown>[], cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], prefixLines?: string[]) {
   const header = cols.map(c => `"${c.label}"`).join(",");
   const body = rows.map(r => cols.map(c => {
     const v = c.fmt ? c.fmt(r) : (r[c.key] ?? "");
     return `"${csvSafeValue(v).replace(/"/g, '""')}"`;
   }).join(",")).join("\n");
   const prefix = prefixLines && prefixLines.length > 0 ? prefixLines.join("\n") + "\n" : "";
-  const blob = new Blob([prefix + header + "\n" + body], { type: "text/csv" });
+  return prefix + header + "\n" + body;
+}
+
+export function exportCSV(rows: Record<string, unknown>[], filename: string, cols: { key: string; label: string; fmt?: (r: Record<string, unknown>) => string }[], prefixLines?: string[]) {
+  const blob = new Blob([buildCsvText(rows, cols, prefixLines)], { type: "text/csv" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
