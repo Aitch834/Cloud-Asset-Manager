@@ -249,6 +249,7 @@ const mockInitialVessel = {
   empty_since: null,
   fill_count: 0,
   maintenance_count: 0,
+  last_activity: null as string | null,
 };
 
 const mockRefreshSpy = jest.fn();
@@ -450,4 +451,67 @@ describe("winery vessel register quick-fill refresh", () => {
     expect(mockRefreshSpy).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).not.toHaveBeenCalled();
   });
+
+  it("carries the register's last activity into the vessel detail screen", async () => {
+    const lastActivity = "2026-08-14T12:00:00.000Z";
+    mockInitialVessel.last_activity = lastActivity;
+
+    const register = render(
+      <BarrelAlertProvider>
+        <WineryVesselRegisterScreen />
+      </BarrelAlertProvider>,
+    );
+
+    fireEvent.press(register.getByTestId(`vessel-row-${mockInitialVessel.id}`));
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/winery-vessel-detail",
+      params: expect.objectContaining({
+        vesselId: String(mockInitialVessel.id),
+        lastActivity,
+      }),
+    });
+
+    mockSearchParams = mockRouterPush.mock.calls[0][0].params;
+    register.unmount();
+
+    const detail = render(
+      <BarrelAlertProvider>
+        <WineryVesselDetailScreen />
+      </BarrelAlertProvider>,
+    );
+
+    await waitFor(() => {
+      expect(detail.getByText("Last activity")).toBeTruthy();
+      expect(detail.getByText("14 Aug 2026")).toBeTruthy();
+    });
+  });
+
+  it.each([null, ""])(
+    "shows Never after opening a vessel whose last activity is %p",
+    async lastActivity => {
+      mockInitialVessel.last_activity = lastActivity;
+
+      const register = render(
+        <BarrelAlertProvider>
+          <WineryVesselRegisterScreen />
+        </BarrelAlertProvider>,
+      );
+
+      fireEvent.press(register.getByTestId(`vessel-row-${mockInitialVessel.id}`));
+      mockSearchParams = mockRouterPush.mock.calls[0][0].params;
+      register.unmount();
+
+      const detail = render(
+        <BarrelAlertProvider>
+          <WineryVesselDetailScreen />
+        </BarrelAlertProvider>,
+      );
+
+      await waitFor(() => {
+        expect(detail.getByText("Last activity")).toBeTruthy();
+        expect(detail.getByText("Never")).toBeTruthy();
+      });
+    },
+  );
 });
