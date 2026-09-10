@@ -1093,7 +1093,11 @@ export default function AdPdfGenerator() {
     queryFn: fetchBrandAssetStatus,
   });
   const brandAssetStatusUnavailable = brandAssetStatusError || (!brandAssetStatusLoading && !brandAssetStatus);
-  const brandAssetStatusBlocked = brandAssetStatusLoading || brandAssetStatusUnavailable;
+  const brandAssetStatusBlocked =
+    brandAssetStatusLoading ||
+    brandAssetStatusUnavailable ||
+    brandAssetStatus?.logoResolvable === false ||
+    brandAssetStatus?.qrResolvable === false;
 
   // Selected template for rendering (only from active templates)
   const [selectedId, setSelectedId] = useState<number | null>(null);

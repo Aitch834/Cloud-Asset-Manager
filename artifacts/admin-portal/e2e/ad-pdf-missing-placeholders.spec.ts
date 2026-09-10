@@ -214,8 +214,8 @@ test("keeps the compact missing-brand-assets warning visible without covering th
   await expect(compactWarning).toBeInViewport();
   await expect(previewButton).toBeInViewport();
   await expect(generateButton).toBeInViewport();
-  await expect(previewButton).toBeEnabled();
-  await expect(generateButton).toBeEnabled();
+  await expect(previewButton).toBeDisabled();
+  await expect(generateButton).toBeDisabled();
   const scrolledTop = (await actionPanel.boundingBox())?.y;
   expect(scrolledTop).toBeDefined();
   expect(Math.abs(scrolledTop! - pinnedTop!)).toBeLessThanOrEqual(1);
