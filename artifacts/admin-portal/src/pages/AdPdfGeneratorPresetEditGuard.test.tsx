@@ -44,7 +44,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function makeFetch() {
+function makeFetch({ failPresetUpdate = false } = {}) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
@@ -60,6 +60,9 @@ function makeFetch() {
     if (url.includes("ad-templates")) return jsonResponse([TEMPLATE]);
     if (url.includes("platform-config")) return jsonResponse({ items: [] });
     if (url.includes("ad-copy-presets/42") && method === "PUT") {
+      if (failPresetUpdate) {
+        return jsonResponse({ error: "Preset update failed" }, 500);
+      }
       return jsonResponse({ ...PRESET, headline: "Updated headline" });
     }
     if (url.includes("ad-copy-presets")) return jsonResponse([PRESET]);
@@ -257,6 +260,48 @@ describe("AdPdfGenerator — preset edit navigation guard", () => {
     expect(presetUpdateCalls(fetchSpy)).toHaveLength(0);
     expect(screen.getByText("{{ Body }}")).toBeDefined();
     expect(screen.getByRole("button", { name: /Save anyway/i })).toBeDefined();
+  });
+
+  it.each([
+    {
+      field: "headline",
+      getInput: (editor: HTMLElement) => editor.querySelector<HTMLInputElement>('input[placeholder="Headline HTML (optional)"]')!,
+      value: "Changed headline",
+    },
+    {
+      field: "body",
+      getInput: (editor: HTMLElement) => editor.querySelector<HTMLTextAreaElement>('textarea[placeholder="Body copy HTML (optional)"]')!,
+      value: "Changed body",
+    },
+    {
+      field: "accent colour picker",
+      getInput: (editor: HTMLElement) => editor.querySelector<HTMLInputElement>('input[type="color"]')!,
+      value: "#123456",
+    },
+    {
+      field: "accent colour hex input",
+      getInput: (editor: HTMLElement) => editor.querySelector<HTMLInputElement>('input[placeholder="#C49A6C (default)"]')!,
+      value: "#654321",
+    },
+    {
+      field: "background URL",
+      getInput: (editor: HTMLElement) => editor.querySelector<HTMLInputElement>('input[placeholder="Background image URL (optional)"]')!,
+      value: "https://example.com/changed-background.jpg",
+    },
+  ])("clears a failed update banner when the $field changes and keeps the editor open", async ({ getInput, value }) => {
+    vi.stubGlobal("fetch", makeFetch({ failPresetUpdate: true }));
+    renderPage();
+    await openPresetEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
+    await screen.findByText("Preset update failed");
+
+    const editor = screen.getByPlaceholderText("Preset name").parentElement!.parentElement!;
+    fireEvent.change(getInput(editor), { target: { value } });
+
+    expect(screen.queryByText("Preset update failed")).toBeNull();
+    expect(screen.getByRole("button", { name: /Save changes/i })).toBeDefined();
+    expect(screen.getByPlaceholderText("Preset name")).toBeDefined();
   });
 
   it("keeps the dirty editor open when sidebar discard is cancelled, then navigates without a second prompt when accepted", async () => {
