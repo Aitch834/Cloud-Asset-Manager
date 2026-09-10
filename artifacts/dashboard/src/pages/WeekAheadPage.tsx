@@ -10,12 +10,12 @@ import {
 import { Card } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { useState, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
 import {
   formatFpDerogationExpiryLabel,
   isFpDerogationExpiryType,
 } from "@/lib/week-ahead-expiry";
+import React, { useState, useMemo } from "react";
 
 type ResourceAllocation = {
   id: number;
@@ -36,7 +36,7 @@ type FarmResource = {
   isActive: boolean;
 };
 
-type TaskItem = {
+export type TaskItem = {
   id: string;
   type: string;
   title: string;
@@ -250,7 +250,7 @@ function AssignDialog({
 }
 
 /* ─────────── TaskCard (list view) ─────────── */
-function TaskCard({
+export function TaskCard({
   task, today, onDelete, staff, farmId, onAssigned,
 }: {
   task: TaskItem; today: Date;
