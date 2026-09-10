@@ -47,6 +47,7 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { usePersistedBlockFilter } from "@/lib/hooks/usePersistedBlockFilter";
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch, isAbortError } from "@/lib/apiFetch";
+import { mergeRefreshedPhotoCover } from "@/lib/photoCoverTransition";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { usePrint } from "@/lib/hooks/usePrint";
@@ -822,12 +823,14 @@ function SprayDiaryPhotoSection({
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
   const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
+  const coverRevisionRef = useRef(0);
 
   // Stable ref so loadPhotos (memoised) can call the callback without it as a dep
   const onPhotoCountChangeRef = useRef(onPhotoCountChange);
   onPhotoCountChangeRef.current = onPhotoCountChange;
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
+    const refreshStartedAtCoverRevision = coverRevisionRef.current;
     if (!opts?.silent) setLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`, {
@@ -836,7 +839,14 @@ function SprayDiaryPhotoSection({
       if (res.ok) {
         const data: { photos: SprayDiaryPhoto[] } = await res.json();
         const fetched = data.photos ?? [];
-        setPhotos(fetched);
+        setPhotos((currentPhotos) =>
+          mergeRefreshedPhotoCover(
+            fetched,
+            currentPhotos,
+            refreshStartedAtCoverRevision,
+            coverRevisionRef.current,
+          ),
+        );
         // Only notify after a confirmed successful response — never on mount before
         // the request completes, so we don't overwrite a valid count with 0
         onPhotoCountChangeRef.current?.(fetched.length);
@@ -938,6 +948,7 @@ function SprayDiaryPhotoSection({
         },
       );
       if (res.ok) {
+        coverRevisionRef.current += 1;
         setPhotos((prev) => prev.map((p) => ({ ...p, isCover: p.id === photo.id })));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {

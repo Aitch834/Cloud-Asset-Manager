@@ -44,6 +44,7 @@ import {
   executeScoutingPhotoSetCover,
   fetchScoutingPhotoUrl,
 } from "@/lib/scoutingPhotosApi";
+import { mergeRefreshedPhotoCover } from "@/lib/photoCoverTransition";
 import {
   DIR_HORIZ,
   DIR_NONE,
@@ -1171,6 +1172,7 @@ export function ScoutingPhotoSection({
   const openedInitialPhotoRef = useRef<number | null>(null);
   const captionRevisionRef = useRef(0);
   const captionRevisionsByPhotoRef = useRef(new Map<number, number>());
+  const coverRevisionRef = useRef(0);
 
   // Notify parent whenever the local photo count changes (add or delete).
   // We skip the very first render (when photos is still the initial []) so we
@@ -1186,6 +1188,7 @@ export function ScoutingPhotoSection({
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
     const refreshStartedAtRevision = captionRevisionRef.current;
+    const refreshStartedAtCoverRevision = coverRevisionRef.current;
     if (!opts?.silent) setLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-scouting/${scoutingId}/photos`, {
@@ -1193,14 +1196,20 @@ export function ScoutingPhotoSection({
       });
       if (res.ok) {
         const data: { photos: ScoutingPhoto[] } = await res.json();
-        setPhotos((currentPhotos) =>
-          mergeRefreshedPhotoCaptions(
+        setPhotos((currentPhotos) => {
+          const photosWithCurrentCover = mergeRefreshedPhotoCover(
             data.photos ?? [],
+            currentPhotos,
+            refreshStartedAtCoverRevision,
+            coverRevisionRef.current,
+          );
+          return mergeRefreshedPhotoCaptions(
+            photosWithCurrentCover,
             currentPhotos,
             captionRevisionsByPhotoRef.current,
             refreshStartedAtRevision,
-          ),
-        );
+          );
+        });
       }
     } catch (error) {
       if (!isAbortError(error)) {
@@ -1366,6 +1375,7 @@ export function ScoutingPhotoSection({
       },
     );
     if (succeeded) {
+      coverRevisionRef.current += 1;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };

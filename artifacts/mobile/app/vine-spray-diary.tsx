@@ -45,6 +45,7 @@ import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch, isAbortError } from "@/lib/apiFetch";
 import { uploadPhotoToStorage, getApiBase, pickPhoto } from "@/lib/uploadPhoto";
 import { findPreselectedVineBlock } from "@/lib/vineSprayDiaryHelpers";
+import { mergeRefreshedPhotoCover } from "@/lib/photoCoverTransition";
 import {
   SWIPE_DOWN_THRESHOLD,
   SWIPE_HORIZ_THRESHOLD,
@@ -697,8 +698,10 @@ function SprayDiaryPhotoSection({
   // Prevent rapid presses from starting overlapping refreshes before React
   // commits the reloadingPhotoId state update.
   const reloadInFlightRef = useRef(false);
+  const coverRevisionRef = useRef(0);
 
   const loadPhotos = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
+    const refreshStartedAtCoverRevision = coverRevisionRef.current;
     if (!opts?.silent) setLoading(true);
     try {
       const res = await apiFetch(`/api/farms/${farmId}/vineyard-spray-diary/${sprayDiaryId}/photos`, {
@@ -706,7 +709,14 @@ function SprayDiaryPhotoSection({
       });
       if (res.ok) {
         const data: { photos: SprayDiaryPhoto[] } = await res.json();
-        setPhotos(data.photos ?? []);
+        setPhotos((currentPhotos) =>
+          mergeRefreshedPhotoCover(
+            data.photos ?? [],
+            currentPhotos,
+            refreshStartedAtCoverRevision,
+            coverRevisionRef.current,
+          ),
+        );
       }
     } catch (error) {
       if (!isAbortError(error)) {
@@ -802,6 +812,7 @@ function SprayDiaryPhotoSection({
         },
       );
       if (res.ok) {
+        coverRevisionRef.current += 1;
         setPhotos((prev) => prev.map((p) => ({ ...p, isCover: p.id === photo.id })));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {

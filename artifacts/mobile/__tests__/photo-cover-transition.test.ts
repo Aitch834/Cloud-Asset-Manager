@@ -9,6 +9,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { mergeRefreshedPhotoCover } from "../lib/photoCoverTransition";
 
 type Photo = { id: number; isCover: boolean };
 
@@ -58,6 +59,49 @@ describe("mobile photo cover transitions", () => {
     expect(photos.filter((photo) => photo.isCover)).toHaveLength(1);
   });
 
+  it.each(["scouting", "spray diary"])(
+    "keeps a successful %s cover promotion when an older refresh settles later",
+    () => {
+      const staleRefresh = [
+        { id: 101, isCover: true },
+        { id: 202, isCover: false },
+      ];
+      const locallyPromoted = promoteCover(staleRefresh, 202);
+
+      const photos = mergeRefreshedPhotoCover(
+        staleRefresh,
+        locallyPromoted,
+        0,
+        1,
+      );
+
+      expect(photos).toEqual([
+        { id: 101, isCover: false },
+        { id: 202, isCover: true },
+      ]);
+      expect(photos.filter((photo) => photo.isCover)).toHaveLength(1);
+    },
+  );
+
+  it("leaves the existing cover visible when a cover request fails", () => {
+    const existingPhotos = [
+      { id: 101, isCover: true },
+      { id: 202, isCover: false },
+    ];
+
+    const photos = mergeRefreshedPhotoCover(
+      existingPhotos,
+      existingPhotos,
+      0,
+      0,
+    );
+
+    expect(photos).toEqual(existingPhotos);
+    expect(photos.filter((photo) => photo.isCover)).toEqual([
+      { id: 101, isCover: true },
+    ]);
+  });
+
   it("scouting records use the shared cover request helper", () => {
     expect(screenSources[0].source).toContain("executeScoutingPhotoSetCover");
   });
@@ -73,6 +117,14 @@ describe("mobile photo cover transitions", () => {
     ({ source }) => {
       expect(source).toContain("photo.isCover ?");
       expect(source).toMatch(/<Text[^>]*>★<\/Text>/);
+    },
+  );
+
+  it.each(screenSources)(
+    "$name reconciles refreshes against successful cover changes",
+    ({ source }) => {
+      expect(source).toContain("mergeRefreshedPhotoCover");
+      expect(source).toContain("coverRevisionRef.current += 1");
     },
   );
 });
