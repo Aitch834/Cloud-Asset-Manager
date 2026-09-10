@@ -18,6 +18,7 @@ import {
   SHARED_E2E_TEST_EMAIL,
   type ClerkUserRecord,
 } from "../src/lib/e2e-test-user";
+import { provisionOrganicInputFixture } from "./organic-input-fixture";
 
 const TENANT_SLUG = "oakfield-farms";
 const VITICULTURE_FARM_ID = 5;
@@ -226,6 +227,12 @@ export default async function globalSetup() {
        ON CONFLICT (user_id, tenant_id) DO UPDATE SET is_super_admin = true, is_active = true`,
       [clerkUserId, tenantId, roleId],
     );
+
+    const organicFixtureFarm = await provisionOrganicInputFixture(
+      db,
+      tenantId,
+      TENANT_SLUG,
+    );
     await db.query("COMMIT");
 
     // Publish the run identity only after its application mapping commits. If
@@ -236,7 +243,8 @@ export default async function globalSetup() {
     console.log(
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
         `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}; ` +
-        `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) active`,
+        `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) active; ` +
+        `organic fixture farm ${organicFixtureFarm.farmId}`,
     );
   } catch (error) {
     await db.query("ROLLBACK").catch(() => undefined);

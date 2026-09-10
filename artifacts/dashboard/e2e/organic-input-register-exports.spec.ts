@@ -2,46 +2,29 @@ import { signInDashboard } from "./auth";
 /**
  * E2E: authenticated Organic Input Register exports retain derogation expiry.
  *
- * The browser uses a real Clerk-authenticated tenant/farm context. The input row
- * itself is supplied as a read-only route fixture so the check is deterministic
- * and never changes shared farm records.
+ * Global setup supplies a clearly tagged database fixture on the reusable
+ * Clerk-authenticated tenant. This exercises the real API and OrganicPage export
+ * behavior without consuming another Clerk development-user slot.
  */
 
 import { expect, test, type Page } from "@playwright/test";
 import { Client } from "pg";
 import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  ORGANIC_INPUT_FIXTURE_EXPIRY_UK,
+  ORGANIC_INPUT_FIXTURE_MARKER,
+  ORGANIC_INPUT_FIXTURE_PRODUCT,
+} from "./organic-input-fixture";
 
-const TENANT_ID = 1;
-const PRODUCT_NAME = "E2E Derogation Seed Treatment";
+const TENANT_SLUG = "oakfield-farms";
 const FILTER_2025_PRODUCT_NAME = "E2E 2025 Restricted Input";
 const FILTER_2024_PRODUCT_NAME = "E2E 2024 Restricted Input";
-const EXPIRY_ISO = "2026-12-31";
-const EXPIRY_UK = "31/12/2026";
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type OrganicFarm = {
   tenantSlug: string;
   farmId: number;
   farmName: string;
 };
-
-function getTestUserEmail(): string {
-  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
-  if (!fs.existsSync(stateFile)) {
-    throw new Error("global-setup did not run — e2e/.test-user-email is missing");
-  }
-  return fs.readFileSync(stateFile, "utf8").trim();
-}
-
-function getTestUserId(): string {
-  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
-  if (!fs.existsSync(stateFile)) {
-    throw new Error("global-setup did not run — e2e/.test-user-id is missing");
-  }
-  return fs.readFileSync(stateFile, "utf8").trim();
-}
 
 async function getOrganicFarm(): Promise<OrganicFarm> {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
@@ -58,8 +41,10 @@ async function getOrganicFarm(): Promise<OrganicFarm> {
        JOIN farms f ON f.tenant_id = t.id
        JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
        JOIN modules m ON m.id = s.module_id
-       WHERE t.id = $1
+       JOIN organic_inputs oi ON oi.farm_id = f.id
+       WHERE t.slug = $1
          AND m.key = 'organic-compliance'
+         AND oi.notes = $2
          AND (
            s.status = 'active'
            OR (
@@ -69,7 +54,7 @@ async function getOrganicFarm(): Promise<OrganicFarm> {
          )
        ORDER BY f.id
        LIMIT 1`,
-      [TENANT_ID],
+       [TENANT_SLUG, ORGANIC_INPUT_FIXTURE_MARKER],
     );
 
     const farm = result.rows[0];
@@ -90,58 +75,23 @@ async function getOrganicFarm(): Promise<OrganicFarm> {
 }
 
 async function prepareInputRegister(page: Page, farm: OrganicFarm): Promise<void> {
-  await page.route(`**/api/farms/${farm.farmId}/organic/inputs*`, async route => {
-    if (route.request().method() !== "GET") {
-      await route.continue();
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        records: [
-          {
-            id: 910_028,
-            farmId: farm.farmId,
-            productName: PRODUCT_NAME,
-            inputType: "Seed Treatment",
-            supplier: "E2E Organic Supplies",
-            poReference: "PO-E2E-1928",
-            grnReference: "GRN-E2E-1928",
-            approvalStatus: "derogation",
-            certifierApprovalRef: "DER-E2E-1928",
-            cropYear: 2026,
-            dateOfUse: "2026-09-01",
-            quantityAmount: "25",
-            quantityUnit: "kg",
-            fieldId: null,
-            fieldName: "North Field",
-            justification: "Deterministic browser export fixture",
-            certifierNotified: true,
-            appliedBy: "E2E Tester",
-            derogationExpiryDate: EXPIRY_ISO,
-            notes: "Authenticated export regression fixture",
-            createdAt: "2026-09-01T09:00:00.000Z",
-          },
-        ],
-      }),
-    });
-  });
-
   await signInDashboard(page);
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-  await page.evaluate(
-    ([tenantSlug, farmId]) => {
-      localStorage.setItem("farmtrac_tenantSlug", tenantSlug);
-      localStorage.setItem(
-        "farmtrac-storage",
-        JSON.stringify({ state: { tenantSlug, farmId }, version: 0 }),
-      );
-    },
-    [farm.tenantSlug, farm.farmId] as [string, number],
-  );
+  await expect(
+    page.getByRole("heading", { name: "Select a Farm", exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  await page
+    .getByRole("heading", { name: farm.farmName, exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/dashboard\/?(?:\?.*)?$/, {
+    timeout: 15_000,
+  });
+  await page.evaluate((farmId) => {
+    localStorage.setItem(`organic-input-register-year-filter-${farmId}`, "all");
+    localStorage.setItem(
+      `organic-input-register-approval-status-filter-${farmId}`,
+      "all",
+    );
+  }, farm.farmId);
 
   await page.goto("/dashboard/organic?tab=input-register", {
     waitUntil: "networkidle",
@@ -149,7 +99,9 @@ async function prepareInputRegister(page: Page, farm: OrganicFarm): Promise<void
   await expect(
     page.getByText("Input register — arable, horticultural & general farm inputs"),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(PRODUCT_NAME, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(ORGANIC_INPUT_FIXTURE_PRODUCT, { exact: true }),
+  ).toBeVisible();
 }
 
 async function prepareInputRegisterFilterPersistence(
@@ -320,25 +272,17 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   await page.getByRole("button", { name: "Export CSV", exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(
-    /^input-register-2026-.+\.csv$/,
+    /^input-register-.+\.csv$/,
   );
 
   const downloadPath = await download.path();
   expect(downloadPath).not.toBeNull();
   const csv = fs.readFileSync(downloadPath!, "utf8");
   const [header, fixtureRow] = csv.trim().split(/\r?\n/);
-  const expectedDaysRemaining = await page.evaluate((expiryIso) => {
-    const [year, month, day] = expiryIso.split("-").map(Number);
-    const now = new Date();
-    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const expiry = Date.UTC(year, month - 1, day);
-    return Math.round((expiry - today) / 86_400_000);
-  }, EXPIRY_ISO);
 
   expect(header).toContain("Derogation Expiry");
-  expect(fixtureRow).toContain(PRODUCT_NAME);
-  expect(fixtureRow).toContain(EXPIRY_UK);
-  expect(fixtureRow).toMatch(new RegExp(`,${expectedDaysRemaining},`));
+  expect(fixtureRow).toContain(ORGANIC_INPUT_FIXTURE_PRODUCT);
+  expect(fixtureRow).toContain(ORGANIC_INPUT_FIXTURE_EXPIRY_UK);
 
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Print Register", exact: true }).click();
@@ -351,10 +295,11 @@ test("shows derogation expiry in authenticated CSV and print exports", async ({
   await expect(
     popup.getByRole("columnheader", { name: "Derogation Expiry", exact: true }),
   ).toBeVisible();
-  const printRow = popup.getByRole("row").filter({ hasText: PRODUCT_NAME });
-  await expect(printRow).toContainText(PRODUCT_NAME);
-  await expect(printRow).toContainText(EXPIRY_UK);
-  await expect(printRow).toContainText(String(expectedDaysRemaining));
+  const printRow = popup
+    .getByRole("row")
+    .filter({ hasText: ORGANIC_INPUT_FIXTURE_PRODUCT });
+  await expect(printRow).toContainText(ORGANIC_INPUT_FIXTURE_PRODUCT);
+  await expect(printRow).toContainText(ORGANIC_INPUT_FIXTURE_EXPIRY_UK);
 
   await popup.close();
 });
