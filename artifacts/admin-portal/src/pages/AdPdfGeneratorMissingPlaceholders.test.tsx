@@ -32,19 +32,23 @@ Object.assign(global.URL, {
 
 const COMPLETE_BODY = "{{font_css}}{{logo}}{{bg}}{{qr}}<h1>hello</h1>";
 
-function makeTemplate(htmlBody: string) {
+function makeTemplate(htmlBody: string, overrides: Partial<ReturnType<typeof templateDefaults>> = {}) {
+  return { ...templateDefaults(), htmlBody, ...overrides };
+}
+
+function templateDefaults() {
   return {
     id: 1,
     name: "Test Template",
     slug: "test-template",
     widthMm: 190,
     heightMm: 133,
-    htmlBody,
+    htmlBody: COMPLETE_BODY,
     isDefault: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     archivedAt: null,
-  };
+  } as const;
 }
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
@@ -57,7 +61,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 /** Builds a fetch spy that stubs all queries AdPdfGenerator fires on mount. */
-function makeFetch(template: ReturnType<typeof makeTemplate>) {
+function makeFetch(template: ReturnType<typeof makeTemplate> | ReturnType<typeof makeTemplate>[]) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
@@ -68,7 +72,8 @@ function makeFetch(template: ReturnType<typeof makeTemplate>) {
 
     if (url.includes("ad-brand-assets/status"))
       return jsonResponse({ logoResolvable: true, qrResolvable: true });
-    if (url.includes("ad-templates")) return jsonResponse([template]);
+    if (url.includes("ad-templates"))
+      return jsonResponse(Array.isArray(template) ? template : [template]);
     if (url.includes("platform-config")) return jsonResponse({ items: [] });
     if (url.includes("ad-copy-presets")) return jsonResponse([]);
 
@@ -81,6 +86,18 @@ function makeFetch(template: ReturnType<typeof makeTemplate>) {
 
 function renderPage(template: ReturnType<typeof makeTemplate>) {
   vi.stubGlobal("fetch", makeFetch(template));
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={qc}>
+      <AdPdfGenerator />
+    </QueryClientProvider>,
+  );
+}
+
+function renderTemplateLibrary(templates: ReturnType<typeof makeTemplate>[]) {
+  vi.stubGlobal("fetch", makeFetch(templates));
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -237,5 +254,49 @@ describe("AdPdfGenerator — missing-placeholder button guard", () => {
       });
       expect(pdfCalls.length).toBe(0);
     });
+  });
+});
+
+describe("AdPdfGenerator — Template library missing-placeholder badges", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows an amber badge with an exact tooltip only on the incomplete template in a multi-template list", async () => {
+    renderTemplateLibrary([
+      makeTemplate("{{font_css}}{{logo}}{{bg}}<h1>Missing QR</h1>", {
+        id: 41,
+        name: "Incomplete Template",
+        slug: "incomplete-template",
+        isDefault: false,
+      }),
+      makeTemplate(COMPLETE_BODY, {
+        id: 42,
+        name: "Complete Template",
+        slug: "complete-template",
+      }),
+    ]);
+
+    await screen.findByText("Incomplete Template");
+    await screen.findByText("Complete Template");
+
+    const warningBadge = screen.getByTestId("template-missing-placeholders-41");
+    expect(warningBadge.className).toContain("bg-amber-50");
+    expect(warningBadge.getAttribute("aria-label")).toBe(
+      "Missing required placeholders: {{qr}}",
+    );
+    expect(screen.queryByTestId("template-missing-placeholders-42")).toBeNull();
+
+    fireEvent.pointerMove(warningBadge, { pointerType: "mouse" });
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toContain("Missing required placeholder: {{qr}}");
+    expect(tooltip.textContent).not.toContain("{{font_css}}");
+    expect(tooltip.textContent).not.toContain("{{logo}}");
+    expect(tooltip.textContent).not.toContain("{{bg}}");
   });
 });
