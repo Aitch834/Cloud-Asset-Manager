@@ -32,7 +32,11 @@ import {
 } from "@/lib/restricted-inputs-export";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-import { buildOrganicInspectionCsvRows } from "@/lib/organic-inspection-csv";
+import {
+  buildOrganicInspectionCsvRows,
+  buildOrganicInspectionPrintTableHtml,
+} from "@/lib/organic-inspection-csv";
+import { escapeHtml } from "@/lib/print-report";
 import { buildCsv, downloadCsvFile } from "@/lib/csv";
 import { zipSync } from "fflate";
 
@@ -96,19 +100,12 @@ function openPrint(html: string) {
 function printInspectionRegister(records: InspectionRecord[], farmName: string, year: number | null) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const yearLabel = year ? `${year}` : "All Years";
-  const rows = records.map(r => `<tr>
-    <td style="white-space:nowrap">${r.inspectionDate ? new Date(r.inspectionDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td>${r.certifier}</td><td>${r.inspectorName || "—"}</td>
-    <td><span style="font-weight:600">${r.outcome}</span></td>
-    <td>${r.certificateReference || "—"}</td>
-    <td style="white-space:nowrap">${r.nextDueDate ? new Date(r.nextDueDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td>${r.nonConformances || "—"}</td><td>${r.actions || "—"}</td>
-  </tr>`).join("");
-  openPrint(`<!DOCTYPE html><html><head><title>Organic Inspection Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
-<div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Certification Inspection Register · ${yearLabel} · Complementary Record</p></div>
+  const safeFarmName = escapeHtml(farmName);
+  const tableHtml = buildOrganicInspectionPrintTableHtml(records);
+  openPrint(`<!DOCTYPE html><html><head><title>Organic Inspection Register — ${safeFarmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
+<div class="hdr"><div><h1>${safeFarmName}</h1><p class="sub">Organic Certification Inspection Register · ${yearLabel} · Complementary Record</p></div>
 <div class="hdr-r"><b>Inspection Register</b>${records.length} record${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Date</th><th>Certifier</th><th>Inspector</th><th>Outcome</th><th>Cert Ref</th><th>Next Due</th><th>Non-Conformances</th><th>Actions Required</th></tr></thead>
-<tbody>${rows}</tbody></table>
+${tableHtml}
 <div class="footer">Organic Inspection Register — Complementary record for Soil Association / OF&G portal. Retain with your organic certification documentation. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
 }

@@ -1,3 +1,5 @@
+import { escapeHtml } from "./print-report";
+
 export const ORGANIC_INSPECTION_CSV_HEADERS = [
   "Date",
   "Certifier",
@@ -9,6 +11,8 @@ export const ORGANIC_INSPECTION_CSV_HEADERS = [
   "Actions Required",
   "Notes",
 ] as const;
+
+export const ORGANIC_INSPECTION_PRINT_HEADERS = ORGANIC_INSPECTION_CSV_HEADERS;
 
 export interface OrganicInspectionCsvRecord {
   inspectionDate: string;
@@ -48,4 +52,27 @@ export function buildOrganicInspectionCsvRows(
       record.notes ?? "",
     ]),
   ];
+}
+
+export function buildOrganicInspectionPrintRows(
+  records: OrganicInspectionCsvRecord[],
+): string[][] {
+  return buildOrganicInspectionCsvRows(records)
+    .slice(1)
+    .map(row => row.map(value => String(value || "—")));
+}
+
+export function buildOrganicInspectionPrintTableHtml(
+  records: OrganicInspectionCsvRecord[],
+): string {
+  const headers = ORGANIC_INSPECTION_PRINT_HEADERS
+    .map(header => `<th>${escapeHtml(header)}</th>`)
+    .join("");
+  const rows = buildOrganicInspectionPrintRows(records)
+    .map(row => `<tr>${row.map((value, index) => (
+      `<td${index === 0 || index === 5 ? ' style="white-space:nowrap"' : ""}>${escapeHtml(value)}</td>`
+    )).join("")}</tr>`)
+    .join("");
+
+  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
