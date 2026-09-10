@@ -20,6 +20,7 @@
     "test:lis-first-production": "tsx scripts/test-lis-first-production-submission.ts",
     "test:open-meteo-cache": "tsx scripts/test-open-meteo-cache.ts",
     "test:cache-guard": "node scripts/check-ad-brand-asset-cache-guard.mjs",
+    "test:ad-pdf-blocked-cache-override": "node --test scripts/check-ad-pdf-blocked-cache-override.test.mjs",
     "test:production-register-interest": "node scripts/check-production-register-interest-traffic.mjs",
     "test:ad-pdf-draft-warnings": "node scripts/check-ad-pdf-draft-warnings.mjs",
     "test:rack-out-note": "node scripts/check-winery-rack-out-note.mjs",

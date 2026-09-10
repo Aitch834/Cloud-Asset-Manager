@@ -49,6 +49,7 @@ import { renameSync, existsSync } from "node:fs";
 import { resolve as pathResolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquireProcessLock } from "./lib/process-lock.mjs";
+import { overrideAdBrandAssetCache } from "./lib/ad-brand-asset-cache-override.mjs";
 
 // Absolute path to the legacy on-disk fallback directory, relative to this script.
 // The API server resolves it via path.resolve(process.cwd(), "scripts/ad-templates")
@@ -335,15 +336,7 @@ async function runStatusChecks() {
 // the DB or on-disk fallback files.
 // Pass "" for either value to simulate that asset being missing.
 async function overrideCache(logoUri, qrUri) {
-  const r = await call("PUT", "/admin/ad-brand-assets/cache", { logoUri, qrUri });
-  if (r.status === 404) {
-    throw new Error(
-      "Cache override endpoint is blocked (NODE_ENV=production?) — cannot run integration checks",
-    );
-  }
-  if (r.status !== 200 || !r.json?.overridden) {
-    throw new Error(`Cache override failed: ${r.status} ${JSON.stringify(r.json)}`);
-  }
+  await overrideAdBrandAssetCache(call, logoUri, qrUri);
 }
 
 // Flush the cache so the server re-resolves from DB + disk (restores normal operation).
