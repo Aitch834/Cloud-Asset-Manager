@@ -3,12 +3,13 @@
  *
  * Confirms that platform admins can see the warning when a grower has SMS
  * enabled but has explicitly disabled every available category, and that the
- * warning is not shown when at least one category remains enabled. It also
+ * warning is not shown when at least one category remains enabled or when the
+ * tenant does not have an active SMS Alerts add-on. It also
  * protects the category summary's enabled/disabled styling and legacy-null
  * behaviour.
  *
- * Data strategy: create an isolated tenant, active SMS subscription, and three
- * users directly in PostgreSQL. The fixture is removed after the suite.
+ * Data strategy: create isolated active-add-on and inactive-add-on tenants plus
+ * their users directly in PostgreSQL. The fixture is removed after the suite.
  *
  * Prerequisites:
  *   - DATABASE_URL in env
@@ -26,6 +27,7 @@ const FIXTURE_TAG = `E2ESmsWarning-${Date.now()}-${process.pid}`;
 const MISCONFIGURED_USER_ID = `e2e-sms-misconfigured-${Date.now()}-${process.pid}`;
 const CONFIGURED_USER_ID = `e2e-sms-configured-${Date.now()}-${process.pid}`;
 const LEGACY_USER_ID = `e2e-sms-legacy-${Date.now()}-${process.pid}`;
+const INACTIVE_ADDON_USER_ID = `e2e-sms-inactive-addon-${Date.now()}-${process.pid}`;
 
 const SMS_CATEGORIES = {
   livestock: false,
@@ -41,6 +43,9 @@ const SMS_CATEGORIES = {
 let tenantId: number | null = null;
 let farmId: number | null = null;
 let subscriptionId: number | null = null;
+let inactiveAddonTenantId: number | null = null;
+let inactiveAddonFarmId: number | null = null;
+let inactiveAddonSubscriptionId: number | null = null;
 let insertedUserIds: string[] = [];
 let insertedBypassUser = false;
 
@@ -83,6 +88,18 @@ async function setupFixture() {
     );
     tenantId = tenantResult.rows[0].id;
 
+    const inactiveAddonTenantResult = await db.query<{ id: number }>(
+      `INSERT INTO tenants (name, slug, contact_email)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [
+        `${FIXTURE_TAG} Inactive Add-on Tenant`,
+        `${FIXTURE_TAG.toLowerCase()}-inactive-${Date.now()}`,
+        `${FIXTURE_TAG.toLowerCase()}-inactive@test.local`,
+      ],
+    );
+    inactiveAddonTenantId = inactiveAddonTenantResult.rows[0].id;
+
     const farmResult = await db.query<{ id: number }>(
       `INSERT INTO farms (tenant_id, name)
        VALUES ($1, $2)
@@ -91,6 +108,14 @@ async function setupFixture() {
     );
     farmId = farmResult.rows[0].id;
 
+    const inactiveAddonFarmResult = await db.query<{ id: number }>(
+      `INSERT INTO farms (tenant_id, name)
+       VALUES ($1, $2)
+       RETURNING id`,
+      [inactiveAddonTenantId, `${FIXTURE_TAG} Inactive Add-on Farm`],
+    );
+    inactiveAddonFarmId = inactiveAddonFarmResult.rows[0].id;
+
     const subscriptionResult = await db.query<{ id: number }>(
       `INSERT INTO subscriptions (tenant_id, farm_id, module_id, status)
        VALUES ($1, $2, $3, 'active')
@@ -98,6 +123,14 @@ async function setupFixture() {
       [tenantId, farmId, smsModuleId],
     );
     subscriptionId = subscriptionResult.rows[0].id;
+
+    const inactiveAddonSubscriptionResult = await db.query<{ id: number }>(
+      `INSERT INTO subscriptions (tenant_id, farm_id, module_id, status)
+       VALUES ($1, $2, $3, 'cancelled')
+       RETURNING id`,
+      [inactiveAddonTenantId, inactiveAddonFarmId, smsModuleId],
+    );
+    inactiveAddonSubscriptionId = inactiveAddonSubscriptionResult.rows[0].id;
 
     const bypassUserResult = await db.query(
       `INSERT INTO users (id, email, first_name, last_name)
@@ -111,18 +144,21 @@ async function setupFixture() {
     await db.query(
       `INSERT INTO user_tenants
          (user_id, tenant_id, role_id, is_super_admin, is_active)
-       VALUES ($1, $2, $3, true, true)
+       VALUES
+         ($1, $2, $4, true, true),
+         ($1, $3, $4, true, true)
        ON CONFLICT (user_id, tenant_id) DO NOTHING`,
-      [DEV_BYPASS_USER_ID, tenantId, roleId],
+      [DEV_BYPASS_USER_ID, tenantId, inactiveAddonTenantId, roleId],
     );
 
     await db.query(
       `INSERT INTO users
          (id, email, first_name, last_name, phone_number, sms_opt_in, sms_categories)
-       VALUES
+         VALUES
          ($1, $2, 'SMS', 'Misconfigured', '07700900111', 'all', $3),
           ($4, $5, 'SMS', 'Configured', '07700900222', 'all', $6),
-          ($7, $8, 'SMS', 'Legacy', '07700900333', 'all', NULL)`,
+           ($7, $8, 'SMS', 'Legacy', '07700900333', 'all', NULL),
+           ($9, $10, 'SMS', 'Inactive Add-on', '07700900444', 'all', $11)`,
       [
         MISCONFIGURED_USER_ID,
         `${MISCONFIGURED_USER_ID}@test.local`,
@@ -132,17 +168,34 @@ async function setupFixture() {
         JSON.stringify({ tasks: true, regulatory: false }),
         LEGACY_USER_ID,
         `${LEGACY_USER_ID}@test.local`,
+        INACTIVE_ADDON_USER_ID,
+        `${INACTIVE_ADDON_USER_ID}@test.local`,
+        JSON.stringify(SMS_CATEGORIES),
       ],
     );
-    insertedUserIds = [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID, LEGACY_USER_ID];
+    insertedUserIds = [
+      MISCONFIGURED_USER_ID,
+      CONFIGURED_USER_ID,
+      LEGACY_USER_ID,
+      INACTIVE_ADDON_USER_ID,
+    ];
 
     await db.query(
       `INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active)
        VALUES
-         ($1, $3, $4, true),
-          ($2, $3, $4, true),
-          ($5, $3, $4, true)`,
-      [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID, tenantId, roleId, LEGACY_USER_ID],
+         ($1, $4, $5, true),
+         ($2, $4, $5, true),
+         ($3, $4, $5, true),
+         ($6, $7, $5, true)`,
+      [
+        MISCONFIGURED_USER_ID,
+        CONFIGURED_USER_ID,
+        LEGACY_USER_ID,
+        tenantId,
+        roleId,
+        INACTIVE_ADDON_USER_ID,
+        inactiveAddonTenantId,
+      ],
     );
   } finally {
     await db.end();
@@ -158,6 +211,9 @@ async function teardownFixture() {
     if (tenantId !== null) {
       await db.query("DELETE FROM user_tenants WHERE tenant_id = $1", [tenantId]);
     }
+    if (inactiveAddonTenantId !== null) {
+      await db.query("DELETE FROM user_tenants WHERE tenant_id = $1", [inactiveAddonTenantId]);
+    }
     for (const userId of insertedUserIds) {
       await db.query("DELETE FROM users WHERE id = $1", [userId]);
     }
@@ -167,18 +223,27 @@ async function teardownFixture() {
     if (subscriptionId !== null) {
       await db.query("DELETE FROM subscriptions WHERE id = $1", [subscriptionId]);
     }
+    if (inactiveAddonSubscriptionId !== null) {
+      await db.query("DELETE FROM subscriptions WHERE id = $1", [inactiveAddonSubscriptionId]);
+    }
     if (farmId !== null) {
       await db.query("DELETE FROM farms WHERE id = $1", [farmId]);
     }
+    if (inactiveAddonFarmId !== null) {
+      await db.query("DELETE FROM farms WHERE id = $1", [inactiveAddonFarmId]);
+    }
     if (tenantId !== null) {
       await db.query("DELETE FROM tenants WHERE id = $1", [tenantId]);
+    }
+    if (inactiveAddonTenantId !== null) {
+      await db.query("DELETE FROM tenants WHERE id = $1", [inactiveAddonTenantId]);
     }
   } finally {
     await db.end();
   }
 }
 
-async function openCustomerDetail(page: Page) {
+async function openCustomerDetail(page: Page, customerTenantId = tenantId) {
   await page.addInitScript((secret) => {
     sessionStorage.setItem("bde_admin_secret", secret);
   }, ADMIN_SECRET_PLACEHOLDER);
@@ -192,7 +257,7 @@ async function openCustomerDetail(page: Page) {
     });
   });
 
-  await page.goto(`${appBase()}/admin-portal/customers/${tenantId}`);
+  await page.goto(`${appBase()}/admin-portal/customers/${customerTenantId}`);
   await expect(page.getByRole("heading", { name: /^Users \(\d+\)$/ })).toBeVisible();
 }
 
@@ -263,5 +328,18 @@ test.describe("SMS misconfiguration warning", () => {
       .getByText(`${LEGACY_USER_ID}@test.local`, { exact: true })
       .locator("xpath=../../..");
     await expect(userRow.getByText("SMS categories:", { exact: true })).toHaveCount(0);
+  });
+
+  test("does not show the warning when the SMS Alerts add-on is inactive", async ({ page }) => {
+    await openCustomerDetail(page, inactiveAddonTenantId);
+
+    const userRow = page
+      .getByText(`${INACTIVE_ADDON_USER_ID}@test.local`, { exact: true })
+      .locator("xpath=../../..");
+    await expect(
+      userRow.getByText(
+        /SMS is enabled but every category is off — you won't receive any text alerts\./i,
+      ),
+    ).toHaveCount(0);
   });
 });
