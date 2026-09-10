@@ -3,9 +3,11 @@
  *
  * Confirms that platform admins can see the warning when a grower has SMS
  * enabled but has explicitly disabled every available category, and that the
- * warning is not shown when at least one category remains enabled.
+ * warning is not shown when at least one category remains enabled. It also
+ * protects the category summary's enabled/disabled styling and legacy-null
+ * behaviour.
  *
- * Data strategy: create an isolated tenant, active SMS subscription, and two
+ * Data strategy: create an isolated tenant, active SMS subscription, and three
  * users directly in PostgreSQL. The fixture is removed after the suite.
  *
  * Prerequisites:
@@ -23,6 +25,7 @@ const DEV_BYPASS_USER_ID = "dev-bypass-user";
 const FIXTURE_TAG = `E2ESmsWarning-${Date.now()}-${process.pid}`;
 const MISCONFIGURED_USER_ID = `e2e-sms-misconfigured-${Date.now()}-${process.pid}`;
 const CONFIGURED_USER_ID = `e2e-sms-configured-${Date.now()}-${process.pid}`;
+const LEGACY_USER_ID = `e2e-sms-legacy-${Date.now()}-${process.pid}`;
 
 const SMS_CATEGORIES = {
   livestock: false,
@@ -118,24 +121,28 @@ async function setupFixture() {
          (id, email, first_name, last_name, phone_number, sms_opt_in, sms_categories)
        VALUES
          ($1, $2, 'SMS', 'Misconfigured', '07700900111', 'all', $3),
-         ($4, $5, 'SMS', 'Configured', '07700900222', 'all', $6)`,
+          ($4, $5, 'SMS', 'Configured', '07700900222', 'all', $6),
+          ($7, $8, 'SMS', 'Legacy', '07700900333', 'all', NULL)`,
       [
         MISCONFIGURED_USER_ID,
         `${MISCONFIGURED_USER_ID}@test.local`,
         JSON.stringify(SMS_CATEGORIES),
         CONFIGURED_USER_ID,
         `${CONFIGURED_USER_ID}@test.local`,
-        JSON.stringify({ ...SMS_CATEGORIES, tasks: true }),
+        JSON.stringify({ tasks: true, regulatory: false }),
+        LEGACY_USER_ID,
+        `${LEGACY_USER_ID}@test.local`,
       ],
     );
-    insertedUserIds = [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID];
+    insertedUserIds = [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID, LEGACY_USER_ID];
 
     await db.query(
       `INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active)
        VALUES
          ($1, $3, $4, true),
-         ($2, $3, $4, true)`,
-      [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID, tenantId, roleId],
+          ($2, $3, $4, true),
+          ($5, $3, $4, true)`,
+      [MISCONFIGURED_USER_ID, CONFIGURED_USER_ID, tenantId, roleId, LEGACY_USER_ID],
     );
   } finally {
     await db.end();
@@ -223,5 +230,38 @@ test.describe("SMS misconfiguration warning", () => {
         /SMS is enabled but every category is off — you won't receive any text alerts\./i,
       ),
     ).toHaveCount(0);
+  });
+
+  test("shows enabled, disabled, and omitted categories with their correct status styling", async ({ page }) => {
+    await openCustomerDetail(page);
+
+    const userRow = page
+      .getByText(`${CONFIGURED_USER_ID}@test.local`, { exact: true })
+      .locator("xpath=../../..");
+    await expect(userRow.getByText("SMS categories:", { exact: true })).toBeVisible();
+
+    const enabled = userRow.getByText("Task Assignments & Reminders", { exact: true });
+    await expect(enabled).toHaveAttribute("title", "Enabled");
+    await expect(enabled).toHaveClass(/text-green-700/);
+    await expect(enabled).not.toHaveClass(/line-through/);
+
+    const disabled = userRow.getByText("Regulatory Compliance", { exact: true });
+    await expect(disabled).toHaveAttribute("title", "Disabled");
+    await expect(disabled).toHaveClass(/text-muted-foreground/);
+    await expect(disabled).toHaveClass(/line-through/);
+
+    const omitted = userRow.getByText("Quality & Non-conformances", { exact: true });
+    await expect(omitted).toHaveAttribute("title", "Enabled");
+    await expect(omitted).toHaveClass(/text-green-700/);
+    await expect(omitted).not.toHaveClass(/line-through/);
+  });
+
+  test("does not render the category summary for a legacy null value", async ({ page }) => {
+    await openCustomerDetail(page);
+
+    const userRow = page
+      .getByText(`${LEGACY_USER_ID}@test.local`, { exact: true })
+      .locator("xpath=../../..");
+    await expect(userRow.getByText("SMS categories:", { exact: true })).toHaveCount(0);
   });
 });
