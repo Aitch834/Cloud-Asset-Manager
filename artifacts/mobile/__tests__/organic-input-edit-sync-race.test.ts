@@ -242,6 +242,130 @@ describe("organic input edit replacement during sync", () => {
     expect(receivedBodies[0].productName).not.toBe(originalRecord.productName);
   });
 
+  it("reconciles a corrected organic input without duplicating it after the create response is lost", async () => {
+    const recordId = "local-lost-response";
+    const originalRecord = {
+      id: recordId,
+      farmId: "farm-1",
+      productName: "Original lime",
+      dateOfUse: "2026-08-22",
+      quantityAmount: "5",
+      synced: false,
+    };
+    const correctedRecord = {
+      ...originalRecord,
+      productName: "Corrected lime",
+      quantityAmount: "12",
+    };
+    await insertRecord(
+      "organic_inputs",
+      recordId,
+      "farm-1",
+      originalRecord,
+      "2026-08-22T12:00:00.000Z",
+    );
+    await enqueueSyncItem(STORAGE_KEYS.ORGANIC_INPUTS, recordId, originalRecord);
+    expect(
+      await updatePendingSyncItem(
+        STORAGE_KEYS.ORGANIC_INPUTS,
+        recordId,
+        correctedRecord,
+      ),
+    ).toBe(true);
+
+    const serverRecords = new Map<string, Record<string, unknown>>();
+    const fetchMock = jest.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      if (init.method === "PUT") {
+        const existing = serverRecords.get(recordId);
+        serverRecords.set(recordId, { ...existing, ...body, id: 77 });
+        return { ok: true };
+      }
+      const mobileRecordId = String(body.mobileRecordId);
+      const existing = serverRecords.get(mobileRecordId);
+      const serverRecord = existing ?? { ...body, id: 77 };
+      serverRecords.set(mobileRecordId, serverRecord);
+
+      if (fetchMock.mock.calls.length === 1) {
+        throw new Error("response lost after server create");
+      }
+      return {
+        ok: true,
+        json: async () => ({ record: serverRecord }),
+      };
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    await triggerManualSync();
+
+    expect(serverRecords.size).toBe(1);
+    expect(serverRecords.get(recordId)).toEqual(expect.objectContaining({
+      productName: "Corrected lime",
+      quantityAmount: "12",
+      mobileRecordId: recordId,
+    }));
+    let pending = await getPendingSyncItems();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].retry_count).toBe(1);
+
+    const queue = JSON.parse(mockStorage.get("bde_sync_queue") ?? "[]") as Array<{
+      next_attempt_at?: string;
+    }>;
+    queue[0].next_attempt_at = "2000-01-01T00:00:00.000Z";
+    mockStorage.set("bde_sync_queue", JSON.stringify(queue));
+
+    await triggerManualSync();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://example.test/api/farms/farm-1/organic/inputs",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          ...correctedRecord,
+          mobileRecordId: recordId,
+        }),
+      }),
+    );
+    expect(serverRecords.size).toBe(1);
+    expect(serverRecords.get(recordId)).toEqual(expect.objectContaining({
+      productName: "Corrected lime",
+      quantityAmount: "12",
+    }));
+    pending = await getPendingSyncItems();
+    expect(pending).toHaveLength(1);
+    expect(JSON.parse(pending[0].data_json)).toEqual(expect.objectContaining({
+      _serverRecordId: 77,
+    }));
+
+    await triggerManualSync();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://example.test/api/farms/farm-1/organic/inputs/77",
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.stringContaining('"productName":"Corrected lime"'),
+      }),
+    );
+    expect(serverRecords.size).toBe(1);
+    expect(serverRecords.get(recordId)).toEqual(expect.objectContaining({
+      productName: "Corrected lime",
+      quantityAmount: "12",
+    }));
+    pending = await getPendingSyncItems();
+    expect(pending).toHaveLength(0);
+    expect(
+      await getRecordById<Record<string, unknown>>("organic_inputs", recordId),
+    ).toEqual(expect.objectContaining({
+      productName: "Corrected lime",
+      quantityAmount: "12",
+      _serverRecordId: 77,
+      synced: true,
+    }));
+  });
+
   it("removes all pending queue rows when a pending organic input is deleted", async () => {
     const recordId = "local-deleted";
     const record = {
