@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFpInputLogCsvRows,
   buildFpInputLogPrintRows,
+  getFpInputLogDaysRemaining,
 } from "./fp-input-log-export";
 
 const TODAY = new Date(2026, 11, 31, 12, 0, 0);
@@ -13,6 +14,7 @@ describe("FP input log derogation countdown", () => {
     ["expiry tomorrow", "2027-01-01", 1],
   ])("%s is correct in the CSV and print calculation", (_caseName, expiry, expected) => {
     const row = { approvalStatus: "derogation", derogationExpiryDate: expiry };
+    expect(getFpInputLogDaysRemaining(expiry, TODAY)).toBe(expected);
     const [csvRow] = buildFpInputLogCsvRows([row], TODAY);
     const [printRow] = buildFpInputLogPrintRows([row], TODAY);
 
@@ -29,6 +31,7 @@ describe("FP input log derogation countdown", () => {
     ["autumn DST boundary", "2026-10-26", new Date(2026, 9, 24, 12, 0, 0), 2],
   ])("keeps %s as calendar days rather than elapsed hours", (_caseName, expiry, today, expected) => {
     const row = { approvalStatus: "derogation", derogationExpiryDate: expiry };
+    expect(getFpInputLogDaysRemaining(expiry, today)).toBe(expected);
     expect(buildFpInputLogCsvRows([row], today)[0][6]).toBe(expected);
     expect(buildFpInputLogPrintRows([row], today)[0]).toContain(`<td>${expected}</td>`);
   });

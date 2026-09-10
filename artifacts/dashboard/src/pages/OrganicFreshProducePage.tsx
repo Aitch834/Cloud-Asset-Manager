@@ -32,6 +32,7 @@ import {
   buildFpInputLogCsvRows,
   buildFpInputLogPrintRows,
   FP_INPUT_LOG_CSV_HEADERS,
+  getFpInputLogDaysRemaining,
 } from "@/lib/fp-input-log-export";
 
 function fmt(val: string | null | undefined): string {
@@ -943,9 +944,8 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
                   Derogation expiry: not set
                 </span>
               );
-              const expiry = new Date(row.derogationExpiryDate as string);
-              const today = new Date(); today.setHours(0, 0, 0, 0);
-              const daysLeft = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
+              const daysLeft = getFpInputLogDaysRemaining(row.derogationExpiryDate);
+              if (daysLeft === null) return null;
               if (daysLeft < 0) return (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 inline-flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 shrink-0" />Derogation expired {fmt(row.derogationExpiryDate as string)}
@@ -1018,7 +1018,7 @@ function InputLogTab({ farmId, farmName }: { farmId: number; farmName: string })
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Derogation Expiry Date</p>
                   {viewRecord.derogationExpiryDate ? (() => {
-                    const daysLeft = daysUntil(viewRecord.derogationExpiryDate as string);
+                    const daysLeft = getFpInputLogDaysRemaining(viewRecord.derogationExpiryDate);
                     if (daysLeft !== null && daysLeft < 0) {
                       return (
                         <p className="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-700 border-red-300 inline-flex items-center gap-1">
@@ -1688,7 +1688,7 @@ function FpDerogStatusBadge({ status }: { status: string }) {
 }
 
 function FpDaysRemaining({ dateStr }: { dateStr: string | null | undefined }) {
-  const d = daysUntil(dateStr);
+  const d = getFpInputLogDaysRemaining(dateStr);
   if (d === null) return null;
   if (d < 0) return <span className="text-xs font-medium text-red-700">Expired {Math.abs(d)}d ago</span>;
   if (d <= 14) return <span className="text-xs font-medium text-red-700">Expires in {d}d</span>;
