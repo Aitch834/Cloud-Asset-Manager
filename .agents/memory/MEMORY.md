@@ -94,3 +94,4 @@
 - [Mobile cover-action regression tests](mobile-cover-action-tests.md) — extracted photo actions require rendered tests, source guards, and complete helper mocks
 - [Shared advert-PDF validation fixture](ad-pdf-validation-fixture.md) — advert-PDF checks mutate one cache/DB/filesystem fixture and must serialize across processes
 - [Mobile scouting photo test mocks](mobile-scouting-photo-test-mocks.md) — keep mocked lightbox-helper exports aligned with ScoutingPhotoSection imports
+- [React Native host-mock style assertions](react-native-host-mock-style-assertions.md) — mocked host wrappers may hide container styles; assert flattened visible-node styles
