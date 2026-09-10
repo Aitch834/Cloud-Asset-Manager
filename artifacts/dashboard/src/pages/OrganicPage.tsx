@@ -20,6 +20,7 @@ import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { DialogMutationError } from "@/components/ui/dialog-error";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { DocAttach } from "@/components/DocAttach";
@@ -117,6 +118,14 @@ ${tableHtml}
 }
 
 type CsvExport = { filename: string; rows: unknown[][] };
+type AuditRegisterKey = "certification" | "fields" | "inspections" | "restrictedInputs";
+
+const AUDIT_REGISTER_OPTIONS: { key: AuditRegisterKey; label: string }[] = [
+  { key: "certification", label: "Certification Register" },
+  { key: "fields", label: "Field Status Register" },
+  { key: "inspections", label: "Inspection Register" },
+  { key: "restrictedInputs", label: "Restricted Inputs Register" },
+];
 
 function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, year: number | null) {
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -1970,6 +1979,13 @@ export default function OrganicPage() {
   const { farmId } = useAppStore();
   const [activeTab, setActiveTab] = usePersistedTab<TabKey>({ page: "organic", farmId, validIds: TABS, defaultTab: "certification", urlOverride: new URLSearchParams(window.location.search).get("tab") });
   const [auditPackBusy, setAuditPackBusy] = useState(false);
+  const [auditPackDialogOpen, setAuditPackDialogOpen] = useState(false);
+  const [selectedAuditRegisters, setSelectedAuditRegisters] = useState<Record<AuditRegisterKey, boolean>>({
+    certification: true,
+    fields: true,
+    inspections: true,
+    restrictedInputs: true,
+  });
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -2055,54 +2071,62 @@ export default function OrganicPage() {
       : auditPackCountsLoading
         ? "Checking register counts…"
         : "Register counts unavailable";
-  const auditPackTitle = auditPackHasCounts
-    ? emptyAuditRegisters.length > 0
-      ? `Download all four compliance registers in one ZIP file. ${emptyAuditRegisters.join("; ")}.`
-      : "Download all four compliance registers in one ZIP file."
-    : "Download all four compliance registers in one ZIP file";
+  const auditPackTitle = "Choose which compliance registers to include in one ZIP file";
 
   async function downloadAuditPack() {
     if (!farmId) return;
+    const selectedKeys = AUDIT_REGISTER_OPTIONS
+      .filter(option => selectedAuditRegisters[option.key])
+      .map(option => option.key);
+    if (selectedKeys.length === 0) return;
     setAuditPackBusy(true);
     try {
       // fetchQuery deduplicates with any in-flight tab queries and reuses
       // cached results when fresh; throws on network/HTTP errors.
       const staleTime = 60_000;
-      const [certResult, fieldsResult, inspResult, inputsResult] = await Promise.all([
-        qc.fetchQuery<{ records: Certification[] }>({
+      const loaders: Record<AuditRegisterKey, () => Promise<CsvExport>> = {
+        certification: async () => {
+          const result = await qc.fetchQuery<{ records: Certification[] }>({
           queryKey: ["organic-cert", farmId],
           queryFn: () => fetch(`/api/farms/${farmId}/organic/certification`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
           staleTime,
-        }),
-        qc.fetchQuery<{ records: FieldStatus[] }>({
+          });
+          return buildCertificationSummaryCsvExport(result.records, farmName);
+        },
+        fields: async () => {
+          const result = await qc.fetchQuery<{ records: FieldStatus[] }>({
           queryKey: ["organic-fields", farmId],
           queryFn: () => fetch(`/api/farms/${farmId}/organic/fields`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
           staleTime,
-        }),
-        qc.fetchQuery<{ records: InspectionRecord[] }>({
+          });
+          return buildFieldStatusCsvExport(result.records, farmName);
+        },
+        inspections: async () => {
+          const result = await qc.fetchQuery<{ records: InspectionRecord[] }>({
           queryKey: ["organic-inspections", farmId],
           queryFn: () => fetch(`/api/farms/${farmId}/organic/inspections`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
           staleTime,
-        }),
-        qc.fetchQuery<{ records: OrganicInput[] }>({
+          });
+          return buildInspectionsCsvExport(result.records, farmName, null);
+        },
+        restrictedInputs: async () => {
+          const result = await qc.fetchQuery<{ records: OrganicInput[] }>({
           queryKey: ["organic-inputs", farmId, "all"],
           queryFn: () => fetch(`/api/farms/${farmId}/organic/inputs`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
           staleTime,
-        }),
-      ]);
-
-      const restrictedRecords = inputsResult.records.filter(
-        r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation",
-      );
+          });
+          const restrictedRecords = result.records.filter(
+            r => r.approvalStatus === "restricted" || r.approvalStatus === "derogation",
+          );
+          return buildRestrictedInputsCsvExport(restrictedRecords, farmName, "all");
+        },
+      };
+      const files = await Promise.all(selectedKeys.map(key => loaders[key]()));
 
       const dateStr = new Date().toISOString().slice(0, 10);
       const safeFarmName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "farm";
-      downloadZip(`${safeFarmName}-organic-audit-pack-${dateStr}.zip`, [
-        buildCertificationSummaryCsvExport(certResult.records, farmName),
-        buildFieldStatusCsvExport(fieldsResult.records, farmName),
-        buildInspectionsCsvExport(inspResult.records, farmName, null),
-        buildRestrictedInputsCsvExport(restrictedRecords, farmName, "all"),
-      ]);
+      downloadZip(`${safeFarmName}-organic-audit-pack-${dateStr}.zip`, files);
+      setAuditPackDialogOpen(false);
     } catch {
       toast({
         title: "Could not download audit pack",
@@ -2127,8 +2151,8 @@ export default function OrganicPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={downloadAuditPack}
-            disabled={auditPackBusy || !auditPackHasCounts || auditPackCountsError}
+            onClick={() => setAuditPackDialogOpen(true)}
+            disabled={auditPackBusy}
             className="gap-2 shrink-0 mt-1"
             title={auditPackTitle}
           >
@@ -2145,6 +2169,57 @@ export default function OrganicPage() {
             {registerCountSummary}
           </p>
         </div>
+
+        <Dialog open={auditPackDialogOpen} onOpenChange={open => {
+          if (!auditPackBusy) setAuditPackDialogOpen(open);
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Choose registers for the audit pack</DialogTitle>
+              <DialogDescription>
+                All registers are included by default. Untick any you do not want to share.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              {AUDIT_REGISTER_OPTIONS.map(option => (
+                <div key={option.key} className="flex items-center gap-3">
+                  <Checkbox
+                    id={`audit-register-${option.key}`}
+                    checked={selectedAuditRegisters[option.key]}
+                    onCheckedChange={checked => setSelectedAuditRegisters(current => ({
+                      ...current,
+                      [option.key]: checked === true,
+                    }))}
+                    disabled={auditPackBusy}
+                  />
+                  <Label htmlFor={`audit-register-${option.key}`} className="flex-1 cursor-pointer">
+                    {option.label}
+                    {auditPackCounts[option.key] !== null && (
+                      <span className="ml-2 text-xs font-normal text-foreground/60">
+                        ({auditPackCounts[option.key]} record{auditPackCounts[option.key] === 1 ? "" : "s"})
+                      </span>
+                    )}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAuditPackDialogOpen(false)} disabled={auditPackBusy}>
+                Cancel
+              </Button>
+              <Button
+                onClick={downloadAuditPack}
+                disabled={auditPackBusy || !Object.values(selectedAuditRegisters).some(Boolean)}
+                className="gap-2"
+              >
+                {auditPackBusy
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Download className="w-4 h-4" />}
+                Download selected
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <TabBar>
           {TABS.map(tab => {
