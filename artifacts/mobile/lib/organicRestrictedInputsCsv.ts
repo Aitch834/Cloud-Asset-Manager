@@ -15,6 +15,7 @@ export interface RestrictedInputCsvRecord {
   grnReference: string | null | undefined;
   justification: string | null | undefined;
   cropYear: number | null | undefined;
+  pending?: boolean;
 }
 
 const APPROVAL_STATUS_LABELS: Record<string, string> = {
@@ -91,37 +92,45 @@ export function filterRestrictedInputs<T extends RestrictedInputCsvRecord>(
 }
 
 export function buildRestrictedInputsCsv(records: RestrictedInputCsvRecord[]): string {
+  const includesPendingRows = records.some((record) => record.pending === true);
+  const headers = [
+    "Date Applied",
+    "Product",
+    "Type / Category",
+    "Field / Area",
+    "Applied By",
+    "Approval Status",
+    "Certifier Approval Ref",
+    "Certifier Notified",
+    "Derogation Expiry Date",
+    "Supplier",
+    "PO Reference",
+    "GRN / Delivery Ref",
+    "Justification",
+  ];
+  if (includesPendingRows) headers.push("Sync Status");
+
   const rows: unknown[][] = [
-    [
-      "Date Applied",
-      "Product",
-      "Type / Category",
-      "Field / Area",
-      "Applied By",
-      "Approval Status",
-      "Certifier Approval Ref",
-      "Certifier Notified",
-      "Derogation Expiry Date",
-      "Supplier",
-      "PO Reference",
-      "GRN / Delivery Ref",
-      "Justification",
-    ],
-    ...records.map((record) => [
-      formatCsvDate(record.dateOfUse),
-      record.productName,
-      record.inputType,
-      record.fieldName,
-      record.appliedBy,
-      APPROVAL_STATUS_LABELS[record.approvalStatus] ?? record.approvalStatus,
-      record.certifierApprovalRef,
-      record.certifierNotified ? "Yes" : "No",
-      formatCsvDate(record.derogationExpiryDate),
-      record.supplier,
-      record.poReference,
-      record.grnReference,
-      record.justification,
-    ]),
+    headers,
+    ...records.map((record) => {
+      const row = [
+        formatCsvDate(record.dateOfUse),
+        record.productName,
+        record.inputType,
+        record.fieldName,
+        record.appliedBy,
+        APPROVAL_STATUS_LABELS[record.approvalStatus] ?? record.approvalStatus,
+        record.certifierApprovalRef,
+        record.certifierNotified ? "Yes" : "No",
+        formatCsvDate(record.derogationExpiryDate),
+        record.supplier,
+        record.poReference,
+        record.grnReference,
+        record.justification,
+      ];
+      if (includesPendingRows) row.push(record.pending ? "Pending sync" : "");
+      return row;
+    }),
   ];
 
   return `\uFEFF${rows.map((row) => row.map(quoteCsvCell).join(",")).join("\r\n")}`;

@@ -35,6 +35,32 @@ describe("restricted inputs CSV", () => {
     expect(record).toContain('"No permitted alternative"');
   });
 
+  it("marks matching offline additions without changing synced-only columns", () => {
+    const pendingRecord = {
+      ...BASE_RECORD,
+      productName: "Pending offline input",
+      certifierApprovalRef: null,
+      pending: true,
+    };
+    const now = new Date(2026, 8, 2, 12, 0, 0);
+    const csv = buildFilteredRestrictedInputsCsv(
+      [BASE_RECORD, pendingRecord],
+      "pending",
+      now,
+    );
+    const [header, record] = csv.replace(/^\uFEFF/, "").split("\r\n");
+
+    expect(header).toContain('"Sync Status"');
+    expect(record).toContain('"Pending offline input"');
+    expect(record).toContain('"Pending sync"');
+    expect(csv).not.toContain('"Rock Phosphate"');
+
+    const syncedOnlyHeader = buildRestrictedInputsCsv([BASE_RECORD])
+      .replace(/^\uFEFF/, "")
+      .split("\r\n")[0];
+    expect(syncedOnlyHeader).not.toContain('"Sync Status"');
+  });
+
   it("includes the selected status in the filename", () => {
     expect(buildRestrictedInputsCsvFilename("Hill Top Farm", "pending"))
       .toBe("restricted-inputs-pending-hill-top-farm.csv");

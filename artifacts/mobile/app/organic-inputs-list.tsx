@@ -375,13 +375,14 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
 
   async function handleExport() {
     if (restrictedOnly) {
-      const exportable = records.filter((record) => !record.pending && !record.editPending);
+      // Include complete offline additions, but keep partial queued edits out.
+      const exportable = records.filter((record) => !record.editPending);
       const filteredExportable = filterRestrictedInputs(exportable, statusFilter);
       if (filteredExportable.length === 0) {
         Alert.alert(
           "Nothing to export",
           visibleRecords.length > 0
-            ? "All records have edits or additions still awaiting sync. Please sync your data first, then export."
+            ? "All records have edits still awaiting sync. Please sync your data first, then export."
             : "There are no restricted inputs in this filter to download.",
         );
         return;
