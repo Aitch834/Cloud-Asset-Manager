@@ -1973,12 +1973,12 @@ export default function OrganicPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data: farmData } = useQuery<{ name: string }>({
+  const { data: farmData } = useQuery<{ record: { name: string } }>({
     queryKey: ["farm-detail", farmId],
-    queryFn: () => fetch(`/api/farms/${farmId}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/farms/${farmId}`).then(async r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     enabled: !!farmId,
   });
-  const farmName = farmData?.name ?? "Farm";
+  const farmName = farmData?.record.name ?? "Farm";
 
   function downloadZip(filename: string, files: CsvExport[]) {
     const encoder = new TextEncoder();

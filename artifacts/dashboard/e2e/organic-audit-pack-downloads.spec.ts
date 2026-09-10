@@ -212,15 +212,27 @@ test("downloads all four populated organic registers in the audit pack", async (
 
   const today = new Date().toISOString().slice(0, 10);
   const filenames = downloads.map(download => download.suggestedFilename());
+  const lowercaseFarmSlug = farm.farmName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  const casePreservingFarmSlug = farm.farmName
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  const certificationFarmSlug = farm.farmName.replace(/[^a-z0-9]/gi, "_");
 
-  expect(filenames[0]).toMatch(
-    new RegExp(`^[A-Za-z0-9_]+_Organic_Certification_${today}\\.csv$`),
+  expect(filenames[0]).toBe(
+    `${certificationFarmSlug}_Organic_Certification_${today}.csv`,
   );
-  expect(filenames[1]).toMatch(/^field-status-register-[a-z0-9-]+\.csv$/);
-  expect(filenames[2]).toMatch(
-    new RegExp(`^inspections-[a-z0-9-]+-${today}\\.csv$`),
+  expect(filenames[1]).toBe(
+    `field-status-register-${lowercaseFarmSlug}.csv`,
   );
-  expect(filenames[3]).toMatch(/^restricted-inputs-all-[A-Za-z0-9-]+\.csv$/);
+  expect(filenames[2]).toBe(
+    `inspections-${lowercaseFarmSlug}-${today}.csv`,
+  );
+  expect(filenames[3]).toBe(
+    `restricted-inputs-all-${casePreservingFarmSlug}.csv`,
+  );
   expect(new Set(filenames)).toHaveProperty("size", 4);
 
   for (const download of downloads) {
