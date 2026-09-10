@@ -9,6 +9,7 @@
  */
 
 import { clerkSetup } from "@clerk/testing/playwright";
+import { chromium, type FullConfig } from "@playwright/test";
 import { Client } from "pg";
 import * as fs from "fs";
 import * as path from "path";
@@ -19,6 +20,7 @@ import {
   type ClerkUserRecord,
 } from "../src/lib/e2e-test-user";
 import { provisionOrganicInputFixture } from "./organic-input-fixture";
+import { signInDashboard } from "./auth";
 
 const TENANT_SLUG = "oakfield-farms";
 const VITICULTURE_FARM_ID = 5;
@@ -101,7 +103,26 @@ async function createSharedClerkTestUser(
   );
 }
 
-export default async function globalSetup() {
+async function verifyDashboardAuthentication(
+  config: FullConfig,
+  emailAddress: string,
+): Promise<void> {
+  const projectUse = config.projects[0]?.use;
+  const browser = await chromium.launch(projectUse?.launchOptions);
+
+  try {
+    const context = await browser.newContext({
+      baseURL: projectUse?.baseURL,
+    });
+    const page = await context.newPage();
+    await signInDashboard(page, emailAddress);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+}
+
+export default async function globalSetup(config: FullConfig) {
   // A process killed before Playwright's global teardown can leave these
   // per-run markers behind. Never let a later failed setup expose stale
   // credentials to a spec or teardown from a previous run.
@@ -240,6 +261,12 @@ export default async function globalSetup() {
     fs.writeFileSync(STATE_FILE, clerkUserId, "utf-8");
     fs.writeFileSync(EMAIL_FILE, mappedEmail, "utf-8");
 
+    // Prove the exact sign-in flow used by authenticated specs creates a Clerk
+    // session before any feature test starts. A rejected testing token now
+    // fails setup with an authentication-specific error instead of making each
+    // spec time out while waiting for unrelated dashboard controls.
+    await verifyDashboardAuthentication(config, mappedEmail);
+
     console.log(
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
         `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}; ` +
@@ -248,6 +275,8 @@ export default async function globalSetup() {
     );
   } catch (error) {
     await db.query("ROLLBACK").catch(() => undefined);
+    fs.rmSync(STATE_FILE, { force: true });
+    fs.rmSync(EMAIL_FILE, { force: true });
     throw error;
   } finally {
     await db.end();

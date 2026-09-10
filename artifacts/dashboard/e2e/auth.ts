@@ -34,19 +34,35 @@ function readTestUserEmail(): string {
   return emailAddress;
 }
 
-export async function signInDashboard(page: Page): Promise<void> {
+export async function signInDashboard(
+  page: Page,
+  emailAddress = readTestUserEmail(),
+): Promise<void> {
   await page.goto("/dashboard/");
   await page.waitForFunction(
     () => Boolean((window as Window & { Clerk?: unknown }).Clerk),
   );
-  await clerk.signIn({ page, emailAddress: readTestUserEmail() });
-  await page.waitForFunction(() =>
-    Boolean(
-      (
-        window as Window & {
-          Clerk?: { user?: unknown };
-        }
-      ).Clerk?.user,
-    ),
-  );
+
+  try {
+    await clerk.signIn({ page, emailAddress });
+    await page.waitForFunction(
+      () =>
+        Boolean(
+          (
+            window as Window & {
+              Clerk?: { user?: unknown };
+            }
+          ).Clerk?.user,
+        ),
+      undefined,
+      { timeout: 5_000 },
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Dashboard test authentication failed for ${emailAddress}: ` +
+        `Clerk rejected the test sign-in or did not create a session. ${detail}`,
+      { cause: error },
+    );
+  }
 }
