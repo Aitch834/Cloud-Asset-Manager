@@ -59,6 +59,7 @@ jest.mock("react-native", () => {
 
   return {
     ActivityIndicator: host("ActivityIndicator"),
+    Alert: { alert: jest.fn() },
     KeyboardAvoidingView: host("KeyboardAvoidingView"),
     Modal: ({ visible, children, ...props }: Record<string, unknown>) =>
       visible ? React.createElement("Modal", props, children) : null,
@@ -79,11 +80,13 @@ jest.mock("react-native", () => {
   };
 });
 
+
 jest.mock("@expo/vector-icons", () => ({
   Feather: "Feather",
 }));
 
 const mockRouterPush = jest.fn();
+let mockSearchParams: Record<string, string> = {};
 jest.mock("expo-router", () => {
   const React = require("react");
   const Tabs = Object.assign(
@@ -111,13 +114,20 @@ jest.mock("expo-router", () => {
     },
     Tabs,
     useFocusEffect: jest.fn(),
-    useLocalSearchParams: () => ({}),
+    useLocalSearchParams: () => mockSearchParams,
   };
 });
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn().mockResolvedValue(null),
   removeItem: jest.fn().mockResolvedValue(undefined),
+  setItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("@react-native-community/datetimepicker", () => ({
+  __esModule: true,
+  default: "DateTimePicker",
+  DateTimePickerAndroid: { open: jest.fn() },
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -200,16 +210,22 @@ jest.mock("../lib/uploadPhoto", () => ({
 }));
 
 jest.mock("../lib/utils/vesselAlerts", () => ({
+  BARREL_RETIREMENT_THRESHOLD_PENCE: 100000,
   isBarrelType: (vesselType: string | null) =>
     (vesselType ?? "").toLowerCase().includes("barrel"),
   isApproachingNeutral: () => false,
   isIdleBarrel: () => false,
+  resolveBarrelRetirementThresholdPence: () => 100000,
 }));
 
 jest.mock("../lib/utils/wineryModuleGuard", () => ({
   computeIsWineryModuleActive: () => true,
   getVesselFetchFarmId: (_active: boolean, farmId: string | undefined) => farmId,
   shouldShowVesselLoadingSpinner: () => false,
+}));
+
+jest.mock("../lib/utils/moduleLoadingGuard", () => ({
+  shouldShowModuleLoading: () => false,
 }));
 
 const mockInitialVessel = {
@@ -272,6 +288,7 @@ import React from "react";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { BarrelAlertProvider } from "../lib/context/BarrelAlertContext";
 import TabLayout from "../app/(tabs)/_layout";
+import WineryVesselDetailScreen from "../app/winery-vessel-detail";
 import WineryVesselRegisterScreen from "../app/winery-vessel-register";
 
 function okResponse(payload: unknown): Response {
@@ -286,6 +303,7 @@ describe("winery vessel register quick-fill refresh", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseApiFetchInstance = 0;
+    mockSearchParams = {};
     global.fetch = jest.fn().mockResolvedValue(
       okResponse({ record: { id: 991, vesselId: mockInitialVessel.id } }),
     );
@@ -381,6 +399,55 @@ describe("winery vessel register quick-fill refresh", () => {
     expect(mockRefreshSpy.mock.calls).toEqual([[1], [2]]);
     // The badge update must happen in place; the flow does not navigate away or
     // rely on a fresh app mount to recalculate the count.
+    expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
+  it("decreases the Record tab alert badge after logging a fill from vessel details", async () => {
+    mockSearchParams = {
+      vesselId: String(mockInitialVessel.id),
+      vesselRef: mockInitialVessel.vessel_ref,
+      vesselType: mockInitialVessel.vessel_type,
+      cellarZone: mockInitialVessel.cellar_zone,
+      cellarPosition: mockInitialVessel.cellar_position,
+    };
+    global.fetch = jest.fn().mockImplementation((input: string, init?: RequestInit) => {
+      if (init?.method === "POST" && input.endsWith(`/winery-vessels/${mockInitialVessel.id}/fills`)) {
+        return Promise.resolve(okResponse({ record: { id: 992, vesselId: mockInitialVessel.id } }));
+      }
+      if (input.endsWith("/platform-config")) {
+        return Promise.resolve(okResponse({ config: {} }));
+      }
+      if (input.endsWith("/fills") || input.endsWith("/maintenance") || input.endsWith("/movements")) {
+        return Promise.resolve(okResponse({ records: [] }));
+      }
+      return Promise.resolve(okResponse({ record: {} }));
+    });
+
+    const screen = render(
+      <BarrelAlertProvider>
+        <WineryVesselDetailScreen />
+        <TabLayout />
+      </BarrelAlertProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-tab-badge")).toHaveTextContent("1");
+      expect(screen.getByText("Log first fill")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText("Log first fill"));
+    fireEvent.press(screen.getByText("Save fill record"));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        `https://api.example.test/api/farms/5/winery-vessels/${mockInitialVessel.id}/fills`,
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(screen.getByTestId("record-tab-badge")).toHaveTextContent("0");
+      expect(screen.queryByText("Log Fill")).toBeNull();
+    });
+
+    expect(mockRefreshSpy).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });
