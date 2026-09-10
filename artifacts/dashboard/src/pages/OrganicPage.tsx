@@ -30,6 +30,12 @@ import {
   getRestrictedInputValues,
   RESTRICTED_INPUT_APPROVAL_STATUS_LABELS as APPROVAL_STATUS_LABELS,
 } from "@/lib/restricted-inputs-export";
+import {
+  getFieldStatusCsvValues,
+  getFieldStatusHeaders,
+  getFieldStatusPrintCellsHtml,
+  getFieldStatusPrintHeaderHtml,
+} from "@/lib/field-status-export";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 import {
@@ -123,24 +129,12 @@ function downloadInspectionsCsv(records: InspectionRecord[], farmName: string, y
 }
 
 function buildFieldStatusCsvExport(records: FieldStatus[], farmName: string): CsvExport {
-  const fmtDate = (v: string | null | undefined) => {
-    if (!v) return "";
-    try { return new Date(v).toLocaleDateString("en-GB"); } catch { return v; }
-  };
   const safeName = farmName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return {
     filename: `field-status-register-${safeName}.csv`,
     rows: [
-      ["Field Name", "Status", "Conversion Start", "Certified From", "Certifier Ref", "Parallel Production", "Notes"],
-      ...records.map(r => [
-        r.fieldName,
-        STATUS_LABELS[r.status] ?? r.status,
-        fmtDate(r.conversionStartDate),
-        fmtDate(r.certificationDate),
-        r.certifierRef ?? "",
-        r.parallelProduction ? "Yes" : "No",
-        r.notes ?? "",
-      ]),
+      getFieldStatusHeaders(),
+      ...records.map(getFieldStatusCsvValues),
     ],
   };
 }
@@ -151,19 +145,11 @@ function downloadFieldStatusCsv(records: FieldStatus[], farmName: string) {
 
 function printFieldStatusRegister(records: FieldStatus[], farmName: string) {
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const rows = records.map(r => `<tr>
-    <td>${r.fieldName}</td>
-    <td style="font-weight:600">${STATUS_LABELS[r.status] ?? r.status}</td>
-    <td style="white-space:nowrap">${r.conversionStartDate ? new Date(r.conversionStartDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td style="white-space:nowrap">${r.certificationDate ? new Date(r.certificationDate).toLocaleDateString("en-GB") : "—"}</td>
-    <td>${r.certifierRef || "—"}</td>
-    <td>${r.parallelProduction ? "Yes" : "No"}</td>
-    <td>${r.notes || "—"}</td>
-  </tr>`).join("");
+  const rows = records.map(r => `<tr>${getFieldStatusPrintCellsHtml(r)}</tr>`).join("");
   openPrint(`<!DOCTYPE html><html><head><title>Organic Field Status Register — ${farmName}</title><style>${PRINT_CSS}@media print{@page{size:A4 landscape;margin:1.5cm}}</style></head><body>
 <div class="hdr"><div><h1>${farmName}</h1><p class="sub">Organic Field Status Register · Complementary Record</p></div>
 <div class="hdr-r"><b>Field Register</b>${records.length} field${records.length !== 1 ? "s" : ""}<br>Printed: ${today}</div></div>
-<table><thead><tr><th>Field Name</th><th>Status</th><th>Conversion Start</th><th>Certified From</th><th>Certifier Ref</th><th>Parallel Production</th><th>Notes</th></tr></thead>
+<table><thead><tr>${getFieldStatusPrintHeaderHtml()}</tr></thead>
 <tbody>${rows}</tbody></table>
 <div class="footer">Organic Field Status Register — Complementary record for Soil Association / OF&G portal. Barnett Davies Enterprises Ltd · BDE Farm Trac · ${today}</div>
 </body></html>`);
