@@ -988,6 +988,10 @@ router.get("/admin/emails/config", requireAuth, async (req: Request, res: Respon
 });
 
 router.post("/admin/emails/test", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   if (!(await checkPlatformAdmin(req, res))) return;
   const { to } = req.body;
   if (!to || typeof to !== "string" || !to.includes("@")) {
@@ -2793,6 +2797,10 @@ router.delete("/admin/tenants/:tenantId/subscriptions/:subId", requireAuth, asyn
 });
 
 router.post("/admin/seed-demo-data", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   if (!(await checkPlatformAdmin(req, res))) return;
   try {
     const { seedDemoData } = await import("../lib/seedDemoData");

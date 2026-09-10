@@ -2,16 +2,17 @@
 /**
  * check-ad-brand-asset-cache-guard.mjs
  *
- * Confirms that the NODE_ENV=production 404 guards on
- * PUT and DELETE /admin/ad-brand-assets/cache are in place and work correctly.
+ * Confirms that NODE_ENV=production 404 guards on state-changing test and
+ * diagnostic admin controls are in place and work correctly.
  *
- * Background: The PUT cache-override and DELETE cache-flush endpoints are
- * test-only hooks.  When NODE_ENV=production they must return 404 so that
- * test state cannot be injected or manually reset on a live deployment.
+ * Background: The cache override/flush, SMTP test sender, and demo-data seeder
+ * are test-only or diagnostic hooks. When NODE_ENV=production they must return
+ * 404 so that test state cannot be injected, reset, emailed, or seeded on a
+ * live deployment.
  *
  * Tests:
- *   A. Static source check — both guard expressions are present in admin.ts
- *      source, return 404, and fire BEFORE the auth checks.
+ *   A. Static source check — every protected route has a guard in admin.ts
+ *      that returns 404 and fires BEFORE the auth check.
  *   B. Dev-server integration — super-admin + valid PUT body → 200 OK with
  *      { overridden: true }, and DELETE → 200 OK with { flushed: true }.
  *   C. Dev-server integration — super-admin + missing PUT fields → 400 Bad Request.
@@ -253,6 +254,20 @@ console.log("\n── Test A: static source check ──────────
 
 const adminSrcPath = pathResolve(__scriptDir, "../src/routes/admin.ts");
 const adminSrc     = readFileSync(adminSrcPath, "utf8");
+const protectedRoutes = [
+  { method: "put", path: "/admin/ad-brand-assets/cache" },
+  { method: "delete", path: "/admin/ad-brand-assets/cache" },
+  { method: "post", path: "/admin/emails/test" },
+  { method: "post", path: "/admin/seed-demo-data" },
+];
+
+function routeHandlerSource(method, path) {
+  const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const routeRe = new RegExp(
+    `router\\.${method}\\(\\s*["']${escapedPath}["'][\\s\\S]*?(?=\\n\\s*router\\.\\w+\\(|\\n\\s*export\\s)`,
+  );
+  return adminSrc.match(routeRe)?.[0] ?? null;
+}
 
 // 1a. The guard expression is present.
 check(
@@ -261,35 +276,26 @@ check(
   'guard missing — endpoint is unprotected in production',
 );
 
-  // 1b. Both route handlers return 404 under that condition.
+// 1b. Every state-changing test/diagnostic route returns 404 in production.
 check(
-  "admin.ts: PUT and DELETE handlers return 404 under the production guard",
-  adminSrc.includes('process.env.NODE_ENV === "production"') &&
-    (() => {
-      const putRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-      const deleteRe = /router\.delete\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-      const putMatch = adminSrc.match(putRe);
-      const deleteMatch = adminSrc.match(deleteRe);
-      return putMatch !== null && putMatch[0].includes("status(404)") &&
-        deleteMatch !== null && deleteMatch[0].includes("status(404)");
-    })(),
-  "the PUT or DELETE /admin/ad-brand-assets/cache handler is missing or has no 404 response",
+  "admin.ts: all state-changing test/diagnostic handlers return 404 in production",
+  protectedRoutes.every(({ method, path }) => {
+    const body = routeHandlerSource(method, path);
+    return body?.includes('process.env.NODE_ENV === "production"') && body.includes("status(404)");
+  }),
+  "a protected handler is missing its production guard or 404 response",
 );
 
-// 1c. Both guards fire BEFORE their checkPlatformAdmin auth calls.
+// 1c. Every guard fires before its checkPlatformAdmin auth call.
 check(
-  "admin.ts: PUT and DELETE guards fire before checkPlatformAdmin",
-  (() => {
-    const putRe = /router\.put\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-    const deleteRe = /router\.delete\(\s*["']\/admin\/ad-brand-assets\/cache["'][\s\S]*?(?=\n\s*router\.\w+\(|\n\s*export\s)/;
-    return [adminSrc.match(putRe), adminSrc.match(deleteRe)].every((match) => {
-      if (!match) return false;
-      const body = match[0];
-      const guardPos = body.indexOf('process.env.NODE_ENV === "production"');
-      const authPos = body.indexOf("checkPlatformAdmin");
-      return guardPos !== -1 && authPos !== -1 && guardPos < authPos;
-    });
-  })(),
+  "admin.ts: all production guards fire before checkPlatformAdmin",
+  protectedRoutes.every(({ method, path }) => {
+    const body = routeHandlerSource(method, path);
+    if (!body) return false;
+    const guardPos = body.indexOf('process.env.NODE_ENV === "production"');
+    const authPos = body.indexOf("checkPlatformAdmin");
+    return guardPos !== -1 && authPos !== -1 && guardPos < authPos;
+  }),
   "guards must appear before checkPlatformAdmin so production blocks ALL callers, not just anonymous ones",
 );
 
