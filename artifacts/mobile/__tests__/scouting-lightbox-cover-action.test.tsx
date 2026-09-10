@@ -62,6 +62,42 @@ jest.mock("expo-router", () => ({ useFocusEffect: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const ReactNative = require("react-native");
+  const makeGesture = () => {
+    const gesture: Record<string, unknown> = {};
+    gesture.onBegin = () => gesture;
+    gesture.onUpdate = () => gesture;
+    gesture.onEnd = () => gesture;
+    gesture.numberOfTaps = () => gesture;
+    return gesture;
+  };
+  return {
+    Gesture: {
+      Pinch: makeGesture,
+      Pan: makeGesture,
+      Tap: makeGesture,
+      Race: (_doubleTap: unknown, pan: unknown) => pan,
+      Simultaneous: (primary: unknown) => primary,
+    },
+    GestureDetector: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(ReactNative.View, null, children),
+    GestureHandlerRootView: ReactNative.View,
+  };
+});
+jest.mock("react-native-reanimated", () => ({
+  __esModule: true,
+  default: { View: require("react-native").View },
+  runOnJS: (fn: unknown) => fn,
+  useAnimatedStyle: jest.fn(() => ({})),
+  useSharedValue: jest.fn((value: unknown) => ({ value })),
+  withSpring: jest.fn((value: unknown) => value),
+  withTiming: jest.fn((value: unknown, _config: unknown, callback?: () => void) => {
+    callback?.();
+    return value;
+  }),
+}));
 jest.mock("../lib/uploadPhoto", () => ({
   getApiBase: jest.fn(),
   pickPhoto: jest.fn(),
@@ -143,6 +179,41 @@ beforeEach(() => {
 });
 
 describe("scouting lightbox Cover action", () => {
+  it("announces the cover action, its busy state, and hides it for the cover photo", async () => {
+    let resolveSetCover!: (response: Response) => void;
+    apiFetch.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveSetCover = resolve;
+      }),
+    );
+    const screen = render(
+      <CoverActionHarness
+        initialPhotos={[makePhoto(101, true), makePhoto(202, false)]}
+      />,
+    );
+
+    const action = screen.getByTestId("scouting-photo-set-cover");
+    expect(action.props.accessibilityRole).toBe("button");
+    expect(action.props.accessibilityLabel).toBe("Set as cover photo");
+    expect(action.props.accessibilityState).toEqual({ disabled: false, busy: false });
+
+    fireEvent.press(action);
+
+    await waitFor(() => {
+      const busyAction = screen.getByTestId("scouting-photo-set-cover");
+      expect(busyAction.props.accessibilityLabel).toBe("Setting cover photo");
+      expect(busyAction.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    });
+
+    await act(async () => {
+      resolveSetCover(okResponse());
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("scouting-photo-set-cover")).toBeNull();
+    });
+  });
+
   it("PATCHes a non-cover photo and makes it the only local cover", async () => {
     apiFetch.mockResolvedValueOnce(okResponse());
     const screen = render(

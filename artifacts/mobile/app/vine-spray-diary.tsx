@@ -540,11 +540,15 @@ export function SprayDiaryLightbox({
           {/* Set as Cover button — only shown for non-cover photos */}
           {photo && onSetCover && !photo.isCover ? (
             <Pressable
+              testID="spray-diary-photo-set-cover"
               style={[lbStyles.setCoverBtn, { top: insets.top + 12 }, settingCover && lbStyles.disabledAction]}
               hitSlop={24}
               onPress={handleSetCover}
               disabled={settingCover}
-              accessibilityLabel="Set as cover"
+              accessibilityRole="button"
+              accessibilityLabel={settingCover ? "Setting cover photo" : "Set as cover photo"}
+              accessibilityState={{ disabled: settingCover, busy: settingCover }}
+              accessibilityLiveRegion="polite"
             >
               {settingCover ? (
                 <ActivityIndicator size="small" color="#fff" />

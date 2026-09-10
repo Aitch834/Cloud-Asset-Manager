@@ -441,6 +441,102 @@ describe("SprayPhotoLightbox cover badge", () => {
   });
 });
 
+describe.each([
+  {
+    name: "spray diary history",
+    testID: "spray-history-photo-set-cover",
+    renderLightbox: (onSetCover: jest.Mock) => (
+      <SprayPhotoLightbox
+        photos={[photo]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        farmId={3}
+        sprayDiaryId={7}
+        onCaptionSaved={jest.fn()}
+        onSetCover={onSetCover}
+      />
+    ),
+  },
+  {
+    name: "spray diary entry",
+    testID: "spray-diary-photo-set-cover",
+    renderLightbox: (onSetCover: jest.Mock) => (
+      <SprayDiaryLightbox
+        photos={[photo]}
+        initialIndex={0}
+        visible
+        onClose={jest.fn()}
+        onDelete={jest.fn()}
+        onSaveCaption={jest.fn()}
+        onSetCover={onSetCover}
+      />
+    ),
+  },
+])("$name lightbox cover accessibility", ({ testID, renderLightbox }) => {
+  it("announces the action and its busy state, then hides it for the cover photo", async () => {
+    let resolveSetCover!: () => void;
+    const onSetCover = jest.fn(
+      () => new Promise<void>((resolve) => {
+        resolveSetCover = resolve;
+      }),
+    );
+    const screen = render(renderLightbox(onSetCover));
+
+    const action = screen.getByTestId(testID);
+    expect(action.props.accessibilityRole).toBe("button");
+    expect(action.props.accessibilityLabel).toBe("Set as cover photo");
+    expect(action.props.accessibilityState).toEqual({ disabled: false, busy: false });
+
+    fireEvent.press(action);
+
+    await waitFor(() => {
+      const busyAction = screen.getByTestId(testID);
+      expect(busyAction.props.accessibilityLabel).toBe("Setting cover photo");
+      expect(busyAction.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    });
+
+    await act(async () => {
+      resolveSetCover();
+    });
+
+    screen.rerender(renderLightbox(jest.fn()));
+    expect(screen.getByTestId(testID).props.accessibilityState).toEqual({
+      disabled: false,
+      busy: false,
+    });
+
+    const coverPhoto = { ...photo, isCover: true };
+    if (testID === "spray-history-photo-set-cover") {
+      screen.rerender(
+        <SprayPhotoLightbox
+          photos={[coverPhoto]}
+          initialIndex={0}
+          visible
+          onClose={jest.fn()}
+          farmId={3}
+          sprayDiaryId={7}
+          onCaptionSaved={jest.fn()}
+          onSetCover={jest.fn()}
+        />,
+      );
+    } else {
+      screen.rerender(
+        <SprayDiaryLightbox
+          photos={[coverPhoto]}
+          initialIndex={0}
+          visible
+          onClose={jest.fn()}
+          onDelete={jest.fn()}
+          onSaveCaption={jest.fn()}
+          onSetCover={jest.fn()}
+        />,
+      );
+    }
+    expect(screen.queryByTestId(testID)).toBeNull();
+  });
+});
+
 describe("SprayDiaryLightbox caption editing", () => {
   it("saves a caption and shows the persisted value after reopening", async () => {
     const onSaveCaption = jest.fn().mockResolvedValue(true);

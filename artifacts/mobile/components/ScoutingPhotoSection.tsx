@@ -812,9 +812,14 @@ export function ScoutingPhotoLightbox({
           {/* Set as cover (optional) */}
           {onSetCover && photo && !photo.isCover ? (
             <Pressable
+              testID="scouting-photo-set-cover"
               style={[lbStyles.actionBtn, settingCover && lbStyles.actionBtnDisabled]}
               onPress={handleSetCover}
               disabled={settingCover}
+              accessibilityRole="button"
+              accessibilityLabel={settingCover ? "Setting cover photo" : "Set as cover photo"}
+              accessibilityState={{ disabled: settingCover, busy: settingCover }}
+              accessibilityLiveRegion="polite"
             >
               {settingCover ? (
                 <ActivityIndicator size="small" color="#fff" />
