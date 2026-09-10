@@ -12,6 +12,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { useState, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
+import {
+  formatFpDerogationExpiryLabel,
+  isFpDerogationExpiryType,
+} from "@/lib/week-ahead-expiry";
 
 type ResourceAllocation = {
   id: number;
@@ -301,14 +305,13 @@ function TaskCard({
           </div>
         </div>
         <p className="text-xs text-foreground/60 mt-1 leading-relaxed">{task.description}</p>
-        {["organic_fp_input_log_derogation_expiry", "organic_fp_derogation_expiry"].includes(task.type) && task.dueDate && (
+        {isFpDerogationExpiryType(task.type) && task.dueDate && (
           <p className={cn("text-xs font-semibold mt-1.5 flex items-center gap-1", overdue ? "text-red-600" : "text-amber-600")}>
             <AlertTriangle className="w-3 h-3" />
-            {overdue ? "Expired" : "Expires"}{" "}
-            {new Date(task.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            {formatFpDerogationExpiryLabel(task.type, task.dueDate, today)}
           </p>
         )}
-        {overdue && !["organic_fp_input_log_derogation_expiry", "organic_fp_derogation_expiry"].includes(task.type) && (
+        {overdue && !isFpDerogationExpiryType(task.type) && (
           <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             {Math.abs(days)} day{Math.abs(days) !== 1 ? "s" : ""} overdue
