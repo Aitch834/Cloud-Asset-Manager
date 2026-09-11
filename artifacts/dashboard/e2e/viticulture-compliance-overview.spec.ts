@@ -44,8 +44,7 @@ async function signInAndOpenOverview(page: Page): Promise<void> {
   });
 }
 
-test("compliance failures stay ordered and clear after records change", async ({ page }) => {
-  let scoutingLinked = false;
+async function mockComplianceOverviewRecords(page: Page, isScoutingLinked: () => boolean): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const recordsByEndpoint = new Map<string, Array<Record<string, unknown>>>([
     ["vineyard-blocks", [{ id: 91001, blockName: "Compliance Block", areaHa: 1, isActive: true }]],
@@ -61,7 +60,7 @@ test("compliance failures stay ordered and clear after records change", async ({
     const records = endpoint === "vineyard-scouting"
       ? [{
           id: 91007,
-          blockId: scoutingLinked ? 91001 : null,
+          blockId: isScoutingLinked() ? 91001 : null,
           scoutDate: today,
           scoutedBy: "Compliance E2E",
           xylellaFastidiosa: false,
@@ -69,6 +68,11 @@ test("compliance failures stay ordered and clear after records change", async ({
       : recordsByEndpoint.get(endpoint) ?? [];
     await route.fulfill({ json: { records } });
   });
+}
+
+test("compliance failures stay ordered and clear after records change", async ({ page }) => {
+  let scoutingLinked = false;
+  await mockComplianceOverviewRecords(page, () => scoutingLinked);
 
   await signInAndOpenOverview(page);
 
@@ -108,4 +112,47 @@ test("compliance failures stay ordered and clear after records change", async ({
   await expect(
     refreshedChecklist.getByText("Checks needing attention are shown first.", { exact: false }),
   ).toHaveCount(0);
+});
+
+test("linked-record compliance repairs support Enter and Space activation", async ({ page }) => {
+  await mockComplianceOverviewRecords(page, () => false);
+  await signInAndOpenOverview(page);
+
+  for (const key of ["Enter", "Space"] as const) {
+    await test.step(`${key} opens the linked-record repair dialog`, async () => {
+      const failingCheck = page.getByRole("button", {
+        name: /All scouting records linked to blocks/,
+      });
+      await expect(failingCheck).toBeVisible();
+      await failingCheck.focus();
+      await expect(failingCheck).toBeFocused();
+
+      await page.keyboard.press(key);
+
+      const bulkLinkDialog = page.getByRole("dialog", {
+        name: "Link unlinked scouting records to blocks",
+      });
+      const blockSelect = bulkLinkDialog.getByRole("combobox");
+      await expect(bulkLinkDialog).toBeVisible();
+      await expect(blockSelect).toBeFocused();
+
+      // The keyboard focus that enters the dialog can operate its first
+      // interactive control, and Tab can still reach the dialog's controls.
+      await page.keyboard.press("Space");
+      await expect(page.getByRole("option", { name: /Compliance Block/ })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(blockSelect).toBeFocused();
+      await page.keyboard.press("Tab");
+
+      const cancelButton = bulkLinkDialog.getByRole("button", { name: "Cancel", exact: true });
+      await expect(cancelButton).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(bulkLinkDialog).not.toBeVisible();
+
+      await page.evaluate(farmId => {
+        localStorage.setItem(`viticulture-active-tab-${farmId}`, "overview");
+      }, FARM_ID);
+      await page.reload({ waitUntil: "networkidle" });
+    });
+  }
 });
