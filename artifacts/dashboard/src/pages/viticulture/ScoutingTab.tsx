@@ -796,6 +796,12 @@ export function ScoutingTab({ farmId, blocks, highlightBlockId, requestBulkLink,
         onView={setViewing}
         onEdit={openEdit}
         onDelete={r => remove.mutateAsync(r.id as number)} deleteMutation={remove}
+        getRowActionLabel={r => {
+          const block = blocks.find(b => b.id === r.blockId);
+          const blockLabel = String(block?.blockName ?? "an unlinked block");
+          const scoutLabel = r.scoutedBy ? String(r.scoutedBy) : "an unnamed scout";
+          return `disease scouting record #${String(r.id)} for ${blockLabel} on ${fmtDate(r.scoutDate)}, scouted by ${scoutLabel}`;
+        }}
       />}
 
       {/* View Dialog */}
