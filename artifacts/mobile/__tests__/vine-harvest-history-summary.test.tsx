@@ -674,3 +674,49 @@ describe("buildHarvestCsv — Yield by Variety guard", () => {
     expect(csv).toContain('"TOTAL"');
   });
 });
+
+describe("buildHarvestCsv — unlinked block warning", () => {
+  const detailHeader =
+    '"Date","Vintage","Block","Method","Yield (kg)","Brix","pH","TA (g/L)","Pot. Alc (%)"';
+
+  it("places the singular warning before the detail header", () => {
+    const csv = buildHarvestCsv(
+      [makeCsvHarvestRecord(1, null)],
+      [],
+      "Test Farm",
+      "2026",
+    );
+    const warning =
+      '"WARNING: 1 record not linked to a block — block-level totals may be incomplete"';
+
+    expect(csv).toContain(warning);
+    expect(csv.indexOf(warning)).toBeLessThan(csv.indexOf(detailHeader));
+  });
+
+  it("includes the count and plural wording for multiple unlinked records", () => {
+    const csv = buildHarvestCsv(
+      [makeCsvHarvestRecord(1, null), makeCsvHarvestRecord(2, null)],
+      [],
+      "Test Farm",
+      "2026",
+    );
+
+    expect(csv).toContain(
+      '"WARNING: 2 records not linked to a block — block-level totals may be incomplete"',
+    );
+  });
+
+  it("omits the warning row when every record is linked", () => {
+    const csv = buildHarvestCsv(
+      [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, 20)],
+      [
+        { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 },
+        { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
+      ],
+      "Test Farm",
+      "2026",
+    );
+
+    expect(csv).not.toContain("WARNING:");
+  });
+});
