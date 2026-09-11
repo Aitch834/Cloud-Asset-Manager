@@ -509,6 +509,77 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     expect(screen.getByText("No records match your filters.")).toBeTruthy();
   });
 
+  it("keeps Must Chemistry averages stable when a pending harvest is replaced by its synced record", async () => {
+    const pendingHarvest = {
+      id: "offline-must-chemistry",
+      farmId: FARM_ID,
+      harvestDate: "2025-09-15",
+      vintageYear: VINTAGE,
+      blockId: 202,
+      blockName: "South Block",
+      harvestMethod: "Hand",
+      yieldKg: 900,
+      // These are the values saved locally by the harvest form before a sync
+      // is possible. They must contribute to the selected vintage summary.
+      ph: 3.54,
+      titratableAcidityGl: 5.5,
+      potentialAlcohol: 13.5,
+      _pendingSync: true,
+    };
+    const syncedHarvest = {
+      ...makeRecord(44, 202, "South Block", 900, 18),
+      harvestDate: pendingHarvest.harvestDate,
+      ph: pendingHarvest.ph,
+      titratableAcidityGl: pendingHarvest.titratableAcidityGl,
+      potentialAlcohol: pendingHarvest.potentialAlcohol,
+    };
+    let serverRecords = [
+      {
+        ...makeRecord(1, 101, "North Block", 1000, 10),
+        ph: 3.1,
+        titratableAcidityGl: 8,
+        potentialAlcohol: 10,
+      },
+    ];
+    let offlineRecords = [pendingHarvest];
+
+    useApiFetch.mockImplementation(() => ({
+      records: serverRecords,
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    }));
+    getList.mockImplementation(async () => offlineRecords);
+
+    const screen = render(<VineHarvestHistoryScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("2025 Vintage · 2 records")).toBeTruthy();
+      expect(screen.getByText("Must Chemistry")).toBeTruthy();
+      expect(screen.getAllByText("3.32").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("6.75").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0);
+      expect(screen.getByText("Waiting to sync")).toBeTruthy();
+    });
+
+    // The sync queue clears the local pending record while the API refresh
+    // returns the authoritative replacement. The summary must contain the
+    // harvest exactly once and retain the values shown before synchronization.
+    serverRecords = [...serverRecords, syncedHarvest];
+    offlineRecords = [];
+    screen.rerender(<VineHarvestHistoryScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("2025 Vintage · 2 records")).toBeTruthy();
+      expect(screen.getAllByText("3.32").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("6.75").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Waiting to sync")).toBeNull();
+    });
+  });
+
   it("keeps yield, t/ha, Avg Brix, and record count aligned for all, one, and multiple blocks", async () => {
     const screen = render(<VineHarvestHistoryScreen />);
 
