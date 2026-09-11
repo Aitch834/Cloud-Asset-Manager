@@ -90,7 +90,7 @@ function fallbackET0(dateStr: string): number {
 
 // ─── Kc from growth stage ─────────────────────────────────────────────────────
 
-function getKc(
+export function getKc(
   profile: CropProfile,
   plantingDate: string,
   harvestDate: string | undefined,

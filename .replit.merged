@@ -601,3 +601,6 @@ args = "pnpm --filter @workspace/dashboard run test:irrigation-parity && pnpm --
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[workflows.workflow.metadata]
+isValidation = true

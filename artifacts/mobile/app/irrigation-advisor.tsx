@@ -40,6 +40,15 @@ import { fonts, fontSize } from "@/constants/typography";
 import { apiFetch } from "@/lib/apiFetch";
 import { useFarm } from "@/lib/context/FarmContext";
 import { buildSmdChartData, type SmdChartPoint } from "@/lib/irrigationAdvisorChart";
+import {
+  computeScenarios as computeSharedScenarios,
+  computeSMD as computeSharedSMD,
+  fallbackET0 as sharedFallbackET0,
+  getFieldCapacity as getSharedFieldCapacity,
+  getSmdStatus as getSharedSmdStatus,
+  matchCropProfile as matchSharedCropProfile,
+  type ScenarioResult as SharedScenarioResult,
+} from "@/lib/irrigationCalculations";
 import { computeForecastVerdict } from "@/lib/irrigationForecastVerdict";
 import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
 import { scheduleSync } from "@/lib/sync-engine";
@@ -799,8 +808,8 @@ export default function IrrigationAdvisorScreen() {
     if (!data) return { smdSeries: [], currentSmd: 0, currentDailyEtcMm: 0, fieldCapacity: DEFAULT_FC_MM, cropProfile: null, scenarios: null, selectedField: null };
 
     const selectedField = data.fields.find(f => f.id === selectedFieldId) ?? data.fields[0] ?? null;
-    const fc = getFieldCapacity(selectedField?.soilType);
-    const cp = data.assignment ? matchCropProfile(data.assignment.cropName) : null;
+    const fc = getSharedFieldCapacity(selectedField?.soilType);
+    const cp = data.assignment ? matchSharedCropProfile(data.assignment.cropName) : null;
 
     // Pad to 60 days
     const today = new Date();
@@ -816,9 +825,9 @@ export default function IrrigationAdvisorScreen() {
       padded.push(byDate[key] ?? { date: key });
     }
 
-    const smdSeries = computeSMD(padded, cp, fc, data.assignment?.plantingDate ?? null, data.assignment?.expectedHarvestDate);
+    const smdSeries = computeSharedSMD(padded, cp, fc, data.assignment?.plantingDate ?? null, data.assignment?.expectedHarvestDate);
     const currentSmd = smdSeries.length ? smdSeries[smdSeries.length - 1].smd : 0;
-    const currentDailyEtcMm = smdSeries.length ? smdSeries[smdSeries.length - 1].etC : fallbackET0(today.toISOString().slice(0, 10));
+    const currentDailyEtcMm = smdSeries.length ? smdSeries[smdSeries.length - 1].etC : sharedFallbackET0(today.toISOString().slice(0, 10));
 
     // Financial scenarios require a recognized crop profile — without one we
     // cannot compute credible yield loss or net-benefit figures.
@@ -836,7 +845,7 @@ export default function IrrigationAdvisorScreen() {
     const areaHa   = parseFloat(String(selectedField?.areaHectares ?? ""));
     const effectiveArea = areaHa > 0 ? areaHa : 1;
 
-    const scenarios = computeScenarios({
+    const scenarios = computeSharedScenarios({
       currentSmdMm: currentSmd,
       irrigateMm: mmNum > 0 ? mmNum : 25,
       costPerMmHa: costNum,
@@ -854,7 +863,7 @@ export default function IrrigationAdvisorScreen() {
   }, [data, selectedFieldId, irrigateMm, costPerMmHa, cropPricePerTonne, expectedRainfall]);
 
   const criticalSmd = cropProfile?.criticalSmdMm ?? 35;
-  const smdStatus = getSmdStatus(currentSmd, criticalSmd);
+  const smdStatus = getSharedSmdStatus(currentSmd, criticalSmd);
   const statusStyle = STATUS_STYLE[smdStatus];
   const smdChartData = useMemo(() => {
     const historical = smdSeries.map(point => ({
@@ -872,7 +881,7 @@ export default function IrrigationAdvisorScreen() {
     });
   }, [smdSeries, data, currentSmd, currentDailyEtcMm, fieldCapacity]);
 
-  function openLogModal(scenario: ScenarioResult) {
+  function openLogModal(scenario: SharedScenarioResult) {
     if (!selectedField || !farmId) return;
     setLogPrefill({
       fieldId: selectedField.id,

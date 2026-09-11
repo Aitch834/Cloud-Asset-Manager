@@ -10,6 +10,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "node scripts/check-no-live-page-print.mjs && node scripts/check-restricted-inputs-columns.mjs && node scripts/check-field-status-columns.mjs && node scripts/check-barrel-health-print-retirement.mjs && node scripts/check-harvest-print-vintage-top.mjs && node scripts/check-harvest-print-block-colors.mjs && NODE_OPTIONS=--max-old-space-size=4096 tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts --exclude '**/e2e/**'",
+    "test:irrigation-parity": "vitest run --config vitest.config.ts src/lib/__tests__/irrigationParity.test.ts",
     "test:e2e:install-browser": "playwright install chromium webkit firefox",
     "test:e2e:smoke-browser": "playwright test --config playwright.smoke.config.ts",
     "pretest:e2e": "pnpm run test:e2e:smoke-browser",
