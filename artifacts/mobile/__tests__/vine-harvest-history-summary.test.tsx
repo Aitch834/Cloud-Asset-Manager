@@ -714,6 +714,53 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     await expectAreaTotal();
   });
 
+  it("moves a renamed block's area to its current variety once without changing the grand Total", async () => {
+    const records = [
+      makeRecord(1, 101, "North Block", 1000, 10),
+      makeRecord(2, 101, "North Block", 500, 12),
+      makeRecord(3, 202, "South Block", 2000, 16),
+      makeRecord(4, 303, "East Block", 750, 14),
+    ];
+    let blocks = [
+      makeBlock(101, "North Block", 2.5, "Chardonnay"),
+      makeBlock(202, "South Block", 1.5, "Pinot Noir"),
+      makeBlock(303, "East Block", 1, "Riesling"),
+    ];
+    useApiFetch.mockReturnValue({
+      records,
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+    useApiVineBlocks.mockImplementation(() => ({ blocks, loading: false }));
+
+    const screen = render(<VineHarvestHistoryScreen />);
+    const varietyRows = () => within(screen.getByTestId("variety-table-body"));
+
+    await waitFor(() => {
+      expect(varietyRows().getByText("Chardonnay")).toBeTruthy();
+      expect(varietyRows().getByText("2.50")).toBeTruthy();
+      expect(screen.getByText("Total")).toBeTruthy();
+      expect(screen.getByText("5.00")).toBeTruthy();
+    });
+
+    blocks = [
+      makeBlock(101, "North Block", 2.5, "Pinot Noir"),
+      makeBlock(202, "South Block", 1.5, "Pinot Noir"),
+      makeBlock(303, "East Block", 1, "Riesling"),
+    ];
+    screen.rerender(<VineHarvestHistoryScreen />);
+
+    await waitFor(() => {
+      expect(varietyRows().queryByText("Chardonnay")).toBeNull();
+      expect(varietyRows().getByText("Pinot Noir")).toBeTruthy();
+      expect(varietyRows().getAllByText("4.00")).toHaveLength(1);
+      expect(screen.getByText("5.00")).toBeTruthy();
+    });
+  });
+
   it("keeps the variety table and chart legend in the same order after sorting by total yield", async () => {
     useApiVineBlocks.mockReturnValue({
       blocks: [
