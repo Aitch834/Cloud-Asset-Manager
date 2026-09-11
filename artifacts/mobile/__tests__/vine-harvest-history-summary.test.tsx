@@ -208,7 +208,8 @@ const { usePersistedChemistryCrossTabSort } = require("../lib/hooks/usePersisted
 const { apiFetch } = require("../lib/apiFetch") as {
   apiFetch: jest.MockedFunction<() => Promise<Response>>;
 };
-const { getItem, setItem } = require("../lib/storage") as {
+const { getList, getItem, setItem } = require("../lib/storage") as {
+  getList: jest.Mock;
   getItem: jest.Mock;
   setItem: jest.Mock;
 };
@@ -285,6 +286,7 @@ function expectSummary(
 
 beforeEach(() => {
   jest.clearAllMocks();
+  getList.mockResolvedValue([]);
   useFarm.mockReturnValue({
     currentFarm: { id: FARM_ID, name: "Test Vineyard" },
     user: { id: "test-user" },
@@ -341,6 +343,81 @@ beforeEach(() => {
 });
 
 describe("VineHarvestHistoryScreen — filtered summary", () => {
+  it("applies inclusive date filters consistently to server and pending offline records", async () => {
+    useApiFetch.mockReturnValue({
+      records: [
+        { ...makeRecord(1, 101, "Early Block", 111, 10), harvestDate: "2025-09-01" },
+        { ...makeRecord(2, 202, "Boundary Block", 222, 12), harvestDate: "2025-09-10" },
+        { ...makeRecord(3, 303, "Late Block", 333, 16), harvestDate: "2025-09-20" },
+      ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        makeBlock(101, "Early Block", 1),
+        makeBlock(202, "Boundary Block", 1),
+        makeBlock(303, "Late Block", 1),
+        makeBlock(404, "Offline Boundary Block", 1),
+      ],
+      loading: false,
+    });
+    getList.mockResolvedValue([
+      {
+        id: "offline-boundary",
+        farmId: FARM_ID,
+        harvestDate: "2025-09-10",
+        blockId: 404,
+        blockName: "Offline Boundary Block",
+        vintageYear: VINTAGE,
+        harvestMethod: "Hand",
+        yieldKg: 444,
+        _pendingSync: true,
+      },
+    ]);
+
+    const screen = render(<VineHarvestHistoryScreen />);
+    const [fromInput, toInput] = screen.getAllByPlaceholderText("DD/MM/YYYY");
+    const recordList = () => within(screen.getByTestId("harvest-history-record-list"));
+
+    await waitFor(() => {
+      expect(recordList().getByText("Waiting to sync")).toBeTruthy();
+      expect(recordList().getByText("Offline Boundary Block")).toBeTruthy();
+    });
+
+    fireEvent.changeText(fromInput, "10/09/2025");
+    expect(recordList().queryByText("Early Block")).toBeNull();
+    expect(recordList().getByText("Boundary Block")).toBeTruthy();
+    expect(recordList().getByText("Late Block")).toBeTruthy();
+    expect(recordList().getByText("Offline Boundary Block")).toBeTruthy();
+
+    fireEvent.changeText(fromInput, "");
+    fireEvent.changeText(toInput, "10/09/2025");
+    expect(recordList().getByText("Early Block")).toBeTruthy();
+    expect(recordList().getByText("Boundary Block")).toBeTruthy();
+    expect(recordList().queryByText("Late Block")).toBeNull();
+    expect(recordList().getByText("Offline Boundary Block")).toBeTruthy();
+
+    fireEvent.changeText(fromInput, "10/09/2025");
+    expect(recordList().queryByText("Early Block")).toBeNull();
+    expect(recordList().getByText("Boundary Block")).toBeTruthy();
+    expect(recordList().queryByText("Late Block")).toBeNull();
+    expect(recordList().getByText("Offline Boundary Block")).toBeTruthy();
+    expect(recordList().getByText("Waiting to sync")).toBeTruthy();
+
+    fireEvent.changeText(fromInput, "31/02/2025");
+    expect(screen.getByText("Use DD/MM/YYYY or YYYY-MM-DD format.")).toBeTruthy();
+    expect(recordList().getByText("Early Block")).toBeTruthy();
+    expect(recordList().getByText("Offline Boundary Block")).toBeTruthy();
+
+    fireEvent.changeText(fromInput, "20/09/2025");
+    expect(screen.getByText("'From' date must be before 'To' date.")).toBeTruthy();
+    expect(screen.getByText("No records match your filters.")).toBeTruthy();
+  });
+
   it("keeps yield, t/ha, Avg Brix, and record count aligned for all, one, and multiple blocks", async () => {
     const screen = render(<VineHarvestHistoryScreen />);
 

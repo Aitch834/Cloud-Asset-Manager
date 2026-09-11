@@ -2728,6 +2728,7 @@ export default function VineHarvestHistoryScreen() {
         </View>
       ) : (
         <FlatList
+          testID="harvest-history-record-list"
           data={filtered}
           keyExtractor={item => String(item.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
