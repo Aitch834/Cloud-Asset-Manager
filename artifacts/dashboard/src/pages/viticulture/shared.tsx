@@ -4349,9 +4349,9 @@ export function DataTable({ cols, rows, onEdit, onDelete, onView, deleteMutation
               {cols.map(c => <td key={c.key} className="py-2 pr-4">{c.render ? c.render(row) : fmt(row[c.key])}</td>)}
               {(onEdit || onDelete || onView) && (
                 <td className="py-2 text-right space-x-1 whitespace-nowrap">
-                  {onView && <Button size="icon" variant="ghost" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
-                  {onEdit && <Button size="icon" variant="ghost" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
-                  {onDelete && <Button size="icon" variant="ghost" onClick={() => setPending(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
+                  {onView && <Button size="icon" variant="ghost" aria-label="View" title="View" onClick={() => onView(row)}><Eye className="w-3.5 h-3.5" /></Button>}
+                  {onEdit && <Button size="icon" variant="ghost" aria-label="Edit" title="Edit" onClick={() => onEdit(row)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {onDelete && <Button size="icon" variant="ghost" aria-label="Delete" title="Delete" onClick={() => setPending(row)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></Button>}
                 </td>
               )}
             </tr>

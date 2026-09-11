@@ -121,8 +121,17 @@ function SortablePhotoThumbnail({
         <img
           src={photoSrc}
           alt={photo.fileName ?? "Block photo"}
-          className="w-full h-full object-cover cursor-pointer"
+          className="w-full h-full object-cover cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-inset"
           onClick={onExpand}
+          tabIndex={0}
+          role="button"
+          aria-label={`Open ${photo.fileName ?? "block photo"} in lightbox`}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onExpand();
+            }
+          }}
           onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
 
