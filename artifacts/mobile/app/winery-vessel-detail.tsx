@@ -2691,7 +2691,21 @@ function LogFillModal({
         }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
+        const body = await res.json().catch(() => ({})) as {
+          error?: string;
+          code?: string;
+          cause?: { code?: string };
+        };
+        const isFillNumberConflict =
+          res.status === 409
+          || body.code === "DUPLICATE_FILL_NUMBER"
+          || body.code === "23505"
+          || body.cause?.code === "23505"
+          || body.error?.includes("23505")
+          || /unique constraint|unique violation/i.test(body.error ?? "");
+        if (isFillNumberConflict) {
+          throw new Error(`Fill #${fillNumber} already exists on this barrel`);
+        }
         throw new Error(body.error ?? `Server error (${res.status})`);
       }
       if (form.operatorName.trim()) {
