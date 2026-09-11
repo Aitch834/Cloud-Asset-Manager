@@ -28,6 +28,16 @@ type VineRegisterRecord = {
   isRemovedFromRegister: boolean;
 };
 
+type VineyardBlock = {
+  id: number;
+  blockName: string;
+  fieldParcelRef: string;
+  variety: string;
+  areaHa: string;
+  plantingYear: number;
+  rootstock: string;
+};
+
 function readSetupFile(name: string): string {
   const stateFile = path.join(__dirname, name);
   if (!fs.existsSync(stateFile)) {
@@ -49,10 +59,23 @@ function makeRecord(id: number): VineRegisterRecord {
   };
 }
 
+function makeBlock(id: number): VineyardBlock {
+  return {
+    id,
+    blockName: `RPA email fixture block ${id}`,
+    fieldParcelRef: `E2E-PARCEL-${String(id).padStart(4, "0")}`,
+    variety: `Fixture variety ${id}`,
+    areaHa: "0.1250",
+    plantingYear: 2024,
+    rootstock: "SO4",
+  };
+}
+
 async function prepareDashboard(
   page: Page,
   farm: ActiveViticultureFarm,
   recordsRef: { value: VineRegisterRecord[] },
+  blocksRef: { value: VineyardBlock[] } = { value: [] },
 ): Promise<void> {
   await page.route(`**/api/farms/${farm.farmId}`, async route => {
     const requestUrl = new URL(route.request().url());
@@ -87,8 +110,15 @@ async function prepareDashboard(
     await route.fulfill({ json: { records: recordsRef.value } });
   });
 
+  await page.route(`**/api/farms/${farm.farmId}/vineyard-blocks`, async route => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({ json: { records: blocksRef.value } });
+  });
+
   for (const endpoint of [
-    "vineyard-blocks",
     "vineyard-operations",
     "vineyard-harvest",
     "vineyard-scouting",
@@ -163,5 +193,43 @@ test("warns before an over-limit Vine Register mailto and opens a short draft no
   await page.getByRole("button", { name: "Email Register", exact: true }).click();
   await expect.poll(() => requestedMailtos.length).toBe(1);
   expect(requestedMailtos[0]).toContain("subject=FSA%20Vine%20Register");
+  await expect(warning).toHaveCount(0);
+});
+
+test("warns before an over-limit RPA reference mailto and opens a short draft normally", async ({
+  page,
+}) => {
+  const farm = await getActiveViticultureFarm();
+  const recordsRef = { value: [makeRecord(1)] };
+  const blocksRef = { value: Array.from({ length: 20 }, (_, index) => makeBlock(index + 1)) };
+  await prepareDashboard(page, farm, recordsRef, blocksRef);
+
+  const cdp = await page.context().newCDPSession(page);
+  const requestedMailtos: string[] = [];
+  cdp.on("Page.frameRequestedNavigation", event => {
+    if (event.url.startsWith("mailto:")) requestedMailtos.push(event.url);
+  });
+  await cdp.send("Page.enable");
+
+  await openVineRegister(page);
+  await page.getByRole("button", { name: "Email RPA Reference", exact: true }).click();
+
+  const warning = page.getByRole("dialog", { name: "Email may be cut off" });
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText("Your vineyard has many blocks");
+  expect(requestedMailtos).toHaveLength(0);
+
+  await page.keyboard.press("Escape");
+  await expect(warning).not.toBeVisible();
+
+  blocksRef.value = [makeBlock(1)];
+  await page.reload({ waitUntil: "networkidle" });
+  const tab = page.getByRole("button", { name: "Vine Register", exact: true });
+  if (await tab.isVisible({ timeout: 5_000 }).catch(() => false)) await tab.click();
+  await expect(page.getByRole("button", { name: "Email RPA Reference", exact: true })).toBeEnabled();
+
+  await page.getByRole("button", { name: "Email RPA Reference", exact: true }).click();
+  await expect.poll(() => requestedMailtos.length).toBe(1);
+  expect(requestedMailtos[0]).toContain("subject=RPA%20Vineyard%20Block%20Reference");
   await expect(warning).toHaveCount(0);
 });
