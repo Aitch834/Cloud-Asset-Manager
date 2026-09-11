@@ -19,6 +19,7 @@ describe("deriveTonnesPerHa", () => {
   });
 });
 
+
 describe("harvest Yield by Variety CSV", () => {
   const blocks = [
     { id: 1, variety: "Chardonnay", areaHa: 2 },
@@ -62,4 +63,24 @@ describe("harvest Yield by Variety CSV", () => {
       expect(csv).toContain('"Chardonnay","2.00","1000.0","0.50","","","",""');
     },
   );
+
+  it("marks positive yield without usable area and explains how to add the area", () => {
+    const section = buildHarvestYieldByVarietyCsvSection(
+      [
+        { blockId: 10, yieldKg: 750 },
+        { blockId: 11, yieldKg: 0 },
+      ],
+      [
+        { id: 10, variety: "Bacchus", areaHa: null },
+        { id: 11, variety: "Seyval Blanc", areaHa: 0 },
+      ],
+    );
+
+    expect(section).toContain('"Bacchus","","750.0","†","","","",""');
+    expect(section).toContain('"Seyval Blanc","","","","","","",""');
+    expect(section).not.toContain('"Seyval Blanc","","","†"');
+    expect(section.at(-1)).toBe(
+      '"† Block area not set — add it in Block Settings to see yield per hectare"',
+    );
+  });
 });
