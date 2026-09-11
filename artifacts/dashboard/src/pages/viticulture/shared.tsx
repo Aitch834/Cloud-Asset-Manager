@@ -162,7 +162,7 @@ export function printExciseReturn(
   licenceNo?: string,
   farmMeta?: Record<string, unknown> | null,
   ratesLastUpdated?: string | null,
-) {
+): boolean {
   const d = (v: unknown) => v ? new Date(v as string).toLocaleDateString("en-GB") : "—";
   const n = (v: unknown, dp = 1) => v == null || v === "" ? "—" : parseFloat(String(v)).toFixed(dp);
   const esc = (v: unknown) => v == null || v === "" ? "" : String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -299,10 +299,11 @@ export function printExciseReturn(
   </body></html>`;
 
   const win = window.open("", "_blank", "width=820,height=1060");
-  if (!win) return;
+  if (!win) return false;
   win.document.write(html);
   win.document.close();
   win.onload = () => { setTimeout(() => win.print(), 200); };
+  return true;
 }
 
 export function printOrganicWineRecords(

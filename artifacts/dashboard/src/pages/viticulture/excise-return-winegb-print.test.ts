@@ -84,3 +84,22 @@ describe("Excise Return WineGB print header", () => {
     },
   );
 });
+
+describe("Excise Return blocked print window", () => {
+  it("reports that the print window did not open when the browser blocks it", () => {
+    vi.stubGlobal("window", {
+      open: vi.fn(() => null),
+    });
+
+    const opened = printExciseReturn(
+      exciseReturnFixture,
+      "Test Vineyard",
+      "WINERY-123",
+      farmFixture,
+      "2026-06-01",
+    );
+
+    expect(opened).toBe(false);
+    expect(window.open).toHaveBeenCalledWith("", "_blank", "width=820,height=1060");
+  });
+});

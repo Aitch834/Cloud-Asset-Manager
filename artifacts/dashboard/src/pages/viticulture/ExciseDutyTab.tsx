@@ -61,6 +61,7 @@ const EXCISE_STATUS_COLORS: Record<string, string> = {
 
 export function ExciseDutyTab({ farmId }: { farmId: number }) {
   const crud = useCrud(farmId, "winery-excise-returns", "winery-excise-returns");
+  const { toast } = useToast();
 
   // Fetch tasting sessions so we can auto-sum volumes for the selected period
   const { data: tastingRecs = [] } = useQuery<Record<string, unknown>[]>({
@@ -84,14 +85,23 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
     !farmMeta.appaRef || String(farmMeta.appaRef).trim() === "" ||
     !farmMeta.winegbMembershipNumber || String(farmMeta.winegbMembershipNumber).trim() === ""
   );
+  const openPrintReturn = () => {
+    if (!view) return;
+    const opened = printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated);
+    if (!opened) {
+      toast({
+        title: "Print window blocked",
+        description: "Allow pop-ups for BDE Farm Trac in your browser, then select Print Return again.",
+        variant: "destructive",
+      });
+    }
+  };
   const printReturn = () => {
     if (isFsaIncomplete) {
       setPrintFsaWarnOpen(true);
       return;
     }
-    if (view) {
-      printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated);
-    }
+    openPrintReturn();
   };
   const exciseMissingFields = farmMeta
     ? [
@@ -361,9 +371,7 @@ export function ExciseDutyTab({ farmId }: { farmId: number }) {
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => setPrintFsaWarnOpen(false)}>Cancel</Button>
             <Button className="w-full sm:w-auto" onClick={() => {
               setPrintFsaWarnOpen(false);
-              if (view) {
-                printExciseReturn(view, farmName ?? `Farm ${farmId}`, firstLicenceNo, farmMeta, hmrcRates?.ratesLastUpdated);
-              }
+              openPrintReturn();
             }}>
               <Printer className="w-4 h-4 mr-1" />Print anyway
             </Button>
