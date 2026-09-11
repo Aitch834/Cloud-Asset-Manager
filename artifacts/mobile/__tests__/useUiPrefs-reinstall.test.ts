@@ -251,6 +251,31 @@ describe("useUiPrefs — foreground retry of queued dismissals", () => {
     });
   });
 
+  it("preserves a newer value for the same key during a foreground PATCH", async () => {
+    const uid = nextUid();
+    const pendingKey = `ui_prefs_pending_${uid}`;
+    asyncStore.set(pendingKey, JSON.stringify({ show_archived: true }));
+    let resolvePatch!: (response: Partial<Response>) => void;
+    mockApiFetch.mockImplementation((_url, opts) => {
+      if (opts?.method === "PATCH") {
+        return new Promise((resolve) => { resolvePatch = resolve; });
+      }
+      return Promise.resolve(makeServerResponse({}));
+    });
+    mountForegroundListener(uid);
+
+    mockAppStateChange?.("background");
+    mockAppStateChange?.("active");
+    await drain(4);
+    asyncStore.set(pendingKey, JSON.stringify({ show_archived: false }));
+    resolvePatch({ ok: true });
+    await drain();
+
+    expect(JSON.parse(asyncStore.get(pendingKey)!)).toEqual({
+      show_archived: false,
+    });
+  });
+
   it("finishes an older foreground retry before sending a newer false value", async () => {
     const uid = nextUid();
     const key = "offline_banner";

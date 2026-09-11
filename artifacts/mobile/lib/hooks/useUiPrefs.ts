@@ -104,6 +104,30 @@ async function patchServerPrefs(patch: PrefsMap): Promise<boolean> {
   } catch { return false; }
 }
 
+/**
+ * Flush one pending-queue snapshot while already inside the user's write queue.
+ *
+ * Cleanup is value-aware: a key is removed only when its current queued value
+ * still matches the value sent in this request. A newer value for the same key,
+ * or a newly queued key, therefore survives an in-flight PATCH.
+ */
+async function flushPendingSnapshot(uid: string): Promise<void> {
+  const sent = await loadPending(uid);
+  if (Object.keys(sent).length === 0) return;
+
+  const ok = await patchServerPrefs(sent);
+  if (!ok) return;
+
+  const afterFlush = await loadPending(uid);
+  const remaining: PrefsMap = {};
+  for (const [key, value] of Object.entries(afterFlush)) {
+    if (!(key in sent) || sent[key] !== value) {
+      remaining[key] = value;
+    }
+  }
+  await savePending(uid, remaining);
+}
+
 // ---------------------------------------------------------------------------
 // Per-user singleton — prevents duplicate fetches across concurrent instances.
 // ---------------------------------------------------------------------------
@@ -165,6 +189,15 @@ function enqueueWrite<T>(uid: string, work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Retry pending preferences in the same ordering domain as every durable
+ * preference write. This is the single retry entry point for bootstrap,
+ * foreground resume, dismissals, durable dismissals, and migrations.
+ */
+function retryPendingPrefs(uid: string): Promise<void> {
+  return enqueueWrite(uid, () => flushPendingSnapshot(uid));
+}
+
+/**
  * Retry the current pending snapshot once, de-duplicated across every mounted
  * useUiPrefs instance for the same user.
  */
@@ -172,23 +205,7 @@ function flushPendingOnForeground(uid: string): Promise<void> {
   const s = getSingleton(uid);
   if (s.foregroundFlushPromise) return s.foregroundFlushPromise;
 
-  s.foregroundFlushPromise = enqueueWrite(uid, async () => {
-    // Keep the foreground PATCH in the same ordering domain as setPref so an
-    // older retry can never reach the server after a newer preference value.
-    const sent = await loadPending(uid);
-    if (Object.keys(sent).length === 0) return;
-
-    const ok = await patchServerPrefs(sent);
-    if (!ok) return;
-
-    const afterFlush = await loadPending(uid);
-    const remaining: PrefsMap = {};
-    for (const [key, value] of Object.entries(afterFlush)) {
-      // A newer value for the same key is a new queue entry and must survive.
-      if (!(key in sent) || sent[key] !== value) remaining[key] = value;
-    }
-    await savePending(uid, remaining);
-  }).finally(() => {
+  s.foregroundFlushPromise = retryPendingPrefs(uid).finally(() => {
     s.foregroundFlushPromise = null;
   });
 
@@ -327,22 +344,9 @@ export function useUiPrefs(userId: string | null | undefined) {
         setUserState(userId, reconciled, /* ready */ true);
         await saveCache(userId, reconciled);
 
-        // Flush the pending queue.  Re-read from storage so we catch any
-        // writes that were enqueued AFTER the bootstrap snapshot was taken
-        // (e.g. dismissHint called while the GET was in-flight).
-        const currentPending = await loadPending(userId);
-        if (!cancelled && Object.keys(currentPending).length > 0) {
-          const ok = await patchServerPrefs(currentPending);
-          if (ok && !cancelled) {
-            // Remove only the entries we sent; preserve any that arrived later.
-            const afterFlush = await loadPending(userId);
-            const remaining: PrefsMap = {};
-            for (const [k, v] of Object.entries(afterFlush)) {
-              if (!(k in currentPending)) remaining[k] = v;
-            }
-            await savePending(userId, remaining);
-          }
-        }
+        // A successful GET proves connectivity; retry the current queue through
+        // the shared ordered snapshot/PATCH/selective-cleanup path.
+        if (!cancelled) await retryPendingPrefs(userId);
 
         if (!cancelled) {
           setPrefs({ ...reconciled });
@@ -396,8 +400,8 @@ export function useUiPrefs(userId: string | null | undefined) {
       // serialized against concurrent migration writes and other dismissals.
       //
       //  Queue slot: cache write + pending-queue write (durable before PATCH).
-      //  After the slot: network PATCH + cleanup (outside the queue so network
-      //  I/O doesn't block other enqueued writes).
+       //  After the slot: the shared retry queues snapshot, PATCH, and cleanup
+       //  in the same ordering domain as toggles and other retry triggers.
       void enqueueWrite(userId, async () => {
         // Re-read singleton at write time so we capture any concurrent
         // optimistic updates that landed between the call and this slot.
@@ -405,25 +409,7 @@ export function useUiPrefs(userId: string | null | undefined) {
         await saveCache(userId, current); // best-effort (swallows errors)
         const pending = await loadPending(userId);
         await savePending(userId, { ...pending, [key]: true });
-      }).then(async () => {
-        // PATCH runs outside the queue — network I/O must not block writes.
-        const toFlush = await loadPending(userId);
-        if (Object.keys(toFlush).length === 0) return;
-        const ok = await patchServerPrefs(toFlush);
-        if (ok) {
-          // Cleanup: remove only the keys we sent; preserve anything enqueued
-          // concurrently (another dismissal, a migration, etc.).
-          await enqueueWrite(userId, async () => {
-            const afterFlush = await loadPending(userId);
-            const remaining: PrefsMap = {};
-            for (const [k, v] of Object.entries(afterFlush)) {
-              if (!(k in toFlush)) remaining[k] = v;
-            }
-            await savePending(userId, remaining);
-          });
-        }
-        // On PATCH failure toFlush remains in the queue for the next attempt.
-      });
+      }).then(() => retryPendingPrefs(userId));
     },
     [userId],
   );
@@ -431,8 +417,8 @@ export function useUiPrefs(userId: string | null | undefined) {
   /**
    * Set a pref key to any boolean value, including `false`.
    *
-   * Unlike `dismissHint` (which only ever sets `true` and runs the server PATCH
-   * outside the write queue), `setPref` serializes the entire operation —
+   * Unlike `dismissHint` (which only ever sets `true`), `setPref` serializes
+   * its durable write and retry in one write-queue operation —
    * cache write, pending-queue write, PATCH, and cleanup — through the per-user
    * `enqueueWrite` queue.  This guarantees that rapid successive calls (e.g.
    * a user toggling a sort preference twice in quick succession) always reach
@@ -467,20 +453,9 @@ export function useUiPrefs(userId: string | null | undefined) {
         const pending = { ...(await loadPending(userId)), [key]: value };
         await savePending(userId, pending);
 
-        // PATCH is inside the queue — this serializes it against the next toggle.
-        if (Object.keys(pending).length === 0) return;
-        const ok = await patchServerPrefs(pending);
-        if (ok) {
-          // Remove only the keys that were in this batch; preserve any writes
-          // that arrived while the PATCH was in flight (shouldn't happen for
-          // user-initiated toggles but is correct to handle).
-          const afterFlush = await loadPending(userId);
-          const remaining: PrefsMap = {};
-          for (const [k, v] of Object.entries(afterFlush)) {
-            if (!(k in pending)) remaining[k] = v;
-          }
-          await savePending(userId, remaining);
-        }
+        // Already inside the write queue, so use the shared flush body directly
+        // rather than enqueueing a nested operation.
+        await flushPendingSnapshot(userId);
         // On PATCH failure the key stays in the pending queue and will be
         // flushed by the next successful dismissHint or setPref call.
       });
@@ -629,20 +604,7 @@ export async function runUiPrefMigration(
     // isn't held open during network I/O.  Failures are fine: the pending
     // queue entry survives and will be flushed on the next successful write.
     if (result === "promoted" && toFlush !== null) {
-      const flushed = toFlush; // capture for the async closure below
-      void (async () => {
-        const ok = await patchServerPrefs(flushed);
-        if (ok) {
-          await enqueueWrite(uid, async () => {
-            const afterFlush = await loadPending(uid);
-            const remaining: PrefsMap = {};
-            for (const [k, v] of Object.entries(afterFlush)) {
-              if (!(k in flushed)) remaining[k] = v;
-            }
-            await savePending(uid, remaining); // best-effort; error caught by enqueueWrite
-          });
-        }
-      })();
+      void retryPendingPrefs(uid);
     }
 
     return result;
@@ -663,8 +625,8 @@ export async function runUiPrefMigration(
  *    `dismissHint`).
  *  • Awaits the cache + pending-queue writes through the per-user write queue
  *    so the promise resolves only after both writes settle.
- *  • Server PATCH fires asynchronously after the function resolves (same
- *    write-first, reconnect-flush pattern used by `dismissHint`).
+   *  • Server PATCH is queued asynchronously after the function resolves (same
+   *    write-first, reconnect-flush pattern used by `dismissHint`).
  *  • Throws if the caller passes an empty uid.
  *
  * The function is intentionally exported as a standalone (not a hook return)
@@ -712,21 +674,7 @@ export async function dismissHintDurable(uid: string, key: string): Promise<void
   }
 
   // Server PATCH is best-effort and runs outside the write queue.
-  void (async () => {
-    const toFlush = await loadPending(uid);
-    if (Object.keys(toFlush).length === 0) return;
-    const ok = await patchServerPrefs(toFlush);
-    if (ok) {
-      await enqueueWrite(uid, async () => {
-        const afterFlush = await loadPending(uid);
-        const remaining: PrefsMap = {};
-        for (const [k, v] of Object.entries(afterFlush)) {
-          if (!(k in toFlush)) remaining[k] = v;
-        }
-        await savePending(uid, remaining);
-      });
-    }
-  })();
+  void retryPendingPrefs(uid);
 }
 
 /**
@@ -813,20 +761,7 @@ export async function runUiPrefBatchMigration(
 
     // 4g — best-effort server PATCH, outside the write queue.
     if (result === "promoted" && toFlush !== null) {
-      const flushed = toFlush;
-      void (async () => {
-        const ok = await patchServerPrefs(flushed);
-        if (ok) {
-          await enqueueWrite(uid, async () => {
-            const afterFlush = await loadPending(uid);
-            const remaining: PrefsMap = {};
-            for (const [k, v] of Object.entries(afterFlush)) {
-              if (!(k in flushed)) remaining[k] = v;
-            }
-            await savePending(uid, remaining);
-          });
-        }
-      })();
+      void retryPendingPrefs(uid);
     }
 
     return result;
