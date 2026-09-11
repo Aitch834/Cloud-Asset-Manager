@@ -97,7 +97,7 @@ type YieldCrossTabSort = {
 
 type ChemistryDirection = "rose" | "fell" | "unchanged";
 
-function getChemistryDirection(
+export function getChemistryDirection(
   value: number | null,
   previousValue: number | null,
   precision: number,
@@ -110,7 +110,7 @@ function getChemistryDirection(
   return "unchanged";
 }
 
-function ChemistryTrendValue({
+export function ChemistryTrendValue({
   metric,
   value,
   previousValue,

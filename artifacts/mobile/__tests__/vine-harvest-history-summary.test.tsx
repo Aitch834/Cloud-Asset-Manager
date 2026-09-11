@@ -175,8 +175,96 @@ import { fireEvent, render, waitFor, within } from "@testing-library/react-nativ
 import VineHarvestHistoryScreen, {
   buildHarvestCsv,
   buildHarvestReportMailto,
+  ChemistryTrendValue,
+  getChemistryDirection,
 } from "../app/vine-harvest-history";
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
+
+type ChemistryMetricCase = {
+  metric: string;
+  precision: number;
+  baseline: number;
+  rise: number;
+  fall: number;
+  displayedBaseline: string;
+  displayedRise: string;
+  displayedFall: string;
+};
+
+const chemistryMetrics: ChemistryMetricCase[] = [
+  { metric: "Avg Brix °", precision: 1, baseline: 18.04, rise: 18.06, fall: 17.94, displayedBaseline: "18.0", displayedRise: "18.1", displayedFall: "17.9" },
+  { metric: "Avg pH", precision: 2, baseline: 3.204, rise: 3.206, fall: 3.194, displayedBaseline: "3.20", displayedRise: "3.21", displayedFall: "3.19" },
+  { metric: "Avg TA (g/L)", precision: 2, baseline: 7.504, rise: 7.506, fall: 7.494, displayedBaseline: "7.50", displayedRise: "7.51", displayedFall: "7.49" },
+  { metric: "Avg Pot. Alc %", precision: 2, baseline: 10.504, rise: 10.506, fall: 10.494, displayedBaseline: "10.50", displayedRise: "10.51", displayedFall: "10.49" },
+];
+
+describe.each(chemistryMetrics)("$metric chemistry direction cues", ({
+  metric,
+  precision,
+  baseline,
+  rise,
+  fall,
+  displayedBaseline,
+  displayedRise,
+  displayedFall,
+}) => {
+  it.each([
+    ["rose", rise, displayedRise, "↑"],
+    ["fell", fall, displayedFall, "↓"],
+    ["unchanged", baseline, displayedBaseline, "→"],
+  ] as const)("renders an accessible %s cue", (direction, value, displayedValue, symbol) => {
+    expect(getChemistryDirection(value, baseline, precision)).toBe(direction);
+
+    const screen = render(
+      <ChemistryTrendValue
+        metric={metric}
+        value={value}
+        previousValue={baseline}
+        previousVintage={2024}
+        precision={precision}
+      />,
+    );
+
+    expect(screen.getByText(symbol, { exact: false })).toBeTruthy();
+    expect(screen.getByLabelText(
+      `${metric}: ${displayedValue}, ${direction} from ${displayedBaseline} in 2024`,
+    )).toBeTruthy();
+  });
+
+  it("treats a change smaller than the displayed precision as unchanged", () => {
+    const subPrecisionChange = baseline + 4 / (10 ** (precision + 2));
+    expect(getChemistryDirection(subPrecisionChange, baseline, precision)).toBe("unchanged");
+  });
+});
+
+describe("missing chemistry values", () => {
+  it.each([
+    ["current", null, 18.2, "Avg Brix °: no data", "—"],
+    ["prior", 18.2, null, "Avg Brix °: 18.2; no prior vintage comparison available", "18.2"],
+  ] as const)("shows no direction cue when the %s value is missing", (
+    _missingSide,
+    value,
+    previousValue,
+    accessibilityLabel,
+    displayedValue,
+  ) => {
+    expect(getChemistryDirection(value, previousValue, 1)).toBeNull();
+
+    const screen = render(
+      <ChemistryTrendValue
+        metric="Avg Brix °"
+        value={value}
+        previousValue={previousValue}
+        previousVintage={2024}
+        precision={1}
+      />,
+    );
+
+    expect(screen.getByLabelText(accessibilityLabel)).toBeTruthy();
+    expect(screen.getByText(displayedValue)).toBeTruthy();
+    expect(screen.queryByText(/[↑↓→]/)).toBeNull();
+  });
+});
 
 const { useFarm } = require("../lib/context/FarmContext") as {
   useFarm: jest.Mock;
