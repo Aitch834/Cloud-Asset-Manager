@@ -753,6 +753,7 @@ export default function IrrigationHistoryScreen() {
           }
           refreshControl={
             <RefreshControl
+              testID="irrigation-history-refresh"
               refreshing={refreshing}
               onRefresh={refresh}
               tintColor={colors.primary}
@@ -856,6 +857,8 @@ export default function IrrigationHistoryScreen() {
                         onPress={() => openEdit(item)}
                         hitSlop={12}
                         style={styles.editBtn}
+                         accessibilityRole="button"
+                         accessibilityLabel={`Edit irrigation record for ${fld || formatDate(item.irrigationDate)}`}
                       >
                         <Feather name="edit-2" size={15} color={colors.primary} />
                       </Pressable>
