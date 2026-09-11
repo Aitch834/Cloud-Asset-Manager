@@ -299,11 +299,12 @@ function configureScreenMocks(
   prefs: Record<string, unknown> = {},
   prefsReady = true,
   setPref = jest.fn(),
+  userId = "test-user",
 ) {
   const blocks = Array.isArray(blockOrBlocks) ? blockOrBlocks : [blockOrBlocks];
   useFarm.mockReturnValue({
     currentFarm: { id: FARM_ID, name: "Test Farm" },
-    user: { id: "test-user" },
+    user: { id: userId },
   });
   useApiVineBlocks.mockReturnValue({
     blocks,
@@ -457,6 +458,53 @@ describe("VineBlockPhotosScreen — block-list sort preference", () => {
     expect(
       StyleSheet.flatten(screen.getByText("0 photos first").props.style),
     ).toEqual(expect.objectContaining({ color: "#fff" }));
+  });
+
+  it("resets to A–Z while a different user's sort preference loads", async () => {
+    const blocks = makeSortBlocks();
+    const setPref = jest.fn();
+
+    configureScreenMocks(
+      blocks,
+      { [SORT_COVERAGE_KEY]: true },
+      true,
+      setPref,
+      "coverage-user",
+    );
+    const screen = render(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      const order = renderedOrder(screen);
+      expect(order.indexOf("Zero Block")).toBeLessThan(order.indexOf("Covered Block"));
+    });
+
+    configureScreenMocks(blocks, {}, false, setPref, "alphabetical-user");
+    screen.rerender(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      const order = renderedOrder(screen);
+      expect(order.indexOf("Covered Block")).toBeLessThan(order.indexOf("Zero Block"));
+    });
+    expect(StyleSheet.flatten(screen.getByText("A–Z").props.style)).toEqual(
+      expect.objectContaining({ color: "#fff" }),
+    );
+
+    configureScreenMocks(
+      blocks,
+      { [SORT_COVERAGE_KEY]: false },
+      true,
+      setPref,
+      "alphabetical-user",
+    );
+    screen.rerender(React.createElement(VineBlockPhotosScreen));
+
+    await waitFor(() => {
+      const order = renderedOrder(screen);
+      expect(order.indexOf("Covered Block")).toBeLessThan(order.indexOf("Zero Block"));
+    });
+    expect(StyleSheet.flatten(screen.getByText("A–Z").props.style)).toEqual(
+      expect.objectContaining({ color: "#fff" }),
+    );
   });
 });
 
