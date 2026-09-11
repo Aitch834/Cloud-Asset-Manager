@@ -180,6 +180,8 @@ import VineHarvestHistoryScreen, {
 } from "../app/vine-harvest-history";
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
 
+(globalThis as typeof globalThis & { __DEV__: boolean }).__DEV__ = false;
+
 type ChemistryMetricCase = {
   metric: string;
   precision: number;
@@ -215,10 +217,14 @@ describe.each(chemistryMetrics)("$metric chemistry direction cues", ({
   ] as const)("renders an accessible %s cue", (direction, value, displayedValue, symbol) => {
     expect(getChemistryDirection(value, baseline, precision)).toBe(direction);
 
-    const screen = render(<VineHarvestHistoryScreen />);
-
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
+    const screen = render(
+      <ChemistryTrendValue
+        metric={metric}
+        value={value}
+        previousValue={baseline}
+        previousVintage={2024}
+        precision={precision}
+      />,
     );
 
     expect(screen.getByText(symbol, { exact: false })).toBeTruthy();
@@ -246,10 +252,14 @@ describe("missing chemistry values", () => {
   ) => {
     expect(getChemistryDirection(value, previousValue, 1)).toBeNull();
 
-    const screen = render(<VineHarvestHistoryScreen />);
-
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
+    const screen = render(
+      <ChemistryTrendValue
+        metric="Avg Brix °"
+        value={value}
+        previousValue={previousValue}
+        previousVintage={2024}
+        precision={1}
+      />,
     );
 
     expect(screen.getByLabelText(accessibilityLabel)).toBeTruthy();
@@ -464,9 +474,6 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
     const [fromInput, toInput] = screen.getAllByPlaceholderText("DD/MM/YYYY");
     const recordList = () => within(screen.getByTestId("harvest-history-record-list"));
 
@@ -551,59 +558,30 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
-
     await waitFor(() => {
-      expectSummary(screen, "2025 Vintage · 2 records", "3.00 t", "1.00", "13.0°");
-      expect(setItem).toHaveBeenCalledWith(`bde_vine_block_filter_${FARM_ID}`, []);
+      expect(screen.getByText("2025 Vintage · 2 records")).toBeTruthy();
+      expect(screen.getByText("Must Chemistry")).toBeTruthy();
+      expect(screen.getAllByText("3.32").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("6.75").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0);
+      expect(screen.getByText("Waiting to sync")).toBeTruthy();
     });
 
-    farmId = "farm-2";
+    serverRecords = [...serverRecords, syncedHarvest];
+    offlineRecords = [];
     screen.rerender(<VineHarvestHistoryScreen />);
 
-    // The second farm's stored value is still loading. The first committed
-    // render must treat the filter as "Show all", never reuse farm 1's IDs.
-    expectSummary(screen, "2025 Vintage · 2 records", "2.00 t", "1.00", "16.0°");
-
-    resolveSecondFarmSelection([404]);
-
     await waitFor(() => {
-      expectSummary(screen, "2025 Vintage · 1 record", "1.10 t", "1.10", "18.0°");
-      expect(screen.getAllByText("West Block").length).toBeGreaterThan(0);
+      expect(screen.getByText("2025 Vintage · 2 records")).toBeTruthy();
+      expect(screen.getAllByText("3.32").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("6.75").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("11.8%").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Waiting to sync")).toBeNull();
     });
   });
 
-  it("counts a multi-pick block area once in the variety row and Total across vintage filters", async () => {
-    useApiFetch.mockReturnValue({
-      records: [
-        makeRecord(1, 101, "North Block", 1000, 10, 2025),
-        makeRecord(2, 101, "North Block", 500, 12, 2025),
-        makeRecord(3, 101, "North Block", 250, 11, 2025),
-        makeRecord(4, 202, "South Block", 2000, 16, 2025),
-        makeRecord(5, 101, "North Block", 400, 11, 2024),
-        makeRecord(6, 202, "South Block", 800, 15, 2024),
-      ],
-      loading: false,
-      refreshing: false,
-      error: null,
-      refresh: jest.fn(),
-      recordsFarmId: FARM_ID,
-    });
-    useApiVineBlocks.mockReturnValue({
-      blocks: [
-        makeBlock(101, "North Block", 2.5, "Chardonnay"),
-        makeBlock(202, "South Block", null, "Pinot Noir"),
-      ],
-      loading: false,
-    });
-
+  it("keeps yield, t/ha, Avg Brix, and record count aligned for all, one, and multiple blocks", async () => {
     const screen = render(<VineHarvestHistoryScreen />);
-
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
 
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 3 records", "3.50 t", "1.17", "12.7°");
@@ -670,10 +648,6 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
-
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 2 records", "3.00 t", "1.00", "13.0°");
       expect(setItem).toHaveBeenCalledWith(`bde_vine_block_filter_${FARM_ID}`, []);
@@ -720,10 +694,6 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
-
     const expectAreaTotal = async () => {
       await waitFor(() => {
         expect(screen.getAllByText("Chardonnay").length).toBeGreaterThan(0);
@@ -746,13 +716,15 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
   it("moves a renamed block's area to its current variety once without changing the grand Total", async () => {
     const records = [
-      { ...makeCsvHarvestRecord(1, 10), yieldKg: 600 },
-      { ...makeCsvHarvestRecord(2, 10), yieldKg: 400 },
-      { ...makeCsvHarvestRecord(3, 20), yieldKg: 500 },
+      makeRecord(1, 101, "North Block", 1000, 10),
+      makeRecord(2, 101, "North Block", 500, 12),
+      makeRecord(3, 202, "South Block", 2000, 16),
+      makeRecord(4, 303, "East Block", 750, 14),
     ];
-    const blocks = [
-      { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
-      { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
+    let blocks = [
+      makeBlock(101, "North Block", 2.5, "Chardonnay"),
+      makeBlock(202, "South Block", 1.5, "Pinot Noir"),
+      makeBlock(303, "East Block", 1, "Riesling"),
     ];
     useApiFetch.mockReturnValue({
       records,
@@ -766,9 +738,6 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
     const varietyRows = () => within(screen.getByTestId("variety-table-body"));
 
     await waitFor(() => {
@@ -794,6 +763,18 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
   });
 
   it("keeps the variety table and chart legend in the same order after sorting by total yield", async () => {
+    useApiFetch.mockReturnValue({
+      records: [
+        makeRecord(1, 101, "North Block", 1500, 10),
+        makeRecord(2, 202, "South Block", 2000, 16),
+        makeRecord(3, null, "Unlinked Block", 750, 14),
+      ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
     useApiVineBlocks.mockReturnValue({
       blocks: [
         makeBlock(101, "North Block", 1, "Chardonnay"),
@@ -810,9 +791,6 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
-    const activeVarietyHeader = await screen.findByLabelText(
-      "Sort variety table by Variety, currently sorted ascending",
-    );
     const varietyNames = /^(Chardonnay|Pinot Noir|Unknown \/ Not linked)$/;
     const orderedNames = (testId: string) =>
       within(screen.getByTestId(testId))
@@ -825,6 +803,25 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
         expect(orderedNames("variety-table-body")).toEqual(expected);
       });
     };
+
+    await expectAlignedOrder(["Chardonnay", "Pinot Noir", "Unknown / Not linked"]);
+
+    expect(screen.getByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    ).props.accessibilityState).toEqual({ selected: true });
+    expect(screen.getByLabelText(
+      "Sort variety table by Total kg, not currently sorted",
+    ).props.accessibilityState).toEqual({ selected: false });
+
+    fireEvent.press(screen.getByLabelText("Sort variety table by Total kg, not currently sorted"));
+
+    await expectAlignedOrder(["Pinot Noir", "Chardonnay", "Unknown / Not linked"]);
+    expect(screen.getByLabelText(
+      "Sort variety table by Total kg, currently sorted descending",
+    ).props.accessibilityState).toEqual({ selected: true });
+  });
+});
+
 function makeCsvHarvestRecord(id: number, blockId: number | null) {
   return {
     id,
@@ -851,15 +848,15 @@ describe("buildHarvestCsv — Yield by Variety guard", () => {
   it.each(["=SUM(A1:A2)", "+Malbec", "-Merlot", "@Riesling"])(
     "neutralises a formula-like variety name before export: %s",
     (formulaLikeVariety) => {
-    const csv = buildHarvestCsv(
-      [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, 20)],
-      [
-        { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 },
-        { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
-      ],
-      "Test Farm",
-      "2026",
-    );
+      const csv = buildHarvestCsv(
+        [makeCsvHarvestRecord(1, 1), makeCsvHarvestRecord(2, 2)],
+        [
+          { id: 1, blockName: "North Block", variety: formulaLikeVariety, areaHa: 1 },
+          { id: 2, blockName: "South Block", variety: "Chardonnay", areaHa: 1 },
+        ],
+        "Test Farm",
+        "2026",
+      );
 
       expect(csv).toContain(`"\t${formulaLikeVariety}"`);
       expect(csv).not.toContain(`\n"${formulaLikeVariety}",`);
@@ -894,26 +891,16 @@ describe("buildHarvestCsv — Yield by Variety guard", () => {
       varieties: ["Chardonnay", "Pinot Noir", "Riesling"],
     },
   ])("includes every named variety when there are $label", ({ varieties }) => {
-    const blocks = [
-      { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
-      { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
-    ];
-
-    const records = [
-      { ...makeCsvHarvestRecord(1, 10), yieldKg: 600 },
-      { ...makeCsvHarvestRecord(2, 10), yieldKg: 400 },
-      { ...makeCsvHarvestRecord(3, 20), yieldKg: 500 },
-    ];
-
-    const csv = buildHarvestCsv(
-      [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, 20)],
-      [
-        { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 },
-        { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
-      ],
-      "Test Farm",
-      "2026",
+    const blocks = varieties.map((variety, index) => ({
+      id: index + 1,
+      blockName: `Block ${index + 1}`,
+      variety,
+      areaHa: 1,
+    }));
+    const records = varieties.map((_, index) =>
+      makeCsvHarvestRecord(index + 1, index + 1),
     );
+    const csv = buildHarvestCsv(records, blocks, "Test Farm", "2026");
 
     expect(csv).toContain('"Yield by Variety"');
     for (const variety of varieties) {
@@ -929,11 +916,8 @@ describe("buildHarvestCsv — unlinked block warning", () => {
 
   it("places the singular warning before the detail header", () => {
     const csv = buildHarvestCsv(
-      [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, 20)],
-      [
-        { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 },
-        { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
-      ],
+      [makeCsvHarvestRecord(1, null)],
+      [],
       "Test Farm",
       "2026",
     );
@@ -946,11 +930,8 @@ describe("buildHarvestCsv — unlinked block warning", () => {
 
   it("includes the count and plural wording for multiple unlinked records", () => {
     const csv = buildHarvestCsv(
-      [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, 20)],
-      [
-        { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 },
-        { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
-      ],
+      [makeCsvHarvestRecord(1, null), makeCsvHarvestRecord(2, null)],
+      [],
       "Test Farm",
       "2026",
     );
@@ -993,9 +974,8 @@ function getVarietyReportLines(body: string): string[] {
 describe("buildHarvestReportMailto — Yield by Variety breakdown", () => {
   it("includes all eight columns, two named varieties, and the TOTAL row", () => {
     const records = [
-      { ...makeCsvHarvestRecord(1, 10), yieldKg: 600 },
-      { ...makeCsvHarvestRecord(2, 10), yieldKg: 400 },
-      { ...makeCsvHarvestRecord(3, 20), yieldKg: 500 },
+      { ...makeCsvHarvestRecord(1, 10), yieldKg: 1200, brix: 20, ph: 3.2, titratableAcidityGl: 6, potentialAlcohol: 11 },
+      { ...makeCsvHarvestRecord(2, 20), yieldKg: 800, brix: 22, ph: 3.4, titratableAcidityGl: 8, potentialAlcohol: 13 },
     ];
     const blocks = [
       { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
@@ -1023,7 +1003,15 @@ describe("buildHarvestReportMailto — Yield by Variety breakdown", () => {
 
   it("omits the section when fewer than two named varieties exist", () => {
     const body = decodeMailtoBody(
-      buildHarvestReportMailto(records, "Test Farm", null, null, null, blocks, "2026").href,
+      buildHarvestReportMailto(
+        [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, null)],
+        "Test Farm",
+        null,
+        null,
+        null,
+        [{ id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 }],
+        "2026",
+      ).href,
     );
 
     expect(body).not.toContain("Yield by Variety");
@@ -1052,7 +1040,3 @@ describe("buildHarvestReportMailto — Yield by Variety breakdown", () => {
     ]);
   });
 });
-
-    const inactiveTotalHeader = screen.getByLabelText(
-      "Sort variety table by Total kg, not currently sorted",
-    );

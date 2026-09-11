@@ -111,14 +111,12 @@ export function FsaCompletenessBar({
                 type="button"
                 className="underline underline-offset-2 hover:text-amber-900 font-medium"
                 onClick={() => {
-                  navigate("/settings/farm");
                   const firstMissingTargetId = fields
                     .filter(f => !f.value || String(f.value).trim() === "")
                     .map(f => FIELD_TARGET_IDS[f.label])
                     .find(Boolean);
-                  setTimeout(() => {
-                    document.getElementById(firstMissingTargetId ?? "settings-appa-ref")?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }, 400);
+                  const targetId = firstMissingTargetId ?? "settings-appa-ref";
+                  navigate(`/settings/farm?registrationTarget=${encodeURIComponent(targetId)}`);
                 }}
               >
                 Farm Settings → Viticulture Registrations

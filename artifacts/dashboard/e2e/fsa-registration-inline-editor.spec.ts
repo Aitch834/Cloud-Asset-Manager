@@ -110,6 +110,12 @@ test("header link targets the missing FSA Vine Register Ref before a filled APPA
     });
     await openViticulture(page);
 
+    await page.route(`**/api/farms/${FARM_ID}`, async route => {
+      if (route.request().method() === "GET") {
+        await new Promise(resolve => setTimeout(resolve, 900));
+      }
+      await route.continue();
+    });
     await page.getByRole("button", { name: "Farm Settings → Viticulture Registrations" }).click();
 
     await expect(page).toHaveURL(/\/dashboard\/settings\/farm/);

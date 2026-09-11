@@ -2573,6 +2573,7 @@ export default function FarmSettings() {
   const [convertingW3W, setConvertingW3W] = useState(false);
   const [w3wNoKey, setW3wNoKey] = useState(false);
   const [coordsCopied, setCoordsCopied] = useState(false);
+  const handledRegistrationTargetRef = useRef<string | null>(null);
 
   const clearIrrigationDefault = useMutation({
     mutationFn: async (field: IrrigationDefaultField) => {
@@ -2606,6 +2607,37 @@ export default function FarmSettings() {
       setLoadedFarmId(currentFarm.id);
     }
   }, [currentFarm, loadedFarmId]);
+
+  useEffect(() => {
+    if (!formData) return;
+
+    const targetId = new URLSearchParams(window.location.search).get("registrationTarget");
+    const allowedTargetIds = new Set([
+      "settings-fsa-vine-ref",
+      "settings-fsa-wine-ref",
+      "settings-appa-ref",
+      "settings-winegb-number",
+    ]);
+    if (!targetId || !allowedTargetIds.has(targetId) || handledRegistrationTargetRef.current === targetId) return;
+
+    const focusTarget = () => {
+      const target = document.getElementById(targetId);
+      if (!target) return false;
+
+      handledRegistrationTargetRef.current = targetId;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+      return true;
+    };
+
+    if (focusTarget()) return;
+
+    const observer = new MutationObserver(() => {
+      if (focusTarget()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [formData]);
 
   if (!farmId) return <Redirect href="/select" />;
 
