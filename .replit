@@ -150,6 +150,10 @@ args = "mobile-block-filter-history"
 task = "workflow.run"
 args = "workspace-command-shims"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "open-meteo-cache-api"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -568,6 +572,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm run check:workspace-command-shims"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "open-meteo-cache-api"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run test:open-meteo-cache"
 
 [workflows.workflow.metadata]
 isValidation = true
