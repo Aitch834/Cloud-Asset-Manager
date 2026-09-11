@@ -83,6 +83,7 @@ const REORDER_HINT_KEY = "lightbox_reorder_hint_shown";
 // Persisted sort preference for the block list: true = coverage-first (0 photos
 // at top), false/absent = alphabetical (default).
 const SORT_COVERAGE_KEY = "vine_block_photo_sort_coverage";
+const FILTER_UNCOVERED_KEY = "vine_block_photo_filter_uncovered";
 
 function blockStatusColor(plantingStatus: string) {
   if (plantingStatus === "active") return "#16a34a";
@@ -1685,11 +1686,12 @@ export default function VineBlockPhotosScreen() {
   };
 
   // -------------------------------------------------------------------------
-  // Block-list sort preference — persisted via useUiPrefs so it survives
-  // navigation and app restarts.  true = 0-photos-first, false = A–Z.
+  // Block-list view preferences — persisted via useUiPrefs so they survive
+  // navigation and app restarts.
   // -------------------------------------------------------------------------
   const { prefsReady, prefs, setPref } = useUiPrefs(user?.id);
   const [sortByCoverage, setSortByCoverage] = useState(false);
+  const [showUncoveredOnly, setShowUncoveredOnly] = useState(false);
 
   // Initialise from persisted prefs the first time they become ready for the
   // current user.  The ref is reset on user-ID change so that switching
@@ -1702,6 +1704,7 @@ export default function VineBlockPhotosScreen() {
   useEffect(() => {
     prefsInitialised.current = false;
     setSortByCoverage(false);
+    setShowUncoveredOnly(false);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load the new user's preference once their prefs are ready.
@@ -1709,6 +1712,7 @@ export default function VineBlockPhotosScreen() {
     if (prefsReady && !prefsInitialised.current) {
       prefsInitialised.current = true;
       setSortByCoverage(!!prefs[SORT_COVERAGE_KEY]);
+      setShowUncoveredOnly(!!prefs[FILTER_UNCOVERED_KEY]);
     }
   }, [prefsReady, prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1724,6 +1728,19 @@ export default function VineBlockPhotosScreen() {
     setPref(SORT_COVERAGE_KEY, next);
   }, [sortByCoverage, setPref]);
 
+  const handleSetUncoveredFilter = useCallback((uncoveredOnly: boolean) => {
+    if (showUncoveredOnly === uncoveredOnly) return;
+    prefsInitialised.current = true;
+    setShowUncoveredOnly(uncoveredOnly);
+    setPref(FILTER_UNCOVERED_KEY, uncoveredOnly);
+  }, [showUncoveredOnly, setPref]);
+
+  const effectivePhotoCount = useCallback(
+    (block: (typeof blocks)[number]) =>
+      localPhotoCountOverrides[block.id] ?? (block.photoCount ?? 0),
+    [localPhotoCountOverrides],
+  );
+
   // Sort a block list: coverage-first puts 0-photo blocks first (then ascending
   // by count), alphabetical is the default A–Z.
   const sortedBlocks = useCallback(
@@ -1732,20 +1749,26 @@ export default function VineBlockPhotosScreen() {
         return [...list].sort((a, b) => a.blockName.localeCompare(b.blockName));
       }
       return [...list].sort((a, b) => {
-        const ca = localPhotoCountOverrides[a.id] ?? (a.photoCount ?? 0);
-        const cb = localPhotoCountOverrides[b.id] ?? (b.photoCount ?? 0);
+        const ca = effectivePhotoCount(a);
+        const cb = effectivePhotoCount(b);
         if (ca !== cb) return ca - cb; // 0 photos first
         return a.blockName.localeCompare(b.blockName);
       });
     },
-    [sortByCoverage, localPhotoCountOverrides],
+    [sortByCoverage, effectivePhotoCount],
   );
 
-  const activeBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "active"));
-  const suspendedBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "suspended"));
-  const activeBlocksWithoutPhotos = activeBlocks.filter(
-    (block) => (localPhotoCountOverrides[block.id] ?? (block.photoCount ?? 0)) === 0,
+  const allActiveBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "active"));
+  const allSuspendedBlocks = sortedBlocks(blocks.filter(b => b.plantingStatus === "suspended"));
+  const activeBlocksWithoutPhotos = allActiveBlocks.filter(
+    (block) => effectivePhotoCount(block) === 0,
   ).length;
+  const activeBlocks = showUncoveredOnly
+    ? allActiveBlocks.filter((block) => effectivePhotoCount(block) === 0)
+    : allActiveBlocks;
+  const suspendedBlocks = showUncoveredOnly
+    ? allSuspendedBlocks.filter((block) => effectivePhotoCount(block) === 0)
+    : allSuspendedBlocks;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1816,6 +1839,41 @@ export default function VineBlockPhotosScreen() {
           ListHeaderComponent={
             blocks.length > 0 ? (
               <>
+                <View style={styles.sortRow}>
+                  <Text style={styles.sortLabel}>Show:</Text>
+                  <View style={styles.sortPills}>
+                    <Pressable
+                      testID="vine-block-filter-all"
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: !showUncoveredOnly }}
+                      style={[styles.sortPill, !showUncoveredOnly && styles.sortPillActive]}
+                      onPress={() => handleSetUncoveredFilter(false)}
+                      hitSlop={6}
+                    >
+                      <Text style={[styles.sortPillText, !showUncoveredOnly && styles.sortPillTextActive]}>
+                        All blocks
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      testID="vine-block-filter-uncovered"
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: showUncoveredOnly }}
+                      style={[styles.sortPill, showUncoveredOnly && styles.sortPillActive]}
+                      onPress={() => handleSetUncoveredFilter(true)}
+                      hitSlop={6}
+                    >
+                      <Feather
+                        name="camera"
+                        size={11}
+                        color={showUncoveredOnly ? "#fff" : colors.textSecondary}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.sortPillText, showUncoveredOnly && styles.sortPillTextActive]}>
+                        No photos
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
                 <View style={styles.sortRow}>
                   <Text style={styles.sortLabel}>Sort:</Text>
                   <View style={styles.sortPills}>
@@ -1888,7 +1946,7 @@ export default function VineBlockPhotosScreen() {
                   ) : null}
                   <View style={styles.blockListPhotoChip}>
                     {(() => {
-                      const count = localPhotoCountOverrides[b.id] ?? (b.photoCount ?? 0);
+                      const count = effectivePhotoCount(b);
                       return (
                         <>
                           <Feather
@@ -1920,9 +1978,13 @@ export default function VineBlockPhotosScreen() {
           ListEmptyComponent={
             <View style={styles.centred}>
               <EmptyState
-                icon="layers"
-                title="No blocks yet"
-                message="Vineyard blocks added in the dashboard will appear here."
+                icon={showUncoveredOnly && blocks.length > 0 ? "check-circle" : "layers"}
+                title={showUncoveredOnly && blocks.length > 0 ? "Every block has photos" : "No blocks yet"}
+                message={
+                  showUncoveredOnly && blocks.length > 0
+                    ? "There are no blocks left that need a photo."
+                    : "Vineyard blocks added in the dashboard will appear here."
+                }
               />
             </View>
           }

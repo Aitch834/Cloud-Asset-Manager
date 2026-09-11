@@ -379,9 +379,11 @@ describe("VineBlockPhotosScreen — block list count after delete", () => {
       makePhoto({ id: 1003, isCover: true }),
     ]);
 
-    const noPhotosBadge = screen.getByText("No photos");
+    const noPhotosBadge = screen.getAllByText("No photos").find((node) =>
+      StyleSheet.flatten(node.props.style)?.color === "#b45309"
+    );
     expect(noPhotosBadge).toBeTruthy();
-    expect(StyleSheet.flatten(noPhotosBadge.props.style)).toEqual(
+    expect(StyleSheet.flatten(noPhotosBadge!.props.style)).toEqual(
       expect.objectContaining({ color: "#b45309" }),
     );
   });
@@ -505,6 +507,52 @@ describe("VineBlockPhotosScreen — block-list sort preference", () => {
     expect(StyleSheet.flatten(screen.getByText("A–Z").props.style)).toEqual(
       expect.objectContaining({ color: "#fff" }),
     );
+  });
+});
+
+describe("VineBlockPhotosScreen — uncovered-only view", () => {
+  const FILTER_UNCOVERED_KEY = "vine_block_photo_filter_uncovered";
+
+  it("shows only blocks whose effective photo count is zero", async () => {
+    const setPref = jest.fn();
+    configureScreenMocks([
+      makeBlock({ id: 21, blockName: "Covered Block", photoCount: 2 }),
+      makeBlock({ id: 22, blockName: "Uncovered Block", photoCount: 0 }),
+    ], {}, true, setPref);
+
+    const screen = render(React.createElement(VineBlockPhotosScreen));
+    fireEvent.press(screen.getByTestId("vine-block-filter-uncovered"));
+
+    expect(screen.queryByText("Covered Block")).toBeNull();
+    expect(screen.getByText("Uncovered Block")).toBeTruthy();
+    expect(setPref).toHaveBeenCalledWith(FILTER_UNCOVERED_KEY, true);
+  });
+
+  it("keeps the filter selected and shows completion after the last uncovered block gains a photo", async () => {
+    const block = makeBlock({ id: 23, blockName: "Last Uncovered Block", photoCount: 0 });
+    configureScreenMocks([block], { [FILTER_UNCOVERED_KEY]: true });
+    (apiFetch as jest.MockedFunction<typeof apiFetch>).mockResolvedValueOnce(
+      okResponse({ photos: [makePhoto({ id: 2301, blockId: 23 })] }),
+    );
+
+    const screen = render(React.createElement(VineBlockPhotosScreen));
+    await waitFor(() => {
+      expect(screen.getByTestId("vine-block-filter-uncovered").props.accessibilityState)
+        .toEqual({ selected: true });
+    });
+
+    fireEvent.press(screen.getByText("Last Uncovered Block"));
+    await waitFor(() => {
+      expect(screen.getByTestId("vine-block-photo-2301")).toBeTruthy();
+    });
+    fireEvent.press(screen.getByText("Clear selection"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Every block has photos")).toBeTruthy();
+    });
+    expect(screen.queryByText("Last Uncovered Block")).toBeNull();
+    expect(screen.getByTestId("vine-block-filter-uncovered").props.accessibilityState)
+      .toEqual({ selected: true });
   });
 });
 
