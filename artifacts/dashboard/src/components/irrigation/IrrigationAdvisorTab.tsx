@@ -600,10 +600,18 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
   const [logPrefill, setLogPrefill] = useState<LogAppPrefill | null>(null);
 
   // ── Platform config (provides server-side fallback defaults) ───────────────
-  const { data: platformConfig, isFetched: platformConfigFetched } = useQuery<Record<string, string>>({
+  const {
+    data: platformConfig,
+    isFetched: platformConfigFetched,
+    isError: platformConfigError,
+  } = useQuery<Record<string, string>>({
     queryKey: ["platform-config"],
-    queryFn: () =>
-      fetch(api("platform-config")).then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
+    queryFn: async () => {
+      const res = await fetch(api("platform-config"));
+      if (!res.ok) throw new Error(`Failed to load platform configuration (${res.status})`);
+      const data = await res.json() as { config: Record<string, string> };
+      return data.config;
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -985,6 +993,18 @@ export function IrrigationAdvisorTab({ farmId }: { farmId: number }) {
           </div>
         </div>
       </div>
+
+      {platformConfigError && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            Platform water defaults could not be loaded. The advisor is continuing with saved farm or local values.
+          </p>
+        </div>
+      )}
 
       {/* ── Field selector ── */}
       <div className="space-y-1.5">

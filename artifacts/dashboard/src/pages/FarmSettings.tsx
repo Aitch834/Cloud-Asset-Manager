@@ -2465,9 +2465,14 @@ export default function FarmSettings() {
   });
   const currentFarm = farmDetailData?.record;
 
-  const { data: platformConfig } = useQuery<Record<string, string>>({
+  const { data: platformConfig, isError: platformConfigError } = useQuery<Record<string, string>>({
     queryKey: ["platform-config"],
-    queryFn: () => fetch("/api/platform-config").then(r => r.json()).then((d: { config: Record<string, string> }) => d.config),
+    queryFn: async () => {
+      const res = await fetch("/api/platform-config");
+      if (!res.ok) throw new Error(`Failed to load platform configuration (${res.status})`);
+      const data = await res.json() as { config: Record<string, string> };
+      return data.config;
+    },
     staleTime: 5 * 60 * 1000,
   });
   const { data: smsProfile, isSuccess: smsProfileLoaded } = useQuery<SmsProfile>({
@@ -3590,6 +3595,17 @@ export default function FarmSettings() {
               title="Water & Irrigation"
               description="Default irrigation economics for this holding. Used by the Irrigation Advisor to calculate the cost and return of each irrigation decision. Platform-wide defaults apply where these are left blank."
             />
+            {platformConfigError && (
+              <div
+                role="status"
+                className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  Platform fallback values could not be loaded. Saved farm values are still available, but blank fields may not use the usual platform defaults.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <Label htmlFor="settings-irrig-cost">Irrigation Cost (£ per mm per ha)</Label>
