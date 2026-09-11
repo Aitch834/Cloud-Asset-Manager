@@ -3,8 +3,8 @@ import { signInDashboard } from "./auth";
  * E2E: Barrel fill history — remember the last successful operator.
  *
  * Vessel and fill data are served through browser routes so this check never
- * writes to the live winery API. The POST response is still successful, which
- * exercises the same mutation success path used by a real fill save.
+ * writes to the live winery API. Successful PUT responses still exercise the
+ * same mutation success path used by real fill edits.
  */
 
 import { expect, test, type Page } from "@playwright/test";
@@ -12,8 +12,10 @@ import { expect, test, type Page } from "@playwright/test";
 const TENANT_SLUG = "oakfield-farms";
 const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const VESSEL_ID = 2326001;
+const FILL_ID = 2326011;
 const VESSEL_REF = "E2E-LAST-OPERATOR-BARREL";
 const OPERATOR_NAME = "Morgan Cellar";
+const PREVIOUS_OPERATOR_NAME = "Previous Cellar Operator";
 
 const VESSEL = {
   id: VESSEL_ID,
@@ -23,14 +25,23 @@ const VESSEL = {
   material: "French oak",
   status: "active",
   is_full: false,
-  fill_count: 0,
+  fill_count: 1,
   maintenance_count: 0,
   movement_count: 0,
   clean_count: 0,
 };
 
+const EXISTING_FILL = {
+  id: FILL_ID,
+  fill_number: 1,
+  wine_name: "E2E Bacchus",
+  vintage_year: 2025,
+  fill_date: "2026-08-01",
+  operator_name: "Original Fill Operator",
+};
+
 async function prepareFixture(page: Page): Promise<Record<string, unknown>[]> {
-  const postedFills: Record<string, unknown>[] = [];
+  const editedFills: Record<string, unknown>[] = [];
 
   await page.route(`**/api/farms/${FARM_ID}/dashboard`, route =>
     route.fulfill({
@@ -47,16 +58,19 @@ async function prepareFixture(page: Page): Promise<Record<string, unknown>[]> {
       return;
     }
 
-    if (pathname.endsWith(`/winery-vessels/${VESSEL_ID}/fills`)) {
-      if (request.method() === "POST") {
-        postedFills.push(request.postDataJSON() as Record<string, unknown>);
+    if (pathname.endsWith(`/winery-vessels/${VESSEL_ID}/fills/${FILL_ID}`)) {
+      if (request.method() === "PUT") {
+        editedFills.push(request.postDataJSON() as Record<string, unknown>);
         await route.fulfill({
-          status: 201,
-          json: { record: { id: 2326011, ...postedFills.at(-1) } },
+          json: { record: { ...EXISTING_FILL, ...editedFills.at(-1) } },
         });
-      } else {
-        await route.fulfill({ json: { records: [] } });
+        return;
       }
+      throw new Error("Barrel operator test only expects PUT for the fill record");
+    }
+
+    if (pathname.endsWith(`/winery-vessels/${VESSEL_ID}/fills`)) {
+      await route.fulfill({ json: { records: [EXISTING_FILL] } });
       return;
     }
 
@@ -81,7 +95,7 @@ async function prepareFixture(page: Page): Promise<Record<string, unknown>[]> {
         JSON.stringify({ state: { tenantSlug, farmId }, version: 0 }),
       );
       localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
-      localStorage.removeItem("last_operator_name");
+      localStorage.setItem("last_operator_name", PREVIOUS_OPERATOR_NAME);
     },
     [TENANT_SLUG, FARM_ID] as [string, number],
   );
@@ -96,28 +110,38 @@ async function prepareFixture(page: Page): Promise<Record<string, unknown>[]> {
   await expect(vesselRow).toBeVisible();
   await vesselRow.getByRole("button").first().click();
 
-  return postedFills;
+  return editedFills;
 }
 
-test("writes and reuses the operator from the last successful fill", async ({ page }) => {
-  const postedFills = await prepareFixture(page);
+test("edited fills remember non-blank operators and preserve them after blank edits", async ({ page }) => {
+  const editedFills = await prepareFixture(page);
   const vesselDialog = page.getByRole("dialog", {
     name: `Vessel — ${VESSEL_REF}`,
     exact: true,
   });
   await expect(vesselDialog).toBeVisible();
 
-  await vesselDialog.getByRole("button", { name: "Log Fill", exact: true }).click();
+  const fillCard = vesselDialog.locator("div.border.rounded-lg", { hasText: "E2E Bacchus" });
+  await expect(fillCard).toBeVisible();
+  await fillCard.getByRole("button").nth(1).click();
+  await expect(vesselDialog.getByText("Edit fill record", { exact: true })).toBeVisible();
   await vesselDialog.getByLabel("Operator", { exact: true }).fill(`  ${OPERATOR_NAME}  `);
   await vesselDialog.getByRole("button", { name: "Save", exact: true }).click();
 
-  await expect(page.getByText("Fill record added", { exact: true })).toBeVisible();
-  await expect.poll(() => postedFills).toHaveLength(1);
-  expect(postedFills[0]?.operatorName).toBe(`  ${OPERATOR_NAME}  `);
+  await expect(page.getByText("Fill record updated", { exact: true })).toBeVisible();
+  await expect.poll(() => editedFills).toHaveLength(1);
+  expect(editedFills[0]?.operatorName).toBe(`  ${OPERATOR_NAME}  `);
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("last_operator_name")))
     .toBe(OPERATOR_NAME);
 
-  await vesselDialog.getByRole("button", { name: "Log Fill", exact: true }).click();
-  await expect(vesselDialog.getByLabel("Operator", { exact: true })).toHaveValue(OPERATOR_NAME);
+  await fillCard.getByRole("button").nth(1).click();
+  await vesselDialog.getByLabel("Operator", { exact: true }).fill("   ");
+  await vesselDialog.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect.poll(() => editedFills).toHaveLength(2);
+  expect(editedFills[1]?.operatorName).toBe("   ");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("last_operator_name")))
+    .toBe(OPERATOR_NAME);
 });
