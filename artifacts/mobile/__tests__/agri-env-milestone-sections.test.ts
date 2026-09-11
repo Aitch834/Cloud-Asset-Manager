@@ -1,7 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import {
   formatAgriEnvMilestoneStatus,
   getAgriEnvMilestoneSections,
 } from "../lib/agri-env-milestone-sections";
+
+const homeScreenSource = fs.readFileSync(
+  path.resolve(__dirname, "../app/(tabs)/index.tsx"),
+  "utf8",
+);
 
 describe("mobile agri-environment milestone sections", () => {
   const now = new Date("2026-09-02T12:00:00Z");
@@ -43,9 +51,26 @@ describe("mobile agri-environment milestone sections", () => {
   it("includes all past milestones with their status and leaves future milestones in upcoming", () => {
     const sections = getAgriEnvMilestoneSections(milestones, now);
 
-    expect(sections.past.map(({ milestoneName, status }) => ({ milestoneName, status }))).toEqual([
-      { milestoneName: "Soil improvement", status: "completed" },
-      { milestoneName: "Hedgerow management", status: "paid" },
+    expect(
+      sections.past.map(({ schemeName, milestoneName, dueDate, status }) => ({
+        schemeName,
+        milestoneName,
+        dueDate,
+        status,
+      })),
+    ).toEqual([
+      {
+        schemeName: "Countryside Stewardship",
+        milestoneName: "Soil improvement",
+        dueDate: "2026-08-20",
+        status: "completed",
+      },
+      {
+        schemeName: "Countryside Stewardship",
+        milestoneName: "Hedgerow management",
+        dueDate: "2026-08-15",
+        status: "paid",
+      },
     ]);
     expect(sections.upcoming.map(({ milestoneName, status }) => ({ milestoneName, status }))).toEqual([
       { milestoneName: "Overdue evidence", status: "overdue" },
@@ -63,5 +88,20 @@ describe("mobile agri-environment milestone sections", () => {
   it("formats stored status values for mobile display", () => {
     expect(formatAgriEnvMilestoneStatus("in-review")).toBe("In review");
     expect(formatAgriEnvMilestoneStatus("paid")).toBe("Paid");
+  });
+
+  it("renders past milestone history only when rows exist and includes every required field", () => {
+    expect(homeScreenSource).toContain("{pastMilestones.length > 0 && (");
+
+    const pastSection = homeScreenSource.slice(
+      homeScreenSource.indexOf("{pastMilestones.length > 0 && ("),
+      homeScreenSource.indexOf("{recentActivity.length > 0 && ("),
+    );
+
+    expect(pastSection).toContain('<SectionHeader title="Past milestones" />');
+    expect(pastSection).toContain("{ms.milestoneName}");
+    expect(pastSection).toContain("ms.schemeName");
+    expect(pastSection).toContain("ms.dueDate");
+    expect(pastSection).toContain("formatAgriEnvMilestoneStatus(ms.status)");
   });
 });
