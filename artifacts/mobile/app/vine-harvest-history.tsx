@@ -495,6 +495,36 @@ function HarvestRow({
 
 const MAILTO_BODY_LIMIT = 1800;
 
+export function buildHarvestEmailDeviceCheckFixture(): {
+  records: HarvestRecord[];
+  blocks: { id: number; blockName: string; areaHa: number; variety: string }[];
+} {
+  const blocks = [
+    { id: 900001, blockName: "Device Check North", areaHa: 1.25, variety: "Chardonnay" },
+    { id: 900002, blockName: "Device Check South", areaHa: 1.1, variety: "Pinot Noir" },
+  ];
+  const records = Array.from({ length: 18 }, (_, index): HarvestRecord => ({
+    id: 910000 + index,
+    harvestDate: `2026-09-${String((index % 9) + 1).padStart(2, "0")}`,
+    blockId: blocks[index % blocks.length].id,
+    blockName: blocks[index % blocks.length].blockName,
+    vintageYear: 2026,
+    harvestMethod: index % 2 === 0 ? "Hand picked" : "Machine",
+    yieldKg: 425 + index * 12.5,
+    brix: 18.2 + (index % 5) * 0.3,
+    ph: 3.1 + (index % 4) * 0.04,
+    titratableAcidityGl: 6.4 + (index % 6) * 0.2,
+    potentialAlcohol: 10.4 + (index % 5) * 0.25,
+    grapeCondition: "Good",
+    operatorName: "Release device check",
+    notes: "Development-only fixture; no harvest data was created or changed.",
+    harvestIntervalWarningAcknowledged: false,
+    harvestIntervalAcknowledgedAt: null,
+    harvestIntervalProducts: null,
+  }));
+  return { records, blocks };
+}
+
 export function buildHarvestReportMailto(
   records: HarvestRecord[],
   farmName: string,
@@ -1695,18 +1725,24 @@ export default function VineHarvestHistoryScreen() {
     }
   };
 
-  const handleEmail = () => {
-    if (!displayRecords.length) return;
-    const yearLabel =
-      displayVintage != null ? String(displayVintage) : undefined;
-    const recordsToEmail = displayVintage != null ? vintageRecords : displayRecords;
+  const openHarvestEmail = (
+    recordsToEmail: HarvestRecord[],
+    emailBlocks: {
+      id: number;
+      blockName?: string | null;
+      areaHa?: number | null;
+      variety?: string | null;
+    }[],
+    farmName: string,
+    yearLabel?: string,
+  ) => {
     const { href, isTruncated } = buildHarvestReportMailto(
       recordsToEmail,
-      currentFarm?.name ?? "Farm",
+      farmName,
       sbiNumber ?? null,
       address ?? null,
       farmMeta,
-      blocks,
+      emailBlocks,
       yearLabel,
     );
     if (isTruncated) {
@@ -1732,6 +1768,29 @@ export default function VineHarvestHistoryScreen() {
     });
   };
 
+  const handleEmail = () => {
+    if (!displayRecords.length) return;
+    const yearLabel =
+      displayVintage != null ? String(displayVintage) : undefined;
+    const recordsToEmail = displayVintage != null ? vintageRecords : displayRecords;
+    openHarvestEmail(
+      recordsToEmail,
+      blocks,
+      currentFarm?.name ?? "Farm",
+      yearLabel,
+    );
+  };
+
+  const handleDevEmailWarningCheck = () => {
+    const fixture = buildHarvestEmailDeviceCheckFixture();
+    openHarvestEmail(
+      fixture.records,
+      fixture.blocks,
+      "Development Device Check",
+      "2026 fixture",
+    );
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -1739,27 +1798,44 @@ export default function VineHarvestHistoryScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title}>Harvest History</Text>
-        {blockFilteredRecords.length > 0 && (
+        {(blockFilteredRecords.length > 0 || __DEV__) && (
           <View style={styles.headerActions}>
-            <Pressable
-              onPress={handleExportCsv}
-              style={styles.csvBtn}
-              hitSlop={12}
-              disabled={csvExporting}
-              accessibilityLabel="Export harvest CSV"
-              accessibilityRole="button"
-            >
-              <Feather name="download" size={20} color={csvExporting ? colors.textSecondary : colors.primary} />
-            </Pressable>
-            <Pressable
-              onPress={handleEmail}
-              style={styles.emailBtn}
-              hitSlop={12}
-              accessibilityLabel="Email harvest report"
-              accessibilityRole="button"
-            >
-              <Feather name="mail" size={20} color={colors.primary} />
-            </Pressable>
+            {blockFilteredRecords.length > 0 && (
+              <>
+                <Pressable
+                  onPress={handleExportCsv}
+                  style={styles.csvBtn}
+                  hitSlop={12}
+                  disabled={csvExporting}
+                  accessibilityLabel="Export harvest CSV"
+                  accessibilityRole="button"
+                >
+                  <Feather name="download" size={20} color={csvExporting ? colors.textSecondary : colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={handleEmail}
+                  style={styles.emailBtn}
+                  hitSlop={12}
+                  accessibilityLabel="Email harvest report"
+                  accessibilityRole="button"
+                >
+                  <Feather name="mail" size={20} color={colors.primary} />
+                </Pressable>
+              </>
+            )}
+            {__DEV__ && (
+              <Pressable
+                onPress={handleDevEmailWarningCheck}
+                style={styles.devEmailCheckBtn}
+                hitSlop={12}
+                accessibilityLabel="Dev check harvest email warning"
+                accessibilityHint="Uses an in-memory harvest fixture and does not change farm records"
+                accessibilityRole="button"
+                testID="dev-check-harvest-email-warning"
+              >
+                <Feather name="alert-triangle" size={20} color={colors.warning} />
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -2885,6 +2961,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   csvBtn: { padding: 4 },
   emailBtn: { padding: 4 },
+  devEmailCheckBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
   vintagePersistenceBanner: {
     flexDirection: "row",
