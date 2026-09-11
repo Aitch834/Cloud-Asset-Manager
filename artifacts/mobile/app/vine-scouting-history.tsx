@@ -1153,6 +1153,7 @@ export default function VineScoutingHistoryScreen() {
           contentContainerStyle={styles.blockFilterScrollContent}
         >
           <Pressable
+            testID="scouting-block-filter-show-all"
             style={[styles.blockChip, selectedBlockIds.length === 0 && styles.blockChipActive]}
             onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
           >
@@ -1162,6 +1163,7 @@ export default function VineScoutingHistoryScreen() {
           </Pressable>
           {filterBlocks.length > 1 && (
             <Pressable
+              testID="scouting-block-filter-select-none"
               style={styles.blockChip}
               onPress={() => {
                 Haptics.selectionAsync();
@@ -1178,6 +1180,7 @@ export default function VineScoutingHistoryScreen() {
             return (
               <Pressable
                 key={b.id}
+                testID={`scouting-block-filter-${b.id}`}
                 style={[styles.blockChip, active && styles.blockChipActive]}
                 onPress={() => {
                   Haptics.selectionAsync();

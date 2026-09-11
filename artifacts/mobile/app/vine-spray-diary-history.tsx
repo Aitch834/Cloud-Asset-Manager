@@ -2014,6 +2014,7 @@ export default function VineSprayDiaryHistoryScreen() {
           contentContainerStyle={styles.blockFilterScrollContent}
         >
           <Pressable
+            testID="spray-block-filter-show-all"
             style={[styles.blockChip, selectedBlockIds.length === 0 && styles.blockChipActive]}
             onPress={() => { Haptics.selectionAsync(); setSelectedBlockIds([]); }}
           >
@@ -2023,6 +2024,7 @@ export default function VineSprayDiaryHistoryScreen() {
           </Pressable>
           {filterBlocks.length > 1 && (
             <Pressable
+              testID="spray-block-filter-select-none"
               style={styles.blockChip}
               onPress={() => {
                 Haptics.selectionAsync();
@@ -2039,6 +2041,7 @@ export default function VineSprayDiaryHistoryScreen() {
             return (
               <Pressable
                 key={b.id}
+                testID={`spray-block-filter-${b.id}`}
                 style={[styles.blockChip, active && styles.blockChipActive]}
                 onPress={() => {
                   Haptics.selectionAsync();

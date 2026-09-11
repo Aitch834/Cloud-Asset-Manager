@@ -216,6 +216,8 @@ const { pickPhoto, uploadPhotoToStorage } = require("../lib/uploadPhoto") as {
   uploadPhotoToStorage: jest.Mock;
 };
 
+let persistedBlockIds: number[] = [];
+
 const photo = {
   id: 101,
   sprayDiaryId: 7,
@@ -395,6 +397,95 @@ describe("VineSprayDiaryHistoryScreen — thumbnail URL refresh", () => {
     await waitFor(() => {
       expect(screen.getByText("Tap to reload")).toBeTruthy();
     });
+  });
+});
+
+describe("VineSprayDiaryHistoryScreen — block filter shortcuts", () => {
+  const northRecord = {
+    id: 801,
+    applicationDate: "2026-09-01",
+    blockId: 101,
+    productName: "North Spray",
+    mappNumber: null,
+    activeIngredient: null,
+    productType: null,
+    ratePerHectare: null,
+    rateUnit: null,
+    areaTreatedHa: null,
+    totalQuantityApplied: null,
+    harvestIntervalDays: null,
+    windSpeedMph: null,
+    temperatureCelsius: null,
+    weatherConditions: null,
+    operatorName: null,
+    operatorCertificateNo: null,
+    notes: null,
+    photoCount: 0,
+  };
+  const southRecord = { ...northRecord, id: 802, blockId: 202, productName: "South Spray" };
+
+  beforeEach(() => {
+    persistedBlockIds = [];
+    useFarm.mockReturnValue({
+      currentFarm: { id: "farm-1", name: "Test Vineyard" },
+      user: { id: "test-user" },
+    });
+    useApiFetch.mockReturnValue({
+      records: [northRecord, southRecord],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        { id: 101, blockName: "North Block" },
+        { id: 202, blockName: "South Block" },
+      ],
+      loading: false,
+    });
+    useFarmIdentifiers.mockReturnValue({
+      address: "Test Lane",
+      postcode: "AB1 2CD",
+      cphNumber: "12/345/6789",
+      sbiNumber: "123456789",
+      loading: false,
+      justSaved: false,
+      clearJustSaved: jest.fn(),
+      refetch: jest.fn(),
+    });
+    useIdentifierBannerDismiss.mockReturnValue({
+      dismissed: true,
+      dismiss: jest.fn(),
+    });
+    usePrint.mockReturnValue({ savePdf: jest.fn() });
+    usePersistedBlockFilter.mockImplementation(() => {
+      const [selectedIds, setSelectedIdsRaw] = React.useState<number[]>(persistedBlockIds);
+      const setSelectedIds = (ids: number[]) => {
+        persistedBlockIds = ids;
+        setSelectedIdsRaw(ids);
+      };
+      return [selectedIds, setSelectedIds, "farm-1"];
+    });
+  });
+
+  it("handles Show all, Select none, and individual block chip presses", () => {
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+
+    expect(screen.getByText("North Spray")).toBeTruthy();
+    expect(screen.getByText("South Spray")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("spray-block-filter-select-none"));
+    expect(screen.getByText("North Spray")).toBeTruthy();
+    expect(screen.queryByText("South Spray")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("spray-block-filter-show-all"));
+    expect(screen.getByText("North Spray")).toBeTruthy();
+    expect(screen.getByText("South Spray")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("spray-block-filter-202"));
+    expect(screen.queryByText("North Spray")).toBeNull();
+    expect(screen.getByText("South Spray")).toBeTruthy();
   });
 });
 

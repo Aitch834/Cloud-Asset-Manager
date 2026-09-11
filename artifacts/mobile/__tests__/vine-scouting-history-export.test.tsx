@@ -181,6 +181,7 @@ const { usePrint } = require("../lib/hooks/usePrint") as {
 };
 
 const FARM_ID = "farm-1";
+let persistedBlockIds: number[] = [];
 
 function makeRecord(id: number, scoutDate: string, blockName: string) {
   return {
@@ -228,6 +229,7 @@ function lastPdfHtml(): string {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  persistedBlockIds = [];
   useFarm.mockReturnValue({
     currentFarm: { id: FARM_ID, name: "Test Vineyard" },
     user: { id: "test-user" },
@@ -254,7 +256,14 @@ beforeEach(() => {
     dismissed: true,
     dismiss: jest.fn(),
   });
-  usePersistedBlockFilter.mockReturnValue([[], jest.fn()]);
+  usePersistedBlockFilter.mockImplementation(() => {
+    const [selectedIds, setSelectedIdsRaw] = React.useState<number[]>(persistedBlockIds);
+    const setSelectedIds = (ids: number[]) => {
+      persistedBlockIds = ids;
+      setSelectedIdsRaw(ids);
+    };
+    return [selectedIds, setSelectedIds, FARM_ID];
+  });
   usePersistedDateRange.mockImplementation(() => {
     const [from, setFrom] = React.useState("");
     const [to, setTo] = React.useState("");
@@ -263,6 +272,55 @@ beforeEach(() => {
   usePersistedPressureFilter.mockReturnValue(["__all__", jest.fn()]);
   usePersistedVintage.mockReturnValue([null, jest.fn(), FARM_ID]);
   usePrint.mockReturnValue({ savePdf });
+});
+
+describe("VineScoutingHistoryScreen — block filter shortcuts", () => {
+  const blockRecords = [
+    { ...makeRecord(11, "2026-06-01", "North Scouting"), blockId: 101 },
+    { ...makeRecord(12, "2026-06-02", "South Scouting"), blockId: 202 },
+  ];
+
+  beforeEach(() => {
+    useApiFetch.mockReturnValue({
+      records: blockRecords,
+      loading: false,
+      refreshing: false,
+      error: null,
+      refresh: jest.fn(),
+      recordsFarmId: FARM_ID,
+    });
+    useApiVineBlocks.mockReturnValue({
+      blocks: [
+        { id: 101, blockName: "North Block" },
+        { id: 202, blockName: "South Block" },
+      ],
+      loading: false,
+    });
+  });
+
+  it("handles Show all, Select none, individual chips, and restores the persisted choice", () => {
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(screen.getByText("Operator 11")).toBeTruthy();
+    expect(screen.getByText("Operator 12")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("scouting-block-filter-select-none"));
+    expect(screen.getByText("Operator 11")).toBeTruthy();
+    expect(screen.queryByText("Operator 12")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("scouting-block-filter-show-all"));
+    expect(screen.getByText("Operator 11")).toBeTruthy();
+    expect(screen.getByText("Operator 12")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("scouting-block-filter-202"));
+    expect(screen.queryByText("Operator 11")).toBeNull();
+    expect(screen.getByText("Operator 12")).toBeTruthy();
+
+    screen.unmount();
+    const returnedScreen = render(<VineScoutingHistoryScreen />);
+    expect(returnedScreen.queryByText("Operator 11")).toBeNull();
+    expect(returnedScreen.getByText("Operator 12")).toBeTruthy();
+  });
 });
 
 describe("VineScoutingHistoryScreen — date-filtered PDF export", () => {
