@@ -537,13 +537,22 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
 
       {/* Lightbox */}
       <Dialog open={!!lightboxPhoto} onOpenChange={o => { if (!o) setLightboxId(null); }}>
-        <DialogContent className="max-w-3xl p-2">
-          <DialogHeader className="px-1 pb-1">
-            <DialogTitle className="text-sm font-medium flex items-center gap-2 min-w-0">
-              <span className="truncate">{lightboxPhoto?.fileName ?? "Block photo"}</span>
-              {lightboxPosition && (
-                <span className="flex-none text-xs font-normal text-muted-foreground whitespace-nowrap">
-                  {lightboxPosition}
+        <DialogContent className="w-[calc(100%-1rem)] max-w-3xl p-2" data-testid="block-photo-lightbox">
+          <DialogHeader className="min-w-0 px-1 pb-1 pr-10 text-left">
+            <DialogTitle className="min-w-0 text-sm font-medium leading-snug">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="min-w-0 truncate" data-testid="lightbox-filename">
+                  {lightboxPhoto?.fileName ?? "Block photo"}
+                </span>
+                {lightboxPosition && (
+                  <span className="flex-none whitespace-nowrap text-xs font-normal text-muted-foreground" data-testid="lightbox-position">
+                    {lightboxPosition}
+                  </span>
+                )}
+              </span>
+              {lightboxPhoto?.caption && (
+                <span className="mt-1 block whitespace-normal break-words text-xs font-normal italic text-muted-foreground" data-testid="lightbox-caption">
+                  {lightboxPhoto.caption}
                 </span>
               )}
             </DialogTitle>
@@ -614,9 +623,6 @@ function BlockPhotoGallery({ farmId, block, onPhotoChanged }: { farmId: number; 
                   >
                     <Star className="w-4 h-4" />
                   </button>
-                )}
-                {lightboxPhoto.caption && (
-                  <p className="text-xs text-center text-muted-foreground mt-1 italic">{lightboxPhoto.caption}</p>
                 )}
               </div>
 
