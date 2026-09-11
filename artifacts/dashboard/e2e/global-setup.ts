@@ -49,6 +49,25 @@ type ClerkUsersResponse =
   | { data?: ClerkUserRecord[]; total_count?: number };
 
 function previewUrls(config: FullConfig): Array<{ name: string; url: string }> {
+  const mobileAuthOnly = process.env.PLAYWRIGHT_MOBILE_AUTH_ONLY === "1";
+  if (mobileAuthOnly) {
+    const mobileBaseUrl = process.env.PLAYWRIGHT_MOBILE_BASE_URL?.trim();
+    const mobileApiBaseUrl = process.env.PLAYWRIGHT_MOBILE_API_BASE_URL?.trim();
+    if (!mobileBaseUrl || !mobileApiBaseUrl) {
+      throw new Error(
+        "[e2e setup] Mobile-only preflight requires PLAYWRIGHT_MOBILE_BASE_URL and PLAYWRIGHT_MOBILE_API_BASE_URL.",
+      );
+    }
+
+    return [
+      { name: "mobile", url: mobileBaseUrl },
+      {
+        name: "mobile API",
+        url: new URL("/api/healthz", mobileApiBaseUrl).toString(),
+      },
+    ];
+  }
+
   const baseURL =
     config.projects[0]?.use.baseURL ??
     process.env.PLAYWRIGHT_BASE_URL ??
@@ -87,10 +106,14 @@ export async function verifyPreviewAvailability(
   ).filter((failure): failure is string => Boolean(failure));
 
   if (failures.length > 0) {
+    const requiredWorkflows =
+      process.env.PLAYWRIGHT_MOBILE_AUTH_ONLY === "1"
+        ? "mobile and API"
+        : "dashboard and API";
     throw new Error(
       `[e2e setup] Required preview unavailable: ${failures.join(
         ", ",
-      )}. Start the dashboard and API workflows, then rerun the check.`,
+      )}. Start the ${requiredWorkflows} workflows, then rerun the check.`,
     );
   }
 }
