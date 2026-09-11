@@ -278,10 +278,11 @@ export function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantCont
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="tenant-contact-name" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Contact Name
             </label>
             <input
+              id="tenant-contact-name"
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
               className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -290,10 +291,11 @@ export function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantCont
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="tenant-contact-email" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Email
             </label>
             <input
+              id="tenant-contact-email"
               type="email"
               value={contactEmail}
               onChange={(e) => {
@@ -307,10 +309,11 @@ export function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantCont
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+            <label htmlFor="tenant-contact-phone" className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Phone
             </label>
             <input
+              id="tenant-contact-phone"
               type="tel"
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}

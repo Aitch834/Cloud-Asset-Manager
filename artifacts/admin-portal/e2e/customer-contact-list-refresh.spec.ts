@@ -146,7 +146,10 @@ test.describe("customer contact list refresh", () => {
 
     await page.getByRole("button", { name: "Edit contact", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Edit Contact Details" })).toBeVisible();
-    await page.getByPlaceholder("e.g. John Smith").fill(UPDATED_NAME);
+    await expect(page.getByLabel("Contact Name", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Phone", { exact: true })).toBeVisible();
+    await page.getByLabel("Contact Name", { exact: true }).fill(UPDATED_NAME);
 
     const updateResponse = page.waitForResponse(
       (response) =>
