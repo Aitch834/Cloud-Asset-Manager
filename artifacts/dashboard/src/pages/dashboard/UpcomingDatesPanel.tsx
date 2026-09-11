@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { CalendarDays, ArrowRight, Landmark, ShieldCheck, Leaf, Tag } from "lucide-react";
+import { organicInspectionAlertQueryOptions } from "./OrganicInspectionAlertPanel";
 
 interface OrganicInspection {
   certifier: string;
@@ -32,13 +33,8 @@ export function UpcomingDatesPanel({ farmId, activeSubs }: { farmId: number; act
       return (d.records ?? []).filter((c: any) => !["suspended", "withdrawn"].includes(c.status));
     },
   });
-  const organicInspectionsQ = useQuery<{ records: OrganicInspection[] }>({
-    queryKey: ["organic-inspections", farmId],
-    queryFn: async () => {
-      const r = await fetch(`/api/farms/${farmId}/organic/inspections`, { credentials: "include" });
-      if (!r.ok) throw new Error("Failed to load organic inspections");
-      return r.json();
-    },
+  const organicInspectionsQ = useQuery({
+    ...organicInspectionAlertQueryOptions(farmId),
     enabled: activeSubs.includes("organic-compliance"),
   });
 

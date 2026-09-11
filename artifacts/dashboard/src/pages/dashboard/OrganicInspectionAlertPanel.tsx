@@ -7,20 +7,37 @@ import {
   type OrganicInspectionAlertRecord,
 } from "@/lib/organic-inspection-alert";
 
-export function OrganicInspectionAlertPanel({ farmId }: { farmId: number }) {
-  const { data } = useQuery<{ records: OrganicInspectionAlertRecord[] }>({
-    queryKey: ["organic-inspections-alert", farmId],
-    queryFn: () =>
-      fetch(`/api/farms/${farmId}/organic/inspections`, { credentials: "include" }).then(r => {
-        if (!r.ok) throw new Error("Failed to load");
-        return r.json();
-      }),
-    staleTime: 5 * 60_000,
-    enabled: !!farmId,
-  });
+type OrganicInspectionResponse = { records: OrganicInspectionAlertRecord[] };
 
+export function organicInspectionAlertQueryOptions(farmId: number) {
+  return {
+    queryKey: ["organic-inspections-alert", farmId] as const,
+    queryFn: async (): Promise<OrganicInspectionResponse> => {
+      const response = await fetch(`/api/farms/${farmId}/organic/inspections`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to load organic inspections");
+      return response.json();
+    },
+    staleTime: 5 * 60_000,
+    retry: false,
+    enabled: !!farmId,
+  };
+}
+
+export function OrganicInspectionAlertPanel({ farmId }: { farmId: number }) {
+  const { data } = useQuery(organicInspectionAlertQueryOptions(farmId));
+
+  return <OrganicInspectionAlertContent records={data?.records} />;
+}
+
+export function OrganicInspectionAlertContent({
+  records,
+}: {
+  records?: OrganicInspectionAlertRecord[];
+}) {
   const alerts = getOrganicInspectionAlerts(
-    (data?.records ?? []) as OrganicInspectionAlertRecord[],
+    records ?? [],
   );
 
   if (alerts.length === 0) return null;
