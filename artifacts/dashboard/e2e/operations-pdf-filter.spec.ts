@@ -13,7 +13,7 @@ import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  getActiveViticultureFarm,
+  requireActiveViticultureFarm,
   type ActiveViticultureFarm,
 } from "./viticulture-farm-fixture";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -208,7 +208,7 @@ async function downloadPdfText(page: Page): Promise<string> {
 test("filtered Operations PDF includes only the selected year and block, while all filters export every record", async ({
   page,
 }) => {
-  const farm = await getActiveViticultureFarm();
+  const farm = await requireActiveViticultureFarm();
   await prepareOperations(page, farm);
 
   await selectOperationsOption(page, 1, "2026");
@@ -232,7 +232,7 @@ test("filtered Operations PDF includes only the selected year and block, while a
 });
 
 test("long Operations PDF keeps every operation exactly once across page breaks", async ({ page }) => {
-  const farm = await getActiveViticultureFarm();
+  const farm = await requireActiveViticultureFarm();
   await prepareOperations(page, farm);
 
   const pdfText = await downloadPdfText(page);

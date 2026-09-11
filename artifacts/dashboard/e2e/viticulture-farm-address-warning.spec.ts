@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  getActiveViticultureFarm,
+  requireActiveViticultureFarm,
   type ActiveViticultureFarm,
 } from "./viticulture-farm-fixture";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -113,7 +113,7 @@ async function expectWarningTargetsAddress(page: Page): Promise<void> {
 test("Operations and Harvest show the Farm Address warning only when address is blank", async ({
   page,
 }) => {
-  const farm = await getActiveViticultureFarm();
+  const farm = await requireActiveViticultureFarm();
   const farmAddress = { value: "" };
   await prepareDashboard(page, farm, farmAddress);
 

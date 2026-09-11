@@ -7,7 +7,7 @@ export type ActiveViticultureFarm = {
   farmName: string;
 };
 
-export async function getActiveViticultureFarm(): Promise<ActiveViticultureFarm> {
+export async function requireActiveViticultureFarm(): Promise<ActiveViticultureFarm> {
   const db = new Client({ connectionString: process.env.DATABASE_URL });
   await db.connect();
 
@@ -62,3 +62,5 @@ export async function getActiveViticultureFarm(): Promise<ActiveViticultureFarm>
     await db.end();
   }
 }
+
+export const getActiveViticultureFarm = requireActiveViticultureFarm;

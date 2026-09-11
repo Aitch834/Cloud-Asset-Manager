@@ -14,7 +14,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  getActiveViticultureFarm,
+  requireActiveViticultureFarm,
   type ActiveViticultureFarm,
 } from "./viticulture-farm-fixture";
 
@@ -212,7 +212,7 @@ async function expectPaginationGuards(
 }
 
 test("all viticulture print reports preserve pagination guards", async ({ page }) => {
-  const farm = await getActiveViticultureFarm();
+  const farm = await requireActiveViticultureFarm();
   await prepareDashboard(page, farm);
 
   // ── RPA Reference ───────────────────────────────────────────────────────
