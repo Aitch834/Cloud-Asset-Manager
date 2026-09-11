@@ -18,6 +18,7 @@ const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUN_TAG = `E2E overdue milestone ${Date.now()}`;
 const TARGET_NAME = `${RUN_TAG} target`;
+const SUPPORT_NAME = `${RUN_TAG} support`;
 
 type ApiRecord = Record<string, unknown>;
 
@@ -66,7 +67,9 @@ function overdueDate(): string {
   return localIsoDate(date);
 }
 
-async function createFixture(): Promise<{ projectId: number; milestoneId: number }> {
+async function createFixture(
+  targetStatus: "pending" | "completed" = "pending",
+): Promise<{ projectId: number; milestoneId: number }> {
   const projectBody = await devFetch(
     `${apiBase()}/api/farms/${FARM_ID}/agri-env-projects`,
     {
@@ -104,7 +107,10 @@ async function createFixture(): Promise<{ projectId: number; milestoneId: number
     throw new Error(`Created project ${projectId} was not readable after waiting`);
   }
 
-  const createMilestone = async (milestoneName: string): Promise<number> => {
+  const createMilestone = async (
+    milestoneName: string,
+    status: "pending" | "completed" = "pending",
+  ): Promise<number> => {
     const milestoneBody = await devFetch(
       `${apiBase()}/api/farms/${FARM_ID}/agri-env-projects/${projectId}/milestones`,
       {
@@ -114,7 +120,8 @@ async function createFixture(): Promise<{ projectId: number; milestoneId: number
           milestoneName,
           dueDate: overdueDate(),
           claimAmountPence: 10_000,
-          status: "pending",
+          status,
+          ...(status === "completed" ? { completionDate: overdueDate() } : {}),
         }),
       },
     );
@@ -126,7 +133,8 @@ async function createFixture(): Promise<{ projectId: number; milestoneId: number
     return milestoneId;
   };
 
-  const milestoneId = await createMilestone(TARGET_NAME);
+  const milestoneId = await createMilestone(TARGET_NAME, targetStatus);
+  await createMilestone(SUPPORT_NAME);
 
   return { projectId, milestoneId };
 }
@@ -240,6 +248,79 @@ test("shows an all-clear state after the final overdue milestone is completed", 
     await expect(returnedMilestoneRow.getByText("✓ Completed", { exact: true })).toBeVisible();
     await expect(returnedMilestoneRow.getByRole("button", { name: "Mark complete", exact: true }))
       .toHaveCount(0);
+  } finally {
+    if (projectId !== null) {
+      await deleteFixture(projectId).catch(() => {});
+    }
+  }
+});
+
+test("persists an undone milestone after reload and in Grants & Funding", async ({
+  page,
+}) => {
+  let projectId: number | null = null;
+
+  try {
+    const fixture = await createFixture("completed");
+    projectId = fixture.projectId;
+    await waitForPlannerMilestone(fixture.milestoneId);
+    await openPlanningStatus(page);
+
+    const summary = page.getByText("Overdue milestones", { exact: true }).locator("..");
+    const initialCount = Number(await summary.locator("div").first().textContent());
+    expect(initialCount).toBeGreaterThan(0);
+
+    await page.getByRole("button", { name: /^Show past tasks/ }).click();
+
+    const milestoneRow = page.getByText(TARGET_NAME, { exact: true })
+      .locator("..")
+      .locator("..")
+      .locator("..");
+    await expect(milestoneRow).toBeVisible({ timeout: 20_000 });
+    await expect(milestoneRow.getByText("✓ Completed", { exact: true })).toBeVisible();
+
+    await milestoneRow.getByRole("button", { name: "Undo", exact: true }).click();
+
+    await expect(page.getByText("Milestone reverted to pending")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(summary.locator("div").first()).toHaveText(String(initialCount + 1), {
+      timeout: 20_000,
+    });
+    await expect(milestoneRow.getByText("Overdue", { exact: true })).toBeVisible();
+    await expect(milestoneRow.getByRole("button", { name: "Mark complete", exact: true }))
+      .toBeVisible();
+
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /^Show past tasks/ }).click();
+
+    const reloadedRow = page.getByText(TARGET_NAME, { exact: true })
+      .locator("..")
+      .locator("..")
+      .locator("..");
+    await expect(reloadedRow.getByText("Overdue", { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(summary.locator("div").first()).toHaveText(String(initialCount + 1));
+
+    const persistedBody = await devFetch(
+      `${apiBase()}/api/farms/${FARM_ID}/agri-env-projects/${fixture.projectId}/milestones`,
+    );
+    const persistedMilestone = ((persistedBody.milestones ?? []) as ApiRecord[])
+      .find(milestone => Number(milestone.id) === fixture.milestoneId);
+    expect(persistedMilestone?.status).toBe("pending");
+    expect(persistedMilestone?.completionDate).toBeNull();
+
+    await reloadedRow.getByRole("button", { name: "View", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Grants & Funding", exact: true }))
+      .toBeVisible({ timeout: 20_000 });
+
+    const grantsMilestoneRow = page.getByText(TARGET_NAME, { exact: true })
+      .locator("..")
+      .locator("..");
+    await expect(grantsMilestoneRow).toBeVisible({ timeout: 20_000 });
+    await expect(grantsMilestoneRow.locator("select")).toHaveValue("pending");
+    await expect(grantsMilestoneRow.getByText(/^Done:/)).toHaveCount(0);
   } finally {
     if (projectId !== null) {
       await deleteFixture(projectId).catch(() => {});
