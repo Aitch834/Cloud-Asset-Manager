@@ -11,6 +11,11 @@ interface TodayMarkerProps {
   label?: { value?: string };
 }
 
+interface AccessibleChartProps {
+  role?: string;
+  "aria-label"?: string;
+}
+
 function makeHistory(length: number, today = "09-07"): SmdChartPoint[] {
   return Array.from({ length }, (_, index) => ({
     date: index === length - 1 ? today : `08-${String(index + 1).padStart(2, "0")}`,
@@ -51,6 +56,20 @@ function findTodayMarker(node: ReactNode): ReactElement<TodayMarkerProps> | null
   return null;
 }
 
+function findAccessibleChart(node: ReactNode): ReactElement<AccessibleChartProps> | null {
+  if (!isValidElement(node)) return null;
+  if ((node.props as AccessibleChartProps).role === "img") {
+    return node as ReactElement<AccessibleChartProps>;
+  }
+
+  const children = (node.props as { children?: ReactNode }).children;
+  for (const child of React.Children.toArray(children)) {
+    const chart = findAccessibleChart(child);
+    if (chart) return chart;
+  }
+  return null;
+}
+
 describe("SMD history and projection boundary marker", () => {
   it("renders Today at the current-date category with a full 30-day history", () => {
     const today = "09-07";
@@ -79,5 +98,20 @@ describe("SMD history and projection boundary marker", () => {
     expect(marker?.props.x).toBe(today);
     expect(marker?.props.x).not.toBe(29);
     expect(marker?.props.label?.value).toBe("Today");
+  });
+
+  it("describes the observed-to-projected boundary without relying on chart styling", () => {
+    const today = "09-07";
+    const history = makeHistory(8, today);
+    const chart = SmdHistoryChart({
+      chartData: withProjection(history),
+      todayChartDate: today,
+      criticalThreshold: 40,
+    });
+
+    const description = findAccessibleChart(chart)?.props["aria-label"];
+    expect(description).toContain(`Observed SMD history runs through the current date, ${today}.`);
+    expect(description).toContain("Projected SMD values begin after the current date");
+    expect(description).toContain("labelled as projected values");
   });
 });

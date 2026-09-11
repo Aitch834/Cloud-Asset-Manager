@@ -186,47 +186,55 @@ export function SmdHistoryChart({
   todayChartDate: string;
   criticalThreshold: number;
 }) {
+  const accessibleDescription = [
+    "Soil moisture deficit chart.",
+    `Observed SMD history runs through the current date, ${todayChartDate}.`,
+    `Projected SMD values begin after the current date and are labelled as projected values.`,
+  ].join(" ");
+
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} unit=" mm" />
-        <Tooltip
-          contentStyle={{ fontSize: 11 }}
-          formatter={(val, name) => {
-            if (val === null || val === undefined) return [null, null];
-            if (name === "smdProjected") return [`${Number(val).toFixed(1)} mm`, "Projected (with forecast rain)"];
-            if (name === "smd") return [`${Number(val).toFixed(1)} mm`, "SMD"];
-            if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
-            return [`${Number(val).toFixed(2)} mm`, "ETc"];
-          }}
-        />
-        <ReferenceLine
-          x={todayChartDate}
-          stroke="#64748b"
-          strokeDasharray="3 3"
-          strokeWidth={1}
-          label={{ value: "Today", position: "insideTop", fontSize: 10, fill: "#64748b" }}
-        />
-        <ReferenceLine
-          y={criticalThreshold}
-          stroke="#f97316"
-          strokeDasharray="4 2"
-          label={{ value: `Critical ${criticalThreshold}mm`, position: "insideTopRight", fontSize: 9, fill: "#f97316" }}
-        />
-        <Area
-          type="monotone" dataKey="smd" stroke="#3b82f6" fill="#93c5fd"
-          fillOpacity={0.3} name="smd" strokeWidth={1.5}
-        />
-        <Area
-          type="monotone" dataKey="smdProjected" stroke="#3b82f6" fill="#93c5fd"
-          fillOpacity={0.12} name="smdProjected" strokeWidth={1.5}
-          strokeDasharray="5 3" strokeOpacity={0.65}
-          connectNulls
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div role="img" aria-label={accessibleDescription}>
+      <ResponsiveContainer width="100%" height={200}>
+        <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 10 }} unit=" mm" />
+          <Tooltip
+            contentStyle={{ fontSize: 11 }}
+            formatter={(val, name) => {
+              if (val === null || val === undefined) return [null, null];
+              if (name === "smdProjected") return [`${Number(val).toFixed(1)} mm`, "Projected (with forecast rain)"];
+              if (name === "smd") return [`${Number(val).toFixed(1)} mm`, "SMD"];
+              if (name === "rain") return [`${Number(val).toFixed(1)} mm`, "Rainfall"];
+              return [`${Number(val).toFixed(2)} mm`, "ETc"];
+            }}
+          />
+          <ReferenceLine
+            x={todayChartDate}
+            stroke="#64748b"
+            strokeDasharray="3 3"
+            strokeWidth={1}
+            label={{ value: "Today", position: "insideTop", fontSize: 10, fill: "#64748b" }}
+          />
+          <ReferenceLine
+            y={criticalThreshold}
+            stroke="#f97316"
+            strokeDasharray="4 2"
+            label={{ value: `Critical ${criticalThreshold}mm`, position: "insideTopRight", fontSize: 9, fill: "#f97316" }}
+          />
+          <Area
+            type="monotone" dataKey="smd" stroke="#3b82f6" fill="#93c5fd"
+            fillOpacity={0.3} name="smd" strokeWidth={1.5}
+          />
+          <Area
+            type="monotone" dataKey="smdProjected" stroke="#3b82f6" fill="#93c5fd"
+            fillOpacity={0.12} name="smdProjected" strokeWidth={1.5}
+            strokeDasharray="5 3" strokeOpacity={0.65}
+            connectNulls
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
