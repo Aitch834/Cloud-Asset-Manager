@@ -98,6 +98,16 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function formatDateTime(d: string) {
+  return new Date(d).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function deadlineStatus(dateStr: string | null): "overdue" | "warning" | "ok" | "none" {
   if (!dateStr) return "none";
   const today = new Date(); today.setHours(0,0,0,0);
@@ -175,6 +185,7 @@ interface AgriEnvMilestone {
   claimAmountPence: number | null;
   status: string;
   evidenceNotes: string | null;
+  alertedAt: string | null;
 }
 
 const AE_PROJECT_STATUS_CFG: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -1347,6 +1358,9 @@ function AgriEnvTab({ farmId, farm }: { farmId: number | null; farm: Record<stri
                                   </span>
                                 )}
                                 {m.completionDate && <span style={{ fontSize: "0.78rem", color: "#059669" }}>Done: {new Date(m.completionDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                                <span style={{ fontSize: "0.78rem", color: m.alertedAt ? "#6b7280" : "#9ca3af" }}>
+                                  Last overdue alert: {m.alertedAt ? formatDateTime(m.alertedAt) : "Not sent"}
+                                </span>
                                 {m.evidenceNotes && <span style={{ fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic" }}>{m.evidenceNotes}</span>}
                               </div>
                             </div>
