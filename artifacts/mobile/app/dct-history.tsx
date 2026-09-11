@@ -25,6 +25,7 @@ import type { DairyDctRecord } from "@/lib/types";
 import {
   buildDctCsv,
   buildDctCsvFilename,
+  shareDctCsvNative,
   type DctCsvRecord,
 } from "@/lib/utils/dctCsv";
 
@@ -68,14 +69,13 @@ async function shareDctCsv(records: DctRecord[], monthName: string): Promise<voi
   }
 
   const { shareAsync } = await import("expo-sharing");
-  const uri = `${FileSystem.cacheDirectory}${filename}`;
-  await FileSystem.writeAsStringAsync(uri, content, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
-  await shareAsync(uri, {
-    mimeType: "text/csv",
-    dialogTitle: "Share DCT CSV",
-    UTI: "public.comma-separated-values-text",
+  await shareDctCsvNative(records, monthName, {
+    cacheDirectory: FileSystem.cacheDirectory,
+    writeCsvFile: (uri, csvContent) =>
+      FileSystem.writeAsStringAsync(uri, csvContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      }),
+    shareAsync,
   });
 }
 

@@ -17,6 +17,19 @@ export interface DctCsvRecord {
   treatmentJustification?: string | null;
 }
 
+export interface DctCsvNativeDependencies {
+  cacheDirectory: string | null;
+  writeCsvFile(uri: string, content: string): Promise<void>;
+  shareAsync(
+    uri: string,
+    options: {
+      mimeType: string;
+      dialogTitle: string;
+      UTI: string;
+    },
+  ): Promise<void>;
+}
+
 export const DCT_CSV_HEADERS = [
   "Dry-Off Date",
   "Ear Tag",
@@ -81,4 +94,22 @@ export function buildDctCsvFilename(monthName: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   return `dct-records-${slug}.csv`;
+}
+
+export async function shareDctCsvNative(
+  records: DctCsvRecord[],
+  monthName: string,
+  { cacheDirectory, writeCsvFile, shareAsync }: DctCsvNativeDependencies,
+): Promise<void> {
+  if (!cacheDirectory) {
+    throw new Error("The device cache directory is unavailable.");
+  }
+
+  const uri = `${cacheDirectory}${buildDctCsvFilename(monthName)}`;
+  await writeCsvFile(uri, buildDctCsv(records));
+  await shareAsync(uri, {
+    mimeType: "text/csv",
+    dialogTitle: "Share DCT CSV",
+    UTI: "public.comma-separated-values-text",
+  });
 }
