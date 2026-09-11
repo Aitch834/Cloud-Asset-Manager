@@ -22,6 +22,7 @@
     "test:vine-register-pdf-native-handoff": "jest --selectProjects unit --runInBand __tests__/vine-register-pdf-native-handoff.test.ts",
     "test:vine-register-edit": "jest --selectProjects hooks --runInBand __tests__/vine-register-edit.integration.test.tsx",
     "test:irrigation-parity": "jest --selectProjects unit --runInBand __tests__/irrigationCalculations.test.ts",
+    "test:sync-module-unavailable-notice-components": "jest --selectProjects hooks --runInBand __tests__/sync-module-unavailable-notice-components.test.tsx",
     "test": "jest"
   },
   "devDependencies": {
