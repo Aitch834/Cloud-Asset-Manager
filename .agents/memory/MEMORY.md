@@ -95,5 +95,3 @@
 - [Shared advert-PDF validation fixture](ad-pdf-validation-fixture.md) — advert-PDF checks mutate one cache/DB/filesystem fixture and must serialize across processes
 - [Mobile scouting photo test mocks](mobile-scouting-photo-test-mocks.md) — keep mocked lightbox-helper exports aligned with ScoutingPhotoSection imports
 - [React Native host-mock style assertions](react-native-host-mock-style-assertions.md) — mocked host wrappers may hide container styles; assert flattened visible-node styles
-- [AsyncStorage fallback Jest mocks](asyncstorage-fallback-jest-mocks.md) — fallback tests need an ES-module default mock with method wrappers; SQLite-only tests can hide a broken mock
-- [Manual sync retry failure state](manual-sync-retry-failure-state.md) — a failed user-triggered retry must immediately return to failed, preserving error detail and another retry

@@ -472,6 +472,21 @@ export default function AgriEnvMilestoneDetailScreen() {
   const siblingMilestones = milestone
     ? projectMilestones.filter(candidate => candidate.id !== milestone.id)
     : [];
+  const projectClaimCapacityPence =
+    project && (project.totalGrantValuePence ?? 0) > 0
+    ? (project.totalGrantValuePence ?? 0) -
+      projectMilestones
+        .filter(candidate => candidate.status === "paid" && candidate.id !== milestone?.id)
+        .reduce((sum, candidate) => sum + (candidate.claimAmountPence ?? 0), 0)
+    : null;
+  const draftClaimText = editDraft.claimAmount.trim().replace(/[£,\s]/g, "");
+  const draftClaimPence = draftClaimText && Number.isFinite(Number(draftClaimText))
+    ? Math.round(Number(draftClaimText) * 100)
+    : null;
+  const claimExceedsRemaining =
+    projectClaimCapacityPence != null &&
+    draftClaimPence != null &&
+    draftClaimPence > projectClaimCapacityPence;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -691,6 +706,19 @@ export default function AgriEnvMilestoneDetailScreen() {
               accessibilityLabel="Claim amount in pounds"
               testID="milestone-claim-amount-input"
             />
+            {claimExceedsRemaining && (
+              <View
+                style={styles.claimWarning}
+                accessibilityRole="alert"
+                testID="milestone-claim-balance-warning"
+              >
+                <Feather name="alert-triangle" size={16} color={colors.warning} />
+                <Text style={styles.claimWarningText}>
+                  This claim exceeds the remaining project balance of{" "}
+                  {fmt(projectClaimCapacityPence)}.
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.card}>
@@ -1343,6 +1371,24 @@ const styles = StyleSheet.create({
   },
   remainingPillTextFull: {
     color: "#166534",
+  },
+  claimWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.warningBg,
+  },
+  claimWarningText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    color: "#92400e",
   },
 });
 

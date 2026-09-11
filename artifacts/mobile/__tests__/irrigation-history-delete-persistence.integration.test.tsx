@@ -128,6 +128,7 @@ jest.mock("@react-native-community/datetimepicker", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn() },
+  useLocalSearchParams: () => ({}),
 }));
 
 jest.mock("react-native-safe-area-context", () => ({

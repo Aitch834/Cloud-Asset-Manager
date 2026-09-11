@@ -250,4 +250,76 @@ describe("agri-environment milestone remaining balance", () => {
       expect(reopened.getByText("£500 claimed so far")).toBeTruthy();
     });
   });
+
+  it("warns while the entered claim exceeds the live remaining balance", async () => {
+    const screen = render(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("£800 left")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByTestId("edit-milestone-button"));
+    fireEvent.changeText(screen.getByTestId("milestone-claim-amount-input"), "800.01");
+
+    expect(screen.getByTestId("milestone-claim-balance-warning")).toBeTruthy();
+    expect(
+      screen.getByText("This claim exceeds the remaining project balance of £800."),
+    ).toBeTruthy();
+
+    fireEvent.changeText(screen.getByTestId("milestone-claim-amount-input"), "800");
+
+    expect(screen.queryByTestId("milestone-claim-balance-warning")).toBeNull();
+  });
+
+  it("treats an existing paid claim as available when editing that claim", async () => {
+    const paidMilestone = {
+      ...initialMilestone,
+      status: "paid",
+      claimAmountPence: 60_000,
+    };
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url.endsWith("/agri-env-projects/7/milestones")) {
+        return response({ milestones: [paidMilestone, siblingMilestone] });
+      }
+      if (url.endsWith("/agri-env-projects")) {
+        return response({ projects: [project] });
+      }
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+
+    const screen = render(<AgriEnvMilestoneDetailScreen />);
+    await waitFor(() => expect(screen.getByText("£200 left")).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId("edit-milestone-button"));
+
+    expect(screen.queryByTestId("milestone-claim-balance-warning")).toBeNull();
+
+    fireEvent.changeText(screen.getByTestId("milestone-claim-amount-input"), "800.01");
+
+    expect(
+      screen.getByText("This claim exceeds the remaining project balance of £800."),
+    ).toBeTruthy();
+  });
+
+  it("does not warn when the project has no configured grant ceiling", async () => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url.endsWith("/agri-env-projects/7/milestones")) {
+        return response({ milestones: [initialMilestone, siblingMilestone] });
+      }
+      if (url.endsWith("/agri-env-projects")) {
+        return response({
+          projects: [{ ...project, totalGrantValuePence: null }],
+        });
+      }
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+
+    const screen = render(<AgriEnvMilestoneDetailScreen />);
+    await waitFor(() => expect(screen.getByText("Hedgerow management")).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId("edit-milestone-button"));
+    fireEvent.changeText(screen.getByTestId("milestone-claim-amount-input"), "900");
+
+    expect(screen.queryByTestId("milestone-claim-balance-warning")).toBeNull();
+  });
 });
