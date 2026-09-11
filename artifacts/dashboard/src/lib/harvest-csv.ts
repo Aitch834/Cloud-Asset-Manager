@@ -8,6 +8,80 @@ function cell(value: unknown): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
+export function buildHarvestChemistryCsvSection(
+  rows: HarvestCsvRow[],
+  vintages: string[],
+  blockIds: unknown[],
+  blockLabel: (blockId: unknown) => string,
+  title: string,
+  avgLabel: string,
+  extractor: (row: HarvestCsvRow) => number | null,
+  precision: number,
+): string[] {
+  const lookup: Record<string, Record<string, HarvestCsvRow[]>> = {};
+  for (const row of rows) {
+    const blockId = String(row.blockId ?? "");
+    const vintage = String(row.vintageYear ?? "");
+    if (!lookup[blockId]) lookup[blockId] = {};
+    if (!lookup[blockId][vintage]) lookup[blockId][vintage] = [];
+    lookup[blockId][vintage].push(row);
+  }
+
+  const average = (metricRows: HarvestCsvRow[]) => {
+    const values = metricRows
+      .map(extractor)
+      .filter((value): value is number => value !== null && !isNaN(value));
+    return values.length > 0
+      ? values.reduce((sum, value) => sum + value, 0) / values.length
+      : null;
+  };
+
+  const header = [cell("Block"), ...vintages.map(cell), cell(avgLabel)].join(",");
+  const blockRows = blockIds.map(blockId => {
+    const blockLookup = lookup[String(blockId)] ?? {};
+    const vintageCells = vintages.map(vintage => {
+      const value = average(blockLookup[vintage] ?? []);
+      return cell(value != null ? value.toFixed(precision) : "");
+    });
+    const rowAverage = average(Object.values(blockLookup).flat());
+    return [
+      cell(blockLabel(blockId)),
+      ...vintageCells,
+      cell(rowAverage != null ? rowAverage.toFixed(precision) : ""),
+    ].join(",");
+  });
+
+  const vintageFooterCells = vintages.map(vintage => {
+    const value = average(rows.filter(row => String(row.vintageYear ?? "") === vintage));
+    return cell(value != null ? value.toFixed(precision) : "");
+  });
+  const grandAverage = average(rows);
+  const averageFooter = [
+    cell("All blocks"),
+    ...vintageFooterCells,
+    cell(grandAverage != null ? grandAverage.toFixed(precision) : ""),
+  ].join(",");
+
+  const picksByVintage = vintages.map(vintage => {
+    const count = blockIds.reduce<number>(
+      (total, blockId) => total + (lookup[String(blockId)]?.[vintage]?.length ?? 0),
+      0,
+    );
+    return cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : "");
+  });
+  const totalPicks = blockIds.reduce<number>(
+    (total, blockId) => total + Object.values(lookup[String(blockId)] ?? {}).flat().length,
+    0,
+  );
+  const picksFooter = [
+    cell("Picks"),
+    ...picksByVintage,
+    cell(totalPicks > 0 ? String(totalPicks) : ""),
+  ].join(",");
+
+  return ["", cell(title), header, ...blockRows, averageFooter, picksFooter];
+}
+
 /**
  * Build the Yield by Variety section used by both harvest export modes.
  *

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { deriveTonnesPerHa } from "./csv";
-import { buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection } from "./harvest-csv";
+import {
+  buildHarvestChemistryCsvSection,
+  buildHarvestCsvContent,
+  buildHarvestYieldByVarietyCsvSection,
+} from "./harvest-csv";
 
 describe("deriveTonnesPerHa", () => {
   it("derives t/ha from total kilograms and block area", () => {
@@ -63,7 +67,6 @@ describe("harvest Yield by Variety CSV", () => {
       expect(csv).toContain('"Chardonnay","2.00","1000.0","0.50","","","",""');
     },
   );
-
   it("marks positive yield without usable area and explains how to add the area", () => {
     const section = buildHarvestYieldByVarietyCsvSection(
       [
@@ -83,4 +86,43 @@ describe("harvest Yield by Variety CSV", () => {
       '"† Block area not set — add it in Block Settings to see yield per hectare"',
     );
   });
+});
+
+describe("harvest chemistry CSV", () => {
+  const rows = [
+    { blockId: 1, vintageYear: "2025", brix: 18, ph: 3.1, titratableAcidityGl: 7, potentialAlcohol: 10.2 },
+    { blockId: 2, vintageYear: "2025", brix: 20, ph: 3.3, titratableAcidityGl: 6, potentialAlcohol: 11.4 },
+    { blockId: 1, vintageYear: "2026", brix: null, ph: null, titratableAcidityGl: null, potentialAlcohol: null },
+  ];
+  const metrics = [
+    ["Brix by Vintage", "Avg Brix °", "brix", 1],
+    ["pH by Vintage", "Avg pH", "ph", 2],
+    ["TA by Vintage", "Avg TA (g/L)", "titratableAcidityGl", 2],
+    ["Potential Alcohol by Vintage", "Avg Pot. Alc %", "potentialAlcohol", 2],
+  ] as const;
+
+  it.each(metrics)(
+    "keeps %s rows aligned when a vintage has blank readings",
+    (title, averageLabel, field, precision) => {
+      const section = buildHarvestChemistryCsvSection(
+        rows,
+        ["2025", "2026"],
+        [1, 2],
+        blockId => `Block ${blockId}`,
+        title,
+        averageLabel,
+        row => {
+          const value = Number(row[field]);
+          return row[field] == null || Number.isNaN(value) ? null : value;
+        },
+        precision,
+      );
+      const dataLines = section.slice(2);
+      const columnCounts = dataLines.map(line => line.split(",").length);
+
+      expect(new Set(columnCounts)).toEqual(new Set([4]));
+      expect(section.at(-2)?.split(",")[2]).toBe('""');
+      expect(section.at(-1)).toBe('"Picks","2","1 (single pick)","3"');
+    },
+  );
 });

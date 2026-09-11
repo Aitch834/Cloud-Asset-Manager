@@ -30,7 +30,6 @@ import {
   WINERY_VIEW_ADDITIONS_EVENT,
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell, deriveTonnesPerHa, buildViticultureUnlinkedWarning, buildViticultureBlockSummaryFooterRow } from "@/lib/csv";
-import { buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection } from "@/lib/harvest-csv";
 import { formatYieldTonnesPerHectare, YIELD_BY_VARIETY_YIELD_HEADER } from "@/lib/harvest-yield-display";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -65,6 +64,8 @@ import { getTopHarvestSummaryBlockName } from "@/lib/harvest-block-summary";
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
 import { fmt, fmtDate, fmtNum, today, exportCSV, printExciseReturn, printOrganicWineRecords, printHarvest, downloadVineHarvestPdf, emailHarvestReport, useFarmMeta, FarmSettingsWarning, FsaCompletenessBar, PRESSURE_LABELS, BBCH_STAGES, UK_GRAPE_VARIETIES, UK_ROOTSTOCKS, OPERATION_TYPES, StatCard, Empty, ConfirmDialog, DataTable, useCrud, ViewField, RaiseTaskBtn } from "./shared";
+import { buildHarvestChemistryCsvSection, buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection } from "@/lib/harvest-csv";
+import { getChemistryThinAveragePresentation, sortChemistryCrossTabRows } from "@/lib/chemistry-cross-tab";
 
 type Harvest = Record<string, unknown>;
 
@@ -848,59 +849,16 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         avgLabel: string,
         extractor: (r: Record<string, unknown>) => number | null,
         precision: number,
-      ): string[] => {
-        const chemHeader = [cell("Block"), ...crossVintages.map(v => cell(v)), cell(avgLabel)].join(",");
-        const chemRows = uniqueBlockIds.map(bid => {
-          const bidStr = String(bid);
-          const vintageCells = crossVintages.map(vy => {
-            const grp = lookup[bidStr]?.[vy] ?? [];
-            const vals = grp.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
-            const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-            return cell(avg != null ? avg.toFixed(precision) : "");
-          });
-          const allGrp = Object.values(lookup[bidStr] ?? {}).flat();
-          const allVals = allGrp.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
-          const rowAvg = allVals.length > 0 ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
-          return [cell(blockLabel(bid)), ...vintageCells, cell(rowAvg != null ? rowAvg.toFixed(precision) : "")].join(",");
-        });
-        const grandVals = rows.map(extractor).filter((v): v is number => v !== null && !isNaN(v));
-        const grandAvg = grandVals.length > 0 ? grandVals.reduce((a, b) => a + b, 0) / grandVals.length : null;
-        const chemFooterCells = crossVintages.map(vy => {
-          const vals = rows
-            .filter(r => String(r.vintageYear ?? "") === vy)
-            .map(extractor)
-            .filter((v): v is number => v !== null && !isNaN(v));
-          const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-          return cell(avg != null ? avg.toFixed(precision) : "");
-        });
-        const chemFooter = [cell("All blocks"), ...chemFooterCells, cell(grandAvg != null ? grandAvg.toFixed(precision) : "")].join(",");
-        // Keep pick context with every chemistry section so a grower can
-        // interpret a downloaded metric without relying on the yield table.
-        const chemPicksCells = crossVintages.map(vy => {
-          let count = 0;
-          for (const bid of uniqueBlockIds) {
-            count += lookup[String(bid)]?.[vy]?.length ?? 0;
-          }
-          return cell(count === 1 ? "1 (single pick)" : count > 0 ? String(count) : "");
-        });
-        const chemPicksTotal = uniqueBlockIds.reduce<number>(
-          (total, bid) => total + Object.values(lookup[String(bid)] ?? {}).flat().length,
-          0,
-        );
-        const chemPicksFooter = [
-          cell("Picks"),
-          ...chemPicksCells,
-          cell(chemPicksTotal > 0 ? String(chemPicksTotal) : ""),
-        ].join(",");
-        return [
-          "",
-          cell(title),
-          chemHeader,
-          ...chemRows,
-          chemFooter,
-          chemPicksFooter,
-        ];
-      };
+      ): string[] => buildHarvestChemistryCsvSection(
+        rows,
+        crossVintages,
+        uniqueBlockIds,
+        blockLabel,
+        title,
+        avgLabel,
+        extractor,
+        precision,
+      );
 
       // ── Yield cross-tab ──────────────────────────────────────────────────
       // Build block area lookup for t/ha calculation
