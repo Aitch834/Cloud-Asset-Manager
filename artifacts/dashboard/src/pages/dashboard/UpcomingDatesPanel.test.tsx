@@ -22,7 +22,7 @@ interface QueryOptions {
 
 function inspectionQuery(): QueryOptions {
   const call = useQueryMock.mock.calls.find(
-    ([options]) => options.queryKey[0] === "organic-inspections",
+    ([options]) => options.queryKey[0] === "organic-inspections-alert",
   );
   expect(call).toBeDefined();
   return call![0] as QueryOptions;
@@ -30,7 +30,7 @@ function inspectionQuery(): QueryOptions {
 
 function renderPanel(activeSubs: string[], records: unknown[] = []) {
   useQueryMock.mockImplementation((options: QueryOptions) => {
-    if (options.queryKey[0] === "organic-inspections") {
+    if (options.queryKey[0] === "organic-inspections-alert") {
       return { data: { records } };
     }
     return { data: [] };

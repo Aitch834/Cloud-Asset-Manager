@@ -19,6 +19,11 @@ import { TabBar, TabButton } from "@/components/ui/tab-button";
 import { Plus, Search, TrendingUp, TrendingDown, Trash2, PoundSterling, Package, Download, FileText, Wheat, Pencil, Eye, Zap, ExternalLink, CheckCircle2, AlertCircle, Clock, ShoppingBag, CalendarCheck, X, BarChart3, Loader2, Upload, Link2, ArrowRightLeft } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import { buildCsv, downloadCsvFile } from "@/lib/csv";
+import {
+  buildAccountantPackPrintTitle,
+  filterAccountantPackRecords,
+  shouldResetAccountantPackProjectFilter,
+} from "@/lib/accountant-pack-project-filter";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics" | "accountant-pack";
 
@@ -1992,6 +1997,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
   const [yearFilter, setYearFilter] = usePersistedFilter({ page: "financial-accountant-pack", filter: "year", farmId, defaultValue: String(CURRENT_YEAR), isValid: v => v === "all" || /^\d{4}$/.test(v) });
   // Share the enterprise filter key with TransactionsTab/AnalyticsTab so switching tabs preserves the selection
   const [enterpriseFilter, setEnterpriseFilter] = usePersistedFilter({ page: "financial-transactions", filter: "enterprise", farmId, defaultValue: "all" });
+  const [agriEnvProjectFilter, setAgriEnvProjectFilter] = usePersistedFilter({ page: "financial-accountant-pack", filter: "agri-env-project", farmId, defaultValue: "all", isValid: v => v === "all" || /^\d+$/.test(v) });
 
   const farmQ = useQuery({
     queryKey: ["farm-detail", farmId],
@@ -2026,6 +2032,27 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
   const allTx: any[] = txQ.data ?? [];
   const allPurchases: any[] = purchasesQ.data ?? [];
 
+  const linkedAgriEnvProjectIds = new Set(
+    allTx
+      .filter((r: any) => r.transactionType === "income" && r.agriEnvProjectId != null)
+      .map((r: any) => Number(r.agriEnvProjectId)),
+  );
+  const linkedAgriEnvProjects = agriEnvProjects.filter((project: any) => linkedAgriEnvProjectIds.has(Number(project.id)));
+  const selectedAgriEnvProject = agriEnvProjectFilter === "all"
+    ? null
+    : linkedAgriEnvProjects.find((project: any) => String(project.id) === agriEnvProjectFilter) ?? null;
+
+  useEffect(() => {
+    if (shouldResetAccountantPackProjectFilter(
+      agriEnvProjectFilter,
+      !!selectedAgriEnvProject,
+      !agriEnvProjectsQ.isLoading,
+      !txQ.isLoading,
+    )) {
+      setAgriEnvProjectFilter("all");
+    }
+  }, [agriEnvProjectFilter, agriEnvProjectsQ.isLoading, selectedAgriEnvProject, setAgriEnvProjectFilter, txQ.isLoading]);
+
   const isLoading = txQ.isLoading || purchasesQ.isLoading || farmQ.isLoading || agriEnvProjectsQ.isLoading;
 
   // Derive available enterprise options from all transactions
@@ -2043,8 +2070,12 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   // Apply enterprise filter on top of year filter.
   // Livestock purchases have no enterprise tag, so exclude them when a specific enterprise is selected.
-  const filteredTx = enterpriseFilter === "all" ? yearTx : yearTx.filter((r: any) => (r.enterprise ?? "") === enterpriseFilter);
-  const filteredPurchases = enterpriseFilter === "all" ? yearPurchases : [];
+  const enterpriseTx = enterpriseFilter === "all" ? yearTx : yearTx.filter((r: any) => (r.enterprise ?? "") === enterpriseFilter);
+  const { transactions: filteredTx, purchases: filteredPurchases } = filterAccountantPackRecords(
+    enterpriseTx,
+    enterpriseFilter === "all" ? yearPurchases : [],
+    selectedAgriEnvProject?.id ?? null,
+  );
 
   const incomeTx = filteredTx.filter(r => r.transactionType === "income");
   const expenseTx = filteredTx.filter(r => r.transactionType === "expense");
@@ -2108,6 +2139,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 
   const periodLabel = yearFilter === "all" ? "All Years" : yearFilter;
   const enterpriseLabel = enterpriseFilter === "all" ? null : enterpriseFilter;
+  const agriEnvProjectLabel = selectedAgriEnvProject?.schemeName ?? null;
 
   // ── By-enterprise gross margin summary ──────────────────────────────────────
   const enterpriseMap = new Map<string, { income: number; sprayCost: number; labourCost: number; otherCost: number }>();
@@ -2133,7 +2165,8 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     grossMargin: v.income - v.sprayCost - v.labourCost - v.otherCost,
   }));
 
-  const plCsvFilename = `full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.csv`;
+  const projectFilenamePart = agriEnvProjectLabel ? `-${agriEnvProjectLabel.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase()}` : "";
+  const plCsvFilename = `full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}${projectFilenamePart}.csv`;
 
   function getPlCsvRows(): unknown[][] {
     const toGbp = (pence: number) => (pence / 100).toFixed(2);
@@ -2219,7 +2252,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Accountant's Financial Pack — ${farmName} — ${periodLabel}${enterpriseLabel ? ` — ${enterpriseLabel}` : ""}</title>
+  <title>${buildAccountantPackPrintTitle(farmName, periodLabel, enterpriseLabel, agriEnvProjectLabel)}</title>
   <style>
     @page { size: A4 portrait; margin: 18mm 18mm 16mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2278,7 +2311,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
     <div class="header-right">
       <strong>Accountant's Financial Pack</strong>
       Period: ${esc(periodLabel)}<br>
-      ${enterpriseLabel ? `Enterprise: ${esc(enterpriseLabel)}<br>` : ""}Produced: ${generated}<br>
+       ${enterpriseLabel ? `Enterprise: ${esc(enterpriseLabel)}<br>` : ""}${agriEnvProjectLabel ? `Agri-environment project: ${esc(agriEnvProjectLabel)}<br>` : ""}Produced: ${generated}<br>
       <span style="background:#dcfce7;color:#166534;border-radius:4px;padding:2px 8px;font-size:8pt;font-weight:700;">Barnett Davies Enterprises Ltd</span>
     </div>
   </div>
@@ -2355,6 +2388,11 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
               {enterpriseLabel} only — livestock purchases excluded
             </span>
           )}
+           {agriEnvProjectLabel && (
+             <span style={{ display: "inline-block", marginTop: 4, marginLeft: enterpriseLabel ? 6 : 0, fontSize: "0.75rem", fontWeight: 600, background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 4, padding: "2px 8px" }}>
+               Agri-environment project: {agriEnvProjectLabel}
+             </span>
+           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <Select value={yearFilter} onValueChange={setYearFilter}>
@@ -2373,6 +2411,17 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
               </SelectContent>
             </Select>
           )}
+           {linkedAgriEnvProjects.length > 0 && (
+             <Select value={selectedAgriEnvProject ? String(selectedAgriEnvProject.id) : "all"} onValueChange={setAgriEnvProjectFilter}>
+               <SelectTrigger aria-label="Agri-environment project" style={{ width: 220 }}><SelectValue /></SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="all">All agri-environment projects</SelectItem>
+                 {linkedAgriEnvProjects.map((project: any) => (
+                   <SelectItem key={project.id} value={String(project.id)}>{project.schemeName}</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+           )}
           <Button variant="outline" onClick={handleDownloadPlCsv} disabled={isLoading}>
             <Download size={14} className="mr-2" />Download Full P&amp;L CSV
           </Button>
