@@ -26,7 +26,7 @@ interface RecordAttachmentsProps {
   recordType: string;
   recordId: number;
   compact?: boolean;
-  onAttachmentsChange?: () => void;
+  onAttachmentsChange?: (change: { photoCountDelta: number }) => void;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -80,7 +80,7 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
         }),
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
-      onAttachmentsChange?.();
+      onAttachmentsChange?.({ photoCountDelta: isImage(file.type || null, file.name) ? 1 : 0 });
       toast({ title: "Attachment uploaded" });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
@@ -92,12 +92,15 @@ export function RecordAttachments({ farmId, recordType, recordId, compact = fals
   async function handleDelete(id: number) {
     setDeletingId(id);
     try {
+      const attachment = attachments.find(item => item.id === id);
       await fetch(`/api/farms/${farmId}/record-attachments/${id}`, {
         method: "DELETE",
         credentials: "include",
       }).then(async r => { if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t || `Request failed (${r.status})`); } return r; });
       qc.invalidateQueries({ queryKey });
-      onAttachmentsChange?.();
+      onAttachmentsChange?.({
+        photoCountDelta: attachment && isImage(attachment.mimeType, attachment.fileName) ? -1 : 0,
+      });
       toast({ title: "Attachment removed" });
     } catch {
       toast({ title: "Failed to remove attachment", variant: "destructive" });

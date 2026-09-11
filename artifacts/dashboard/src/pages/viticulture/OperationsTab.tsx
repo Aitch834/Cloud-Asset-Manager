@@ -455,7 +455,22 @@ export function OperationsTab({ farmId, blocks, highlightBlockId, requestBulkLin
                 farmId={farmId}
                 recordType="vineyard-operation"
                 recordId={viewing.id}
-                onAttachmentsChange={() => { void queryClient.refetchQueries({ queryKey: ["vineyard-operations", farmId] }); }}
+                onAttachmentsChange={({ photoCountDelta }) => {
+                  if (photoCountDelta !== 0) {
+                    queryClient.setQueryData<Operation[]>(
+                      ["vineyard-operations", farmId],
+                      previous => previous?.map(operation => {
+                        if (operation.id !== viewing.id) return operation;
+                        const currentCount = Number(operation.photoCount ?? 0);
+                        return {
+                          ...operation,
+                          photoCount: Math.max(0, currentCount + photoCountDelta),
+                        };
+                      }),
+                    );
+                  }
+                  void queryClient.refetchQueries({ queryKey: ["vineyard-operations", farmId] });
+                }}
               />
             </div>
           )}
