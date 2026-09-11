@@ -48,6 +48,7 @@ jest.mock("expo-haptics", () => ({
 }));
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn() },
+  useFocusEffect: jest.fn(),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),

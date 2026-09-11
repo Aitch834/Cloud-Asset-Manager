@@ -14,8 +14,8 @@
 
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -735,6 +735,7 @@ export default function IrrigationAdvisorScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
+  const shouldRefreshOnFocus = useRef(false);
 
   // ── Cost defaults ────────────────────────────────────────────────────────
   const [costPerMmHa, setCostPerMmHa] = useState("3.50");
@@ -788,6 +789,14 @@ export default function IrrigationAdvisorScreen() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, [farmId, selectedFieldId, reloadToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!shouldRefreshOnFocus.current) return;
+      shouldRefreshOnFocus.current = false;
+      setReloadToken(token => token + 1);
+    }, []),
+  );
+
   useEffect(() => {
     if (lastUpdatedAt === null || refreshing) return;
 
@@ -801,6 +810,15 @@ export default function IrrigationAdvisorScreen() {
     setRefreshing(true);
     setError("");
     setReloadToken(t => t + 1);
+  };
+
+  const openSelectedFieldInRegister = () => {
+    if (!selectedField) return;
+    shouldRefreshOnFocus.current = true;
+    router.push({
+      pathname: "/field-edit",
+      params: { fieldId: String(selectedField.id) },
+    });
   };
 
   // ── Compute SMD and scenarios ─────────────────────────────────────────────
@@ -964,7 +982,8 @@ export default function IrrigationAdvisorScreen() {
           {selectedField && !selectedField.soilType && (
             <Pressable
               style={styles.soilWarningBanner}
-              onPress={() => router.push({ pathname: "/field-edit", params: { fieldId: String(selectedField.id) } })}
+              testID="irrigation-advisor-field-register-link"
+              onPress={openSelectedFieldInRegister}
             >
               <Feather name="alert-triangle" size={16} color="#a16207" />
               <Text style={styles.soilWarningText}>
