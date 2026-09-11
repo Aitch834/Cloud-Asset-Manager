@@ -48,6 +48,10 @@ const BLOCK_ID = 7;
 const PHOTO_ID = 101;
 const EXPECTED_URL = `/api/farms/${FARM_ID}/vineyard-blocks/${BLOCK_ID}/photos/${PHOTO_ID}`;
 
+function createSetCoverQueueRef(): { current: Promise<void> } {
+  return { current: Promise.resolve() };
+}
+
 beforeEach(() => {
   (apiFetch as jest.MockedFunction<typeof apiFetch>).mockReset();
 });
@@ -69,10 +73,12 @@ describe("executePhotoSetCover — stale deleted-photo PATCH", () => {
       },
     );
     const showError = jest.fn();
+    const setCoverQueueRef = createSetCoverQueueRef();
 
     const result = await executePhotoSetCover(FARM_ID, BLOCK_ID, PHOTO_ID, {
       setPhotos,
       showError,
+      setCoverQueueRef,
     });
 
     expect(result).toBe(false);
@@ -111,10 +117,12 @@ describe("executePhotoSetCover — network failure", () => {
       },
     );
     const showError = jest.fn();
+    const setCoverQueueRef = createSetCoverQueueRef();
 
     const result = await executePhotoSetCover(FARM_ID, BLOCK_ID, PHOTO_ID, {
       setPhotos,
       showError,
+      setCoverQueueRef,
     });
 
     expect(result).toBe(false);
@@ -128,5 +136,100 @@ describe("executePhotoSetCover — network failure", () => {
     expect(photosState).toEqual(initialPhotos);
     expect(photosState.find((photo) => photo.id === PHOTO_ID)?.isCover).toBe(false);
     expect(showError).toHaveBeenCalledWith("Could not set the cover photo.");
+  });
+});
+
+describe("executePhotoSetCover — rapid taps", () => {
+  function deferredResponse() {
+    let resolve!: (response: Response) => void;
+    const promise = new Promise<Response>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  function stateHarness() {
+    let photosState = [
+      makePhoto({ id: 100, isCover: true }),
+      makePhoto({ id: 101, isCover: false }),
+      makePhoto({ id: 102, isCover: false }),
+    ];
+    return {
+      get photos() {
+        return photosState;
+      },
+      setPhotos: jest.fn(
+        (updater: (photos: BlockPhotoRecord[]) => BlockPhotoRecord[]) => {
+          photosState = updater(photosState);
+        },
+      ),
+    };
+  }
+
+  it("serializes overlapping calls so the last tap wins on the server and locally", async () => {
+    const firstResponse = deferredResponse();
+    const secondResponse = deferredResponse();
+    (apiFetch as jest.MockedFunction<typeof apiFetch>)
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise);
+    const state = stateHarness();
+    const showError = jest.fn();
+    const setCoverQueueRef = createSetCoverQueueRef();
+
+    const first = executePhotoSetCover(FARM_ID, BLOCK_ID, 101, {
+      setPhotos: state.setPhotos,
+      showError,
+      setCoverQueueRef,
+    });
+    const second = executePhotoSetCover(FARM_ID, BLOCK_ID, 102, {
+      setPhotos: state.setPhotos,
+      showError,
+      setCoverQueueRef,
+    });
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+
+    firstResponse.resolve({ ok: true } as Response);
+    await expect(first).resolves.toBe(true);
+    expect(state.photos.find((photo) => photo.isCover)?.id).toBe(101);
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+
+    secondResponse.resolve({ ok: true } as Response);
+    await expect(second).resolves.toBe(true);
+    expect(state.photos.find((photo) => photo.isCover)?.id).toBe(102);
+    expect(state.photos.filter((photo) => photo.isCover)).toHaveLength(1);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last successful cover when a later queued tap fails", async () => {
+    const firstResponse = deferredResponse();
+    const secondResponse = deferredResponse();
+    (apiFetch as jest.MockedFunction<typeof apiFetch>)
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise);
+    const state = stateHarness();
+    const showError = jest.fn();
+    const setCoverQueueRef = createSetCoverQueueRef();
+
+    const first = executePhotoSetCover(FARM_ID, BLOCK_ID, 101, {
+      setPhotos: state.setPhotos,
+      showError,
+      setCoverQueueRef,
+    });
+    const second = executePhotoSetCover(FARM_ID, BLOCK_ID, 102, {
+      setPhotos: state.setPhotos,
+      showError,
+      setCoverQueueRef,
+    });
+
+    firstResponse.resolve({ ok: true } as Response);
+    await expect(first).resolves.toBe(true);
+    secondResponse.resolve(errorResponse(500));
+    await expect(second).resolves.toBe(false);
+
+    expect(state.photos.find((photo) => photo.isCover)?.id).toBe(101);
+    expect(state.photos.filter((photo) => photo.isCover)).toHaveLength(1);
+    expect(showError).toHaveBeenCalledTimes(1);
   });
 });

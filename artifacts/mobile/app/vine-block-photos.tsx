@@ -1369,6 +1369,7 @@ export default function VineBlockPhotosScreen() {
   // Synchronous guard so rapid / multi-touch taps on different broken thumbnails
   // cannot start two concurrent reloads before React commits the first state update.
   const reloadInFlightRef = useRef(false);
+  const setCoverQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // Generation counter — incremented at the start of every loadPhotos call AND
   // synchronously on block selection change and unmount.  applyPhotoUpdateIfCurrent
@@ -1649,6 +1650,7 @@ export default function VineBlockPhotosScreen() {
       {
         setPhotos: (updater) => setPhotos(updater),
         showError: (message) => Alert.alert("Error", message),
+        setCoverQueueRef,
       },
     );
     if (ok) {

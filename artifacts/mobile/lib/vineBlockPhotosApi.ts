@@ -235,6 +235,12 @@ export interface PhotoSetCoverCallbacks {
     updater: (photos: BlockPhotoRecord[]) => BlockPhotoRecord[],
   ) => void;
   showError: (message: string) => void;
+  /**
+   * Shared by every Set as Cover action on the screen. Chaining PATCHes keeps
+   * server write order identical to tap order, so the last tap cannot be
+   * overtaken by an older request that finishes late.
+   */
+  setCoverQueueRef: { current: Promise<void> };
 }
 
 /**
@@ -252,28 +258,38 @@ export async function executePhotoSetCover(
   photoId: number | string,
   callbacks: PhotoSetCoverCallbacks,
 ): Promise<boolean> {
-  try {
-    const res = await apiFetch(
-      `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isCover: true }),
-      },
-    );
-    if (!res.ok) {
-      callbacks.showError("Could not set the cover photo. Please try again.");
-      return false;
-    }
+  const request = callbacks.setCoverQueueRef.current
+    .catch(() => undefined)
+    .then(async (): Promise<boolean> => {
+      try {
+        const res = await apiFetch(
+          `/api/farms/${farmId}/vineyard-blocks/${blockId}/photos/${photoId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isCover: true }),
+          },
+        );
+        if (!res.ok) {
+          callbacks.showError("Could not set the cover photo. Please try again.");
+          return false;
+        }
 
-    callbacks.setPhotos((prev) =>
-      prev.map((photo) => ({ ...photo, isCover: photo.id === Number(photoId) })),
-    );
-    return true;
-  } catch {
-    callbacks.showError("Could not set the cover photo.");
-    return false;
-  }
+        callbacks.setPhotos((prev) =>
+          prev.map((photo) => ({ ...photo, isCover: photo.id === Number(photoId) })),
+        );
+        return true;
+      } catch {
+        callbacks.showError("Could not set the cover photo.");
+        return false;
+      }
+    });
+
+  callbacks.setCoverQueueRef.current = request.then(
+    () => undefined,
+    () => undefined,
+  );
+  return request;
 }
 
 export function applyPhotoUpdateIfCurrent(
