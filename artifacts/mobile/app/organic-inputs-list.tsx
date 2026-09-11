@@ -448,6 +448,7 @@ export default function OrganicInputsListScreen({ restrictedOnly = false }: { re
       await savePdf(
         organicInputRegisterHtml(exportable, currentFarm?.name ?? "farm", cropYear),
         "Organic Input Register",
+        "organic-input-register.pdf",
       );
     } catch {
       Alert.alert("Print failed", "Could not generate or share the Input Register PDF.");
