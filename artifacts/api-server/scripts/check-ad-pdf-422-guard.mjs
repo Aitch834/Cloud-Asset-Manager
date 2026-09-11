@@ -48,6 +48,10 @@ import { createRequire } from "node:module";
 import { renameSync, existsSync } from "node:fs";
 import { resolve as pathResolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  hideFallbackDir as hideFallbackDirectory,
+  recoverStaleFallbackDir as recoverStaleFallbackDirectory,
+} from "./lib/ad-brand-fallback-dir.mjs";
 import { acquireProcessLock } from "./lib/process-lock.mjs";
 import { overrideAdBrandAssetCache } from "./lib/ad-brand-asset-cache-override.mjs";
 
@@ -192,28 +196,14 @@ async function restoreConfigKey(key, savedValue) {
 // Recover a fallback directory left behind when a previous run was force-killed
 // before its finally block could restore the original name.
 function recoverStaleFallbackDir() {
-  if (existsSync(FALLBACK_DIR_BAK) && !existsSync(FALLBACK_DIR)) {
-    console.warn(
-      `WARNING: found stale fallback backup at ${FALLBACK_DIR_BAK}; ` +
-      `automatically restoring it to ${FALLBACK_DIR}.`,
-    );
-    renameSync(FALLBACK_DIR_BAK, FALLBACK_DIR);
-  }
+  recoverStaleFallbackDirectory(FALLBACK_DIR, FALLBACK_DIR_BAK);
 }
 
 // Rename the on-disk fallback directory so resolveAdBrandAssets() cannot use it.
 // This must be done before "missing" status scenarios, because the function falls
 // back to those HTML files whenever a DB value is absent/empty.
 function hideFallbackDir() {
-  if (!existsSync(FALLBACK_DIR)) return; // already absent — nothing to do
-  if (existsSync(FALLBACK_DIR_BAK)) {
-    throw new Error(
-      `Backup path ${FALLBACK_DIR_BAK} already exists — a previous run may have left it. ` +
-      `Rename it back to ${FALLBACK_DIR} and re-run.`,
-    );
-  }
-  renameSync(FALLBACK_DIR, FALLBACK_DIR_BAK);
-  fallbackDirRenamed = true;
+  fallbackDirRenamed = hideFallbackDirectory(FALLBACK_DIR, FALLBACK_DIR_BAK);
 }
 
 // Restore the fallback directory to its original name.

@@ -340,12 +340,12 @@ isValidation = true
 name = "ad-brand-asset-guard"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node artifacts/api-server/scripts/check-ad-pdf-422-guard.mjs"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run test:ad-brand-fallback-dir && node artifacts/api-server/scripts/check-ad-pdf-422-guard.mjs"
 
 [[workflows.workflow]]
 name = "financial-export-columns-api"
