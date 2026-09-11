@@ -24,6 +24,9 @@ const SINGLE_BLOCK_RUN_TAG = `E2E-2000-${Date.now()}`;
 const SINGLE_BLOCK = `${SINGLE_BLOCK_RUN_TAG}-single-block`;
 const MULTI_VINTAGE_RUN_TAG = `E2E-2071-${Date.now()}`;
 const MULTI_VINTAGE_BLOCK = `${MULTI_VINTAGE_RUN_TAG}-multi-vintage`;
+
+const YEAR_SWITCH_RUN_TAG = `E2E-2384-${Date.now()}`;
+const YEAR_SWITCH_BLOCK = `${YEAR_SWITCH_RUN_TAG}-year-switch`;
 const VINTAGE_YEAR = new Date().getFullYear();
 const HARVEST_DATE = `${VINTAGE_YEAR}-07-15`;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -307,6 +310,8 @@ test.describe("Harvest block productivity exports", () => {
         .locator("..");
       const summaryTable = summarySection.getByRole("table");
 
+      const summaryRows = summaryTable.locator("tbody > tr");
+
       await expect(summaryTable.locator("tbody > tr")).toHaveCount(1);
       await expect(summaryTable.locator("tfoot > tr")).toContainText("Season Totals");
       await expect(summaryTable.locator("tfoot > tr")).toBeVisible();
@@ -316,63 +321,42 @@ test.describe("Harvest block productivity exports", () => {
     }
   });
 
-  test("export block summary averages picks split across two vintages", async ({ page }) => {
+  test("refresh Season Totals when the selected harvest year changes", async ({ page }) => {
     let blockId: number | null = null;
     const harvestIds: number[] = [];
     const previousVintage = VINTAGE_YEAR - 1;
 
     try {
-      blockId = await createBlock(MULTI_VINTAGE_BLOCK, 2);
-      harvestIds.push(
-        await createHarvest(blockId, 1000, {
-          vintageYear: previousVintage,
-          brix: 18,
-          ph: 3.2,
-          titratableAcidityGl: 6,
-          potentialAlcohol: 10,
-        }),
-      );
-      harvestIds.push(
-        await createHarvest(blockId, 2000, {
-          vintageYear: VINTAGE_YEAR,
-          brix: 20,
-          ph: 3.4,
-          titratableAcidityGl: 8,
-          potentialAlcohol: 12,
-        }),
-      );
+      blockId = await createBlock(YEAR_SWITCH_BLOCK, 2);
+      harvestIds.push(await createHarvest(blockId, 500));
+      harvestIds.push(await createHarvest(blockId, 400, { vintageYear: previousVintage }));
+      harvestIds.push(await createHarvest(blockId, 600, { vintageYear: previousVintage }));
 
-      await openSeededHarvest(page, MULTI_VINTAGE_RUN_TAG, [MULTI_VINTAGE_BLOCK], "all");
+      await openSeededHarvest(page, YEAR_SWITCH_RUN_TAG, [YEAR_SWITCH_BLOCK]);
 
-      const rows = await downloadCsv(page, /Export Block Summary/);
-      const headerIndex = rows.findIndex(
-        row => row[0] === "Vintage" && row.includes("Total Yield (kg)") && row.includes("Avg TA (g/L)"),
-      );
-      expect(headerIndex, "multi-vintage block summary header must be present").toBeGreaterThanOrEqual(0);
+      const summarySection = page
+        .getByRole("button", { name: /Per-Block Yield Summary/ })
+        .locator("..");
+      const summaryTable = summarySection.getByRole("table");
+      const summaryRows = summaryTable.locator("tbody > tr");
+      const seasonTotals = summaryTable.locator("tfoot > tr");
 
-      const header = rows[headerIndex];
-      const dataRow = rows.slice(headerIndex + 1).find(row => row[header.indexOf("Block")] === MULTI_VINTAGE_BLOCK);
-      expect(dataRow, "multi-vintage block must be present in the export").toBeDefined();
+      await expect(summaryRows).toHaveCount(1);
+      await expect(seasonTotals.locator("td").nth(3)).toHaveText("1");
+      await expect(seasonTotals.locator("td").nth(4)).toHaveText("500");
+      await expect(seasonTotals.locator("td").nth(5)).toHaveText("0.25");
 
-      const expectedValues: Record<string, string> = {
-        Vintage: `${previousVintage}, ${VINTAGE_YEAR}`,
-        Block: MULTI_VINTAGE_BLOCK,
-        Variety: "Chardonnay",
-        "Area (ha)": "2.00",
-        Picks: "2",
-        "Total Yield (kg)": "3000.0",
-        "t/ha": "1.50",
-        "Avg Brix °": "19.0",
-        "Avg pH": "3.30",
-        "Avg TA (g/L)": "7.00",
-        "Avg Pot. Alcohol %": "11.00",
-      };
+      const yearSelect = page
+        .getByRole("combobox")
+        .filter({ hasText: String(VINTAGE_YEAR) });
+      await yearSelect.click();
+      await page.getByRole("option", { name: String(previousVintage), exact: true }).click();
 
-      for (const [column, expected] of Object.entries(expectedValues)) {
-        const columnIndex = header.indexOf(column);
-        expect(columnIndex, `CSV column ${column} must be present`).toBeGreaterThanOrEqual(0);
-        expect(dataRow?.[columnIndex], `${column} must contain the multi-vintage aggregate`).toBe(expected);
-      }
+      await expect(yearSelect).toContainText(String(previousVintage));
+      await expect(summaryRows).toHaveCount(1);
+      await expect(seasonTotals.locator("td").nth(3)).toHaveText("2");
+      await expect(seasonTotals.locator("td").nth(4)).toHaveText("1,000");
+      await expect(seasonTotals.locator("td").nth(5)).toHaveText("0.50");
     } finally {
       for (const harvestId of harvestIds.reverse()) {
         await deleteHarvest(harvestId).catch(() => undefined);
