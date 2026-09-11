@@ -173,6 +173,21 @@ describe('useApiFarmMembers', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('does not replace cached members when the API response loses its members key', async () => {
+    mockKvGet.mockResolvedValue(JSON.stringify([ACTIVE_MEMBER]));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ records: [ACTIVE_MEMBER] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiFarmMember>(useApiFarmMembers, FARM_ID, mockHarness);
+
+    expect(result.items).toEqual([ACTIVE_MEMBER]);
+    expect(result.fromCache).toBe(true);
+    expect(result.lastError).toBe('Invalid farm members response: expected members array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('clears the previous farm before loading the next farm members', async () => {
     const farmAMember = { ...ACTIVE_MEMBER, id: 101, firstName: 'Farm A' };
     const farmBMember = { ...ACTIVE_MEMBER, id: 202, firstName: 'Farm B' };
@@ -315,6 +330,18 @@ describe('useApiInsurance', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('does not cache an empty policy list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ policies: [POLICY] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiInsurancePolicy>(useApiInsurance, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid insurance response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('returns stale cache when API fails', async () => {
     const cached: ApiInsurancePolicy[] = [POLICY];
     mockKvGet.mockResolvedValue(JSON.stringify(cached));
@@ -391,6 +418,18 @@ describe('useApiSprayProducts', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].productName).toBe(PRODUCT.productName);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('does not cache an empty product list when the records key is renamed', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ products: [PRODUCT] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiSprayProduct>(useApiSprayProducts, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid spray products response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 
   it('returns stale cache when API fails', async () => {

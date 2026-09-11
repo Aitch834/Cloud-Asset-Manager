@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayResponse } from "./apiResponseGuards";
 
 export interface ApiFlock {
   id: number;
@@ -16,7 +17,7 @@ const useApiPoultryFlocksHook = buildCachedApiHook<ApiFlock>(
   (farmId) => `bde_cache_poultry_flocks_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/poultry-flocks`,
   (json) => {
-    const records = (Array.isArray(json) ? json : []) as ApiFlock[];
+    const records = requireArrayResponse<ApiFlock>(json, "poultry flocks");
     return records.filter((f) => f.status !== "depleted");
   }
 );

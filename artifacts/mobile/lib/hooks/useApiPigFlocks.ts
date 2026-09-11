@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayResponse } from "./apiResponseGuards";
 
 export interface ApiPigFlock {
   id: number;
@@ -14,7 +15,7 @@ export interface ApiPigFlock {
 const useApiPigFlocksHook = buildCachedApiHook<ApiPigFlock>(
   (farmId) => `bde_cache_pig_flocks_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/pig-flocks`,
-  (json) => (Array.isArray(json) ? json : []) as ApiPigFlock[]
+  (json) => requireArrayResponse<ApiPigFlock>(json, "pig flocks")
 );
 
 export function useApiPigFlocks(farmId: string | undefined) {

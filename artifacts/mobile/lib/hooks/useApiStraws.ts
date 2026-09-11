@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiStraw {
   id: number;
@@ -19,7 +20,7 @@ const useApiStrawsHook = buildCachedApiHook<ApiStraw>(
   (farmId) => `bde_cache_straws_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/straws`,
   (json) => {
-    const records = ((json as { records?: ApiStraw[] }).records ?? []) as ApiStraw[];
+    const records = requireArrayEnvelope<ApiStraw>(json, "records", "straws");
     return records.filter((s) => s.isActive !== false);
   }
 );

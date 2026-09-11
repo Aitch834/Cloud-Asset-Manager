@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiInsurancePolicy {
   id: number;
@@ -10,9 +11,7 @@ export interface ApiInsurancePolicy {
 const useApiInsuranceHook = buildCachedApiHook<ApiInsurancePolicy>(
   (farmId) => `bde_cache_insurance_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/insurance`,
-  (json) => {
-    return ((json as { records?: ApiInsurancePolicy[] }).records ?? []) as ApiInsurancePolicy[];
-  }
+  (json) => requireArrayEnvelope<ApiInsurancePolicy>(json, "records", "insurance"),
 );
 
 export function useApiInsurance(farmId: string | undefined) {

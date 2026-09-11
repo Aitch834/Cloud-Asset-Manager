@@ -158,6 +158,21 @@ describe('useApiFields', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('keeps cached fields when the API response loses its records key', async () => {
+    mockKvGet.mockResolvedValue(JSON.stringify([ACTIVE_FIELD]));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ fields: [ACTIVE_FIELD] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiField>(useApiFields, FARM_ID, mockHarness);
+
+    expect(result.items).toEqual([ACTIVE_FIELD]);
+    expect(result.fromCache).toBe(true);
+    expect(result.lastError).toBe('Invalid fields response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('clears the previous farm before loading the next farm fields', async () => {
     const farmAField = { ...ACTIVE_FIELD, id: 101, name: 'Farm A Field' };
     const farmBField = { ...ACTIVE_FIELD, id: 202, name: 'Farm B Field' };
@@ -309,6 +324,18 @@ describe('useApiLabs', () => {
     expect(result.items[0].id).toBe(ACTIVE_LAB.id);
     expect(result.items[0].name).toBe(ACTIVE_LAB.name);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('does not cache an empty lab list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ labs: [ACTIVE_LAB] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiLab>(useApiLabs, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid labs response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 
   it('returns cached labs as-is when API is offline', async () => {

@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiSire {
   id: number;
@@ -18,7 +19,7 @@ const useApiSiresHook = buildCachedApiHook<ApiSire>(
   (farmId) => `bde_cache_sires_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/sires`,
   (json) => {
-    const records = ((json as { records?: ApiSire[] }).records ?? []) as ApiSire[];
+    const records = requireArrayEnvelope<ApiSire>(json, "records", "sires");
     return records.filter((s) => s.isActive !== false);
   }
 );

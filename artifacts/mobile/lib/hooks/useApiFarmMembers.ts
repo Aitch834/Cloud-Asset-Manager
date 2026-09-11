@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiFarmMember {
   id: number;
@@ -21,7 +22,7 @@ const useApiFarmMembersHook = buildCachedApiHook<ApiFarmMember>(
   (farmId) => `bde_cache_farm_members_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/members`,
   (json) => {
-    const members = ((json as { members?: ApiFarmMember[] }).members ?? []) as ApiFarmMember[];
+    const members = requireArrayEnvelope<ApiFarmMember>(json, "members", "farm members");
     return members.filter((m) => m.isActive !== false);
   }
 );

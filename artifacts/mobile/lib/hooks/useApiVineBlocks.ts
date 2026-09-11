@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface VineBlock {
   id: number;
@@ -81,7 +82,7 @@ const useApiVineBlocksHook = buildCachedApiHook<VineBlock>(
   (farmId) => `bde_cache_vine_blocks_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/vineyard-blocks`,
   (json) => {
-    const records = ((json as { records?: VineBlock[] }).records ?? []) as VineBlock[];
+    const records = requireArrayEnvelope<VineBlock>(json, "records", "vine blocks");
     return records.filter((b) => b.plantingStatus !== "removed" && b.plantingStatus !== "no_planting");
   },
   // Strip the presigned cover-photo URL before writing to AsyncStorage.

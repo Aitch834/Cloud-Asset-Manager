@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 import { isDemoFarmId, getDemoFields } from "@/lib/demo/demoData";
 
 export interface ApiField {
@@ -17,7 +18,7 @@ const useApiFieldsHook = buildCachedApiHook<ApiField>(
   (farmId) => `bde_cache_fields_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/fields`,
   (json) => {
-    const records = ((json as { records?: ApiField[] }).records ?? []) as ApiField[];
+    const records = requireArrayEnvelope<ApiField>(json, "records", "fields");
     return records.filter((f) => f.isActive !== false);
   }
 );

@@ -616,6 +616,22 @@ describe('useApiVineBlocks — coverPhotoUrl cacheTransform', () => {
     expect(blocks[0].coverPhotoUrl).toBe(VINE_BLOCK.coverPhotoUrl);
   });
 
+  it('keeps cached blocks when the API response loses its records key', async () => {
+    mockKvGet.mockResolvedValue(JSON.stringify([{ ...VINE_BLOCK, coverPhotoUrl: null }]));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ blocks: [VINE_BLOCK] }),
+    } as unknown as Response);
+
+    const { blocks, fromCache, error } = await runVineHookToCompletion();
+
+    expect(blocks).toHaveLength(1);
+    expect(fromCache).toBe(true);
+    expect(error).toBeNull();
+    expect(mockKvSet).not.toHaveBeenCalled();
+    expect(mockHarness.store.values[3]).toBe('Invalid vine blocks response: expected records array');
+  });
+
   it('sanitises stale cache entries that contain an old coverPhotoUrl', async () => {
     const staleBlocks: VineBlock[] = [{ ...VINE_BLOCK }];   // URL present in old cache
     mockKvGet.mockResolvedValue(JSON.stringify(staleBlocks));

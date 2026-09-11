@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiSprayProduct {
   id: number;
@@ -16,7 +17,7 @@ export interface ApiSprayProduct {
 const useApiSprayProductsHook = buildCachedApiHook<ApiSprayProduct>(
   (farmId) => `bde_cache_spray_products_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/spray-products`,
-  (json) => ((json as { records?: ApiSprayProduct[] }).records ?? []) as ApiSprayProduct[],
+  (json) => requireArrayEnvelope<ApiSprayProduct>(json, "records", "spray products"),
 );
 
 export function useApiSprayProducts(farmId: string | undefined) {

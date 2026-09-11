@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 import { isDemoFarmId, getDemoLabs } from "@/lib/demo/demoData";
 
 export interface ApiLab {
@@ -16,7 +17,7 @@ const useApiLabsHook = buildCachedApiHook<ApiLab>(
   (farmId) => `bde_cache_labs_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/labs`,
   (json) => {
-    const records = ((json as { records?: ApiLab[] }).records ?? []) as ApiLab[];
+    const records = requireArrayEnvelope<ApiLab>(json, "records", "labs");
     return records.filter((l) => l.isActive !== false);
   }
 );

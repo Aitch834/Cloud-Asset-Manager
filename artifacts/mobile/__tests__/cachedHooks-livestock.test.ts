@@ -154,6 +154,18 @@ describe('useApiHerds', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('does not cache an empty herd list when the records key is renamed', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ herds: [ACTIVE_HERD] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiHerd>(useApiHerds, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid herds response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('clears the previous farm before loading the next farm herds', async () => {
     const farmAHerd = { ...ACTIVE_HERD, id: 101, name: 'Farm A Herd' };
     const farmBHerd = { ...ACTIVE_HERD, id: 202, name: 'Farm B Herd' };
@@ -277,6 +289,18 @@ describe('useApiSheepFlocks', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('does not cache an empty sheep list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ flocks: [SHEEP_HERD] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiHerd>(useApiSheepFlocks, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid sheep flocks response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('returns cached sheep flocks as-is when offline', async () => {
     mockKvGet.mockResolvedValue(JSON.stringify([SHEEP_HERD]));
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
@@ -355,6 +379,18 @@ describe('useApiGoatFlocks', () => {
     expect(result.fromCache).toBe(false);
   });
 
+  it('does not cache an empty goat list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ flocks: [GOAT_HERD] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiHerd>(useApiGoatFlocks, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid goat flocks response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
   it('returns cached goat flocks as-is when offline', async () => {
     mockKvGet.mockResolvedValue(JSON.stringify([GOAT_HERD]));
     global.fetch = jest.fn().mockRejectedValue(new Error('offline'));
@@ -424,6 +460,18 @@ describe('useApiSires', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].id).toBe(ACTIVE_SIRE.id);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('does not cache an empty sire list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ sires: [ACTIVE_SIRE] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiSire>(useApiSires, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid sires response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 
   it('returns cached sires as-is when offline', async () => {
@@ -504,6 +552,18 @@ describe('useApiStraws', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].batchNumber).toBe(ACTIVE_STRAW.batchNumber);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('does not cache an empty straw list when the records key is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ straws: [ACTIVE_STRAW] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiStraw>(useApiStraws, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid straws response: expected records array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 
   it('returns cached straws as-is when offline', async () => {
@@ -588,10 +648,11 @@ describe('useApiPigFlocks', () => {
     expect(result.fromCache).toBe(true);
   });
 
-  it('returns an empty list when the API responds with a non-array', async () => {
+  it('keeps stale cache when the direct-array response becomes an envelope', async () => {
+    mockKvGet.mockResolvedValue(JSON.stringify([PIG_FLOCK]));
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ records: [] }), // wrong shape — object not array
+      json: async () => ({ records: [PIG_FLOCK] }),
     } as unknown as Response);
 
     const result = await runHook<ApiPigFlock>(
@@ -600,9 +661,10 @@ describe('useApiPigFlocks', () => {
       mockHarness,
     );
 
-    expect(result.items).toHaveLength(0);
-    const [, raw] = mockKvSet.mock.calls[0];
-    expect(JSON.parse(raw)).toEqual([]);
+    expect(result.items).toEqual([PIG_FLOCK]);
+    expect(result.fromCache).toBe(true);
+    expect(result.lastError).toBe('Invalid pig flocks response: expected array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 });
 
@@ -664,6 +726,18 @@ describe('useApiPoultryFlocks', () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].flockNumber).toBe(ACTIVE_FLOCK.flockNumber);
     expect(result.fromCache).toBe(false);
+  });
+
+  it('does not cache an empty poultry list when the direct-array shape changes', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ records: [ACTIVE_FLOCK] }),
+    } as unknown as Response);
+
+    const result = await runHook<ApiFlock>(useApiPoultryFlocks, FARM_ID, mockHarness);
+
+    expect(result.lastError).toBe('Invalid poultry flocks response: expected array');
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 
   it('returns cached flocks as-is when offline', async () => {

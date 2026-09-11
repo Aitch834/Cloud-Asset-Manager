@@ -1,4 +1,5 @@
 import { buildCachedApiHook } from "./buildCachedApiHook";
+import { requireArrayEnvelope } from "./apiResponseGuards";
 
 export interface ApiHerd {
   id: number;
@@ -14,7 +15,7 @@ const useApiHerdsHook = buildCachedApiHook<ApiHerd>(
   (farmId) => `bde_cache_herds_${farmId}`,
   (farmId, domain) => `${domain}/api/farms/${farmId}/herds`,
   (json) => {
-    const records = ((json as { records?: ApiHerd[] }).records ?? []) as ApiHerd[];
+    const records = requireArrayEnvelope<ApiHerd>(json, "records", "herds");
     return records.filter((h) => h.isActive !== false);
   }
 );
