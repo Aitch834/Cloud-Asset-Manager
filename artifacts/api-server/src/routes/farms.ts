@@ -2587,6 +2587,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
     db.select({
       id: irrigationRecordsTable.id,
       irrigationDate: irrigationRecordsTable.irrigationDate,
+      fieldName: fieldsTable.name,
       fieldOrBlockDescription: irrigationRecordsTable.fieldOrBlockDescription,
       areaIrrigatedHa: irrigationRecordsTable.areaIrrigatedHa,
       cropType: irrigationRecordsTable.cropType,
@@ -2600,6 +2601,7 @@ router.get("/farms/:farmId/crop-season-report", requireAuth, requireTenant, requ
       notes: irrigationRecordsTable.notes,
     })
     .from(irrigationRecordsTable)
+    .leftJoin(fieldsTable, eq(irrigationRecordsTable.fieldId, fieldsTable.id))
     .where(and(
       eq(irrigationRecordsTable.farmId, farmId),
       gte(irrigationRecordsTable.irrigationDate, seasonStart.toISOString().slice(0, 10)),

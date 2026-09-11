@@ -25,6 +25,7 @@ import { StaffSelect } from "@/components/ui/staff-select";
 
 import { apiUrl as api } from "@/lib/api";
 import { IrrigationAdvisorTab } from "@/components/irrigation/IrrigationAdvisorTab";
+import { irrigationFieldLabel } from "@/lib/irrigation-field-label";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
@@ -575,9 +576,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   }
 
   function fieldLabel(r: Record<string, unknown>) {
-    if (r.fieldName) return String(r.fieldName);
-    if (r.fieldId) { const f = fields.find(x => String(x.id) === String(r.fieldId)); if (f) return String(f.name); }
-    return r.fieldOrBlockDescription ? String(r.fieldOrBlockDescription) : "—";
+    return irrigationFieldLabel(r, fields);
   }
   function fieldEditHref(r: Record<string, unknown>) {
     const fieldId = Number(r.fieldId);

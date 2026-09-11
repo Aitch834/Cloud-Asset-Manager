@@ -16,6 +16,7 @@ import {
   Leaf, CloudRain, AlertCircle, Calendar, TrendingUp,
   Plus, Trash2, Home,
 } from "lucide-react";
+import { irrigationFieldLabel } from "@/lib/irrigation-field-label";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ interface ReportData {
   irrigation: Array<{
     id: number;
     irrigationDate: string;
+    fieldName: string | null;
     fieldOrBlockDescription: string;
     areaIrrigatedHa: string | null;
     cropType: string | null;
@@ -1032,7 +1034,7 @@ export default function CropSeasonReport({ assignmentId, onClose }: Props) {
                         {data.irrigation.map(r => (
                           <tr key={r.id}>
                             <Td>{fmt(r.irrigationDate)}</Td>
-                            <Td>{r.fieldOrBlockDescription}</Td>
+                            <Td>{irrigationFieldLabel(r)}</Td>
                             <Td><Badge color="blue">{r.irrigationMethod}</Badge></Td>
                             <Td>{[r.cropType, r.growthStage].filter(Boolean).join(" / ") || "—"}</Td>
                             <Td right mono>{n(r.applicationDepthMm)}</Td>
