@@ -104,6 +104,7 @@ export default function HomeScreen() {
 
   const [unlinkedCounts, setUnlinkedCounts] = useState({ scouting: 0, sprayDiary: 0, phenology: 0, harvest: 0, operations: 0 });
   const [winegbPendingCount, setWinegbPendingCount] = useState(0);
+  const winegbRequestGenerationRef = useRef(0);
   const [fpInputDerogAlerts, setFpInputDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean; dueDate: string | null }>>([]);
   const [fpDerogAlerts, setFpDerogAlerts] = useState<Array<{ id: string; title: string; isOverdue: boolean }>>([]);
   const [upcomingMilestones, setUpcomingMilestones] = useState<ReturnType<typeof getAgriEnvMilestoneSections>["upcoming"]>([]);
@@ -313,19 +314,23 @@ export default function HomeScreen() {
   }, [currentFarm?.id, isViticultureActive]);
 
   const fetchWinegbSubmissions = useCallback(async () => {
-    if (!currentFarm?.id || !isViticultureActive) {
+    const requestGeneration = ++winegbRequestGenerationRef.current;
+    const farmId = currentFarm?.id;
+    if (!farmId || !isViticultureActive) {
       setWinegbPendingCount(0);
       return;
     }
     try {
       const year = new Date().getFullYear();
-      const res = await apiFetch(`/api/farms/${currentFarm.id}/winegb-submissions?year=${year}`);
+      const res = await apiFetch(`/api/farms/${farmId}/winegb-submissions?year=${year}`);
       if (!res.ok) return;
       const payload = await res.json() as { submissions: Record<string, { submitted: boolean }> };
       const pending = WINEGB_SURVEY_KEYS.filter(
         key => !(payload.submissions?.[key]?.submitted ?? false),
       ).length;
-      setWinegbPendingCount(pending);
+      if (requestGeneration === winegbRequestGenerationRef.current) {
+        setWinegbPendingCount(pending);
+      }
     } catch { /* ignore */ }
   }, [currentFarm?.id, isViticultureActive]);
 
