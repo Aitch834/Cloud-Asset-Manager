@@ -15,6 +15,7 @@
     "pretest:e2e": "pnpm run test:e2e:smoke-browser",
     "test:e2e": "playwright test",
     "test:e2e:mobile-auth": "PLAYWRIGHT_MOBILE_AUTH_ONLY=1 PLAYWRIGHT_MOBILE_BASE_URL=https://$REPLIT_EXPO_DEV_DOMAIN PLAYWRIGHT_MOBILE_API_BASE_URL=https://$REPLIT_DEV_DOMAIN playwright test e2e/mobile-auth-preflight.spec.ts --project=chromium",
+    "test:e2e:phenology-history-shortcut": "PLAYWRIGHT_MOBILE_AUTH_ONLY=1 PLAYWRIGHT_MOBILE_BASE_URL=https://$REPLIT_EXPO_DEV_DOMAIN PLAYWRIGHT_MOBILE_API_BASE_URL=https://$REPLIT_DEV_DOMAIN playwright test e2e/mobile-phenology-history-shortcut.spec.ts --project=chromium",
     "test:e2e:excise-rate-review": "playwright test e2e/excise-duty-rate-review-date.spec.ts",
     "test:e2e:vine-register-parcel-ref": "playwright test e2e/vine-register-parcel-ref-popover.spec.ts",
     "test:e2e:print-pagination": "playwright test e2e/viticulture-print-pagination.spec.ts",

@@ -91,10 +91,29 @@ export async function signInMobile(
   emailAddress = readTestUserEmail(),
 ): Promise<void> {
   try {
-    await page.goto(mobileBaseUrl);
+    const response = await page.goto(mobileBaseUrl, {
+      waitUntil: "domcontentloaded",
+    });
+    if (!response?.ok()) {
+      throw new Error(
+        `mobile preview returned HTTP ${response?.status() ?? "no response"}`,
+      );
+    }
     await page.waitForFunction(
       () => Boolean((window as Window & { Clerk?: unknown }).Clerk),
+      undefined,
+      { timeout: 10_000 },
     );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Mobile release runtime unavailable at ${mobileBaseUrl}. ` +
+        `Start the mobile workflow and rerun the check. ${detail}`,
+      { cause: error },
+    );
+  }
+
+  try {
     await clerk.signIn({ page, emailAddress });
     await page.waitForFunction(
       () =>
