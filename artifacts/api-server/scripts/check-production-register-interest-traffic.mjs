@@ -66,6 +66,12 @@ function detailFor(response) {
   return `HTTP ${response.status}`;
 }
 
+function scriptSources(html) {
+  return [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
+    .map((match) => match[1])
+    .filter((source) => source.startsWith("/") || source.startsWith(publicBaseUrl));
+}
+
 if (!writeEnabled) {
   console.error(
     "Refusing to run: this check creates one synthetic production lead. " +
@@ -83,13 +89,31 @@ check("API health endpoint responds 200", health.status === 200 && health.json?.
 
 const page = await request(publicBaseUrl, "/register-interest");
 check(
-  "Register Interest page responds 200",
-  page.status === 200 && page.text.includes("BDE Farm Trac"),
+  "Register Interest page shell responds 200",
+  page.status === 200 && page.text.includes('id="root"'),
   detailFor(page),
 );
 
-const stamp = `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${process.pid}`;
-const email = `production-smoke-${stamp}@example.com`;
+const deployedScripts = scriptSources(page.text);
+const deployedScriptBodies = await Promise.all(
+  deployedScripts.map((source) =>
+    request(publicBaseUrl, source.startsWith(publicBaseUrl) ? source.slice(publicBaseUrl.length) : source),
+  ),
+);
+check(
+  "Deployed website bundle contains the Register Interest route",
+  deployedScripts.length > 0 &&
+    deployedScriptBodies.some(
+      (script) =>
+        script.status === 200 &&
+        script.text.includes("/register-interest") &&
+        script.text.includes("/api/register-interest"),
+    ),
+  deployedScripts.length > 0 ? "route markers not found" : "no deployed scripts found",
+);
+
+const stamp = `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${crypto.randomUUID().slice(0, 8)}`;
+const email = `production-smoke-${stamp}@example.invalid`;
 const lead = await request(publicBaseUrl, "/api/register-interest", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
