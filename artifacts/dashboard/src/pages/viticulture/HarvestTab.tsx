@@ -53,7 +53,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
-import { isSinglePickYieldCell } from "@/lib/yield-cross-tab";
+import { calculateYieldCrossTabFooter, isSinglePickYieldCell } from "@/lib/yield-cross-tab";
 import { getChemistrySpreadWarnings } from "@/lib/harvest-chemistry-spread";
 import { getTopHarvestSummaryBlockName } from "@/lib/harvest-block-summary";
 
@@ -493,14 +493,8 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     let footerTotalKg = 0;
     let footerTotalArea = 0;
     for (const vy of uniqueVintages) {
-      let vyKg = 0; let vyArea = 0;
-      for (const row of blockRows) {
-        const kg = row.cells[vy]?.kg ?? 0;
-        vyKg += kg;
-        if (row.areaHa && kg > 0) vyArea += row.areaHa;
-      }
-      footerCells[vy] = { kg: vyKg, tha: vyArea > 0 && vyKg > 0 ? vyKg / 1000 / vyArea : null };
-      footerTotalKg += vyKg;
+      footerCells[vy] = calculateYieldCrossTabFooter(vy, blockRows);
+      footerTotalKg += footerCells[vy].kg;
     }
     // Grand total area: sum of distinct block areas that have any yield
     const bidsWithYield = blockRows.filter(r => r.totalKg > 0 && r.areaHa);

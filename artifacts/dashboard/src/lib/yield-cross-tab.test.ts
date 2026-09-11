@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isSinglePickYieldCell } from "./yield-cross-tab";
+import {
+  calculateYieldCrossTabFooter,
+  isSinglePickYieldCell,
+} from "./yield-cross-tab";
 
 describe("isSinglePickYieldCell", () => {
   it.each([
@@ -23,5 +26,36 @@ describe("isSinglePickYieldCell", () => {
 
   it("does not flag positive yield when there are multiple picks", () => {
     expect(isSinglePickYieldCell({ kg: 125.5, pickCount: 2 })).toBe(false);
+  });
+});
+
+describe("calculateYieldCrossTabFooter", () => {
+  it.each([
+    ["zero", 0],
+    ["null", null],
+  ])("excludes a %s-yield block's area from the vintage denominator", (_label, noYieldKg) => {
+    const footer = calculateYieldCrossTabFooter("2025", [
+      { areaHa: 2, cells: { "2025": { kg: 4_000 } } },
+      { areaHa: 8, cells: { "2025": { kg: noYieldKg } } },
+    ]);
+
+    expect(footer).toEqual({ kg: 4_000, tha: 2 });
+  });
+
+  it("keeps footer kg and weighted t/ha correct for mixed positive and no-yield blocks", () => {
+    const rows = [
+      { areaHa: 2, cells: { "2024": { kg: 0 }, "2025": { kg: 4_000 } } },
+      { areaHa: 3, cells: { "2024": { kg: 3_000 }, "2025": { kg: null } } },
+      { areaHa: 5, cells: { "2024": { kg: 2_000 }, "2025": { kg: 1_000 } } },
+    ];
+
+    expect(calculateYieldCrossTabFooter("2024", rows)).toEqual({
+      kg: 5_000,
+      tha: 0.625,
+    });
+    expect(calculateYieldCrossTabFooter("2025", rows)).toEqual({
+      kg: 5_000,
+      tha: 5 / 7,
+    });
   });
 });
