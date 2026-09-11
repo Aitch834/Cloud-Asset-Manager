@@ -125,6 +125,16 @@ The API server's build command rebuilds `lib/db` as its first step so compiled d
 
 **Manual pre-publish verification (optional):** `scripts/build-prod.sh` replicates the API server + website + admin-portal builds locally. Dashboard is excluded from the script because it requires ~3 GB of free RAM that competing dev-server workflows consume; Publish runs it cleanly in production. See `.agents/memory/dashboard-build-oom.md` for the manual dashboard build recipe if needed.
 
+### Physical-device release checks
+
+Checks that require a person to operate a physical iPhone or Android phone are
+manual release activities, not autonomous development tasks. Before assignment,
+split implementation and automated verification into an agent task, then route
+the physical-device step to `docs/mobile-release-device-checklist.md` with the
+label **MANUAL — PHYSICAL DEVICE**. Do not leave an autonomous agent assigned
+while waiting for a phone check. Record performed results in the release record
+using the checklist template.
+
 ## External Dependencies
 
 - **Monorepo Tool:** pnpm workspaces
