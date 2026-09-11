@@ -6,6 +6,15 @@ const FARM_A = { id: 5, name: "Highfield Vineyard" };
 const FARM_B = { id: 924_244, name: "Chemistry Preference Vineyard" };
 const STORAGE_KEY = (farmId: number) =>
   `viticulture-harvest-chemCrossTabOpen-filter-${farmId}`;
+const HARVEST_FILTER_KEY = (filter: string, farmId: number) =>
+  `viticulture-harvest-${filter}-filter-${farmId}`;
+
+const chemistryMetrics = [
+  { filter: "showVintageBrix", heading: "Avg Brix ° — Block × Vintage" },
+  { filter: "showVintagePh", heading: "Avg pH — Block × Vintage" },
+  { filter: "showVintageTa", heading: "Avg TA (g/L) — Block × Vintage" },
+  { filter: "showVintagePa", heading: "Avg Pot. Alc % — Block × Vintage" },
+] as const;
 
 const blocks = [
   { id: 244_401, blockName: "Chemistry North", variety: "Chardonnay", areaHa: 1.2 },
@@ -68,6 +77,46 @@ async function switchFarm(page: Page, farmName: string): Promise<void> {
   await openHarvest(page);
 }
 
+async function setChemistryPrintVisibility(
+  page: Page,
+  visibility: Record<(typeof chemistryMetrics)[number]["filter"], boolean>,
+): Promise<void> {
+  await page.evaluate(
+    ({ farmId, metrics, nextVisibility }) => {
+      localStorage.setItem(
+        `viticulture-harvest-year-filter-${farmId}`,
+        "all",
+      );
+      for (const { filter } of metrics) {
+        localStorage.setItem(
+          `viticulture-harvest-${filter}-filter-${farmId}`,
+          nextVisibility[filter] ? "true" : "false",
+        );
+      }
+    },
+    {
+      farmId: FARM_A.id,
+      metrics: chemistryMetrics,
+      nextVisibility: visibility,
+    },
+  );
+  await page.reload({ waitUntil: "networkidle" });
+  await openHarvest(page);
+}
+
+async function openHarvestPrintPopup(page: Page): Promise<Page> {
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Print", exact: true }).click();
+  const popup = await popupPromise;
+  await expect(
+    popup.getByRole("heading", {
+      name: "Chemistry Cross-tab — Block × Vintage",
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 10_000 });
+  return popup;
+}
+
 test("chemistry cross-tab collapse persists per farm", async ({ page }) => {
   await mockViticultureFarms(page);
   await signInDashboard(page);
@@ -114,4 +163,75 @@ test("chemistry cross-tab collapse persists per farm", async ({ page }) => {
   await expect(chemistryCrossTab).toHaveAttribute("aria-expanded", "false");
   await expect(page.evaluate(key => localStorage.getItem(key), STORAGE_KEY(FARM_A.id)))
     .resolves.toBe("false");
+});
+
+test("printed chemistry cross-tab follows persisted metric visibility", async ({ page }) => {
+  await mockViticultureFarms(page);
+  await signInDashboard(page);
+
+  await page.evaluate(
+    ([tenantSlug, farmId, yearFilterKey]) => {
+      localStorage.setItem("farmtrac_tenantSlug", tenantSlug);
+      localStorage.setItem(
+        "farmtrac-storage",
+        JSON.stringify({ state: { tenantSlug, farmId }, version: 0 }),
+      );
+      localStorage.setItem(`viticulture-active-tab-${farmId}`, "harvest");
+      localStorage.setItem(yearFilterKey, "all");
+    },
+    [TENANT_SLUG, FARM_A.id, HARVEST_FILTER_KEY("year", FARM_A.id)] as const,
+  );
+
+  const allVisible = Object.fromEntries(
+    chemistryMetrics.map(({ filter }) => [filter, true]),
+  ) as Record<(typeof chemistryMetrics)[number]["filter"], boolean>;
+
+  await setChemistryPrintVisibility(page, allVisible);
+  let popup = await openHarvestPrintPopup(page);
+  for (const { heading } of chemistryMetrics) {
+    await expect(popup.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  }
+  await popup.close();
+
+  for (const hiddenMetric of chemistryMetrics) {
+    await setChemistryPrintVisibility(page, {
+      ...allVisible,
+      [hiddenMetric.filter]: false,
+    });
+    popup = await openHarvestPrintPopup(page);
+    await expect(
+      popup.getByRole("heading", { name: hiddenMetric.heading, exact: true }),
+    ).toHaveCount(0);
+    for (const visibleMetric of chemistryMetrics.filter(
+      metric => metric.filter !== hiddenMetric.filter,
+    )) {
+      await expect(
+        popup.getByRole("heading", { name: visibleMetric.heading, exact: true }),
+      ).toBeVisible();
+    }
+    await popup.close();
+  }
+
+  await setChemistryPrintVisibility(
+    page,
+    Object.fromEntries(
+      chemistryMetrics.map(({ filter }) => [filter, false]),
+    ) as Record<(typeof chemistryMetrics)[number]["filter"], boolean>,
+  );
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Print", exact: true }).click();
+  popup = await popupPromise;
+  await expect(
+    popup.getByRole("heading", { name: "Harvest & Vintage Records", exact: true }),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    popup.getByRole("heading", {
+      name: "Chemistry Cross-tab — Block × Vintage",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  for (const { heading } of chemistryMetrics) {
+    await expect(popup.getByRole("heading", { name: heading, exact: true })).toHaveCount(0);
+  }
+  await popup.close();
 });
