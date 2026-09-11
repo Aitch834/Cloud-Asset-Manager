@@ -55,6 +55,10 @@ import { useLookupStrings } from "@/hooks/use-lookup";
 import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { calculateYieldCrossTabFooter, isSinglePickYieldCell } from "@/lib/yield-cross-tab";
+import {
+  getChemistryThinAveragePresentation,
+  sortChemistryCrossTabRows,
+} from "@/lib/chemistry-cross-tab";
 import { getChemistrySpreadWarnings } from "@/lib/harvest-chemistry-spread";
 import { getTopHarvestSummaryBlockName } from "@/lib/harvest-block-summary";
 
