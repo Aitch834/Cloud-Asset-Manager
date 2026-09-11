@@ -41,8 +41,11 @@ export function useApiStockItems(farmId: string | undefined) {
       try {
         const cached = await kvGet(cacheKey);
         if (cached && !cancelled) {
-          setAllItems(JSON.parse(cached) as ApiStockItem[]);
-          setLoading(false);
+          const parsed: unknown = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            setAllItems(parsed as ApiStockItem[]);
+            setLoading(false);
+          }
         }
       } catch { }
 

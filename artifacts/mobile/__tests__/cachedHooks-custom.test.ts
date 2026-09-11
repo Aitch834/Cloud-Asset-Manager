@@ -79,6 +79,7 @@ beforeEach(() => {
   process.env.EXPO_PUBLIC_DOMAIN = API_DOMAIN;
 });
 
+
 afterEach(() => {
   delete process.env.EXPO_PUBLIC_DOMAIN;
 });
@@ -125,6 +126,31 @@ describe('useMobileLookup custom offline cache', () => {
     );
 
     expect(states[0]).toEqual(staleValues);
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['malformed JSON', '{"broken":'],
+    ['a valid non-array payload', JSON.stringify({ values: ['legacy stage'] })],
+  ])('ignores %s and still attempts a fresh lookup request', async (_label, cached) => {
+    mockKvGet.mockImplementation(async (key) => {
+      if (key === 'lookup_spray_bbch_stages') return cached;
+      if (key === 'bde_current_farm') return FARM_CACHE;
+      return null;
+    });
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
+
+    const { states } = await runEffectHook(
+      () => useMobileLookup('spray_bbch_stages', ['fallback']),
+      mockHarness,
+      [['fallback']],
+    );
+
+    expect(states[0]).toEqual(['fallback']);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `https://${API_DOMAIN}/api/lookups/spray_bbch_stages`,
+      expect.any(Object),
+    );
     expect(mockKvSet).not.toHaveBeenCalled();
   });
 });
@@ -200,6 +226,32 @@ describe('useApiStockItems custom offline cache', () => {
     );
 
     expect(states[0]).toEqual(staleItems);
+    expect(mockKvSet).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['malformed JSON', '{"broken":'],
+    ['a valid non-array payload', JSON.stringify({ records: freshItems })],
+  ])('ignores %s and still attempts a fresh stock-items request', async (_label, cached) => {
+    mockKvGet.mockImplementation(async (key) => {
+      if (key === `stock_items_${FARM_ID}`) return cached;
+      if (key === 'bde_current_farm') return FARM_CACHE;
+      return null;
+    });
+    global.fetch = jest.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
+
+    const { states } = await runEffectHook(
+      () => useApiStockItems(FARM_ID),
+      mockHarness,
+      [[], false],
+    );
+
+    expect(states[0]).toEqual([]);
+    expect(states[1]).toBe(false);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `https://${API_DOMAIN}/api/farms/${FARM_ID}/stock-items`,
+      expect.any(Object),
+    );
     expect(mockKvSet).not.toHaveBeenCalled();
   });
 });

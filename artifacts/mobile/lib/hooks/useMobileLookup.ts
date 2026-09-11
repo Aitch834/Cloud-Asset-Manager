@@ -24,8 +24,10 @@ export function useMobileLookup(lookupKey: string, fallback: string[]): string[]
       try {
         const cached = await kvGet(cacheKey);
         if (cached && !cancelled) {
-          const parsed: string[] = JSON.parse(cached);
-          if (parsed.length > 0) setValues(parsed);
+          const parsed: unknown = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setValues(parsed as string[]);
+          }
         }
       } catch { }
 
