@@ -1560,4 +1560,66 @@ describe("setPref — rapid toggles keep the newest setting", () => {
     expect(cache[prefKey]).toBe(true);
     expect(pending[prefKey]).toBe(true);
   });
+
+  it("clears an older failed value after a newer toggle succeeds", async () => {
+    const uid = nextUid();
+    const prefKey = "show_only_blocks_needing_photos";
+    const patchBodies: PrefsMap[] = [];
+    const patchResolvers: Array<(response: Partial<Response>) => void> = [];
+    let serverPrefs: PrefsMap = {};
+    let activePatches = 0;
+    let maxActivePatches = 0;
+
+    mockApiFetch.mockImplementation(
+      (_url: string, opts?: RequestInit): Promise<Partial<Response>> => {
+        if (!opts?.method || (opts.method as string).toUpperCase() !== "PATCH") {
+          return Promise.resolve(makeServerResponse(serverPrefs));
+        }
+
+        const body = JSON.parse(opts.body as string) as PrefsMap;
+        patchBodies.push(body);
+        activePatches += 1;
+        maxActivePatches = Math.max(maxActivePatches, activePatches);
+
+        return new Promise<Partial<Response>>((resolve) => {
+          patchResolvers.push((response) => {
+            activePatches -= 1;
+            if (response.ok) serverPrefs = { ...serverPrefs, ...body };
+            resolve(response);
+          });
+        });
+      },
+    );
+
+    const { setPref } = useUiPrefs(uid);
+    mockEffects[2]?.(); // bootstrap
+    await drain();
+
+    // Queue both values without waiting. The newer false value must not be sent
+    // until the older true request has failed.
+    setPref(prefKey, true);
+    setPref(prefKey, false);
+    await drain(4);
+
+    expect(patchBodies).toEqual([{ [prefKey]: true }]);
+    expect(maxActivePatches).toBe(1);
+
+    patchResolvers[0]({ ok: false } as Partial<Response>);
+    await drain(4);
+
+    expect(patchBodies).toEqual([
+      { [prefKey]: true },
+      { [prefKey]: false },
+    ]);
+    expect(maxActivePatches).toBe(1);
+
+    patchResolvers[1]({ ok: true } as Partial<Response>);
+    await drain();
+
+    expect(serverPrefs).toEqual({ [prefKey]: false });
+    expect(JSON.parse(asyncStore.get(`ui_prefs_cache_${uid}`)!)).toEqual({
+      [prefKey]: false,
+    });
+    expect(asyncStore.has(`ui_prefs_pending_${uid}`)).toBe(false);
+  });
 });
