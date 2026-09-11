@@ -172,7 +172,10 @@ jest.mock("../components/ui/IdentifierBanner", () => ({
 
 import React from "react";
 import { fireEvent, render, waitFor, within } from "@testing-library/react-native";
-import VineHarvestHistoryScreen, { buildHarvestCsv } from "../app/vine-harvest-history";
+import VineHarvestHistoryScreen, {
+  buildHarvestCsv,
+  buildHarvestReportMailto,
+} from "../app/vine-harvest-history";
 import type { VineBlock } from "../lib/hooks/useApiVineBlocks";
 
 const { useFarm } = require("../lib/context/FarmContext") as {
@@ -604,6 +607,9 @@ function makeCsvHarvestRecord(id: number, blockId: number | null) {
     grapeCondition: "Good",
     operatorName: "Test operator",
     notes: null,
+    harvestIntervalWarningAcknowledged: false,
+    harvestIntervalAcknowledgedAt: null,
+    harvestIntervalProducts: null,
   };
 }
 
@@ -718,5 +724,90 @@ describe("buildHarvestCsv — unlinked block warning", () => {
     );
 
     expect(csv).not.toContain("WARNING:");
+  });
+});
+
+function decodeMailtoBody(href: string): string {
+  const encodedBody = href.split("&body=")[1];
+  if (!encodedBody) throw new Error("Expected mailto body");
+  return decodeURIComponent(encodedBody);
+}
+
+function getVarietyReportLines(body: string): string[] {
+  const section = body.split("Yield by Variety\n")[1];
+  if (!section) return [];
+  return section
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line && !/^-+$/.test(line) && line !== "Prepared by BDE Farm Trac.");
+}
+
+describe("buildHarvestReportMailto — Yield by Variety breakdown", () => {
+  it("includes all eight columns, two named varieties, and the TOTAL row", () => {
+    const records = [
+      { ...makeCsvHarvestRecord(1, 10), yieldKg: 1200, brix: 20, ph: 3.2, titratableAcidityGl: 6, potentialAlcohol: 11 },
+      { ...makeCsvHarvestRecord(2, 20), yieldKg: 800, brix: 22, ph: 3.4, titratableAcidityGl: 8, potentialAlcohol: 13 },
+    ];
+    const blocks = [
+      { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
+      { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
+    ];
+    const body = decodeMailtoBody(
+      buildHarvestReportMailto(records, "Test Farm", null, null, null, blocks, "2026").href,
+    );
+    const lines = getVarietyReportLines(body);
+
+    expect(lines[0].split(/\s{2,}/)).toEqual([
+      "Variety", "Area (ha)", "Total Yield (kg)", "Yield (kg/ha)",
+      "Avg Brix", "Avg pH", "Avg TA (g/L)", "Avg Pot. Alc (%)",
+    ]);
+    expect(lines[1].split(/\s{2,}/)).toEqual([
+      "Chardonnay", "2.00", "1200.0", "600", "20.0", "3.20", "6.00", "11.00",
+    ]);
+    expect(lines[2].split(/\s{2,}/)).toEqual([
+      "Pinot Noir", "1.00", "800.0", "800", "22.0", "3.40", "8.00", "13.00",
+    ]);
+    expect(lines[3].split(/\s{2,}/)).toEqual([
+      "TOTAL", "3.00", "2000.0", "667", "21.0", "3.30", "7.00", "12.00",
+    ]);
+  });
+
+  it("omits the section when fewer than two named varieties exist", () => {
+    const body = decodeMailtoBody(
+      buildHarvestReportMailto(
+        [makeCsvHarvestRecord(1, 10), makeCsvHarvestRecord(2, null)],
+        "Test Farm",
+        null,
+        null,
+        null,
+        [{ id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 1 }],
+        "2026",
+      ).href,
+    );
+
+    expect(body).not.toContain("Yield by Variety");
+  });
+
+  it("counts a block's area once when it has multiple harvest picks", () => {
+    const records = [
+      { ...makeCsvHarvestRecord(1, 10), yieldKg: 600 },
+      { ...makeCsvHarvestRecord(2, 10), yieldKg: 400 },
+      { ...makeCsvHarvestRecord(3, 20), yieldKg: 500 },
+    ];
+    const blocks = [
+      { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
+      { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
+    ];
+    const body = decodeMailtoBody(
+      buildHarvestReportMailto(records, "Test Farm", null, null, null, blocks, "2026").href,
+    );
+    const lines = getVarietyReportLines(body);
+
+    expect(lines[1].split(/\s{2,}/).slice(0, 4)).toEqual([
+      "Chardonnay", "2.00", "1000.0", "500",
+    ]);
+    expect(lines[3].split(/\s{2,}/).slice(0, 4)).toEqual([
+      "TOTAL", "3.00", "1500.0", "500",
+    ]);
   });
 });

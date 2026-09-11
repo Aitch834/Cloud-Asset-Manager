@@ -495,7 +495,7 @@ function HarvestRow({
 
 const MAILTO_BODY_LIMIT = 1800;
 
-function buildHarvestReportMailto(
+export function buildHarvestReportMailto(
   records: HarvestRecord[],
   farmName: string,
   sbi: string | null,
