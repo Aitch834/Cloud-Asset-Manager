@@ -11,7 +11,7 @@ const ALL_VINTAGES_SENTINEL = -1;
 /**
  * Persist the selected vintage year in AsyncStorage, scoped per farm.
  *
- * Returns `[selectedVintage, setSelectedVintage, loadedForFarmId]`.
+ * Returns `[selectedVintage, setSelectedVintage, loadedForFarmId, persistenceError]`.
  *
  * - `selectedVintage` is `null` for "All vintages", or a positive year number.
  * - `loadedForFarmId` is the farm ID whose value is currently reflected in
@@ -19,6 +19,8 @@ const ALL_VINTAGES_SENTINEL = -1;
  *   lets callers know the stored value is not yet authoritative.
  * - Switching farms resets `loadedForFarmId` to `undefined` until the new
  *   farm's read completes.
+ * - `persistenceError` is non-null when the latest preference write failed.
+ *   The visible selection remains optimistic so analytics stay usable.
  *
  * Storage distinction:
  * - Key absent / non-number stored → no preference (caller should apply its
@@ -35,6 +37,7 @@ export function usePersistedVintage(
   number | null | undefined,
   (vintage: number | null) => void,
   string | undefined,
+  string | null,
 ] {
   const storageKey = farmId ? `bde_vine_vintage_${farmId}` : null;
 
@@ -46,12 +49,15 @@ export function usePersistedVintage(
   const [selectedVintage, setSelectedVintageRaw] = useState<number | null | undefined>(undefined);
   // Farm ID whose value is reflected in selectedVintage; undefined while loading.
   const [loadedForFarmId, setLoadedForFarmId] = useState<string | undefined>(undefined);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const loadedForFarm = useRef<string | undefined>(undefined);
+  const writeRevision = useRef(0);
 
   useEffect(() => {
     if (!farmId || !storageKey) {
       setSelectedVintageRaw(undefined);
       setLoadedForFarmId(undefined);
+      setPersistenceError(null);
       loadedForFarm.current = undefined;
       return;
     }
@@ -84,15 +90,21 @@ export function usePersistedVintage(
   const setSelectedVintage = useCallback(
     (vintage: number | null) => {
       setSelectedVintageRaw(vintage);
+      setPersistenceError(null);
       if (storageKey) {
+        const revision = ++writeRevision.current;
         // Store sentinel for null ("All") so we can distinguish it from "not set"
         setItem(storageKey, vintage === null ? ALL_VINTAGES_SENTINEL : vintage).catch(() => {
-          /* ignore write failures silently */
+          if (writeRevision.current === revision) {
+            setPersistenceError(
+              "Your vintage selection could not be remembered. The current analytics are still available.",
+            );
+          }
         });
       }
     },
     [storageKey],
   );
 
-  return [selectedVintage, setSelectedVintage, loadedForFarmId];
+  return [selectedVintage, setSelectedVintage, loadedForFarmId, persistenceError];
 }

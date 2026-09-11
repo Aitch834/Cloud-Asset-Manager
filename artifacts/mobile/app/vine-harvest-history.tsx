@@ -925,7 +925,8 @@ export default function VineHarvestHistoryScreen() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId] = usePersistedVintage(currentFarm?.id);
+  const [selectedVintage, setSelectedVintage, vintageLoadedForFarmId, vintagePersistenceError] =
+    usePersistedVintage(currentFarm?.id);
   const [persistedBlockIds, setSelectedBlockIds, blockFilterLoadedForFarmId] = usePersistedBlockFilter(currentFarm?.id);
   const selectedBlockIds =
     blockFilterLoadedForFarmId === currentFarm?.id ? persistedBlockIds : [];
@@ -1803,6 +1804,17 @@ export default function VineHarvestHistoryScreen() {
             </Pressable>
           ))}
         </ScrollView>
+      )}
+      {vintagePersistenceError && (
+        <View
+          style={styles.vintagePersistenceBanner}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          testID="vintage-persistence-warning"
+        >
+          <Feather name="alert-triangle" size={15} color={colors.warning} />
+          <Text style={styles.vintagePersistenceBannerText}>{vintagePersistenceError}</Text>
+        </View>
       )}
 
       {/* Block filter chips */}
@@ -2874,6 +2886,25 @@ const styles = StyleSheet.create({
   csvBtn: { padding: 4 },
   emailBtn: { padding: 4 },
   title: { fontFamily: fonts.semiBold, fontSize: fontSize.lg, color: colors.text, flex: 1 },
+  vintagePersistenceBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  vintagePersistenceBannerText: {
+    flex: 1,
+    fontFamily: fonts.regular,
+    fontSize: fontSize.xs,
+    color: colors.text,
+    lineHeight: 18,
+  },
   unlinkedBanner: {
     flexDirection: "row",
     alignItems: "flex-start",

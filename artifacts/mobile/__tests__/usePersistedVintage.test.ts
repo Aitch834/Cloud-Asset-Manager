@@ -50,7 +50,7 @@ function renderHook(farmId: string) {
 
 describe("usePersistedVintage", () => {
   beforeEach(() => {
-    mockHarness.store.reset([undefined, undefined]);
+    mockHarness.store.reset([undefined, undefined, null]);
     mockHarness.refs = [];
     mockGetItem.mockReset();
     mockSetItem.mockReset().mockResolvedValue(undefined);
@@ -64,7 +64,7 @@ describe("usePersistedVintage", () => {
     await drainAsync();
 
     expect(mockGetItem).toHaveBeenCalledWith("bde_vine_vintage_farm-a");
-    expect(renderHook("farm-a")).toEqual([2024, expect.any(Function), "farm-a"]);
+    expect(renderHook("farm-a")).toEqual([2024, expect.any(Function), "farm-a", null]);
   });
 
   it("reports a corrupt stored value as no preference", async () => {
@@ -74,7 +74,7 @@ describe("usePersistedVintage", () => {
     mockHarness.capturedEffect.value?.();
     await drainAsync();
 
-    expect(renderHook("farm-a")).toEqual([undefined, expect.any(Function), "farm-a"]);
+    expect(renderHook("farm-a")).toEqual([undefined, expect.any(Function), "farm-a", null]);
   });
 
   it("persists a changed vintage with a farm-scoped key", () => {
@@ -102,14 +102,29 @@ describe("usePersistedVintage", () => {
 
     farmBRead.resolve(2025);
     await drainAsync();
-    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b"]);
+    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b", null]);
 
     farmARead.resolve(2023);
     await drainAsync();
-    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b"]);
+    expect(renderHook("farm-b")).toEqual([2025, expect.any(Function), "farm-b", null]);
     expect(mockGetItem.mock.calls).toEqual([
       ["bde_vine_vintage_farm-a"],
       ["bde_vine_vintage_farm-b"],
+    ]);
+  });
+
+  it("warns without rolling back the visible vintage when storage rejects the write", async () => {
+    mockSetItem.mockRejectedValue(new Error("storage unavailable"));
+    const [, setVintage] = renderHook("farm-a");
+
+    setVintage(2025);
+    await drainAsync();
+
+    expect(renderHook("farm-a")).toEqual([
+      2025,
+      expect.any(Function),
+      undefined,
+      "Your vintage selection could not be remembered. The current analytics are still available.",
     ]);
   });
 });
