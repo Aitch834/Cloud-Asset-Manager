@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import NetInfo from "@react-native-community/netinfo";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { kvGet } from "@/lib/database";
 import { getCurrentAuthToken } from "../authToken";
 
@@ -26,16 +28,21 @@ export function useApiFarmDashboard(farmId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvedFarmId, setResolvedFarmId] = useState<string | undefined>(undefined);
+  const requestGenerationRef = useRef(0);
 
   const load = useCallback(async (isCurrent: () => boolean = () => true) => {
-    if (isCurrent()) {
+    const requestGeneration = ++requestGenerationRef.current;
+    const isLatestRequest = () =>
+      isCurrent() && requestGeneration === requestGenerationRef.current;
+
+    if (isLatestRequest()) {
       // A previous response must not remain authoritative during a slow reload,
       // after a failure, or across a farm switch.
       setData(null);
       setResolvedFarmId(undefined);
     }
     if (!farmId) {
-      if (isCurrent()) {
+      if (isLatestRequest()) {
         setError(null);
         setLoading(false);
       }
@@ -43,11 +50,11 @@ export function useApiFarmDashboard(farmId: string | undefined) {
     }
     const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
     if (!apiDomain) {
-      if (isCurrent()) setLoading(false);
+      if (isLatestRequest()) setLoading(false);
       return;
     }
 
-    if (isCurrent()) {
+    if (isLatestRequest()) {
       setLoading(true);
       setError(null);
     }
@@ -64,7 +71,7 @@ export function useApiFarmDashboard(farmId: string | undefined) {
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
       const json = await res.json();
-      if (isCurrent()) {
+      if (isLatestRequest()) {
         const subs: Array<{ moduleKey: string }> = json.activeSubscriptions ?? [];
         setData({
           complianceScore: json.complianceScore ?? 0,
@@ -76,13 +83,13 @@ export function useApiFarmDashboard(farmId: string | undefined) {
         setResolvedFarmId(farmId);
       }
     } catch (err) {
-      if (isCurrent()) {
+      if (isLatestRequest()) {
         setData(null);
         setResolvedFarmId(undefined);
         setError(err instanceof Error ? err.message : "Failed to load");
       }
     } finally {
-      if (isCurrent()) setLoading(false);
+      if (isLatestRequest()) setLoading(false);
     }
   }, [farmId]);
 
@@ -91,6 +98,37 @@ export function useApiFarmDashboard(farmId: string | undefined) {
     void load(() => !cancelled);
     return () => { cancelled = true; };
   }, [load]);
+
+  useEffect(() => {
+    if (!farmId) return;
+
+    let previousAppState: AppStateStatus = AppState.currentState;
+    let previousConnected: boolean | undefined;
+
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      const returnedToForeground =
+        nextState === "active" && previousAppState !== "active";
+      previousAppState = nextState;
+      if (returnedToForeground) {
+        void load();
+      }
+    });
+
+    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      const connected =
+        state.isConnected === true && state.isInternetReachable !== false;
+      const reconnected = previousConnected === false && connected;
+      previousConnected = connected;
+      if (reconnected) {
+        void load();
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      unsubscribeNetInfo();
+    };
+  }, [farmId, load]);
 
   return { data, loading, error, resolvedFarmId, reload: load };
 }

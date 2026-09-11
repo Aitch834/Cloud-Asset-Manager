@@ -1,8 +1,14 @@
 const mockEffects: Array<() => void | (() => void)> = [];
 const mockStateSetters: Array<jest.Mock> = [];
 let mockStateIndex = 0;
+let mockAppStateListener: ((state: string) => void) | undefined;
+let mockNetInfoListener:
+  | ((state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => void)
+  | undefined;
 
 const mockKvGet = jest.fn<Promise<string | null>, [string]>();
+const mockAppStateRemove = jest.fn();
+const mockNetInfoUnsubscribe = jest.fn();
 
 jest.mock("react", () => ({
   useCallback: (callback: (...args: any[]) => unknown) => callback,
@@ -15,10 +21,33 @@ jest.mock("react", () => ({
     mockStateIndex += 1;
     return [initialValue, setter];
   },
+  useRef: (initialValue: unknown) => ({ current: initialValue }),
 }));
 
 jest.mock("react-native", () => ({
+  AppState: {
+    currentState: "active",
+    addEventListener: (_event: string, listener: (state: string) => void) => {
+      mockAppStateListener = listener;
+      return { remove: mockAppStateRemove };
+    },
+  },
   Platform: { OS: "web" },
+}));
+
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: {
+    addEventListener: (
+      listener: (state: {
+        isConnected: boolean | null;
+        isInternetReachable: boolean | null;
+      }) => void,
+    ) => {
+      mockNetInfoListener = listener;
+      return mockNetInfoUnsubscribe;
+    },
+  },
 }));
 
 jest.mock("@/lib/database", () => ({
@@ -36,6 +65,8 @@ describe("useApiFarmDashboard", () => {
     mockEffects.length = 0;
     mockStateSetters.length = 0;
     mockStateIndex = 0;
+    mockAppStateListener = undefined;
+    mockNetInfoListener = undefined;
     mockKvGet.mockResolvedValue(null);
     process.env.EXPO_PUBLIC_DOMAIN = "api.example.test";
   });
@@ -169,5 +200,66 @@ describe("useApiFarmDashboard", () => {
     expect(mockStateSetters[0]).toHaveBeenCalledWith(null);
     expect(mockStateSetters[3]).toHaveBeenCalledWith(undefined);
     expect(mockStateSetters[1]).toHaveBeenCalledWith(true);
+  });
+
+  it("retries after reconnecting and exposes modules from the successful response", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          activeSubscriptions: [{ moduleKey: "viticulture" }],
+        }),
+      }) as unknown as typeof fetch;
+
+    useApiFarmDashboard("42");
+    mockEffects[0]?.();
+    mockEffects[1]?.();
+    await flushPromises();
+    await flushPromises();
+
+    mockNetInfoListener?.({ isConnected: false, isInternetReachable: false });
+    mockNetInfoListener?.({ isConnected: true, isInternetReachable: true });
+    await flushPromises();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(mockStateSetters[0]).toHaveBeenLastCalledWith(
+      expect.objectContaining({ activeModuleKeys: ["viticulture"] }),
+    );
+    expect(mockStateSetters[3]).toHaveBeenLastCalledWith("42");
+  });
+
+  it("retries when returning to the foreground and keeps modules hidden on failure", async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          activeSubscriptions: [{ moduleKey: "organic" }],
+        }),
+      })
+      .mockResolvedValueOnce({ ok: false, status: 503 }) as unknown as typeof fetch;
+
+    useApiFarmDashboard("42");
+    mockEffects[0]?.();
+    const cleanup = mockEffects[1]?.();
+    await flushPromises();
+    await flushPromises();
+
+    mockAppStateListener?.("background");
+    mockAppStateListener?.("active");
+    await flushPromises();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(mockStateSetters[0]).toHaveBeenLastCalledWith(null);
+    expect(mockStateSetters[3]).toHaveBeenLastCalledWith(undefined);
+    expect(mockStateSetters[2]).toHaveBeenLastCalledWith("Server returned 503");
+
+    if (typeof cleanup === "function") cleanup();
+    expect(mockAppStateRemove).toHaveBeenCalled();
+    expect(mockNetInfoUnsubscribe).toHaveBeenCalled();
   });
 });
