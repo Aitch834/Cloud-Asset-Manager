@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
@@ -48,7 +49,9 @@ import {
 import {
   canonicalisePhenologyDate,
   filterPhenologyRecordsByDateRange,
+  getPersistablePhenologyDateRange,
   isPhenologyDateInvalid,
+  parsePersistedPhenologyDateRange,
 } from "@/lib/vinePhenologyDateFilter";
 
 // ─── WineGB Survey Panel ──────────────────────────────────────────────────────
@@ -489,9 +492,83 @@ export default function VinePhenologyHistoryScreen() {
   const [winegbYears, setWinegbYears] = useState<number[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dateRangeRestoredForFarmId, setDateRangeRestoredForFarmId] = useState<string | undefined>();
+  const dateRangeChangedDuringRestoreRef = useRef(false);
   const [editingRecord, setEditingRecord] = useState<PhenologyRecord | null>(null);
   const [localUpdates, setLocalUpdates] = useState<Record<number, Partial<PhenologyRecord>>>({});
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    setDateRangeRestoredForFarmId(undefined);
+    dateRangeChangedDuringRestoreRef.current = false;
+    setDateFrom("");
+    setDateTo("");
+  }, [currentFarm?.id]);
+
+  useEffect(() => {
+    const farmId = currentFarm?.id == null ? undefined : String(currentFarm.id);
+    if (!farmId || dateRangeRestoredForFarmId === farmId) return;
+
+    let cancelled = false;
+    const storageKey = `bde_vine_phenology_date_range_${farmId}`;
+    void AsyncStorage.getItem(storageKey)
+      .then(raw => {
+        if (cancelled || dateRangeChangedDuringRestoreRef.current) return;
+        let restored = null;
+        if (raw) {
+          try {
+            restored = parsePersistedPhenologyDateRange(JSON.parse(raw));
+          } catch {
+            // Ignore malformed storage and leave the filter cleared.
+          }
+        }
+        if (restored) {
+          setDateFrom(restored.from);
+          setDateTo(restored.to);
+        }
+      })
+      .catch(() => {
+        // Keep the visible range empty if local preference storage is unavailable.
+      })
+      .finally(() => {
+        if (!cancelled) setDateRangeRestoredForFarmId(farmId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFarm?.id, dateRangeRestoredForFarmId]);
+
+  useEffect(() => {
+    const farmId = currentFarm?.id == null ? undefined : String(currentFarm.id);
+    if (!farmId || dateRangeRestoredForFarmId !== farmId) return;
+    const persistedRange = getPersistablePhenologyDateRange(dateFrom, dateTo);
+    if (!persistedRange) return;
+    void AsyncStorage.setItem(
+      `bde_vine_phenology_date_range_${farmId}`,
+      JSON.stringify(persistedRange),
+    );
+  }, [currentFarm?.id, dateFrom, dateRangeRestoredForFarmId, dateTo]);
+
+  const updateDateFrom = useCallback((value: string) => {
+    dateRangeChangedDuringRestoreRef.current = true;
+    setDateFrom(value);
+  }, []);
+
+  const updateDateTo = useCallback((value: string) => {
+    dateRangeChangedDuringRestoreRef.current = true;
+    setDateTo(value);
+  }, []);
+
+  const clearDateRange = useCallback(() => {
+    dateRangeChangedDuringRestoreRef.current = true;
+    setDateFrom("");
+    setDateTo("");
+    const farmId = currentFarm?.id == null ? undefined : String(currentFarm.id);
+    if (farmId) {
+      void AsyncStorage.removeItem(`bde_vine_phenology_date_range_${farmId}`);
+    }
+  }, [currentFarm?.id]);
 
   useEffect(() => {
     let active = true;
@@ -657,7 +734,7 @@ export default function VinePhenologyHistoryScreen() {
               placeholder="DD/MM/YYYY"
               placeholderTextColor={colors.textSecondary}
               value={dateFrom}
-              onChangeText={setDateFrom}
+              onChangeText={updateDateFrom}
               keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
@@ -672,7 +749,7 @@ export default function VinePhenologyHistoryScreen() {
               placeholder="DD/MM/YYYY"
               placeholderTextColor={colors.textSecondary}
               value={dateTo}
-              onChangeText={setDateTo}
+              onChangeText={updateDateTo}
               keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
@@ -682,7 +759,7 @@ export default function VinePhenologyHistoryScreen() {
         </View>
         {(dateFrom.trim() || dateTo.trim()) ? (
           <Pressable
-            onPress={() => { setDateFrom(""); setDateTo(""); }}
+            onPress={clearDateRange}
             hitSlop={10}
             style={styles.dateRangeClear}
           >
@@ -705,7 +782,7 @@ export default function VinePhenologyHistoryScreen() {
       {(search.trim() || dateFrom.trim() || dateTo.trim()) ? (
         <View style={styles.clearFiltersRow}>
           <Pressable
-            onPress={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+            onPress={() => { setSearch(""); clearDateRange(); }}
             style={styles.clearFiltersChip}
             hitSlop={6}
           >

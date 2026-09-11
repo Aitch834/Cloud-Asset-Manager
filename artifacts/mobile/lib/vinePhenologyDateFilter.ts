@@ -2,6 +2,11 @@ export interface PhenologyDateRecord {
   observationDate: string | null;
 }
 
+export interface PersistedPhenologyDateRange {
+  from: string;
+  to: string;
+}
+
 /**
  * Normalise a grower-typed date to YYYY-MM-DD.
  * Accepts: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY.
@@ -37,6 +42,29 @@ export function canonicalisePhenologyDate(raw: string): string | null {
  */
 export function isPhenologyDateInvalid(raw: string): boolean {
   return raw.trim().length >= 8 && canonicalisePhenologyDate(raw) === null;
+}
+
+/**
+ * Return a storage-safe range only when both bounds are complete, valid, and
+ * ordered. Canonical values keep restored filters independent of input format.
+ */
+export function getPersistablePhenologyDateRange(
+  fromRaw: string,
+  toRaw: string,
+): PersistedPhenologyDateRange | null {
+  const from = canonicalisePhenologyDate(fromRaw);
+  const to = canonicalisePhenologyDate(toRaw);
+  if (!from || !to || from > to) return null;
+  return { from, to };
+}
+
+export function parsePersistedPhenologyDateRange(
+  value: unknown,
+): PersistedPhenologyDateRange | null {
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.from !== "string" || typeof candidate.to !== "string") return null;
+  return getPersistablePhenologyDateRange(candidate.from, candidate.to);
 }
 
 /**

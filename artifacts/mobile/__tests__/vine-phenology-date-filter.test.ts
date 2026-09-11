@@ -4,7 +4,9 @@ import path from "node:path";
 import {
   canonicalisePhenologyDate,
   filterPhenologyRecordsByDateRange,
+  getPersistablePhenologyDateRange,
   isPhenologyDateInvalid,
+  parsePersistedPhenologyDateRange,
   type PhenologyDateRecord,
 } from "../lib/vinePhenologyDateFilter";
 
@@ -46,11 +48,32 @@ describe("vine phenology date filter", () => {
     expect(filterPhenologyRecordsByDateRange(records, "", "")).toEqual(records);
   });
 
+  it("persists only a complete valid ordered range", () => {
+    expect(getPersistablePhenologyDateRange("12/04/2024", "2024-09-03")).toEqual({
+      from: "2024-04-12",
+      to: "2024-09-03",
+    });
+    expect(getPersistablePhenologyDateRange("12/", "03/09/2024")).toBeNull();
+    expect(getPersistablePhenologyDateRange("31/02/2024", "03/09/2024")).toBeNull();
+    expect(getPersistablePhenologyDateRange("03/09/2024", "12/04/2024")).toBeNull();
+  });
+
+  it("rejects malformed or partial saved ranges", () => {
+    expect(parsePersistedPhenologyDateRange({ from: "2024-04-12", to: "2024-09-03" })).toEqual({
+      from: "2024-04-12",
+      to: "2024-09-03",
+    });
+    expect(parsePersistedPhenologyDateRange({ from: "2024-04-", to: "2024-09-03" })).toBeNull();
+    expect(parsePersistedPhenologyDateRange({ from: "2024-04-12" })).toBeNull();
+    expect(parsePersistedPhenologyDateRange("not a range")).toBeNull();
+  });
+
   it("clears both date bounds from the dedicated X control", () => {
     const clearControlIndex = screenSource.indexOf("style={styles.dateRangeClear}");
     const clearControlSource = screenSource.slice(clearControlIndex - 260, clearControlIndex);
 
     expect(clearControlIndex).toBeGreaterThanOrEqual(0);
-    expect(clearControlSource).toContain('setDateFrom(""); setDateTo("");');
+    expect(clearControlSource).toContain("onPress={clearDateRange}");
+    expect(screenSource).toContain("AsyncStorage.removeItem(`bde_vine_phenology_date_range_${farmId}`)");
   });
 });
