@@ -608,6 +608,24 @@ function makeCsvHarvestRecord(id: number, blockId: number | null) {
 }
 
 describe("buildHarvestCsv — Yield by Variety guard", () => {
+  it.each(["=SUM(A1:A2)", "+Malbec", "-Merlot", "@Riesling"])(
+    "neutralises a formula-like variety name before export: %s",
+    (formulaLikeVariety) => {
+      const csv = buildHarvestCsv(
+        [makeCsvHarvestRecord(1, 1), makeCsvHarvestRecord(2, 2)],
+        [
+          { id: 1, blockName: "North Block", variety: formulaLikeVariety, areaHa: 1 },
+          { id: 2, blockName: "South Block", variety: "Chardonnay", areaHa: 1 },
+        ],
+        "Test Farm",
+        "2026",
+      );
+
+      expect(csv).toContain(`"\t${formulaLikeVariety}"`);
+      expect(csv).not.toContain(`\n"${formulaLikeVariety}",`);
+    },
+  );
+
   it("omits the section when records are all unlinked or contain only one named variety", () => {
     const allUnlinkedCsv = buildHarvestCsv(
       [makeCsvHarvestRecord(1, null), makeCsvHarvestRecord(2, null)],
