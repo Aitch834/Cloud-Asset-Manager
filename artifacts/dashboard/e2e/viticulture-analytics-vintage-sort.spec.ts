@@ -201,8 +201,18 @@ test("vintage headers sort block performance and keep missing yields last", asyn
     const currentHeader = table.getByRole("button", {
       name: `Sort by ${CURRENT_VINTAGE} yield`,
     });
+    const currentColumnHeader = table.getByRole("columnheader", {
+      name: `Sort by ${CURRENT_VINTAGE} yield`,
+    });
+    const priorColumnHeader = table.getByRole("columnheader", {
+      name: `Sort by ${PRIOR_VINTAGE} yield`,
+    });
+    await expect(currentColumnHeader).toHaveAttribute("aria-sort", "none");
+    await expect(priorColumnHeader).toHaveAttribute("aria-sort", "none");
     await expect(currentHeader.locator("svg.lucide-arrow-up-down")).toBeVisible();
     await currentHeader.click();
+    await expect(currentColumnHeader).toHaveAttribute("aria-sort", "descending");
+    await expect(priorColumnHeader).toHaveAttribute("aria-sort", "none");
     await expect(currentHeader.locator("svg.lucide-arrow-down")).toBeVisible();
     await expect.poll(() => blockNames(table)).toEqual([
       HIGH_CURRENT,
@@ -211,6 +221,8 @@ test("vintage headers sort block performance and keep missing yields last", asyn
     ]);
 
     await currentHeader.click();
+    await expect(currentColumnHeader).toHaveAttribute("aria-sort", "ascending");
+    await expect(priorColumnHeader).toHaveAttribute("aria-sort", "none");
     await expect(currentHeader.locator("svg.lucide-arrow-up")).toBeVisible();
     await expect.poll(() => blockNames(table)).toEqual([
       HIGH_PRIOR,
@@ -222,6 +234,8 @@ test("vintage headers sort block performance and keep missing yields last", asyn
       name: `Sort by ${PRIOR_VINTAGE} yield`,
     });
     await priorHeader.click();
+    await expect(priorColumnHeader).toHaveAttribute("aria-sort", "descending");
+    await expect(currentColumnHeader).toHaveAttribute("aria-sort", "none");
     await expect(priorHeader.locator("svg.lucide-arrow-down")).toBeVisible();
     await expect(currentHeader.locator("svg.lucide-arrow-up-down")).toBeVisible();
     await expect.poll(() => blockNames(table)).toEqual([

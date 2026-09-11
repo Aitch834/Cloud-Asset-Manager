@@ -536,32 +536,39 @@ export function ViticulturalAnalyticsTab({ farmId }: { farmId: number }) {
                   <th className="px-4 py-2 text-left">Block</th>
                   <th className="px-4 py-2 text-left">Variety</th>
                   <th className="px-4 py-2 text-right">Area (ha)</th>
-                  {blockPerfData.vintages.map(yr => (
-                    <th key={yr} className="px-4 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setBlockPerfSort({
-                          vintage: yr,
-                          direction: blockPerfSort?.vintage === yr && blockPerfSort.direction === "desc"
-                            ? "asc"
-                            : "desc",
-                        })}
-                        className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${
-                          blockPerfSort?.vintage === yr ? "text-foreground" : ""
-                        }`}
-                        aria-label={`Sort by ${yr} yield`}
+                  {blockPerfData.vintages.map(yr => {
+                    const isActiveSort = blockPerfSort?.vintage === yr;
+                    return (
+                      <th
+                        key={yr}
+                        className="px-4 py-2 text-right"
+                        aria-sort={isActiveSort ? (blockPerfSort.direction === "asc" ? "ascending" : "descending") : "none"}
                       >
-                        {yr}
-                        {blockPerfSort?.vintage !== yr ? (
-                          <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />
-                        ) : blockPerfSort?.direction === "asc" ? (
-                          <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
-                        ) : (
-                          <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />
-                        )}
-                      </button>
-                    </th>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => setBlockPerfSort({
+                            vintage: yr,
+                            direction: blockPerfSort?.vintage === yr && blockPerfSort.direction === "desc"
+                              ? "asc"
+                              : "desc",
+                          })}
+                          className={`inline-flex items-center gap-0.5 hover:text-foreground transition-colors ${
+                            isActiveSort ? "text-foreground" : ""
+                          }`}
+                          aria-label={`Sort by ${yr} yield`}
+                        >
+                          {yr}
+                          {!isActiveSort ? (
+                            <ArrowUpDown className="w-3 h-3 ml-1 opacity-40 shrink-0" />
+                          ) : blockPerfSort?.direction === "asc" ? (
+                            <ArrowUp className="w-3 h-3 ml-1 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3 ml-1 text-primary shrink-0" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
