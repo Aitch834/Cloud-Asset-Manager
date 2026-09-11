@@ -82,15 +82,16 @@ async function useFarm(page: Page, farm: TestFarm): Promise<void> {
 test("restores the Vintage Season Report grouping independently for each farm", async ({ page }) => {
   const [varietyFarm, blockFarm] = await getExistingViticultureFarms();
 
-  for (const farm of [varietyFarm, blockFarm]) {
+  for (const [farmIndex, farm] of [varietyFarm, blockFarm].entries()) {
+    const blockCount = farmIndex === 0 ? 3 : 8;
     await page.route(`**/api/farms/${farm.farmId}/vineyard-blocks`, async route => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(Array.from({ length: 8 }, (_, index) => ({
+        body: JSON.stringify(Array.from({ length: blockCount }, (_, index) => ({
           id: farm.farmId * 1000 + index,
           blockName: `Persistence block ${index + 1}`,
-          variety: index < 4 ? "Chardonnay" : "Pinot Noir",
+          variety: index === 0 ? "Chardonnay" : "Pinot Noir",
           areaHa: "1",
           numberOfVines: 1000,
           isActive: true,
@@ -101,7 +102,7 @@ test("restores the Vintage Season Report grouping independently for each farm", 
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(Array.from({ length: 8 }, (_, index) => ({
+        body: JSON.stringify(Array.from({ length: blockCount }, (_, index) => ({
           id: farm.farmId * 2000 + index,
           harvestDate: "2025-10-01",
           vintageYear: 2025,
@@ -149,6 +150,7 @@ test("restores the Vintage Season Report grouping independently for each farm", 
 
   await useFarm(page, varietyFarm);
   await expect(groupingButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByPlaceholder("Search blocks or varieties…")).toBeHidden();
   await expect(page.getByRole("button", { name: "Chardonnay" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Pinot Noir" })).toBeVisible();
 

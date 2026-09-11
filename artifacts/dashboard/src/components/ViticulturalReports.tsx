@@ -2989,7 +2989,7 @@ function BlockFilterStrip({
           </div>
         )}
 
-        {showSearch && new Set(blockInfos.map(b => b.variety)).size > 1 && (
+        {new Set(blockInfos.map(b => b.variety)).size > 1 && (
           <button
             type="button"
             aria-pressed={groupByVariety}
