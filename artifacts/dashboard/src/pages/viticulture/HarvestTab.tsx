@@ -70,6 +70,24 @@ type SprayDiaryRecord = {
   productName: string | null;
   harvestIntervalDays: number | null;
 };
+
+type HarvestIntervalEvidence = {
+  sprayId: number;
+  productName: string;
+  expiryDate: string;
+};
+
+function formatHarvestIntervalProducts(value: unknown): string {
+  if (!Array.isArray(value)) return "—";
+  const products = value.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const evidence = item as Partial<HarvestIntervalEvidence>;
+    const name = String(evidence.productName ?? "").trim();
+    if (!name) return [];
+    return [`${name}${evidence.expiryDate ? ` (expired ${fmtDate(evidence.expiryDate)})` : ""}`];
+  });
+  return products.length ? products.join("; ") : "—";
+}
 function getWineGBVarietyPickCounts(rows: Record<string, unknown>[], blocks: Record<string, unknown>[]) {
   const pickCounts: Record<string, number> = {};
   for (const r of rows) {
@@ -218,8 +236,19 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
   const save = async () => {
     if (harvestIntervalCheckPending || harvestIntervalCheckFailed) return;
     if (!harvestIntervalWarningAcknowledged) return;
-    if (current) await edit.mutateAsync({ ...form, id: current.id as number });
-    else await add.mutateAsync(form);
+    const intervalEvidence = harvestIntervalWarnings.map(warning => ({
+      sprayId: warning.id,
+      productName: warning.productName,
+      expiryDate: warning.expiryDate,
+    }));
+    const payload = !current && intervalEvidence.length > 0 ? {
+      ...form,
+      harvestIntervalWarningAcknowledged: true,
+      harvestIntervalAcknowledgedAt: new Date().toISOString(),
+      harvestIntervalProducts: intervalEvidence,
+    } : form;
+    if (current) await edit.mutateAsync({ ...payload, id: current.id as number });
+    else await add.mutateAsync(payload);
     setOpen(false);
   };
 
@@ -705,6 +734,9 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     { key: "botrytisPercentage", label: "Botrytis %" },
     { key: "destinationWinery", label: "Destination Winery" },
     { key: "operatorName", label: "Operator" },
+    { key: "harvestIntervalWarningAcknowledged", label: "Active Harvest Interval Acknowledged", fmt: (r: Record<string, unknown>) => r.harvestIntervalWarningAcknowledged === true ? "Yes" : r.harvestIntervalWarningAcknowledged === false ? "No" : "" },
+    { key: "harvestIntervalAcknowledgedAt", label: "Acknowledged At", fmt: (r: Record<string, unknown>) => r.harvestIntervalAcknowledgedAt ? new Date(String(r.harvestIntervalAcknowledgedAt)).toLocaleString("en-GB") : "" },
+    { key: "harvestIntervalProducts", label: "Affected Spray Products", fmt: (r: Record<string, unknown>) => formatHarvestIntervalProducts(r.harvestIntervalProducts) === "—" ? "" : formatHarvestIntervalProducts(r.harvestIntervalProducts) },
     { key: "notes", label: "Notes" },
   ];
 
@@ -2626,6 +2658,15 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                 fmt(viewing.destinationWinery)
               } />
               <ViewField label="Operator" value={fmt(viewing.operatorName)} />
+              {viewing.harvestIntervalWarningAcknowledged === true && (
+                <>
+                  <ViewField label="Active Interval Acknowledged" value={<Badge variant="outline">Yes</Badge>} />
+                  <ViewField label="Acknowledged At" value={viewing.harvestIntervalAcknowledgedAt ? new Date(String(viewing.harvestIntervalAcknowledgedAt)).toLocaleString("en-GB") : "—"} />
+                  <div className="col-span-2">
+                    <ViewField label="Affected Spray Products" value={formatHarvestIntervalProducts(viewing.harvestIntervalProducts)} />
+                  </div>
+                </>
+              )}
               {!!viewing.notes && <div className="col-span-2"><ViewField label="Notes" value={fmt(viewing.notes)} /></div>}
             </div>
           )}

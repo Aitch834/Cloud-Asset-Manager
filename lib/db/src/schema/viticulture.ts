@@ -154,6 +154,9 @@ export const vineyardHarvestTable = pgTable("vineyard_harvest", {
   destinationWineryContactId: integer("destination_winery_contact_id"),
   operatorName: text("operator_name"),
   notes: text("notes"),
+  harvestIntervalWarningAcknowledged: boolean("harvest_interval_warning_acknowledged"),
+  harvestIntervalAcknowledgedAt: timestamp("harvest_interval_acknowledged_at", { withTimezone: true }),
+  harvestIntervalProducts: jsonb("harvest_interval_products"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

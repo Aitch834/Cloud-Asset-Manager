@@ -216,6 +216,15 @@ export default function VineHarvestScreen() {
       destinationWinery: destinationContact.trim() || undefined,
       operatorName: operatorName.trim() || undefined,
       notes: notes.trim() || undefined,
+      ...(harvestIntervalWarnings.length > 0 ? {
+        harvestIntervalWarningAcknowledged: true,
+        harvestIntervalAcknowledgedAt: new Date().toISOString(),
+        harvestIntervalProducts: harvestIntervalWarnings.map(warning => ({
+          sprayId: warning.id,
+          productName: warning.productName,
+          expiryDate: warning.expiryDate,
+        })),
+      } : {}),
       createdAt: new Date().toISOString(),
       _pendingSync: true,
     };

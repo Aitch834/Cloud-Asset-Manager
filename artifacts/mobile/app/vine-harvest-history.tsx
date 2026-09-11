@@ -61,6 +61,9 @@ interface HarvestRecord {
   grapeCondition: string | null;
   operatorName: string | null;
   notes: string | null;
+  harvestIntervalWarningAcknowledged: boolean | null;
+  harvestIntervalAcknowledgedAt: string | null;
+  harvestIntervalProducts: { sprayId: number; productName: string; expiryDate: string }[] | null;
 }
 
 interface OfflineHarvestEntry {
@@ -79,6 +82,9 @@ interface OfflineHarvestEntry {
   grapeCondition?: string;
   operatorName?: string;
   notes?: string;
+  harvestIntervalWarningAcknowledged?: boolean;
+  harvestIntervalAcknowledgedAt?: string;
+  harvestIntervalProducts?: { sprayId: number; productName: string; expiryDate: string }[];
   _pendingSync?: boolean;
 }
 
@@ -710,6 +716,7 @@ export function buildHarvestCsv(
   const detailHeader = [
     "Date", "Vintage", "Block", "Method", "Yield (kg)",
     "Brix", "pH", "TA (g/L)", "Pot. Alc (%)",
+    "Active Harvest Interval Acknowledged", "Acknowledged At", "Affected Spray Products",
   ].map(q).join(",");
 
   const detailRows = records.map(r => {
@@ -724,6 +731,11 @@ export function buildHarvestCsv(
       r.ph != null ? r.ph.toFixed(2) : "",
       r.titratableAcidityGl != null ? r.titratableAcidityGl.toFixed(2) : "",
       r.potentialAlcohol != null ? r.potentialAlcohol.toFixed(2) : "",
+      r.harvestIntervalWarningAcknowledged === true ? "Yes" : r.harvestIntervalWarningAcknowledged === false ? "No" : "",
+      r.harvestIntervalAcknowledgedAt ? new Date(r.harvestIntervalAcknowledgedAt).toLocaleString("en-GB") : "",
+      Array.isArray(r.harvestIntervalProducts)
+        ? r.harvestIntervalProducts.map(product => `${product.productName}${product.expiryDate ? ` (expired ${df(product.expiryDate)})` : ""}`).join("; ")
+        : "",
     ].map(q).join(",");
   });
 

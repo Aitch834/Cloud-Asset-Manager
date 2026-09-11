@@ -7,6 +7,15 @@ import { sql } from "drizzle-orm";
  * Safe to run on every startup — uses CREATE TABLE IF NOT EXISTS.
  */
 export async function runViticultureMigrations(): Promise<void> {
+  // Harvest interval acknowledgement evidence. Nullable columns preserve the
+  // distinction between legacy records and records entered with no warning.
+  await db.execute(sql`
+    ALTER TABLE vineyard_harvest
+      ADD COLUMN IF NOT EXISTS harvest_interval_warning_acknowledged boolean,
+      ADD COLUMN IF NOT EXISTS harvest_interval_acknowledged_at timestamptz,
+      ADD COLUMN IF NOT EXISTS harvest_interval_products jsonb
+  `);
+
   // Frost events — seasonal risk log, may be farm-wide or per-block
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS vineyard_frost_events (

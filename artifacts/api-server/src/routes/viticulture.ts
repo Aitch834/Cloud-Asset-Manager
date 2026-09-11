@@ -534,6 +534,11 @@ router.put("/farms/:farmId/vineyard-harvest/:id", requireAuth, requireTenant, re
   const farmId = Number(req.params.farmId);
   const id = Number(req.params.id);
   const body = sanitiseBody(req.body as Record<string, unknown>);
+  // Entry-time compliance evidence is immutable. Later record edits must not
+  // rewrite what the grower acknowledged when the harvest was first logged.
+  delete body.harvestIntervalWarningAcknowledged;
+  delete body.harvestIntervalAcknowledgedAt;
+  delete body.harvestIntervalProducts;
   if (typeof req.body?.harvestDate === "string") body.harvestDate = req.body.harvestDate;
   // Keep plantingId consistent with blockId whenever blockId is being updated
   if ("blockId" in body) {
