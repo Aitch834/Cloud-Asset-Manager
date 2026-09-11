@@ -138,6 +138,10 @@ args = "lead-sector-notes-cleanup-api"
 task = "workflow.run"
 args = "barrel-retirement-platform-config-api"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "lead-deletion-regressions"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -523,6 +527,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-server run test:barrel-retirement-platform-config"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "lead-deletion-regressions"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/admin-portal run test:lead-deletion && pnpm --filter @workspace/api-server run test:lead-delete-auth"
 
 [workflows.workflow.metadata]
 isValidation = true

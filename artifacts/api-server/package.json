@@ -36,6 +36,7 @@
     "test:help-content": "tsx scripts/check-help-content.ts",
     "test:user-ui-prefs-migration": "node scripts/check-user-ui-prefs-migration.mjs",
     "test:lead-sector-notes-cleanup": "tsx scripts/test-lead-sector-notes-cleanup.ts",
+    "test:lead-delete-auth": "node scripts/check-lead-delete-auth.mjs",
     "test:phenology-planting-link": "node scripts/check-phenology-planting-link.mjs",
     "test:vineyard-harvest-date": "tsx scripts/test-vineyard-harvest-date.ts",
     "test:scouting-photo-access": "tsx scripts/test-scouting-photo-access.ts",

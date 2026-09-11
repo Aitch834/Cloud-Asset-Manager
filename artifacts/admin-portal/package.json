@@ -9,6 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts --exclude '**/e2e/**'",
+    "test:lead-deletion": "vitest run --config vitest.config.ts src/pages/LeadDeletion.test.tsx",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
