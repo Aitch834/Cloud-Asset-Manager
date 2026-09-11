@@ -60,11 +60,15 @@ async function colours(locator: Locator): Promise<{ background: string; border: 
   });
 }
 
-test("active block pills match yield lines and toggling only changes visibility", async ({ page }) => {
+test("hidden block selection survives navigation and active pill still matches its yield line", async ({ page }) => {
   const harvestWrites: string[] = [];
 
   await page.route(`**/api/farms/${FARM_ID}/vineyard-blocks`, route =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(BLOCKS) }),
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ records: BLOCKS }),
+    }),
   );
   await page.route(`**/api/farms/${FARM_ID}/vineyard-harvest`, async route => {
     if (route.request().method() !== "GET") {
@@ -109,13 +113,27 @@ test("active block pills match yield lines and toggling only changes visibility"
   const inactiveColours = await colours(pills[0]);
   expect(inactiveColours.background).not.toBe(await lines.first().evaluate(el => getComputedStyle(el).stroke));
 
-  await pills[0].click();
-  await expect(pills[0]).toHaveAttribute("title", `Hide ${BLOCKS[0].blockName}`);
-  await expect(lines).toHaveCount(BLOCKS.length);
-  const restoredColours = await colours(pills[0]);
-  const restoredLineColour = await lines.first().evaluate(element => getComputedStyle(element).stroke);
-  expect(restoredColours.background).toBe(restoredLineColour);
-  expect(restoredColours.border).toBe(restoredLineColour);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        key => localStorage.getItem(key),
+        `vintage-season-report-block-selection-filter-${FARM_ID}`,
+      ),
+    )
+    .toBe(JSON.stringify([BLOCKS[1].id]));
+
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Vintage Season Report" })).not.toBeVisible();
+  await page.goto("/dashboard/viticulture");
+  await expect(page.getByRole("heading", { name: "Vintage Season Report" })).toBeVisible();
+
+  await expect(pills[0]).toHaveAttribute("title", `Show ${BLOCKS[0].blockName}`);
+  await expect(pills[1]).toHaveAttribute("title", `Hide ${BLOCKS[1].blockName}`);
+  await expect(lines).toHaveCount(1);
+  const remainingPillColours = await colours(pills[1]);
+  const remainingLineColour = await lines.first().evaluate(element => getComputedStyle(element).stroke);
+  expect(remainingPillColours.background).toBe(remainingLineColour);
+  expect(remainingPillColours.border).toBe(remainingLineColour);
 
   expect(harvestWrites, "pill toggles must not write harvest records").toEqual([]);
   expect(JSON.stringify(HARVESTS), "the fixture harvest data must remain unchanged").toBe(originalHarvests);
