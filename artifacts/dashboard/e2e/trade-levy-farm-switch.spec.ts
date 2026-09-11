@@ -9,6 +9,8 @@ const FARM_A = { id: 921_671, name: "Levy Test Farm A", totalAcreage: 120 };
 const FARM_B = { id: 921_672, name: "Levy Test Farm B", totalAcreage: 240 };
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+test.use({ viewport: { width: 390, height: 844 } });
+
 type LevyRequests = {
   ahdbFarmIds: number[];
   tradeLevyFarmIds: number[];
@@ -112,25 +114,33 @@ test("Trade & Levy links remain available and correct after switching farms", as
   await page.goto("/dashboard/dashboard");
 
   await expect(page.getByText(FARM_A.name, { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Trade & Levy", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "AHDB Levy", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Trade Body Levies", exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Toggle navigation menu" }).click();
 
-  await page.getByRole("button", { name: /Switch Farm/ }).first().click();
+  let mobileNav = page.locator("nav:visible");
+  await expect(mobileNav.getByText("Trade & Levy", { exact: true })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "AHDB Levy", exact: true })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Trade Body Levies", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /Switch Farm/ }).filter({ visible: true }).click();
   await expect(page).toHaveURL(/\/dashboard\/select$/);
   await page.getByText(FARM_B.name, { exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard\/dashboard$/);
 
   await expect(page.getByText(FARM_B.name, { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Trade & Levy", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Toggle navigation menu" }).click();
+  mobileNav = page.locator("nav:visible");
+  await expect(mobileNav.getByText("Trade & Levy", { exact: true })).toBeVisible();
 
-  await page.getByRole("link", { name: "AHDB Levy", exact: true }).first().click();
+  await mobileNav.getByRole("link", { name: "AHDB Levy", exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard\/ahdb-levy$/);
   await expect(page.getByRole("heading", { name: "AHDB Levy Management" })).toBeVisible();
   await expect.poll(() => requests.ahdbFarmIds).toContain(FARM_B.id);
   expect(requests.ahdbFarmIds).not.toContain(FARM_A.id);
 
-  await page.getByRole("link", { name: "Trade Body Levies", exact: true }).first().click();
+  await page.getByRole("button", { name: "Toggle navigation menu" }).click();
+  mobileNav = page.locator("nav:visible");
+  await expect(mobileNav.getByText("Trade & Levy", { exact: true })).toBeVisible();
+  await mobileNav.getByRole("link", { name: "Trade Body Levies", exact: true }).click();
   await expect(page).toHaveURL(/\/dashboard\/trade-levies$/);
   await expect(page.getByRole("heading", { name: "Trade Body Levies & Subscriptions" })).toBeVisible();
   await expect.poll(() => requests.tradeLevyFarmIds).toContain(FARM_B.id);
