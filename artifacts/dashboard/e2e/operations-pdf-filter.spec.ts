@@ -81,6 +81,22 @@ const OPERATIONS: OperationFixture[] = [
   },
 ];
 
+const MULTI_PAGE_OPERATIONS: OperationFixture[] = Array.from({ length: 48 }, (_, index) => {
+  const sequence = String(index + 1).padStart(3, "0");
+  return {
+    id: 921000 + index,
+    farmId: 5,
+    blockId: index % 2 === 0 ? 920001 : 920002,
+    operationDate: `2024-${String((index % 12) + 1).padStart(2, "0")}-15`,
+    operationType: `OPS-PAGEBREAK-${sequence}`,
+    pruningSystem: index % 2 === 0 ? "Double Guyot" : "Cordon Spur",
+    operatorName: `E2E-OPERATOR-${sequence}`,
+    notes: `Deterministic multi-page operation ${sequence}`,
+  };
+});
+
+const ALL_OPERATIONS = [...OPERATIONS, ...MULTI_PAGE_OPERATIONS];
+
 function getTestUserId(): string {
   const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
   if (!fs.existsSync(stateFile)) {
@@ -160,7 +176,7 @@ async function prepareOperations(page: Page, farm: ViticultureFarm): Promise<voi
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        records: OPERATIONS.map(operation => ({ ...operation, farmId: farm.farmId })),
+        records: ALL_OPERATIONS.map(operation => ({ ...operation, farmId: farm.farmId })),
       }),
     });
   });
@@ -257,5 +273,21 @@ test("filtered Operations PDF includes only the selected year and block, while a
     expect(unfilteredPdf, `${operation.operationType} should not be truncated from the all-record export`).toContain(
       operation.operationType,
     );
+  }
+});
+
+test("long Operations PDF keeps every operation exactly once across page breaks", async ({ page }) => {
+  const farm = await getViticultureFarm();
+  await prepareOperations(page, farm);
+
+  const pdfText = await downloadPdfText(page);
+
+  expect(pdfText).toMatch(/Page 2 of \d+/);
+  for (const operation of MULTI_PAGE_OPERATIONS) {
+    const occurrences = pdfText.split(operation.operationType).length - 1;
+    expect(
+      occurrences,
+      `${operation.operationType} should appear exactly once in the multi-page export`,
+    ).toBe(1);
   }
 });
