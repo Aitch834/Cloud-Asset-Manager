@@ -20,6 +20,7 @@ import {
   type ClerkUserRecord,
 } from "../src/lib/e2e-test-user";
 import { provisionOrganicInputFixture } from "./organic-input-fixture";
+import { provisionAnalyticsChartFixture } from "./analytics-chart-fixture";
 import { signInDashboard } from "./auth";
 
 const TENANT_SLUG = "oakfield-farms";
@@ -276,6 +277,11 @@ export default async function globalSetup(config: FullConfig) {
       tenantId,
       TENANT_SLUG,
     );
+    const analyticsFixture = await provisionAnalyticsChartFixture(
+      db,
+      tenantId,
+      TENANT_SLUG,
+    );
     await db.query("COMMIT");
 
     // Publish the run identity only after its application mapping commits. If
@@ -293,7 +299,8 @@ export default async function globalSetup(config: FullConfig) {
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
         `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}; ` +
         `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) registration-ready; ` +
-        `organic fixture farm ${organicFixtureFarm.farmId}`,
+        `organic fixture farm ${organicFixtureFarm.farmId}; ` +
+        `analytics fixture farm ${analyticsFixture.farmId} (${analyticsFixture.year})`,
     );
   } catch (error) {
     await db.query("ROLLBACK").catch(() => undefined);
