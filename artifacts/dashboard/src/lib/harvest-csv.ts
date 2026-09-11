@@ -26,6 +26,8 @@ export function buildHarvestChemistryCsvSection(
     if (!lookup[blockId][vintage]) lookup[blockId][vintage] = [];
     lookup[blockId][vintage].push(row);
   }
+  const linkedBlockIdSet = new Set(blockIds.map(String));
+  const linkedRows = rows.filter(row => linkedBlockIdSet.has(String(row.blockId ?? "")));
 
   const average = (metricRows: HarvestCsvRow[]) => {
     const values = metricRows
@@ -52,10 +54,10 @@ export function buildHarvestChemistryCsvSection(
   });
 
   const vintageFooterCells = vintages.map(vintage => {
-    const value = average(rows.filter(row => String(row.vintageYear ?? "") === vintage));
+    const value = average(linkedRows.filter(row => String(row.vintageYear ?? "") === vintage));
     return cell(value != null ? value.toFixed(precision) : "");
   });
-  const grandAverage = average(rows);
+  const grandAverage = average(linkedRows);
   const averageFooter = [
     cell("All blocks"),
     ...vintageFooterCells,

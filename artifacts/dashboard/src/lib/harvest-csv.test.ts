@@ -93,6 +93,8 @@ describe("harvest chemistry CSV", () => {
     { blockId: 1, vintageYear: "2025", brix: 18, ph: 3.1, titratableAcidityGl: 7, potentialAlcohol: 10.2 },
     { blockId: 2, vintageYear: "2025", brix: 20, ph: 3.3, titratableAcidityGl: 6, potentialAlcohol: 11.4 },
     { blockId: 1, vintageYear: "2026", brix: null, ph: null, titratableAcidityGl: null, potentialAlcohol: null },
+    { blockId: null, vintageYear: "2025", brix: 30, ph: 4, titratableAcidityGl: 3, potentialAlcohol: 17 },
+    { blockId: "", vintageYear: "2026", brix: 31, ph: 4.1, titratableAcidityGl: 2, potentialAlcohol: 18 },
   ];
   const metrics = [
     ["Brix by Vintage", "Avg Brix °", "brix", 1],
