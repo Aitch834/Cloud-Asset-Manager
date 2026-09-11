@@ -28,9 +28,10 @@ import { randomUUID } from "node:crypto";
  *     not also depend on the dashboard preview being available
  *
  * The dashboard and API server workflows must be running before executing
- * tests. Global setup checks both previews once before authentication, then
- * reuses the reserved Clerk identity rather than creating a new user on every
- * run. Setup failures are not retried; feature assertion failures still are.
+ * tests. Global setup first proves Chromium can launch within a short bounded
+ * time, then checks both previews before authentication and reuses the reserved
+ * Clerk identity rather than creating a new user on every run. Setup failures
+ * are not retried; feature assertion failures still are.
  */
 
 const ELF_CLASS_BY_ARCH: Partial<Record<NodeJS.Architecture, number>> = {

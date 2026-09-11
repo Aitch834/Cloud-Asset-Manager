@@ -22,6 +22,7 @@ import {
 import { provisionOrganicInputFixture } from "./organic-input-fixture";
 import { provisionAnalyticsChartFixture } from "./analytics-chart-fixture";
 import { signInDashboard, signInMobile } from "./auth";
+import { verifyChromiumStartup } from "./browser-startup";
 
 const TENANT_SLUG = "oakfield-farms";
 const VITICULTURE_FARM_ID = 5;
@@ -227,6 +228,11 @@ export default async function globalSetup(config: FullConfig) {
   // credentials to a spec or teardown from a previous run.
   fs.rmSync(STATE_FILE, { force: true });
   fs.rmSync(EMAIL_FILE, { force: true });
+
+  // Browser launch can fail before Playwright creates a test and starts its
+  // per-test timeout. Bound that infrastructure check before auth and DB setup
+  // so focused and direct Playwright commands fail quickly and clearly.
+  await verifyChromiumStartup(config.projects[0]?.use.launchOptions);
 
   // Preview infrastructure failures are setup errors, not feature failures.
   // Run this outside the retried test flow and before external auth/DB work.

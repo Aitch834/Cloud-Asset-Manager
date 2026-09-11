@@ -6,6 +6,7 @@ import {
   webkit,
   type BrowserType,
 } from "@playwright/test";
+import { BROWSER_STARTUP_TIMEOUT_MS } from "../e2e/browser-startup";
 
 const browserTypes: Record<string, BrowserType> = { chromium, firefox, webkit };
 
@@ -14,11 +15,19 @@ test("configured browser launches with the discovered Replit dependencies", asyn
   let browser;
 
   try {
-    browser = await browserType.launch(testInfo.project.use.launchOptions);
+    browser = await browserType.launch({
+      ...testInfo.project.use.launchOptions,
+      timeout: Math.min(
+        testInfo.project.use.launchOptions?.timeout ??
+          BROWSER_STARTUP_TIMEOUT_MS,
+        BROWSER_STARTUP_TIMEOUT_MS,
+      ),
+    });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `${browserName} could not launch for dashboard browser checks. ` +
+      `[e2e browser startup] ${browserName} could not launch for dashboard browser checks. ` +
+        `This is browser infrastructure failure; the dashboard application tests have not started. ` +
         `Install the matching Playwright browsers with ` +
         `"pnpm --filter @workspace/dashboard run test:e2e:install-browser". ` +
         `If Replit reports missing shared libraries, add those Nix packages to ` +
