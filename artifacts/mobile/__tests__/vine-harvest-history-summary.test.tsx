@@ -217,6 +217,10 @@ describe.each(chemistryMetrics)("$metric chemistry direction cues", ({
 
     const screen = render(<VineHarvestHistoryScreen />);
 
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
+
     expect(screen.getByText(symbol, { exact: false })).toBeTruthy();
     expect(screen.getByLabelText(
       `${metric}: ${displayedValue}, ${direction} from ${displayedBaseline} in 2024`,
@@ -243,6 +247,10 @@ describe("missing chemistry values", () => {
     expect(getChemistryDirection(value, previousValue, 1)).toBeNull();
 
     const screen = render(<VineHarvestHistoryScreen />);
+
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
 
     expect(screen.getByLabelText(accessibilityLabel)).toBeTruthy();
     expect(screen.getByText(displayedValue)).toBeTruthy();
@@ -455,6 +463,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     ]);
 
     const screen = render(<VineHarvestHistoryScreen />);
+
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
     const [fromInput, toInput] = screen.getAllByPlaceholderText("DD/MM/YYYY");
     const recordList = () => within(screen.getByTestId("harvest-history-record-list"));
 
@@ -539,6 +551,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
+
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 2 records", "3.00 t", "1.00", "13.0°");
       expect(setItem).toHaveBeenCalledWith(`bde_vine_block_filter_${FARM_ID}`, []);
@@ -584,6 +600,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     });
 
     const screen = render(<VineHarvestHistoryScreen />);
+
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
 
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 3 records", "3.50 t", "1.17", "12.7°");
@@ -650,6 +670,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
+
     await waitFor(() => {
       expectSummary(screen, "2025 Vintage · 2 records", "3.00 t", "1.00", "13.0°");
       expect(setItem).toHaveBeenCalledWith(`bde_vine_block_filter_${FARM_ID}`, []);
@@ -696,6 +720,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
     const screen = render(<VineHarvestHistoryScreen />);
 
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
+
     const expectAreaTotal = async () => {
       await waitFor(() => {
         expect(screen.getAllByText("Chardonnay").length).toBeGreaterThan(0);
@@ -718,15 +746,13 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
 
   it("moves a renamed block's area to its current variety once without changing the grand Total", async () => {
     const records = [
-      makeRecord(1, 101, "North Block", 1000, 10),
-      makeRecord(2, 101, "North Block", 500, 12),
-      makeRecord(3, 202, "South Block", 2000, 16),
-      makeRecord(4, 303, "East Block", 750, 14),
+      { ...makeCsvHarvestRecord(1, 10), yieldKg: 600 },
+      { ...makeCsvHarvestRecord(2, 10), yieldKg: 400 },
+      { ...makeCsvHarvestRecord(3, 20), yieldKg: 500 },
     ];
-    let blocks = [
-      makeBlock(101, "North Block", 2.5, "Chardonnay"),
-      makeBlock(202, "South Block", 1.5, "Pinot Noir"),
-      makeBlock(303, "East Block", 1, "Riesling"),
+    const blocks = [
+      { id: 10, blockName: "North Block", variety: "Chardonnay", areaHa: 2 },
+      { id: 20, blockName: "South Block", variety: "Pinot Noir", areaHa: 1 },
     ];
     useApiFetch.mockReturnValue({
       records,
@@ -739,6 +765,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     useApiVineBlocks.mockImplementation(() => ({ blocks, loading: false }));
 
     const screen = render(<VineHarvestHistoryScreen />);
+
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
     const varietyRows = () => within(screen.getByTestId("variety-table-body"));
 
     await waitFor(() => {
@@ -779,6 +809,10 @@ describe("VineHarvestHistoryScreen — filtered summary", () => {
     );
 
     const screen = render(<VineHarvestHistoryScreen />);
+
+    const activeVarietyHeader = await screen.findByLabelText(
+      "Sort variety table by Variety, currently sorted ascending",
+    );
     const varietyNames = /^(Chardonnay|Pinot Noir|Unknown \/ Not linked)$/;
     const orderedNames = (testId: string) =>
       within(screen.getByTestId(testId))
@@ -1018,3 +1052,7 @@ describe("buildHarvestReportMailto — Yield by Variety breakdown", () => {
     ]);
   });
 });
+
+    const inactiveTotalHeader = screen.getByLabelText(
+      "Sort variety table by Total kg, not currently sorted",
+    );

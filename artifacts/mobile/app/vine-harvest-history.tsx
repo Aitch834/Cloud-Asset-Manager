@@ -2398,7 +2398,12 @@ export default function VineHarvestHistoryScreen() {
                           onPress={() => { Haptics.selectionAsync(); toggleVarietySort(c.col as "variety" | "totalHa" | "totalKg" | "kgPerHa" | "avgBrix"); }}
                           hitSlop={6}
                           accessibilityRole="button"
-                          accessibilityLabel={`Sort variety table by ${c.label}`}
+                          accessibilityLabel={
+                            active
+                              ? `Sort variety table by ${c.label}, currently sorted ${varietySort.dir === "asc" ? "ascending" : "descending"}`
+                              : `Sort variety table by ${c.label}, not currently sorted`
+                          }
+                          accessibilityState={{ selected: active }}
                         >
                           <View style={styles.varietyHeaderCellInner}>
                             {c.align === "right" && (
