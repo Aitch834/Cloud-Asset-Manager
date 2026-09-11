@@ -931,7 +931,7 @@ export default function VineScoutingHistoryScreen() {
         canonFrom ?? undefined,
         canonTo ?? undefined,
       );
-      await savePdf(html, "Vine Scouting History");
+      await savePdf(html, "Vine Scouting History", "vine-scouting-history.pdf");
     } catch {
       Alert.alert("Export Failed", "Could not generate the scouting report. Please try again.");
     } finally {

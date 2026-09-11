@@ -1372,9 +1372,20 @@ export function vineScoutingHistoryHtml(
   const tableEmpty = `<tr><td colspan="8" style="text-align:center;color:#888;padding:16px 8px;">No scouting records match the current filter.</td></tr>`;
 
   const extraCss = `
+    @page { size: A4 landscape; margin: 14mm 12mm; }
     table { font-size: 8.5pt; }
+    table { table-layout: fixed; }
     th { font-size: 8pt; }
     td { padding: 4px 6px; }
+    th, td { overflow-wrap: anywhere; word-break: normal; }
+    th:nth-child(1), td:nth-child(1) { width: 10%; }
+    th:nth-child(2), td:nth-child(2) { width: 12%; }
+    th:nth-child(3), td:nth-child(3) { width: 11%; }
+    th:nth-child(4), td:nth-child(4) { width: 11%; }
+    th:nth-child(5), td:nth-child(5) { width: 14%; }
+    th:nth-child(6), td:nth-child(6) { width: 13%; }
+    th:nth-child(7), td:nth-child(7) { width: 14%; }
+    th:nth-child(8), td:nth-child(8) { width: 15%; }
   `;
 
   const body = `
