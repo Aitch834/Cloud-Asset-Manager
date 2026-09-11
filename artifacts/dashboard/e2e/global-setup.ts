@@ -24,6 +24,8 @@ import { signInDashboard } from "./auth";
 
 const TENANT_SLUG = "oakfield-farms";
 const VITICULTURE_FARM_ID = 5;
+const VITICULTURE_FIXTURE_SBI = "E2E-VINEYARD-SBI";
+const VITICULTURE_FIXTURE_BLOCK_NAME = "E2E Registration Block";
 
 export { TENANT_SLUG, VITICULTURE_FARM_ID };
 
@@ -190,6 +192,26 @@ export default async function globalSetup(config: FullConfig) {
       );
     }
 
+    await db.query(
+      `UPDATE farms
+          SET sector_viticulture = true,
+              sbi_number = COALESCE(NULLIF(BTRIM(sbi_number), ''), $3),
+              updated_at = NOW()
+        WHERE id = $1 AND tenant_id = $2`,
+      [VITICULTURE_FARM_ID, tenantId, VITICULTURE_FIXTURE_SBI],
+    );
+
+    await db.query(
+      `INSERT INTO vineyard_blocks
+         (farm_id, block_name, block_ref, field_parcel_ref, aspect, soil_type, notes)
+       SELECT $1, $2, 'E2E-REG', 'E2E-PARCEL-001', 'South', 'Loam',
+              'Stable registration fixture for authenticated viticulture browser checks'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM vineyard_blocks WHERE farm_id = $1
+        )`,
+      [VITICULTURE_FARM_ID, VITICULTURE_FIXTURE_BLOCK_NAME],
+    );
+
     const viticultureModuleRes = await db.query<{ id: number }>(
       "SELECT id FROM modules WHERE key = 'viticulture' AND is_active = true LIMIT 1",
     );
@@ -270,7 +292,7 @@ export default async function globalSetup(config: FullConfig) {
     console.log(
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
         `${clerkUserId} (${mappedEmail}) → tenant ${TENANT_SLUG}; ` +
-        `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) active; ` +
+        `Viticulture fixture ${VITICULTURE_FARM_ID} (${viticultureFarm.name}) registration-ready; ` +
         `organic fixture farm ${organicFixtureFarm.farmId}`,
     );
   } catch (error) {

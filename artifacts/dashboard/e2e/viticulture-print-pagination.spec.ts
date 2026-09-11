@@ -14,8 +14,8 @@ import { Client } from "pg";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { TENANT_SLUG, VITICULTURE_FARM_ID } from "./global-setup";
 
-const TENANT_SLUG = "oakfield-farms";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type ViticultureFarm = {
@@ -55,6 +55,7 @@ async function getViticultureFarm(): Promise<ViticultureFarm> {
        JOIN subscriptions s ON s.farm_id = f.id AND s.tenant_id = t.id
        JOIN modules m ON m.id = s.module_id
        WHERE t.slug = $1
+          AND f.id = $2
          AND (
            s.status = 'active'
            OR (
@@ -64,20 +65,21 @@ async function getViticultureFarm(): Promise<ViticultureFarm> {
          )
          AND m.key IN ('viticulture', 'organic-viticulture')
          AND f.sector_viticulture = true
+          AND NULLIF(BTRIM(f.sbi_number), '') IS NOT NULL
          AND EXISTS (
            SELECT 1
            FROM vineyard_blocks vb
            WHERE vb.farm_id = f.id
          )
-       ORDER BY f.id
        LIMIT 1`,
-      [TENANT_SLUG],
+       [TENANT_SLUG, VITICULTURE_FARM_ID],
     );
 
     const farm = result.rows[0];
     if (!farm) {
       throw new Error(
-        `Print pagination setup failed: no viticulture-enabled farm with a vineyard block is available for tenant ${TENANT_SLUG}.`,
+        `Print pagination setup failed: stable farm ${VITICULTURE_FARM_ID} for tenant ${TENANT_SLUG} ` +
+          "must have an active Viticulture subscription, the Viticulture sector enabled, an SBI number, and a vineyard block.",
       );
     }
 
