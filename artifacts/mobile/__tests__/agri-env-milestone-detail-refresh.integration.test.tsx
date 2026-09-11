@@ -46,9 +46,11 @@ jest.mock("@expo/vector-icons", () => {
   };
 });
 
+const mockSearchParams = { projectId: "7", milestoneId: "101" };
+
 jest.mock("expo-router", () => ({
-  router: { back: jest.fn() },
-  useLocalSearchParams: () => ({ projectId: "7", milestoneId: "101" }),
+  router: { back: jest.fn(), push: jest.fn() },
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -107,7 +109,8 @@ jest.mock("../lib/agriEnvMilestoneCache", () => ({
 }));
 
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { ScrollView } from "react-native";
 import AgriEnvMilestoneDetailScreen from "../app/agri-env-milestone-detail";
 
 const { useFarm } = require("../lib/context/FarmContext") as {
@@ -115,6 +118,12 @@ const { useFarm } = require("../lib/context/FarmContext") as {
 };
 const { apiFetch } = require("../lib/apiFetch") as {
   apiFetch: jest.Mock;
+};
+const { getItem } = require("../lib/storage") as {
+  getItem: jest.Mock;
+};
+const { router } = require("expo-router") as {
+  router: { back: jest.Mock; push: jest.Mock };
 };
 
 const project = {
@@ -152,12 +161,11 @@ const siblingMilestone = {
   evidenceNotes: null,
 };
 
-const paidMilestone = {
-  ...initialMilestone,
-  status: "paid",
-  completionDate: "2026-09-01",
-  claimAmountPence: 30_000,
-};
+    const paidMilestone = {
+      ...initialMilestone,
+      status: "paid",
+      claimAmountPence: 60_000,
+    };
 
 type MockMilestone = Omit<typeof initialMilestone, "claimAmountPence"> & {
   claimAmountPence: number | null;
@@ -176,6 +184,9 @@ describe("agri-environment milestone remaining balance", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchParams.projectId = "7";
+    mockSearchParams.milestoneId = "101";
+    getItem.mockResolvedValue(null);
     serverMilestone = initialMilestone;
     useFarm.mockReturnValue({
       currentFarm: { id: 3, name: "Test Farm" },
@@ -321,5 +332,77 @@ describe("agri-environment milestone remaining balance", () => {
     fireEvent.changeText(screen.getByTestId("milestone-claim-amount-input"), "900");
 
     expect(screen.queryByTestId("milestone-claim-balance-warning")).toBeNull();
+  });
+
+  it("keeps project context while opening, refreshing, and leaving a sibling milestone", async () => {
+    const cachedAt = "2026-09-10T09:30:00.000Z";
+    getItem.mockImplementation(async (key: string) => {
+      if (key === "agri-env-project-milestones_3_7") {
+        return { milestones: [initialMilestone, siblingMilestone], cachedAt };
+      }
+      if (key === "agri-env-projects_3") {
+        return { data: [project], cachedAt };
+      }
+      return null;
+    });
+
+    const screen = render(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Soil improvement")).toBeTruthy();
+      expect(screen.getByText("Due 30 Nov 2026")).toBeTruthy();
+      expect(screen.getByText("Paid")).toBeTruthy();
+      expect(screen.getByText("Countryside Stewardship")).toBeTruthy();
+      expect(screen.queryByText("£200")).toBeNull();
+    });
+
+    fireEvent.press(screen.getByTestId("sibling-milestone-102"));
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/agri-env-milestone-detail",
+      params: { projectId: "7", milestoneId: "102" },
+    });
+
+    mockSearchParams.milestoneId = "102";
+    screen.rerender(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("£200")).toBeTruthy();
+      expect(screen.getByText("Countryside Stewardship")).toBeTruthy();
+      expect(screen.getByText("Hedgerow management")).toBeTruthy();
+      expect(screen.getByText("£200")).toBeTruthy();
+    });
+
+    apiFetch.mockClear();
+    const detailScrollView = screen.UNSAFE_getAllByType(ScrollView)[0];
+    const refreshControl = detailScrollView.props.refreshControl as React.ReactElement<{
+      onRefresh: () => void;
+    }>;
+    await act(async () => {
+      refreshControl.props.onRefresh();
+    });
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledTimes(2);
+      expect(apiFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/farms/3/agri-env-projects/7/milestones",
+        expect.any(Object),
+      );
+      expect(screen.getByText("£200")).toBeTruthy();
+      expect(screen.getByText("Countryside Stewardship")).toBeTruthy();
+      expect(screen.getByText("£200")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByTestId("milestone-detail-back-button"));
+    expect(router.back).toHaveBeenCalledTimes(1);
+
+    mockSearchParams.milestoneId = "101";
+    screen.rerender(<AgriEnvMilestoneDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Hedgerow management")).toBeTruthy();
+      expect(screen.getByText("Countryside Stewardship")).toBeTruthy();
+      expect(screen.queryByText("£200")).toBeNull();
+    });
   });
 });

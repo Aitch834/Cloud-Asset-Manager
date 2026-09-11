@@ -492,7 +492,14 @@ export default function AgriEnvMilestoneDetailScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          testID="milestone-detail-back-button"
+        >
           <Feather name="arrow-left" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
@@ -885,6 +892,7 @@ export default function AgriEnvMilestoneDetailScreen() {
                       }
                       accessibilityRole="button"
                       accessibilityLabel={`${sibling.milestoneName ?? "Milestone"}, due ${formatDate(sibling.dueDate)}, ${siblingStatus.label}. Open milestone detail.`}
+                      testID={`sibling-milestone-${sibling.id}`}
                     >
                       <View style={styles.siblingMilestoneMain}>
                         <Text style={styles.siblingMilestoneName} numberOfLines={2}>
