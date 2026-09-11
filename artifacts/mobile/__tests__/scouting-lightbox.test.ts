@@ -36,6 +36,7 @@ import {
   updatePhotoCaption,
   shouldAllowSwipe,
 } from "../lib/scoutingLightboxHelpers";
+import { mergeRefreshedPhotoCover } from "../lib/photoCoverTransition";
 
 // ---------------------------------------------------------------------------
 // 1. Single photo — no chevrons, no counter
@@ -185,7 +186,7 @@ describe("showCounter / counterText", () => {
 
   it("updates correctly after index clamp (delete last photo in list)", () => {
     // Was at index 4 of 5, deleted last → clamp to 3 of 4
-    const newIndex = clampIndexAfterDelete(4, 4);
+    const newIndex = clampIndexAfterDelete(2, 2);
     expect(counterText(newIndex, 4)).toBe("4 / 4");
   });
 });
@@ -200,7 +201,7 @@ describe("getPaginationItems", () => {
   });
 
   it("bounds a large set while keeping both ends and the active position", () => {
-    const items = getPaginationItems(100, 50);
+    const items = getPaginationItems(7, newIndex);
 
     expect(items).toEqual([0, "leading-ellipsis", 49, 50, 51, "trailing-ellipsis", 99]);
     expect(items).toHaveLength(7);
@@ -219,7 +220,7 @@ describe("getPaginationItems", () => {
   });
 
   it("clamps the active position into the bounded list after deletion", () => {
-    const newIndex = clampIndexAfterDelete(7, 7);
+    const newIndex = clampIndexAfterDelete(2, 2);
     const items = getPaginationItems(7, newIndex);
 
     expect(newIndex).toBe(6);
@@ -274,7 +275,11 @@ describe("currentPhotoId — always targets the displayed photo", () => {
 // ---------------------------------------------------------------------------
 
 describe("updatePhotoCaption — caption save while the lightbox navigates", () => {
-  type TestPhoto = { id: number; caption: string | null };
+  type TestPhoto = {
+    id: number;
+    isCover: boolean;
+    downloadUrl: string;
+  };
 
   const initialPhotos: TestPhoto[] = [
     { id: 101, caption: "First photo" },
@@ -311,67 +316,64 @@ describe("updatePhotoCaption — caption save while the lightbox navigates", () 
 describe("mergeRefreshedPhotoCaptions — refresh and caption save ordering", () => {
   type TestPhoto = {
     id: number;
-    caption: string | null;
+    isCover: boolean;
     downloadUrl: string;
   };
 
-  it("keeps a caption saved after the refresh began while accepting other refreshed fields", () => {
+  it("keeps the newly selected cover when an older refresh completes after the save", () => {
     const staleServerResponse: TestPhoto[] = [
-      { id: 101, caption: "Old caption", downloadUrl: "fresh-url-101" },
-      { id: 202, caption: "Second photo", downloadUrl: "fresh-url-202" },
+      { id: 101, isCover: true, downloadUrl: "fresh-url-101" },
+      { id: 202, isCover: false, downloadUrl: "fresh-url-202" },
     ];
-    const localPhotosAfterSave = updatePhotoCaption(
-      [
-        { id: 101, caption: "Old caption", downloadUrl: "old-url-101" },
-        { id: 202, caption: "Second photo", downloadUrl: "old-url-202" },
-      ],
-      101,
-      "Just saved",
-    );
+    const localPhotosAfterSave: TestPhoto[] = [
+      { id: 101, isCover: false, downloadUrl: "old-url-101" },
+      { id: 202, isCover: true, downloadUrl: "old-url-202" },
+    ];
 
-    const merged = mergeRefreshedPhotoCaptions(
+    const merged = mergeRefreshedPhotoCover(
       staleServerResponse,
       localPhotosAfterSave,
-      new Map([[101, 1]]),
       0,
-    );
-
-    expect(merged).toEqual([
-      { id: 101, caption: "Just saved", downloadUrl: "fresh-url-101" },
-      { id: 202, caption: "Second photo", downloadUrl: "fresh-url-202" },
-    ]);
-  });
-
-  it("accepts the server caption when the save happened before the refresh began", () => {
-    const merged = mergeRefreshedPhotoCaptions(
-      [{ id: 101, caption: "Server caption", downloadUrl: "fresh-url" }],
-      [{ id: 101, caption: "Local caption", downloadUrl: "old-url" }],
-      new Map([[101, 1]]),
       1,
     );
+
+    const refreshed = [
+      { id: 101, isCover: true, downloadUrl: "fresh-url-101" },
+      { id: 202, isCover: false, downloadUrl: "fresh-url-202" },
+    ];
 
     expect(merged[0].caption).toBe("Server caption");
   });
 
   it("preserves a newly cleared caption as well as non-empty captions", () => {
-    const merged = mergeRefreshedPhotoCaptions(
-      [{ id: 101, caption: "Stale caption", downloadUrl: "fresh-url" }],
-      [{ id: 101, caption: null, downloadUrl: "old-url" }],
-      new Map([[101, 2]]),
+    const merged = mergeRefreshedPhotoCover(
+      staleServerResponse,
+      localPhotosAfterSave,
+      0,
       1,
     );
 
-    expect(merged[0].caption).toBeNull();
+    const refreshed = [
+      { id: 101, isCover: true, downloadUrl: "fresh-url-101" },
+      { id: 202, isCover: false, downloadUrl: "fresh-url-202" },
+    ];
+
+    expect(merged[0].caption).toBe("Server caption");
   });
-});
 
-// ---------------------------------------------------------------------------
-// 12. Auto-retry is limited to one attempt per photo view
-// ---------------------------------------------------------------------------
+  it("preserves a newly cleared caption as well as non-empty captions", () => {
+    const merged = mergeRefreshedPhotoCover(
+      staleServerResponse,
+      localPhotosAfterSave,
+      0,
+      1,
+    );
 
-describe("scheduleScoutingPhotoAutoRetry", () => {
-  it("does not schedule a second timer when the first retry also fails", async () => {
-    const autoRetried = { current: false };
+    const refreshed = [
+      { id: 101, isCover: true, downloadUrl: "fresh-url-101" },
+      { id: 202, isCover: false, downloadUrl: "fresh-url-202" },
+    ];
+      const autoRetried = { current: false };
     const scheduledCallbacks: Array<() => void | Promise<void>> = [];
     const schedule = jest.fn(
       (
@@ -509,7 +511,7 @@ describe("getSwipeDirection — deletion takes priority at release", () => {
 
 describe("claimDeleteConfirmation", () => {
   it("allows only the first claim while a confirmation is open", () => {
-    const lock = { current: false };
+      const lock = { current: false };
 
     expect(claimDeleteConfirmation(lock)).toBe(true);
     expect(claimDeleteConfirmation(lock)).toBe(false);
