@@ -56,6 +56,22 @@ export function scheduleScoutingPhotoAutoRetry(
 }
 
 /**
+ * Cancel the retry belonging to the photo view being left and restore the
+ * one-retry allowance for the newly displayed photo.
+ */
+export function cancelScoutingPhotoAutoRetry(
+  autoRetryTimer: { current: ReturnType<typeof setTimeout> | null },
+  autoRetried: { current: boolean },
+  cancel: (timer: ReturnType<typeof setTimeout>) => void,
+): void {
+  if (autoRetryTimer.current !== null) {
+    cancel(autoRetryTimer.current);
+    autoRetryTimer.current = null;
+  }
+  autoRetried.current = false;
+}
+
+/**
  * Apply a caption save to the matching photo without relying on its array
  * position.  The lightbox index can change while the PATCH is in flight, so
  * caption updates must follow the stable photo ID rather than the current

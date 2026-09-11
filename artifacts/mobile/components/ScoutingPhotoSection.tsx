@@ -57,6 +57,7 @@ import {
 import {
   getPaginationItems,
   isPaginationItemActive,
+  cancelScoutingPhotoAutoRetry,
   claimDeleteConfirmation,
   mergeRefreshedPhotoCaptions,
   scheduleScoutingPhotoAutoRetry,
@@ -274,12 +275,8 @@ export function ScoutingPhotoLightbox({
 
   /** Cancel any scheduled auto-retry and reset related state. */
   const cancelAutoRetry = useCallback(() => {
-    if (autoRetryTimer.current !== null) {
-      clearTimeout(autoRetryTimer.current);
-      autoRetryTimer.current = null;
-    }
+    cancelScoutingPhotoAutoRetry(autoRetryTimer, autoRetried, clearTimeout);
     setAutoRetryPending(false);
-    autoRetried.current = false;
   }, []);
 
   // Sync index when lightbox opens; reset in-flight flags

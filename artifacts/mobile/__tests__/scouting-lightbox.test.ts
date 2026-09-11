@@ -16,6 +16,7 @@
  *   8. Counter text always reflects current position
  *   9. Share / Delete target the currently displayed photo, not the tapped one
  *  11. Auto-retry schedules at most one timer per photo view
+ *  12. Navigating cancels the old retry and restores the new photo's allowance
  */
 
 import {
@@ -28,6 +29,7 @@ import {
   isPaginationItemActive,
   currentPhotoId,
   getSwipeDirection,
+  cancelScoutingPhotoAutoRetry,
   claimDeleteConfirmation,
   mergeRefreshedPhotoCaptions,
   scheduleScoutingPhotoAutoRetry,
@@ -398,6 +400,53 @@ describe("scheduleScoutingPhotoAutoRetry", () => {
       scheduleScoutingPhotoAutoRetry(autoRetried, schedule, retry),
     ).toBeNull();
     expect(schedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the old photo's timer on navigation and gives the new photo one retry", () => {
+    jest.useFakeTimers();
+    try {
+      const autoRetried = { current: false };
+      const autoRetryTimer = {
+        current: null as ReturnType<typeof setTimeout> | null,
+      };
+      const reloadOldPhoto = jest.fn();
+      const reloadNewPhoto = jest.fn();
+
+      autoRetryTimer.current = scheduleScoutingPhotoAutoRetry(
+        autoRetried,
+        setTimeout,
+        reloadOldPhoto,
+      );
+      expect(autoRetryTimer.current).not.toBeNull();
+      expect(autoRetried.current).toBe(true);
+
+      // Navigation runs the displayed-photo cleanup before the first timer
+      // fires. The old photo must never be reloaded.
+      cancelScoutingPhotoAutoRetry(autoRetryTimer, autoRetried, clearTimeout);
+      jest.advanceTimersByTime(2000);
+      expect(reloadOldPhoto).not.toHaveBeenCalled();
+      expect(autoRetryTimer.current).toBeNull();
+      expect(autoRetried.current).toBe(false);
+
+      // The reset belongs to the newly displayed photo, which may still claim
+      // exactly one automatic retry of its own.
+      autoRetryTimer.current = scheduleScoutingPhotoAutoRetry(
+        autoRetried,
+        setTimeout,
+        reloadNewPhoto,
+      );
+      expect(autoRetryTimer.current).not.toBeNull();
+      expect(autoRetried.current).toBe(true);
+
+      jest.advanceTimersByTime(2000);
+      expect(reloadNewPhoto).toHaveBeenCalledTimes(1);
+      expect(reloadOldPhoto).not.toHaveBeenCalled();
+      expect(
+        scheduleScoutingPhotoAutoRetry(autoRetried, setTimeout, reloadNewPhoto),
+      ).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 
