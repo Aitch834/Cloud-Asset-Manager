@@ -458,7 +458,7 @@ const WORKFLOWS: Workflow[] = [
     icon: ArrowRightLeft,
     moduleKey: "livestock-management",
     steps: [
-      { title: "Create the holding record", detail: "Record the movement type, date, animals or batch, and the source or destination holding details." },
+      { title: "Create the holding record", detail: "In Livestock & Feed Management, record the movement type, date, animals or batch, and the source or destination holding details." },
       { title: "Save the farm register entry", detail: "Keep tag, batch and transport details with the record so your on-farm history is traceable." },
       { title: "Make the statutory submission separately", detail: "Use the official service required for your species and nation, within its deadline. A Farm Trac record is not confirmation that a statutory submission has been accepted." },
       { title: "Keep the confirmation", detail: "Add the official reference or retain the paperwork alongside the movement for audit and reconciliation." },
@@ -494,7 +494,7 @@ const WORKFLOWS: Workflow[] = [
     icon: Globe,
     moduleKey: null,
     steps: [
-      { title: "Check the connection in Settings", detail: "Review the available connection, the account it uses and the data you intend to share." },
+      { title: "Check the connection in Settings", detail: "Review the available integration, including Data API Access where relevant, the account it uses and the data you intend to share." },
       { title: "Match records before sending", detail: "Confirm holding identifiers, dates, units and contacts are correct in both systems." },
       { title: "Send a small, reviewable set first", detail: "Confirm the receiving service shows the expected result before relying on a wider transfer." },
       { title: "Keep the source record", detail: "Retain the Farm Trac entry and any external confirmation; connected services can have their own validation rules and downtime." },

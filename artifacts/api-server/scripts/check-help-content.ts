@@ -68,6 +68,99 @@ const fallbackSource = readFileSync(
   new URL("../src/routes/farms.ts", import.meta.url),
   "utf8",
 );
+const publicHelpSource = readFileSync(
+  new URL("../../website/src/pages/HelpCentre.tsx", import.meta.url),
+  "utf8",
+);
+const dashboardHelpSource = readFileSync(
+  new URL("../../dashboard/src/pages/HelpCentre.tsx", import.meta.url),
+  "utf8",
+);
+
+const HELP_GUIDANCE_CONTRACT = {
+  moduleNames: [
+    "Sprays & Inputs",
+    "Livestock & Feed Management",
+    "Organic Viticulture",
+    "Resource Planner",
+    "Data API Access",
+  ],
+  boundaries: [
+    {
+      name: "government submissions",
+      publicPattern: /official service[\s\S]*official confirmation|official system remains the source of truth/i,
+      dashboardPattern: /official service[\s\S]*not confirmation that a statutory submission has been accepted/i,
+      articleTitles: [
+        "Livestock Movement Records",
+        "Livestock Movement Reporting: Scotland, Wales and Northern Ireland",
+      ],
+      articlePattern: /official|government|statutory|authority/i,
+    },
+    {
+      name: "offline recording",
+      publicPattern: /supported mobile forms[\s\S]*check that a record has synced/i,
+      dashboardPattern: /allow sync to finish[\s\S]*check that the record appears in the dashboard/i,
+      articleTitles: [
+        "Using the Mobile App for Field Recording",
+        "Mobile App — Offline Data and How Reference Pickers Work",
+      ],
+      articlePattern: /supported record types[\s\S]*confirm[\s\S]*(?:sync|dashboard)/i,
+    },
+    {
+      name: "organic certification",
+      publicPattern: /complementary record system[\s\S]*certifier[\s\S]*certification decisions/i,
+      dashboardPattern: /certifier requirements[\s\S]*source of truth[\s\S]*does not determine approval/i,
+      articleTitles: ["Organic Compliance Overview & Certification Tracking"],
+      articlePattern: /certif(?:ier|ying body)[\s\S]*(?:source of truth|does not replace|remains responsible)/i,
+    },
+    {
+      name: "connected integrations",
+      publicPattern: /read-only integration option[\s\S]*confirm the current endpoints, permissions and intended use/i,
+      dashboardPattern: /connected services can have their own validation rules and downtime/i,
+      articleTitles: ["Data API — Generating and Managing API Keys"],
+      articlePattern: /read-only[\s\S]*(?:permissions|scope|access)/i,
+    },
+  ],
+} as const;
+
+for (const moduleName of HELP_GUIDANCE_CONTRACT.moduleNames) {
+  const appearsInPublicHelp = publicHelpSource.includes(moduleName);
+  const appearsInDashboardHelp = dashboardHelpSource.includes(moduleName);
+  const appearsInSeededArticles = DEFAULT_HELP_ARTICLES.some(
+    ({ title, category, content }) =>
+      title.includes(moduleName) ||
+      category === moduleName ||
+      normaliseContent(content).includes(moduleName),
+  );
+  if (!appearsInPublicHelp || !appearsInDashboardHelp || !appearsInSeededArticles) {
+    failures.push(
+      `Canonical module name "${moduleName}" is missing from: ${[
+        !appearsInPublicHelp && "public help",
+        !appearsInDashboardHelp && "dashboard help",
+        !appearsInSeededArticles && "seeded articles",
+      ].filter(Boolean).join(", ")}`,
+    );
+  }
+}
+
+for (const boundary of HELP_GUIDANCE_CONTRACT.boundaries) {
+  if (!boundary.publicPattern.test(publicHelpSource)) {
+    failures.push(`Public help is missing the "${boundary.name}" boundary`);
+  }
+  if (!boundary.dashboardPattern.test(dashboardHelpSource)) {
+    failures.push(`Dashboard help is missing the "${boundary.name}" boundary`);
+  }
+  for (const title of boundary.articleTitles) {
+    const article = DEFAULT_HELP_ARTICLES.find((candidate) => candidate.title === title);
+    if (!article) {
+      failures.push(`Help guidance contract references missing article "${title}"`);
+    } else if (!boundary.articlePattern.test(normaliseContent(article.content))) {
+      failures.push(
+        `Article "${title}" is missing the "${boundary.name}" boundary`,
+      );
+    }
+  }
+}
 
 if (TITLES.length !== CONTENT.length) {
   failures.push(
@@ -183,5 +276,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Help content integrity check passed: checked ${DEFAULT_HELP_ARTICLES.length} default articles.`,
+  `Help content integrity check passed: checked ${DEFAULT_HELP_ARTICLES.length} default articles and cross-surface guidance.`,
 );

@@ -793,7 +793,7 @@ export const CONTENT: [string, string][] = [
   [
     "An overview of the BDE Farm Trac mobile app and how to use it for recording field operations, spray applications, livestock events, and viticulture records offline.",
     `<h2>Using the Mobile App for Field Recording</h2>
-<p>The BDE Farm Trac mobile app (available on iOS and Android) extends the platform into the field, allowing records to be created at the point of activity rather than re-entered from paper notes later. The app works fully offline — records created without a signal are stored locally and sync automatically when connectivity is restored.</p>
+<p>The BDE Farm Trac mobile app (available on iOS and Android) extends the platform into the field, allowing records to be created at the point of activity rather than re-entered from paper notes later. Supported record types can be saved without a signal and queued for sync when connectivity is restored. Reconnect and confirm the record appears in the dashboard before relying on it for reporting or a deadline.</p>
 <h3>Getting started</h3>
 <p>Download the app from the App Store or Google Play and sign in with your BDE Farm Trac account. The app detects your active farm and downloads reference data — fields, staff, animals, flocks, vine blocks, and stock products — for offline use. Pull down on any screen to refresh the cached reference data.</p>
 <h3>What you can record</h3>
@@ -2563,9 +2563,9 @@ export const CONTENT: [string, string][] = [
 </ul>
 <p>Pull down on the home screen to force a cache refresh — do this when you know reference data has changed (new fields added, new staff members, new vine blocks registered) to ensure pickers are up to date.</p>
 <h3>Creating records offline</h3>
-<p>Spray applications, livestock events, environmental logs, harvest records, and all other record types can be created with no signal. Records created offline show a Pending Sync indicator. They are uploaded in the order they were created once connectivity returns.</p>
+<p>Supported record types, including spray applications, selected livestock events, environmental logs, and harvest records, can be created with no signal. Records created offline show a Pending Sync indicator. They are uploaded in the order they were created once connectivity returns.</p>
 <h3>Pending sync tray</h3>
-<p>The badge count in the top toolbar of the mobile app shows how many records are waiting to sync. Tap the badge to see the pending sync list. All synced records appear in the dashboard immediately after upload — no manual merge step is required.</p>`,
+<p>The badge count in the top toolbar of the mobile app shows how many records are waiting to sync. Tap the badge to see the pending sync list. After reconnecting, confirm the record has synced and appears in the dashboard before relying on it for reporting or a deadline.</p>`,
   ],
   // 119 — Fuel & Energy Management — HMRC Compliance, Oil Storage, LPG and Grid Energy
   // 115 — Fuel & Energy Management — HMRC Compliance, Oil Storage, LPG and Grid Energy
@@ -2640,6 +2640,7 @@ export const CONTENT: [string, string][] = [
     "How BDE Farm Trac supports organic farm compliance, covering certification tracking, organic inspection records, and the organic input register.",
     `<h2>Organic Compliance Overview & Certification Tracking</h2>
 <p>The Organic module in BDE Farm Trac provides comprehensive record keeping for UK organic certification under the UK Organic Regulations 2020. It covers the full range of evidence required by Soil Association Certification, OF&amp;G (Organic Farmers &amp; Growers), and other UK-approved certifiers for both arable and livestock organic enterprises.</p>
+<p>Your certifier's current requirements remain the source of truth. BDE Farm Trac organises supporting records and evidence; it does not replace your certifier or determine certification decisions.</p>
 <h3>Organic certificate register</h3>
 <p>Navigate to <strong>Organic → Certificates</strong> to store your current organic certificate, previous certificates, and any conversion documentation. Record the certifying body, certificate number, scope (whole farm, specific enterprises, or specific products), issue date, and expiry date. Certificates approaching renewal are flagged at 90 days and 30 days with amber and red alerts.</p>
 <h3>Annual inspection records</h3>
