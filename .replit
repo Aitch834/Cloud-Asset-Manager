@@ -146,6 +146,10 @@ args = "lead-deletion-regressions"
 task = "workflow.run"
 args = "mobile-block-filter-history"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "workspace-command-shims"
+
 [[workflows.workflow]]
 name = "mobile-sync-key-guard"
 author = "agent"
@@ -553,6 +557,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/mobile run test:block-filter-history"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "workspace-command-shims"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run check:workspace-command-shims"
 
 [workflows.workflow.metadata]
 isValidation = true
