@@ -22,6 +22,8 @@ const POSITIVE_BLOCK = `${RUN_TAG}-positive-area`;
 const MISSING_AREA_BLOCK = `${RUN_TAG}-missing-area`;
 const SINGLE_BLOCK_RUN_TAG = `E2E-2000-${Date.now()}`;
 const SINGLE_BLOCK = `${SINGLE_BLOCK_RUN_TAG}-single-block`;
+const ZERO_YIELD_CHEMISTRY_RUN_TAG = `E2E-2458-${Date.now()}`;
+const ZERO_YIELD_CHEMISTRY_BLOCK = `${ZERO_YIELD_CHEMISTRY_RUN_TAG}-zero-yield-chemistry`;
 const MULTI_VINTAGE_RUN_TAG = `E2E-2071-${Date.now()}`;
 const MULTI_VINTAGE_BLOCK = `${MULTI_VINTAGE_RUN_TAG}-multi-vintage`;
 
@@ -315,6 +317,51 @@ test.describe("Harvest block productivity exports", () => {
       await expect(summaryTable.locator("tbody > tr")).toHaveCount(1);
       await expect(summaryTable.locator("tfoot > tr")).toContainText("Season Totals");
       await expect(summaryTable.locator("tfoot > tr")).toBeVisible();
+    } finally {
+      if (harvestId !== null) await deleteHarvest(harvestId).catch(() => undefined);
+      if (blockId !== null) await deleteBlock(blockId).catch(() => undefined);
+    }
+  });
+
+  test("keep chemistry for a zero-yield pick in the Block Summary CSV", async ({ page }) => {
+    let blockId: number | null = null;
+    let harvestId: number | null = null;
+
+    try {
+      blockId = await createBlock(ZERO_YIELD_CHEMISTRY_BLOCK, 2);
+      harvestId = await createHarvest(blockId, 0, {
+        brix: 19.4,
+        ph: 3.21,
+        titratableAcidityGl: 7.85,
+        potentialAlcohol: 11.36,
+      });
+
+      await openSeededHarvest(
+        page,
+        ZERO_YIELD_CHEMISTRY_RUN_TAG,
+        [ZERO_YIELD_CHEMISTRY_BLOCK],
+      );
+
+      const rows = await downloadCsv(page, /Export Block Summary/);
+      const headerIndex = rows.findIndex(
+        row => row[0] === "Vintage" && row.includes("Avg Pot. Alcohol %"),
+      );
+      expect(headerIndex, "Block Summary CSV header must be present").toBeGreaterThanOrEqual(0);
+
+      const header = rows[headerIndex];
+      const blockIndex = header.indexOf("Block");
+      const exported = rows
+        .slice(headerIndex + 1)
+        .find(row => row[blockIndex] === ZERO_YIELD_CHEMISTRY_BLOCK);
+      expect(exported, "zero-yield chemistry block must be present in the export").toBeDefined();
+
+      const valueFor = (column: string) => exported?.[header.indexOf(column)];
+      expect(valueFor("Total Yield (kg)")).toBe("");
+      expect(valueFor("t/ha")).toBe("");
+      expect(valueFor("Avg Brix °")).toBe("19.4");
+      expect(valueFor("Avg pH")).toBe("3.21");
+      expect(valueFor("Avg TA (g/L)")).toBe("7.85");
+      expect(valueFor("Avg Pot. Alcohol %")).toBe("11.36");
     } finally {
       if (harvestId !== null) await deleteHarvest(harvestId).catch(() => undefined);
       if (blockId !== null) await deleteBlock(blockId).catch(() => undefined);
