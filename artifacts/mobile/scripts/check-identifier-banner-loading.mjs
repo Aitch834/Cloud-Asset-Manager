@@ -3,9 +3,9 @@
  * Prevent IdentifierBanner's success nudge from flashing before farm
  * identifiers finish loading.
  *
- * Every rendered IdentifierBanner under app/ must pass loading, and that prop
- * must be bound directly to the `loading` value returned by
- * useFarmIdentifiers() in the same screen.
+ * Every rendered IdentifierBanner under app/ or components/ must pass loading,
+ * and that prop must be bound directly to the `loading` value returned by
+ * useFarmIdentifiers() in the same caller.
  *
  * Usage:
  *   node scripts/check-identifier-banner-loading.mjs
@@ -19,6 +19,8 @@ import ts from "typescript";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_DIR = path.resolve(__dirname, "../app");
+const COMPONENTS_DIR = path.resolve(__dirname, "../components");
+const SOURCE_DIRS = [APP_DIR, COMPONENTS_DIR];
 
 function lineOf(sourceFile, node) {
   return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
@@ -143,6 +145,26 @@ function runSelfTest() {
       expected: 0,
     },
     {
+      name: "accepts a banner rendered from a shared component",
+      source: `
+        export function SharedIdentifierSummary({ farmId }) {
+          const { loading: identifiersLoading } = useFarmIdentifiers(farmId);
+          return <IdentifierBanner loading={identifiersLoading} />;
+        }
+      `,
+      expected: 0,
+    },
+    {
+      name: "rejects a shared component banner without identifier loading",
+      source: `
+        export function SharedIdentifierSummary({ farmId }) {
+          const { loading: identifiersLoading } = useFarmIdentifiers(farmId);
+          return <IdentifierBanner />;
+        }
+      `,
+      expected: 1,
+    },
+    {
       name: "rejects a missing loading prop",
       source: `
         const { loading: identifiersLoading } = useFarmIdentifiers(farmId);
@@ -195,7 +217,7 @@ if (process.argv.includes("--self-test")) {
 
 const violations = [];
 let bannerCount = 0;
-for (const filePath of collectTsxFiles(APP_DIR)) {
+for (const filePath of SOURCE_DIRS.flatMap(collectTsxFiles)) {
   const source = fs.readFileSync(filePath, "utf8");
   const relativePath = path.relative(process.cwd(), filePath);
   const fileViolations = findViolations(source, relativePath);
@@ -224,7 +246,7 @@ for (const filePath of collectTsxFiles(APP_DIR)) {
 if (violations.length > 0) {
   console.error("✗ IdentifierBanner loading guard failed.");
   console.error(
-    "  Every rendered IdentifierBanner under artifacts/mobile/app must pass loading from that screen's useFarmIdentifiers() result.",
+    "  Every rendered IdentifierBanner under artifacts/mobile/app or artifacts/mobile/components must pass loading from that caller's useFarmIdentifiers() result.",
   );
   for (const violation of violations) {
     console.error(
@@ -235,5 +257,5 @@ if (violations.length > 0) {
 }
 
 console.log(
-  `✓ IdentifierBanner loading guard passed: all ${bannerCount} rendered banner(s) use their screen's identifier loading state.`,
+  `✓ IdentifierBanner loading guard passed: all ${bannerCount} rendered banner(s) use their caller's identifier loading state.`,
 );
