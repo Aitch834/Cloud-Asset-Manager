@@ -409,6 +409,93 @@ async function migrateOrganicInputsKey(): Promise<void> {
   }
 }
 
+const STRAW_LOCAL_TABLES: Record<string, string> = {
+  bde_straw_baling_operations: "straw_baling_operations",
+  bde_straw_cartage_journeys: "straw_cartage_journeys",
+};
+
+/**
+ * Move straw wrappers written by older app versions out of the local-only
+ * bde_pending_sync KV list and into the real records store + sync queue.
+ * Invalid or unrelated wrappers remain in the KV list so this migration cannot
+ * hide data it does not understand.
+ */
+export async function migrateLegacyStrawPendingWrappers(): Promise<void> {
+  const oldKey = "bde_pending_sync";
+  const markerKey = "bde_straw_pending_wrapper_migration_v1";
+  try {
+    const raw = await kvGet(oldKey);
+    if (!raw) return;
+
+    let entries: Array<Record<string, unknown>>;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      entries = parsed as Array<Record<string, unknown>>;
+    } catch {
+      return;
+    }
+
+    const markerRaw = await kvGet(markerKey);
+    const migratedWrapperIds = new Set<string>(
+      markerRaw ? JSON.parse(markerRaw) as string[] : [],
+    );
+
+    for (const wrapper of entries) {
+      const wrapperId = String(wrapper?.id ?? "");
+      const recordType = String(wrapper?.recordType ?? "");
+      const table = STRAW_LOCAL_TABLES[recordType];
+      const data = wrapper?.data;
+      if (
+        !wrapperId ||
+        !table ||
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data)
+      ) {
+        continue;
+      }
+      if (migratedWrapperIds.has(wrapperId)) continue;
+
+      const record = data as Record<string, unknown>;
+      const recordId = String(record.id ?? "");
+      const farmId = String(record.farmId ?? "");
+      const createdAt = String(record.createdAt ?? wrapper.createdAt ?? new Date().toISOString());
+      const hasRequiredParent = (
+        recordType !== "bde_straw_cartage_journeys" ||
+        (
+          record.balingOperationId !== null &&
+          record.balingOperationId !== undefined &&
+          String(record.balingOperationId) !== ""
+        )
+      );
+      if (!recordId || !farmId || !hasRequiredParent) continue;
+
+      await insertRecord(table, recordId, farmId, record, createdAt);
+      if (!await hasPendingSyncItem(recordType, recordId)) {
+        await enqueueSyncItem(recordType, recordId, record);
+      }
+      migratedWrapperIds.add(wrapperId);
+      await kvSet(markerKey, JSON.stringify(Array.from(migratedWrapperIds)));
+    }
+
+    const remaining = entries.filter((entry) => (
+      !migratedWrapperIds.has(String(entry?.id ?? ""))
+    ));
+    if (remaining.length > 0) {
+      await kvSet(oldKey, JSON.stringify(remaining));
+    } else {
+      await kvDelete(oldKey);
+    }
+    await kvDelete(markerKey);
+  } catch (err) {
+    console.warn(
+      "migrateLegacyStrawPendingWrappers:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 /**
  * Move records saved by older app versions from flat KV lists into the generic
  * records table now used by TABLE_MAP. Progress is persisted per key so a
@@ -484,6 +571,7 @@ export async function initialize(): Promise<void> {
   await migrateIrrigationApplicationsKey();
   await migrateVineHarvestKey();
   await migrateOrganicInputsKey();
+  await migrateLegacyStrawPendingWrappers();
   await migrateNewlyMappedLegacyRecords();
   await refreshPendingCount();
 
@@ -602,7 +690,7 @@ async function processQueue(): Promise<void> {
           continue;
         }
 
-        const table = getTableForKey(item.record_type);
+        const table = getTableForKey(item.record_type) ?? STRAW_LOCAL_TABLES[item.record_type];
         if (table) {
           if (uploadResult.deletedOrganicInput || uploadResult.deletedSprayRecord) {
             await deleteRecord(table, item.record_id);

@@ -21,7 +21,7 @@ import { radius, spacing } from "@/constants/spacing";
 import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
-import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { generateId, insertAndEnqueueRecord, STORAGE_KEYS } from "@/lib/storage";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
@@ -34,7 +34,12 @@ export default function StrawJourneysScreen() {
   const params = useLocalSearchParams<{ balingOpId?: string; fieldName?: string; totalBales?: string }>();
   const [saving, setSaving] = useState(false);
 
-  const balingOpId = params.balingOpId ? Number(params.balingOpId) : null;
+  const parsedBalingOpId = params.balingOpId ? Number(params.balingOpId) : null;
+  const balingOpId = (
+    parsedBalingOpId !== null &&
+    Number.isInteger(parsedBalingOpId) &&
+    parsedBalingOpId > 0
+  ) ? parsedBalingOpId : null;
   const fieldLabel = params.fieldName || "Field";
   const totalBales = params.totalBales ? Number(params.totalBales) : null;
 
@@ -69,6 +74,10 @@ export default function StrawJourneysScreen() {
       Alert.alert("Error", "No farm selected.");
       return;
     }
+    if (balingOpId === null) {
+      Alert.alert("Required", "Please select a baling operation before recording a journey.");
+      return;
+    }
     setSaving(true);
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -88,12 +97,11 @@ export default function StrawJourneysScreen() {
         notes: notes || null,
         createdAt: new Date().toISOString(),
       };
-      await appendToList(STORAGE_KEYS.PENDING_SYNC, {
-        id: generateId(),
-        recordType: "bde_straw_cartage_journeys",
-        data: record,
-        createdAt: new Date().toISOString(),
-      });
+      await insertAndEnqueueRecord(
+        "straw_cartage_journeys",
+        STORAGE_KEYS.STRAW_CARTAGE_JOURNEYS,
+        record,
+      );
       await refreshPendingCount();
       Alert.alert(
         "Journey Saved",

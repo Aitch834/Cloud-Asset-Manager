@@ -147,6 +147,25 @@ export async function appendToList<T extends { id: string; farmId?: string; crea
   await kvSet(key, JSON.stringify(list));
 }
 
+/**
+ * Persist a record in the generic local records store and enqueue it under its
+ * real API record type without requiring that type to be registered in TABLE_MAP.
+ * This is used for nested/special-case endpoints that still need normal offline
+ * queue delivery and local pending-state tracking.
+ */
+export async function insertAndEnqueueRecord<
+  T extends { id: string; farmId?: string | number; createdAt?: string }
+>(
+  table: string,
+  recordType: string,
+  item: T,
+): Promise<void> {
+  const farmId = item.farmId == null ? "" : String(item.farmId);
+  const createdAt = item.createdAt || new Date().toISOString();
+  await insertRecord(table, item.id, farmId, item, createdAt);
+  await enqueueSyncItem(recordType, item.id, item);
+}
+
 export async function updateInList<T extends { id: string }>(
   key: string,
   id: string,
@@ -320,6 +339,8 @@ export const STORAGE_KEYS = {
   STRAW_BALE_INVENTORY: "bde_straw_bale_inventory",
   STRAW_MOISTURE_CHECKS: "bde_straw_moisture_checks",
   STRAW_SALE_RECORDS: "bde_straw_sale_records",
+  STRAW_BALING_OPERATIONS: "bde_straw_baling_operations",
+  STRAW_CARTAGE_JOURNEYS: "bde_straw_cartage_journeys",
   SILAGE_HAYLAGE_STOCK: "bde_silage_haylage_stock",
   PIG_INVENTORY_RECORDS: "bde_pig_inventory_records",
   PIG_DEATH_RECORDS: "bde_pig_death_records",

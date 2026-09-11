@@ -23,7 +23,7 @@ import { fonts, fontSize } from "@/constants/typography";
 import { useFarm } from "@/lib/context/FarmContext";
 import { useSync } from "@/lib/context/SyncContext";
 import { useApiFields } from "@/lib/hooks/useApiFields";
-import { appendToList, generateId, STORAGE_KEYS } from "@/lib/storage";
+import { generateId, insertAndEnqueueRecord, STORAGE_KEYS } from "@/lib/storage";
 import { LookupPicker, type LookupOption } from "@/components/ui/LookupPicker";
 import { getCachedStaffMembers, type RefStaffMember } from "@/lib/refCache";
 
@@ -105,12 +105,11 @@ export default function StrawBalingScreen() {
         status: "open",
         createdAt: new Date().toISOString(),
       };
-      await appendToList(STORAGE_KEYS.PENDING_SYNC, {
-        id: generateId(),
-        recordType: "bde_straw_baling_operations",
-        data: record,
-        createdAt: new Date().toISOString(),
-      });
+      await insertAndEnqueueRecord(
+        "straw_baling_operations",
+        STORAGE_KEYS.STRAW_BALING_OPERATIONS,
+        record,
+      );
       await refreshPendingCount();
       Alert.alert("Saved", "Baling operation saved — it will sync when you're online.", [
         { text: "Add Cartage Journey", onPress: () => router.back() },
