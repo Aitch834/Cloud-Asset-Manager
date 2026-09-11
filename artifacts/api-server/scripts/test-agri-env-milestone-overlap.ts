@@ -22,10 +22,12 @@ type CapturedMessage = {
 
 class SmtpCaptureServer {
   readonly messages: CapturedMessage[] = [];
+  readonly attempts: CapturedMessage[] = [];
   private readonly responseDelayMs = 300;
   private readonly firstMessageStartedPromise: Promise<void>;
   private resolveFirstMessageStarted!: () => void;
   private firstMessageStarted = false;
+  private rejectNextMessage = false;
 
   private readonly server = net.createServer((socket) => {
     socket.setEncoding("utf8");
@@ -44,7 +46,8 @@ class SmtpCaptureServer {
 
           data += buffer.slice(0, end);
           buffer = buffer.slice(end + 5);
-          this.messages.push({ recipient: currentRecipient, raw: data });
+          const message = { recipient: currentRecipient, raw: data };
+          this.attempts.push(message);
           if (!this.firstMessageStarted) {
             this.firstMessageStarted = true;
             this.resolveFirstMessageStarted();
@@ -52,7 +55,13 @@ class SmtpCaptureServer {
           data = "";
           currentRecipient = "";
           inData = false;
-          setTimeout(() => socket.write("250 2.0.0 queued\r\n"), this.responseDelayMs);
+          if (this.rejectNextMessage) {
+            this.rejectNextMessage = false;
+            socket.write("451 4.3.0 temporary delivery failure\r\n");
+          } else {
+            this.messages.push(message);
+            setTimeout(() => socket.write("250 2.0.0 queued\r\n"), this.responseDelayMs);
+          }
           continue;
         }
 
@@ -115,6 +124,10 @@ class SmtpCaptureServer {
         setTimeout(() => reject(new Error("timed out waiting for the first SMTP delivery")), timeoutMs),
       ),
     ]);
+  }
+
+  rejectNextDelivery(): void {
+    this.rejectNextMessage = true;
   }
 
   async close(): Promise<void> {
@@ -194,8 +207,8 @@ async function main(): Promise<void> {
       VALUES (${userId}, ${testEmail}, ${"Overlap"}, ${"Tester"})
     `);
     await db.execute(sql`
-      INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active)
-      VALUES (${userId}, ${tenantId}, ${roleId}, true)
+      INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active, receive_alerts)
+      VALUES (${userId}, ${tenantId}, ${roleId}, true, true)
     `);
 
     // The first run remains unresolved while the SMTP server delays its 250
@@ -234,11 +247,80 @@ async function main(): Promise<void> {
       "a later run must skip a milestone whose alerted_at is already set",
     );
 
+    // Reset the alert state to exercise a temporary SMTP failure independently
+    // of the overlap scenario above. The rejected DATA attempt must retain the
+    // lease but must not permanently mark the milestone as alerted.
+    await db.execute(sql`
+      UPDATE agri_env_milestones
+      SET alert_claimed_at = NULL, alerted_at = NULL
+      WHERE id = ${milestoneId}
+    `);
+    const acceptedBeforeRetryScenario = smtp.messages.length;
+    const attemptsBeforeRetryScenario = smtp.attempts.length;
+    smtp.rejectNextDelivery();
+
+    await checkAgriEnvMilestoneDeadlines();
+
+    const failedRows = await db.execute(sql`
+      SELECT alert_claimed_at, alerted_at
+      FROM agri_env_milestones
+      WHERE id = ${milestoneId}
+    `);
+    const failed = failedRows.rows[0] as {
+      alert_claimed_at: string | null;
+      alerted_at: string | null;
+    };
+    assert.ok(failed.alert_claimed_at, "a failed SMTP attempt must retain its send lease");
+    assert.equal(failed.alerted_at, null, "a failed SMTP attempt must leave alerted_at unset");
+    assert.equal(
+      smtp.attempts.length - attemptsBeforeRetryScenario,
+      1,
+      "the SMTP server must reject exactly one delivery attempt",
+    );
+    assert.equal(
+      smtp.messages.length - acceptedBeforeRetryScenario,
+      0,
+      "the rejected SMTP attempt must not count as a delivered email",
+    );
+
+    // Simulate the one-hour lease expiring, then confirm the next eligible run
+    // retries successfully and finalises the alert exactly once.
+    await db.execute(sql`
+      UPDATE agri_env_milestones
+      SET alert_claimed_at = NOW() - INTERVAL '2 hours'
+      WHERE id = ${milestoneId}
+    `);
+    await checkAgriEnvMilestoneDeadlines();
+
+    const retriedRows = await db.execute(sql`
+      SELECT alerted_at
+      FROM agri_env_milestones
+      WHERE id = ${milestoneId}
+    `);
+    const retried = retriedRows.rows[0] as { alerted_at: string | null };
+    assert.ok(retried.alerted_at, "the successful retry must set alerted_at");
+    assert.equal(
+      smtp.messages.length - acceptedBeforeRetryScenario,
+      1,
+      "the eligible retry must deliver the email exactly once",
+    );
+
+    await checkAgriEnvMilestoneDeadlines();
+    assert.equal(
+      smtp.messages.length - acceptedBeforeRetryScenario,
+      1,
+      "a completed retry must prevent later duplicate deliveries",
+    );
+
     console.log("✓ agri-environment milestone overlap guard passed");
     console.log("  concurrent runs: 2");
     console.log(`  captured sends for ${testEmail}: 1`);
     console.log("  alert_claimed_at and alerted_at: set");
     console.log("  later run: no additional send");
+    console.log("✓ failed overdue milestone delivery retry passed");
+    console.log("  first SMTP attempt: rejected");
+    console.log("  alerted_at after failure: unset");
+    console.log("  post-expiry retry: delivered once and alerted_at set");
   } finally {
     if (farmId !== undefined) {
       // notifications.farm_id is intentionally retained rather than cascaded,
