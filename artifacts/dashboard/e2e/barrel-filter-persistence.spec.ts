@@ -1,4 +1,8 @@
-import { signInDashboard } from "./auth";
+import {
+  openVesselRegister,
+  VESSEL_REGISTER_FARM_ID as FARM_ID,
+  VESSEL_REGISTER_TENANT_SLUG as TENANT_SLUG,
+} from "./vessel-register";
 /**
  * E2E: VesselRegisterTab — farm-scoped barrel alert filter persistence.
  *
@@ -9,26 +13,14 @@ import { signInDashboard } from "./auth";
  */
 
 import { expect, test } from "@playwright/test";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const SECOND_FARM = { id: 923_319, name: "Barrel Filter Test Vineyard" };
 
 type ApiRecord = Record<string, unknown>;
 
 function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
-}
-
-function getTestUserId(): string {
-  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
-  if (!fs.existsSync(stateFile)) {
-    throw new Error("global-setup did not run — .test-user-id missing");
-  }
-  return fs.readFileSync(stateFile, "utf8").trim();
 }
 
 async function getVessels(): Promise<ApiRecord[]> {
@@ -47,35 +39,23 @@ async function getVessels(): Promise<ApiRecord[]> {
   return body.records ?? [];
 }
 
-async function openVesselRegister(
+async function openCleanVesselRegister(
   page: import("@playwright/test").Page,
 ): Promise<void> {
-  await signInDashboard(page);
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-
-  await page.evaluate(
-    ([slug, farmId]) => {
-      localStorage.setItem("farmtrac_tenantSlug", slug);
-      localStorage.setItem(
-        "farmtrac-storage",
-        JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
+  await openVesselRegister(page, {
+    preparePage: async currentPage => {
+      await currentPage.evaluate(
+        ([farmId, secondFarmId]) => {
+          for (const id of [farmId, secondFarmId]) {
+            for (const filter of ["zone", "fill-tier", "alert-flag", "is-full"]) {
+              localStorage.removeItem(`vessel-register-${filter}-filter-${id}`);
+            }
+          }
+        },
+        [FARM_ID, SECOND_FARM.id] as [number, number],
       );
-      localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
-      for (const id of [farmId, SECOND_FARM.id]) {
-        for (const filter of ["zone", "fill-tier", "alert-flag", "is-full"]) {
-          localStorage.removeItem(`vessel-register-${filter}-filter-${id}`);
-        }
-      }
     },
-    [TENANT_SLUG, FARM_ID] as [string, number],
-  );
-
-  await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("link", { name: "Viticulture", exact: true }).first().click();
-  await expect(
-    page.getByText("Tank & Vessel Register", { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
+  });
 }
 
 async function returnToVesselRegister(
@@ -151,7 +131,7 @@ test.describe("VesselRegisterTab — alert filter persistence", () => {
       true,
     );
 
-    await openVesselRegister(page);
+    await openCleanVesselRegister(page);
 
     const noFillsFilter = page.getByRole("button", {
       name: /No fills logged \d+/,
@@ -206,7 +186,7 @@ test.describe("VesselRegisterTab — alert filter persistence", () => {
   }) => {
     const vessels = await getVessels();
     await mockSecondWineryFarm(page);
-    await openVesselRegister(page);
+    await openCleanVesselRegister(page);
 
     const noFillsFilter = page.getByRole("button", {
       name: /No fills logged \d+/,

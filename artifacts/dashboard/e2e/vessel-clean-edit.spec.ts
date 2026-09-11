@@ -1,4 +1,8 @@
-import { signInDashboard } from "./auth";
+import {
+  openVesselRegister,
+  VESSEL_REGISTER_FARM_ID as FARM_ID,
+  VESSEL_REGISTER_TENANT_SLUG as TENANT_SLUG,
+} from "./vessel-register";
 /**
  * E2E: VesselRegisterTab — edit and cancel cleaning records.
  *
@@ -9,12 +13,8 @@ import { signInDashboard } from "./auth";
  */
 
 import { expect, test } from "@playwright/test";
-import * as fs from "node:fs";
-import * as path from "node:path";
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const RUN_TAG = `E2E-1867-${Date.now()}`;
 
 const CLEAN_TYPE = "Chemical wash";
@@ -23,14 +23,6 @@ type ApiRecord = Record<string, unknown>;
 
 function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
-}
-
-function getTestUserId(): string {
-  const stateFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_ID_FILE!);
-  if (!fs.existsSync(stateFile)) {
-    throw new Error("global-setup did not run — .test-user-id missing");
-  }
-  return fs.readFileSync(stateFile, "utf8").trim();
 }
 
 async function devFetch(
@@ -107,33 +99,19 @@ async function openCleaningHistory(
   page: import("@playwright/test").Page,
   vesselRef: string,
 ): Promise<import("@playwright/test").Locator> {
-  await signInDashboard(page);
-  await page.goto("/dashboard/");
-  await page.waitForLoadState("networkidle");
-
-  await page.evaluate(
-    ([slug, farmId]) => {
-      localStorage.setItem("farmtrac_tenantSlug", slug);
-      localStorage.setItem(
-        "farmtrac-storage",
-        JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
-      );
-      localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
-      localStorage.setItem(
-        `vessel-register-detail-tab-filter-${farmId}`,
-        "cleaning",
-      );
-      localStorage.removeItem(`vessel-register-last-viewed-vessel-filter-${farmId}`);
+  await openVesselRegister(page, {
+    preparePage: async currentPage => {
+      await currentPage.evaluate(farmId => {
+        localStorage.setItem(
+          `vessel-register-detail-tab-filter-${farmId}`,
+          "cleaning",
+        );
+        localStorage.removeItem(
+          `vessel-register-last-viewed-vessel-filter-${farmId}`,
+        );
+      }, FARM_ID);
     },
-    [TENANT_SLUG, FARM_ID] as [string, number],
-  );
-
-  await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("link", { name: "Viticulture", exact: true }).first().click();
-  await page.waitForLoadState("networkidle");
-  await expect(
-    page.getByText("Tank & Vessel Register", { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
+  });
 
   const vesselRow = page.locator("tbody tr", { hasText: vesselRef });
   await expect(vesselRow).toBeVisible({ timeout: 20_000 });

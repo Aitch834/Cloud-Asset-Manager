@@ -1,4 +1,8 @@
-import { signInDashboard } from "./auth";
+import {
+  openVesselRegister,
+  VESSEL_REGISTER_FARM_ID as FARM_ID,
+  VESSEL_REGISTER_TENANT_SLUG as TENANT_SLUG,
+} from "./vessel-register";
 /**
  * E2E: VesselRegisterTab — vessel delete confirmation.
  *
@@ -8,28 +12,14 @@ import { signInDashboard } from "./auth";
  */
 
 import { expect, test } from "@playwright/test";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
 const DEV_BYPASS = process.env.DEV_BYPASS_TOKEN ?? "bde-dev-bypass-local";
-const TENANT_SLUG = "oakfield-farms";
-const FARM_ID = 5;
 const RUN_TAG = `E2E-vessel-delete-${Date.now()}`;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type ApiRecord = Record<string, unknown>;
 
 function apiBase() {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:80";
-}
-
-function getTestUserEmail(): string {
-  const emailFile = path.join(__dirname, process.env.PLAYWRIGHT_E2E_USER_EMAIL_FILE!);
-  if (!fs.existsSync(emailFile)) {
-    throw new Error("global-setup did not run — .test-user-email missing");
-  }
-  return fs.readFileSync(emailFile, "utf8").trim();
 }
 
 async function devFetch(
@@ -81,32 +71,6 @@ async function deleteBarrel(vesselId: number): Promise<void> {
   await devFetch(`${apiBase()}/api/farms/${FARM_ID}/winery-vessels/${vesselId}`, {
     method: "DELETE",
   });
-}
-
-async function openVesselRegister(
-  page: import("@playwright/test").Page,
-): Promise<void> {
-  await signInDashboard(page);
-  await page.waitForLoadState("networkidle");
-
-  await page.evaluate(
-    ([slug, farmId]) => {
-      localStorage.setItem("farmtrac_tenantSlug", slug);
-      localStorage.setItem(
-        "farmtrac-storage",
-        JSON.stringify({ state: { tenantSlug: slug, farmId }, version: 0 }),
-      );
-      localStorage.setItem(`viticulture-active-tab-${farmId}`, "winery-vessels");
-    },
-    [TENANT_SLUG, FARM_ID] as [string, number],
-  );
-
-  await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("link", { name: "Viticulture", exact: true }).first().click();
-  await page.waitForLoadState("networkidle");
-  await expect(
-    page.getByText("Tank & Vessel Register", { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
 }
 
 test.describe("VesselRegisterTab — delete confirmation", () => {
