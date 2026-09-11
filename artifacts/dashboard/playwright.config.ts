@@ -20,6 +20,12 @@ import { randomUUID } from "node:crypto";
  *   DATABASE_URL              PostgreSQL connection string
  *   DEV_BYPASS_TOKEN          API dev-bypass token (defaults to "bde-dev-bypass-local")
  *   PLAYWRIGHT_CLERK_USER_EMAIL optional reserved E2E identity email
+ *   PLAYWRIGHT_MOBILE_BASE_URL optional Expo-web URL; when set, global setup
+ *     proves the same persistent identity can access an active farm on mobile
+ *   PLAYWRIGHT_MOBILE_API_BASE_URL API origin used by the Expo app; required
+ *     with PLAYWRIGHT_MOBILE_BASE_URL
+ *   PLAYWRIGHT_MOBILE_AUTH_ONLY set by the focused mobile preflight so it does
+ *     not also depend on the dashboard preview being available
  *
  * The dashboard and API server workflows must be running before executing
  * tests. Global setup checks both previews once before authentication, then

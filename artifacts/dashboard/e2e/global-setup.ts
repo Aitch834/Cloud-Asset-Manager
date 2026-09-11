@@ -21,7 +21,7 @@ import {
 } from "../src/lib/e2e-test-user";
 import { provisionOrganicInputFixture } from "./organic-input-fixture";
 import { provisionAnalyticsChartFixture } from "./analytics-chart-fixture";
-import { signInDashboard } from "./auth";
+import { signInDashboard, signInMobile } from "./auth";
 
 const TENANT_SLUG = "oakfield-farms";
 const VITICULTURE_FARM_ID = 5;
@@ -167,6 +167,31 @@ async function verifyDashboardAuthentication(
     });
     const page = await context.newPage();
     await signInDashboard(page, emailAddress);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+}
+
+async function verifyMobileAuthentication(
+  config: FullConfig,
+  emailAddress: string,
+): Promise<void> {
+  const mobileBaseUrl = process.env.PLAYWRIGHT_MOBILE_BASE_URL?.trim();
+  if (!mobileBaseUrl) return;
+  const mobileApiBaseUrl = process.env.PLAYWRIGHT_MOBILE_API_BASE_URL?.trim();
+  if (!mobileApiBaseUrl) {
+    throw new Error(
+      "PLAYWRIGHT_MOBILE_API_BASE_URL is required when PLAYWRIGHT_MOBILE_BASE_URL is set",
+    );
+  }
+
+  const projectUse = config.projects[0]?.use;
+  const browser = await chromium.launch(projectUse?.launchOptions);
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await signInMobile(page, mobileBaseUrl, mobileApiBaseUrl, emailAddress);
     await context.close();
   } finally {
     await browser.close();
@@ -345,7 +370,10 @@ export default async function globalSetup(config: FullConfig) {
     // session before any feature test starts. A rejected testing token now
     // fails setup with an authentication-specific error instead of making each
     // spec time out while waiting for unrelated dashboard controls.
-    await verifyDashboardAuthentication(config, mappedEmail);
+    if (process.env.PLAYWRIGHT_MOBILE_AUTH_ONLY !== "1") {
+      await verifyDashboardAuthentication(config, mappedEmail);
+    }
+    await verifyMobileAuthentication(config, mappedEmail);
 
     console.log(
       `[e2e] Test user ${provisionedUser.reused ? "reused" : "created"}: ` +
