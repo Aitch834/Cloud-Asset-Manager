@@ -836,6 +836,35 @@ describe("VineSprayDiaryHistoryScreen — filtered empty states", () => {
 
     expect(screen.getByText("No entries match the current filters.")).toBeTruthy();
   });
+
+  it.each([
+    {
+      name: "search",
+      applyFilter: (screen: ReturnType<typeof render>) => {
+        fireEvent.changeText(
+          screen.getByPlaceholderText("Search by product, block or operator…"),
+          "sulphur",
+        );
+      },
+    },
+    {
+      name: "date range",
+      applyFilter: (screen: ReturnType<typeof render>) => {
+        fireEvent.changeText(
+          screen.getAllByPlaceholderText("DD/MM/YYYY")[0],
+          "01/01/2026",
+        );
+      },
+    },
+  ])("prioritises the current-filters message over block guidance for block plus $name", ({ applyFilter }) => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+    const screen = render(<VineSprayDiaryHistoryScreen />);
+
+    applyFilter(screen);
+
+    expect(screen.getByText("No entries match the current filters.")).toBeTruthy();
+    expect(screen.queryByText("No entries for the selected block(s).")).toBeNull();
+  });
 });
 
 describe("VineSprayDiaryHistoryScreen — photo badge callbacks", () => {

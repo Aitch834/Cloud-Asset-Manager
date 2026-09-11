@@ -503,4 +503,44 @@ describe("VineScoutingHistoryScreen — filtered empty states", () => {
       screen.getByText("Try adjusting your search or clear the filters to see all records."),
     ).toBeTruthy();
   });
+
+  it("prioritises search-specific guidance over block-only guidance", () => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText("Search by block, scout or date…"),
+      "mildew",
+    );
+
+    expect(screen.getByText('No scouting records match "mildew"')).toBeTruthy();
+    expect(screen.queryByText("No records for the selected block(s).")).toBeNull();
+  });
+
+  it("prioritises date-filter guidance over block-only guidance", () => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+    usePersistedDateRange.mockReturnValue([
+      "01/01/2026",
+      jest.fn(),
+      "",
+      jest.fn(),
+    ]);
+
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(screen.getByText("No records match the current filters.")).toBeTruthy();
+    expect(screen.queryByText("No records for the selected block(s).")).toBeNull();
+  });
+
+  it("prioritises pressure-specific guidance over block-only guidance", () => {
+    usePersistedBlockFilter.mockReturnValue([[99], jest.fn()]);
+    usePersistedPressureFilter.mockReturnValue(["3", jest.fn()]);
+
+    const screen = render(<VineScoutingHistoryScreen />);
+
+    expect(
+      screen.getByText('No scouting records match pressure "High only"'),
+    ).toBeTruthy();
+    expect(screen.queryByText("No records for the selected block(s).")).toBeNull();
+  });
 });
