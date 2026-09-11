@@ -161,7 +161,7 @@ export default function FieldsPage() {
 
   // All hooks must be called unconditionally before any early return
   const safeFarmId = farmId ?? 0;
-  const { data: fieldsData, isLoading: fieldsLoading, refetch: fieldsRefetch } = useFields(safeFarmId);
+  const { data: fieldsData, isLoading: fieldsLoading, isSuccess: fieldsLoaded, refetch: fieldsRefetch } = useFields(safeFarmId);
   const { data: cropsData, isLoading: cropsLoading } = useCrops(safeFarmId);
   const { data: assignmentsData } = useFieldCropAssignments(safeFarmId);
   const fieldNmpQ = useQuery({
@@ -421,6 +421,24 @@ export default function FieldsPage() {
   const fields = (fieldsData?.records ?? []) as unknown as FieldRecord[];
   const crops = (cropsData?.records ?? []) as unknown as CropRecord[];
   const assignments = (assignmentsData?.records ?? []) as unknown as FieldCropAssignment[];
+  const missingDeepLinkNoticeShown = useRef(false);
+
+  useEffect(() => {
+    if (
+      autoOpenFieldId === null ||
+      !fieldsLoaded ||
+      missingDeepLinkNoticeShown.current ||
+      fields.some(field => field.id === autoOpenFieldId)
+    ) {
+      return;
+    }
+
+    missingDeepLinkNoticeShown.current = true;
+    toast({
+      title: "Field no longer available",
+      description: "This field may have been deleted. You can continue using the field list.",
+    });
+  }, [autoOpenFieldId, fields, fieldsLoaded, toast]);
 
   // Early return after all hooks
   if (!farmId) return <Redirect href="/select" />;

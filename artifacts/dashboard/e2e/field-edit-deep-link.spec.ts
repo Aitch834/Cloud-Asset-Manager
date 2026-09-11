@@ -133,3 +133,25 @@ test("opens the matching field editor from a direct deep link and closes normall
     await deleteField(field.id).catch(() => undefined);
   }
 });
+
+test("explains when a deep-linked field no longer exists and clears the stale link", async ({
+  page,
+}) => {
+  const missingFieldId = 2_147_483_647;
+  await prepareDashboard(page);
+
+  await page.goto(`/dashboard/fields?editFieldId=${missingFieldId}`);
+
+  await expect(page.getByText("Field no longer available", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("This field may have been deleted. You can continue using the field list.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/editFieldId=/);
+
+  await page.reload();
+  await expect(page.getByText("Field no longer available", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
