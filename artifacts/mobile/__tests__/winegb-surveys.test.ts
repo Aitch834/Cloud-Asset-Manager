@@ -42,6 +42,7 @@ describe("WineGB survey definitions", () => {
 
 describe("WineGB survey collection-window status", () => {
   const seasonYear = 2026;
+  const frostDamage = WINEGB_SURVEYS.find(survey => survey.key === "frost_damage")!;
   const flowering = WINEGB_SURVEYS.find(survey => survey.key === "flowering")!;
 
   afterEach(() => {
@@ -95,4 +96,25 @@ describe("WineGB survey collection-window status", () => {
       submitted: true,
     })).toEqual({ isOverdue: false, isInSeason: false });
   });
+
+  it.each([
+    ["past", seasonYear - 1],
+    ["future", seasonYear + 1],
+  ])(
+    "does not apply current-season badges to a %s season selection",
+    (_season, selectedSeasonYear) => {
+      freezeDate("2026-07-15");
+
+      expect(getWinegbSurveyStatus({
+        survey: frostDamage,
+        seasonYear: selectedSeasonYear,
+        submitted: false,
+      })).toEqual({ isOverdue: false, isInSeason: false });
+      expect(getWinegbSurveyStatus({
+        survey: flowering,
+        seasonYear: selectedSeasonYear,
+        submitted: false,
+      })).toEqual({ isOverdue: false, isInSeason: false });
+    },
+  );
 });
