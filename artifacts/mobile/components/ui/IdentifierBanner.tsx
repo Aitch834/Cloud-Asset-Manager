@@ -122,7 +122,9 @@ export function IdentifierBanner({
         <Pressable
           onPress={(e) => dismissIdentifierWarning(e, onDismiss)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
           accessibilityLabel="Dismiss warning"
+          accessibilityHint="Dismisses this warning without opening Settings"
         >
           <Feather name="x" size={15} color="#92400e" />
         </Pressable>
