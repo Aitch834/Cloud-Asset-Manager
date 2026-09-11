@@ -21,6 +21,7 @@
  *   8. Counter text always reflects current position
  *   9. Share / Delete target the currently displayed photo, not the one tapped to open
  *  10. Failed images hide Save / Share while keeping retry available
+ *  11. Action visibility follows the displayed photo across swipe navigation
  */
 
 import {
@@ -243,6 +244,62 @@ describe("photoActionVisibility — image load state", () => {
       showSave: false,
       showShare: false,
       showRetry: false,
+    });
+  });
+});
+
+// ===========================================================================
+// 11. Image action state follows the displayed photo across navigation
+// ===========================================================================
+
+describe("photoActionVisibility — failed state stays with its photo", () => {
+  const photos = [
+    { id: 101, downloadUrl: "https://example.test/failed.jpg" },
+    { id: 202, downloadUrl: "https://example.test/healthy.jpg" },
+  ];
+  const failedImageKey = `${photos[0].id}:${photos[0].downloadUrl}`;
+
+  function visibilityAt(index: number) {
+    const photo = photos[index];
+    const imageKey = `${photo.id}:${photo.downloadUrl}`;
+    return photoActionVisibility(true, failedImageKey === imageKey, false);
+  }
+
+  it("shows Retry only on the failed photo when swiping to a healthy photo and back", () => {
+    let currentIndex = 0;
+
+    expect(visibilityAt(currentIndex)).toEqual({
+      showSave: false,
+      showShare: false,
+      showRetry: true,
+    });
+
+    const next = resolveHorizSwipe(
+      -(SWIPE_HORIZ_THRESHOLD + 1),
+      SWIPE_HORIZ_THRESHOLD,
+      currentIndex,
+      photos.length,
+    );
+    currentIndex = navigationIndexAfterSwipe(next, currentIndex);
+
+    expect(visibilityAt(currentIndex)).toEqual({
+      showSave: true,
+      showShare: true,
+      showRetry: false,
+    });
+
+    const previous = resolveHorizSwipe(
+      SWIPE_HORIZ_THRESHOLD + 1,
+      SWIPE_HORIZ_THRESHOLD,
+      currentIndex,
+      photos.length,
+    );
+    currentIndex = navigationIndexAfterSwipe(previous, currentIndex);
+
+    expect(visibilityAt(currentIndex)).toEqual({
+      showSave: false,
+      showShare: false,
+      showRetry: true,
     });
   });
 });
