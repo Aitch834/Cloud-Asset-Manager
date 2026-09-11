@@ -355,6 +355,34 @@ describe("VineScoutingHistoryScreen — date-filtered PDF export", () => {
 
     expect(screen.getByTestId("vine-scouting-export").props.disabled).toBe(true);
   });
+
+  it.each([
+    ["From", "31/02/2026", ""],
+    ["To", "", "2026-13-01"],
+    ["From", "1/1/2026", ""],
+    ["To", "", "not-a-date"],
+  ])("keeps export disabled for a complete invalid %s date", async (_field, from, to) => {
+    const screen = render(<VineScoutingHistoryScreen />);
+    setDateRange(screen, from, to);
+
+    await waitFor(() => {
+      expect(screen.getByText("Use DD/MM/YYYY or YYYY-MM-DD format.")).toBeTruthy();
+      expect(screen.getByTestId("vine-scouting-export").props.disabled).toBe(true);
+    });
+
+    fireEvent.press(screen.getByTestId("vine-scouting-export"));
+    expect(savePdf).not.toHaveBeenCalled();
+  });
+
+  it("keeps export available while a date is still partial", async () => {
+    const screen = render(<VineScoutingHistoryScreen />);
+    setDateRange(screen, "2026-06-", "");
+
+    await waitFor(() => {
+      expect(screen.queryByText("Use DD/MM/YYYY or YYYY-MM-DD format.")).toBeNull();
+      expect(screen.getByTestId("vine-scouting-export").props.disabled).toBe(false);
+    });
+  });
 });
 
 describe("VineScoutingHistoryScreen — filtered empty states", () => {

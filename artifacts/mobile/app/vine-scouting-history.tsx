@@ -65,6 +65,25 @@ function canonicaliseDate(raw: string): string | null {
   return `${y}-${m}-${d}`;
 }
 
+function followsDateFormatPrefix(value: string, template: string): boolean {
+  if (value.length >= template.length) return false;
+  return [...value].every((character, index) => {
+    const expected = template[index];
+    return expected === "D" ? /^\d$/.test(character) : character === expected;
+  });
+}
+
+function isCompleteInvalidDate(raw: string, canonical: string | null): boolean {
+  const value = raw.trim();
+  if (!value || canonical !== null) return false;
+  const isAcceptedPrefix =
+    followsDateFormatPrefix(value, "DD/DD/DDDD") ||
+    followsDateFormatPrefix(value, "DD-DD-DDDD") ||
+    followsDateFormatPrefix(value, "DDDD-DD-DD");
+  if (isAcceptedPrefix) return false;
+  return value.length >= 8 || /[^\d/-]/.test(value);
+}
+
 const PRESSURE_LABELS = ["None", "Low", "Medium", "High"];
 const PRESSURE_COLORS = [colors.textSecondary, colors.success, colors.warning ?? "#f59e0b", colors.error];
 
@@ -712,8 +731,8 @@ export default function VineScoutingHistoryScreen() {
 
   const canonFrom = useMemo(() => canonicaliseDate(dateFrom), [dateFrom]);
   const canonTo = useMemo(() => canonicaliseDate(dateTo), [dateTo]);
-  const dateFromInvalid = dateFrom.trim().length >= 8 && canonFrom === null;
-  const dateToInvalid = dateTo.trim().length >= 8 && canonTo === null;
+  const dateFromInvalid = isCompleteInvalidDate(dateFrom, canonFrom);
+  const dateToInvalid = isCompleteInvalidDate(dateTo, canonTo);
   const dateRangeReversed = canonFrom !== null && canonTo !== null && canonFrom > canonTo;
 
   const displayRecords = useMemo(() => {
@@ -881,7 +900,7 @@ export default function VineScoutingHistoryScreen() {
   };
 
   const handleExport = useCallback(async () => {
-    if (exporting) return;
+    if (exporting || dateFromInvalid || dateToInvalid || dateRangeReversed || filtered.length === 0) return;
     setExporting(true);
     try {
       const rows: VineScoutingHistoryRow[] = filtered.map(r => ({
@@ -918,7 +937,26 @@ export default function VineScoutingHistoryScreen() {
     } finally {
       setExporting(false);
     }
-  }, [exporting, filtered, currentFarm?.name, address, search, canonFrom, canonTo, savePdf]);
+  }, [
+    exporting,
+    dateFromInvalid,
+    dateToInvalid,
+    dateRangeReversed,
+    filtered,
+    currentFarm?.name,
+    address,
+    search,
+    canonFrom,
+    canonTo,
+    savePdf,
+  ]);
+
+  const exportDisabled =
+    exporting ||
+    filtered.length === 0 ||
+    dateFromInvalid ||
+    dateToInvalid ||
+    dateRangeReversed;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -930,15 +968,15 @@ export default function VineScoutingHistoryScreen() {
         <Pressable
           testID="vine-scouting-export"
           onPress={handleExport}
-          disabled={exporting || filtered.length === 0}
-          style={[styles.exportBtn, (exporting || filtered.length === 0) && styles.exportBtnDisabled]}
+          disabled={exportDisabled}
+          style={[styles.exportBtn, exportDisabled && styles.exportBtnDisabled]}
           hitSlop={8}
         >
           {exporting
             ? <ActivityIndicator size="small" color={colors.primary} />
-            : <Feather name="share" size={18} color={filtered.length === 0 ? colors.textSecondary : colors.primary} />
+            : <Feather name="share" size={18} color={exportDisabled ? colors.textSecondary : colors.primary} />
           }
-          <Text style={[styles.exportBtnText, filtered.length === 0 && styles.exportBtnTextDisabled]}>
+          <Text style={[styles.exportBtnText, exportDisabled && styles.exportBtnTextDisabled]}>
             {exporting ? "Exporting…" : "Export"}
           </Text>
         </Pressable>
