@@ -18,7 +18,6 @@ const FARM_ID = 5; // Highfield Vineyard — Viticulture is enabled
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUN_TAG = `E2E overdue milestone ${Date.now()}`;
 const TARGET_NAME = `${RUN_TAG} target`;
-const SUPPORT_NAME = `${RUN_TAG} support`;
 
 type ApiRecord = Record<string, unknown>;
 
@@ -128,7 +127,6 @@ async function createFixture(): Promise<{ projectId: number; milestoneId: number
   };
 
   const milestoneId = await createMilestone(TARGET_NAME);
-  await createMilestone(SUPPORT_NAME);
 
   return { projectId, milestoneId };
 }
@@ -175,7 +173,7 @@ async function openPlanningStatus(page: import("@playwright/test").Page): Promis
     .toBeVisible({ timeout: 20_000 });
 }
 
-test("drops the overdue count and changes the row badge without reloading", async ({
+test("shows an all-clear state after the final overdue milestone is completed", async ({
   page,
 }) => {
   let projectId: number | null = null;
@@ -184,11 +182,25 @@ test("drops the overdue count and changes the row badge without reloading", asyn
     const fixture = await createFixture();
     projectId = fixture.projectId;
     await waitForPlannerMilestone(fixture.milestoneId);
+    await page.route(`**/api/farms/${FARM_ID}/planner-events`, async route => {
+      const response = await route.fetch();
+      const body = await response.json() as ApiRecord;
+      const milestones = (body.milestones ?? []) as ApiRecord[];
+      await route.fulfill({
+        response,
+        json: {
+          ...body,
+          milestones: milestones.filter(
+            milestone => Number(milestone.id) === fixture.milestoneId,
+          ),
+        },
+      });
+    });
     await openPlanningStatus(page);
 
-    const summary = page.getByText("Overdue milestones", { exact: true }).locator("..");
-    const initialCount = Number(await summary.locator("div").first().textContent());
-    expect(initialCount).toBeGreaterThan(0);
+    const summary = page.getByTestId("status-overdue-milestones");
+    await expect(summary).toContainText("1");
+    await expect(summary).toContainText("Overdue milestones");
 
     await page.getByRole("button", { name: /^Show past tasks/ }).click();
 
@@ -206,13 +218,27 @@ test("drops the overdue count and changes the row badge without reloading", asyn
     await expect(page.getByText("Milestone marked as complete ✓")).toBeVisible({
       timeout: 20_000,
     });
-    await expect(summary.locator("div").first()).toHaveText(String(initialCount - 1), {
+    await expect(summary).toContainText("0", {
       timeout: 20_000,
     });
+    await expect(summary).toContainText("No overdue milestones");
     await expect(milestoneRow.getByText("✓ Completed", { exact: true })).toBeVisible({
       timeout: 20_000,
     });
     await expect(milestoneRow.getByRole("button", { name: "Mark complete", exact: true }))
+      .toHaveCount(0);
+
+    await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+    await page.getByRole("link", { name: "Resource Planner", exact: true }).click();
+    await expect(page.getByTestId("status-overdue-milestones"))
+      .toContainText("No overdue milestones", { timeout: 20_000 });
+    await page.getByRole("button", { name: /^Show past tasks/ }).click();
+    const returnedMilestoneRow = page.getByText(TARGET_NAME, { exact: true })
+      .locator("..")
+      .locator("..")
+      .locator("..");
+    await expect(returnedMilestoneRow.getByText("✓ Completed", { exact: true })).toBeVisible();
+    await expect(returnedMilestoneRow.getByRole("button", { name: "Mark complete", exact: true }))
       .toHaveCount(0);
   } finally {
     if (projectId !== null) {

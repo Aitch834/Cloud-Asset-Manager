@@ -2279,7 +2279,7 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
       </div>
 
       {/* Summary strip */}
-      <div className={cn("grid gap-3", overdueMilestones.length > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           { label: "Not started", count: notStarted.length, color: "bg-red-50 border-red-200 text-red-600", icon: <CircleDashed className="w-4 h-4" /> },
           { label: "Needs sign-off", count: planned.length, color: "bg-amber-50 border-amber-200 text-amber-700", icon: <ClipboardList className="w-4 h-4" /> },
@@ -2293,15 +2293,25 @@ function PlanningStatusTab({ farmId }: { farmId: number }) {
             </div>
           </Card>
         ))}
-        {overdueMilestones.length > 0 && (
-          <Card className="flex items-center gap-3 px-4 py-3 border bg-red-50 border-red-300 text-red-700">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <div>
-              <div className="text-2xl font-bold leading-none">{overdueMilestones.length}</div>
-              <div className="text-xs opacity-80 mt-0.5">Overdue milestones</div>
+        <Card
+          data-testid="status-overdue-milestones"
+          className={cn(
+            "flex items-center gap-3 px-4 py-3 border",
+            overdueMilestones.length > 0
+              ? "bg-red-50 border-red-300 text-red-700"
+              : "bg-green-50 border-green-200 text-green-700",
+          )}
+        >
+          {overdueMilestones.length > 0
+            ? <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            : <BadgeCheck className="w-4 h-4 flex-shrink-0" />}
+          <div>
+            <div className="text-2xl font-bold leading-none">{overdueMilestones.length}</div>
+            <div className="text-xs opacity-80 mt-0.5">
+              {overdueMilestones.length > 0 ? "Overdue milestones" : "No overdue milestones"}
             </div>
-          </Card>
-        )}
+          </div>
+        </Card>
       </div>
 
       <p className="text-xs text-foreground/40 -mt-2">
