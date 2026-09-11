@@ -28,6 +28,10 @@ import {
   Minus, Info, Thermometer, BarChart3, AlertCircle, AlertTriangle, PlusCircle,
 } from "lucide-react";
 import { apiUrl as api } from "@/lib/api";
+import {
+  loadIrrigationMethodPreference,
+  saveIrrigationMethodPreference,
+} from "@/lib/irrigation-method-preference";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -97,25 +101,12 @@ interface AdvisorPayload {
 // ─── Local-storage defaults ───────────────────────────────────────────────────
 
 const LS_KEY = (farmId: number) => `irrigation-advisor-defaults-${farmId}`;
-const LS_METHOD_KEY = (farmId: number) => `irrigation-advisor-method-${farmId}`;
 
 interface IrrigDefaults {
   costPerMmHa: string;
   cropPricePerTonne: string;
   expectedRainfall7dMm: string;
   irrigateMm: string;
-}
-
-const DEFAULT_IRRIGATION_METHOD = "Overhead sprinkler";
-
-function loadLastMethod(farmId: number): string {
-  try {
-    return localStorage.getItem(LS_METHOD_KEY(farmId)) ?? DEFAULT_IRRIGATION_METHOD;
-  } catch { /* ignore */ }
-  return DEFAULT_IRRIGATION_METHOD;
-}
-function saveLastMethod(farmId: number, method: string) {
-  try { localStorage.setItem(LS_METHOD_KEY(farmId), method); } catch { /* ignore */ }
 }
 
 function loadDefaults(farmId: number): IrrigDefaults {
@@ -398,7 +389,7 @@ function LogApplicationDialog({
     irrigationDate: today,
     cropType: prefill.cropName,
     applicationDepthMm: String(prefill.applicationDepthMm),
-    irrigationMethod: loadLastMethod(farmId),
+    irrigationMethod: loadIrrigationMethodPreference(farmId),
     status: "closed",
     licenceId: "",
     notes: "",
@@ -426,7 +417,7 @@ function LogApplicationDialog({
         return r;
       }),
     onSuccess: () => {
-      saveLastMethod(farmId, form.irrigationMethod);
+      saveIrrigationMethodPreference(farmId, form.irrigationMethod);
       qc.invalidateQueries({ queryKey: ["irrig-records", farmId] });
       qc.invalidateQueries({ queryKey: ["irrig-records-field", farmId, fieldIdNum] });
       onClose();

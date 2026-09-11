@@ -26,6 +26,10 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import { apiUrl as api } from "@/lib/api";
 import { IrrigationAdvisorTab } from "@/components/irrigation/IrrigationAdvisorTab";
 import { irrigationFieldLabel } from "@/lib/irrigation-field-label";
+import {
+  loadIrrigationMethodPreference,
+  saveIrrigationMethodPreference,
+} from "@/lib/irrigation-method-preference";
 const fmt = (v: unknown) => (v == null || v === "" ? "—" : String(v));
 const fmtDate = (v: unknown) => (v ? new Date(v as string).toLocaleDateString("en-GB") : "—");
 function Empty({ msg }: { msg: string }) { return <p className="text-sm text-muted-foreground italic py-6 text-center">{msg}</p>; }
@@ -435,17 +439,6 @@ function BoreholeTestsTab({ farmId }: { farmId: number }) {
   );
 }
 
-// ─── Irrigation method persistence (shared key with Advisor tab) ──────────────
-const LS_IRRIG_METHOD_KEY = (farmId: number) => `irrigation-advisor-method-${farmId}`;
-const DEFAULT_IRRIG_METHOD = "Overhead sprinkler";
-function loadLastMethod(farmId: number): string {
-  try { return localStorage.getItem(LS_IRRIG_METHOD_KEY(farmId)) ?? DEFAULT_IRRIG_METHOD; } catch { /* ignore */ }
-  return DEFAULT_IRRIG_METHOD;
-}
-function saveLastMethod(farmId: number, method: string) {
-  try { localStorage.setItem(LS_IRRIG_METHOD_KEY(farmId), method); } catch { /* ignore */ }
-}
-
 function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -509,7 +502,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
       });
     },
     onSuccess: (_data, variables) => {
-      if (variables.irrigationMethod && variables.irrigationMethod !== "__none__") saveLastMethod(farmId, String(variables.irrigationMethod));
+      if (variables.irrigationMethod && variables.irrigationMethod !== "__none__") saveIrrigationMethodPreference(farmId, String(variables.irrigationMethod));
       qc.invalidateQueries({ queryKey: ["irrig-records", farmId] }); setOpen(false); setEditing(null); setForm({}); setEquipmentIds([]);
     },
     onError: () => toast({ title: "Save failed", variant: "destructive" }),
@@ -546,7 +539,7 @@ function IrrigationRecordsTab({ farmId }: { farmId: number }) {
   function openAdd() {
     setEditing(null);
     setLicenceManuallySelected(false);
-    setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open", irrigationMethod: loadLastMethod(farmId) });
+    setForm({ irrigationDate: new Date().toISOString().slice(0, 10), status: "open", irrigationMethod: loadIrrigationMethodPreference(farmId) });
     setEquipmentIds([]);
     setOpen(true);
   }
