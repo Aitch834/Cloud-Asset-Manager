@@ -31,6 +31,7 @@ import {
 } from "@/pages/WineryManagementTabs";
 import { sanitiseCsvCell, deriveTonnesPerHa, buildViticultureUnlinkedWarning, buildViticultureBlockSummaryFooterRow } from "@/lib/csv";
 import { buildHarvestCsvContent, buildHarvestYieldByVarietyCsvSection } from "@/lib/harvest-csv";
+import { formatYieldTonnesPerHectare, YIELD_BY_VARIETY_YIELD_HEADER } from "@/lib/harvest-yield-display";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { RaiseTaskDialog } from "@/components/tasks/RaiseTaskDialog";
@@ -673,7 +674,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     const grandAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
     const grandAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
     const grandAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-    return { rows, grandKg, grandHa, grandKgPerHa, grandTPerHa, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
+    return { rows, grandKg, grandHa, grandKgForArea, grandKgPerHa, grandTPerHa, grandAvgBrix, grandAvgPh, grandAvgTa, grandAvgPa };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredHarvest, blocks]);
 
@@ -2478,7 +2479,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                           { col: "variety",   label: "Variety",          align: "left",  show: true },
                           { col: "areaHa",    label: "Area (ha)",        align: "right", show: true },
                           { col: "totalKg",   label: "Total Yield (kg)", align: "right", show: true },
-                          { col: "kgPerHa",   label: "Yield (t/ha)",     align: "right", show: true },
+                          { col: "kgPerHa",   label: YIELD_BY_VARIETY_YIELD_HEADER, align: "right", show: true },
                           { col: "avgBrix",   label: "Avg Brix °",       align: "right", show: varietyChemCols.avgBrix },
                           { col: "avgPh",     label: "Avg pH",           align: "right", show: varietyChemCols.avgPh   },
                           { col: "avgTa",     label: "Avg TA (g/L)",     align: "right", show: varietyChemCols.avgTa   },
@@ -2520,7 +2521,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                             </td>
                             <td className="text-right px-3 py-2 tabular-nums text-muted-foreground">{row.areaHa != null ? row.areaHa.toFixed(2) : "—"}</td>
                             <td className="text-right px-3 py-2 tabular-nums font-medium">{row.totalKg > 0 ? row.totalKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                            <td className="text-right px-3 py-2 tabular-nums">{row.tPerHa != null ? row.tPerHa.toFixed(2) : "—"}</td>
+                            <td className="text-right px-3 py-2 tabular-nums">{formatYieldTonnesPerHectare(row.totalKg, row.areaHa)}</td>
                             {varietyChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{row.avgBrix != null ? row.avgBrix.toFixed(1) : "—"}</td>}
                             {varietyChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{row.avgPh   != null ? row.avgPh.toFixed(2)   : "—"}</td>}
                             {varietyChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{row.avgTa   != null ? row.avgTa.toFixed(2)   : "—"}</td>}
@@ -2534,7 +2535,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
                         <td className="px-4 py-2">Total / Average</td>
                         <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandHa > 0 ? varietySummaryData.grandHa.toFixed(2) : "—"}</td>
                         <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandKg > 0 ? varietySummaryData.grandKg.toLocaleString("en-GB", { maximumFractionDigits: 1 }) : "—"}</td>
-                        <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandTPerHa != null ? varietySummaryData.grandTPerHa.toFixed(2) : "—"}</td>
+                        <td className="text-right px-3 py-2 tabular-nums">{formatYieldTonnesPerHectare(varietySummaryData.grandKgForArea, varietySummaryData.grandHa)}</td>
                         {varietyChemCols.avgBrix && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgBrix != null ? varietySummaryData.grandAvgBrix.toFixed(1) : "—"}</td>}
                         {varietyChemCols.avgPh   && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgPh   != null ? varietySummaryData.grandAvgPh.toFixed(2)   : "—"}</td>}
                         {varietyChemCols.avgTa   && <td className="text-right px-3 py-2 tabular-nums">{varietySummaryData.grandAvgTa   != null ? varietySummaryData.grandAvgTa.toFixed(2)   : "—"}</td>}
