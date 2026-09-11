@@ -20,7 +20,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/hooks/use-app-store";
 import { apiUrl } from "@/lib/api";
 import { downloadCsvFile } from "@/lib/csv";
-import { shouldShowMissingLevyWarning } from "./trade-body-levy-warning";
+import {
+  getUsableTradeBodySummary,
+  shouldShowMissingLevyWarning,
+} from "./trade-body-levy-warning";
 import {
   Plus, Pencil, Trash2, Printer, PoundSterling, Info, AlertTriangle, Download, Building2,
 } from "lucide-react";
@@ -173,8 +176,11 @@ export default function TradeBodiesPage() {
 
   const summaryQ = useQuery<SummaryData>({
     queryKey: ["trade-body-summary", farmId, year],
-    queryFn: () =>
-      fetch(apiUrl(`/farms/${farmId}/trade-levies/summary?year=${year}`)).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch(apiUrl(`/farms/${farmId}/trade-levies/summary?year=${year}`));
+      if (!response.ok) throw new Error(`Summary request failed (${response.status})`);
+      return response.json();
+    },
     enabled: !!farmId && activeTab === "overview",
   });
 
@@ -189,6 +195,17 @@ export default function TradeBodiesPage() {
     () => selectedBodyCfg?.categories ?? [],
     [selectedBodyCfg],
   );
+  const validatedSummary = getUsableTradeBodySummary(
+    summaryQ.data,
+    year,
+    summaryQ.isError,
+  );
+  const usableSummary =
+    validatedSummary &&
+    Array.isArray((validatedSummary as SummaryData).rows)
+      ? validatedSummary as SummaryData
+      : null;
+  const summaryUnavailable = !summaryQ.isLoading && !usableSummary;
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
@@ -384,13 +401,40 @@ export default function TradeBodiesPage() {
         {/* ── Overview Tab ── */}
         {activeTab === "overview" && (
           <div className="space-y-6">
+            {summaryUnavailable && (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900"
+                role="alert"
+                data-testid="status-trade-body-summary-unavailable"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">The {year} summary could not be loaded.</p>
+                    <p className="text-xs">
+                      Levy record status cannot be checked right now. No body has been marked as missing records.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => summaryQ.refetch()}
+                  data-testid="button-retry-trade-body-summary"
+                >
+                  Try again
+                </Button>
+              </div>
+            )}
             {/* Body summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {bodies.map((cfg) => {
-                const total = summaryQ.data?.totalsPerBody?.[cfg.body] ?? 0;
+                const total = usableSummary
+                  ? usableSummary.totalsPerBody[cfg.body] ?? 0
+                  : null;
                 const hasNoRecordsThisYear = shouldShowMissingLevyWarning(
                   cfg,
-                  summaryQ.data,
+                  usableSummary ?? undefined,
                   year,
                   THIS_YEAR,
                 );
@@ -424,7 +468,9 @@ export default function TradeBodiesPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-muted-foreground">{year} total</p>
-                        <p className="text-lg font-bold text-primary">{formatPounds(total)}</p>
+                        <p className="text-lg font-bold text-primary">
+                          {total === null ? "Unavailable" : formatPounds(total)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex gap-2 pt-1">
@@ -451,7 +497,7 @@ export default function TradeBodiesPage() {
             </div>
 
             {/* Detailed summary table */}
-            {summaryQ.data && summaryQ.data.rows.length > 0 && (
+            {usableSummary && usableSummary.rows.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold mb-3">{year} — Detailed Breakdown</h2>
                 <div className="border rounded-lg overflow-hidden">
@@ -467,7 +513,7 @@ export default function TradeBodiesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {summaryQ.data.rows.map((row, i) => (
+                      {usableSummary.rows.map((row, i) => (
                         <tr key={i} className="border-t">
                           <td className="p-3 font-medium">{row.bodyLabel}</td>
                           <td className="p-3">{row.category}</td>
@@ -485,7 +531,7 @@ export default function TradeBodiesPage() {
                       <tr>
                         <td colSpan={5} className="p-3 font-semibold">Grand Total {year}</td>
                         <td className="p-3 text-right font-bold text-primary">
-                          {formatPounds(Object.values(summaryQ.data.totalsPerBody).reduce((a, b) => a + b, 0))}
+                          {formatPounds(Object.values(usableSummary.totalsPerBody).reduce((a, b) => a + b, 0))}
                         </td>
                       </tr>
                     </tfoot>
@@ -498,7 +544,7 @@ export default function TradeBodiesPage() {
               </div>
             )}
 
-            {!summaryQ.isLoading && (!summaryQ.data || summaryQ.data.rows.length === 0) && (
+            {usableSummary && usableSummary.rows.length === 0 && (
               <div className="border rounded-lg p-8 text-center text-muted-foreground">
                 <PoundSterling className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No records entered for {year}.</p>

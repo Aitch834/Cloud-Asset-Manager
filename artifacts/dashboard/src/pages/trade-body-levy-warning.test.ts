@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  getUsableTradeBodySummary,
+  isUsableTradeBodySummary,
   shouldShowMissingLevyWarning,
   type TradeBodySummaryFixture,
   type TradeBodyWarningConfig,
@@ -62,5 +64,48 @@ describe("statutory levy overview warning", () => {
         ),
       ).toBe(false);
     }
+  });
+
+  it.each([
+    ["failed response", undefined],
+    ["missing totals", { year: CURRENT_YEAR }],
+    ["invalid totals", { year: CURRENT_YEAR, totalsPerBody: null }],
+    ["wrong year", { year: CURRENT_YEAR - 1, totalsPerBody: {} }],
+  ])("reports an unavailable summary for a %s without claiming a body has no records", (_label, summary) => {
+    expect(isUsableTradeBodySummary(summary, CURRENT_YEAR)).toBe(false);
+
+    for (const body of bodiesResponseFixture.bodies) {
+      expect(
+        shouldShowMissingLevyWarning(
+          body,
+          summary as TradeBodySummaryFixture | undefined,
+          CURRENT_YEAR,
+          CURRENT_YEAR,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it("discards a cached successful summary when the latest request fails", () => {
+    const cachedSummary: TradeBodySummaryFixture = {
+      year: CURRENT_YEAR,
+      totalsPerBody: {},
+    };
+
+    const summaryAfterFailedRefetch = getUsableTradeBodySummary(
+      cachedSummary,
+      CURRENT_YEAR,
+      true,
+    );
+
+    expect(summaryAfterFailedRefetch).toBeUndefined();
+    expect(
+      shouldShowMissingLevyWarning(
+        bodiesResponseFixture.bodies[0],
+        summaryAfterFailedRefetch,
+        CURRENT_YEAR,
+        CURRENT_YEAR,
+      ),
+    ).toBe(false);
   });
 });
