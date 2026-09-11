@@ -74,6 +74,75 @@ async function deleteBarrel(vesselId: number): Promise<void> {
 }
 
 test.describe("VesselRegisterTab — delete confirmation", () => {
+  test("keeps a failed delete open and allows exactly one successful retry", async ({
+    page,
+  }) => {
+    const vesselRef = `${RUN_TAG}-retry-barrel`;
+    let vesselId: number | null = null;
+
+    try {
+      vesselId = await createBarrel(vesselRef);
+      await openVesselRegister(page);
+
+      const vesselRow = page.locator("tbody tr", { hasText: vesselRef });
+      await expect(vesselRow).toBeVisible({ timeout: 20_000 });
+
+      let deleteRequests = 0;
+      const vesselDeletePattern = "**/api/farms/*/winery-vessels/*";
+      await page.route(vesselDeletePattern, async route => {
+        if (route.request().method() !== "DELETE") {
+          await route.continue();
+          return;
+        }
+
+        deleteRequests += 1;
+        if (deleteRequests === 1) {
+          await route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Simulated delete failure" }),
+          });
+          return;
+        }
+
+        await route.continue();
+      });
+
+      await vesselRow.getByRole("button", { name: "Delete vessel" }).click();
+
+      const confirmDialog = page.getByRole("dialog", {
+        name: "Delete Vessel",
+      });
+      const confirmButton = confirmDialog.getByRole("button", {
+        name: "Delete",
+      });
+
+      await confirmButton.click();
+
+      await expect(confirmDialog).toBeVisible();
+      await expect(confirmDialog.getByText("Failed — please try again.")).toBeVisible();
+      await expect(confirmButton).toBeEnabled();
+      expect(deleteRequests).toBe(1);
+
+      const retryResponse = page.waitForResponse(response =>
+        response.request().method() === "DELETE"
+        && new URL(response.url()).pathname.endsWith(`/winery-vessels/${vesselId}`)
+        && response.ok()
+      );
+      await confirmButton.click();
+
+      expect((await retryResponse).ok()).toBe(true);
+      await expect(confirmDialog).toHaveCount(0);
+      await expect(vesselRow).toHaveCount(0);
+      expect(deleteRequests).toBe(2);
+      await page.unroute(vesselDeletePattern);
+    } finally {
+      if (vesselId !== null) {
+        await deleteBarrel(vesselId).catch(() => {});
+      }
+    }
+  });
+
   test("only sends one vessel DELETE when destructive confirmation is clicked twice rapidly", async ({
     page,
   }) => {
