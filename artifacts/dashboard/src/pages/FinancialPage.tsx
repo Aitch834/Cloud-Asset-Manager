@@ -24,6 +24,7 @@ import {
   filterAccountantPackRecords,
   shouldResetAccountantPackProjectFilter,
 } from "@/lib/accountant-pack-project-filter";
+import { buildFullPlCsvRows } from "@/lib/full-pl-csv";
 
 type Tab = "transactions" | "crop-contracts" | "grants" | "livestock-purchases" | "analytics" | "accountant-pack";
 
@@ -2169,15 +2170,7 @@ function AccountantPackTab({ farmId }: { farmId: number }) {
   const plCsvFilename = `full-pl-${periodLabel.replace(/\s+/g, "-").toLowerCase()}${projectFilenamePart}.csv`;
 
   function getPlCsvRows(): unknown[][] {
-    const toGbp = (pence: number) => (pence / 100).toFixed(2);
-    return [
-      ["Category", "Type", "Amount (£)", "Period"],
-      ...incomeByCategory.map(r => [r.cat, "Income", toGbp(r.total), periodLabel]),
-      ...expenseByCategory.map(r => [r.cat, "Expense", toGbp(r.total), periodLabel]),
-      ["Total Income", "Income", toGbp(totalIncome), periodLabel],
-      ["Total Expenditure", "Expense", toGbp(totalExpense), periodLabel],
-      ["Net Profit / Loss", "Net", toGbp(netProfit), periodLabel],
-    ];
+    return buildFullPlCsvRows(incomeByCategory, expenseByCategory, periodLabel);
   }
 
   function handleDownloadPlCsv() {
