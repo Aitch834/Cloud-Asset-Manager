@@ -51,7 +51,13 @@ import {
   type OrganicInspectionReminder,
   type OrganicInspectionReminderRecord,
 } from "@/lib/organicInspectionReminders";
-import { getList, STORAGE_KEYS } from "@/lib/storage";
+import {
+  agriEnvProjectsCacheKey,
+  getCachedAgriEnvProject,
+  getList,
+  setItem,
+  STORAGE_KEYS,
+} from "@/lib/storage";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 import { winegbSubmissionEvents } from "@/lib/winegbSubmissionEvents";
 import { WINEGB_SURVEY_KEYS } from "@/lib/winegbSurveys";
@@ -115,6 +121,7 @@ export default function HomeScreen() {
     completedMilestoneCount?: number;
     claimedAmountPence?: number;
     remainingGrantValuePence?: number | null;
+    totalsAreCached?: boolean;
   } | null>(null);
   const [completionDate, setCompletionDate] = useState<Date>(new Date());
   const [evidenceNote, setEvidenceNote] = useState("");
@@ -161,6 +168,7 @@ export default function HomeScreen() {
         completedMilestoneCount?: number;
         claimedAmountPence?: number;
         remainingGrantValuePence?: number | null;
+        totalsAreCached?: boolean;
       } = {
         milestoneName: target.milestoneName,
         claimAmountPence: saved.milestone?.claimAmountPence ?? null,
@@ -186,9 +194,28 @@ export default function HomeScreen() {
             summary.claimedAmountPence = project.claimedAmountPence;
             summary.remainingGrantValuePence = project.remainingGrantValuePence;
           }
+          await setItem(agriEnvProjectsCacheKey(currentFarm.id), {
+            data: payload.projects ?? [],
+            cachedAt: new Date().toISOString(),
+          }).catch(() => { /* Fresh totals still take precedence if cache persistence fails. */ });
+        } else {
+          throw new Error(`Server error ${projectsRes.status}`);
         }
       } catch {
-        // Completion succeeded; omit project totals when the refresh is offline.
+        const cachedProject = await getCachedAgriEnvProject<{
+          id: number;
+          milestoneCount?: number;
+          completedMilestoneCount?: number;
+          claimedAmountPence?: number;
+          remainingGrantValuePence?: number | null;
+        }>(currentFarm.id, target.projectId).catch(() => null);
+        if (cachedProject) {
+          summary.milestoneCount = cachedProject.milestoneCount;
+          summary.completedMilestoneCount = cachedProject.completedMilestoneCount;
+          summary.claimedAmountPence = cachedProject.claimedAmountPence;
+          summary.remainingGrantValuePence = cachedProject.remainingGrantValuePence;
+          summary.totalsAreCached = true;
+        }
       }
 
       // Remove from the home screen list immediately
@@ -1111,6 +1138,9 @@ export default function HomeScreen() {
                   completionSummary.claimedAmountPence != null && (
                     <View style={styles.mcSummaryCard}>
                       <Text style={styles.mcSummaryTitle}>Project progress</Text>
+                      {completionSummary.totalsAreCached && (
+                        <Text style={styles.mcCachedLabel}>Offline · cached totals</Text>
+                      )}
                       <Text style={styles.mcSummaryProgress}>
                         {completionSummary.completedMilestoneCount} of {completionSummary.milestoneCount} milestones complete
                       </Text>
@@ -1523,6 +1553,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semiBold,
     fontSize: fontSize.sm,
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  mcCachedLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.xs,
+    color: colors.warning,
     marginBottom: spacing.xs,
   },
   mcSummaryProgress: {

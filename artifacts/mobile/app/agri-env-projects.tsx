@@ -29,6 +29,7 @@ import { applyTransactionProjectLink } from "@/lib/agri-env-transaction-link";
 import { usePersistedAgriEnvStatusFilter } from "@/lib/hooks/usePersistedAgriEnvStatusFilter";
 import {
   AGRI_ENV_CACHE_TTL_MS,
+  agriEnvProjectsCacheKey,
   getItem,
   removeItem,
   setItem,
@@ -123,7 +124,7 @@ function expandedKey(farmId: string | number): string {
 }
 
 function projectsCacheKey(farmId: string | number): string {
-  return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
+  return agriEnvProjectsCacheKey(farmId);
 }
 
 function transactionsCacheKey(farmId: string | number): string {

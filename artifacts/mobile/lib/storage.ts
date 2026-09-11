@@ -35,6 +35,36 @@ export async function removeItem(key: string): Promise<void> {
 
 export const AGRI_ENV_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+interface AgriEnvListCache<T> {
+  data: T[];
+  cachedAt: string;
+}
+
+export function agriEnvProjectsCacheKey(farmId: string | number): string {
+  return `${STORAGE_KEYS.AGRI_ENV_PROJECTS_CACHE}_${farmId}`;
+}
+
+export async function getCachedAgriEnvProject<T extends { id: number }>(
+  farmId: string | number,
+  projectId: number,
+  now = Date.now(),
+): Promise<T | null> {
+  const cache = await getItem<AgriEnvListCache<T>>(agriEnvProjectsCacheKey(farmId))
+    .catch(() => null);
+  if (!cache || !Array.isArray(cache.data) || typeof cache.cachedAt !== "string") return null;
+
+  const cachedAt = new Date(cache.cachedAt).getTime();
+  if (
+    Number.isNaN(cachedAt) ||
+    cachedAt > now ||
+    now - cachedAt > AGRI_ENV_CACHE_TTL_MS
+  ) {
+    return null;
+  }
+
+  return cache.data.find((project) => project.id === projectId) ?? null;
+}
+
 const AGRI_ENV_CACHE_NAMESPACES = [
   "bde_agri_env_projects_cache",
   "bde_agri_env_milestones_cache",

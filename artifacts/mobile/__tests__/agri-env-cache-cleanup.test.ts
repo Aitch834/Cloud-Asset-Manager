@@ -1,6 +1,7 @@
 import {
   clearExpiredAgriEnvCaches,
   AGRI_ENV_CACHE_TTL_MS,
+  getCachedAgriEnvProject,
 } from "../lib/storage";
 
 jest.mock("expo-crypto", () => ({
@@ -109,5 +110,45 @@ describe("clearExpiredAgriEnvCaches", () => {
 
     expect(mockKvDelete).toHaveBeenCalledWith("bde_agri_env_projects_cache_old-farm");
     expect(mockKvDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getCachedAgriEnvProject", () => {
+  const now = Date.parse("2026-09-11T12:00:00.000Z");
+  const project = { id: 7, milestoneCount: 5, completedMilestoneCount: 3 };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("reads only the requested project from the requested farm cache", async () => {
+    mockKvGet.mockImplementation(async (key) => {
+      if (key !== "bde_agri_env_projects_cache_farm-a") return null;
+      return JSON.stringify({
+        data: [{ id: 8, milestoneCount: 99 }, project],
+        cachedAt: new Date(now - 60_000).toISOString(),
+      });
+    });
+
+    await expect(getCachedAgriEnvProject("farm-a", 7, now)).resolves.toEqual(project);
+    await expect(getCachedAgriEnvProject("farm-b", 7, now)).resolves.toBeNull();
+    await expect(getCachedAgriEnvProject("farm-a", 9, now)).resolves.toBeNull();
+  });
+
+  it("rejects expired, future-dated, and malformed project caches", async () => {
+    mockKvGet
+      .mockResolvedValueOnce(JSON.stringify({
+        data: [project],
+        cachedAt: new Date(now - AGRI_ENV_CACHE_TTL_MS - 1).toISOString(),
+      }))
+      .mockResolvedValueOnce(JSON.stringify({
+        data: [project],
+        cachedAt: new Date(now + 1).toISOString(),
+      }))
+      .mockResolvedValueOnce("{not-json");
+
+    await expect(getCachedAgriEnvProject("farm-a", 7, now)).resolves.toBeNull();
+    await expect(getCachedAgriEnvProject("farm-a", 7, now)).resolves.toBeNull();
+    await expect(getCachedAgriEnvProject("farm-a", 7, now)).resolves.toBeNull();
   });
 });
