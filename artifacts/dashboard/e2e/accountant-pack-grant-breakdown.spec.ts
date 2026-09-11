@@ -6,6 +6,7 @@
  * covers the on-screen report and the generated print document.
  */
 
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { signInDashboard } from "./auth";
 
@@ -160,10 +161,35 @@ test("year and enterprise filters keep both grant breakdowns aligned in screen a
   await expect(grantRow).not.toContainText(PROJECTS[2].schemeName);
   await expect(grantRow).not.toContainText("£8,000.00");
 
+  const dashboardDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Full P&L CSV" }).click();
+  const dashboardDownload = await dashboardDownloadPromise;
+  expect(dashboardDownload.suggestedFilename()).toBe(`full-pl-${YEAR}.csv`);
+  const dashboardCsvPath = await dashboardDownload.path();
+  expect(dashboardCsvPath).not.toBeNull();
+  const dashboardCsv = await readFile(dashboardCsvPath!, "utf8");
+  expect(dashboardCsv).toContain('"Category","Type","Amount (£)","Period"');
+  expect(dashboardCsv).toContain(
+    `"Agri-Environment Scheme","Income","1250.50","${YEAR}"`,
+  );
+  expect(dashboardCsv).toContain(
+    `"Grant / Subsidy","Income","750.25","${YEAR}"`,
+  );
+
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Generate & Print Pack" }).click();
   const popup = await popupPromise;
   await popup.waitForLoadState("domcontentloaded");
+
+  const popupCsvLink = popup.getByRole("link", {
+    name: "Download Full P&L CSV",
+  });
+  await expect(popupCsvLink).toBeVisible();
+  await expect(popupCsvLink).toHaveAttribute("download", `full-pl-${YEAR}.csv`);
+  const popupCsvHref = await popupCsvLink.getAttribute("href");
+  expect(popupCsvHref).toMatch(/^data:text\/csv;charset=utf-8,/);
+  const popupCsv = decodeURIComponent(popupCsvHref!.split(",", 2)[1]);
+  expect(popupCsv).toBe(dashboardCsv);
 
   const printBody = popup.locator("body");
   await expect(printBody).toContainText(`Period: ${YEAR}`);
