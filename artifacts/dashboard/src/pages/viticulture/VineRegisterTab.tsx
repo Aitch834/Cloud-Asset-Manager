@@ -310,7 +310,7 @@ export function VineRegisterTab({ farmId, blocks, highlightBlockId, onNavigate }
     if (filterPhotoCoverage) {
       rows = rows.filter(r => {
         const linkedBlock = blocks.find(block => String(block.id) === String(r.blockId));
-        if (!linkedBlock) return false;
+        if (!linkedBlock) return filterPhotoCoverage === "no-photos";
         const hasPhotos = Number(linkedBlock?.photoCount ?? 0) > 0;
         return filterPhotoCoverage === "has-photos" ? hasPhotos : !hasPhotos;
       });
