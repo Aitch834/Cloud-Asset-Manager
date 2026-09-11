@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const BLOCKS = [
   { id: 211_901, blockName: "Colour check North", variety: "Chardonnay", areaHa: "1", isActive: true },
-  { id: 211_902, blockName: "Colour check South", variety: "Pinot Noir", areaHa: "2", isActive: true },
+  { id: 211_902, blockName: "Colour check South", variety: "Chardonnay", areaHa: "2", isActive: true },
 ];
 
 const HARVESTS = [
@@ -99,12 +99,24 @@ test("hidden block selection survives navigation and active pill still matches i
   const lines = chartCard.locator("path.recharts-line-curve");
   await expect(lines).toHaveCount(BLOCKS.length);
 
+  const activePillBackgrounds: string[] = [];
+  const lineColours: string[] = [];
   for (let index = 0; index < BLOCKS.length; index += 1) {
     const pillColours = await colours(pills[index]);
     const lineColour = await lines.nth(index).evaluate(element => getComputedStyle(element).stroke);
+    activePillBackgrounds.push(pillColours.background);
+    lineColours.push(lineColour);
     expect(pillColours.background).toBe(lineColour);
     expect(pillColours.border).toBe(lineColour);
   }
+  expect(
+    new Set(lineColours).size,
+    "same-variety block lines must remain individually distinguishable",
+  ).toBe(BLOCKS.length);
+  expect(
+    new Set(activePillBackgrounds).size,
+    "same-variety active pills must remain individually distinguishable",
+  ).toBe(BLOCKS.length);
 
   const originalHarvests = JSON.stringify(HARVESTS);
   await pills[0].click();
