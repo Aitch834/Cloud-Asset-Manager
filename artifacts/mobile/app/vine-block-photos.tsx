@@ -947,6 +947,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         {/* Save to camera roll button */}
         {actionVisibility.showSave ? (
           <Pressable
+            testID="vine-block-lightbox-save"
             style={[styles.lbSaveBtn, { top: insets.top + 12 }]}
             hitSlop={24}
             onPress={handleSaveToRoll}
@@ -963,6 +964,7 @@ export function PhotoLightbox({ photos, initialIndex, visible, onClose, onDelete
         {/* Share button */}
         {actionVisibility.showShare ? (
           <Pressable
+            testID="vine-block-lightbox-share"
             style={[styles.lbShareBtn, { top: insets.top + 12 }]}
             hitSlop={24}
             onPress={handleShare}
