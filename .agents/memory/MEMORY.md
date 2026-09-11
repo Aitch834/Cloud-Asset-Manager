@@ -97,3 +97,4 @@
 - [Mobile scouting photo test mocks](mobile-scouting-photo-test-mocks.md) — keep mocked lightbox-helper exports aligned with ScoutingPhotoSection imports
 - [React Native host-mock style assertions](react-native-host-mock-style-assertions.md) — mocked host wrappers may hide container styles; assert flattened visible-node styles
 - [Dashboard E2E farm landing](dashboard-e2e-farm-landing.md) — authenticated tests may land on the farm picker; farm-selection helpers must support picker and dashboard states
+- [Dashboard component-test DOM setup](dashboard-component-test-dom-setup.md) — browser interaction tests need an explicit JSDOM directive and the Vite React transform in Vitest.
