@@ -33,7 +33,8 @@ import { useIdentifierBannerDismiss } from "@/lib/hooks/useIdentifierBannerDismi
 import { IdentifierBanner } from "@/components/ui/IdentifierBanner";
 import { apiFetch } from "@/lib/apiFetch";
 import { usePrint } from "@/lib/hooks/usePrint";
-import { vineOperationsHtml, type VineOperationsRow } from "@/lib/printTemplates";
+import { vineOperationsHtml } from "@/lib/printTemplates";
+import { buildVineOperationsPdfRows } from "@/lib/vineOperationsPdf";
 import { vineyardCountEvents } from "@/lib/vineyardCountEvents";
 
 interface OperationRecord {
@@ -592,21 +593,7 @@ export default function VineOperationsHistoryScreen() {
     if (exporting) return;
     setExporting(true);
     try {
-      const rows: VineOperationsRow[] = filtered.map(r => ({
-        id: r.id,
-        operationDate: r.operationDate,
-        blockName: r.blockName,
-        operationType: r.operationType,
-        operatorName: r.operatorName,
-        hoursWorked: r.hoursWorked,
-        notes: r.notes,
-        pruningSystem: r.pruningSystem,
-        budsPerVineTarget: r.budsPerVineTarget,
-        budsPerVineActual: r.budsPerVineActual,
-        pruningWeightKgPerVine: r.pruningWeightKgPerVine,
-        shootsRemovedPct: r.shootsRemovedPct,
-        leavesRemovedZone: r.leavesRemovedZone,
-      }));
+      const rows = buildVineOperationsPdfRows(filtered);
       const html = vineOperationsHtml(
         rows,
         currentFarm?.name ?? null,
