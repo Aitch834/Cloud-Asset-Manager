@@ -147,7 +147,7 @@ isValidation = true
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node artifacts/mobile/scripts/check-sync-registration.mjs && pnpm --filter @workspace/mobile run check:external-urls && pnpm --filter @workspace/mobile run check:identifier-banner-loading"
+args = "node artifacts/mobile/scripts/check-sync-registration.mjs && pnpm --filter @workspace/mobile run check:external-urls && pnpm --filter @workspace/mobile run check:identifier-banner-loading && pnpm --filter @workspace/mobile run test:grant-milestone-home-race"
 
 [[workflows.workflow]]
 name = "typecheck-mobile"

@@ -11,6 +11,7 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "check:external-urls": "node scripts/check-external-url-guard.mjs",
     "check:identifier-banner-loading": "node scripts/check-identifier-banner-loading.mjs",
+    "test:grant-milestone-home-race": "jest --selectProjects hooks --runInBand __tests__/grant-milestone-home-race.integration.test.tsx",
     "test": "jest"
   },
   "devDependencies": {
