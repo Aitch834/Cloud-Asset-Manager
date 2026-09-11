@@ -22,8 +22,9 @@ import { randomUUID } from "node:crypto";
  *   PLAYWRIGHT_CLERK_USER_EMAIL optional reserved E2E identity email
  *
  * The dashboard and API server workflows must be running before executing
- * tests. Global setup reuses the reserved Clerk identity rather than creating
- * a new user on every run.
+ * tests. Global setup checks both previews once before authentication, then
+ * reuses the reserved Clerk identity rather than creating a new user on every
+ * run. Setup failures are not retried; feature assertion failures still are.
  */
 
 const ELF_CLASS_BY_ARCH: Partial<Record<NodeJS.Architecture, number>> = {

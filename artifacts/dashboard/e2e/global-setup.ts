@@ -42,10 +42,58 @@ const EMAIL_FILE = path.join(
 );
 
 const CLERK_USERS_PAGE_SIZE = 100;
+const PREVIEW_PREFLIGHT_TIMEOUT_MS = 5_000;
 
 type ClerkUsersResponse =
   | ClerkUserRecord[]
   | { data?: ClerkUserRecord[]; total_count?: number };
+
+function previewUrls(config: FullConfig): Array<{ name: string; url: string }> {
+  const baseURL =
+    config.projects[0]?.use.baseURL ??
+    process.env.PLAYWRIGHT_BASE_URL ??
+    "http://localhost:80";
+  const origin = new URL(baseURL).origin;
+
+  return [
+    { name: "dashboard", url: new URL("/dashboard/", origin).toString() },
+    {
+      name: "API",
+      url:
+        process.env.PLAYWRIGHT_API_HEALTH_URL ??
+        new URL("/api/healthz", origin).toString(),
+    },
+  ];
+}
+
+export async function verifyPreviewAvailability(
+  config: FullConfig,
+): Promise<void> {
+  const failures = (
+    await Promise.all(
+      previewUrls(config).map(async ({ name, url }) => {
+        try {
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(PREVIEW_PREFLIGHT_TIMEOUT_MS),
+          });
+          return response.ok
+            ? undefined
+            : `${name} (${response.status} ${response.statusText})`;
+        } catch {
+          return `${name} (unreachable)`;
+        }
+      }),
+    )
+  ).filter((failure): failure is string => Boolean(failure));
+
+  if (failures.length > 0) {
+    throw new Error(
+      `[e2e setup] Required preview unavailable: ${failures.join(
+        ", ",
+      )}. Start the dashboard and API workflows, then rerun the check.`,
+    );
+  }
+}
 
 async function listClerkUsers(secretKey: string): Promise<ClerkUserRecord[]> {
   const users: ClerkUserRecord[] = [];
@@ -131,6 +179,10 @@ export default async function globalSetup(config: FullConfig) {
   // credentials to a spec or teardown from a previous run.
   fs.rmSync(STATE_FILE, { force: true });
   fs.rmSync(EMAIL_FILE, { force: true });
+
+  // Preview infrastructure failures are setup errors, not feature failures.
+  // Run this outside the retried test flow and before external auth/DB work.
+  await verifyPreviewAvailability(config);
 
   // ── 1. Configure Clerk for testing mode ──────────────────────────────────
   await clerkSetup();
