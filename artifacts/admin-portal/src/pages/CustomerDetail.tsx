@@ -219,7 +219,7 @@ interface TenantContactEditDialogProps {
   onSaved: (updated: Tenant) => void;
 }
 
-function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantContactEditDialogProps) {
+export function TenantContactEditDialog({ tenant, onClose, onSaved }: TenantContactEditDialogProps) {
   const secret = getSecret()!;
   const [contactName, setContactName] = useState(tenant.name);
   const [contactEmail, setContactEmail] = useState(tenant.contactEmail);

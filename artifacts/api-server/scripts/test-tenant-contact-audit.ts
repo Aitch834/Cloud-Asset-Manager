@@ -100,8 +100,28 @@ async function main(): Promise<void> {
     const newContact = {
       contactName: `New Contact ${suffix}`,
       contactEmail: `new-${suffix}@example.test`,
-      contactPhone: "+44 7700 900222",
+      contactPhone: null,
     };
+
+    const malformedResponse = await fetch(url, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ contactEmail: "not-an-email" }),
+    });
+    assert.equal(malformedResponse.status, 400);
+    assert.deepEqual(await malformedResponse.json(), {
+      error: "Enter a valid contact email address",
+    });
+
+    const tenantAfterMalformedResponse = await db.execute(sql`
+      SELECT contact_email, contact_phone
+      FROM tenants
+      WHERE id = ${targetTenantId}
+    `);
+    assert.deepEqual(tenantAfterMalformedResponse.rows[0], {
+      contact_email: `previous-${suffix}@example.test`,
+      contact_phone: "+44 7700 900111",
+    }, "a malformed email must not update any tenant contact fields");
 
     const changedResponse = await fetch(url, {
       method: "PATCH",
@@ -133,7 +153,7 @@ async function main(): Promise<void> {
       },
       contactPhone: {
         previous: "+44 7700 900111",
-        new: newContact.contactPhone,
+        new: null,
       },
     });
 
@@ -157,7 +177,9 @@ async function main(): Promise<void> {
     );
 
     console.log("Tenant contact audit regression passed.");
+    console.log("  malformed email: clear 400 response and no database update");
     console.log("  changed fields: one complete audit entry");
+    console.log("  valid email and optional phone clearing: verified");
     console.log("  actor and target tenant: verified");
     console.log("  unchanged fields: no duplicate audit entry");
   } finally {
