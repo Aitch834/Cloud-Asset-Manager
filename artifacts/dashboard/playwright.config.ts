@@ -196,5 +196,15 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "webkit",
+      testMatch: /analytics-chart-print-pagination\.spec\.ts|browser-launch\.smoke\.spec\.ts/,
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "firefox",
+      testMatch: /analytics-chart-print-pagination\.spec\.ts|browser-launch\.smoke\.spec\.ts/,
+      use: { ...devices["Desktop Firefox"] },
+    },
   ],
 });
