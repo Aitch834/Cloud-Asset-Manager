@@ -166,10 +166,6 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     avgTa:   showVarietyTa   === "true",
     avgPa:   showVarietyPa   === "true",
   };
-  const [chemSortCol, setChemSortCol] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortCol", farmId, defaultValue: "" });
-  const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
-  const chemSort = chemSortCol ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" } : null;
-  const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
   const [yieldCrossTabOpenStr, setYieldCrossTabOpenStr] = usePersistedFilter({ page: "viticulture-harvest", filter: "yieldCrossTabOpen", farmId, defaultValue: "true", validValues: ["true", "false"] as const });
   const yieldCrossTabOpen = yieldCrossTabOpenStr === "true";
   const setYieldCrossTabOpen = (val: boolean | ((prev: boolean) => boolean)) => setYieldCrossTabOpenStr(typeof val === "function" ? (val(yieldCrossTabOpen) ? "true" : "false") : (val ? "true" : "false"));
@@ -370,6 +366,29 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
     ? { col: yieldSortCol, dir: yieldSortDir as "asc" | "desc" }
     : null;
   const setYieldSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setYieldSortCol(v?.col ?? ""); if (v) setYieldSortDir(v.dir); };
+
+  // Chemistry vintage columns are also data-dependent. Restrict the persisted
+  // sort to the columns visible for the current farm so a removed vintage
+  // falls back to the default alphabetical block order.
+  const chemSortValidValues = useMemo(() => {
+    const linkedRows = yearFilter === "all"
+      ? filteredHarvest.filter(r => r.blockId != null && r.blockId !== "")
+      : [];
+    const uniqueVintages = [...new Set(linkedRows.map(r => String(r.vintageYear ?? "")).filter(Boolean))].sort();
+    return ["", "name", "avg", ...uniqueVintages];
+  }, [filteredHarvest, yearFilter]);
+  const [chemSortCol, setChemSortCol] = usePersistedFilter({
+    page: "viticulture-harvest",
+    filter: "chemSortCol",
+    farmId,
+    defaultValue: "",
+    validValues: chemSortValidValues,
+  });
+  const [chemSortDir, setChemSortDir] = usePersistedFilter({ page: "viticulture-harvest", filter: "chemSortDir", farmId, defaultValue: "desc", validValues: ["asc", "desc"] as const });
+  const chemSort = chemSortCol && chemSortValidValues.includes(chemSortCol)
+    ? { col: chemSortCol, dir: chemSortDir as "asc" | "desc" }
+    : null;
+  const setChemSort = (v: { col: string; dir: "asc" | "desc" } | null) => { setChemSortCol(v?.col ?? ""); if (v) setChemSortDir(v.dir); };
 
   const printRows = useMemo(() => {
     let rows = yearFilter === "all" ? data : data.filter(r => String(r.vintageYear) === yearFilter);
