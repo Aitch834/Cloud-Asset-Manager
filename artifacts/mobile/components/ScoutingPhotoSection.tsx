@@ -731,7 +731,11 @@ export function ScoutingPhotoLightbox({
 
         {/* At-a-glance photo position */}
         {hasMultiple ? (
-          <View style={lbStyles.paginationDots} accessibilityLabel={`Photo ${currentIndex + 1} of ${photos.length}`}>
+          <View
+            testID="scouting-photo-pagination"
+            style={lbStyles.paginationDots}
+            accessibilityLabel={`Photo ${currentIndex + 1} of ${photos.length}`}
+          >
             {paginationItems.map((item, itemPosition) =>
               typeof item === "number" ? (
                 <Pressable
@@ -761,7 +765,7 @@ export function ScoutingPhotoLightbox({
 
         {/* Caption */}
         {photo?.caption ? (
-          <View style={lbStyles.captionBar}>
+          <View testID="scouting-photo-caption" style={lbStyles.captionBar}>
             <Text style={lbStyles.captionText} numberOfLines={3}>
               {photo.caption}
             </Text>
@@ -769,7 +773,10 @@ export function ScoutingPhotoLightbox({
         ) : null}
 
         {/* Action bar */}
-        <View style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
+        <View
+          testID="scouting-photo-actions"
+          style={[lbStyles.actionBar, { paddingBottom: insets.bottom + 12 }]}
+        >
           {/* Save to camera roll */}
           <Pressable
             style={[lbStyles.actionBtn, saving && lbStyles.actionBtnDisabled]}

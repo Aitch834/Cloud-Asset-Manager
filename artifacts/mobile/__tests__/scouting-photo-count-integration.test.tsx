@@ -6,6 +6,8 @@
  * add/delete paths without unmounting or navigating away from the row.
  */
 
+Object.assign(globalThis, { __DEV__: false });
+
 let mockPanGesture: {
   onBegin: (callbackOrEvent: unknown) => unknown;
   onUpdate: (callbackOrEvent: unknown) => unknown;
@@ -244,6 +246,7 @@ jest.mock("../lib/scoutingPhotosApi", () => ({
 // Keep the test focused on the count callback instead of native gesture
 // implementation details inside the lightbox.
 jest.mock("../lib/scoutingLightboxHelpers", () => ({
+  ...jest.requireActual("../lib/scoutingLightboxHelpers"),
   claimDeleteConfirmation: jest.fn((lock: { current: boolean }) => {
     if (lock.current) return false;
     lock.current = true;
@@ -256,10 +259,6 @@ jest.mock("../lib/scoutingLightboxHelpers", () => ({
     },
   ),
   shouldAllowSwipe: jest.fn(() => false),
-  getPaginationItems: jest.fn((photosCount: number) =>
-    Array.from({ length: photosCount }, (_, index) => index),
-  ),
-  isPaginationItemActive: jest.fn((item: number, currentIndex: number) => item === currentIndex),
   mergeRefreshedPhotoCaptions: jest.fn((
     refreshedPhotos: Array<{ id: number; caption: string | null; [key: string]: unknown }>,
     currentPhotos: Array<{ id: number; caption: string | null; [key: string]: unknown }>,
@@ -602,6 +601,77 @@ describe("ScoutingPhotoLightbox cover badge", () => {
       selected: true,
     });
   });
+
+  it.each([
+    ["small iPhone", 320],
+    ["small Android", 360],
+  ])(
+    "keeps every numbered dot in a both-ellipsis row tappable on a %s screen",
+    (_device, screenWidth) => {
+      const photos = Array.from({ length: 12 }, (_, index) => ({
+        ...makePhoto(index + 1),
+        caption: `Photo ${index + 1} scouting caption`,
+      }));
+      const expectedVisibleIndexes = [0, 4, 5, 6, 11];
+
+      for (const targetIndex of expectedVisibleIndexes) {
+        const screen = render(
+          <ScoutingPhotoLightbox
+            photos={photos}
+            initialIndex={5}
+            visible
+            onClose={jest.fn()}
+            onDelete={jest.fn()}
+          />,
+        );
+
+        expect(screen.getAllByText("…")).toHaveLength(2);
+        expect(
+          expectedVisibleIndexes.map((index) =>
+            screen.getByTestId(`scouting-photo-dot-${index}`).props.accessibilityLabel),
+        ).toEqual(expectedVisibleIndexes.map((index) => `Show photo ${index + 1} of 12`));
+
+        const pagination = screen.getByTestId("scouting-photo-pagination");
+        const paginationStyle = (pagination.props.style as Record<string, number>) ?? {};
+        const dotStyle = screen.getByTestId("scouting-photo-dot-5").props.style as Record<string, number>;
+        const widestRow = expectedVisibleIndexes.length * dotStyle.width + 2 * 14;
+
+        expect(dotStyle).toEqual(expect.objectContaining({ width: 28, height: 44 }));
+        expect(paginationStyle).toEqual(expect.objectContaining({ minHeight: 44 }));
+        expect(widestRow).toBeLessThanOrEqual(screenWidth);
+        expect(paginationStyle.position).not.toBe("absolute");
+        expect(screen.getByTestId("scouting-photo-caption")).toBeTruthy();
+        expect(screen.getByTestId("scouting-photo-actions")).toBeTruthy();
+
+        fireEvent.press(screen.getByTestId(`scouting-photo-dot-${targetIndex}`));
+        expect(screen.getByText(`${targetIndex + 1} / 12`)).toBeTruthy();
+        expect(
+          screen.getByTestId(`scouting-photo-dot-${targetIndex}`).props.accessibilityState,
+        ).toEqual({ selected: true });
+
+        screen.unmount();
+      }
+
+      const swipeScreen = render(
+        <ScoutingPhotoLightbox
+          photos={photos}
+          initialIndex={5}
+          visible
+          onClose={jest.fn()}
+          onDelete={jest.fn()}
+        />,
+      );
+      act(() => {
+        mockPanGesture?.onBegin({});
+        mockPanGesture?.onUpdate({ translationX: -60, translationY: 0 });
+        mockPanGesture?.onEnd({ translationX: -60, translationY: 0 });
+      });
+      expect(swipeScreen.getByText("7 / 12")).toBeTruthy();
+      expect(swipeScreen.getByTestId("scouting-photo-dot-6").props.accessibilityState).toEqual({
+        selected: true,
+      });
+    },
+  );
 
   it("hides the badge after swiping to a non-cover photo and restores it when swiping back", () => {
     const screen = render(
