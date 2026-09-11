@@ -1707,6 +1707,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
         const summPotAlcAll = summaryRows.flatMap(r => r.potAlcCount > 0 ? [r.potAlcSum / r.potAlcCount] : []);
         const summAvgBrix = summBrixAll.length > 0 ? summBrixAll.reduce((a, b) => a + b, 0) / summBrixAll.length : null;
         const summAvgPh = summPhAll.length > 0 ? summPhAll.reduce((a, b) => a + b, 0) / summPhAll.length : null;
+        const summAvgTa = getSeasonTaAverageFromBlockAverages(vintageHarvest);
         const summAvgPotAlc = summPotAlcAll.length > 0 ? summPotAlcAll.reduce((a, b) => a + b, 0) / summPotAlcAll.length : null;
 
         return (
@@ -1756,7 +1757,7 @@ export function VintageSeasonReportTab({ farmId }: { farmId: number }) {
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgTha > 0 ? summAvgTha.toFixed(2) : "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgBrix != null ? summAvgBrix.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPh != null ? summAvgPh.toFixed(2) : "—"}</td>
-                    <td className="px-4 py-2" />
+                    <td className="px-4 py-2 text-right font-mono font-bold">{summAvgTa != null ? summAvgTa.toFixed(1) : "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-bold">{summAvgPotAlc != null ? summAvgPotAlc.toFixed(1) : "—"}</td>
                   </tr>
                 </tfoot>

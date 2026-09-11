@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getSeasonTaAverageFromBlockAverages } from "./harvest-ta-summary";
 
 describe("getSeasonTaAverageFromBlockAverages", () => {
@@ -20,5 +23,23 @@ describe("getSeasonTaAverageFromBlockAverages", () => {
     ];
 
     expect(getSeasonTaAverageFromBlockAverages(records)).toBeNull();
+  });
+
+  it("keeps the on-screen Yield Summary by Block footer wired to the shared TA average and fallback", () => {
+    const source = readFileSync(
+      resolve(fileURLToPath(new URL(".", import.meta.url)), "../components/ViticulturalReports.tsx"),
+      "utf8",
+    );
+    const onScreenSummary = source.slice(
+      source.indexOf("{/* Per-block yield summary (single-vintage mode only) */}"),
+      source.indexOf("{/* Disease pressure season peak summary (single-vintage mode only) */}"),
+    );
+
+    expect(onScreenSummary).toContain(
+      "const summAvgTa = getSeasonTaAverageFromBlockAverages(vintageHarvest);",
+    );
+    expect(onScreenSummary).toContain(
+      '{summAvgTa != null ? summAvgTa.toFixed(1) : "—"}',
+    );
   });
 });
