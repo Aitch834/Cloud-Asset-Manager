@@ -69,9 +69,27 @@ const mockDb = {
       );
       if (row) {
         row.status = "pending";
-        row.retry_count = 0;
+        row.retry_count = 4;
         row.last_error = null;
         row.next_attempt_at = null;
+        changes = 1;
+      }
+    } else if (
+      sql.includes("UPDATE sync_queue SET status = CASE") &&
+      sql.includes("last_error = ?") &&
+      sql.includes("data_json = ?")
+    ) {
+      const row = mockQueue.find(
+        (candidate) =>
+          candidate.id === String(params[2]) &&
+          candidate.status === "pending" &&
+          candidate.data_json === String(params[3]),
+      );
+      if (row) {
+        row.status = row.retry_count >= 4 ? "failed" : "pending";
+        row.retry_count += 1;
+        row.last_error = String(params[0]);
+        row.next_attempt_at = row.status === "failed" ? null : String(params[1]);
         changes = 1;
       }
     } else if (
@@ -203,6 +221,15 @@ jest.mock("react-native", () => {
 
 jest.mock("@expo/vector-icons", () => ({
   Feather: "Feather",
+}));
+
+jest.mock("@react-native-community/datetimepicker", () => ({
+  __esModule: true,
+  default: "DateTimePicker",
+  DateTimePickerAndroid: {
+    open: jest.fn(),
+    dismiss: jest.fn(),
+  },
 }));
 
 jest.mock("expo-router", () => ({
@@ -344,5 +371,50 @@ describe("irrigation history failed upload retry", () => {
     });
 
     expect(apiFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("restores the failed badge and latest error when the retry upload fails", async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      ...response({}),
+      ok: false,
+      status: 503,
+    })) as typeof fetch;
+
+    const screen = render(<IrrigationHistoryScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sync failed")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText("Tap for details"));
+    fireEvent.press(screen.getByText("Retry Now"));
+
+    expect(screen.getByText("Uploading…")).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sync failed")).toBeTruthy();
+      expect(screen.queryByText("Uploading…")).toBeNull();
+    });
+
+    fireEvent.press(screen.getByText("Tap for details"));
+
+    expect(screen.getByText("Error detail")).toBeTruthy();
+    expect(screen.getByText("Server responded with 503")).toBeTruthy();
+    expect(screen.getByText("Retry Now")).toBeTruthy();
+    expect(mockQueue).toEqual([
+      expect.objectContaining({
+        id: "queue-irrigation-1",
+        status: "failed",
+        retry_count: 5,
+        last_error: "Server responded with 503",
+      }),
+    ]);
   });
 });

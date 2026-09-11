@@ -22,6 +22,8 @@ interface SyncQueueRow {
   created_at: string;
 }
 
+const MAX_SYNC_ATTEMPTS = 5;
+
 export interface FailedSyncItem {
   id: string;
   record_type: string;
@@ -653,7 +655,7 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
   await ensureInit();
   if (usingSQLite) {
     await db().runAsync(
-      "UPDATE sync_queue SET status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, updated_at = datetime('now') WHERE id = ?",
+      `UPDATE sync_queue SET status = CASE WHEN retry_count >= ${FINAL_ATTEMPT_RETRY_COUNT} THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, updated_at = datetime('now') WHERE id = ?`,
       [error, id],
     );
     return;
@@ -665,7 +667,7 @@ export async function markSyncItemFailed(id: string, error: string): Promise<voi
   if (idx !== -1) {
     queue[idx].retry_count = (queue[idx].retry_count || 0) + 1;
     queue[idx].last_error = error;
-    if (queue[idx].retry_count >= 5) queue[idx].status = "failed";
+    if (queue[idx].retry_count >= MAX_SYNC_ATTEMPTS) queue[idx].status = "failed";
     await AsyncStorage.setItem("bde_sync_queue", JSON.stringify(queue));
   }
 }
@@ -684,7 +686,7 @@ export async function markSyncItemFailedIfUnchanged(
   return serializeSyncQueueWrite(async () => {
     if (usingSQLite) {
       const result = await db().runAsync(
-        "UPDATE sync_queue SET status = CASE WHEN retry_count >= 4 THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, next_attempt_at = CASE WHEN retry_count >= 4 THEN NULL ELSE ? END, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?",
+        `UPDATE sync_queue SET status = CASE WHEN retry_count >= ${FINAL_ATTEMPT_RETRY_COUNT} THEN 'failed' ELSE 'pending' END, retry_count = retry_count + 1, last_error = ?, next_attempt_at = CASE WHEN retry_count >= ${FINAL_ATTEMPT_RETRY_COUNT} THEN NULL ELSE ? END, updated_at = datetime('now') WHERE id = ? AND status = 'pending' AND data_json = ?`,
         [error, nextAttemptAt, id, uploadedDataJson],
       );
       return result.changes > 0;
@@ -703,7 +705,7 @@ export async function markSyncItemFailedIfUnchanged(
     if (!item) return false;
     item.retry_count = (item.retry_count || 0) + 1;
     item.last_error = error;
-    if (item.retry_count >= 5) {
+    if (item.retry_count >= MAX_SYNC_ATTEMPTS) {
       item.status = "failed";
       delete item.next_attempt_at;
     } else {
@@ -1187,14 +1189,16 @@ export async function resetSyncItemToRetry(
 /**
  * Reset a specific failed queue entry (identified by its queue row ID) back to
  * 'pending'. Unlike resetSyncItemToRetry which targets by recordId, this only
- * touches the one row the grower explicitly chose to retry.
+ * touches the one row the grower explicitly chose to retry. Keep the counter at
+ * the final automatic-attempt threshold so another failure returns the row to
+ * 'failed' immediately and leaves it available for another manual retry.
  */
 export async function resetSyncItemToRetryById(syncId: string): Promise<void> {
   await ensureInit();
   await serializeSyncQueueWrite(async () => {
     if (usingSQLite) {
       await db().runAsync(
-        "UPDATE sync_queue SET status = 'pending', retry_count = 0, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'failed'",
+        `UPDATE sync_queue SET status = 'pending', retry_count = ${FINAL_ATTEMPT_RETRY_COUNT}, last_error = NULL, next_attempt_at = NULL, updated_at = datetime('now') WHERE id = ? AND status = 'failed'`,
         [syncId],
       );
       return;
@@ -1206,7 +1210,7 @@ export async function resetSyncItemToRetryById(syncId: string): Promise<void> {
     for (const item of queue) {
       if (item.id === syncId && item.status === "failed") {
         item.status = "pending";
-        item.retry_count = 0;
+        item.retry_count = FINAL_ATTEMPT_RETRY_COUNT;
         delete item.last_error;
         delete item.next_attempt_at;
         changed = true;
@@ -1286,3 +1290,5 @@ async function serializeSyncQueueWrite<T>(operation: () => Promise<T>): Promise<
   );
   return result;
 }
+
+const FINAL_ATTEMPT_RETRY_COUNT = MAX_SYNC_ATTEMPTS - 1;
