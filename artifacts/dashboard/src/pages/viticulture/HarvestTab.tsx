@@ -55,6 +55,7 @@ import { usePersistedTab } from "@/hooks/use-persisted-tab";
 import { usePersistedFilter } from "@/hooks/use-persisted-filter";
 import { isSinglePickYieldCell } from "@/lib/yield-cross-tab";
 import { getChemistrySpreadWarnings } from "@/lib/harvest-chemistry-spread";
+import { getTopHarvestSummaryBlockName } from "@/lib/harvest-block-summary";
 
 import { useLocation } from "wouter";
 import { apiUrl as api } from "@/lib/api";
@@ -2271,11 +2272,7 @@ export function HarvestTab({ farmId, blocks, highlightBlockId, requestBulkLink }
         const bFooterAvgPh = avg(filteredHarvest.map(r => parseFloat(String(r.ph ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgTa = avg(filteredHarvest.map(r => parseFloat(String(r.titratableAcidityGl ?? ""))).filter(v => !isNaN(v)));
         const bFooterAvgPa = avg(filteredHarvest.map(r => parseFloat(String(r.potentialAlcohol ?? ""))).filter(v => !isNaN(v)));
-        // Top-row highlight: first named block when sorted by a numeric column.
-        // Keep the administrative "Not linked" bucket out of badge eligibility.
-        const NUMERIC_SUMMARY_COLS = new Set(["totalYieldKg", "derivedTha", "avgBrix", "avgPh", "avgTa", "avgPa"]);
-        const eligibleSummaryRows = sortedSummaryRows.filter(row => row.name !== "Not linked");
-        const topSummaryBlock = NUMERIC_SUMMARY_COLS.has(summarySort.col) ? (eligibleSummaryRows[0]?.name ?? null) : null;
+        const topSummaryBlock = getTopHarvestSummaryBlockName(sortedSummaryRows, summarySort.col);
         return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <button
