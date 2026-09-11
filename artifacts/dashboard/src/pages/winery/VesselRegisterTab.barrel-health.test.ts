@@ -4,6 +4,8 @@ import {
   buildBarrelCleaningColumns,
   buildBarrelHealthColumns,
   buildBarrelHealthPrintRows,
+  exportFullVesselRegisterCsv,
+  runFullVesselRegisterCsvExport,
 } from "./VesselRegisterTab";
 
 const barrelWithNoFillHistory = {
@@ -133,5 +135,62 @@ describe("barrel health exports", () => {
       "",
       "",
     ]);
+  });
+});
+
+describe("full vessel register CSV", () => {
+  it("sums cooperage work types in pounds and leaves non-barrel costs blank", async () => {
+    const rows = [
+      { id: 7, vessel_ref: "B-007", vessel_type: "Oak barrel" },
+      { id: 8, vessel_ref: "T-008", vessel_type: "Stainless steel tank" },
+    ];
+    let captured: {
+      rows: Record<string, unknown>[];
+      filename: string;
+      columns: Array<{ label: string; fmt?: (record: Record<string, unknown>) => string }>;
+    } | undefined;
+
+    await exportFullVesselRegisterCsv({
+      rows,
+      farmName: "Test Vineyard",
+      loadMaintenanceSummary: async () => ({
+        records: [
+          { vessel_id: 7, work_type: "Hoop replacement", total_pence: 1250 },
+          { vessel_id: 7, work_type: "Recharring", total_pence: 875 },
+          { vessel_id: 8, work_type: "Repair", total_pence: 9999 },
+        ],
+      }),
+      exportCsv: (exportRows, filename, columns) => {
+        captured = { rows: exportRows, filename, columns };
+      },
+    });
+
+    expect(captured?.rows).toBe(rows);
+    expect(captured?.filename).toBe("vessels.csv");
+    const cooperageColumn = captured?.columns.find(column => column.label === "Total Cooperage Cost (£)");
+    expect(cooperageColumn).toBeDefined();
+    expect(cooperageColumn?.fmt?.(rows[0])).toBe("21.25");
+    expect(cooperageColumn?.fmt?.(rows[1])).toBe("");
+  });
+
+  it("does not create a CSV when the maintenance summary request fails", async () => {
+    let exportCalls = 0;
+    const errorMessages: string[] = [];
+    const summaryError = new Error("Could not load barrel maintenance history.");
+
+    const succeeded = await runFullVesselRegisterCsvExport({
+      rows: [{ id: 7, vessel_ref: "B-007", vessel_type: "Barrel" }],
+      farmName: "Test Vineyard",
+      loadMaintenanceSummary: async () => {
+        throw summaryError;
+      },
+      exportCsv: () => {
+        exportCalls += 1;
+      },
+    }, message => errorMessages.push(message));
+
+    expect(succeeded).toBe(false);
+    expect(exportCalls).toBe(0);
+    expect(errorMessages).toEqual(["Could not load barrel maintenance history."]);
   });
 });

@@ -52,6 +52,12 @@ export type BarrelCleaningSummary = {
   lastWaterTempC: string;
 };
 
+type VesselCsvColumn = {
+  key: string;
+  label: string;
+  fmt?: (record: Record<string, unknown>) => string;
+};
+
 export const BARREL_HEALTH_PRINT_HEADERS = [
   "Vessel Ref",
   "Type",
@@ -120,6 +126,73 @@ export function buildBarrelCleaningColumns(
     { key: "_contact_time_min", label: "Contact Time (min)", fmt: record => cleanMap.get(Number(record.id))?.lastContactTimeMin ?? "" },
     { key: "_water_temp_c", label: "Water Temp (°C)", fmt: record => cleanMap.get(Number(record.id))?.lastWaterTempC ?? "" },
   ];
+}
+
+export function buildVesselRegisterCsvColumns(
+  maintenanceTotals: Map<number, number>,
+): VesselCsvColumn[] {
+  return [
+    { key: "vessel_ref", label: "Vessel Ref" },
+    { key: "vessel_type", label: "Vessel Type" },
+    { key: "capacity_litres", label: "Capacity (L)" },
+    { key: "location", label: "Location" },
+    { key: "current_contents", label: "Current Contents" },
+    { key: "volume_current_litres", label: "Current Volume (L)" },
+    { key: "status", label: "Status" },
+    { key: "last_cleaned_date", label: "Last Cleaned", fmt: record => fmtDate(record.last_cleaned_date) },
+    { key: "last_activity", label: "Last Activity (Fill/Cooperage)", fmt: record => record.last_activity ? fmtDate(record.last_activity) : "Never" },
+    { key: "notes", label: "Notes" },
+    {
+      key: "_total_cooperage_cost",
+      label: "Total Cooperage Cost (£)",
+      fmt: record => {
+        if (!isBarrelVessel(record.vessel_type)) return "";
+        const totalPence = maintenanceTotals.get(Number(record.id)) ?? 0;
+        return totalPence > 0 ? (totalPence / 100).toFixed(2) : "";
+      },
+    },
+  ];
+}
+
+export async function exportFullVesselRegisterCsv({
+  rows,
+  farmName,
+  loadMaintenanceSummary,
+  exportCsv = exportCSV,
+}: {
+  rows: Record<string, unknown>[];
+  farmName: string;
+  loadMaintenanceSummary: () => Promise<{ records?: Record<string, unknown>[] }>;
+  exportCsv?: (
+    rows: Record<string, unknown>[],
+    filename: string,
+    columns: VesselCsvColumn[],
+    prefixLines?: string[],
+  ) => void;
+}): Promise<void> {
+  const summary = await loadMaintenanceSummary();
+  const maintenanceTotals = new Map<number, number>();
+  for (const row of summary.records ?? []) {
+    const vesselId = Number(row.vessel_id);
+    maintenanceTotals.set(vesselId, (maintenanceTotals.get(vesselId) ?? 0) + Number(row.total_pence ?? 0));
+  }
+  exportCsv(rows, "vessels.csv", buildVesselRegisterCsvColumns(maintenanceTotals), [
+    csvComment(`Tank & Vessel Register — ${farmName}`),
+    csvComment("Scope: All vessels (no filters on this register)"),
+  ]);
+}
+
+export async function runFullVesselRegisterCsvExport(
+  options: Parameters<typeof exportFullVesselRegisterCsv>[0],
+  showError: (message: string) => void,
+): Promise<boolean> {
+  try {
+    await exportFullVesselRegisterCsv(options);
+    return true;
+  } catch (err) {
+    showError(err instanceof Error ? err.message : "Could not load cooperage costs.");
+    return false;
+  }
 }
 
 export function buildBarrelHealthPrintRows(
@@ -1538,43 +1611,16 @@ export function VesselRegisterTab({ farmId }: { farmId: number }) {
     if (v === "retired") return <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">Retired</span>;
     return <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{v}</span>;
   };
-  const vesselCsvCols = (maintenanceTotals: Map<number, number>) => [
-    { key: "vessel_ref", label: "Vessel Ref" },
-    { key: "vessel_type", label: "Vessel Type" },
-    { key: "capacity_litres", label: "Capacity (L)" },
-    { key: "location", label: "Location" },
-    { key: "current_contents", label: "Current Contents" },
-    { key: "volume_current_litres", label: "Current Volume (L)" },
-    { key: "status", label: "Status" },
-    { key: "last_cleaned_date", label: "Last Cleaned", fmt: (r: Record<string, unknown>) => fmtDate(r.last_cleaned_date) },
-    { key: "last_activity", label: "Last Activity (Fill/Cooperage)", fmt: (r: Record<string, unknown>) => r.last_activity ? fmtDate(r.last_activity) : "Never" },
-    { key: "notes", label: "Notes" },
-    {
-      key: "_total_cooperage_cost",
-      label: "Total Cooperage Cost (£)",
-      fmt: (r: Record<string, unknown>) => {
-        if (!isBarrelVessel(r.vessel_type)) return "";
-        const totalPence = maintenanceTotals.get(Number(r.id)) ?? 0;
-        return totalPence > 0 ? (totalPence / 100).toFixed(2) : "";
-      },
-    },
-  ];
-
   const handleVesselCsvExport = async () => {
     setVesselCsvExporting(true);
     try {
-      const summary = await fetchWineryJson(`farms/${farmId}/winery-vessels-maintenance-summary`);
-      const maintenanceTotals = new Map<number, number>();
-      for (const row of (summary.records ?? []) as Record<string, unknown>[]) {
-        const vesselId = Number(row.vessel_id);
-        maintenanceTotals.set(vesselId, (maintenanceTotals.get(vesselId) ?? 0) + Number(row.total_pence ?? 0));
-      }
-      exportCSV(crud.data, "vessels.csv", vesselCsvCols(maintenanceTotals), [
-        csvComment(`Tank & Vessel Register — ${farmNameVessels}`),
-        csvComment("Scope: All vessels (no filters on this register)"),
-      ]);
-    } catch (err) {
-      toast({ title: "Export failed", description: err instanceof Error ? err.message : "Could not load cooperage costs.", variant: "destructive" });
+      await runFullVesselRegisterCsvExport({
+        rows: crud.data,
+        farmName: farmNameVessels,
+        loadMaintenanceSummary: () => fetchWineryJson(`farms/${farmId}/winery-vessels-maintenance-summary`),
+      }, description => {
+        toast({ title: "Export failed", description, variant: "destructive" });
+      });
     } finally {
       setVesselCsvExporting(false);
     }
