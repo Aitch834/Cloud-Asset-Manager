@@ -25,7 +25,7 @@ import { useFarm } from "@/lib/context/FarmContext";
 import { useApiFetch } from "@/lib/hooks/useApiFetch";
 import { useDiseaseAlert } from "@/lib/hooks/useDiseaseAlert";
 import { buildMastitisCsv, type MastitisCsvRecord } from "@/lib/mastitisCsv";
-import { buildMastitisTrendCsv } from "@/lib/mastitisTrendCsv";
+import { buildMastitisTrendCsv, shareMastitisTrendCsv } from "@/lib/mastitisTrendCsv";
 import { getList, STORAGE_KEYS } from "@/lib/storage";
 import type { DairyMastitisRecord } from "@/lib/types";
 
@@ -351,14 +351,13 @@ export default function MastitisHistoryScreen() {
         URL.revokeObjectURL(url);
       } else {
         const { shareAsync } = await import("expo-sharing");
-        const uri = `${FileSystem.cacheDirectory}${filename}`;
-        await FileSystem.writeAsStringAsync(uri, csvContent, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        await shareAsync(uri, {
-          mimeType: "text/csv",
-          dialogTitle: "Share Mastitis Trend CSV",
-          UTI: "public.comma-separated-values-text",
+        await shareMastitisTrendCsv(trendData, filename, {
+          cacheDirectory: FileSystem.cacheDirectory,
+          writeCsvFile: (uri, content) =>
+            FileSystem.writeAsStringAsync(uri, content, {
+              encoding: FileSystem.EncodingType.UTF8,
+            }),
+          shareAsync,
         });
       }
     } catch {
