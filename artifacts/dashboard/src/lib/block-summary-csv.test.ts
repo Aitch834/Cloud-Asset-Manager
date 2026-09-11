@@ -28,4 +28,30 @@ describe("buildViticultureBlockSummaryFooterRow", () => {
     ]);
     expect(footer).toHaveLength(11);
   });
+
+  it("keeps missing-area harvests in totals but excludes them from weighted t/ha", () => {
+    const rows: Record<string, unknown>[] = [
+      { blockId: 1, yieldKg: 2000, brix: 10, ph: 3.1, titratableAcidityGl: 6, potentialAlcohol: 11 },
+      { blockId: 1, yieldKg: 1000, brix: 12, ph: 3.3, titratableAcidityGl: 5, potentialAlcohol: 12 },
+      { blockId: 2, yieldKg: 4000, brix: 14, ph: 3.5, titratableAcidityGl: 7, potentialAlcohol: 13 },
+    ];
+
+    const footer = buildViticultureBlockSummaryFooterRow(rows, blockId => (
+      String(blockId) === "1" ? 2 : null
+    ));
+
+    expect(footer).toEqual([
+      "",
+      "All blocks",
+      "",
+      "2.00",
+      3,
+      "7000.0",
+      "1.50",
+      "12.0",
+      "3.30",
+      "6.00",
+      "12.00",
+    ]);
+  });
 });
