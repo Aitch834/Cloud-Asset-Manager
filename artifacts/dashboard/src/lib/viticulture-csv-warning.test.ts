@@ -16,8 +16,9 @@
  *                                       raw-string CSV assembly callers)
  *   - buildViticultureUnlinkedWarningText (raw warning used by Scouting's
  *                                          downloadCsvFile path)
- *   - buildViticultureCsvContent       (used by exportCSV → Phenology,
- *                                       Spray Diary)
+ *   - buildViticultureCsvContent       (used by exportCSV → Phenology)
+ *   - multiline free-text regression matrix for Phenology, Spray Diary,
+ *     and Harvest detail exports
  *   - HarvestTab's warningLine pattern (`_w ? _w + "\n" : ""`, used in
  *                                       exportHarvestCSV / exportBlockSummaryCSV
  *                                       / exportWineGBSurveyCSV)
@@ -30,9 +31,11 @@ import {
   buildViticultureUnlinkedWarningText,
   buildViticultureCsvContent,
   downloadCsvFile,
+  quoteCsvCell,
 } from "./csv";
 import { parseCsvText } from "./bottling-csv";
 import { buildDiseaseScoutingDetailedCsvRows } from "./disease-scouting-csv";
+import { buildHarvestCsvContent } from "./harvest-csv";
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
@@ -98,36 +101,6 @@ function buildScoutingCsv(records: Record<string, unknown>[]): string {
     ["DETAILED SCOUTING RECORDS"],
     ...buildDiseaseScoutingDetailedCsvRows(records, SCOUTING_BLOCKS, SCOUTING_FORMATTERS),
   ]);
-}
-
-/**
- * Parse one line from the quoted CSV produced by buildCsv. This mirrors how
- * Excel and Numbers read quoted commas and escaped quotes, without relying on
- * a browser or a spreadsheet application in the unit test.
- */
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const character = line[i];
-    if (character === '"') {
-      if (quoted && line[i + 1] === '"') {
-        cell += '"';
-        i++;
-      } else {
-        quoted = !quoted;
-      }
-    } else if (character === "," && !quoted) {
-      cells.push(cell);
-      cell = "";
-    } else {
-      cell += character;
-    }
-  }
-  cells.push(cell);
-  return cells;
 }
 
 // ─── buildViticultureUnlinkedWarning ─────────────────────────────────────────
@@ -217,9 +190,11 @@ describe("downloadCsvFile warning serialization", () => {
       expect(anchor.click).toHaveBeenCalledOnce();
       const csv = await downloadedBlob!.text();
       const csvWithoutBom = csv.charCodeAt(0) === 0xfeff ? csv.slice(1) : csv;
-      const firstCell = parseCsvLine(csvWithoutBom.split("\n")[0])[0];
+      const records = parseCsvText(csvWithoutBom);
+      const firstCell = records[0][0];
       expect(firstCell).toBe(warning);
-      expect(csvWithoutBom.split("\n")[0]).not.toContain('"""');
+      expect(records).toHaveLength(1);
+      expect(csvWithoutBom).not.toContain('"""');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -238,9 +213,9 @@ describe("Disease Scouting CSV — Notes column", () => {
     const csv = buildScoutingCsv([
       { ...SCOUTING_RECORD, notes: note, photoCount: 3 },
     ]);
-    const lines = csv.slice(1).split("\n"); // drop the Excel/Numbers BOM
-    const header = parseCsvLine(lines[1]);
-    const row = parseCsvLine(lines[2]);
+    const records = parseCsvText(csv.slice(1)); // drop the Excel/Numbers BOM
+    const header = records[1];
+    const row = records[2];
 
     expect(header[16]).toBe("Notes");
     expect(header[17]).toBe("Photos");
@@ -256,9 +231,9 @@ describe("Disease Scouting CSV — Notes column", () => {
       { ...SCOUTING_RECORD, notes: undefined },
       { ...SCOUTING_RECORD, notes: null },
     ]);
-    const lines = csv.slice(1).split("\n"); // drop the Excel/Numbers BOM
-    const header = parseCsvLine(lines[1]);
-    const rows = lines.slice(2).map(parseCsvLine);
+    const records = parseCsvText(csv.slice(1)); // drop the Excel/Numbers BOM
+    const header = records[1];
+    const rows = records.slice(2);
 
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     for (const row of rows) {
@@ -308,9 +283,9 @@ describe("buildViticultureCsvContent — exportCSV path (Phenology, Spray Diary)
     it("starts with the BOM then the column header on the first line", () => {
       const warning = buildViticultureUnlinkedWarning([LINKED]);
       const csv = buildViticultureCsvContent([LINKED], COLS, warning);
-      const firstLine = csv.slice(1).split("\n")[0]; // drop BOM
-      expect(firstLine).toContain('"Date"');
-      expect(firstLine).toContain('"BBCH Stage"');
+      const header = parseCsvText(csv.slice(1))[0]; // drop BOM
+      expect(header).toContain("Date");
+      expect(header).toContain("BBCH Stage");
     });
 
     it("includes every data row", () => {
@@ -326,16 +301,16 @@ describe("buildViticultureCsvContent — exportCSV path (Phenology, Spray Diary)
       const rows = [LINKED, UNLINKED];
       const warning = buildViticultureUnlinkedWarning(rows);
       const csv = buildViticultureCsvContent(rows, COLS, warning);
-      const lines = csv.slice(1).split("\n"); // drop BOM
-      expect(lines[0]).toContain("WARNING");
+      const records = parseCsvText(csv.slice(1)); // drop BOM
+      expect(records[0][0]).toContain("WARNING");
     });
 
     it("places the column header on the second line", () => {
       const rows = [LINKED, UNLINKED];
       const warning = buildViticultureUnlinkedWarning(rows);
       const csv = buildViticultureCsvContent(rows, COLS, warning);
-      const lines = csv.slice(1).split("\n");
-      expect(lines[1]).toContain('"Date"');
+      const records = parseCsvText(csv.slice(1));
+      expect(records[1]).toContain("Date");
     });
 
     it("warning contains singular '1 record'", () => {
@@ -367,6 +342,124 @@ describe("buildViticultureCsvContent — exportCSV path (Phenology, Spray Diary)
     const csv = buildViticultureCsvContent([LINKED], COLS);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
   });
+});
+
+// ─── Multiline free-text regression matrix ────────────────────────────────────
+//
+// A quoted newline is valid CSV, so these tests must parse the complete export.
+// Splitting the raw text on newline would itself turn a valid record into two
+// apparent rows and hide the spreadsheet-column regression this protects.
+
+const PHENOLOGY_COLUMNS = [
+  { key: "observationDate", label: "Date" },
+  { key: "block", label: "Block" },
+  { key: "blockLinked", label: "Block Linked" },
+  { key: "bbchStage", label: "BBCH Stage" },
+  { key: "description", label: "Description" },
+  { key: "percentageReached", label: "% Reached" },
+  { key: "observer", label: "Observer" },
+  { key: "temperatureC", label: "Temp (°C)" },
+  { key: "notes", label: "Notes" },
+];
+
+const HARVEST_DETAIL_COLUMNS = [
+  "Harvest Date", "Vintage Year", "Block", "Harvest Method", "Yield (kg)",
+  "kg/Vine", "t/ha", "Brix °", "pH", "TA (g/L)", "Potential Alcohol %",
+  "Grape Condition", "Botrytis Present", "Botrytis %", "Destination Winery",
+  "Operator", "Active Harvest Interval Acknowledged", "Acknowledged At",
+  "Affected Spray Products", "Notes", "Picks",
+];
+
+type MultilineCsvExportCase = {
+  name: string;
+  build: (note: string) => string;
+  headerRecord: number;
+  dataRecord: number;
+  noteHeader: string;
+  trailingCells: [string, string][];
+};
+
+const MULTILINE_CSV_EXPORT_CASES: MultilineCsvExportCase[] = [
+  {
+    name: "Phenology",
+    build: note => buildViticultureCsvContent([{
+      observationDate: "2024-06-15",
+      block: "East Field",
+      blockLinked: "Yes",
+      bbchStage: "55",
+      description: "Flowering",
+      percentageReached: "50",
+      observer: "Alice",
+      temperatureC: "18",
+      notes: note,
+    }], PHENOLOGY_COLUMNS),
+    headerRecord: 0,
+    dataRecord: 1,
+    noteHeader: "Notes",
+    trailingCells: [],
+  },
+  {
+    name: "Spray Diary",
+    build: note => buildCsv([
+      ["BLOCK SUMMARY"],
+      ["Block", "Applications", "First Date", "Last Date", "Total Area Treated (ha)", "Total Photos"],
+      ["East Field", "1", "15/06/2024", "15/06/2024", "1.50", "2"],
+      [],
+      ["DETAILED SPRAY RECORDS"],
+      ["Date", "Block", "Block Linked", "Product Name", "MAPP No.", "Type", "Rate/ha", "Rate Unit", "Area (ha)", "Operator", "Harvest Interval (days)", "Notes", "Photos"],
+      ["15/06/2024", "East Field", "Yes", "Vine Protect", "12345", "Fungicide", "1.5", "L/ha", "1.50", "Alice", "21", note, "2"],
+    ]),
+    headerRecord: 4,
+    dataRecord: 5,
+    noteHeader: "Notes",
+    trailingCells: [["Photos", "2"]],
+  },
+  {
+    name: "Harvest detail",
+    // HarvestTab adds the BOM after buildHarvestCsvContent assembles the CSV.
+    build: note => "\uFEFF" + buildHarvestCsvContent("full", {
+      warningLine: "",
+      lowPickWarningLine: "",
+      summaryTitle: "Yield Summary — by Block",
+      summaryHeader: [quoteCsvCell("Block"), quoteCsvCell("Picks")].join(","),
+      summaryRows: [[quoteCsvCell("East Field"), quoteCsvCell("1")].join(",")],
+      crossTabLines: [],
+      varietyLines: [],
+      detailHeader: HARVEST_DETAIL_COLUMNS.map(quoteCsvCell).join(","),
+      detailBody: [
+        "15/09/2024", "2024", "East Field", "Hand", "1500", "1.2", "5.0",
+        "18.5", "3.2", "6.1", "11.5", "Sound", "No", "", "Estate Winery",
+        "Alice", "Yes", "15/09/2024, 12:00", "Vine Protect", note, "1",
+      ].map(quoteCsvCell).join(","),
+    }),
+    // parseCsvText intentionally skips the blank section separator.
+    headerRecord: 4,
+    dataRecord: 5,
+    noteHeader: "Notes",
+    trailingCells: [["Picks", "1"]],
+  },
+];
+
+describe("Viticulture CSV multiline free-text regression matrix", () => {
+  it.each(MULTILINE_CSV_EXPORT_CASES)(
+    "$name retains one record with its expected columns and trailing cells",
+    ({ build, headerRecord, dataRecord, noteHeader, trailingCells }) => {
+      const note = 'Inspect east row,\nthen check the "lower canopy" again';
+      const records = parseCsvText(build(note).slice(1)); // all builders prepend a BOM
+      const header = records[headerRecord];
+      const row = records[dataRecord];
+      const noteIndex = header.indexOf(noteHeader);
+
+      expect(noteIndex).toBeGreaterThanOrEqual(0);
+      expect(row).toHaveLength(header.length);
+      expect(row[noteIndex]).toBe(note);
+      for (const [headerName, value] of trailingCells) {
+        const index = header.indexOf(headerName);
+        expect(index).toBeGreaterThan(noteIndex);
+        expect(row[index]).toBe(value);
+      }
+    },
+  );
 });
 
 // ─── HarvestTab warningLine pattern ──────────────────────────────────────────
